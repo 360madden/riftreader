@@ -121,7 +121,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -162,6 +162,11 @@ internal static class Program
         if (options.CaptureReaderBridgeBestFamily)
         {
             return RunPlayerSignatureCaptureMode(options, target, reader);
+        }
+
+        if (options.ReadPlayerCurrent)
+        {
+            return RunReadPlayerCurrentMode(options, target, reader);
         }
 
         var address = options.Address!.Value;
@@ -305,6 +310,45 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerSignatureProbeCaptureTextFormatter.Format(capture));
+        return 0;
+    }
+
+    private static int RunReadPlayerCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (document?.Current?.Player is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player-current reading.");
+            return 1;
+        }
+
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+        PlayerCurrentReadResult result;
+
+        try
+        {
+            result = PlayerCurrentReader.ReadCurrent(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                document,
+                inspectionRadius,
+                options.MaxHits);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current player snapshot: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
         return 0;
     }
 

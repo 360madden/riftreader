@@ -13,6 +13,7 @@ public sealed record ReaderOptions(
     bool WriteCheatEngineProbe,
     string? CheatEngineProbeFile,
     bool CaptureReaderBridgeBestFamily,
+    bool ReadPlayerCurrent,
     string? CaptureLabel,
     string? CaptureFile,
     string? ScanString,

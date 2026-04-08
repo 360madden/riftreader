@@ -21,6 +21,12 @@ The current prototype should stay focused on:
 - a minimal in-game addon that acts as a validation harness, not the primary data source
 - a reader CLI that can grow into robust switches, clear help, and colorized/highlighted menus
 
+The implementation bias should now be:
+
+- ship one narrow working reader path first
+- use the addon export plus Cheat Engine only to support that path
+- refine structure quality, anchors, and coverage after the first typed read is already useful
+
 ## Environment Constraint
 
 Active development and testing should always identify the exact Rift client
@@ -39,6 +45,7 @@ That means:
 3. use ReaderBridge exports plus grouped player-signature scans to narrow a first trustworthy candidate family
 4. materialize that family in Cheat Engine for interactive validation
 5. turn the winning layout back into a typed reader path
+6. ship a first `--read-player-current` mode that reads level / health / coords and compares them against the latest ReaderBridge export
 
 ## Addon Boundary
 
@@ -73,6 +80,19 @@ Cheat Engine is now part of the workflow, but in a narrow role:
   - typed model implementation
 
 See `C:\RIFT MODDING\RiftReader\docs\cheat-engine-workflow.md` for the current bridge between the two.
+
+## First Working Product
+
+The first working product does not need the full object model.
+
+It only needs to:
+
+- pick the current best player-family sample
+- read a few trusted fields from that sample
+- report whether they match the addon-exported ground truth
+
+That keeps the project moving toward a usable reader instead of spending too
+long perfecting discovery infrastructure first.
 
 ## CLI UX Requirement
 

@@ -75,6 +75,22 @@ The initial reader scaffold is responsible for:
 - printing a hex dump for inspection while pointer maps and typed models are still being defined
 - growing into a CLI with robust switches, intuitive help, and colorized/highlighted output where supported
 
+## Current Product Bias
+
+Current implementation work should prefer a **small working reader** over a
+perfectly generalized one.
+
+The immediate product target is a narrow typed player snapshot mode that can
+already prove useful:
+
+- resolve the current best player-signature family
+- prefer the CE-confirmed sample when available
+- read a few stable fields directly from memory
+- compare those fields against the latest ReaderBridge export
+
+That gives the project a usable reader sooner while leaving room to refine the
+anchor, offsets, and structure model later.
+
 ## Addon Validation Scope
 
 The addon layer currently contains:
@@ -101,8 +117,19 @@ saved-variable contract to consume.
 
 ## First Typed Reader Target
 
-The first comparison-oriented reader target is now a **process memory string
-scan**:
+The reader now has two near-term targets:
+
+1. **discovery modes**
+   - string / numeric / pointer / module scans
+   - Cheat Engine probe generation
+   - grouped player-signature family capture
+2. **first working typed reader mode**
+   - `--read-player-current`
+   - resolves the current best player-family sample
+   - reads level / health / coords directly from memory
+   - compares them against the latest ReaderBridge export
+
+Discovery-oriented modes:
 
 - generic scan:
   - `--scan-string <text>`
@@ -126,6 +153,10 @@ scan**:
 This is intended as the first practical bridge between:
 - addon-visible truth
 - and raw process memory evidence
+
+The first typed reader mode is intended as the first practical bridge between:
+- grouped discovery output
+- and a usable memory-backed player snapshot
 
 ## Build
 
@@ -235,6 +266,18 @@ Generate the current Cheat Engine probe script from the latest ReaderBridge expo
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
 ```
 
+Read the current player snapshot from memory using the best available grouped family:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current
+```
+
+Emit that player snapshot as JSON:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+```
+
 List modules in the attached Rift process:
 
 ```powershell
@@ -334,4 +377,9 @@ After that file exists, the normal reader capture mode will automatically prefer
 
 ## Next Milestone
 
-Replace ad hoc raw reads with documented environment-specific pointer maps, typed models, and addon-backed validation snapshots that can later be compared against reader output.
+Ship the first narrow typed player snapshot mode quickly, then refine it with
+better anchors:
+
+- today: grouped family selection plus direct field reads
+- next: ReClass/x64dbg-backed structure refinement
+- later: module signatures, pointer paths, and broader entity coverage

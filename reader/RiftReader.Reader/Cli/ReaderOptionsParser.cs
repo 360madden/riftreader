@@ -14,6 +14,7 @@ Usage:
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -34,6 +35,7 @@ Notes:
   - Use --scan-module-pattern to run a signature/AOB scan against a specific module or the main module by default.
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
+  - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
@@ -54,6 +56,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -83,6 +86,7 @@ Examples:
         var writeCheatEngineProbe = false;
         string? cheatEngineProbeFile = null;
         var captureReaderBridgeBestFamily = false;
+        var readPlayerCurrent = false;
         string? captureLabel = null;
         string? captureFile = null;
         string? scanString = null;
@@ -214,6 +218,10 @@ Examples:
 
                 case "--capture-readerbridge-best-family":
                     captureReaderBridgeBestFamily = true;
+                    break;
+
+                case "--read-player-current":
+                    readPlayerCurrent = true;
                     break;
 
                 case "--capture-label":
@@ -470,6 +478,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --capture-readerbridge-best-family.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && readPlayerCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-current.", UsageText);
+        }
+
         if (readAddonSnapshot && readReaderBridgeSnapshot)
         {
             return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
@@ -494,6 +507,7 @@ Examples:
                     WriteCheatEngineProbe: false,
                     CheatEngineProbeFile: null,
                     CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
                     CaptureLabel: null,
                     CaptureFile: null,
                     ScanString: null,
@@ -537,6 +551,7 @@ Examples:
                     WriteCheatEngineProbe: false,
                     CheatEngineProbeFile: null,
                     CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
                     CaptureLabel: null,
                     CaptureFile: null,
                     ScanString: null,
@@ -591,6 +606,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with scan switches.", UsageText);
         }
 
+        if (readPlayerCurrent && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with scan switches.", UsageText);
+        }
+
         if (writeCheatEngineProbe && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with raw memory-read switches.", UsageText);
@@ -601,6 +621,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with raw memory-read switches.", UsageText);
         }
 
+        if (readPlayerCurrent && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (captureLabel is not null && !captureReaderBridgeBestFamily)
         {
             return ReaderOptionsParseResult.Fail("--capture-label can only be used with --capture-readerbridge-best-family.", UsageText);
@@ -609,6 +634,21 @@ Examples:
         if (captureFile is not null && !captureReaderBridgeBestFamily)
         {
             return ReaderOptionsParseResult.Fail("--capture-file can only be used with --capture-readerbridge-best-family.", UsageText);
+        }
+
+        if (listModules && readPlayerCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-current.", UsageText);
+        }
+
+        if (writeCheatEngineProbe && readPlayerCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-current.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && readPlayerCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-current.", UsageText);
         }
 
         if (address.HasValue != length.HasValue)
@@ -628,6 +668,7 @@ Examples:
                 WriteCheatEngineProbe: writeCheatEngineProbe,
                 CheatEngineProbeFile: cheatEngineProbeFile,
                 CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
+                ReadPlayerCurrent: readPlayerCurrent,
                 CaptureLabel: captureLabel,
                 CaptureFile: captureFile,
                 ScanString: scanString,
