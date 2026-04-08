@@ -11,6 +11,9 @@ public static class PlayerSignatureProbeCaptureTextFormatter
             $"Family:              {capture.FamilyId}",
             $"Kind:                {capture.FamilyNotes}",
             $"Signature:           {capture.Signature}",
+            $"Selection source:    {capture.SelectionSource}",
+            $"Confirmation file:   {capture.ConfirmationFile ?? "n/a"}",
+            $"CE confirmed hits:   {capture.CeConfirmedSampleCount}",
             $"Label:               {capture.Label ?? "n/a"}",
             $"Output file:         {capture.OutputFile ?? "n/a"}",
             $"Samples:             {capture.HitCount}"

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.CheatEngine;
 using RiftReader.Reader.Cli;
@@ -81,6 +82,7 @@ internal static class Program
         }
 
         var scanRequested =
+            !string.IsNullOrWhiteSpace(options.ScanModulePattern) ||
             !string.IsNullOrWhiteSpace(options.ScanString) ||
             options.ScanPointer.HasValue ||
             options.ScanInt32.HasValue ||
@@ -90,6 +92,34 @@ internal static class Program
             options.ScanReaderBridgePlayerCoords ||
             options.ScanReaderBridgePlayerSignature ||
             options.ScanReaderBridgeIdentity;
+
+        if (options.ListModules)
+        {
+            try
+            {
+                var modules = ProcessModuleLocator.ListModules(process);
+                var moduleListResult = new ModuleListResult(
+                    Mode: "module-list",
+                    ProcessId: target.ProcessId,
+                    ProcessName: target.ProcessName,
+                    ModuleCount: modules.Count,
+                    Modules: modules);
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(moduleListResult));
+                    return 0;
+                }
+
+                Console.WriteLine(ModuleListTextFormatter.Format(moduleListResult));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Unable to enumerate process modules: {ex.Message}");
+                return 1;
+            }
+        }
 
         if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
@@ -121,7 +151,7 @@ internal static class Program
 
         if (scanRequested)
         {
-            return RunScanMode(options, target, reader);
+            return RunScanMode(options, process, target, reader);
         }
 
         if (options.WriteCheatEngineProbe)
@@ -329,8 +359,48 @@ internal static class Program
         return 0;
     }
 
-    private static int RunScanMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    private static int RunScanMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
+        if (!string.IsNullOrWhiteSpace(options.ScanModulePattern))
+        {
+            var module = ProcessModuleLocator.FindModule(process, options.ScanModuleName, out var moduleError);
+            if (module is null)
+            {
+                Console.Error.WriteLine(moduleError ?? "Unable to resolve the requested module.");
+                return 1;
+            }
+
+            ModulePatternScanResult scanResult;
+            try
+            {
+                scanResult = ModulePatternScanner.Scan(
+                    process,
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    module.ModuleName,
+                    module.FileName,
+                    module.BaseAddress.ToInt64(),
+                    module.ModuleMemorySize,
+                    options.ScanModulePattern,
+                    options.ScanContextBytes);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Unable to run the module pattern scan: {ex.Message}");
+                return 1;
+            }
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(scanResult));
+                return 0;
+            }
+
+            Console.WriteLine(ModulePatternScanTextFormatter.Format(scanResult));
+            return 0;
+        }
+
         if (options.ScanPointer.HasValue)
         {
             var pointerResult = ProcessPointerScanner.Scan(

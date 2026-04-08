@@ -137,4 +137,14 @@ function RiftReaderFloatScan.getAddress(index)
   return addressValue
 end
 
+function RiftReaderFloatScan.readScaledFloatAt(address, offset, scale)
+  local value = readFloat(address + (offset or 0))
+  if value == nil then
+    return 0
+  end
+
+  scale = scale or 1000
+  return math.floor((value * scale) + (value >= 0 and 0.5 or -0.5))
+end
+
 return RiftReaderFloatScan

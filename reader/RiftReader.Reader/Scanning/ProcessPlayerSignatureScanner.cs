@@ -125,7 +125,6 @@ public static class ProcessPlayerSignatureScanner
                     },
                     SampleAddresses = group
                         .OrderBy(static hit => hit.Address)
-                        .Take(3)
                         .Select(static hit => hit.AddressHex)
                         .ToArray()
                 };

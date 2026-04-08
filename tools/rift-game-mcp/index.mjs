@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -323,6 +323,31 @@ async function loadBindings() {
   }
 }
 
+async function loadBindingsDocument() {
+  await ensureRuntimeDirs();
+
+  try {
+    return JSON.parse(await readFile(bindingsFilePath, 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return {};
+    }
+
+    throw new Error(
+      `Failed to load bindings document from ${bindingsFilePath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function saveBindingsDocument(document) {
+  await ensureRuntimeDirs();
+  await writeFile(
+    bindingsFilePath,
+    `${JSON.stringify(document, null, 2)}\n`,
+    'utf8',
+  );
+}
+
 async function captureBoundWindow(outputPath = nextScreenshotPath()) {
   await ensureRuntimeDirs();
   const result = await runPowerShell('capture', {
@@ -453,6 +478,28 @@ function getInventoryVerification(bindings, { requireStateReferences = false } =
   return verification;
 }
 
+function resolveReferencePath(overridePath, configuredPath) {
+  if (overridePath) {
+    return normalizeConfiguredPath(overridePath);
+  }
+
+  return configuredPath ?? null;
+}
+
+function buildInventoryReferenceConfigMessage(openReferencePath, closedReferencePath) {
+  const missing = [];
+
+  if (!openReferencePath) {
+    missing.push('inventoryVerification.openReferencePath');
+  }
+
+  if (!closedReferencePath) {
+    missing.push('inventoryVerification.closedReferencePath');
+  }
+
+  return `Inventory reference screenshots are not configured for region suggestion. Set ${missing.join(' and ')} in ${bindingsFilePath} or pass the reference paths explicitly.`;
+}
+
 function isResolvedInventoryState(value) {
   return value === 'open' || value === 'closed';
 }
@@ -463,6 +510,93 @@ async function compareImages(baselinePath, comparePath, region = null) {
     ComparePath: comparePath,
     ...buildRegionParametersFromRegion(region),
   });
+}
+
+async function detectImageDifferenceRegion({
+  baselinePath,
+  comparePath,
+  paddingPixels = 12,
+  region = null,
+}) {
+  return runPowerShell('detect-diff-region', {
+    BaselinePath: baselinePath,
+    ComparePath: comparePath,
+    PaddingPixels: paddingPixels,
+    ...buildRegionParametersFromRegion(region),
+  });
+}
+
+async function suggestInventoryVerificationRegion({
+  openReferencePath,
+  closedReferencePath,
+  paddingPixels,
+  searchRegion = null,
+  saveToBindings = false,
+}) {
+  const bindings = await loadBindings();
+  const verification = getInventoryVerification(bindings);
+  const resolvedOpenReferencePath = resolveReferencePath(
+    openReferencePath,
+    verification.openReferencePath,
+  );
+  const resolvedClosedReferencePath = resolveReferencePath(
+    closedReferencePath,
+    verification.closedReferencePath,
+  );
+
+  if (!resolvedOpenReferencePath || !resolvedClosedReferencePath) {
+    throw createDetailedError(
+      buildInventoryReferenceConfigMessage(
+        resolvedOpenReferencePath,
+        resolvedClosedReferencePath,
+      ),
+      {
+        bindingsFilePath,
+        inventoryVerification: verification,
+      },
+    );
+  }
+
+  const detection = await detectImageDifferenceRegion({
+    baselinePath: resolvedClosedReferencePath,
+    comparePath: resolvedOpenReferencePath,
+    paddingPixels,
+    region: searchRegion,
+  });
+
+  if (!detection.hasChanges) {
+    throw createDetailedError(
+      'No visual difference was found between the configured open/closed inventory reference screenshots. Capture new references with the bags panel clearly closed vs open, then try again.',
+      {
+        openReferencePath: resolvedOpenReferencePath,
+        closedReferencePath: resolvedClosedReferencePath,
+        searchRegion,
+      },
+    );
+  }
+
+  const suggestedRegion = normalizeVerificationRegion(detection.region);
+
+  if (saveToBindings) {
+    const bindingsDocument = await loadBindingsDocument();
+    bindingsDocument.inventoryVerification = {
+      ...(bindingsDocument.inventoryVerification ?? {}),
+      region: suggestedRegion,
+    };
+    await saveBindingsDocument(bindingsDocument);
+  }
+
+  return {
+    suggestedRegion,
+    savedToBindings: saveToBindings,
+    openReferencePath: resolvedOpenReferencePath,
+    closedReferencePath: resolvedClosedReferencePath,
+    paddingPixels,
+    searchRegion: detection.searchRegion,
+    changedPixelCount: detection.changedPixelCount,
+    changedPixelPercent: detection.changedPixelPercent,
+    rawRegion: detection.rawRegion,
+  };
 }
 
 async function detectInventoryStateFromScreenshot(screenshotPath, verification) {
@@ -1073,6 +1207,100 @@ server.registerTool(
         window: state.boundWindow,
       };
     }),
+);
+
+server.registerTool(
+  'suggest_inventory_region',
+  {
+    title: 'Suggest inventory verification region',
+    description:
+      'Finds the changed panel area between open/closed bags reference screenshots and can optionally save the suggested region into tools/rift-game-mcp/config/bindings.json.',
+    inputSchema: {
+      openReferencePath: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional override path to the bags-open reference screenshot. If omitted, inventoryVerification.openReferencePath from bindings.json is used.',
+        ),
+      closedReferencePath: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional override path to the bags-closed reference screenshot. If omitted, inventoryVerification.closedReferencePath from bindings.json is used.',
+        ),
+      paddingPixels: z
+        .number()
+        .int()
+        .min(0)
+        .max(500)
+        .default(12)
+        .describe(
+          'Extra padding added around the detected changed area before returning the suggested region.',
+        ),
+      saveToBindings: z
+        .boolean()
+        .default(false)
+        .describe(
+          'When true, writes the suggested region into tools/rift-game-mcp/config/bindings.json inventoryVerification.region.',
+        ),
+      regionX: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Optional X of a search region that limits where the diff detector looks.'),
+      regionY: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Optional Y of a search region that limits where the diff detector looks.'),
+      regionWidth: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Optional width of a search region that limits where the diff detector looks.'),
+      regionHeight: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Optional height of a search region that limits where the diff detector looks.'),
+    },
+  },
+  async ({
+    openReferencePath,
+    closedReferencePath,
+    paddingPixels,
+    saveToBindings,
+    regionX,
+    regionY,
+    regionWidth,
+    regionHeight,
+  }) =>
+    runLoggedTool('suggest_inventory_region', async () =>
+      suggestInventoryVerificationRegion({
+        openReferencePath,
+        closedReferencePath,
+        paddingPixels,
+        saveToBindings,
+        searchRegion:
+          regionX === undefined &&
+          regionY === undefined &&
+          regionWidth === undefined &&
+          regionHeight === undefined
+            ? null
+            : {
+                x: regionX,
+                y: regionY,
+                width: regionWidth,
+                height: regionHeight,
+              },
+      }),
+    ),
 );
 
 server.registerTool(

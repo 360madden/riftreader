@@ -286,9 +286,11 @@ function Wait-ForTimestampAdvance {
 
     $deadline = (Get-Date).ToUniversalTime().AddSeconds($TimeoutSeconds)
     do {
-        $currentUtc = Get-FileTimestampUtc -Path $Path
-        if ($currentUtc -gt $BaselineUtc) {
-            return $currentUtc
+        if (Test-Path -LiteralPath $Path) {
+            $currentUtc = Get-FileTimestampUtc -Path $Path
+            if ($currentUtc -gt $BaselineUtc) {
+                return $currentUtc
+            }
         }
 
         Start-Sleep -Milliseconds 250

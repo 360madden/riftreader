@@ -9,6 +9,8 @@ public static class ReaderOptionsParser
 Usage:
   RiftReader.Reader --pid <processId>
   RiftReader.Reader --process-name <name>
+  RiftReader.Reader --process-name <name> --list-modules [--json]
+  RiftReader.Reader --process-name <name> --scan-module-pattern "<aa bb ?? cc>" [--scan-module-name <module>] [--scan-context <bytes>] [--json]
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
@@ -28,6 +30,8 @@ Notes:
   - Use this reader only against Rift client processes you explicitly intend to inspect.
   - Provide either --pid or --process-name, but not both.
   - Provide --address and --length together when you want a raw memory read.
+  - Use --list-modules to inspect the module list for the attached process.
+  - Use --scan-module-pattern to run a signature/AOB scan against a specific module or the main module by default.
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --scan-string to search process memory for a text value.
@@ -45,6 +49,8 @@ Notes:
 
 Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --list-modules
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-module-pattern "48 8B ?? ?? ?? ?? ?? 48 85 C0" --scan-module-name rift_x64.exe --scan-context 32
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
@@ -71,6 +77,9 @@ Examples:
         string? processName = null;
         nint? address = null;
         int? length = null;
+        var listModules = false;
+        string? scanModuleName = null;
+        string? scanModulePattern = null;
         var writeCheatEngineProbe = false;
         string? cheatEngineProbeFile = null;
         var captureReaderBridgeBestFamily = false;
@@ -140,6 +149,38 @@ Examples:
                     }
 
                     address = parsedAddress;
+                    break;
+
+                case "--list-modules":
+                    listModules = true;
+                    break;
+
+                case "--scan-module-pattern":
+                    if (!TryReadNext(args, ref index, out var scanModulePatternValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-module-pattern.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(scanModulePatternValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Module scan pattern must not be blank.", UsageText);
+                    }
+
+                    scanModulePattern = scanModulePatternValue;
+                    break;
+
+                case "--scan-module-name":
+                    if (!TryReadNext(args, ref index, out var scanModuleNameValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-module-name.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(scanModuleNameValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Module name must not be blank.", UsageText);
+                    }
+
+                    scanModuleName = scanModuleNameValue;
                     break;
 
                 case "--length":
@@ -383,6 +424,7 @@ Examples:
 
         var scanRequested =
             !string.IsNullOrWhiteSpace(scanString) ||
+            !string.IsNullOrWhiteSpace(scanModulePattern) ||
             scanReaderBridgePlayerName ||
             scanReaderBridgePlayerCoords ||
             scanReaderBridgePlayerSignature ||
@@ -446,6 +488,9 @@ Examples:
                     ProcessName: null,
                     Address: null,
                     Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
                     WriteCheatEngineProbe: false,
                     CheatEngineProbeFile: null,
                     CaptureReaderBridgeBestFamily: false,
@@ -486,6 +531,9 @@ Examples:
                     ProcessName: null,
                     Address: null,
                     Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
                     WriteCheatEngineProbe: false,
                     CheatEngineProbeFile: null,
                     CaptureReaderBridgeBestFamily: false,
@@ -521,6 +569,16 @@ Examples:
         if (scanRequested && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || address.HasValue))
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, or raw memory-read switches.", UsageText);
+        }
+
+        if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
+        {
+            return ReaderOptionsParseResult.Fail("--scan-module-name can only be used with --scan-module-pattern.", UsageText);
         }
 
         if (writeCheatEngineProbe && scanRequested)
@@ -564,6 +622,9 @@ Examples:
                 ProcessName: processName,
                 Address: address,
                 Length: length,
+                ListModules: listModules,
+                ScanModuleName: scanModuleName,
+                ScanModulePattern: scanModulePattern,
                 WriteCheatEngineProbe: writeCheatEngineProbe,
                 CheatEngineProbeFile: cheatEngineProbeFile,
                 CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,

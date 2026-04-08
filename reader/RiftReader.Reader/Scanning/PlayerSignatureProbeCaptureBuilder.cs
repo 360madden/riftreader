@@ -49,7 +49,17 @@ public static class PlayerSignatureProbeCaptureBuilder
             throw new InvalidOperationException("No grouped player-signature families were found.");
         }
 
-        var selected = SelectBestVerifiedFamily(reader, scanResult, player.Level, TryNarrow(player.Hp), (float)coordX, (float)coordY, (float)coordZ);
+        var ceConfirmation = PlayerSignatureCeConfirmationLoader.TryLoad(null, out _);
+        var selected = SelectPreferredFamily(
+            reader,
+            scanResult,
+            ceConfirmation,
+            player.Level,
+            TryNarrow(player.Hp),
+            (float)coordX,
+            (float)coordY,
+            (float)coordZ);
+
         if (selected.Family is null || selected.RepresentativeHit is null)
         {
             throw new InvalidOperationException("Unable to resolve a representative player-signature family.");
@@ -61,12 +71,15 @@ public static class PlayerSignatureProbeCaptureBuilder
         var healthSignal = selected.HealthSignal;
         var nameSignal = selected.NameSignal;
         var locationSignal = selected.LocationSignal;
+        var orderedSampleAddresses = selected.SelectionSource == "ce-confirmed" && selected.CeConfirmedSampleCount > 0
+            ? selected.OrderedSampleAddresses.Take(selected.CeConfirmedSampleCount).ToArray()
+            : family.SampleAddresses.Take(3).ToArray();
 
-        var samples = new List<PlayerSignatureProbeSample>(family.SampleAddresses.Count);
+        var samples = new List<PlayerSignatureProbeSample>(orderedSampleAddresses.Length);
 
-        for (var index = 0; index < family.SampleAddresses.Count; index++)
+        for (var index = 0; index < orderedSampleAddresses.Length; index++)
         {
-            var sampleAddress = ParseHexAddress(family.SampleAddresses[index]);
+            var sampleAddress = ParseHexAddress(orderedSampleAddresses[index]);
             samples.Add(new PlayerSignatureProbeSample(
                 SampleIndex: index + 1,
                 Address: sampleAddress,
@@ -96,10 +109,121 @@ public static class PlayerSignatureProbeCaptureBuilder
             FamilyId: family.FamilyId,
             FamilyNotes: family.Notes,
             Signature: family.Signature,
+            SelectionSource: selected.SelectionSource,
+            ConfirmationFile: selected.ConfirmationFile,
+            CeConfirmedSampleCount: selected.CeConfirmedSampleCount,
             Label: label,
             OutputFile: resolvedOutputFile,
             HitCount: samples.Count,
             Samples: samples);
+    }
+
+    private static (PlayerSignatureFamilySummary? Family, PlayerSignatureScanHit? RepresentativeHit, PlayerSignatureSignal? LevelSignal, PlayerSignatureSignal? HealthSignal, PlayerSignatureSignal? NameSignal, PlayerSignatureSignal? LocationSignal, string SelectionSource, string? ConfirmationFile, int CeConfirmedSampleCount, IReadOnlyList<string> OrderedSampleAddresses) SelectPreferredFamily(
+        ProcessMemoryReader reader,
+        PlayerSignatureScanResult scanResult,
+        PlayerSignatureCeConfirmationDocument? ceConfirmation,
+        int? expectedLevel,
+        int? expectedHealth,
+        float expectedCoordX,
+        float expectedCoordY,
+        float expectedCoordZ)
+    {
+        var ceSelected = TrySelectCeConfirmedFamily(scanResult, ceConfirmation);
+        if (ceSelected.Family is not null && ceSelected.RepresentativeHit is not null)
+        {
+            return ceSelected;
+        }
+
+        var verified = SelectBestVerifiedFamily(reader, scanResult, expectedLevel, expectedHealth, expectedCoordX, expectedCoordY, expectedCoordZ);
+        return (
+            verified.Family,
+            verified.RepresentativeHit,
+            verified.LevelSignal,
+            verified.HealthSignal,
+            verified.NameSignal,
+            verified.LocationSignal,
+            "heuristic",
+            ceConfirmation?.ConfirmationFile,
+            0,
+            verified.Family?.SampleAddresses ?? Array.Empty<string>());
+    }
+
+    private static (PlayerSignatureFamilySummary? Family, PlayerSignatureScanHit? RepresentativeHit, PlayerSignatureSignal? LevelSignal, PlayerSignatureSignal? HealthSignal, PlayerSignatureSignal? NameSignal, PlayerSignatureSignal? LocationSignal, string SelectionSource, string? ConfirmationFile, int CeConfirmedSampleCount, IReadOnlyList<string> OrderedSampleAddresses) TrySelectCeConfirmedFamily(
+        PlayerSignatureScanResult scanResult,
+        PlayerSignatureCeConfirmationDocument? ceConfirmation)
+    {
+        if (ceConfirmation?.WinnerFamilyId is not string winnerFamilyId || string.IsNullOrWhiteSpace(winnerFamilyId))
+        {
+            return default;
+        }
+
+        var family = scanResult.Families.FirstOrDefault(candidate =>
+            string.Equals(candidate.FamilyId, winnerFamilyId, StringComparison.Ordinal));
+
+        if (family is null)
+        {
+            return default;
+        }
+
+        var confirmationFamily = ceConfirmation.Families?
+            .FirstOrDefault(candidate => string.Equals(candidate.FamilyId, winnerFamilyId, StringComparison.Ordinal))
+            ?? ceConfirmation.Winner;
+
+        var confirmedAddressSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (confirmationFamily?.CeConfirmedSampleAddresses is not null)
+        {
+            foreach (var address in confirmationFamily.CeConfirmedSampleAddresses)
+            {
+                if (!string.IsNullOrWhiteSpace(address))
+                {
+                    confirmedAddressSet.Add(address);
+                }
+            }
+        }
+
+        var orderedAddresses = family.SampleAddresses
+            .Where(confirmedAddressSet.Contains)
+            .Concat(family.SampleAddresses.Where(address => !confirmedAddressSet.Contains(address)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var confirmedMatches = orderedAddresses.Count(address => confirmedAddressSet.Contains(address));
+        var representativeHit = scanResult.Hits.FirstOrDefault(hit =>
+            string.Equals(hit.FamilyId, winnerFamilyId, StringComparison.Ordinal) &&
+            confirmedAddressSet.Contains(hit.AddressHex))
+            ?? scanResult.Hits.FirstOrDefault(hit => string.Equals(hit.FamilyId, winnerFamilyId, StringComparison.Ordinal));
+
+        if (representativeHit is null)
+        {
+            return default;
+        }
+
+        if (confirmedMatches <= 0)
+        {
+            return (
+                family,
+                representativeHit,
+                FindSignal(representativeHit, "level"),
+                FindSignal(representativeHit, "health"),
+                FindSignal(representativeHit, "name"),
+                FindSignal(representativeHit, "location"),
+                "ce-guided-family",
+                ceConfirmation.ConfirmationFile,
+                0,
+                family.SampleAddresses);
+        }
+
+        return (
+            family,
+            representativeHit,
+            FindSignal(representativeHit, "level"),
+            FindSignal(representativeHit, "health"),
+            FindSignal(representativeHit, "name"),
+            FindSignal(representativeHit, "location"),
+            "ce-confirmed",
+            ceConfirmation.ConfirmationFile,
+            confirmedMatches,
+            orderedAddresses);
     }
 
     private static (PlayerSignatureFamilySummary? Family, PlayerSignatureScanHit? RepresentativeHit, PlayerSignatureSignal? LevelSignal, PlayerSignatureSignal? HealthSignal, PlayerSignatureSignal? NameSignal, PlayerSignatureSignal? LocationSignal) SelectBestVerifiedFamily(

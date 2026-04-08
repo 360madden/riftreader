@@ -31,3 +31,7 @@ build/
 
 # Generated local helper artifacts
 scripts/cheat-engine/
+scripts/captures/
+tools/reverse-engineering/downloads/
+tools/reverse-engineering/ReClass.NET/
+tools/reverse-engineering/x64dbg/

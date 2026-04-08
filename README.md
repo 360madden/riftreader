@@ -56,6 +56,10 @@ RiftReader/
 │   ├── sync-addon.cmd
 │   ├── validate-addon.cmd
 │   └── watch-readerbridge-export.cmd
+├── tools/
+│   └── reverse-engineering/
+│       ├── README.md
+│       └── install-tools.ps1
 ├── .gitignore
 ├── README.md
 └── RiftReader.slnx
@@ -115,6 +119,9 @@ scan**:
   - `--cheatengine-probe-file <path>`
 - reference scan:
   - `--scan-pointer <address>`
+- module-aware scan:
+  - `--list-modules`
+  - `--scan-module-pattern "<aa bb ?? cc>" [--scan-module-name <module>]`
 
 This is intended as the first practical bridge between:
 - addon-visible truth
@@ -228,6 +235,18 @@ Generate the current Cheat Engine probe script from the latest ReaderBridge expo
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
 ```
 
+List modules in the attached Rift process:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --list-modules
+```
+
+Run a module-local AOB/signature scan against the main Rift module:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-module-pattern "4D 5A" --scan-module-name rift_x64.exe --scan-context 16
+```
+
 ## Helper Scripts
 
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check all project Lua addons with `luac`
@@ -243,11 +262,28 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd` - remotely append the current best-family sample set to `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\probe-samples.tsv`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
-- `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path, then load the updated snapshot through the reader
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
 - `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scan / rescan workflows
-- `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd` - CE-assisted player-signature family helper that moves the character, rescans exact coordinate values in CE, and confirms which candidate sample addresses are truly tracking live movement
+- `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd` - CE-assisted player-signature family helper that can retry across multiple movement axes (`X`, then `Z` by default), normalizes non-`X` CE hits back to the player-structure base address, and writes `C:\RIFT MODDING\RiftReader\scripts\captures\ce-smart-player-family.json` so the standard capture flow can prefer or directly confirm the CE-backed family on later runs
+- `C:\RIFT MODDING\RiftReader\scripts\open-reclass.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-reclass.cmd` - launch the repo-local ReClass.NET x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\ReClass.NET`
+- `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd` - launch the repo-local x64dbg x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\x64dbg`
+
+Reverse-engineering tool staging:
+
+```powershell
+C:\RIFT MODDING\RiftReader\tools\reverse-engineering\install-tools.ps1
+```
+
+That refreshes the repo-local copies of:
+
+- `ReClass.NET`
+- `x64dbg`
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\README.md`
 
 The deploy scripts auto-detect common Rift addon locations and also respect the `RIFT_ADDONS_DIR` environment variable if you want to override the target.
 
@@ -293,6 +329,8 @@ Run the CE-assisted player-family smart capture:
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd
 ```
+
+After that file exists, the normal reader capture mode will automatically prefer the CE-backed family when it still matches the current grouped scan, and will use `SelectionSource = ce-confirmed` when the helper captured direct sample-address matches.
 
 ## Next Milestone
 

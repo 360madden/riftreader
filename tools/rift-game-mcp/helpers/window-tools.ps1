@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "wait-for-change", "compare-images")]
+    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "wait-for-change", "compare-images", "detect-diff-region")]
     [string]$Operation,
 
     [string]$ProcessName,
@@ -24,7 +24,8 @@ param(
     [int]$RegionX = -1,
     [int]$RegionY = -1,
     [int]$RegionWidth = -1,
-    [int]$RegionHeight = -1
+    [int]$RegionHeight = -1,
+    [int]$PaddingPixels = 12
 )
 
 Set-StrictMode -Version Latest
@@ -699,6 +700,125 @@ function Get-ImageChangePercent {
     }
 }
 
+function Get-ImageDifferenceBounds {
+    param(
+        [System.Drawing.Bitmap]$BaselineBitmap,
+        [System.Drawing.Bitmap]$CurrentBitmap,
+        [System.Drawing.Rectangle]$SearchRegion
+    )
+
+    $minX = $SearchRegion.Right
+    $minY = $SearchRegion.Bottom
+    $maxX = $SearchRegion.X - 1
+    $maxY = $SearchRegion.Y - 1
+    $changedPixels = 0
+
+    for ($x = $SearchRegion.X; $x -lt $SearchRegion.Right; $x++) {
+        for ($y = $SearchRegion.Y; $y -lt $SearchRegion.Bottom; $y++) {
+            $baselineColor = $BaselineBitmap.GetPixel($x, $y)
+            $currentColor = $CurrentBitmap.GetPixel($x, $y)
+            $difference = [Math]::Abs($baselineColor.R - $currentColor.R) +
+                [Math]::Abs($baselineColor.G - $currentColor.G) +
+                [Math]::Abs($baselineColor.B - $currentColor.B)
+
+            if ($difference -ge $PixelDifferenceThreshold) {
+                $changedPixels++
+
+                if ($x -lt $minX) { $minX = $x }
+                if ($y -lt $minY) { $minY = $y }
+                if ($x -gt $maxX) { $maxX = $x }
+                if ($y -gt $maxY) { $maxY = $y }
+            }
+        }
+    }
+
+    if ($changedPixels -eq 0) {
+        return [pscustomobject]@{
+            hasChanges = $false
+            changedPixels = 0
+            changedPixelPercent = 0.0
+            rawRegion = $null
+            paddedRegion = $null
+        }
+    }
+
+    $searchAreaPixels = [Math]::Max(1, $SearchRegion.Width * $SearchRegion.Height)
+    $rawRegion = [System.Drawing.Rectangle]::new(
+        $minX,
+        $minY,
+        ($maxX - $minX) + 1,
+        ($maxY - $minY) + 1
+    )
+
+    $paddedLeft = [Math]::Max($SearchRegion.X, $rawRegion.X - $PaddingPixels)
+    $paddedTop = [Math]::Max($SearchRegion.Y, $rawRegion.Y - $PaddingPixels)
+    $paddedRight = [Math]::Min($SearchRegion.Right, $rawRegion.Right + $PaddingPixels)
+    $paddedBottom = [Math]::Min($SearchRegion.Bottom, $rawRegion.Bottom + $PaddingPixels)
+    $paddedRegion = [System.Drawing.Rectangle]::new(
+        $paddedLeft,
+        $paddedTop,
+        [Math]::Max(1, $paddedRight - $paddedLeft),
+        [Math]::Max(1, $paddedBottom - $paddedTop)
+    )
+
+    return [pscustomobject]@{
+        hasChanges = $true
+        changedPixels = $changedPixels
+        changedPixelPercent = [Math]::Round(($changedPixels * 100.0) / $searchAreaPixels, 4)
+        rawRegion = $rawRegion
+        paddedRegion = $paddedRegion
+    }
+}
+
+function Detect-ImageDifferenceRegion {
+    param(
+        [string]$ReferencePath,
+        [string]$CandidatePath
+    )
+
+    if (-not (Test-Path -LiteralPath $ReferencePath)) {
+        throw "Reference screenshot was not found: $ReferencePath"
+    }
+
+    if (-not (Test-Path -LiteralPath $CandidatePath)) {
+        throw "Candidate screenshot was not found: $CandidatePath"
+    }
+
+    $referenceBitmap = New-Object System.Drawing.Bitmap $ReferencePath
+    $candidateBitmap = New-Object System.Drawing.Bitmap $CandidatePath
+
+    try {
+        if ($referenceBitmap.Width -ne $candidateBitmap.Width -or $referenceBitmap.Height -ne $candidateBitmap.Height) {
+            throw "Cannot compare images with different dimensions. Reference is $($referenceBitmap.Width)x$($referenceBitmap.Height), candidate is $($candidateBitmap.Width)x$($candidateBitmap.Height)."
+        }
+
+        $searchRegion = Get-RegionRectangle -ImageWidth $referenceBitmap.Width -ImageHeight $referenceBitmap.Height
+        $difference = Get-ImageDifferenceBounds -BaselineBitmap $referenceBitmap -CurrentBitmap $candidateBitmap -SearchRegion $searchRegion
+
+        return [pscustomobject]@{
+            hasChanges = $difference.hasChanges
+            changedPixelCount = $difference.changedPixels
+            changedPixelPercent = $difference.changedPixelPercent
+            searchRegion = (Convert-RectangleToRegionObject -Rectangle $searchRegion)
+            rawRegion = if ($difference.rawRegion) { Convert-RectangleToRegionObject -Rectangle $difference.rawRegion } else { $null }
+            region = if ($difference.paddedRegion) { Convert-RectangleToRegionObject -Rectangle $difference.paddedRegion } else { $null }
+            referenceImageSize = [pscustomobject]@{
+                width = $referenceBitmap.Width
+                height = $referenceBitmap.Height
+            }
+            candidateImageSize = [pscustomobject]@{
+                width = $candidateBitmap.Width
+                height = $candidateBitmap.Height
+            }
+            paddingPixels = $PaddingPixels
+        }
+    }
+    finally {
+        $referenceBitmap.Dispose()
+        $candidateBitmap.Dispose()
+    }
+}
+
 function Wait-ForWindowFrameChange {
     param(
         [psobject]$Window,
@@ -865,6 +985,10 @@ try {
         }
         "compare-images" {
             Compare-ImageFiles -ReferencePath $BaselinePath -CandidatePath $ComparePath
+            break
+        }
+        "detect-diff-region" {
+            Detect-ImageDifferenceRegion -ReferencePath $BaselinePath -CandidatePath $ComparePath
             break
         }
         "click" {
