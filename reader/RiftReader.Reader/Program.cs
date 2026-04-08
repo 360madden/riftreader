@@ -91,7 +91,7 @@ internal static class Program
             options.ScanReaderBridgePlayerSignature ||
             options.ScanReaderBridgeIdentity;
 
-        if (!options.WriteCheatEngineProbe && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -127,6 +127,11 @@ internal static class Program
         if (options.WriteCheatEngineProbe)
         {
             return RunCheatEngineProbeMode(options, target, reader);
+        }
+
+        if (options.CaptureReaderBridgeBestFamily)
+        {
+            return RunPlayerSignatureCaptureMode(options, target, reader);
         }
 
         var address = options.Address!.Value;
@@ -226,6 +231,50 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("Load the script in Cheat Engine, or install the autorun bootstrap and restart Cheat Engine.");
         Console.WriteLine("Then run: RiftReaderProbe.attachAndPopulate()");
+        return 0;
+    }
+
+    private static int RunPlayerSignatureCaptureMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (document?.Current?.Player is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player-signature capture.");
+            return 1;
+        }
+
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var outputFile = string.IsNullOrWhiteSpace(options.CaptureFile)
+            ? null
+            : Path.GetFullPath(options.CaptureFile);
+
+        PlayerSignatureProbeCapture capture;
+
+        try
+        {
+            capture = PlayerSignatureProbeCaptureBuilder.CaptureBestFamily(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                document,
+                inspectionRadius,
+                options.MaxHits,
+                options.CaptureLabel,
+                outputFile);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to capture the current best player-signature family: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(capture));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerSignatureProbeCaptureTextFormatter.Format(capture));
         return 0;
     }
 

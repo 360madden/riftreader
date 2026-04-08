@@ -11,6 +11,7 @@ Usage:
   RiftReader.Reader --process-name <name>
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -28,6 +29,7 @@ Notes:
   - Provide either --pid or --process-name, but not both.
   - Provide --address and --length together when you want a raw memory read.
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
+  - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
@@ -45,6 +47,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -70,6 +73,9 @@ Examples:
         int? length = null;
         var writeCheatEngineProbe = false;
         string? cheatEngineProbeFile = null;
+        var captureReaderBridgeBestFamily = false;
+        string? captureLabel = null;
+        string? captureFile = null;
         string? scanString = null;
         nint? scanPointer = null;
         int? scanInt32 = null;
@@ -163,6 +169,28 @@ Examples:
 
                     cheatEngineProbeFile = cheatEngineProbeFileValue;
                     writeCheatEngineProbe = true;
+                    break;
+
+                case "--capture-readerbridge-best-family":
+                    captureReaderBridgeBestFamily = true;
+                    break;
+
+                case "--capture-label":
+                    if (!TryReadNext(args, ref index, out var captureLabelValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --capture-label.", UsageText);
+                    }
+
+                    captureLabel = captureLabelValue;
+                    break;
+
+                case "--capture-file":
+                    if (!TryReadNext(args, ref index, out var captureFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --capture-file.", UsageText);
+                    }
+
+                    captureFile = captureFileValue;
                     break;
 
                 case "--scan-string":
@@ -395,6 +423,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --cheatengine-probe.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && captureReaderBridgeBestFamily)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --capture-readerbridge-best-family.", UsageText);
+        }
+
         if (readAddonSnapshot && readReaderBridgeSnapshot)
         {
             return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
@@ -408,7 +441,35 @@ Examples:
             }
 
             return ReaderOptionsParseResult.Success(
-                new ReaderOptions(null, null, null, null, false, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, true, addonSnapshotFile, false, null, jsonOutput),
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    CaptureReaderBridgeBestFamily: false,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: true,
+                    AddonSnapshotFile: addonSnapshotFile,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput),
                 UsageText);
         }
 
@@ -420,7 +481,35 @@ Examples:
             }
 
             return ReaderOptionsParseResult.Success(
-                new ReaderOptions(null, null, null, null, false, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, false, null, true, readerBridgeSnapshotFile, jsonOutput),
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    CaptureReaderBridgeBestFamily: false,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: true,
+                    ReaderBridgeSnapshotFile: readerBridgeSnapshotFile,
+                    JsonOutput: jsonOutput),
                 UsageText);
         }
 
@@ -439,9 +528,29 @@ Examples:
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with scan switches.", UsageText);
         }
 
+        if (captureReaderBridgeBestFamily && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with scan switches.", UsageText);
+        }
+
         if (writeCheatEngineProbe && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (captureLabel is not null && !captureReaderBridgeBestFamily)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-label can only be used with --capture-readerbridge-best-family.", UsageText);
+        }
+
+        if (captureFile is not null && !captureReaderBridgeBestFamily)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-file can only be used with --capture-readerbridge-best-family.", UsageText);
         }
 
         if (address.HasValue != length.HasValue)
@@ -450,7 +559,35 @@ Examples:
         }
 
         return ReaderOptionsParseResult.Success(
-            new ReaderOptions(processId, processName, address, length, writeCheatEngineProbe, cheatEngineProbeFile, scanString, scanPointer, scanInt32, scanFloat, scanDouble, scanTolerance, pointerWidth, scanEncoding, scanContextBytes, maxHits, scanReaderBridgePlayerName, scanReaderBridgePlayerCoords, scanReaderBridgePlayerSignature, scanReaderBridgeIdentity, false, null, false, null, jsonOutput),
+            new ReaderOptions(
+                ProcessId: processId,
+                ProcessName: processName,
+                Address: address,
+                Length: length,
+                WriteCheatEngineProbe: writeCheatEngineProbe,
+                CheatEngineProbeFile: cheatEngineProbeFile,
+                CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
+                CaptureLabel: captureLabel,
+                CaptureFile: captureFile,
+                ScanString: scanString,
+                ScanPointer: scanPointer,
+                ScanInt32: scanInt32,
+                ScanFloat: scanFloat,
+                ScanDouble: scanDouble,
+                ScanTolerance: scanTolerance,
+                PointerWidth: pointerWidth,
+                ScanEncoding: scanEncoding,
+                ScanContextBytes: scanContextBytes,
+                MaxHits: maxHits,
+                ScanReaderBridgePlayerName: scanReaderBridgePlayerName,
+                ScanReaderBridgePlayerCoords: scanReaderBridgePlayerCoords,
+                ScanReaderBridgePlayerSignature: scanReaderBridgePlayerSignature,
+                ScanReaderBridgeIdentity: scanReaderBridgeIdentity,
+                ReadAddonSnapshot: false,
+                AddonSnapshotFile: null,
+                ReadReaderBridgeSnapshot: false,
+                ReaderBridgeSnapshotFile: null,
+                JsonOutput: jsonOutput),
             UsageText);
     }
 

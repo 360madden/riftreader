@@ -183,6 +183,7 @@ public static class ProcessNumericScanner
                 break;
             }
 
+            var overlapBytes = overlap.Length;
             var combined = Combine(overlap, buffer);
 
             for (var hitIndex = 0; hitIndex <= combined.Length - width && hits.Count < maxHits; hitIndex++)
@@ -202,7 +203,7 @@ public static class ProcessNumericScanner
                     continue;
                 }
 
-                var absoluteAddress = address.ToInt64() - overlapLength + hitIndex;
+                var absoluteAddress = address.ToInt64() - overlapBytes + hitIndex;
                 hits.Add(new NumericScanHit(
                     Address: absoluteAddress,
                     AddressHex: $"0x{absoluteAddress:X}",

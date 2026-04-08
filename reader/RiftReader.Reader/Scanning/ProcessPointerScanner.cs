@@ -97,6 +97,7 @@ public static class ProcessPointerScanner
                 break;
             }
 
+            var overlapBytes = overlap.Length;
             var combined = Combine(overlap, buffer);
             var searchStart = 0;
             var span = combined.AsSpan();
@@ -116,7 +117,7 @@ public static class ProcessPointerScanner
 
                 if (!startsInOverlap || crossesBoundary)
                 {
-                    var absoluteAddress = address.ToInt64() - overlapLength + hitIndex;
+                    var absoluteAddress = address.ToInt64() - overlapBytes + hitIndex;
                     hits.Add(new PointerScanHit(
                         Address: absoluteAddress,
                         AddressHex: $"0x{absoluteAddress:X}",

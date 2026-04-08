@@ -100,6 +100,7 @@ public static class ProcessFloatSequenceScanner
                 break;
             }
 
+            var overlapBytes = overlap.Length;
             var combined = Combine(overlap, buffer);
             var searchStart = 0;
             var span = combined.AsSpan();
@@ -119,7 +120,7 @@ public static class ProcessFloatSequenceScanner
 
                 if (!startsInOverlap || crossesBoundary)
                 {
-                    var absoluteAddress = address.ToInt64() - overlapLength + hitIndex;
+                    var absoluteAddress = address.ToInt64() - overlapBytes + hitIndex;
                     hits.Add(new FloatSequenceScanHit(
                         Address: absoluteAddress,
                         AddressHex: $"0x{absoluteAddress:X}",
