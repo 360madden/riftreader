@@ -1,16 +1,19 @@
 # RiftReader
 
-Placeholder repository for a future Rift-related tooling project.
+Hybrid Rift tooling project:
 
-## Status
+- a **Lua addon** in the Rift client for in-game validation
+- a **.NET 10 C# memory reader** for external data collection
 
-This repository is intentionally minimal for now. It exists to establish:
+## Current Focus
 
-- a clean project home
-- a basic folder layout
-- a place for notes and future implementation work
+Current work is scoped to the **memory reader only**.
 
-There is no runtime functionality yet.
+Constraints:
+
+- target the **Rift PTS test server only**
+- do not assume live-server compatibility
+- keep addon work deferred until validation wiring is needed
 
 ## Repository Layout
 
@@ -18,18 +21,48 @@ There is no runtime functionality yet.
 RiftReader/
 ├── docs/
 │   └── overview.md
-├── src/
-│   └── README.md
+├── reader/
+│   └── RiftReader.Reader/
+│       ├── Cli/
+│       ├── Formatting/
+│       ├── Memory/
+│       ├── Processes/
+│       ├── Program.cs
+│       └── RiftReader.Reader.csproj
 ├── .gitignore
-└── README.md
+├── README.md
+└── RiftReader.slnx
 ```
 
-## Initial Goals
+## Reader Scope
 
-- capture project scope and constraints
-- keep implementation notes in one place
-- separate documentation from future source code
+The initial reader scaffold is responsible for:
+
+- attaching to a target Rift PTS process by PID or process name
+- opening a read-only process handle
+- performing a raw memory read for a supplied address range
+- printing a hex dump for inspection while pointer maps and typed models are still being defined
+
+## Build
+
+```powershell
+dotnet build .\RiftReader.slnx
+```
+
+## Run
+
+Attach only:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
+```
+
+Attach and read a raw address range:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
+```
 
 ## Next Milestone
 
-Decide the first real implementation target and add the initial project files under `src/`.
+Replace ad hoc raw reads with documented PTS-specific pointer maps, typed models, and validation snapshots that can later be compared against addon-visible values.

@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/reader/">
+    <Project Path="reader/RiftReader.Reader/RiftReader.Reader.csproj" />
+  </Folder>
+</Solution>
