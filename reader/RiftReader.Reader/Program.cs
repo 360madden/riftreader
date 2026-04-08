@@ -40,9 +40,12 @@ internal static class Program
             return RunReaderBridgeSnapshotMode(options);
         }
 
-        Console.WriteLine("RiftReader.Reader");
-        Console.WriteLine("Use this tool only against Rift client processes you explicitly intend to inspect.");
-        Console.WriteLine();
+        if (!options.JsonOutput)
+        {
+            Console.WriteLine("RiftReader.Reader");
+            Console.WriteLine("Use this tool only against Rift client processes you explicitly intend to inspect.");
+            Console.WriteLine();
+        }
 
         var locator = new ProcessLocator();
 
@@ -59,19 +62,22 @@ internal static class Program
 
         var target = ProcessTarget.FromProcess(process);
 
-        Console.WriteLine($"Attached to PID {target.ProcessId} ({target.ProcessName}).");
-
-        if (!string.IsNullOrWhiteSpace(target.ModuleName))
+        if (!options.JsonOutput)
         {
-            Console.WriteLine($"Module: {target.ModuleName}");
-        }
+            Console.WriteLine($"Attached to PID {target.ProcessId} ({target.ProcessName}).");
 
-        if (!string.IsNullOrWhiteSpace(target.MainWindowTitle))
-        {
-            Console.WriteLine($"Window: {target.MainWindowTitle}");
-        }
+            if (!string.IsNullOrWhiteSpace(target.ModuleName))
+            {
+                Console.WriteLine($"Module: {target.ModuleName}");
+            }
 
-        Console.WriteLine();
+            if (!string.IsNullOrWhiteSpace(target.MainWindowTitle))
+            {
+                Console.WriteLine($"Window: {target.MainWindowTitle}");
+            }
+
+            Console.WriteLine();
+        }
 
         var scanRequested =
             !string.IsNullOrWhiteSpace(options.ScanString) ||

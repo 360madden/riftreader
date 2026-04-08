@@ -92,15 +92,64 @@ public static class ProcessPlayerSignatureScanner
                 RegionBaseHex: candidate.RegionBaseHex,
                 RegionSize: candidate.RegionSize,
                 Score: score,
+                FamilyId: string.Empty,
+                FamilyHitCount: 0,
                 Signals: signals,
                 Context: context));
         }
 
-        var rankedHits = hits
-            .OrderByDescending(static hit => hit.Score)
-            .ThenByDescending(static hit => hit.Signals.Count)
-            .ThenBy(static hit => hit.Address)
+        var families = hits
+            .GroupBy(BuildFamilySignature)
+            .Select(group =>
+            {
+                var representative = group
+                    .OrderByDescending(static hit => hit.Score)
+                    .ThenByDescending(static hit => hit.Signals.Count)
+                    .ThenBy(static hit => hit.Address)
+                    .First();
+
+                var familyId = BuildFamilyId(group.Key);
+                var familyHitCount = group.Count();
+
+                return new
+                {
+                    FamilyId = familyId,
+                    Signature = group.Key,
+                    HitCount = familyHitCount,
+                    BestScore = representative.Score,
+                    Notes = ClassifyFamily(representative),
+                    Representative = representative with
+                    {
+                        FamilyId = familyId,
+                        FamilyHitCount = familyHitCount
+                    },
+                    SampleAddresses = group
+                        .OrderBy(static hit => hit.Address)
+                        .Take(3)
+                        .Select(static hit => hit.AddressHex)
+                        .ToArray()
+                };
+            })
+            .OrderByDescending(static family => family.BestScore)
+            .ThenByDescending(static family => family.HitCount)
+            .ThenBy(static family => family.Representative.Address)
+            .ToArray();
+
+        var rankedHits = families
+            .Select(static family => family.Representative)
             .Take(maxHits)
+            .ToArray();
+
+        var familySummaries = families
+            .Take(maxHits)
+            .Select(static family => new PlayerSignatureFamilySummary(
+                FamilyId: family.FamilyId,
+                Signature: family.Signature,
+                HitCount: family.HitCount,
+                BestScore: family.BestScore,
+                Notes: family.Notes,
+                RepresentativeAddressHex: family.Representative.AddressHex,
+                SampleAddresses: family.SampleAddresses))
             .ToArray();
 
         return new PlayerSignatureScanResult(
@@ -110,8 +159,11 @@ public static class ProcessPlayerSignatureScanner
             SearchLabel: sourceLabel,
             InspectionRadius: effectiveRadius,
             CandidateCount: coordinateCandidates.Hits.Count,
+            RawHitCount: hits.Count,
+            FamilyCount: families.Length,
             MaxHits: maxHits,
             HitCount: rankedHits.Length,
+            Families: familySummaries,
             Hits: rankedHits);
     }
 
@@ -185,6 +237,62 @@ public static class ProcessPlayerSignatureScanner
         value.HasValue && value.Value is >= int.MinValue and <= int.MaxValue
             ? (int)value.Value
             : null;
+
+    private static string BuildFamilySignature(PlayerSignatureScanHit hit)
+    {
+        return string.Join(
+            "|",
+            hit.Signals
+                .OrderBy(static signal => signal.RelativeOffset)
+                .ThenBy(static signal => signal.Name, StringComparer.Ordinal)
+                .Select(static signal => $"{signal.Name}@{signal.RelativeOffset}"));
+    }
+
+    private static string BuildFamilyId(string signature)
+    {
+        unchecked
+        {
+            const uint offset = 2166136261;
+            const uint prime = 16777619;
+            uint hash = offset;
+
+            foreach (var character in signature)
+            {
+                hash ^= character;
+                hash *= prime;
+            }
+
+            return $"fam-{hash:X8}";
+        }
+    }
+
+    private static string ClassifyFamily(PlayerSignatureScanHit representative)
+    {
+        var text = ((representative.Context?.AsciiPreview ?? string.Empty) + " " + (representative.Context?.Utf16Preview ?? string.Empty))
+            .ToLowerInvariant();
+
+        if (text.Contains("<font") || text.Contains("reason=ui") || text.Contains("captured sample"))
+        {
+            return "ui/log text";
+        }
+
+        if (text.Contains(".lua") || text.Contains("lib/"))
+        {
+            return "script/cache text";
+        }
+
+        if (text.Contains(".nif") || text.Contains("mount_") || text.Contains("_idle") || text.Contains("elements/"))
+        {
+            return "asset/cache text";
+        }
+
+        if (text.Contains("tavril plaza") || text.Contains("sanctum"))
+        {
+            return "location/cache blob";
+        }
+
+        return "unclassified blob";
+    }
 
     private static IReadOnlyList<int> FindAllPatternIndices(byte[] bytes, byte[] pattern, int maxOccurrences)
     {

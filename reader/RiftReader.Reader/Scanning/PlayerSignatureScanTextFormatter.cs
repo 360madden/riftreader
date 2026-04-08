@@ -10,6 +10,8 @@ public static class PlayerSignatureScanTextFormatter
             $"Search label:        {result.SearchLabel}",
             $"Inspection radius:   {result.InspectionRadius}",
             $"Candidates ranked:   {result.CandidateCount}",
+            $"Raw hits:            {result.RawHitCount}",
+            $"Families:            {result.FamilyCount}",
             $"Max hits:            {result.MaxHits}",
             $"Hits found:          {result.HitCount}"
         };
@@ -20,12 +22,26 @@ public static class PlayerSignatureScanTextFormatter
             return string.Join(Environment.NewLine, lines);
         }
 
-        lines.Add("Matches:");
+        if (result.Families.Count > 0)
+        {
+            lines.Add("Families:");
+
+            for (var index = 0; index < result.Families.Count; index++)
+            {
+                var family = result.Families[index];
+                lines.Add($"  {index + 1,2}. {family.FamilyId}  hits {family.HitCount}  best-score {family.BestScore}  rep {family.RepresentativeAddressHex}");
+                lines.Add($"      kind : {family.Notes}");
+                lines.Add($"      shape: {family.Signature}");
+                lines.Add($"      seen : {string.Join(", ", family.SampleAddresses)}");
+            }
+        }
+
+        lines.Add("Representatives:");
 
         for (var index = 0; index < result.Hits.Count; index++)
         {
             var hit = result.Hits[index];
-            lines.Add($"  {index + 1,2}. {hit.AddressHex}  score {hit.Score}  region {hit.RegionBaseHex} ({hit.RegionSize} bytes)");
+            lines.Add($"  {index + 1,2}. {hit.AddressHex}  score {hit.Score}  family {hit.FamilyId} ({hit.FamilyHitCount} hits)  region {hit.RegionBaseHex} ({hit.RegionSize} bytes)");
 
             foreach (var signal in hit.Signals)
             {

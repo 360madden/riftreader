@@ -7,5 +7,7 @@ public sealed record PlayerSignatureScanHit(
     string RegionBaseHex,
     long RegionSize,
     int Score,
+    string FamilyId,
+    int FamilyHitCount,
     IReadOnlyList<PlayerSignatureSignal> Signals,
     StringHitContext? Context);

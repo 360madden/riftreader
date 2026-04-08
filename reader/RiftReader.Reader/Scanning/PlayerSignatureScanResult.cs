@@ -7,6 +7,9 @@ public sealed record PlayerSignatureScanResult(
     string SearchLabel,
     int InspectionRadius,
     int CandidateCount,
+    int RawHitCount,
+    int FamilyCount,
     int MaxHits,
     int HitCount,
+    IReadOnlyList<PlayerSignatureFamilySummary> Families,
     IReadOnlyList<PlayerSignatureScanHit> Hits);

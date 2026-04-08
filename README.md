@@ -196,6 +196,8 @@ Rank coordinate hits by nearby exported player fields such as health, level, and
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-signature --scan-context 96 --max-hits 12
 ```
 
+This mode now groups repeated hits into layout families so duplicated cache blobs are easier to separate from one-off UI/log copies.
+
 Derive a likely identity string such as `Name@Shard` from the latest ReaderBridge export and scan for it:
 
 ```powershell
