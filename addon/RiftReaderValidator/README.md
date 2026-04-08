@@ -1,0 +1,21 @@
+# RiftReaderValidator
+
+Minimal PTS-only helper addon for validating the external reader.
+
+## Current Purpose
+
+- capture on-demand snapshots of API-visible player data
+- keep a small rolling history in saved variables
+- mark a few important state transitions for later comparison
+
+## Commands
+
+- `/rrv snapshot` - capture a validation snapshot
+- `/rrv status` - print current addon status
+- `/rrv clear` - clear saved snapshot history
+- `/rrv help` - print command help
+
+## Notes
+
+- This addon is intentionally small and should remain reader-supporting only.
+- If the client reports the addon as outdated, verify the `Environment` value in `RiftAddon.toc` against the current PTS addon API level.

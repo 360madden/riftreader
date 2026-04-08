@@ -7,19 +7,25 @@ Hybrid Rift tooling project:
 
 ## Current Focus
 
-Current work is scoped to the **memory reader only**.
+Current work is scoped primarily to the **memory reader**.
 
 Constraints:
 
 - target the **Rift PTS test server only**
 - do not assume live-server compatibility
-- keep addon work deferred until validation wiring is needed
+- keep addon work limited to **validation support** for the reader
 
 ## Repository Layout
 
 ```text
 RiftReader/
+├── addon/
+│   └── RiftReaderValidator/
+│       ├── README.md
+│       ├── RiftAddon.toc
+│       └── main.lua
 ├── docs/
+│   ├── addon-validation-spec.md
 │   └── overview.md
 ├── reader/
 │   └── RiftReader.Reader/
@@ -43,6 +49,15 @@ The initial reader scaffold is responsible for:
 - performing a raw memory read for a supplied address range
 - printing a hex dump for inspection while pointer maps and typed models are still being defined
 
+## Addon Validation Scope
+
+The helper addon is intentionally small. Its current job is to:
+
+- capture **API-visible** player snapshots on demand
+- record a small rolling history in saved variables
+- emit a few high-value validation markers such as zone/role/combat transitions
+- stay out of the reader's core reverse-engineering path
+
 ## Build
 
 ```powershell
@@ -65,4 +80,4 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pi
 
 ## Next Milestone
 
-Replace ad hoc raw reads with documented PTS-specific pointer maps, typed models, and validation snapshots that can later be compared against addon-visible values.
+Replace ad hoc raw reads with documented PTS-specific pointer maps, typed models, and addon-backed validation snapshots that can later be compared against reader output.
