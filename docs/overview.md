@@ -18,6 +18,7 @@ The current prototype should stay focused on:
 - raw memory reads for investigation
 - logging and output that can later be validated from the addon side
 - a minimal in-game addon that acts as a validation harness, not the primary data source
+- a reader CLI that can grow into robust switches, clear help, and colorized/highlighted menus
 
 ## Environment Constraint
 
@@ -52,3 +53,17 @@ Reader responsibilities:
 - locate and read memory structures
 - decode typed values that are not practical to derive from addon-visible state
 - remain the authoritative implementation target for external data collection
+
+## CLI UX Requirement
+
+The reader CLI should be treated as a first-class tool, not a throwaway launcher.
+
+Desired traits:
+
+- extensive and robust switches as needed
+- intuitive help text with examples
+- colorized menus and warnings where the terminal supports them
+- syntax-highlighted or otherwise visually distinct examples for easy copy/paste
+- graceful fallback to plain text when color support is unavailable
+
+See `C:\RIFT MODDING\RiftReader\docs\reader-cli-ux.md` for the full UX note.

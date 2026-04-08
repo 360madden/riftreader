@@ -1,20 +1,12 @@
 Identifier = "RiftReaderValidator"
-Name = {
-  English = "RiftReader Validator",
-  French = "RiftReader Validator",
-  German = "RiftReader Validator",
-}
-NameShort = "RiftReaderValidator"
-Description = {
-  English = "PTS-only helper addon for validating RiftReader memory captures.",
-  French = "PTS-only helper addon for validating RiftReader memory captures.",
-  German = "PTS-only helper addon for validating RiftReader memory captures.",
-}
+Name = "RiftReader Validator"
+NameShort = "RRV"
+Description = "PTS-only helper addon for validating RiftReader memory captures."
 Author = "OpenAI Codex"
 Website = ""
 Version = "0.1.0"
-Email = ""
-Environment = "4.3"
+Email = "noreply@example.com"
+Environment = "4.4"
 
 RunOnStartup = {
   "main.lua",

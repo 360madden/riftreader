@@ -26,6 +26,7 @@ RiftReader/
 │       └── main.lua
 ├── docs/
 │   ├── addon-validation-spec.md
+│   ├── reader-cli-ux.md
 │   └── overview.md
 ├── reader/
 │   └── RiftReader.Reader/
@@ -35,6 +36,12 @@ RiftReader/
 │       ├── Processes/
 │       ├── Program.cs
 │       └── RiftReader.Reader.csproj
+├── scripts/
+│   ├── build-reader.cmd
+│   ├── deploy-addon.cmd
+│   ├── run-reader.cmd
+│   ├── sync-addon.cmd
+│   └── validate-addon.cmd
 ├── .gitignore
 ├── README.md
 └── RiftReader.slnx
@@ -48,6 +55,7 @@ The initial reader scaffold is responsible for:
 - opening a read-only process handle
 - performing a raw memory read for a supplied address range
 - printing a hex dump for inspection while pointer maps and typed models are still being defined
+- growing into a CLI with robust switches, intuitive help, and colorized/highlighted output where supported
 
 ## Addon Validation Scope
 
@@ -64,6 +72,10 @@ The helper addon is intentionally small. Its current job is to:
 dotnet build .\RiftReader.slnx
 ```
 
+Or use:
+
+- `C:\RIFT MODDING\RiftReader\scripts\build-reader.cmd`
+
 ## Run
 
 Attach only:
@@ -72,11 +84,23 @@ Attach only:
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
 ```
 
+Or use:
+
+- `C:\RIFT MODDING\RiftReader\scripts\run-reader.cmd -- --pid 1234`
+
 Attach and read a raw address range:
 
 ```powershell
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
 ```
+
+## Helper Scripts
+
+- `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check the Lua addon with `luac`
+- `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy the addon into the Rift `Interface\AddOns` folder
+- `C:\RIFT MODDING\RiftReader\scripts\sync-addon.cmd` - validate and deploy in one step
+
+The deploy scripts auto-detect common Rift addon locations and also respect the `RIFT_ADDONS_DIR` environment variable if you want to override the target.
 
 ## Next Milestone
 

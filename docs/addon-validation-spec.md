@@ -20,6 +20,7 @@ It is **not** intended to replace the reader or become the main data source.
 - saved-variable persistence of recent validation samples
 - a small slash-command surface for testing
 - automatic capture on a few meaningful state changes
+- a compact status GUI with indicator lights for manual validation work
 
 ### Out of scope
 
@@ -64,6 +65,7 @@ Commands:
 - `/rrv snapshot`
 - `/rrv status`
 - `/rrv clear`
+- `/rrv ui`
 - `/rrv help`
 
 ### Automatic capture
@@ -95,6 +97,23 @@ The table should keep:
 Recommended default rolling history:
 
 - `64` samples
+
+## Basic GUI
+
+The addon should expose a lightweight in-game status window for manual testing on PTS.
+
+The first GUI pass should include:
+
+- visible indicator lights for:
+  - addon loaded
+  - player unit available
+  - last snapshot freshness
+  - secure/combat-adjacent mode
+- a compact current snapshot summary
+- a small recent-activity list
+- buttons for snapshot, refresh, clear, and hide
+
+This GUI is a testing aid only. It should remain lightweight and should not evolve into a large gameplay UI.
 
 ## Reader Correlation Workflow
 
