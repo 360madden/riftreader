@@ -1,4 +1,5 @@
 using RiftReader.Reader.AddonSnapshots;
+using RiftReader.Reader.CheatEngine;
 using RiftReader.Reader.Cli;
 using RiftReader.Reader.Formatting;
 using RiftReader.Reader.Memory;
@@ -90,7 +91,7 @@ internal static class Program
             options.ScanReaderBridgePlayerSignature ||
             options.ScanReaderBridgeIdentity;
 
-        if (!scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -123,6 +124,11 @@ internal static class Program
             return RunScanMode(options, target, reader);
         }
 
+        if (options.WriteCheatEngineProbe)
+        {
+            return RunCheatEngineProbeMode(options, target, reader);
+        }
+
         var address = options.Address!.Value;
         var length = options.Length!.Value;
 
@@ -152,6 +158,74 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(HexDumpFormatter.Format(bytes, address));
 
+        return 0;
+    }
+
+    private static int RunCheatEngineProbeMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (document?.Current?.Player is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for Cheat Engine probe generation.");
+            return 1;
+        }
+
+        var outputFile = ResolveCheatEngineProbeOutputFile(options.CheatEngineProbeFile);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+        CheatEngineProbeExportResult exportResult;
+
+        try
+        {
+            exportResult = CheatEngineProbeScriptWriter.WriteProbeScript(
+                reader,
+                target,
+                document,
+                inspectionRadius,
+                options.MaxHits,
+                outputFile);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to generate the Cheat Engine probe script: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(exportResult));
+            return 0;
+        }
+
+        Console.WriteLine($"Cheat Engine probe script: {exportResult.OutputFile}");
+        Console.WriteLine($"Source export:              {exportResult.ReaderBridgeSourceFile}");
+        Console.WriteLine($"Player:                     {exportResult.PlayerName ?? "n/a"}");
+
+        if (exportResult.PlayerLevel.HasValue)
+        {
+            Console.WriteLine($"Level:                      {exportResult.PlayerLevel.Value}");
+        }
+
+        if (exportResult.PlayerHealth.HasValue || exportResult.PlayerHealthMax.HasValue)
+        {
+            Console.WriteLine($"Health:                     {exportResult.PlayerHealth?.ToString() ?? "n/a"}/{exportResult.PlayerHealthMax?.ToString() ?? "n/a"}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(exportResult.LocationName))
+        {
+            Console.WriteLine($"Location:                   {exportResult.LocationName}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(exportResult.CoordText))
+        {
+            Console.WriteLine($"Coords:                     {exportResult.CoordText}");
+        }
+
+        Console.WriteLine($"Families:                   {exportResult.FamilyCount}");
+        Console.WriteLine($"Representative hits:        {exportResult.HitCount}");
+        Console.WriteLine();
+        Console.WriteLine("Load the script in Cheat Engine, or install the autorun bootstrap and restart Cheat Engine.");
+        Console.WriteLine("Then run: RiftReaderProbe.attachAndPopulate()");
         return 0;
     }
 
@@ -442,5 +516,39 @@ internal static class Program
         searchText = $"{playerName}@{shardDirectoryName}";
         searchSource = $"readerbridge-identity ({document.SourceFile})";
         return true;
+    }
+
+    private static string ResolveCheatEngineProbeOutputFile(string? explicitPath)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            return Path.GetFullPath(explicitPath);
+        }
+
+        var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
+        return Path.Combine(repoRoot, "scripts", "cheat-engine", "RiftReaderProbe.lua");
+    }
+
+    private static string? TryFindRepoRoot(string startDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(startDirectory))
+        {
+            return null;
+        }
+
+        var current = new DirectoryInfo(startDirectory);
+
+        while (current is not null)
+        {
+            var markerFile = Path.Combine(current.FullName, "RiftReader.slnx");
+            if (File.Exists(markerFile))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
     }
 }

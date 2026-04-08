@@ -7,6 +7,8 @@ public sealed record ReaderOptions(
     string? ProcessName,
     nint? Address,
     int? Length,
+    bool WriteCheatEngineProbe,
+    string? CheatEngineProbeFile,
     string? ScanString,
     nint? ScanPointer,
     int? ScanInt32,

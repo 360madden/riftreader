@@ -10,6 +10,7 @@ Usage:
   RiftReader.Reader --pid <processId>
   RiftReader.Reader --process-name <name>
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
+  RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -26,6 +27,7 @@ Notes:
   - Use this reader only against Rift client processes you explicitly intend to inspect.
   - Provide either --pid or --process-name, but not both.
   - Provide --address and --length together when you want a raw memory read.
+  - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
@@ -42,6 +44,7 @@ Notes:
 Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -65,6 +68,8 @@ Examples:
         string? processName = null;
         nint? address = null;
         int? length = null;
+        var writeCheatEngineProbe = false;
+        string? cheatEngineProbeFile = null;
         string? scanString = null;
         nint? scanPointer = null;
         int? scanInt32 = null;
@@ -144,6 +149,20 @@ Examples:
                     }
 
                     length = parsedLength;
+                    break;
+
+                case "--cheatengine-probe":
+                    writeCheatEngineProbe = true;
+                    break;
+
+                case "--cheatengine-probe-file":
+                    if (!TryReadNext(args, ref index, out var cheatEngineProbeFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --cheatengine-probe-file.", UsageText);
+                    }
+
+                    cheatEngineProbeFile = cheatEngineProbeFileValue;
+                    writeCheatEngineProbe = true;
                     break;
 
                 case "--scan-string":
@@ -371,6 +390,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with scan switches.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && writeCheatEngineProbe)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --cheatengine-probe.", UsageText);
+        }
+
         if (readAddonSnapshot && readReaderBridgeSnapshot)
         {
             return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
@@ -384,7 +408,7 @@ Examples:
             }
 
             return ReaderOptionsParseResult.Success(
-                new ReaderOptions(null, null, null, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, true, addonSnapshotFile, false, null, jsonOutput),
+                new ReaderOptions(null, null, null, null, false, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, true, addonSnapshotFile, false, null, jsonOutput),
                 UsageText);
         }
 
@@ -396,7 +420,7 @@ Examples:
             }
 
             return ReaderOptionsParseResult.Success(
-                new ReaderOptions(null, null, null, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, false, null, true, readerBridgeSnapshotFile, jsonOutput),
+                new ReaderOptions(null, null, null, null, false, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, false, null, true, readerBridgeSnapshotFile, jsonOutput),
                 UsageText);
         }
 
@@ -410,13 +434,23 @@ Examples:
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
+        if (writeCheatEngineProbe && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with scan switches.", UsageText);
+        }
+
+        if (writeCheatEngineProbe && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (address.HasValue != length.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Specify --address and --length together.", UsageText);
         }
 
         return ReaderOptionsParseResult.Success(
-            new ReaderOptions(processId, processName, address, length, scanString, scanPointer, scanInt32, scanFloat, scanDouble, scanTolerance, pointerWidth, scanEncoding, scanContextBytes, maxHits, scanReaderBridgePlayerName, scanReaderBridgePlayerCoords, scanReaderBridgePlayerSignature, scanReaderBridgeIdentity, false, null, false, null, jsonOutput),
+            new ReaderOptions(processId, processName, address, length, writeCheatEngineProbe, cheatEngineProbeFile, scanString, scanPointer, scanInt32, scanFloat, scanDouble, scanTolerance, pointerWidth, scanEncoding, scanContextBytes, maxHits, scanReaderBridgePlayerName, scanReaderBridgePlayerCoords, scanReaderBridgePlayerSignature, scanReaderBridgeIdentity, false, null, false, null, jsonOutput),
             UsageText);
     }
 
