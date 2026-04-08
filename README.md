@@ -30,6 +30,7 @@ RiftReader/
 │       └── main.lua
 ├── docs/
 │   ├── addon-validation-spec.md
+│   ├── cheat-engine-workflow.md
 │   ├── reader-cli-ux.md
 │   └── overview.md
 ├── reader/
@@ -43,7 +44,10 @@ RiftReader/
 ├── scripts/
 │   ├── build-reader.cmd
 │   ├── deploy-addon.cmd
+│   ├── generate-cheatengine-probe.cmd
+│   ├── install-cheatengine-autorun.cmd
 │   ├── run-reader.cmd
+│   ├── sync-cheatengine.cmd
 │   ├── sync-addon.cmd
 │   ├── validate-addon.cmd
 │   └── watch-readerbridge-export.cmd
@@ -101,6 +105,9 @@ scan**:
   - `--scan-readerbridge-player-coords`
   - `--scan-readerbridge-player-signature`
   - `--scan-readerbridge-identity`
+- Cheat Engine helper generation:
+  - `--cheatengine-probe`
+  - `--cheatengine-probe-file <path>`
 - reference scan:
   - `--scan-pointer <address>`
 
@@ -210,12 +217,21 @@ Scan for references to a candidate address:
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-pointer 0x2039DD70 --pointer-width 8 --scan-context 32 --max-hits 16
 ```
 
+Generate the current Cheat Engine probe script from the latest ReaderBridge export and the best grouped player-signature families:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
+```
+
 ## Helper Scripts
 
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check all project Lua addons with `luac`
 - `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy all project addons into the Rift `Interface\AddOns` folder
 - `C:\RIFT MODDING\RiftReader\scripts\sync-addon.cmd` - validate and deploy all project addons in one step
 - `C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.cmd` - wait for `ReaderBridgeExport.lua` to appear or change, then run the reader automatically
+- `C:\RIFT MODDING\RiftReader\scripts\generate-cheatengine-probe.cmd` - generate the current CE Lua helper from the live ReaderBridge export and the top grouped signature families
+- `C:\RIFT MODDING\RiftReader\scripts\install-cheatengine-autorun.cmd` - install the CE autorun bootstrap that loads the repo-owned helper script
+- `C:\RIFT MODDING\RiftReader\scripts\sync-cheatengine.cmd` - regenerate the CE helper and refresh the autorun bootstrap in one step
 
 The deploy scripts auto-detect common Rift addon locations and also respect the `RIFT_ADDONS_DIR` environment variable if you want to override the target.
 
@@ -227,6 +243,22 @@ C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.cmd -Json
 C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.cmd -RunInitial
 C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.cmd -Once -FilePath "C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\...\ReaderBridgeExport.lua"
 ```
+
+Cheat Engine workflow:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\sync-cheatengine.cmd
+```
+
+Then restart Cheat Engine and run:
+
+```lua
+RiftReaderProbe.attachAndPopulate()
+```
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\docs\cheat-engine-workflow.md`
 
 ## Next Milestone
 

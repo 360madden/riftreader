@@ -27,3 +27,6 @@ bin/
 obj/
 dist/
 build/
+
+# Generated local helper artifacts
+scripts/cheat-engine/

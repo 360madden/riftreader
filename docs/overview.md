@@ -17,6 +17,7 @@ The current prototype should stay focused on:
 - safe read-only process attachment
 - raw memory reads for investigation
 - logging and output that can later be validated from the addon side
+- using Cheat Engine as the interactive discovery workbench when manual structure narrowing is faster than pure CLI scans
 - a minimal in-game addon that acts as a validation harness, not the primary data source
 - a reader CLI that can grow into robust switches, clear help, and colorized/highlighted menus
 
@@ -35,8 +36,9 @@ That means:
 
 1. confirm reliable process targeting
 2. establish a reusable memory read layer
-3. define the first useful data snapshot shape
-4. prepare comparison points for future addon validation
+3. use ReaderBridge exports plus grouped player-signature scans to narrow a first trustworthy candidate family
+4. materialize that family in Cheat Engine for interactive validation
+5. turn the winning layout back into a typed reader path
 
 ## Addon Boundary
 
@@ -54,6 +56,23 @@ Reader responsibilities:
 - locate and read memory structures
 - decode typed values that are not practical to derive from addon-visible state
 - remain the authoritative implementation target for external data collection
+
+## Cheat Engine Boundary
+
+Cheat Engine is now part of the workflow, but in a narrow role:
+
+- **Cheat Engine**
+  - interactive discovery
+  - changed/unchanged narrowing
+  - write/access tracing
+  - quick structure inspection
+- **RiftReader**
+  - repeatable automation
+  - grouped scan logic
+  - exported helper generation
+  - typed model implementation
+
+See `C:\RIFT MODDING\RiftReader\docs\cheat-engine-workflow.md` for the current bridge between the two.
 
 ## CLI UX Requirement
 
