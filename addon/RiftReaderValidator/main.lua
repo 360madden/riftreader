@@ -457,7 +457,7 @@ function Validator.PrintStatus()
   end
 
   Validator.Log(string.format(
-    "PTS-only validator active. samples=%s lastSequence=%s maxSamples=%s window=%s",
+    "Validator active. samples=%s lastSequence=%s maxSamples=%s window=%s",
     tostring(sampleCount),
     lastSequence,
     tostring(state.settings.maxSamples),
@@ -659,7 +659,7 @@ function Validator.UpdateUi(force)
   local sampleCount = #state.samples
   local isSecure = Inspect.System.Secure and Inspect.System.Secure() or false
 
-  runtime.labels.subtitle:SetText("PTS-only validator for the external memory reader")
+  runtime.labels.subtitle:SetText("Validator for the external memory reader")
 
   setIndicator(runtime.indicatorRows.addon, runtime.started and STATUS_COLOR.good or STATUS_COLOR.warn, runtime.started and "active" or "loading")
 

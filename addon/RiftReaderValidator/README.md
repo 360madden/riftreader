@@ -1,6 +1,6 @@
 # RiftReaderValidator
 
-Minimal PTS-only helper addon for validating the external reader.
+Minimal helper addon for validating the external reader.
 
 ## Current Purpose
 
@@ -31,4 +31,4 @@ The addon now includes a small status window with:
 ## Notes
 
 - This addon is intentionally small and should remain reader-supporting only.
-- If the client reports the addon as outdated, verify the `Environment` value in `RiftAddon.toc` against the current PTS addon API level.
+- If the client reports the addon as outdated, verify the `Environment` value in `RiftAddon.toc` against the current addon API level.

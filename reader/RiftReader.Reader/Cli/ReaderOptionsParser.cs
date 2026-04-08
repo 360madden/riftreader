@@ -1,4 +1,5 @@
 using System.Globalization;
+using RiftReader.Reader.Scanning;
 
 namespace RiftReader.Reader.Cli;
 
@@ -9,19 +10,48 @@ Usage:
   RiftReader.Reader --pid <processId>
   RiftReader.Reader --process-name <name>
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
+  RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-double <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-readerbridge-player-name [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-readerbridge-player-coords [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-readerbridge-player-signature [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-readerbridge-identity [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-pointer <hexOrDecimalAddress> [--pointer-width 4|8] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --addon-snapshot [--addon-snapshot-file <path>] [--json]
+  RiftReader.Reader --readerbridge-snapshot [--readerbridge-snapshot-file <path>] [--json]
 
 Notes:
-  - PTS-only: use this reader only against the Rift Public Test Server.
+  - Use this reader only against Rift client processes you explicitly intend to inspect.
   - Provide either --pid or --process-name, but not both.
   - Provide --address and --length together when you want a raw memory read.
+  - Use --scan-string to search process memory for a text value.
+  - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
+  - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
+  - Use --scan-readerbridge-player-name to load the latest ReaderBridge export and scan the process for the current player name.
+  - Use --scan-readerbridge-player-coords to load the latest ReaderBridge export and scan for an exact contiguous float triplet of the current player coordinates.
+  - Use --scan-readerbridge-player-signature to rank coordinate hits by nearby exported player fields such as health, level, and location text.
+  - Use --scan-readerbridge-identity to derive a likely character identity string such as Name@Shard from the latest ReaderBridge export path and scan for it.
+  - Use --scan-pointer to search process memory for references to a target address.
+  - Use --scan-context to capture bytes around each hit for quick triage.
   - Use --addon-snapshot to normalize the latest RiftReaderValidator saved snapshot for comparison work.
+  - Use --readerbridge-snapshot to normalize the latest ReaderBridge export snapshot for richer comparison work.
   - Use --json to print machine-readable output.
 
 Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-name --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-coords --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-signature --scan-context 96 --max-hits 12
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-identity --scan-encoding ascii --scan-context 32 --max-hits 8
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-pointer 0x2039DD70 --pointer-width 8 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --addon-snapshot --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
 """;
 
     public static ReaderOptionsParseResult Parse(string[] args)
@@ -35,8 +65,24 @@ Examples:
         string? processName = null;
         nint? address = null;
         int? length = null;
+        string? scanString = null;
+        nint? scanPointer = null;
+        int? scanInt32 = null;
+        float? scanFloat = null;
+        double? scanDouble = null;
+        var scanTolerance = 0d;
+        var pointerWidth = IntPtr.Size;
+        var scanEncoding = StringScanEncoding.Both;
+        var scanContextBytes = 0;
+        var maxHits = 16;
+        var scanReaderBridgePlayerName = false;
+        var scanReaderBridgePlayerCoords = false;
+        var scanReaderBridgePlayerSignature = false;
+        var scanReaderBridgeIdentity = false;
         var readAddonSnapshot = false;
         string? addonSnapshotFile = null;
+        var readReaderBridgeSnapshot = false;
+        string? readerBridgeSnapshotFile = null;
         var jsonOutput = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -100,6 +146,157 @@ Examples:
                     length = parsedLength;
                     break;
 
+                case "--scan-string":
+                    if (!TryReadNext(args, ref index, out var scanStringValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-string.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(scanStringValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Scan text must not be blank.", UsageText);
+                    }
+
+                    scanString = scanStringValue;
+                    break;
+
+                case "--scan-pointer":
+                    if (!TryReadNext(args, ref index, out var scanPointerValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-pointer.", UsageText);
+                    }
+
+                    if (!TryParseAddress(scanPointerValue, out var parsedPointer))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid pointer address '{scanPointerValue}'.", UsageText);
+                    }
+
+                    scanPointer = parsedPointer;
+                    break;
+
+                case "--scan-int32":
+                    if (!TryReadNext(args, ref index, out var scanInt32Value))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-int32.", UsageText);
+                    }
+
+                    if (!int.TryParse(scanInt32Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt32))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid int32 value '{scanInt32Value}'.", UsageText);
+                    }
+
+                    scanInt32 = parsedInt32;
+                    break;
+
+                case "--scan-float":
+                    if (!TryReadNext(args, ref index, out var scanFloatValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-float.", UsageText);
+                    }
+
+                    if (!float.TryParse(scanFloatValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedFloat) || !float.IsFinite(parsedFloat))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid float value '{scanFloatValue}'.", UsageText);
+                    }
+
+                    scanFloat = parsedFloat;
+                    break;
+
+                case "--scan-double":
+                    if (!TryReadNext(args, ref index, out var scanDoubleValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-double.", UsageText);
+                    }
+
+                    if (!double.TryParse(scanDoubleValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedDouble) || !double.IsFinite(parsedDouble))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid double value '{scanDoubleValue}'.", UsageText);
+                    }
+
+                    scanDouble = parsedDouble;
+                    break;
+
+                case "--scan-tolerance":
+                    if (!TryReadNext(args, ref index, out var scanToleranceValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-tolerance.", UsageText);
+                    }
+
+                    if (!double.TryParse(scanToleranceValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out scanTolerance) || scanTolerance < 0 || !double.IsFinite(scanTolerance))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid scan-tolerance value '{scanToleranceValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--scan-encoding":
+                    if (!TryReadNext(args, ref index, out var scanEncodingValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-encoding.", UsageText);
+                    }
+
+                    if (!TryParseScanEncoding(scanEncodingValue, out scanEncoding))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid scan encoding '{scanEncodingValue}'. Use ascii, utf16, or both.", UsageText);
+                    }
+
+                    break;
+
+                case "--pointer-width":
+                    if (!TryReadNext(args, ref index, out var pointerWidthValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --pointer-width.", UsageText);
+                    }
+
+                    if (!int.TryParse(pointerWidthValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out pointerWidth) || (pointerWidth != 4 && pointerWidth != 8))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid pointer-width value '{pointerWidthValue}'. Use 4 or 8.", UsageText);
+                    }
+
+                    break;
+
+                case "--max-hits":
+                    if (!TryReadNext(args, ref index, out var maxHitsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --max-hits.", UsageText);
+                    }
+
+                    if (!int.TryParse(maxHitsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out maxHits) || maxHits <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid max-hits value '{maxHitsValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--scan-context":
+                    if (!TryReadNext(args, ref index, out var scanContextValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-context.", UsageText);
+                    }
+
+                    if (!int.TryParse(scanContextValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out scanContextBytes) || scanContextBytes < 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid scan-context value '{scanContextValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--scan-readerbridge-player-name":
+                    scanReaderBridgePlayerName = true;
+                    break;
+
+                case "--scan-readerbridge-player-coords":
+                    scanReaderBridgePlayerCoords = true;
+                    break;
+
+                case "--scan-readerbridge-player-signature":
+                    scanReaderBridgePlayerSignature = true;
+                    break;
+
+                case "--scan-readerbridge-identity":
+                    scanReaderBridgeIdentity = true;
+                    break;
+
                 case "--addon-snapshot":
                     readAddonSnapshot = true;
                     break;
@@ -114,6 +311,20 @@ Examples:
                     readAddonSnapshot = true;
                     break;
 
+                case "--readerbridge-snapshot":
+                    readReaderBridgeSnapshot = true;
+                    break;
+
+                case "--readerbridge-snapshot-file":
+                    if (!TryReadNext(args, ref index, out var readerBridgeSnapshotFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --readerbridge-snapshot-file.", UsageText);
+                    }
+
+                    readerBridgeSnapshotFile = readerBridgeSnapshotFileValue;
+                    readReaderBridgeSnapshot = true;
+                    break;
+
                 case "--json":
                     jsonOutput = true;
                     break;
@@ -121,6 +332,48 @@ Examples:
                 default:
                     return ReaderOptionsParseResult.Fail($"Unknown argument '{arg}'.", UsageText);
             }
+        }
+
+        var scanRequested =
+            !string.IsNullOrWhiteSpace(scanString) ||
+            scanReaderBridgePlayerName ||
+            scanReaderBridgePlayerCoords ||
+            scanReaderBridgePlayerSignature ||
+            scanReaderBridgeIdentity ||
+            scanPointer.HasValue ||
+            scanInt32.HasValue ||
+            scanFloat.HasValue ||
+            scanDouble.HasValue;
+
+        var scanTargetCount = 0;
+        if (!string.IsNullOrWhiteSpace(scanString)) scanTargetCount++;
+        if (scanReaderBridgePlayerName) scanTargetCount++;
+        if (scanReaderBridgePlayerCoords) scanTargetCount++;
+        if (scanReaderBridgePlayerSignature) scanTargetCount++;
+        if (scanReaderBridgeIdentity) scanTargetCount++;
+        if (scanPointer.HasValue) scanTargetCount++;
+        if (scanInt32.HasValue) scanTargetCount++;
+        if (scanFloat.HasValue) scanTargetCount++;
+        if (scanDouble.HasValue) scanTargetCount++;
+
+        if (scanTargetCount > 1)
+        {
+            return ReaderOptionsParseResult.Fail("Choose only one scan target: --scan-string, --scan-int32, --scan-float, --scan-double, --scan-readerbridge-player-name, --scan-readerbridge-player-coords, --scan-readerbridge-player-signature, --scan-readerbridge-identity, or --scan-pointer.", UsageText);
+        }
+
+        if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float or --scan-double.", UsageText);
+        }
+
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with scan switches.", UsageText);
+        }
+
+        if (readAddonSnapshot && readReaderBridgeSnapshot)
+        {
+            return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
         }
 
         if (readAddonSnapshot)
@@ -131,7 +384,19 @@ Examples:
             }
 
             return ReaderOptionsParseResult.Success(
-                new ReaderOptions(null, null, null, null, true, addonSnapshotFile, jsonOutput),
+                new ReaderOptions(null, null, null, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, true, addonSnapshotFile, false, null, jsonOutput),
+                UsageText);
+        }
+
+        if (readReaderBridgeSnapshot)
+        {
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("ReaderBridge snapshot mode cannot be combined with process attach or memory-read switches.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(null, null, null, null, null, null, null, null, null, 0d, IntPtr.Size, StringScanEncoding.Both, 0, 16, false, false, false, false, false, null, true, readerBridgeSnapshotFile, jsonOutput),
                 UsageText);
         }
 
@@ -140,13 +405,18 @@ Examples:
             return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name.", UsageText);
         }
 
+        if (scanRequested && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (address.HasValue != length.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Specify --address and --length together.", UsageText);
         }
 
         return ReaderOptionsParseResult.Success(
-            new ReaderOptions(processId, processName, address, length, false, null, jsonOutput),
+            new ReaderOptions(processId, processName, address, length, scanString, scanPointer, scanInt32, scanFloat, scanDouble, scanTolerance, pointerWidth, scanEncoding, scanContextBytes, maxHits, scanReaderBridgePlayerName, scanReaderBridgePlayerCoords, scanReaderBridgePlayerSignature, scanReaderBridgeIdentity, false, null, false, null, jsonOutput),
             UsageText);
     }
 
@@ -206,6 +476,30 @@ Examples:
         {
             address = 0;
             return false;
+        }
+    }
+
+    private static bool TryParseScanEncoding(string value, out StringScanEncoding encoding)
+    {
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "ascii":
+                encoding = StringScanEncoding.Ascii;
+                return true;
+
+            case "utf16":
+            case "unicode":
+            case "utf-16":
+                encoding = StringScanEncoding.Utf16;
+                return true;
+
+            case "both":
+                encoding = StringScanEncoding.Both;
+                return true;
+
+            default:
+                encoding = StringScanEncoding.Both;
+                return false;
         }
     }
 }

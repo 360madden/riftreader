@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`RiftReaderValidator` is a **PTS-only helper addon** for the hybrid RiftReader project.
+`RiftReaderValidator` is a helper addon for the hybrid RiftReader project.
 
 It exists to support the external memory reader by supplying:
 
@@ -27,7 +27,7 @@ It is **not** intended to replace the reader or become the main data source.
 - full UI overlays
 - heavy event spam logging
 - arbitrary automation
-- live-server support
+- hard environment-specific compatibility guarantees without verification
 - any dependency from the reader on the addon for core functionality
 
 ## Data Contract v0
@@ -100,7 +100,7 @@ Recommended default rolling history:
 
 ## Basic GUI
 
-The addon should expose a lightweight in-game status window for manual testing on PTS.
+The addon should expose a lightweight in-game status window for manual testing.
 
 The first GUI pass should include:
 
@@ -117,9 +117,9 @@ This GUI is a testing aid only. It should remain lightweight and should not evol
 
 ## Reader Correlation Workflow
 
-1. Position the player in a known PTS state.
+1. Position the player in a known state.
 2. Trigger `/rrv snapshot`.
-3. Immediately run the C# reader against the PTS process.
+3. Immediately run the C# reader against the intended Rift process.
 4. Compare:
    - timestamp window
    - sequence number
@@ -140,7 +140,7 @@ addon/
 
 - The addon only sees what the Rift addon API exposes.
 - It cannot validate structures that are fully hidden from the API.
-- The exact `Environment` value in `RiftAddon.toc` may need to be updated if the current PTS client expects a newer addon API environment.
+- The exact `Environment` value in `RiftAddon.toc` may need to be updated if the current client expects a newer addon API environment.
 
 ## Next Implementation Targets
 

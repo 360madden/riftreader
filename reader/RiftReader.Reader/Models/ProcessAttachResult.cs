@@ -5,5 +5,4 @@ public sealed record ProcessAttachResult(
     int ProcessId,
     string ProcessName,
     string? ModuleName,
-    string? MainWindowTitle,
-    bool PtsOnly);
+    string? MainWindowTitle);

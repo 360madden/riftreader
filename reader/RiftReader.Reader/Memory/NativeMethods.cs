@@ -4,6 +4,10 @@ namespace RiftReader.Reader.Memory;
 
 internal static class NativeMethods
 {
+    internal const uint MemCommit = 0x1000;
+    internal const uint PageNoAccess = 0x01;
+    internal const uint PageGuard = 0x100;
+
     [Flags]
     internal enum ProcessAccessRights : uint
     {
@@ -30,4 +34,24 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool CloseHandle(nint handle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MemoryBasicInformation
+    {
+        internal nint BaseAddress;
+        internal nint AllocationBase;
+        internal uint AllocationProtect;
+        internal ushort PartitionId;
+        internal nuint RegionSize;
+        internal uint State;
+        internal uint Protect;
+        internal uint Type;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nuint VirtualQueryEx(
+        nint processHandle,
+        nint address,
+        out MemoryBasicInformation buffer,
+        nuint length);
 }

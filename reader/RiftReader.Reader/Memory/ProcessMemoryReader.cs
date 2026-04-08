@@ -77,6 +77,44 @@ public sealed class ProcessMemoryReader : IDisposable
         return true;
     }
 
+    public IEnumerable<ProcessMemoryRegion> EnumerateMemoryRegions()
+    {
+        ThrowIfDisposed();
+
+        var queryLength = (nuint)Marshal.SizeOf<NativeMethods.MemoryBasicInformation>();
+        nint address = 0;
+
+        while (true)
+        {
+            var result = NativeMethods.VirtualQueryEx(_processHandle, address, out var info, queryLength);
+            if (result == 0)
+            {
+                yield break;
+            }
+
+            var regionSize = checked((long)info.RegionSize);
+            if (regionSize <= 0)
+            {
+                yield break;
+            }
+
+            yield return new ProcessMemoryRegion(
+                BaseAddress: info.BaseAddress,
+                RegionSize: regionSize,
+                State: info.State,
+                Protect: info.Protect,
+                Type: info.Type);
+
+            var nextAddressValue = info.BaseAddress.ToInt64() + regionSize;
+            if (nextAddressValue <= address.ToInt64())
+            {
+                yield break;
+            }
+
+            address = new nint(nextAddressValue);
+        }
+    }
+
     public void Dispose()
     {
         Dispose(disposing: true);

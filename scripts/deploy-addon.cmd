@@ -1,11 +1,11 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
-set "SOURCE_DIR=%REPO_ROOT%\addon\RiftReaderValidator"
+set "SOURCE_ROOT=%REPO_ROOT%\addon"
 
-if not exist "%SOURCE_DIR%\main.lua" (
-  echo [ERROR] Addon source was not found: "%SOURCE_DIR%"
+if not exist "%SOURCE_ROOT%" (
+  echo [ERROR] Addon source root was not found: "%SOURCE_ROOT%"
   exit /b 1
 )
 
@@ -22,21 +22,35 @@ if not defined ADDONS_ROOT (
   exit /b 1
 )
 
-set "TARGET_DIR=%ADDONS_ROOT%\RiftReaderValidator"
+set /a ADDON_COUNT=0
 
-if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%" >nul 2>&1
-if errorlevel 1 (
-  echo [ERROR] Could not create the target folder: "%TARGET_DIR%"
+for /d %%D in ("%SOURCE_ROOT%\*") do (
+  if exist "%%~fD\main.lua" (
+    set /a ADDON_COUNT+=1
+    set "TARGET_DIR=%ADDONS_ROOT%\%%~nxD"
+
+    if not exist "!TARGET_DIR!" mkdir "!TARGET_DIR!" >nul 2>&1
+    if errorlevel 1 (
+      echo [ERROR] Could not create the target folder: "!TARGET_DIR!"
+      exit /b 1
+    )
+
+    robocopy "%%~fD" "!TARGET_DIR!" /E /NFL /NDL /NJH /NJS /NC /NS /NP
+    set "ROBOCOPY_EXIT=!errorlevel!"
+
+    if !ROBOCOPY_EXIT! GEQ 8 (
+      echo [ERROR] Addon deployment failed for "%%~nxD" with robocopy exit code !ROBOCOPY_EXIT!.
+      exit /b !ROBOCOPY_EXIT!
+    )
+
+    echo [OK] Addon deployed to "!TARGET_DIR!".
+  )
+)
+
+if !ADDON_COUNT! EQU 0 (
+  echo [ERROR] No addon directories with main.lua were found under "%SOURCE_ROOT%".
   exit /b 1
 )
 
-robocopy "%SOURCE_DIR%" "%TARGET_DIR%" /E /NFL /NDL /NJH /NJS /NC /NS /NP
-set "ROBOCOPY_EXIT=%errorlevel%"
-
-if %ROBOCOPY_EXIT% GEQ 8 (
-  echo [ERROR] Addon deployment failed with robocopy exit code %ROBOCOPY_EXIT%.
-  exit /b %ROBOCOPY_EXIT%
-)
-
-echo [OK] Addon deployed to "%TARGET_DIR%".
+echo [OK] Deployment completed for !ADDON_COUNT! addon(s).
 exit /b 0

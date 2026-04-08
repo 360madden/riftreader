@@ -1,0 +1,17 @@
+Identifier = "ReaderBridgeExport"
+Name = "ReaderBridge Export"
+NameShort = "RBX"
+Description = "Export layer that mirrors ReaderBridge telemetry into saved variables for RiftReader."
+Author = "OpenAI Codex"
+Website = ""
+Version = "0.1.0"
+Email = "noreply@example.com"
+Environment = "4.4"
+
+RunOnStartup = {
+  "main.lua",
+}
+
+SavedVariables = {
+  ReaderBridgeExport_State = "character",
+}

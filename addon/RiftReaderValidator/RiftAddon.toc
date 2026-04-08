@@ -1,7 +1,7 @@
 Identifier = "RiftReaderValidator"
 Name = "RiftReader Validator"
 NameShort = "RRV"
-Description = "PTS-only helper addon for validating RiftReader memory captures."
+Description = "Helper addon for validating RiftReader memory captures."
 Author = "OpenAI Codex"
 Website = ""
 Version = "0.1.0"

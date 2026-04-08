@@ -29,7 +29,7 @@ This is a reasonable requirement for a tool that is expected to be used repeated
 - `--help` should print a useful overview, not just a usage line
 - help should include examples for common workflows
 - help should note when options are mutually exclusive or depend on each other
-- help should surface the PTS-only constraint clearly
+- help should surface important environment assumptions clearly
 
 ### Color and highlighting
 
@@ -49,7 +49,7 @@ This is a reasonable requirement for a tool that is expected to be used repeated
 Future switches may reasonably cover:
 
 - process targeting
-- PTS validation profile selection
+- environment-specific validation profile selection
 - memory read modes
 - dump formatting
 - logging verbosity
@@ -60,7 +60,7 @@ Future switches may reasonably cover:
 
 The addon remains the in-game validation surface. The reader CLI should make it easy to:
 
-- attach to the right PTS process
+- attach to the right Rift process
 - choose the right inspection mode
 - capture comparable output
 - inspect results quickly during iteration
