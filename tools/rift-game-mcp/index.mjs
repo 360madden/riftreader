@@ -18,6 +18,15 @@ const bindingsFilePath = path.join(configDir, 'bindings.json');
 
 const defaultBindings = Object.freeze({
   inventory: null,
+  inventoryVerification: Object.freeze({
+    openReferencePath: null,
+    closedReferencePath: null,
+    matchThresholdPercent: 3,
+    waitForChangeTimeoutMilliseconds: 3000,
+    waitForChangePollIntervalMilliseconds: 150,
+    changeThresholdPercent: 0.5,
+    region: null,
+  }),
   hotbarSlots: {
     '1': '1',
     '2': '2',
@@ -99,6 +108,26 @@ function toToolError(message, details = {}) {
   };
 }
 
+function createDetailedError(message, details = {}) {
+  const error = new Error(message);
+  error.details = details;
+  return error;
+}
+
+function getErrorDetails(error) {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'details' in error &&
+    error.details &&
+    typeof error.details === 'object'
+  ) {
+    return error.details;
+  }
+
+  return {};
+}
+
 function nextScreenshotPath() {
   return path.join(screenshotsDir, `capture-${nowStamp()}.png`);
 }
@@ -136,6 +165,134 @@ function updateLastCapturePath(screenshotPath) {
   state.lastCapturePath = screenshotPath || state.lastCapturePath;
 }
 
+function normalizeNumber(value, name, { min } = {}) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) {
+    throw new Error(`${name} must be a finite number.`);
+  }
+
+  if (min !== undefined && normalized < min) {
+    throw new Error(`${name} must be greater than or equal to ${min}.`);
+  }
+
+  return normalized;
+}
+
+function normalizeInteger(value, name, { min } = {}) {
+  const normalized = Number(value);
+  if (!Number.isInteger(normalized)) {
+    throw new Error(`${name} must be an integer.`);
+  }
+
+  if (min !== undefined && normalized < min) {
+    throw new Error(`${name} must be greater than or equal to ${min}.`);
+  }
+
+  return normalized;
+}
+
+function normalizeConfiguredPath(configuredPath) {
+  if (!configuredPath) {
+    return null;
+  }
+
+  return path.isAbsolute(configuredPath)
+    ? path.normalize(configuredPath)
+    : path.resolve(configDir, configuredPath);
+}
+
+function normalizeVerificationRegion(rawRegion) {
+  if (rawRegion === undefined || rawRegion === null) {
+    return null;
+  }
+
+  if (typeof rawRegion !== 'object' || Array.isArray(rawRegion)) {
+    throw new Error(
+      'inventoryVerification.region must be an object with x, y, width, and height.',
+    );
+  }
+
+  return {
+    x: normalizeInteger(
+      rawRegion.x,
+      'inventoryVerification.region.x',
+      { min: 0 },
+    ),
+    y: normalizeInteger(
+      rawRegion.y,
+      'inventoryVerification.region.y',
+      { min: 0 },
+    ),
+    width: normalizeInteger(
+      rawRegion.width,
+      'inventoryVerification.region.width',
+      { min: 1 },
+    ),
+    height: normalizeInteger(
+      rawRegion.height,
+      'inventoryVerification.region.height',
+      { min: 1 },
+    ),
+  };
+}
+
+function normalizeInventoryVerification(rawVerification = {}) {
+  const source =
+    rawVerification &&
+    typeof rawVerification === 'object' &&
+    !Array.isArray(rawVerification)
+      ? rawVerification
+      : {};
+
+  return {
+    openReferencePath: normalizeConfiguredPath(
+      source.openReferencePath ??
+        defaultBindings.inventoryVerification.openReferencePath,
+    ),
+    closedReferencePath: normalizeConfiguredPath(
+      source.closedReferencePath ??
+        defaultBindings.inventoryVerification.closedReferencePath,
+    ),
+    matchThresholdPercent:
+      source.matchThresholdPercent === undefined
+        ? defaultBindings.inventoryVerification.matchThresholdPercent
+        : normalizeNumber(
+            source.matchThresholdPercent,
+            'inventoryVerification.matchThresholdPercent',
+            { min: 0.01 },
+          ),
+    waitForChangeTimeoutMilliseconds:
+      source.waitForChangeTimeoutMilliseconds === undefined
+        ? defaultBindings.inventoryVerification
+            .waitForChangeTimeoutMilliseconds
+        : normalizeInteger(
+            source.waitForChangeTimeoutMilliseconds,
+            'inventoryVerification.waitForChangeTimeoutMilliseconds',
+            { min: 100 },
+          ),
+    waitForChangePollIntervalMilliseconds:
+      source.waitForChangePollIntervalMilliseconds === undefined
+        ? defaultBindings.inventoryVerification
+            .waitForChangePollIntervalMilliseconds
+        : normalizeInteger(
+            source.waitForChangePollIntervalMilliseconds,
+            'inventoryVerification.waitForChangePollIntervalMilliseconds',
+            { min: 25 },
+          ),
+    changeThresholdPercent:
+      source.changeThresholdPercent === undefined
+        ? defaultBindings.inventoryVerification.changeThresholdPercent
+        : normalizeNumber(
+            source.changeThresholdPercent,
+            'inventoryVerification.changeThresholdPercent',
+            { min: 0.01 },
+          ),
+    region: normalizeVerificationRegion(
+      source.region ?? defaultBindings.inventoryVerification.region,
+    ),
+  };
+}
+
 async function loadBindings() {
   await ensureRuntimeDirs();
 
@@ -143,6 +300,9 @@ async function loadBindings() {
     const raw = JSON.parse(await readFile(bindingsFilePath, 'utf8'));
     return {
       inventory: raw.inventory ?? defaultBindings.inventory,
+      inventoryVerification: normalizeInventoryVerification(
+        raw.inventoryVerification,
+      ),
       hotbarSlots: {
         ...defaultBindings.hotbarSlots,
         ...(raw.hotbarSlots ?? {}),
@@ -152,6 +312,7 @@ async function loadBindings() {
     if (error?.code === 'ENOENT') {
       return {
         inventory: defaultBindings.inventory,
+        inventoryVerification: normalizeInventoryVerification(),
         hotbarSlots: { ...defaultBindings.hotbarSlots },
       };
     }
@@ -220,6 +381,19 @@ function buildRegionParameters({
   };
 }
 
+function buildRegionParametersFromRegion(region) {
+  if (!region) {
+    return {};
+  }
+
+  return buildRegionParameters({
+    regionX: region.x,
+    regionY: region.y,
+    regionWidth: region.width,
+    regionHeight: region.height,
+  });
+}
+
 async function resolveSemanticBinding({
   overrideKeyChord,
   bindingName,
@@ -252,6 +426,287 @@ async function resolveSemanticBinding({
   return {
     keyChord: configKeyChord,
     bindingSource: 'config',
+  };
+}
+
+function hasInventoryStateReferences(verification) {
+  return Boolean(
+    verification?.openReferencePath && verification?.closedReferencePath,
+  );
+}
+
+function buildInventoryVerificationConfigMessage() {
+  return `Inventory state verification is not configured. Set inventoryVerification.openReferencePath and inventoryVerification.closedReferencePath in ${bindingsFilePath} to screenshots of the same client size, then optionally set inventoryVerification.region to the bags panel area.`;
+}
+
+function getInventoryVerification(bindings, { requireStateReferences = false } = {}) {
+  const verification =
+    bindings.inventoryVerification ?? normalizeInventoryVerification();
+
+  if (requireStateReferences && !hasInventoryStateReferences(verification)) {
+    throw createDetailedError(buildInventoryVerificationConfigMessage(), {
+      bindingsFilePath,
+      inventoryVerification: verification,
+    });
+  }
+
+  return verification;
+}
+
+function isResolvedInventoryState(value) {
+  return value === 'open' || value === 'closed';
+}
+
+async function compareImages(baselinePath, comparePath, region = null) {
+  return runPowerShell('compare-images', {
+    BaselinePath: baselinePath,
+    ComparePath: comparePath,
+    ...buildRegionParametersFromRegion(region),
+  });
+}
+
+async function detectInventoryStateFromScreenshot(screenshotPath, verification) {
+  if (!hasInventoryStateReferences(verification)) {
+    throw createDetailedError(buildInventoryVerificationConfigMessage(), {
+      bindingsFilePath,
+      inventoryVerification: verification,
+    });
+  }
+
+  const openComparison = await compareImages(
+    verification.openReferencePath,
+    screenshotPath,
+    verification.region,
+  );
+  const closedComparison = await compareImages(
+    verification.closedReferencePath,
+    screenshotPath,
+    verification.region,
+  );
+  const thresholdPercent = verification.matchThresholdPercent;
+  const openMatches = openComparison.changePercent <= thresholdPercent;
+  const closedMatches = closedComparison.changePercent <= thresholdPercent;
+
+  let inventoryState = 'unknown';
+  if (openMatches && !closedMatches) {
+    inventoryState = 'open';
+  } else if (closedMatches && !openMatches) {
+    inventoryState = 'closed';
+  } else if (openMatches && closedMatches) {
+    inventoryState = 'ambiguous';
+  }
+
+  return {
+    state: inventoryState,
+    screenshotPath,
+    thresholdPercent,
+    region: openComparison.region,
+    openReferencePath: verification.openReferencePath,
+    closedReferencePath: verification.closedReferencePath,
+    openComparison: {
+      ...openComparison,
+      matchesThreshold: openMatches,
+    },
+    closedComparison: {
+      ...closedComparison,
+      matchesThreshold: closedMatches,
+    },
+  };
+}
+
+function assertInventoryStateIsKnown(detection, actionName) {
+  if (isResolvedInventoryState(detection.state)) {
+    return;
+  }
+
+  const reason =
+    detection.state === 'ambiguous'
+      ? 'the current screenshot matches both configured references'
+      : 'the current screenshot does not match either configured reference';
+
+  throw createDetailedError(
+    `${actionName} requires a known starting inventory state, but ${reason}. Update inventoryVerification in ${bindingsFilePath} or capture better reference screenshots.`,
+    {
+      detection,
+      bindingsFilePath,
+    },
+  );
+}
+
+async function waitForFrameChangeInternal({
+  baselineScreenshotPath,
+  timeoutMilliseconds = 3000,
+  pollIntervalMilliseconds = 150,
+  changeThresholdPercent = 0.5,
+  region = null,
+} = {}) {
+  let effectiveBaselinePath =
+    baselineScreenshotPath || state.lastCapturePath || null;
+
+  if (!effectiveBaselinePath) {
+    const baselineCapture = await captureBoundWindow();
+    effectiveBaselinePath = baselineCapture.screenshotPath;
+  }
+
+  const outputPath = nextScreenshotPath();
+  const result = await runPowerShell('wait-for-change', {
+    ...buildBoundWindowSpec(),
+    BaselinePath: effectiveBaselinePath,
+    OutputPath: outputPath,
+    TimeoutMilliseconds: timeoutMilliseconds,
+    PollIntervalMilliseconds: pollIntervalMilliseconds,
+    ChangeThresholdPercent: changeThresholdPercent,
+    ...buildRegionParametersFromRegion(region),
+  });
+
+  updateBoundWindow(result.window);
+  updateLastCapturePath(result.screenshotPath);
+
+  return {
+    ...result,
+    baselineScreenshotPath: effectiveBaselinePath,
+  };
+}
+
+async function runInventoryVerificationAction({
+  actionName,
+  desiredState = null,
+  keyChord,
+  holdMilliseconds,
+}) {
+  const bindings = await loadBindings();
+  const binding = await resolveSemanticBinding({
+    overrideKeyChord: keyChord,
+    bindingName: 'inventory',
+  });
+  const verification = getInventoryVerification(bindings, {
+    requireStateReferences: desiredState !== null,
+  });
+  const stateVerificationEnabled = hasInventoryStateReferences(verification);
+
+  const beforeCapture = await captureBoundWindow();
+  const beforeState = stateVerificationEnabled
+    ? await detectInventoryStateFromScreenshot(
+        beforeCapture.screenshotPath,
+        verification,
+      )
+    : null;
+
+  if (desiredState !== null) {
+    assertInventoryStateIsKnown(beforeState, actionName);
+
+    if (beforeState.state === desiredState) {
+      return {
+        action: actionName,
+        desiredState,
+        alreadyInDesiredState: true,
+        sent: false,
+        usedBinding: binding.keyChord,
+        bindingSource: binding.bindingSource,
+        holdMilliseconds,
+        baselineScreenshotPath: beforeCapture.screenshotPath,
+        screenshotPath: beforeCapture.screenshotPath,
+        changed: false,
+        beforeState,
+        afterState: beforeState,
+        verification: {
+          stateVerificationEnabled,
+          ...verification,
+        },
+        window: state.boundWindow,
+      };
+    }
+  }
+
+  await sendBoundKey(binding.keyChord, holdMilliseconds);
+
+  const waitResult = await waitForFrameChangeInternal({
+    baselineScreenshotPath: beforeCapture.screenshotPath,
+    timeoutMilliseconds: verification.waitForChangeTimeoutMilliseconds,
+    pollIntervalMilliseconds:
+      verification.waitForChangePollIntervalMilliseconds,
+    changeThresholdPercent: verification.changeThresholdPercent,
+    region: verification.region,
+  });
+
+  const afterState = stateVerificationEnabled
+    ? await detectInventoryStateFromScreenshot(
+        waitResult.screenshotPath,
+        verification,
+      )
+    : null;
+
+  if (desiredState !== null) {
+    if (afterState.state !== desiredState) {
+      const verificationIssue =
+        afterState.state === 'ambiguous' || afterState.state === 'unknown'
+          ? `Inventory did not verify as ${desiredState} after toggling. The resulting screenshot could not be classified cleanly against the configured references.`
+          : `Inventory did not verify as ${desiredState} after toggling. Detected "${afterState.state}" instead.`;
+
+      throw createDetailedError(verificationIssue, {
+        beforeState,
+        afterState,
+        waitResult,
+        bindingsFilePath,
+      });
+    }
+  } else if (stateVerificationEnabled) {
+    const beforeResolved = isResolvedInventoryState(beforeState?.state);
+    const afterResolved = isResolvedInventoryState(afterState?.state);
+
+    if (beforeResolved && afterResolved && beforeState.state === afterState.state) {
+      throw createDetailedError(
+        `Inventory toggle did not change the verified state. It remained "${afterState.state}" after sending ${binding.keyChord}.`,
+        {
+          beforeState,
+          afterState,
+          waitResult,
+        },
+      );
+    }
+
+    if (!waitResult.changed && !afterResolved) {
+      throw createDetailedError(
+        'Inventory toggle was not visually confirmed. No frame change was detected and the resulting inventory state could not be verified.',
+        {
+          beforeState,
+          afterState,
+          waitResult,
+        },
+      );
+    }
+  } else if (!waitResult.changed) {
+    throw createDetailedError(
+      'Inventory toggle was not visually confirmed because no frame change was detected. Check chat/text-entry focus, the configured key binding, or use a narrower inventoryVerification.region.',
+      {
+        waitResult,
+        bindingsFilePath,
+      },
+    );
+  }
+
+  return {
+    action: actionName,
+    desiredState,
+    alreadyInDesiredState: false,
+    sent: true,
+    usedBinding: binding.keyChord,
+    bindingSource: binding.bindingSource,
+    holdMilliseconds,
+    baselineScreenshotPath: beforeCapture.screenshotPath,
+    screenshotPath: waitResult.screenshotPath,
+    changed: waitResult.changed,
+    attempts: waitResult.attempts,
+    elapsedMilliseconds: waitResult.elapsedMilliseconds,
+    changePercent: waitResult.changePercent,
+    region: waitResult.region,
+    beforeState,
+    afterState,
+    verification: {
+      stateVerificationEnabled,
+      ...verification,
+    },
+    window: state.boundWindow,
   };
 }
 
@@ -360,8 +815,9 @@ async function runLoggedTool(action, fn) {
     return toToolResult(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await logAction(`${action}:error`, { message });
-    return toToolError(message);
+    const details = getErrorDetails(error);
+    await logAction(`${action}:error`, { message, ...details });
+    return toToolError(message, details);
   }
 }
 
@@ -586,36 +1042,28 @@ server.registerTool(
     regionHeight,
   }) =>
     runLoggedTool('wait_for_frame_change', async () => {
-      let effectiveBaselinePath =
-        baselineScreenshotPath || state.lastCapturePath || null;
-
-      if (!effectiveBaselinePath) {
-        const baselineCapture = await captureBoundWindow();
-        effectiveBaselinePath = baselineCapture.screenshotPath;
-      }
-
-      const outputPath = nextScreenshotPath();
-      const result = await runPowerShell('wait-for-change', {
-        ...buildBoundWindowSpec(),
-        BaselinePath: effectiveBaselinePath,
-        OutputPath: outputPath,
-        TimeoutMilliseconds: timeoutMilliseconds,
-        PollIntervalMilliseconds: pollIntervalMilliseconds,
-        ChangeThresholdPercent: changeThresholdPercent,
-        ...buildRegionParameters({
-          regionX,
-          regionY,
-          regionWidth,
-          regionHeight,
-        }),
+      const result = await waitForFrameChangeInternal({
+        baselineScreenshotPath,
+        timeoutMilliseconds,
+        pollIntervalMilliseconds,
+        changeThresholdPercent,
+        region:
+          regionX === undefined &&
+          regionY === undefined &&
+          regionWidth === undefined &&
+          regionHeight === undefined
+            ? null
+            : {
+                x: regionX,
+                y: regionY,
+                width: regionWidth,
+                height: regionHeight,
+              },
       });
-
-      updateBoundWindow(result.window);
-      updateLastCapturePath(result.screenshotPath);
 
       return {
         changed: result.changed,
-        baselineScreenshotPath: effectiveBaselinePath,
+        baselineScreenshotPath: result.baselineScreenshotPath,
         screenshotPath: result.screenshotPath,
         imageSize: result.imageSize,
         attempts: result.attempts,
@@ -628,11 +1076,112 @@ server.registerTool(
 );
 
 server.registerTool(
+  'toggle_inventory',
+  {
+    title: 'Toggle inventory',
+    description:
+      'Toggles the configured bags/inventory binding, then verifies that the window changed. If inventory reference screenshots are configured, it also reports the detected before/after state.',
+    inputSchema: {
+      keyChord: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional override for the inventory key binding. If omitted, tools/rift-game-mcp/config/bindings.json inventory is used.',
+        ),
+      holdMilliseconds: z
+        .number()
+        .int()
+        .min(10)
+        .max(5000)
+        .default(80)
+        .describe('How long to hold the key down.'),
+    },
+  },
+  async ({ keyChord, holdMilliseconds }) =>
+    runLoggedTool('toggle_inventory', async () =>
+      runInventoryVerificationAction({
+        actionName: 'toggle_inventory',
+        keyChord,
+        holdMilliseconds,
+      }),
+    ),
+);
+
+server.registerTool(
+  'ensure_inventory_open',
+  {
+    title: 'Ensure inventory open',
+    description:
+      'Uses configured inventory reference screenshots to verify whether bags are already open and only toggles when it can safely confirm the current state.',
+    inputSchema: {
+      keyChord: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional override for the inventory key binding. If omitted, tools/rift-game-mcp/config/bindings.json inventory is used.',
+        ),
+      holdMilliseconds: z
+        .number()
+        .int()
+        .min(10)
+        .max(5000)
+        .default(80)
+        .describe('How long to hold the key down.'),
+    },
+  },
+  async ({ keyChord, holdMilliseconds }) =>
+    runLoggedTool('ensure_inventory_open', async () =>
+      runInventoryVerificationAction({
+        actionName: 'ensure_inventory_open',
+        desiredState: 'open',
+        keyChord,
+        holdMilliseconds,
+      }),
+    ),
+);
+
+server.registerTool(
+  'ensure_inventory_closed',
+  {
+    title: 'Ensure inventory closed',
+    description:
+      'Uses configured inventory reference screenshots to verify whether bags are already closed and only toggles when it can safely confirm the current state.',
+    inputSchema: {
+      keyChord: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional override for the inventory key binding. If omitted, tools/rift-game-mcp/config/bindings.json inventory is used.',
+        ),
+      holdMilliseconds: z
+        .number()
+        .int()
+        .min(10)
+        .max(5000)
+        .default(80)
+        .describe('How long to hold the key down.'),
+    },
+  },
+  async ({ keyChord, holdMilliseconds }) =>
+    runLoggedTool('ensure_inventory_closed', async () =>
+      runInventoryVerificationAction({
+        actionName: 'ensure_inventory_closed',
+        desiredState: 'closed',
+        keyChord,
+        holdMilliseconds,
+      }),
+    ),
+);
+
+server.registerTool(
   'open_inventory',
   {
-    title: 'Open inventory',
+    title: 'Press inventory binding',
     description:
-      'Presses the configured inventory binding for the bound game window. Pass keyChord to override config bindings.',
+      'Presses the configured inventory binding for the bound game window. This is usually a toggle; use ensure_inventory_open or ensure_inventory_closed when you need a verified final state.',
     inputSchema: {
       keyChord: z
         .string()
@@ -661,6 +1210,48 @@ server.registerTool(
 
       return {
         action: 'open_inventory',
+        usedBinding: binding.keyChord,
+        bindingSource: binding.bindingSource,
+        holdMilliseconds,
+        window: state.boundWindow,
+      };
+    }),
+);
+
+server.registerTool(
+  'open_bags',
+  {
+    title: 'Press bags binding',
+    description:
+      'Alias for open_inventory. This sends the configured bags/inventory key as-is; use ensure_inventory_open or ensure_inventory_closed when you need a verified state.',
+    inputSchema: {
+      keyChord: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional override for the bags/inventory key binding. If omitted, tools/rift-game-mcp/config/bindings.json inventory is used.',
+        ),
+      holdMilliseconds: z
+        .number()
+        .int()
+        .min(10)
+        .max(5000)
+        .default(80)
+        .describe('How long to hold the key down.'),
+    },
+  },
+  async ({ keyChord, holdMilliseconds }) =>
+    runLoggedTool('open_bags', async () => {
+      const binding = await resolveSemanticBinding({
+        overrideKeyChord: keyChord,
+        bindingName: 'inventory',
+      });
+
+      await sendBoundKey(binding.keyChord, holdMilliseconds);
+
+      return {
+        action: 'open_bags',
         usedBinding: binding.keyChord,
         bindingSource: binding.bindingSource,
         holdMilliseconds,

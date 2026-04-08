@@ -1,5 +1,14 @@
 {
-  "inventory": null,
+  "inventory": "b",
+  "inventoryVerification": {
+    "openReferencePath": null,
+    "closedReferencePath": null,
+    "matchThresholdPercent": 3,
+    "waitForChangeTimeoutMilliseconds": 3000,
+    "waitForChangePollIntervalMilliseconds": 150,
+    "changeThresholdPercent": 0.5,
+    "region": null
+  },
   "hotbarSlots": {
     "1": "1",
     "2": "2",

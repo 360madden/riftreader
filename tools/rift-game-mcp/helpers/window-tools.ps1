@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "wait-for-change")]
+    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "wait-for-change", "compare-images")]
     [string]$Operation,
 
     [string]$ProcessName,
@@ -9,6 +9,7 @@ param(
     [string]$WindowHandle,
     [string]$OutputPath,
     [string]$BaselinePath,
+    [string]$ComparePath,
     [int]$ClientX,
     [int]$ClientY,
     [string]$KeyChord,
@@ -775,6 +776,50 @@ function Wait-ForWindowFrameChange {
     }
 }
 
+function Compare-ImageFiles {
+    param(
+        [string]$ReferencePath,
+        [string]$CandidatePath
+    )
+
+    if (-not (Test-Path -LiteralPath $ReferencePath)) {
+        throw "Reference screenshot was not found: $ReferencePath"
+    }
+
+    if (-not (Test-Path -LiteralPath $CandidatePath)) {
+        throw "Candidate screenshot was not found: $CandidatePath"
+    }
+
+    $referenceBitmap = New-Object System.Drawing.Bitmap $ReferencePath
+    $candidateBitmap = New-Object System.Drawing.Bitmap $CandidatePath
+
+    try {
+        if ($referenceBitmap.Width -ne $candidateBitmap.Width -or $referenceBitmap.Height -ne $candidateBitmap.Height) {
+            throw "Cannot compare images with different dimensions. Reference is $($referenceBitmap.Width)x$($referenceBitmap.Height), candidate is $($candidateBitmap.Width)x$($candidateBitmap.Height)."
+        }
+
+        $region = Get-RegionRectangle -ImageWidth $referenceBitmap.Width -ImageHeight $referenceBitmap.Height
+        $changePercent = Get-ImageChangePercent -BaselineBitmap $referenceBitmap -CurrentBitmap $candidateBitmap -Region $region
+
+        return [pscustomobject]@{
+            changePercent = $changePercent
+            region = (Convert-RectangleToRegionObject -Rectangle $region)
+            referenceImageSize = [pscustomobject]@{
+                width = $referenceBitmap.Width
+                height = $referenceBitmap.Height
+            }
+            candidateImageSize = [pscustomobject]@{
+                width = $candidateBitmap.Width
+                height = $candidateBitmap.Height
+            }
+        }
+    }
+    finally {
+        $referenceBitmap.Dispose()
+        $candidateBitmap.Dispose()
+    }
+}
+
 try {
     $result = switch ($Operation) {
         "find" {
@@ -816,6 +861,10 @@ try {
                 changePercent = $waitResult.changePercent
                 region = $waitResult.region
             }
+            break
+        }
+        "compare-images" {
+            Compare-ImageFiles -ReferencePath $BaselinePath -CandidatePath $ComparePath
             break
         }
         "click" {

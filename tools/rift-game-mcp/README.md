@@ -10,7 +10,11 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `wait_for_frame_change`
 - `click_client`
 - `send_key`
+- `toggle_inventory`
+- `ensure_inventory_open`
+- `ensure_inventory_closed`
 - `open_inventory`
+- `open_bags`
 - `press_hotbar_slot`
 
 ## Safety model
@@ -24,6 +28,8 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - Clicks are **client-area relative**, not desktop-relative.
 - `wait_for_frame_change` can watch the full client area or a narrowed region.
 - Semantic tools read `config/bindings.json` unless you override `keyChord` in the tool call.
+- `toggle_inventory` verifies that something changed after sending the bags key.
+- `ensure_inventory_open` / `ensure_inventory_closed` only act when inventory state can be verified safely from reference screenshots.
 
 ## Bindings config
 
@@ -31,8 +37,24 @@ Edit:
 
 `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\config\bindings.json`
 
-- `inventory` is intentionally unset until you confirm the right key.
+- `inventory` is currently set to `"b"` for bags.
+- `inventoryVerification` is optional for plain toggles, but required for `ensure_inventory_open` and `ensure_inventory_closed`.
+- `inventoryVerification.openReferencePath` and `inventoryVerification.closedReferencePath` can be absolute paths or paths relative to `config/`.
+- `inventoryVerification.region` is optional but strongly recommended; set it to the bags panel area so state matching ignores unrelated screen motion.
 - `hotbarSlots` ships with editable placeholder defaults for slots 1-12.
+
+## Inventory verification setup
+
+To use `ensure_inventory_open` / `ensure_inventory_closed`:
+
+1. Bind and focus the Rift window.
+2. Capture one screenshot with bags closed.
+3. Capture one screenshot with bags open.
+4. Save those PNGs somewhere stable.
+5. Set `inventoryVerification.openReferencePath` and `inventoryVerification.closedReferencePath`.
+6. Optionally set `inventoryVerification.region` to the exact bags panel area for more reliable matching.
+
+The reference screenshots must come from the same client size as the live game window. If the window size changes, capture new references.
 
 ## Codex wiring
 

@@ -13,7 +13,11 @@ Use this skill when the task involves the live Rift client, not static code only
 2. Before any input, call `focus_game_window`.
 3. Call `capture_game_window` to establish a visual baseline.
 4. Prefer semantic tools before raw inputs:
+   - `ensure_inventory_open`
+   - `ensure_inventory_closed`
+   - `toggle_inventory`
    - `open_inventory`
+   - `open_bags`
    - `press_hotbar_slot`
    - `send_key` only when no semantic tool fits
    - `click_client` only when a screenshot shows the exact target
@@ -32,6 +36,9 @@ Use this skill when the task involves the live Rift client, not static code only
 ## Practical guidance
 
 - Use `capture_game_window` before `click_client` so coordinates are based on the latest screenshot.
-- Use `open_inventory` for inventory toggling rather than guessing the key.
+- Use `ensure_inventory_open` or `ensure_inventory_closed` when you need a verified bags state.
+- Use `toggle_inventory` only when the action is intentionally a toggle.
+- Use `open_inventory` or `open_bags` only when you explicitly want the raw key press without state verification.
 - Use `press_hotbar_slot` for hotbar actions rather than raw number keys when possible.
+- If the ensure tools complain about missing verification config, capture new open/closed reference screenshots and update `tools/rift-game-mcp/config/bindings.json`.
 - If a step depends on a visible confirmation, do not chain more actions until the confirmation is observed.
