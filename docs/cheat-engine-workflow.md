@@ -35,6 +35,9 @@ And installs a CE bootstrap here:
 - `C:\Program Files\Cheat Engine\autorun\custom\RiftReaderBootstrap.lua`
 
 The bootstrap only loads the repo script. It does not hardcode discovery logic.
+It also opens a CE Lua server named:
+
+- `RiftReader`
 
 ## What the generated CE script does
 
@@ -87,12 +90,28 @@ C:\RIFT MODDING\RiftReader\scripts\run-reader.cmd --process-name rift_x64 --chea
 
 After running `sync-cheatengine.cmd`:
 
-1. restart Cheat Engine so the autorun bootstrap loads
-2. attach/populate from the CE Lua console with:
+1. restart Cheat Engine once so the autorun bootstrap loads and opens the `RiftReader` Lua server
+2. after that, you can drive the probe remotely:
 
-```lua
-RiftReaderProbe.attachAndPopulate()
+```cmd
+C:\RIFT MODDING\RiftReader\scripts\cheatengine-attach-probe.cmd
 ```
+
+Or reload the script only:
+
+```cmd
+C:\RIFT MODDING\RiftReader\scripts\cheatengine-reload-probe.cmd
+```
+
+Then, after moving or changing health, append the current best-family sample set to disk:
+
+```cmd
+C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd -Label moved
+```
+
+Default capture file:
+
+- `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\probe-samples.tsv`
 
 Useful follow-up actions inside CE:
 

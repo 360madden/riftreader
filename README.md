@@ -45,6 +45,11 @@ RiftReader/
 │   ├── build-reader.cmd
 │   ├── deploy-addon.cmd
 │   ├── generate-cheatengine-probe.cmd
+│   ├── cheatengine-attach-probe.cmd
+│   ├── cheatengine-capture-best.cmd
+│   ├── cheatengine-exec.cmd
+│   ├── cheatengine-exec.ps1
+│   ├── cheatengine-reload-probe.cmd
 │   ├── install-cheatengine-autorun.cmd
 │   ├── run-reader.cmd
 │   ├── sync-cheatengine.cmd
@@ -232,6 +237,10 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\generate-cheatengine-probe.cmd` - generate the current CE Lua helper from the live ReaderBridge export and the top grouped signature families
 - `C:\RIFT MODDING\RiftReader\scripts\install-cheatengine-autorun.cmd` - install the CE autorun bootstrap that loads the repo-owned helper script
 - `C:\RIFT MODDING\RiftReader\scripts\sync-cheatengine.cmd` - regenerate the CE helper and refresh the autorun bootstrap in one step
+- `C:\RIFT MODDING\RiftReader\scripts\cheatengine-exec.ps1` / `C:\RIFT MODDING\RiftReader\scripts\cheatengine-exec.cmd` - send Lua to a running Cheat Engine instance through the CE Lua server
+- `C:\RIFT MODDING\RiftReader\scripts\cheatengine-reload-probe.cmd` - reload the generated probe into a CE instance that already has the Lua server enabled
+- `C:\RIFT MODDING\RiftReader\scripts\cheatengine-attach-probe.cmd` - remotely reload the probe and run `RiftReaderProbe.attachAndPopulate()`
+- `C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd` - remotely append the current best-family sample set to `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\probe-samples.tsv`
 
 The deploy scripts auto-detect common Rift addon locations and also respect the `RIFT_ADDONS_DIR` environment variable if you want to override the target.
 
@@ -250,10 +259,16 @@ Cheat Engine workflow:
 C:\RIFT MODDING\RiftReader\scripts\sync-cheatengine.cmd
 ```
 
-Then restart Cheat Engine and run:
+Then restart Cheat Engine once so the Lua server bootstrap loads. After that, you can drive the probe remotely:
 
-```lua
-RiftReaderProbe.attachAndPopulate()
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\cheatengine-attach-probe.cmd
+```
+
+Capture the current top-family sample set to disk:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd -Label baseline
 ```
 
 See:
