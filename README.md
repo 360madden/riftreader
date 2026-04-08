@@ -241,9 +241,13 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\cheatengine-reload-probe.cmd` - reload the generated probe into a CE instance that already has the Lua server enabled
 - `C:\RIFT MODDING\RiftReader\scripts\cheatengine-attach-probe.cmd` - remotely reload the probe and run `RiftReaderProbe.attachAndPopulate()`
 - `C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd` - remotely append the current best-family sample set to `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\probe-samples.tsv`
-- `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - experimentally try a no-focus `PostMessage` command injection against the Rift window and verify success by watching `ReaderBridgeExport.lua`
+- `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
+- `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path, then load the updated snapshot through the reader
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
-- `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - use an AutoHotkey v2 helper modeled on the working multibox example to post raw keydown/keyup messages with Rift-style scan-code `lParam` values
+- `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
+- `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scan / rescan workflows
+- `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd` - CE-assisted player-signature family helper that moves the character, rescans exact coordinate values in CE, and confirms which candidate sample addresses are truly tracking live movement
 
 The deploy scripts auto-detect common Rift addon locations and also respect the `RIFT_ADDONS_DIR` environment variable if you want to override the target.
 
@@ -277,6 +281,18 @@ C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd -Label baseline
 See:
 
 - `C:\RIFT MODDING\RiftReader\docs\cheat-engine-workflow.md`
+
+Force a fresh ReaderBridge save and immediately load the new snapshot:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd
+```
+
+Run the CE-assisted player-family smart capture:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd
+```
 
 ## Next Milestone
 
