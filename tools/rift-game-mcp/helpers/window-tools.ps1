@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key")]
+    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "wait-for-change")]
     [string]$Operation,
 
     [string]$ProcessName,
     [string]$TitleContains,
     [string]$WindowHandle,
     [string]$OutputPath,
+    [string]$BaselinePath,
     [int]$ClientX,
     [int]$ClientY,
     [string]$KeyChord,
@@ -15,7 +16,14 @@ param(
     [int]$ClickDelayMilliseconds = 50,
     [int]$ExpectedProcessId = 0,
     [string]$ExpectedProcessName,
-    [string]$ExpectedTitleContains
+    [string]$ExpectedTitleContains,
+    [int]$TimeoutMilliseconds = 3000,
+    [int]$PollIntervalMilliseconds = 150,
+    [double]$ChangeThresholdPercent = 0.5,
+    [int]$RegionX = -1,
+    [int]$RegionY = -1,
+    [int]$RegionWidth = -1,
+    [int]$RegionHeight = -1
 )
 
 Set-StrictMode -Version Latest
@@ -138,6 +146,8 @@ $INPUT_KEYBOARD = 1
 $MOUSEEVENTF_LEFTDOWN = 0x0002
 $MOUSEEVENTF_LEFTUP = 0x0004
 $KEYEVENTF_KEYUP = 0x0002
+$MaxComparisonDimension = 160
+$PixelDifferenceThreshold = 24
 
 $modifierKeys = @{
     "SHIFT" = 0x10
@@ -529,11 +539,41 @@ function Send-KeyPlan {
     }
 }
 
-function Capture-WindowClientArea {
+function Get-RegionRectangle {
     param(
-        [psobject]$Window,
-        [string]$Path
+        [int]$ImageWidth,
+        [int]$ImageHeight
     )
+
+    $hasExplicitRegion = $RegionX -ge 0 -or $RegionY -ge 0 -or $RegionWidth -gt 0 -or $RegionHeight -gt 0
+    if (-not $hasExplicitRegion) {
+        return [System.Drawing.Rectangle]::new(0, 0, $ImageWidth, $ImageHeight)
+    }
+
+    if ($RegionX -lt 0 -or $RegionY -lt 0 -or $RegionWidth -le 0 -or $RegionHeight -le 0) {
+        throw "RegionX, RegionY, RegionWidth, and RegionHeight must all be provided together and be positive."
+    }
+
+    if ($RegionX + $RegionWidth -gt $ImageWidth -or $RegionY + $RegionHeight -gt $ImageHeight) {
+        throw "Requested comparison region lies outside the captured client image."
+    }
+
+    return [System.Drawing.Rectangle]::new($RegionX, $RegionY, $RegionWidth, $RegionHeight)
+}
+
+function Convert-RectangleToRegionObject {
+    param([System.Drawing.Rectangle]$Rectangle)
+
+    return [pscustomobject]@{
+        x = $Rectangle.X
+        y = $Rectangle.Y
+        width = $Rectangle.Width
+        height = $Rectangle.Height
+    }
+}
+
+function New-WindowClientBitmap {
+    param([psobject]$Window)
 
     if ($Window.isMinimized) {
         throw "Cannot capture a minimized window. Focus or restore it first."
@@ -544,28 +584,193 @@ function Capture-WindowClientArea {
         throw "Window client area has invalid dimensions."
     }
 
-    $directory = [System.IO.Path]::GetDirectoryName($Path)
-    if (-not [string]::IsNullOrWhiteSpace($directory)) {
-        [System.IO.Directory]::CreateDirectory($directory) | Out-Null
-    }
-
     $bitmap = New-Object System.Drawing.Bitmap $rect.width, $rect.height
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 
     try {
         $graphics.CopyFromScreen($rect.left, $rect.top, 0, 0, [System.Drawing.Size]::new($rect.width, $rect.height))
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
     }
     finally {
         $graphics.Dispose()
-        $bitmap.Dispose()
     }
 
-    return [pscustomobject]@{
-        screenshotPath = [System.IO.Path]::GetFullPath($Path)
-        imageSize = [pscustomobject]@{
-            width = $rect.width
-            height = $rect.height
+    return $bitmap
+}
+
+function Save-BitmapPng {
+    param(
+        [System.Drawing.Bitmap]$Bitmap,
+        [string]$Path
+    )
+
+    $directory = [System.IO.Path]::GetDirectoryName($Path)
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        [System.IO.Directory]::CreateDirectory($directory) | Out-Null
+    }
+
+    $Bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    return [System.IO.Path]::GetFullPath($Path)
+}
+
+function Capture-WindowClientArea {
+    param(
+        [psobject]$Window,
+        [string]$Path
+    )
+
+    $bitmap = New-WindowClientBitmap -Window $Window
+    try {
+        $fullPath = Save-BitmapPng -Bitmap $bitmap -Path $Path
+        return [pscustomobject]@{
+            screenshotPath = $fullPath
+            imageSize = [pscustomobject]@{
+                width = $bitmap.Width
+                height = $bitmap.Height
+            }
+        }
+    }
+    finally {
+        $bitmap.Dispose()
+    }
+}
+
+function New-ScaledRegionBitmap {
+    param(
+        [System.Drawing.Bitmap]$Bitmap,
+        [System.Drawing.Rectangle]$Region
+    )
+
+    $scale = [Math]::Min(1.0, [Math]::Min($MaxComparisonDimension / [double]$Region.Width, $MaxComparisonDimension / [double]$Region.Height))
+    $targetWidth = [Math]::Max(1, [int][Math]::Round($Region.Width * $scale))
+    $targetHeight = [Math]::Max(1, [int][Math]::Round($Region.Height * $scale))
+
+    $scaled = New-Object System.Drawing.Bitmap $targetWidth, $targetHeight
+    $graphics = [System.Drawing.Graphics]::FromImage($scaled)
+    try {
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBilinear
+        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $graphics.DrawImage(
+            $Bitmap,
+            [System.Drawing.Rectangle]::new(0, 0, $targetWidth, $targetHeight),
+            $Region,
+            [System.Drawing.GraphicsUnit]::Pixel)
+    }
+    finally {
+        $graphics.Dispose()
+    }
+
+    return $scaled
+}
+
+function Get-ImageChangePercent {
+    param(
+        [System.Drawing.Bitmap]$BaselineBitmap,
+        [System.Drawing.Bitmap]$CurrentBitmap,
+        [System.Drawing.Rectangle]$Region
+    )
+
+    $baselineScaled = New-ScaledRegionBitmap -Bitmap $BaselineBitmap -Region $Region
+    $currentScaled = New-ScaledRegionBitmap -Bitmap $CurrentBitmap -Region $Region
+
+    try {
+        $changedPixels = 0
+        $totalPixels = $baselineScaled.Width * $baselineScaled.Height
+
+        for ($x = 0; $x -lt $baselineScaled.Width; $x++) {
+            for ($y = 0; $y -lt $baselineScaled.Height; $y++) {
+                $baselineColor = $baselineScaled.GetPixel($x, $y)
+                $currentColor = $currentScaled.GetPixel($x, $y)
+                $difference = [Math]::Abs($baselineColor.R - $currentColor.R) +
+                    [Math]::Abs($baselineColor.G - $currentColor.G) +
+                    [Math]::Abs($baselineColor.B - $currentColor.B)
+
+                if ($difference -ge $PixelDifferenceThreshold) {
+                    $changedPixels++
+                }
+            }
+        }
+
+        return [Math]::Round(($changedPixels * 100.0) / [Math]::Max(1, $totalPixels), 4)
+    }
+    finally {
+        $baselineScaled.Dispose()
+        $currentScaled.Dispose()
+    }
+}
+
+function Wait-ForWindowFrameChange {
+    param(
+        [psobject]$Window,
+        [string]$BaselineScreenshotPath,
+        [string]$ResultPath
+    )
+
+    if (-not (Test-Path -LiteralPath $BaselineScreenshotPath)) {
+        throw "Baseline screenshot was not found: $BaselineScreenshotPath"
+    }
+
+    $baselineBitmap = New-Object System.Drawing.Bitmap $BaselineScreenshotPath
+    $lastBitmap = $null
+    $attempts = 0
+    $lastChangePercent = 0.0
+    $changed = $false
+    $startedAt = Get-Date
+    $deadline = $startedAt.AddMilliseconds($TimeoutMilliseconds)
+
+    try {
+        $region = Get-RegionRectangle -ImageWidth $baselineBitmap.Width -ImageHeight $baselineBitmap.Height
+
+        do {
+            if ($lastBitmap) {
+                $lastBitmap.Dispose()
+                $lastBitmap = $null
+            }
+
+            $attempts++
+            $lastBitmap = New-WindowClientBitmap -Window $Window
+
+            if ($lastBitmap.Width -ne $baselineBitmap.Width -or $lastBitmap.Height -ne $baselineBitmap.Height) {
+                $lastChangePercent = 100.0
+                $changed = $true
+            }
+            else {
+                $lastChangePercent = Get-ImageChangePercent -BaselineBitmap $baselineBitmap -CurrentBitmap $lastBitmap -Region $region
+                $changed = $lastChangePercent -ge $ChangeThresholdPercent
+            }
+
+            if ($changed) {
+                break
+            }
+
+            Start-Sleep -Milliseconds $PollIntervalMilliseconds
+        }
+        while ((Get-Date) -lt $deadline)
+
+        if (-not $lastBitmap) {
+            $attempts++
+            $lastBitmap = New-WindowClientBitmap -Window $Window
+        }
+
+        $savedPath = Save-BitmapPng -Bitmap $lastBitmap -Path $ResultPath
+        $elapsedMilliseconds = [int][Math]::Round(((Get-Date) - $startedAt).TotalMilliseconds)
+
+        return [pscustomobject]@{
+            changed = $changed
+            screenshotPath = $savedPath
+            imageSize = [pscustomobject]@{
+                width = $lastBitmap.Width
+                height = $lastBitmap.Height
+            }
+            attempts = $attempts
+            elapsedMilliseconds = $elapsedMilliseconds
+            changePercent = $lastChangePercent
+            region = (Convert-RectangleToRegionObject -Rectangle $region)
+        }
+    }
+    finally {
+        $baselineBitmap.Dispose()
+        if ($lastBitmap) {
+            $lastBitmap.Dispose()
         }
     }
 }
@@ -595,6 +800,21 @@ try {
                 window = (Get-WindowSnapshot -Handle (ConvertTo-IntPtr -HandleText $window.windowHandle))
                 screenshotPath = $capture.screenshotPath
                 imageSize = $capture.imageSize
+            }
+            break
+        }
+        "wait-for-change" {
+            $window = Resolve-WindowSnapshot
+            $waitResult = Wait-ForWindowFrameChange -Window $window -BaselineScreenshotPath $BaselinePath -ResultPath $OutputPath
+            [pscustomobject]@{
+                window = (Get-WindowSnapshot -Handle (ConvertTo-IntPtr -HandleText $window.windowHandle))
+                changed = $waitResult.changed
+                screenshotPath = $waitResult.screenshotPath
+                imageSize = $waitResult.imageSize
+                attempts = $waitResult.attempts
+                elapsedMilliseconds = $waitResult.elapsedMilliseconds
+                changePercent = $waitResult.changePercent
+                region = $waitResult.region
             }
             break
         }

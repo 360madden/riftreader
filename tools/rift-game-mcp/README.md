@@ -7,8 +7,11 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `find_game_window`
 - `focus_game_window`
 - `capture_game_window`
+- `wait_for_frame_change`
 - `click_client`
 - `send_key`
+- `open_inventory`
+- `press_hotbar_slot`
 
 ## Safety model
 
@@ -19,6 +22,17 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   - the current foreground window is not the bound window,
   - the bound handle no longer matches the same process identity.
 - Clicks are **client-area relative**, not desktop-relative.
+- `wait_for_frame_change` can watch the full client area or a narrowed region.
+- Semantic tools read `config/bindings.json` unless you override `keyChord` in the tool call.
+
+## Bindings config
+
+Edit:
+
+`C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\config\bindings.json`
+
+- `inventory` is intentionally unset until you confirm the right key.
+- `hotbarSlots` ships with editable placeholder defaults for slots 1-12.
 
 ## Codex wiring
 
@@ -40,3 +54,13 @@ npm run validate
 ```
 
 That launches the MCP server over stdio and verifies the tool list.
+
+## Repo-local Codex skill
+
+This repo now includes a local skill at:
+
+`C:\RIFT MODDING\RiftReader\.codex\skills\rift-window-control\SKILL.md`
+
+It tells Codex to follow the safer loop:
+
+bind → focus → capture → act → wait_for_frame_change
