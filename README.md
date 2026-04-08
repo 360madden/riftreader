@@ -94,6 +94,18 @@ Attach and read a raw address range:
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
 ```
 
+Normalize the latest addon snapshot into reader-friendly output:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --addon-snapshot
+```
+
+Emit that snapshot as JSON:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --addon-snapshot --json
+```
+
 ## Helper Scripts
 
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check the Lua addon with `luac`

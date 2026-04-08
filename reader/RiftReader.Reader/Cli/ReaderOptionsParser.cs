@@ -9,15 +9,19 @@ Usage:
   RiftReader.Reader --pid <processId>
   RiftReader.Reader --process-name <name>
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
+  RiftReader.Reader --addon-snapshot [--addon-snapshot-file <path>] [--json]
 
 Notes:
   - PTS-only: use this reader only against the Rift Public Test Server.
   - Provide either --pid or --process-name, but not both.
   - Provide --address and --length together when you want a raw memory read.
+  - Use --addon-snapshot to normalize the latest RiftReaderValidator saved snapshot for comparison work.
+  - Use --json to print machine-readable output.
 
 Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --addon-snapshot --json
 """;
 
     public static ReaderOptionsParseResult Parse(string[] args)
@@ -31,6 +35,9 @@ Examples:
         string? processName = null;
         nint? address = null;
         int? length = null;
+        var readAddonSnapshot = false;
+        string? addonSnapshotFile = null;
+        var jsonOutput = false;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -93,9 +100,39 @@ Examples:
                     length = parsedLength;
                     break;
 
+                case "--addon-snapshot":
+                    readAddonSnapshot = true;
+                    break;
+
+                case "--addon-snapshot-file":
+                    if (!TryReadNext(args, ref index, out var addonSnapshotFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --addon-snapshot-file.", UsageText);
+                    }
+
+                    addonSnapshotFile = addonSnapshotFileValue;
+                    readAddonSnapshot = true;
+                    break;
+
+                case "--json":
+                    jsonOutput = true;
+                    break;
+
                 default:
                     return ReaderOptionsParseResult.Fail($"Unknown argument '{arg}'.", UsageText);
             }
+        }
+
+        if (readAddonSnapshot)
+        {
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("Addon snapshot mode cannot be combined with process attach or memory-read switches.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(null, null, null, null, true, addonSnapshotFile, jsonOutput),
+                UsageText);
         }
 
         if (processId.HasValue == !string.IsNullOrWhiteSpace(processName))
@@ -109,7 +146,7 @@ Examples:
         }
 
         return ReaderOptionsParseResult.Success(
-            new ReaderOptions(processId, processName, address, length),
+            new ReaderOptions(processId, processName, address, length, false, null, jsonOutput),
             UsageText);
     }
 

@@ -1,6 +1,8 @@
+using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Cli;
 using RiftReader.Reader.Formatting;
 using RiftReader.Reader.Memory;
+using RiftReader.Reader.Models;
 using RiftReader.Reader.Processes;
 
 namespace RiftReader.Reader;
@@ -26,6 +28,11 @@ internal static class Program
         }
 
         var options = parseResult.Options;
+
+        if (options.ReadAddonSnapshot)
+        {
+            return RunAddonSnapshotMode(options);
+        }
 
         Console.WriteLine("RiftReader.Reader");
         Console.WriteLine("PTS-only scope: use this tool only against the Rift Public Test Server.");
@@ -62,6 +69,20 @@ internal static class Program
 
         if (!options.Address.HasValue || !options.Length.HasValue)
         {
+            if (options.JsonOutput)
+            {
+                var attachResult = new ProcessAttachResult(
+                    Mode: "attach",
+                    ProcessId: target.ProcessId,
+                    ProcessName: target.ProcessName,
+                    ModuleName: target.ModuleName,
+                    MainWindowTitle: target.MainWindowTitle,
+                    PtsOnly: true);
+
+                Console.WriteLine(JsonOutput.Serialize(attachResult));
+                return 0;
+            }
+
             Console.WriteLine("Attach verified. No memory read was requested.");
             Console.WriteLine("Next step: add pointer maps and typed readers for the PTS structures you want to inspect.");
             return 0;
@@ -81,6 +102,22 @@ internal static class Program
             return 1;
         }
 
+        if (options.JsonOutput)
+        {
+            var memoryReadResult = new MemoryReadResult(
+                Mode: "memory-read",
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                ModuleName: target.ModuleName,
+                MainWindowTitle: target.MainWindowTitle,
+                Address: $"0x{options.Address.Value.ToInt64():X}",
+                Length: bytes.Length,
+                BytesHex: Convert.ToHexString(bytes));
+
+            Console.WriteLine(JsonOutput.Serialize(memoryReadResult));
+            return 0;
+        }
+
         Console.WriteLine($"Read {bytes.Length} bytes from 0x{options.Address.Value.ToInt64():X}.");
         Console.WriteLine();
         Console.WriteLine(HexDumpFormatter.Format(bytes, options.Address.Value));
@@ -91,5 +128,28 @@ internal static class Program
     private static void WriteUsage(ReaderOptionsParseResult parseResult)
     {
         Console.WriteLine(parseResult.UsageText);
+    }
+
+    private static int RunAddonSnapshotMode(ReaderOptions options)
+    {
+        var document = ValidatorSnapshotLoader.TryLoad(options.AddonSnapshotFile, out var error);
+
+        if (document is null)
+        {
+            Console.Error.WriteLine(error ?? "Unable to load the addon snapshot.");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(document));
+            return 0;
+        }
+
+        Console.WriteLine("RiftReader.Reader");
+        Console.WriteLine("PTS-only scope: use this tool only against the Rift Public Test Server.");
+        Console.WriteLine();
+        Console.WriteLine(ValidatorSnapshotTextFormatter.Format(document));
+        return 0;
     }
 }
