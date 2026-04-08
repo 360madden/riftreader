@@ -6,6 +6,13 @@ namespace RiftReader.Reader.Models;
 
 public static class PlayerCurrentReader
 {
+    private const int DefaultLevelOffset = -144;
+    private const int DefaultHealthOffset = -136;
+    private const int DefaultCoordXOffset = 0;
+    private const int DefaultCoordYOffset = 4;
+    private const int DefaultCoordZOffset = 8;
+    private const float CoordTolerance = 0.25f;
+
     public static PlayerCurrentReadResult ReadCurrent(
         ProcessMemoryReader reader,
         int processId,
@@ -17,6 +24,58 @@ public static class PlayerCurrentReader
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(snapshotDocument);
 
+        var player = snapshotDocument.Current?.Player
+            ?? throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot.");
+
+        var expected = BuildExpected(player);
+        var anchorCandidates = PlayerCurrentAnchorCacheStore.LoadCandidates(null, out var cacheFile, out _);
+
+        foreach (var anchorCandidate in anchorCandidates)
+        {
+            var cachedAnchor = anchorCandidate.Document;
+            if (!string.Equals(cachedAnchor.ProcessName, processName, StringComparison.OrdinalIgnoreCase) ||
+                !PlayerCurrentAnchorCacheStore.TryParseAddress(cachedAnchor.AddressHex, out var cachedAddress))
+            {
+                continue;
+            }
+
+            var cachedSample = ReadSampleAt(
+                reader,
+                cachedAddress,
+                cachedAnchor.LevelOffset,
+                cachedAnchor.HealthOffset,
+                cachedAnchor.CoordXOffset,
+                cachedAnchor.CoordYOffset,
+                cachedAnchor.CoordZOffset);
+
+            if (cachedSample is null)
+            {
+                continue;
+            }
+
+            var cachedResult = BuildResult(
+                processId,
+                processName,
+                snapshotDocument,
+                cachedAnchor.FamilyId,
+                cachedAnchor.FamilyNotes,
+                cachedAnchor.Signature,
+                selectionSource: "cached-anchor",
+                anchorProvenance: cachedAnchor.SelectionSource,
+                anchorCacheFile: anchorCandidate.Path,
+                anchorCacheUsed: true,
+                anchorCacheUpdated: false,
+                cachedAnchor.ConfirmationFile,
+                cachedAnchor.CeConfirmedSampleCount,
+                cachedSample,
+                expected);
+
+            if (IsAcceptableCurrentRead(cachedResult.Match, expected))
+            {
+                return cachedResult;
+            }
+        }
+
         var capture = PlayerSignatureProbeCaptureBuilder.CaptureBestFamily(
             reader,
             processId,
@@ -25,15 +84,70 @@ public static class PlayerCurrentReader
             inspectionRadius,
             maxHits,
             label: null,
-            outputFile: null);
+            outputFile: null,
+            preferCeConfirmation: true);
 
-        var sample = capture.Samples.FirstOrDefault()
-            ?? throw new InvalidOperationException("The selected player-signature family did not produce a readable sample.");
+        var result = BuildResultFromCapture(processId, processName, snapshotDocument, cacheFile, capture, expected);
 
-        var player = snapshotDocument.Current?.Player
-            ?? throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot.");
+        if (!IsAcceptableCurrentRead(result.Match, expected) &&
+            capture.SelectionSource.StartsWith("ce-", StringComparison.Ordinal))
+        {
+            var heuristicCapture = PlayerSignatureProbeCaptureBuilder.CaptureBestFamily(
+                reader,
+                processId,
+                processName,
+                snapshotDocument,
+                inspectionRadius,
+                maxHits,
+                label: null,
+                outputFile: null,
+                preferCeConfirmation: false);
 
-        var expected = new PlayerCurrentReadExpected(
+            var heuristicResult = BuildResultFromCapture(processId, processName, snapshotDocument, cacheFile, heuristicCapture, expected);
+            if (IsAcceptableCurrentRead(heuristicResult.Match, expected))
+            {
+                result = heuristicResult with
+                {
+                    AnchorProvenance = $"{capture.SelectionSource} -> heuristic-fallback",
+                    AnchorCacheUpdated = true
+                };
+                capture = heuristicCapture;
+            }
+        }
+
+        if (!IsAcceptableCurrentRead(result.Match, expected))
+        {
+            throw new InvalidOperationException($"Unable to resolve a full current-player snapshot from family '{capture.FamilyId}'.");
+        }
+
+        if (PlayerCurrentAnchorCacheStore.TryParseAddress(result.Memory.AddressHex, out _))
+        {
+            var updatedCacheFile = PlayerCurrentAnchorCacheStore.Save(
+                new PlayerCurrentAnchorCacheDocument(
+                    ProcessName: processName,
+                    AddressHex: result.Memory.AddressHex,
+                    FamilyId: result.FamilyId,
+                    FamilyNotes: result.FamilyNotes,
+                    Signature: result.Signature,
+                    SelectionSource: result.AnchorProvenance,
+                    ConfirmationFile: result.ConfirmationFile,
+                    CeConfirmedSampleCount: result.CeConfirmedSampleCount,
+                    LevelOffset: DefaultLevelOffset,
+                    HealthOffset: DefaultHealthOffset,
+                    CoordXOffset: DefaultCoordXOffset,
+                    CoordYOffset: DefaultCoordYOffset,
+                    CoordZOffset: DefaultCoordZOffset,
+                    SavedAtUtc: DateTimeOffset.UtcNow),
+                cacheFile);
+
+            result = result with { AnchorCacheFile = updatedCacheFile };
+        }
+
+        return result;
+    }
+
+    private static PlayerCurrentReadExpected BuildExpected(ReaderBridgeUnitSnapshot player) =>
+        new(
             Name: player.Name,
             Location: player.LocationName,
             Level: player.Level,
@@ -43,44 +157,109 @@ public static class PlayerCurrentReader
             CoordY: player.Coord?.Y,
             CoordZ: player.Coord?.Z);
 
-        var levelMatches = sample.Level.HasValue && expected.Level.HasValue && sample.Level.Value == expected.Level.Value;
-        var healthMatches = sample.Health.HasValue && expected.Health.HasValue && sample.Health.Value == expected.Health.Value;
+    private static bool IsAcceptableCurrentRead(PlayerCurrentReadMatch match, PlayerCurrentReadExpected expected)
+    {
+        if (!match.CoordMatchesWithinTolerance || !match.LevelMatches)
+        {
+            return false;
+        }
 
-        float? deltaX = sample.CoordX.HasValue && expected.CoordX.HasValue
-            ? sample.CoordX.Value - (float)expected.CoordX.Value
+        if (expected.Health.HasValue)
+        {
+            return match.HealthMatches;
+        }
+
+        return true;
+    }
+
+    private static PlayerCurrentReadResult BuildResultFromCapture(
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        string? cacheFile,
+        PlayerSignatureProbeCapture capture,
+        PlayerCurrentReadExpected expected)
+    {
+        var captureSample = capture.Samples.FirstOrDefault()
+            ?? throw new InvalidOperationException("The selected player-signature family did not produce a readable sample.");
+
+        return BuildResult(
+            processId,
+            processName,
+            snapshotDocument,
+            capture.FamilyId,
+            capture.FamilyNotes,
+            capture.Signature,
+            selectionSource: capture.SelectionSource,
+            anchorProvenance: capture.SelectionSource,
+            anchorCacheFile: cacheFile,
+            anchorCacheUsed: false,
+            anchorCacheUpdated: true,
+            capture.ConfirmationFile,
+            capture.CeConfirmedSampleCount,
+            new PlayerCurrentReadSample(
+                AddressHex: captureSample.AddressHex,
+                Level: captureSample.Level,
+                Health: captureSample.Health,
+                Name: captureSample.Name,
+                Location: captureSample.Location,
+                CoordX: captureSample.CoordX,
+                CoordY: captureSample.CoordY,
+                CoordZ: captureSample.CoordZ),
+            expected);
+    }
+
+    private static PlayerCurrentReadResult BuildResult(
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        string familyId,
+        string familyNotes,
+        string signature,
+        string selectionSource,
+        string anchorProvenance,
+        string? anchorCacheFile,
+        bool anchorCacheUsed,
+        bool anchorCacheUpdated,
+        string? confirmationFile,
+        int ceConfirmedSampleCount,
+        PlayerCurrentReadSample memory,
+        PlayerCurrentReadExpected expected)
+    {
+        var levelMatches = memory.Level.HasValue && expected.Level.HasValue && memory.Level.Value == expected.Level.Value;
+        var healthMatches = memory.Health.HasValue && expected.Health.HasValue && memory.Health.Value == expected.Health.Value;
+
+        float? deltaX = memory.CoordX.HasValue && expected.CoordX.HasValue
+            ? memory.CoordX.Value - (float)expected.CoordX.Value
             : null;
-        float? deltaY = sample.CoordY.HasValue && expected.CoordY.HasValue
-            ? sample.CoordY.Value - (float)expected.CoordY.Value
+        float? deltaY = memory.CoordY.HasValue && expected.CoordY.HasValue
+            ? memory.CoordY.Value - (float)expected.CoordY.Value
             : null;
-        float? deltaZ = sample.CoordZ.HasValue && expected.CoordZ.HasValue
-            ? sample.CoordZ.Value - (float)expected.CoordZ.Value
+        float? deltaZ = memory.CoordZ.HasValue && expected.CoordZ.HasValue
+            ? memory.CoordZ.Value - (float)expected.CoordZ.Value
             : null;
 
         var coordMatches =
-            deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
-            deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
-            deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f;
+            deltaX.HasValue && MathF.Abs(deltaX.Value) <= CoordTolerance &&
+            deltaY.HasValue && MathF.Abs(deltaY.Value) <= CoordTolerance &&
+            deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= CoordTolerance;
 
         return new PlayerCurrentReadResult(
             Mode: "player-current-read",
             ProcessId: processId,
             ProcessName: processName,
             ReaderBridgeSourceFile: snapshotDocument.SourceFile,
-            FamilyId: capture.FamilyId,
-            FamilyNotes: capture.FamilyNotes,
-            Signature: capture.Signature,
-            SelectionSource: capture.SelectionSource,
-            ConfirmationFile: capture.ConfirmationFile,
-            CeConfirmedSampleCount: capture.CeConfirmedSampleCount,
-            Memory: new PlayerCurrentReadSample(
-                AddressHex: sample.AddressHex,
-                Level: sample.Level,
-                Health: sample.Health,
-                Name: sample.Name,
-                Location: sample.Location,
-                CoordX: sample.CoordX,
-                CoordY: sample.CoordY,
-                CoordZ: sample.CoordZ),
+            FamilyId: familyId,
+            FamilyNotes: familyNotes,
+            Signature: signature,
+            SelectionSource: selectionSource,
+            AnchorProvenance: anchorProvenance,
+            AnchorCacheFile: anchorCacheFile,
+            AnchorCacheUsed: anchorCacheUsed,
+            AnchorCacheUpdated: anchorCacheUpdated,
+            ConfirmationFile: confirmationFile,
+            CeConfirmedSampleCount: ceConfirmedSampleCount,
+            Memory: memory,
             Expected: expected,
             Match: new PlayerCurrentReadMatch(
                 LevelMatches: levelMatches,
@@ -89,5 +268,56 @@ public static class PlayerCurrentReader
                 DeltaX: deltaX,
                 DeltaY: deltaY,
                 DeltaZ: deltaZ));
+    }
+
+    private static PlayerCurrentReadSample? ReadSampleAt(
+        ProcessMemoryReader reader,
+        long baseAddress,
+        int levelOffset,
+        int healthOffset,
+        int coordXOffset,
+        int coordYOffset,
+        int coordZOffset)
+    {
+        var level = TryReadInt32(reader, baseAddress + levelOffset);
+        var health = TryReadInt32(reader, baseAddress + healthOffset);
+        var coordX = TryReadFloat(reader, baseAddress + coordXOffset);
+        var coordY = TryReadFloat(reader, baseAddress + coordYOffset);
+        var coordZ = TryReadFloat(reader, baseAddress + coordZOffset);
+
+        if (!coordX.HasValue || !coordY.HasValue || !coordZ.HasValue)
+        {
+            return null;
+        }
+
+        return new PlayerCurrentReadSample(
+            AddressHex: $"0x{baseAddress:X}",
+            Level: level,
+            Health: health,
+            Name: null,
+            Location: null,
+            CoordX: coordX,
+            CoordY: coordY,
+            CoordZ: coordZ);
+    }
+
+    private static int? TryReadInt32(ProcessMemoryReader reader, long address)
+    {
+        if (!reader.TryReadBytes(new nint(address), sizeof(int), out var bytes, out _) || bytes.Length != sizeof(int))
+        {
+            return null;
+        }
+
+        return BitConverter.ToInt32(bytes, 0);
+    }
+
+    private static float? TryReadFloat(ProcessMemoryReader reader, long address)
+    {
+        if (!reader.TryReadBytes(new nint(address), sizeof(float), out var bytes, out _) || bytes.Length != sizeof(float))
+        {
+            return null;
+        }
+
+        return BitConverter.ToSingle(bytes, 0);
     }
 }

@@ -90,6 +90,7 @@ It only needs to:
 - pick the current best player-family sample
 - read a few trusted fields from that sample
 - report whether they match the addon-exported ground truth
+- reuse a validated cached sample address when it still matches current exported state so repeated reads stay fast
 
 That keeps the project moving toward a usable reader instead of spending too
 long perfecting discovery infrastructure first.

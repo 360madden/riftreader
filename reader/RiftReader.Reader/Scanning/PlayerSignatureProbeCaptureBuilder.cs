@@ -15,7 +15,8 @@ public static class PlayerSignatureProbeCaptureBuilder
         int inspectionRadius,
         int maxHits,
         string? label,
-        string? outputFile)
+        string? outputFile,
+        bool preferCeConfirmation = true)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(snapshotDocument);
@@ -49,7 +50,9 @@ public static class PlayerSignatureProbeCaptureBuilder
             throw new InvalidOperationException("No grouped player-signature families were found.");
         }
 
-        var ceConfirmation = PlayerSignatureCeConfirmationLoader.TryLoad(null, out _);
+        var ceConfirmation = preferCeConfirmation
+            ? PlayerSignatureCeConfirmationLoader.TryLoad(null, out _)
+            : null;
         var selected = SelectPreferredFamily(
             reader,
             scanResult,
