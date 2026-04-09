@@ -50,7 +50,12 @@ That means:
    - and compare that trace-derived sample back against current ReaderBridge ground truth
 8. reject the first trace-derived destination object when it does not actually match current player state, then surface the traced upstream source object instead
    - and verify that the source-object coord sample does match current exported player state
-9. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
+9. trace the selector-owner path that chooses the source object and prove the stable owner/container/index -> source mapping
+10. walk the stable owner object and classify its linked child wrappers around the selected source
+    - source-wrapper
+    - owner-backref wrapper
+    - owner-state wrapper
+11. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
 
 Current discovery refinement:
 
@@ -107,6 +112,8 @@ It only needs to:
 - reuse a validated cached sample address when it still matches current exported state so repeated reads stay fast
 - expose the first verified code-path-backed coord anchor so later AOB/pointer work can build on something narrower than raw family rescans
 - surface the traced upstream source object when the destination cache object proves to be a bad direct player anchor
+- trace the selector-owner path so the source object is no longer just "the thing that had the right coords" but a selected child of a stable owning object/container/index relationship
+- classify the owner-linked child wrappers so the graph around the selected source is explicit instead of a pile of ad hoc pointer notes
 - opportunistically reuse only validated trace-backed anchors before falling back to grouped family reacquisition
 - allow that trace-derived object anchor to be refreshed on demand when the saved trace clearly belongs to an older Rift process, while keeping the default player-read path biased toward speed
 

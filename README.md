@@ -363,6 +363,8 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd` - captures a small disassembly window around the latest verified coord trace through Cheat Engine, highlights nearby instructions that reuse the traced base register, and labels offsets that line up with the current derived coord/level/health fields
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - derives the pre-coord source/destination handoff chain from the trace cluster, identifies the likely source-object load and resolve call, and verifies a stronger module-local source-chain pattern
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function and verifies each accessor pattern against the live module
+- `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.cmd` - breaks on the source-object load, captures the owning selector object / container / selected index, verifies the selected source object against the current coord trace, and records the selector-owner path as a JSON artifact
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.cmd` - walks the stable owner object discovered by the selector trace, classifies linked children (source-wrapper, owner-backref wrapper, owner-state wrapper), and records the live owner graph as a structured artifact
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
 - `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scans plus directional next-scan workflows (`changed`, `increased`, `decreased`)
@@ -439,6 +441,16 @@ Recent CE improvement:
 - the coord write-trace helper now rejects unverified debugger hits instead of treating unrelated reads as successful writer captures
 - the coord trace helper now treats the current player base as a coord-triplet anchor, accepts verified `x/y/z` member accesses, and can walk CE-confirmed candidate addresses instead of only the default current-player sample
 - the reader now has a matching `--read-player-coord-anchor` mode that loads the saved trace artifact, validates the traced bytes against the live module, reports the inferred coord-base-relative offset from the verified instruction, and surfaces the traced upstream source-object candidate when it can be reconstructed from the saved register context
+- the selector-owner trace now confirms a stable owner path:
+  - owner object at `0x1AED5A67610`
+  - owner container at `0x1AEE411B280`
+  - selector index `6`
+  - selected source object `0x1AEBA302B40`
+  - and repeated runs kept that mapping stable on the current client session
+- the owner-graph capture now classifies the owner-linked child roles on the current client:
+  - `owner + 0xA0` -> source-wrapper (`child + 0x8 == selected source`, `child + 0x100 == owner`)
+  - `owner + 0xA8 / 0xB0` -> owner-backref wrapper (`child + 0x68 == owner`)
+  - `owner + 0xD0 / 0xD8 / 0xE0` -> owner-state wrapper (`child + 0x8 == owner + 0xC8`)
 - `--read-player-current` now attempts that derived object anchor as a fast path before falling back to cached family samples and grouped rescans
 
 ## Next Milestone
