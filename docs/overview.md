@@ -47,6 +47,7 @@ That means:
 5. turn the winning layout back into a typed reader path
 6. ship a first `--read-player-current` mode that reads level / health / coords and compares them against the latest ReaderBridge export
 7. turn the first verified coord-triplet code access into a reader-usable anchor report via `--read-player-coord-anchor`
+   - and compare that trace-derived sample back against current ReaderBridge ground truth
 8. reuse that trace-derived object anchor as a fast path for `--read-player-current` when it belongs to the current process and still matches current exported player state
 
 Current discovery refinement:
@@ -54,6 +55,7 @@ Current discovery refinement:
 - prefer directional CE next-scans after movement (`increased` / `decreased` / `changed`) over relying only on a second exact-value float scan
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
+- inspect a small disassembly cluster around any verified coord trace before promoting it, so nearby instructions using the same base register can be compared quickly
 
 ## Addon Boundary
 
@@ -101,6 +103,7 @@ It only needs to:
 - reuse a validated cached sample address when it still matches current exported state so repeated reads stay fast
 - expose the first verified code-path-backed coord anchor so later AOB/pointer work can build on something narrower than raw family rescans
 - opportunistically reuse the trace-derived object base for repeated player reads before falling back to grouped family reacquisition
+- allow that trace-derived object anchor to be refreshed on demand when the saved trace clearly belongs to an older Rift process, while keeping the default player-read path biased toward speed
 
 That keeps the project moving toward a usable reader instead of spending too
 long perfecting discovery infrastructure first.

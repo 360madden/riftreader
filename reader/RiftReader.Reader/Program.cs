@@ -366,6 +366,8 @@ internal static class Program
             return 1;
         }
 
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+
         ModulePatternScanResult? modulePattern = null;
         var trace = traceDocument.Trace;
         if (!string.IsNullOrWhiteSpace(trace.ModuleName) && !string.IsNullOrWhiteSpace(trace.NormalizedPattern ?? trace.InstructionBytes))
@@ -406,6 +408,7 @@ internal static class Program
                 target.ProcessName,
                 traceDocument.SourceFile,
                 traceDocument,
+                snapshotDocument,
                 modulePattern);
         }
         catch (Exception ex)

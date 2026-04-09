@@ -35,4 +35,8 @@ public sealed record PlayerCoordAnchorReadResult(
     int? CoordXRelativeOffset,
     int? CoordYRelativeOffset,
     int? CoordZRelativeOffset,
+    string? ReaderBridgeSourceFile,
+    PlayerCurrentReadSample? MemorySample,
+    PlayerCurrentReadExpected? Expected,
+    PlayerCurrentReadMatch? Match,
     ModulePatternScanResult? ModulePattern);

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Scanning;
 
@@ -19,6 +20,7 @@ public static partial class PlayerCoordAnchorReader
         string processName,
         string sourceFile,
         PlayerCoordTraceAnchorDocument traceDocument,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
         ModulePatternScanResult? modulePattern)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -42,6 +44,8 @@ public static partial class PlayerCoordAnchorReader
         }
 
         var resolvedAnchor = TryResolveObjectAnchor(traceDocument);
+
+        var comparison = BuildComparison(reader, snapshotDocument, resolvedAnchor);
 
         return new PlayerCoordAnchorReadResult(
             Mode: "player-coord-anchor-read",
@@ -76,6 +80,10 @@ public static partial class PlayerCoordAnchorReader
             CoordXRelativeOffset: resolvedAnchor?.CoordXOffset,
             CoordYRelativeOffset: resolvedAnchor?.CoordYOffset,
             CoordZRelativeOffset: resolvedAnchor?.CoordZOffset,
+            ReaderBridgeSourceFile: comparison?.ReaderBridgeSourceFile,
+            MemorySample: comparison?.Memory,
+            Expected: comparison?.Expected,
+            Match: comparison?.Match,
             ModulePattern: modulePattern);
     }
 
@@ -210,6 +218,119 @@ public static partial class PlayerCoordAnchorReader
         return match.Success ? match.Groups["register"].Value : null;
     }
 
+    private static PlayerCoordAnchorComparison? BuildComparison(
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        PlayerCoordResolvedAnchor? resolvedAnchor)
+    {
+        if (snapshotDocument?.Current?.Player is not { } player || resolvedAnchor is null)
+        {
+            return null;
+        }
+
+        var memory = ReadSampleAt(
+            reader,
+            resolvedAnchor.ObjectBaseAddress,
+            resolvedAnchor.LevelOffset,
+            resolvedAnchor.HealthOffset,
+            resolvedAnchor.CoordXOffset,
+            resolvedAnchor.CoordYOffset,
+            resolvedAnchor.CoordZOffset);
+
+        if (memory is null)
+        {
+            return null;
+        }
+
+        var expected = new PlayerCurrentReadExpected(
+            Name: player.Name,
+            Location: player.LocationName,
+            Level: player.Level,
+            Health: player.Hp,
+            HealthMax: player.HpMax,
+            CoordX: player.Coord?.X,
+            CoordY: player.Coord?.Y,
+            CoordZ: player.Coord?.Z);
+
+        float? deltaX = memory.CoordX.HasValue && expected.CoordX.HasValue
+            ? memory.CoordX.Value - (float)expected.CoordX.Value
+            : null;
+        float? deltaY = memory.CoordY.HasValue && expected.CoordY.HasValue
+            ? memory.CoordY.Value - (float)expected.CoordY.Value
+            : null;
+        float? deltaZ = memory.CoordZ.HasValue && expected.CoordZ.HasValue
+            ? memory.CoordZ.Value - (float)expected.CoordZ.Value
+            : null;
+
+        var match = new PlayerCurrentReadMatch(
+            LevelMatches: memory.Level.HasValue && expected.Level.HasValue && memory.Level.Value == expected.Level.Value,
+            HealthMatches: memory.Health.HasValue && expected.Health.HasValue && memory.Health.Value == expected.Health.Value,
+            CoordMatchesWithinTolerance:
+                deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
+                deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
+                deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f,
+            DeltaX: deltaX,
+            DeltaY: deltaY,
+            DeltaZ: deltaZ);
+
+        return new PlayerCoordAnchorComparison(
+            snapshotDocument.SourceFile,
+            memory,
+            expected,
+            match);
+    }
+
+    private static PlayerCurrentReadSample? ReadSampleAt(
+        ProcessMemoryReader reader,
+        long baseAddress,
+        int levelOffset,
+        int healthOffset,
+        int coordXOffset,
+        int coordYOffset,
+        int coordZOffset)
+    {
+        var level = TryReadInt32(reader, baseAddress + levelOffset);
+        var health = TryReadInt32(reader, baseAddress + healthOffset);
+        var coordX = TryReadFloat(reader, baseAddress + coordXOffset);
+        var coordY = TryReadFloat(reader, baseAddress + coordYOffset);
+        var coordZ = TryReadFloat(reader, baseAddress + coordZOffset);
+
+        if (!coordX.HasValue || !coordY.HasValue || !coordZ.HasValue)
+        {
+            return null;
+        }
+
+        return new PlayerCurrentReadSample(
+            AddressHex: $"0x{baseAddress:X}",
+            Level: level,
+            Health: health,
+            Name: null,
+            Location: null,
+            CoordX: coordX,
+            CoordY: coordY,
+            CoordZ: coordZ);
+    }
+
+    private static int? TryReadInt32(ProcessMemoryReader reader, long address)
+    {
+        if (!reader.TryReadBytes(new nint(address), sizeof(int), out var bytes, out _) || bytes.Length != sizeof(int))
+        {
+            return null;
+        }
+
+        return BitConverter.ToInt32(bytes, 0);
+    }
+
+    private static float? TryReadFloat(ProcessMemoryReader reader, long address)
+    {
+        if (!reader.TryReadBytes(new nint(address), sizeof(float), out var bytes, out _) || bytes.Length != sizeof(float))
+        {
+            return null;
+        }
+
+        return BitConverter.ToSingle(bytes, 0);
+    }
+
     [GeneratedRegex("^[0-9A-Fa-f]+$", RegexOptions.Compiled)]
     private static partial Regex HexTextRegex();
 
@@ -218,4 +339,10 @@ public static partial class PlayerCoordAnchorReader
 
     [GeneratedRegex(@"\[\s*(?<register>[A-Za-z0-9]+)", RegexOptions.Compiled)]
     private static partial Regex AccessBaseRegisterRegex();
+
+    private sealed record PlayerCoordAnchorComparison(
+        string ReaderBridgeSourceFile,
+        PlayerCurrentReadSample Memory,
+        PlayerCurrentReadExpected Expected,
+        PlayerCurrentReadMatch Match);
 }

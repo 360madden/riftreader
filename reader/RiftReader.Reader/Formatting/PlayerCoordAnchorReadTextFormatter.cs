@@ -29,6 +29,7 @@ public static class PlayerCoordAnchorReadTextFormatter
             $"Coord X rel. offset:        {FormatOffset(result.CoordXRelativeOffset)}",
             $"Coord Y rel. offset:        {FormatOffset(result.CoordYRelativeOffset)}",
             $"Coord Z rel. offset:        {FormatOffset(result.CoordZRelativeOffset)}",
+            $"ReaderBridge source:        {result.ReaderBridgeSourceFile ?? "n/a"}",
             $"Instruction address:        {result.InstructionAddress ?? "n/a"}",
             $"Instruction symbol:         {result.InstructionSymbol ?? "n/a"}",
             $"Instruction:                {result.Instruction ?? "n/a"}",
@@ -37,6 +38,32 @@ public static class PlayerCoordAnchorReadTextFormatter
             $"Module base:                {result.ModuleBase ?? "n/a"}",
             $"Module offset:              {result.ModuleOffset ?? "n/a"}"
         };
+
+        if (result.MemorySample is not null)
+        {
+            lines.Add($"Trace sample address:       {result.MemorySample.AddressHex}");
+            lines.Add($"Trace sample level:         {result.MemorySample.Level?.ToString() ?? "n/a"}");
+            lines.Add($"Trace sample health:        {result.MemorySample.Health?.ToString() ?? "n/a"}");
+            lines.Add(
+                $"Trace sample coords:        {FormatFloat(result.MemorySample.CoordX)}, {FormatFloat(result.MemorySample.CoordY)}, {FormatFloat(result.MemorySample.CoordZ)}");
+        }
+
+        if (result.Expected is not null)
+        {
+            lines.Add($"Expected level:             {result.Expected.Level?.ToString() ?? "n/a"}");
+            lines.Add($"Expected health:            {result.Expected.Health?.ToString() ?? "n/a"}");
+            lines.Add(
+                $"Expected coords:            {FormatDouble(result.Expected.CoordX)}, {FormatDouble(result.Expected.CoordY)}, {FormatDouble(result.Expected.CoordZ)}");
+        }
+
+        if (result.Match is not null)
+        {
+            lines.Add($"Trace level matches:        {result.Match.LevelMatches}");
+            lines.Add($"Trace health matches:       {result.Match.HealthMatches}");
+            lines.Add($"Trace coords match:         {result.Match.CoordMatchesWithinTolerance}");
+            lines.Add(
+                $"Trace deltas:               {FormatDelta(result.Match.DeltaX)}, {FormatDelta(result.Match.DeltaY)}, {FormatDelta(result.Match.DeltaZ)}");
+        }
 
         if (result.ModulePattern is not null)
         {
@@ -60,4 +87,19 @@ public static class PlayerCoordAnchorReadTextFormatter
 
         return $"{value.Value} (0x{value.Value:X})";
     }
+
+    private static string FormatFloat(float? value) =>
+        value.HasValue
+            ? value.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+            : "n/a";
+
+    private static string FormatDouble(double? value) =>
+        value.HasValue
+            ? value.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+            : "n/a";
+
+    private static string FormatDelta(float? value) =>
+        value.HasValue
+            ? value.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+            : "n/a";
 }

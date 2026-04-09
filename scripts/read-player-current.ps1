@@ -3,6 +3,7 @@ param(
     [switch]$Json,
     [switch]$SkipRefresh,
     [switch]$RefreshAnchor,
+    [switch]$RefreshTraceAnchor,
     [switch]$RequireSmartCapture,
     [switch]$NoAhkFallback,
     [int]$RecoveryAttempts = 2,
@@ -20,6 +21,7 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $smartCaptureScript = Join-Path $PSScriptRoot 'smart-capture-player-family.ps1'
 $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$traceScript = Join-Path $PSScriptRoot 'trace-player-coord-write.ps1'
 
 function Invoke-ReaderCommand {
     param(
@@ -44,6 +46,44 @@ function Write-ReaderCommand {
 
     Write-Host ""
     Write-Host "[ReadPlayerCurrent] dotnet run --project $readerProject -- $($Arguments -join ' ')" -ForegroundColor DarkGray
+}
+
+function Try-RefreshTraceAnchor {
+    $anchorProbeArguments = @(
+        '--process-name', 'rift_x64',
+        '--read-player-coord-anchor',
+        '--json'
+    )
+
+    $anchorProbe = Invoke-ReaderCommand -Arguments $anchorProbeArguments
+    if ($anchorProbe.ExitCode -ne 0) {
+        Write-Host "[ReadPlayerCurrent] No usable coord-trace anchor artifact is available yet; skipping trace refresh." -ForegroundColor DarkGray
+        return
+    }
+
+    $anchorState = $null
+    try {
+        $anchorState = $anchorProbe.Output | ConvertFrom-Json -Depth 20
+    }
+    catch {
+        Write-Warning ("Unable to parse coord-trace anchor state; skipping trace refresh. {0}" -f $_.Exception.Message)
+        return
+    }
+
+    if ($anchorState.TraceMatchesProcess -eq $true) {
+        Write-Host "[ReadPlayerCurrent] Coord-trace anchor already matches the current Rift process." -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Host ""
+    Write-Host "[ReadPlayerCurrent] Coord-trace anchor is stale; attempting a fresh coord trace for the current process..." -ForegroundColor Cyan
+
+    try {
+        & $traceScript -Json -MaxCandidates 1 | Out-Null
+    }
+    catch {
+        Write-Warning ("Coord-trace refresh failed; continuing without a fresh trace anchor. {0}" -f $_.Exception.Message)
+    }
 }
 
 function Invoke-RecoveryMove {
@@ -76,6 +116,10 @@ if (-not $SkipRefresh) {
     }
 
     & $refreshScript @refreshArguments
+}
+
+if ($RefreshTraceAnchor) {
+    Try-RefreshTraceAnchor
 }
 
 if ($RefreshAnchor) {

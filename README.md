@@ -133,6 +133,7 @@ The reader now has two near-term targets:
    - loads the latest verified coord-triplet trace artifact
    - validates the traced instruction bytes as a module-local pattern
    - reports the inferred coord-base-relative access offset and derived object-relative field offsets
+   - reads the trace-derived sample back through memory and compares it against the latest ReaderBridge export when possible
 
 Discovery-oriented modes:
 
@@ -309,6 +310,12 @@ module-local pattern candidate:
 C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd -Json
 ```
 
+Capture the nearby instruction cluster around the latest verified coord trace:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd -Json
+```
+
 Read the latest verified coord-triplet trace artifact back through the reader
 and derive the current code-path-backed anchor details:
 
@@ -344,8 +351,9 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
-- `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using a cached anchor fast path when possible. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read.
+- `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using the best available fast path. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read, or `-RefreshTraceAnchor` to refresh a stale saved coord trace before the read.
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first verified access to the current player coord triplet, tries CE-confirmed candidate addresses when available, captures the instruction and register context, and validates the captured instruction bytes through the reader's module-local pattern scan
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd` - captures a small disassembly window around the latest verified coord trace through Cheat Engine, highlights nearby instructions that reuse the traced base register, and labels offsets that line up with the current derived coord/level/health fields
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
 - `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scans plus directional next-scan workflows (`changed`, `increased`, `decreased`)
