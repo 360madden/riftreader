@@ -15,6 +15,14 @@ Constraints:
 - do not assume cross-environment compatibility without verification
 - keep addon work limited to **validation support** for the reader
 
+Discovery support helpers now live under `scripts/` and are intended to keep
+the capture chain aligned while the typed reader work advances:
+
+- `scripts\inspect-capture-consistency.ps1`
+  - reports provenance, freshness, and anchor drift across the current capture set
+- `scripts\refresh-discovery-chain.ps1`
+  - refreshes the current source-chain -> owner -> stat-hub discovery sequence using existing repo scripts
+
 ## Repository Layout
 
 ```text
@@ -257,6 +265,13 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 ```
 
 This mode now groups repeated hits into layout families so duplicated cache blobs are easier to separate from one-off UI/log copies.
+
+Discovery maintenance helpers:
+
+- `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
+  - read-only provenance, freshness, and anchor-mismatch report over the current capture set
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-discovery-chain.ps1`
+  - reruns the current stable discovery sequence in one pass using the existing capture scripts
 
 Derive a likely identity string such as `Name@Shard` from the latest ReaderBridge export and scan for it:
 

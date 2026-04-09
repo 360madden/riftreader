@@ -62,6 +62,12 @@ That means:
 
 Current discovery refinement:
 
+- keep artifact freshness and provenance explicit before promoting a new anchor:
+  - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
+    catches stale or cross-run capture drift early
+  - `C:\RIFT MODDING\RiftReader\scripts\refresh-discovery-chain.ps1`
+    refreshes the source-chain → selector-owner → owner-components →
+    owner-graph → accessor-family → stat-hub sequence in one pass
 - prefer directional CE next-scans after movement (`increased` / `decreased` / `changed`) over relying only on a second exact-value float scan
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
@@ -78,6 +84,8 @@ Current discovery refinement:
 - inspect a small disassembly cluster around any verified coord trace before promoting it, so nearby instructions using the same base register can be compared quickly
 - derive a stronger pre-coord source chain from that cluster so we can pivot from the destination coord cache toward the likely source object/owner path
 - once the source chain is found, isolate the accessor it calls so we can recognize stable returned field offsets such as the current coord-source `+0x48` path
+- use `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1` before trusting a new artifact chain, and `C:\RIFT MODDING\RiftReader\scripts\refresh-discovery-chain.ps1` when you want to rebuild the current chain in one pass
+- keep the selected source / owner graph path as the main discovery path; treat the older cache-blob family as a bootstrap, not the final anchor
 
 ## Addon Boundary
 
