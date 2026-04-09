@@ -20,5 +20,9 @@ public sealed record PlayerOrientationReadResult(
     bool SelectedEntryMatchesSelectedSource,
     IReadOnlyList<string> SelectedEntryRoleHints,
     PlayerOrientationVectorEstimate? PreferredEstimate,
+    PlayerOrientationVectorEstimate? BasisPrimaryEstimate,
+    PlayerOrientationVectorEstimate? BasisDuplicateEstimate,
+    double? BasisDuplicateDeltaMagnitude,
+    bool? BasisDuplicateAgreementStrong,
     IReadOnlyList<PlayerOrientationVectorEstimate> Estimates,
     IReadOnlyList<string> Notes);

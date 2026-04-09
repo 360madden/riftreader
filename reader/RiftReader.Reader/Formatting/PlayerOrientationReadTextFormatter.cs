@@ -17,6 +17,7 @@ public static class PlayerOrientationReadTextFormatter
             $"Selected source address:      {result.SelectedSourceAddress ?? "n/a"}",
             $"Selected entry:               {FormatSelectedEntry(result)}",
             $"Preferred estimate:           {FormatEstimate(result.PreferredEstimate)}",
+            $"Basis forward rows:           {FormatBasisRows(result)}",
             $"Estimates:                    {result.Estimates.Count}",
             $"Notes:                        {FormatNotes(result.Notes)}"
         };
@@ -113,6 +114,38 @@ public static class PlayerOrientationReadTextFormatter
         if (estimate.Magnitude.HasValue)
         {
             parts.Add($"mag {estimate.Magnitude.Value:0.00000}");
+        }
+
+        return string.Join(" | ", parts);
+    }
+
+    private static string FormatBasisRows(PlayerOrientationReadResult result)
+    {
+        if (result.BasisPrimaryEstimate is null && result.BasisDuplicateEstimate is null)
+        {
+            return "n/a";
+        }
+
+        var parts = new List<string>();
+
+        if (result.BasisPrimaryEstimate is not null)
+        {
+            parts.Add($"primary {FormatEstimate(result.BasisPrimaryEstimate)}");
+        }
+
+        if (result.BasisDuplicateEstimate is not null)
+        {
+            parts.Add($"duplicate {FormatEstimate(result.BasisDuplicateEstimate)}");
+        }
+
+        if (result.BasisDuplicateDeltaMagnitude.HasValue)
+        {
+            parts.Add($"Δ {result.BasisDuplicateDeltaMagnitude.Value:0.000000}");
+        }
+
+        if (result.BasisDuplicateAgreementStrong.HasValue)
+        {
+            parts.Add(result.BasisDuplicateAgreementStrong.Value ? "agree" : "diff");
         }
 
         return string.Join(" | ", parts);

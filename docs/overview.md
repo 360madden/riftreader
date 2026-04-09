@@ -69,7 +69,8 @@ Current discovery refinement:
   - the current selected source component already yields stable live orientation vectors
   - the same selected source now also exposes duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
   - `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` now turn that into repeatable yaw/pitch captures derived from the forward basis row
-  - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` now validates live actor-turn stimuli directly; in the current environment `Left`, `Right`, `A`, and `D` all produced large yaw deltas with zero coord drift, while `Q` and `E` produced no yaw change
+  - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` now validates live actor-turn stimuli directly and auto-skips the old Cheat Engine background-focus dependency when that process is not running
+  - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` now profiles multiple key stimuli in one pass and classifies which bindings produce clean actor yaw changes vs no-turn/movement noise
 - treat the owner container as a component table, not just a wrapper list:
   - entry `6` is the current transform/source component
   - indices `9`, `12`, and `13` currently behave like identity-bearing siblings because they embed the raw player unit id

@@ -7,7 +7,8 @@ param(
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
     [switch]$RefreshReaderBridge,
-    [switch]$NoAhkFallback
+    [switch]$NoAhkFallback,
+    [switch]$SkipBackgroundFocus
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +19,17 @@ $keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-actor-orientation-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
+$backgroundProcessAvailable = $SkipBackgroundFocus.IsPresent
+
+if (-not $backgroundProcessAvailable) {
+    try {
+        $null = Get-Process -Name 'cheatengine-x86_64-SSE4-AVX2' -ErrorAction Stop | Select-Object -First 1
+        $backgroundProcessAvailable = $true
+    }
+    catch {
+        $backgroundProcessAvailable = $false
+    }
+}
 
 function Normalize-AngleRadians {
     param([double]$Radians)
@@ -124,7 +136,16 @@ function Format-Nullable {
 $effectiveLabel = if ([string]::IsNullOrWhiteSpace($Label)) { $Key.ToLowerInvariant() } else { $Label }
 $before = Invoke-Capture -CaptureLabel ("before-{0}" -f $effectiveLabel)
 
-& $keyScript -Key $Key -HoldMilliseconds $HoldMilliseconds *> $null
+$keyArguments = @{
+    Key = $Key
+    HoldMilliseconds = $HoldMilliseconds
+}
+
+if (-not $backgroundProcessAvailable) {
+    $keyArguments['SkipBackgroundFocus'] = $true
+}
+
+& $keyScript @keyArguments *> $null
 if ($LASTEXITCODE -ne 0) {
     throw "Stimulus key '$Key' failed."
 }
@@ -170,8 +191,8 @@ $result = [pscustomobject]@{
 
 try {
     if ($Json) {
-        $result | ConvertTo-Json -Depth 40
-        exit 0
+        Write-Output ($result | ConvertTo-Json -Depth 40)
+        return
     }
 
     Write-Host "Actor orientation stimulus"

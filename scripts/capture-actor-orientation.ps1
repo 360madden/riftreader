@@ -526,36 +526,7 @@ function Resolve-LiveOrientation {
     $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
     $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
 
-    if (-not $coord48Matches -and -not $coord88Matches -and $AllowOwnerRefresh) {
-        $refreshError = $null
-
-        try {
-            & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
-
-            $metadata = Invoke-ReaderJson -Arguments @(
-                '--read-player-orientation',
-                '--owner-components-file', $resolvedOwnerComponentsFile,
-                '--json')
-
-            if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {
-                throw 'The player-orientation reader did not resolve a selected source address after owner refresh.'
-            }
-
-            $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
-            $playerCoord = $metadata.PlayerCoord
-            $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
-            $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
-            $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue $true -Force
-        }
-        catch {
-            $refreshError = $_.Exception.Message
-            $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue $false -Force
-            $metadata | Add-Member -NotePropertyName OwnerRefreshError -NotePropertyValue $refreshError -Force
-        }
-    }
-    else {
-        $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue $false -Force
-    }
+    $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue ([bool]$AllowOwnerRefresh) -Force
 
     return [pscustomobject]@{
         Metadata = $metadata
@@ -587,7 +558,7 @@ if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerCompo
     & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
 }
 
-$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh (-not $RefreshOwnerComponents)
+$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents
 $orientationMetadata = $liveResolution.Metadata
 $liveSourceSample = $liveResolution.LiveSample
 $estimates = @(
@@ -616,7 +587,7 @@ else {
     $orientationNotes.Add('Live source coords did not match the current ReaderBridge player coords during capture.')
 }
 if ($orientationMetadata.RefreshedOwnerComponents -eq $true) {
-    $orientationNotes.Add('The helper refreshed the owner-component artifact because the previously selected source no longer matched the current player coords.')
+    $orientationNotes.Add('The helper refreshed the owner-component artifact before resolving the selected source for this capture.')
 }
 elseif ($orientationMetadata.PSObject.Properties.Name -contains 'OwnerRefreshError' -and -not [string]::IsNullOrWhiteSpace([string]$orientationMetadata.OwnerRefreshError)) {
     $orientationNotes.Add("Owner-component refresh failed; using the last known selected source. $($orientationMetadata.OwnerRefreshError)")
@@ -651,7 +622,7 @@ $orientation = [pscustomobject]@{
 }
 
 $notes = New-Object System.Collections.Generic.List[string]
-$notes.Add('This helper is actor-oriented: it reads the selected owner/source component and derives yaw/pitch from the live orientation vector snapshot.')
+$notes.Add('This helper is actor-oriented: it reads the selected owner/source component and derives yaw/pitch from the live source basis matrix.')
 $notes.Add('Use -RefreshOwnerComponents when you want to recapture the owner/source component live before computing yaw/pitch.')
 $notes.Add('Use -RefreshReaderBridge when you want the coord-match checks to compare against a freshly exported player snapshot.')
 $notes.Add('For cleaner live tests, keep movement minimal and compare labeled captures before/after controlled facing changes.')
@@ -693,7 +664,7 @@ $jsonText = $document | ConvertTo-Json -Depth 30
 
 if ($Json) {
     Write-Output $jsonText
-    exit 0
+    return
 }
 
 Write-Output (Write-ActorOrientationText -Document $document)

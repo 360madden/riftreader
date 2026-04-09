@@ -25,6 +25,15 @@ public static class PlayerOrientationReader
 
         var preferredEstimate = estimates.FirstOrDefault(candidate => string.Equals(candidate.Name, "Orientation60", StringComparison.OrdinalIgnoreCase))
             ?? estimates.FirstOrDefault();
+        var basisPrimaryEstimate = estimates.FirstOrDefault(candidate => string.Equals(candidate.Name, "Orientation60", StringComparison.OrdinalIgnoreCase));
+        var basisDuplicateEstimate = estimates.FirstOrDefault(candidate => string.Equals(candidate.Name, "Orientation94", StringComparison.OrdinalIgnoreCase));
+        var basisDuplicateDeltaMagnitude = GetVectorDeltaMagnitude(basisPrimaryEstimate?.Vector, basisDuplicateEstimate?.Vector);
+        bool? basisDuplicateAgreementStrong = null;
+
+        if (basisDuplicateDeltaMagnitude.HasValue)
+        {
+            basisDuplicateAgreementStrong = basisDuplicateDeltaMagnitude.Value <= 0.0001d;
+        }
 
         var notes = new List<string>();
 
@@ -79,6 +88,10 @@ public static class PlayerOrientationReader
             SelectedEntryMatchesSelectedSource: selectedSourceMatch,
             SelectedEntryRoleHints: selectedEntry?.RoleHints ?? Array.Empty<string>(),
             PreferredEstimate: preferredEstimate,
+            BasisPrimaryEstimate: basisPrimaryEstimate,
+            BasisDuplicateEstimate: basisDuplicateEstimate,
+            BasisDuplicateDeltaMagnitude: basisDuplicateDeltaMagnitude,
+            BasisDuplicateAgreementStrong: basisDuplicateAgreementStrong,
             Estimates: estimates,
             Notes: notes);
     }
@@ -269,4 +282,29 @@ public static class PlayerOrientationReader
 
     private static bool NearlyEqual(double left, double right, double tolerance = 0.01d) =>
         Math.Abs(left - right) <= tolerance;
+
+    private static double? GetVectorDeltaMagnitude(
+        ValidatorCoordinateSnapshot? left,
+        ValidatorCoordinateSnapshot? right)
+    {
+        if (left is null || right is null)
+        {
+            return null;
+        }
+
+        if (left.X is null || left.Y is null || left.Z is null)
+        {
+            return null;
+        }
+
+        if (right.X is null || right.Y is null || right.Z is null)
+        {
+            return null;
+        }
+
+        var dx = left.X.Value - right.X.Value;
+        var dy = left.Y.Value - right.Y.Value;
+        var dz = left.Z.Value - right.Z.Value;
+        return Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+    }
 }
