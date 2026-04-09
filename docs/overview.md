@@ -56,6 +56,8 @@ Current discovery refinement:
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - inspect a small disassembly cluster around any verified coord trace before promoting it, so nearby instructions using the same base register can be compared quickly
+- derive a stronger pre-coord source chain from that cluster so we can pivot from the destination coord cache toward the likely source object/owner path
+- once the source chain is found, isolate the accessor it calls so we can recognize stable returned field offsets such as the current coord-source `+0x48` path
 
 ## Addon Boundary
 
