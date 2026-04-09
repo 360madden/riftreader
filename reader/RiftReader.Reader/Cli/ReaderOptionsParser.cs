@@ -14,6 +14,7 @@ Usage:
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --rank-owner-components [--owner-components-file <path>] [--json]
+  RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
@@ -37,6 +38,7 @@ Notes:
   - Use --scan-module-pattern to run a signature/AOB scan against a specific module or the main module by default.
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --rank-owner-components to score the current owner-component artifact against the latest ReaderBridge snapshot and rank likely stat-bearing components.
+  - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
@@ -93,6 +95,7 @@ Examples:
         string? cheatEngineProbeFile = null;
         var rankOwnerComponents = false;
         string? ownerComponentsFile = null;
+        var readPlayerOrientation = false;
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
         var readPlayerCoordAnchor = false;
@@ -230,6 +233,10 @@ Examples:
                     rankOwnerComponents = true;
                     break;
 
+                case "--read-player-orientation":
+                    readPlayerOrientation = true;
+                    break;
+
                 case "--owner-components-file":
                     if (!TryReadNext(args, ref index, out var ownerComponentsFileValue))
                     {
@@ -237,7 +244,6 @@ Examples:
                     }
 
                     ownerComponentsFile = ownerComponentsFileValue;
-                    rankOwnerComponents = true;
                     break;
 
                 case "--capture-readerbridge-best-family":
@@ -531,6 +537,70 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --rank-owner-components.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && readPlayerOrientation)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-orientation.", UsageText);
+        }
+
+        if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation)
+        {
+            return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components or --read-player-orientation.", UsageText);
+        }
+
+        if (readPlayerOrientation)
+        {
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
+            }
+
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents)
+            {
+                return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: ownerComponentsFile,
+                    ReadPlayerOrientation: true,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput),
+                UsageText);
+        }
+
         if (readAddonSnapshot && readReaderBridgeSnapshot)
         {
             return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
@@ -556,6 +626,7 @@ Examples:
                     CheatEngineProbeFile: null,
                     RankOwnerComponents: true,
                     OwnerComponentsFile: ownerComponentsFile,
+                    ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
@@ -591,23 +662,24 @@ Examples:
                 return ReaderOptionsParseResult.Fail("Addon snapshot mode cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-                return ReaderOptionsParseResult.Success(
-                    new ReaderOptions(
-                        ProcessId: null,
-                        ProcessName: null,
-                        Address: null,
-                        Length: null,
-                        ListModules: false,
-                        ScanModuleName: null,
-                        ScanModulePattern: null,
-                        WriteCheatEngineProbe: false,
-                        CheatEngineProbeFile: null,
-                        RankOwnerComponents: false,
-                        OwnerComponentsFile: null,
-                        CaptureReaderBridgeBestFamily: false,
-                        ReadPlayerCurrent: false,
-                        ReadPlayerCoordAnchor: false,
-                        PlayerCoordTraceFile: null,
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
                     ScanString: null,
@@ -639,23 +711,24 @@ Examples:
                 return ReaderOptionsParseResult.Fail("ReaderBridge snapshot mode cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-                return ReaderOptionsParseResult.Success(
-                    new ReaderOptions(
-                        ProcessId: null,
-                        ProcessName: null,
-                        Address: null,
-                        Length: null,
-                        ListModules: false,
-                        ScanModuleName: null,
-                        ScanModulePattern: null,
-                        WriteCheatEngineProbe: false,
-                        CheatEngineProbeFile: null,
-                        RankOwnerComponents: false,
-                        OwnerComponentsFile: null,
-                        CaptureReaderBridgeBestFamily: false,
-                        ReadPlayerCurrent: false,
-                        ReadPlayerCoordAnchor: false,
-                        PlayerCoordTraceFile: null,
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
                     ScanString: null,
@@ -808,6 +881,7 @@ Examples:
                     CheatEngineProbeFile: cheatEngineProbeFile,
                     RankOwnerComponents: false,
                     OwnerComponentsFile: null,
+                    ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
                     ReadPlayerCurrent: readPlayerCurrent,
                     ReadPlayerCoordAnchor: readPlayerCoordAnchor,

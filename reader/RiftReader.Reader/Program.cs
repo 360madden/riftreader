@@ -42,6 +42,11 @@ internal static class Program
             return RunReaderBridgeSnapshotMode(options);
         }
 
+        if (options.ReadPlayerOrientation)
+        {
+            return RunReadPlayerOrientationMode(options);
+        }
+
         if (options.RankOwnerComponents)
         {
             return RunOwnerComponentRankingMode(options);
@@ -429,6 +434,41 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerCoordAnchorReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunReadPlayerOrientationMode(ReaderOptions options)
+    {
+        var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(options.OwnerComponentsFile, out var artifactError);
+        if (artifactDocument is null)
+        {
+            Console.Error.WriteLine(artifactError ?? "Unable to load the player owner-component artifact.");
+            return 1;
+        }
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out _);
+
+        PlayerOrientationReadResult result;
+        try
+        {
+            result = PlayerOrientationReader.Read(artifactDocument, snapshotDocument);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the player orientation snapshot: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("RiftReader.Reader");
+        Console.WriteLine("Use this tool only against Rift client artifacts and processes you explicitly intend to inspect.");
+        Console.WriteLine();
+        Console.WriteLine(PlayerOrientationReadTextFormatter.Format(result));
         return 0;
     }
 
