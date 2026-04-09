@@ -24,7 +24,9 @@ public static class PlayerStatHubRankTextFormatter
         sb.AppendLine($"State Address:      {result.StateRecordAddress}");
         sb.AppendLine($"Source Address:     {result.SelectedSourceAddress}");
         sb.AppendLine();
-        sb.AppendLine("Identity Components (UnitId Match)");
+        sb.AppendLine(result.PlayerUnitIdRawHex == "n/a"
+            ? "Identity Components (Owner/State/Source Anchors)"
+            : "Identity Components (UnitId Match)");
         sb.AppendLine("--------------------------------------------------------------------------------");
 
         if (result.IdentityComponents.Count == 0)
@@ -37,8 +39,13 @@ public static class PlayerStatHubRankTextFormatter
             {
                 var hints = identity.RoleHints.Count > 0 ? $" | hints={string.Join(",", identity.RoleHints)}" : string.Empty;
                 sb.AppendLine($"  [{identity.Index:D3}] {identity.Address}{hints}");
-                sb.AppendLine($"        unitId-offsets: {string.Join(", ", identity.UnitIdOffsets.Select(o => $"0x{o:X}"))}");
+                if (identity.UnitIdOffsets.Count > 0)
+                {
+                    sb.AppendLine($"        unitId-offsets: {string.Join(", ", identity.UnitIdOffsets.Select(o => $"0x{o:X}"))}");
+                }
                 if (identity.OwnerOffsets.Count > 0) sb.AppendLine($"        owner-offsets:  {string.Join(", ", identity.OwnerOffsets.Select(o => $"0x{o:X}"))}");
+                if (identity.StateOffsets.Count > 0) sb.AppendLine($"        state-offsets:  {string.Join(", ", identity.StateOffsets.Select(o => $"0x{o:X}"))}");
+                if (identity.SourceOffsets.Count > 0) sb.AppendLine($"        source-offsets: {string.Join(", ", identity.SourceOffsets.Select(o => $"0x{o:X}"))}");
                 sb.AppendLine($"        pointers out:   {identity.PointerTargets.Count}");
             }
         }

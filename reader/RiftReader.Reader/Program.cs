@@ -57,6 +57,12 @@ internal static class Program
             return RunStatHubRankingMode(options);
         }
 
+        if (options.CheatEngineStatHubs)
+        {
+            Console.Error.WriteLine("--cheatengine-stat-hubs requires --rank-stat-hubs.");
+            return 1;
+        }
+
         if (!options.JsonOutput)
         {
             Console.WriteLine("RiftReader.Reader");
@@ -934,7 +940,7 @@ internal static class Program
 
             try
             {
-                CheatEngineProbeScriptWriter.WriteProbeScript(
+                var exportResult = CheatEngineProbeScriptWriter.WriteProbeScript(
                     reader,
                     target,
                     snapshotDocument,
@@ -942,7 +948,11 @@ internal static class Program
                     options.MaxHits,
                     outputFile,
                     statHubs: result);
-                Console.WriteLine($"Cheat Engine probe script generated: {outputFile}");
+
+                if (!options.JsonOutput)
+                {
+                    Console.WriteLine($"Cheat Engine probe script generated: {exportResult.OutputFile}");
+                }
             }
             catch (Exception ex)
             {

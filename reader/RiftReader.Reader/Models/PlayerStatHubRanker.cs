@@ -22,8 +22,7 @@ public static class PlayerStatHubRanker
         ArgumentNullException.ThrowIfNull(artifactDocument);
 
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot.");
-        var playerUnitIdHex = player.Id?.TrimStart('u', 'U') ?? throw new InvalidOperationException("Player UnitId is missing.");
-        var playerUnitIdValue = ulong.Parse(playerUnitIdHex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        var hasPlayerUnitIdValue = TryParsePlayerUnitId(player.Id, out var playerUnitIdValue);
 
         var ownerAddress = ParseAddress(artifactDocument.Owner?.Address);
         var stateRecordAddress = ParseAddress(artifactDocument.Owner?.StateRecordAddress);
@@ -40,7 +39,7 @@ public static class PlayerStatHubRanker
             if (!reader.TryReadBytes(new nint((long)componentAddress), ComponentReadLength, out var bytes, out _)) continue;
 
             var pointers = GetHeapPointerEntries(bytes, MaxPointersPerComponent);
-            var unitIdOffsets = FindUInt64Offsets(bytes, playerUnitIdValue);
+            var unitIdOffsets = hasPlayerUnitIdValue ? FindUInt64Offsets(bytes, playerUnitIdValue) : Array.Empty<int>();
             var ownerOffsets = ownerAddress != 0 ? FindUInt64Offsets(bytes, ownerAddress) : Array.Empty<int>();
             var stateOffsets = stateRecordAddress != 0 ? FindUInt64Offsets(bytes, stateRecordAddress) : Array.Empty<int>();
             var sourceOffsets = selectedSourceAddress != 0 ? FindUInt64Offsets(bytes, selectedSourceAddress) : Array.Empty<int>();
@@ -89,8 +88,13 @@ public static class PlayerStatHubRanker
         }
 
         var identityComponents = componentDetails
-            .Where(c => c.UnitIdOffsets.Count > 0)
-            .OrderByDescending(c => c.OwnerOffsets.Count)
+            .Where(c => hasPlayerUnitIdValue
+                ? c.UnitIdOffsets.Count > 0
+                : c.OwnerOffsets.Count > 0 || c.StateOffsets.Count > 0 || c.SourceOffsets.Count > 0)
+            .OrderByDescending(c => c.UnitIdOffsets.Count)
+            .ThenByDescending(c => c.SourceOffsets.Count)
+            .ThenByDescending(c => c.StateOffsets.Count)
+            .ThenByDescending(c => c.OwnerOffsets.Count)
             .ThenByDescending(c => c.PointerTargets.Count)
             .ThenBy(c => c.Index)
             .ToList();
@@ -212,7 +216,7 @@ public static class PlayerStatHubRanker
             StateRecordAddress: $"0x{stateRecordAddress:X}",
             SelectedSourceAddress: $"0x{selectedSourceAddress:X}",
             PlayerUnitId: player.Id ?? "n/a",
-            PlayerUnitIdRawHex: $"0x{playerUnitIdValue:X16}",
+            PlayerUnitIdRawHex: hasPlayerUnitIdValue ? $"0x{playerUnitIdValue:X16}" : "n/a",
             PlayerLevel: player.Level,
             PlayerHp: (int?)player.Hp,
             PlayerHpMax: (int?)player.HpMax,
@@ -238,6 +242,28 @@ public static class PlayerStatHubRanker
         if (string.IsNullOrWhiteSpace(address)) return false;
 
         var normalized = address.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? address[2..] : address;
+        return ulong.TryParse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryParsePlayerUnitId(string? unitId, out ulong value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(unitId))
+        {
+            return false;
+        }
+
+        var normalized = unitId.Trim();
+        if (normalized.StartsWith("u", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[1..];
+        }
+
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
         return ulong.TryParse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
     }
 

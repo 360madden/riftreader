@@ -26,28 +26,47 @@ public static class CheatEngineProbeScriptWriter
 
         var snapshot = snapshotDocument.Current ?? throw new InvalidOperationException("ReaderBridge export did not contain a current snapshot.");
         var player = snapshot.Player ?? throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot.");
-        var coord = player.Coord ?? throw new InvalidOperationException("ReaderBridge export did not contain player coordinates.");
+        var coord = player.Coord;
 
-        if (coord.X is not double coordX || coord.Y is not double coordY || coord.Z is not double coordZ)
+        PlayerSignatureScanResult signatureResult;
+        if (coord?.X is double coordX && coord.Y is double coordY && coord.Z is double coordZ)
+        {
+            signatureResult = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                $"readerbridge-player-signature ({snapshotDocument.SourceFile})",
+                (float)coordX,
+                (float)coordY,
+                (float)coordZ,
+                player.Level,
+                player.Hp,
+                player.HpMax,
+                player.Name,
+                player.LocationName,
+                inspectionRadius,
+                maxHits);
+        }
+        else if (statHubs is not null)
+        {
+            signatureResult = new PlayerSignatureScanResult(
+                Mode: "player-signature-scan",
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                SearchLabel: $"readerbridge-player-signature ({snapshotDocument.SourceFile}) [skipped: missing coords]",
+                InspectionRadius: inspectionRadius,
+                CandidateCount: 0,
+                RawHitCount: 0,
+                FamilyCount: 0,
+                MaxHits: maxHits,
+                HitCount: 0,
+                Families: Array.Empty<PlayerSignatureFamilySummary>(),
+                Hits: Array.Empty<PlayerSignatureScanHit>());
+        }
+        else
         {
             throw new InvalidOperationException("ReaderBridge export did not contain a complete player coordinate triplet.");
         }
-
-        var signatureResult = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
-            reader,
-            target.ProcessId,
-            target.ProcessName,
-            $"readerbridge-player-signature ({snapshotDocument.SourceFile})",
-            (float)coordX,
-            (float)coordY,
-            (float)coordZ,
-            player.Level,
-            player.Hp,
-            player.HpMax,
-            player.Name,
-            player.LocationName,
-            inspectionRadius,
-            maxHits);
 
         var script = BuildScript(target, snapshotDocument, player, signatureResult, statHubs);
         var fullOutputFile = Path.GetFullPath(outputFile);
@@ -71,7 +90,7 @@ public static class CheatEngineProbeScriptWriter
             PlayerHealth: player.Hp,
             PlayerHealthMax: player.HpMax,
             LocationName: player.LocationName,
-            CoordText: FormatCoordText(coord.X, coord.Y, coord.Z),
+            CoordText: FormatCoordText(coord?.X, coord?.Y, coord?.Z),
             FamilyCount: signatureResult.FamilyCount,
             HitCount: signatureResult.HitCount,
             Families: signatureResult.Families);

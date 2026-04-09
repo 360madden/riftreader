@@ -14,7 +14,7 @@ Usage:
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --rank-owner-components [--owner-components-file <path>] [--json]
-  RiftReader.Reader --rank-stat-hubs [--owner-components-file <path>] [--json]
+  RiftReader.Reader --process-name <name> --rank-stat-hubs [--owner-components-file <path>] [--readerbridge-snapshot-file <path>] [--cheatengine-stat-hubs] [--cheatengine-probe-file <path>] [--json]
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
@@ -39,7 +39,8 @@ Notes:
   - Use --scan-module-pattern to run a signature/AOB scan against a specific module or the main module by default.
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --rank-owner-components to score the current owner-component artifact against the latest ReaderBridge snapshot and rank likely stat-bearing components.
-  - Use --rank-stat-hubs to walk the identity-component graph and identify shared memory hubs that store player stats.
+  - Use --rank-stat-hubs to walk the identity-component graph in the live target process and identify shared memory hubs that store player stats.
+  - Use --cheatengine-stat-hubs together with --rank-stat-hubs to emit a Cheat Engine probe script for the ranked hub candidates.
   - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
@@ -64,6 +65,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --rank-stat-hubs --cheatengine-stat-hubs --cheatengine-probe-file .\scripts\cheat-engine\RiftReaderProbe.lua
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
@@ -472,7 +474,6 @@ Examples:
                     }
 
                     readerBridgeSnapshotFile = readerBridgeSnapshotFileValue;
-                    readReaderBridgeSnapshot = true;
                     break;
 
                 case "--json":
@@ -560,6 +561,11 @@ Examples:
         if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation && !rankStatHubs)
         {
             return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components, --rank-stat-hubs, or --read-player-orientation.", UsageText);
+        }
+
+        if (cheatEngineStatHubs && !rankStatHubs)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-stat-hubs can only be used with --rank-stat-hubs.", UsageText);
         }
 
         if (readPlayerOrientation)
@@ -903,7 +909,7 @@ Examples:
                     WriteCheatEngineProbe: writeCheatEngineProbe,
                     CheatEngineProbeFile: cheatEngineProbeFile,
                     RankOwnerComponents: false,
-                    OwnerComponentsFile: null,
+                    OwnerComponentsFile: ownerComponentsFile,
                     RankStatHubs: rankStatHubs,
                     CheatEngineStatHubs: cheatEngineStatHubs,
                     ReadPlayerOrientation: false,
@@ -930,7 +936,7 @@ Examples:
                 ReadAddonSnapshot: false,
                 AddonSnapshotFile: null,
                 ReadReaderBridgeSnapshot: false,
-                ReaderBridgeSnapshotFile: null,
+                ReaderBridgeSnapshotFile: readerBridgeSnapshotFile,
                 JsonOutput: jsonOutput),
             UsageText);
     }
