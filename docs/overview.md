@@ -58,7 +58,7 @@ That means:
 11. enumerate the stable owner container itself and separate the live selected-source component from its sibling component records
 12. classify the first stat-side graph around that owner/component table by identifying raw-unit-id-bearing identity components and shared level/resource hubs
 13. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
-14. expose a first actor-orientation helper via `--read-player-orientation` plus a capture script so live yaw/pitch experiments can compare repeated owner/source orientation samples instead of rescanning blindly
+14. expose an actor-orientation helper via `--read-player-orientation` plus a capture script so live yaw/pitch experiments can compare repeated owner/source orientation samples and the full source basis matrix instead of rescanning blindly
 
 Current discovery refinement:
 
@@ -67,7 +67,8 @@ Current discovery refinement:
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
   - the current selected source component already yields stable live orientation vectors
-  - `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` now turn that into repeatable yaw/pitch captures
+  - the same selected source now also exposes duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
+  - `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` now turn that into repeatable yaw/pitch captures derived from the forward basis row
   - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` now validates live actor-turn stimuli directly; in the current environment `Left`, `Right`, `A`, and `D` all produced large yaw deltas with zero coord drift, while `Q` and `E` produced no yaw change
 - treat the owner container as a component table, not just a wrapper list:
   - entry `6` is the current transform/source component

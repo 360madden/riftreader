@@ -184,6 +184,17 @@ function Write-ActorOrientationText {
     $lines.Add("Actor yaw/pitch (rad):       $(Format-Nullable $Document.ReaderOrientation.PreferredEstimate.YawRadians '0.000000') / $(Format-Nullable $Document.ReaderOrientation.PreferredEstimate.PitchRadians '0.000000')")
     $lines.Add("Actor yaw/pitch (deg):       $(Format-Nullable $Document.ReaderOrientation.PreferredEstimate.YawDegrees '0.000') / $(Format-Nullable $Document.ReaderOrientation.PreferredEstimate.PitchDegrees '0.000')")
 
+    if ($Document.ReaderOrientation.PreferredBasis) {
+        $basis = $Document.ReaderOrientation.PreferredBasis
+        $lines.Add("Preferred basis:             $($basis.Name) | det $(Format-Nullable $basis.Determinant '0.000000') | orthonormal $($basis.IsOrthonormal)")
+        $lines.Add("Basis forward/up/right:      $(Format-Vector $basis.Forward) | $(Format-Vector $basis.Up) | $(Format-Vector $basis.Right)")
+    }
+
+    if ($Document.ReaderOrientation.DuplicateBasisAgreement) {
+        $agreement = $Document.ReaderOrientation.DuplicateBasisAgreement
+        $lines.Add("Basis duplicate delta:       forward $(Format-Nullable $agreement.ForwardDeltaMagnitude '0.000000') | up $(Format-Nullable $agreement.UpDeltaMagnitude '0.000000') | right $(Format-Nullable $agreement.RightDeltaMagnitude '0.000000') | max $(Format-Nullable $agreement.MaxRowDeltaMagnitude '0.000000')")
+    }
+
     if ($Document.ChangeFromPrevious) {
         $lines.Add("Prev capture:                $($Document.ChangeFromPrevious.PreviousFile)")
         $lines.Add("Prev yaw/pitch delta (deg):  $(Format-Nullable $Document.ChangeFromPrevious.PreferredYawDeltaDegrees '0.000') / $(Format-Nullable $Document.ChangeFromPrevious.PreferredPitchDeltaDegrees '0.000')")
@@ -238,6 +249,21 @@ function Read-SingleAt {
     return [BitConverter]::ToSingle($Bytes, $Offset)
 }
 
+function Convert-ToFiniteDouble {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    $doubleValue = [double]$Value
+    if ([double]::IsNaN($doubleValue) -or [double]::IsInfinity($doubleValue)) {
+        return $null
+    }
+
+    return $doubleValue
+}
+
 function Read-TripletAt {
     param(
         [Parameter(Mandatory = $true)][byte[]]$Bytes,
@@ -245,9 +271,9 @@ function Read-TripletAt {
     )
 
     return [pscustomobject]@{
-        X = [double](Read-SingleAt -Bytes $Bytes -Offset $Offset)
-        Y = [double](Read-SingleAt -Bytes $Bytes -Offset ($Offset + 4))
-        Z = [double](Read-SingleAt -Bytes $Bytes -Offset ($Offset + 8))
+        X = Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $Bytes -Offset $Offset)
+        Y = Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $Bytes -Offset ($Offset + 4))
+        Z = Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $Bytes -Offset ($Offset + 8))
     }
 }
 
@@ -300,6 +326,129 @@ function New-VectorEstimate {
     }
 }
 
+function Get-DotProduct {
+    param(
+        $Left,
+        $Right
+    )
+
+    if ($null -eq $Left -or $null -eq $Right) {
+        return $null
+    }
+
+    if ($null -eq $Left.X -or $null -eq $Left.Y -or $null -eq $Left.Z) {
+        return $null
+    }
+
+    if ($null -eq $Right.X -or $null -eq $Right.Y -or $null -eq $Right.Z) {
+        return $null
+    }
+
+    return (([double]$Left.X * [double]$Right.X) +
+        ([double]$Left.Y * [double]$Right.Y) +
+        ([double]$Left.Z * [double]$Right.Z))
+}
+
+function Get-CrossProduct {
+    param(
+        $Left,
+        $Right
+    )
+
+    if ($null -eq $Left -or $null -eq $Right) {
+        return $null
+    }
+
+    if ($null -eq $Left.X -or $null -eq $Left.Y -or $null -eq $Left.Z) {
+        return $null
+    }
+
+    if ($null -eq $Right.X -or $null -eq $Right.Y -or $null -eq $Right.Z) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        X = (([double]$Left.Y * [double]$Right.Z) - ([double]$Left.Z * [double]$Right.Y))
+        Y = (([double]$Left.Z * [double]$Right.X) - ([double]$Left.X * [double]$Right.Z))
+        Z = (([double]$Left.X * [double]$Right.Y) - ([double]$Left.Y * [double]$Right.X))
+    }
+}
+
+function New-BasisMatrixEstimate {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)]$Forward,
+        [Parameter(Mandatory = $true)]$Up,
+        [Parameter(Mandatory = $true)]$Right
+    )
+
+    $forwardEstimate = New-VectorEstimate -Name ('{0}.Forward' -f $Name) -Vector $Forward
+    $upEstimate = New-VectorEstimate -Name ('{0}.Up' -f $Name) -Vector $Up
+    $rightEstimate = New-VectorEstimate -Name ('{0}.Right' -f $Name) -Vector $Right
+
+    $forwardDotUp = Get-DotProduct -Left $Forward -Right $Up
+    $forwardDotRight = Get-DotProduct -Left $Forward -Right $Right
+    $upDotRight = Get-DotProduct -Left $Up -Right $Right
+    $cross = Get-CrossProduct -Left $Forward -Right $Up
+    $determinant = if ($null -ne $cross) { Get-DotProduct -Left $cross -Right $Right } else { $null }
+
+    $isOrthonormal = $false
+    if ($forwardEstimate.Magnitude -and $upEstimate.Magnitude -and $rightEstimate.Magnitude -and
+        $null -ne $forwardDotUp -and $null -ne $forwardDotRight -and $null -ne $upDotRight -and $null -ne $determinant) {
+        $isOrthonormal =
+            ([Math]::Abs([double]$forwardEstimate.Magnitude - 1.0) -le 0.02) -and
+            ([Math]::Abs([double]$upEstimate.Magnitude - 1.0) -le 0.02) -and
+            ([Math]::Abs([double]$rightEstimate.Magnitude - 1.0) -le 0.02) -and
+            ([Math]::Abs([double]$forwardDotUp) -le 0.02) -and
+            ([Math]::Abs([double]$forwardDotRight) -le 0.02) -and
+            ([Math]::Abs([double]$upDotRight) -le 0.02) -and
+            ([Math]::Abs([Math]::Abs([double]$determinant) - 1.0) -le 0.02)
+    }
+
+    return [pscustomobject]@{
+        Name = $Name
+        Forward = $Forward
+        Up = $Up
+        Right = $Right
+        ForwardEstimate = $forwardEstimate
+        UpEstimate = $upEstimate
+        RightEstimate = $rightEstimate
+        ForwardDotUp = $forwardDotUp
+        ForwardDotRight = $forwardDotRight
+        UpDotRight = $upDotRight
+        Determinant = $determinant
+        IsOrthonormal = $isOrthonormal
+    }
+}
+
+function Get-BasisDuplicateAgreement {
+    param(
+        $PrimaryBasis,
+        $DuplicateBasis
+    )
+
+    if ($null -eq $PrimaryBasis -or $null -eq $DuplicateBasis) {
+        return $null
+    }
+
+    $forwardDelta = Get-VectorDeltaMagnitude -CurrentVector $PrimaryBasis.Forward -PreviousVector $DuplicateBasis.Forward
+    $upDelta = Get-VectorDeltaMagnitude -CurrentVector $PrimaryBasis.Up -PreviousVector $DuplicateBasis.Up
+    $rightDelta = Get-VectorDeltaMagnitude -CurrentVector $PrimaryBasis.Right -PreviousVector $DuplicateBasis.Right
+
+    $maxRowDelta = $null
+    $candidateValues = @($forwardDelta, $upDelta, $rightDelta) | Where-Object { $null -ne $_ }
+    if ($candidateValues.Count -gt 0) {
+        $maxRowDelta = ($candidateValues | Measure-Object -Maximum).Maximum
+    }
+
+    return [pscustomobject]@{
+        ForwardDeltaMagnitude = $forwardDelta
+        UpDeltaMagnitude = $upDelta
+        RightDeltaMagnitude = $rightDelta
+        MaxRowDeltaMagnitude = $maxRowDelta
+    }
+}
+
 function Get-LiveSourceSample {
     param(
         [Parameter(Mandatory = $true)][string]$SelectedSourceAddress,
@@ -310,17 +459,26 @@ function Get-LiveSourceSample {
     $memoryRead = Invoke-ReaderJson -Arguments @(
         '--process-name', $ProcessName,
         '--address', ('0x{0:X}' -f $address),
-        '--length', '160',
+        '--length', '192',
         '--json')
 
     $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
+    $coord48 = Read-TripletAt -Bytes $bytes -Offset 0x48
+    $orientation60 = Read-TripletAt -Bytes $bytes -Offset 0x60
+    $coord88 = Read-TripletAt -Bytes $bytes -Offset 0x88
+    $orientation94 = Read-TripletAt -Bytes $bytes -Offset 0x94
+    $basis60 = New-BasisMatrixEstimate -Name 'Basis60' -Forward $orientation60 -Up (Read-TripletAt -Bytes $bytes -Offset 0x6C) -Right (Read-TripletAt -Bytes $bytes -Offset 0x78)
+    $basis94 = New-BasisMatrixEstimate -Name 'Basis94' -Forward $orientation94 -Up (Read-TripletAt -Bytes $bytes -Offset 0xA0) -Right (Read-TripletAt -Bytes $bytes -Offset 0xAC)
 
     return [pscustomobject]@{
         AddressHex = ('0x{0:X}' -f $address)
-        Coord48 = Read-TripletAt -Bytes $bytes -Offset 0x48
-        Orientation60 = Read-TripletAt -Bytes $bytes -Offset 0x60
-        Coord88 = Read-TripletAt -Bytes $bytes -Offset 0x88
-        Orientation94 = Read-TripletAt -Bytes $bytes -Offset 0x94
+        Coord48 = $coord48
+        Orientation60 = $orientation60
+        Basis60 = $basis60
+        Coord88 = $coord88
+        Orientation94 = $orientation94
+        Basis94 = $basis94
+        BasisDuplicateAgreement = Get-BasisDuplicateAgreement -PrimaryBasis $basis60 -DuplicateBasis $basis94
     }
 }
 
@@ -417,7 +575,12 @@ if ($RefreshReaderBridge) {
         $refreshArguments['NoAhkFallback'] = $true
     }
 
-    & $refreshReaderBridgeScript @refreshArguments | Out-Null
+    if ($Json) {
+        & $refreshReaderBridgeScript @refreshArguments *> $null
+    }
+    else {
+        & $refreshReaderBridgeScript @refreshArguments | Out-Null
+    }
 }
 
 if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
@@ -445,6 +608,7 @@ if ($orientationMetadata.Notes) {
 }
 $orientationNotes.Add('Preferred estimate in this capture was recomputed from a fresh live memory read of the selected source object.')
 $orientationNotes.Add('Coord48/Coord88 and Orientation60/Orientation94 were read directly from source offsets +0x48/+0x88 and +0x60/+0x94.')
+$orientationNotes.Add('The source object also exposes duplicated 3x3 basis blocks at +0x60/+0x6C/+0x78 and +0x94/+0xA0/+0xAC; yaw/pitch are derived from the forward row.')
 if ($liveResolution.Coord48Matches -or $liveResolution.Coord88Matches) {
     $orientationNotes.Add('Live source coords matched the current ReaderBridge player coords during capture.')
 }
@@ -479,6 +643,8 @@ $orientation = [pscustomobject]@{
     LiveSourceCoord88MatchesPlayerCoord = $liveResolution.Coord88Matches
     RefreshedOwnerComponents = $orientationMetadata.RefreshedOwnerComponents
     LiveSourceSample = $liveSourceSample
+    PreferredBasis = $liveSourceSample.Basis60
+    DuplicateBasisAgreement = $liveSourceSample.BasisDuplicateAgreement
     PreferredEstimate = $preferredEstimate
     Estimates = $estimates
     Notes = $orientationNotes
@@ -487,6 +653,7 @@ $orientation = [pscustomobject]@{
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add('This helper is actor-oriented: it reads the selected owner/source component and derives yaw/pitch from the live orientation vector snapshot.')
 $notes.Add('Use -RefreshOwnerComponents when you want to recapture the owner/source component live before computing yaw/pitch.')
+$notes.Add('Use -RefreshReaderBridge when you want the coord-match checks to compare against a freshly exported player snapshot.')
 $notes.Add('For cleaner live tests, keep movement minimal and compare labeled captures before/after controlled facing changes.')
 
 $document = [pscustomobject]@{

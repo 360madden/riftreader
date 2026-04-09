@@ -101,6 +101,38 @@ function Read-SingleAt {
     return [BitConverter]::ToSingle($Bytes, $Offset)
 }
 
+function Convert-ToFiniteDouble {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    $doubleValue = [double]$Value
+    if ([double]::IsNaN($doubleValue) -or [double]::IsInfinity($doubleValue)) {
+        return $null
+    }
+
+    return $doubleValue
+}
+
+function Read-TripletAt {
+    param(
+        [Parameter(Mandatory = $true)]
+        [byte[]]$Bytes,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Offset
+    )
+
+    return @(
+        (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $Bytes -Offset $Offset)),
+        (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $Bytes -Offset ($Offset + 4))),
+        (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $Bytes -Offset ($Offset + 8))))
+}
+
 function Test-TripletMatch {
     param(
         [double[]]$Expected,
@@ -113,6 +145,10 @@ function Test-TripletMatch {
     }
 
     for ($index = 0; $index -lt 3; $index++) {
+        if ($null -eq $Expected[$index] -or $null -eq $Actual[$index]) {
+            return $false
+        }
+
         if ([math]::Abs($Expected[$index] - $Actual[$index]) -gt $Tolerance) {
             return $false
         }
@@ -142,17 +178,17 @@ $expectedCoord48 = [double[]]@(
 
 $sourceBytes = Read-Bytes -Address $selectedSourceAddress -Length 0xA0
 $expectedCoord88 = [double[]]@(
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x88),
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x8C),
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x90))
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x88)),
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x8C)),
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x90)))
 $expectedOrientation60 = [double[]]@(
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x60),
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x64),
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x68))
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x60)),
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x64)),
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x68)))
 $expectedOrientation94 = [double[]]@(
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x94),
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x98),
-    [double](Read-SingleAt -Bytes $sourceBytes -Offset 0x9C))
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x94)),
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x98)),
+    (Convert-ToFiniteDouble -Value (Read-SingleAt -Bytes $sourceBytes -Offset 0x9C)))
 
 $containerBytes = Read-Bytes -Address $containerAddress -Length ($MaxEntries * 8)
 $entries = New-Object System.Collections.Generic.List[object]
@@ -168,22 +204,10 @@ for ($index = 0; $index -lt $MaxEntries; $index++) {
     $q68 = Read-UInt64At -Bytes $entryBytes -Offset 0x68
     $q100 = Read-UInt64At -Bytes $entryBytes -Offset 0x100
 
-    $coord48 = [double[]]@(
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x48),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x4C),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x50))
-    $coord88 = [double[]]@(
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x88),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x8C),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x90))
-    $orientation60 = [double[]]@(
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x60),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x64),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x68))
-    $orientation94 = [double[]]@(
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x94),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x98),
-        [double](Read-SingleAt -Bytes $entryBytes -Offset 0x9C))
+    $coord48 = Read-TripletAt -Bytes $entryBytes -Offset 0x48
+    $coord88 = Read-TripletAt -Bytes $entryBytes -Offset 0x88
+    $orientation60 = Read-TripletAt -Bytes $entryBytes -Offset 0x60
+    $orientation94 = Read-TripletAt -Bytes $entryBytes -Offset 0x94
 
     $ownerRefCount = 0
     $sourceRefCount = 0
