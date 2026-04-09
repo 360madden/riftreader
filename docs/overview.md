@@ -55,13 +55,19 @@ That means:
     - source-wrapper
     - owner-backref wrapper
     - owner-state wrapper
-11. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
+11. enumerate the stable owner container itself and separate the live selected-source component from its sibling component records
+12. classify the first stat-side graph around that owner/component table by identifying raw-unit-id-bearing identity components and shared level/resource hubs
+13. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
 
 Current discovery refinement:
 
 - prefer directional CE next-scans after movement (`increased` / `decreased` / `changed`) over relying only on a second exact-value float scan
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
+- treat the owner container as a component table, not just a wrapper list:
+  - entry `6` is the current transform/source component
+  - indices `9`, `12`, and `13` currently behave like identity-bearing siblings because they embed the raw player unit id
+  - shared stat hubs currently cluster around `0x1AEE40A4600`, `0x1AEE411B4B0`, and `0x1AEBBF6E380`
 - inspect a small disassembly cluster around any verified coord trace before promoting it, so nearby instructions using the same base register can be compared quickly
 - derive a stronger pre-coord source chain from that cluster so we can pivot from the destination coord cache toward the likely source object/owner path
 - once the source chain is found, isolate the accessor it calls so we can recognize stable returned field offsets such as the current coord-source `+0x48` path

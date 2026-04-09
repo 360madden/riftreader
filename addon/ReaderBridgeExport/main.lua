@@ -116,6 +116,14 @@ local function copyList(lines)
   return result
 end
 
+local function listCount(lines)
+  if type(lines) ~= "table" then
+    return 0
+  end
+
+  return #lines
+end
+
 local function percent(current, maximum)
   current = toNumber(current)
   maximum = toNumber(maximum)
@@ -606,6 +614,10 @@ function Exporter.Refresh(reason, incrementCount)
   ensureState()
 
   local snapshot = buildSnapshot(reason)
+  snapshot.playerBuffLineCount = listCount(snapshot.playerBuffLines)
+  snapshot.playerDebuffLineCount = listCount(snapshot.playerDebuffLines)
+  snapshot.targetBuffLineCount = listCount(snapshot.targetBuffLines)
+  snapshot.targetDebuffLineCount = listCount(snapshot.targetDebuffLines)
 
   if incrementCount then
     state.session.exportCount = (toNumber(state.session.exportCount) or 0) + 1
@@ -628,6 +640,11 @@ function Exporter.PrintStatus()
     console("No export snapshot is available yet.", "#FFAA44")
     return
   end
+
+  snapshot.playerBuffLineCount = listCount(snapshot.playerBuffLines)
+  snapshot.playerDebuffLineCount = listCount(snapshot.playerDebuffLines)
+  snapshot.targetBuffLineCount = listCount(snapshot.targetBuffLines)
+  snapshot.targetDebuffLineCount = listCount(snapshot.targetDebuffLines)
 
   if snapshot.status ~= "ready" then
     console("Export not ready yet: " .. tostring(snapshot.status or "unknown"), "#FFAA44")

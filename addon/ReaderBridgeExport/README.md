@@ -14,6 +14,10 @@ That snapshot can then be loaded by the C# reader from:
 
 - `ReaderBridgeExport.lua`
 
+The export also includes a few narrow down helpers such as buff/debuff line
+counts, which can help the external reader rank or compare candidate memory
+components against the live API-visible state.
+
 ## Slash commands
 
 - `/rbx`

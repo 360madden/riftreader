@@ -12,6 +12,8 @@ public sealed record ReaderOptions(
     string? ScanModulePattern,
     bool WriteCheatEngineProbe,
     string? CheatEngineProbeFile,
+    bool RankOwnerComponents,
+    string? OwnerComponentsFile,
     bool CaptureReaderBridgeBestFamily,
     bool ReadPlayerCurrent,
     bool ReadPlayerCoordAnchor,
