@@ -47,6 +47,7 @@ That means:
 5. turn the winning layout back into a typed reader path
 6. ship a first `--read-player-current` mode that reads level / health / coords and compares them against the latest ReaderBridge export
 7. turn the first verified coord-triplet code access into a reader-usable anchor report via `--read-player-coord-anchor`
+8. reuse that trace-derived object anchor as a fast path for `--read-player-current` when it belongs to the current process and still matches current exported player state
 
 Current discovery refinement:
 
@@ -99,6 +100,7 @@ It only needs to:
 - report whether they match the addon-exported ground truth
 - reuse a validated cached sample address when it still matches current exported state so repeated reads stay fast
 - expose the first verified code-path-backed coord anchor so later AOB/pointer work can build on something narrower than raw family rescans
+- opportunistically reuse the trace-derived object base for repeated player reads before falling back to grouped family reacquisition
 
 That keeps the project moving toward a usable reader instead of spending too
 long perfecting discovery infrastructure first.

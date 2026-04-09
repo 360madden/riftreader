@@ -126,12 +126,13 @@ The reader now has two near-term targets:
 2. **first working typed reader modes**
    - `--read-player-current`
    - resolves the current best player-family sample
+   - prefers a verified coord-trace object anchor when it belongs to the current process and still matches current exported state
    - reads level / health / coords directly from memory
    - compares them against the latest ReaderBridge export
    - `--read-player-coord-anchor`
    - loads the latest verified coord-triplet trace artifact
    - validates the traced instruction bytes as a module-local pattern
-   - reports the inferred coord-base-relative access offset
+   - reports the inferred coord-base-relative access offset and derived object-relative field offsets
 
 Discovery-oriented modes:
 
@@ -421,6 +422,7 @@ Recent CE improvement:
 - the coord write-trace helper now rejects unverified debugger hits instead of treating unrelated reads as successful writer captures
 - the coord trace helper now treats the current player base as a coord-triplet anchor, accepts verified `x/y/z` member accesses, and can walk CE-confirmed candidate addresses instead of only the default current-player sample
 - the reader now has a matching `--read-player-coord-anchor` mode that loads the saved trace artifact, validates the traced bytes against the live module, and reports the inferred coord-base-relative offset from the verified instruction
+- `--read-player-current` now attempts that derived object anchor as a fast path before falling back to cached family samples and grouped rescans
 
 ## Next Milestone
 

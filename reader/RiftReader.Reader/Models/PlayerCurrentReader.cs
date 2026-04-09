@@ -28,6 +28,50 @@ public static class PlayerCurrentReader
             ?? throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot.");
 
         var expected = BuildExpected(player);
+
+        var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(null, out _);
+        var traceAnchor =
+            traceDocument?.Reader?.ProcessId == processId &&
+            string.Equals(traceDocument.Reader.ProcessName, processName, StringComparison.OrdinalIgnoreCase)
+                ? PlayerCoordAnchorReader.TryResolveObjectAnchor(traceDocument)
+                : null;
+        if (traceAnchor is not null)
+        {
+            var traceSample = ReadSampleAt(
+                reader,
+                traceAnchor.ObjectBaseAddress,
+                traceAnchor.LevelOffset,
+                traceAnchor.HealthOffset,
+                traceAnchor.CoordXOffset,
+                traceAnchor.CoordYOffset,
+                traceAnchor.CoordZOffset);
+
+            if (traceSample is not null)
+            {
+                var traceResult = BuildResult(
+                    processId,
+                    processName,
+                    snapshotDocument,
+                    familyId: "coord-trace-anchor",
+                    familyNotes: "code-path-backed object anchor",
+                    signature: $"trace-object-base@{traceAnchor.BaseRegister}+coord@0x{traceAnchor.CoordBaseRelativeOffset:X}",
+                    selectionSource: "coord-trace-anchor",
+                    anchorProvenance: traceDocument!.SourceFile ?? "coord-trace-anchor",
+                    anchorCacheFile: traceDocument!.SourceFile,
+                    anchorCacheUsed: true,
+                    anchorCacheUpdated: false,
+                    confirmationFile: traceDocument!.SourceFile,
+                    ceConfirmedSampleCount: 0,
+                    memory: traceSample,
+                    expected: expected);
+
+                if (IsAcceptableCurrentRead(traceResult.Match, expected))
+                {
+                    return traceResult;
+                }
+            }
+        }
+
         var anchorCandidates = PlayerCurrentAnchorCacheStore.LoadCandidates(null, out var cacheFile, out _);
 
         foreach (var anchorCandidate in anchorCandidates)

@@ -3,9 +3,15 @@ namespace RiftReader.Reader.Models;
 public sealed record PlayerCoordTraceAnchorDocument(
     string? Mode,
     string? GeneratedAtUtc,
+    PlayerCoordTraceAnchorReaderSummary? Reader,
     PlayerCoordTraceAnchorTrace? Trace,
     string? OutputFile,
     string? SourceFile);
+
+public sealed record PlayerCoordTraceAnchorReaderSummary(
+    string? Mode,
+    int? ProcessId,
+    string? ProcessName);
 
 public sealed record PlayerCoordTraceAnchorTrace(
     string? Status,
@@ -30,4 +36,5 @@ public sealed record PlayerCoordTraceAnchorTrace(
     string? MatchedOffset,
     string? ModuleName,
     string? ModuleBase,
-    string? ModuleOffset);
+    string? ModuleOffset,
+    Dictionary<string, string>? Registers);
