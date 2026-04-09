@@ -48,7 +48,9 @@ That means:
 6. ship a first `--read-player-current` mode that reads level / health / coords and compares them against the latest ReaderBridge export
 7. turn the first verified coord-triplet code access into a reader-usable anchor report via `--read-player-coord-anchor`
    - and compare that trace-derived sample back against current ReaderBridge ground truth
-8. reuse that trace-derived object anchor as a fast path for `--read-player-current` when it belongs to the current process and still matches current exported player state
+8. reject the first trace-derived destination object when it does not actually match current player state, then surface the traced upstream source object instead
+   - and verify that the source-object coord sample does match current exported player state
+9. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
 
 Current discovery refinement:
 
@@ -104,7 +106,8 @@ It only needs to:
 - report whether they match the addon-exported ground truth
 - reuse a validated cached sample address when it still matches current exported state so repeated reads stay fast
 - expose the first verified code-path-backed coord anchor so later AOB/pointer work can build on something narrower than raw family rescans
-- opportunistically reuse the trace-derived object base for repeated player reads before falling back to grouped family reacquisition
+- surface the traced upstream source object when the destination cache object proves to be a bad direct player anchor
+- opportunistically reuse only validated trace-backed anchors before falling back to grouped family reacquisition
 - allow that trace-derived object anchor to be refreshed on demand when the saved trace clearly belongs to an older Rift process, while keeping the default player-read path biased toward speed
 
 That keeps the project moving toward a usable reader instead of spending too

@@ -29,6 +29,10 @@ public static class PlayerCoordAnchorReadTextFormatter
             $"Coord X rel. offset:        {FormatOffset(result.CoordXRelativeOffset)}",
             $"Coord Y rel. offset:        {FormatOffset(result.CoordYRelativeOffset)}",
             $"Coord Z rel. offset:        {FormatOffset(result.CoordZRelativeOffset)}",
+            $"Source object register:     {result.SourceObjectRegister ?? "n/a"}",
+            $"Source object value:        {result.SourceObjectRegisterValue ?? "n/a"}",
+            $"Source object address:      {result.SourceObjectAddress ?? "n/a"}",
+            $"Source coord rel. offset:   {FormatOffset(result.SourceCoordRelativeOffset)}",
             $"ReaderBridge source:        {result.ReaderBridgeSourceFile ?? "n/a"}",
             $"Instruction address:        {result.InstructionAddress ?? "n/a"}",
             $"Instruction symbol:         {result.InstructionSymbol ?? "n/a"}",
@@ -48,6 +52,13 @@ public static class PlayerCoordAnchorReadTextFormatter
                 $"Trace sample coords:        {FormatFloat(result.MemorySample.CoordX)}, {FormatFloat(result.MemorySample.CoordY)}, {FormatFloat(result.MemorySample.CoordZ)}");
         }
 
+        if (result.SourceObjectSample is not null)
+        {
+            lines.Add($"Source sample address:      {result.SourceObjectSample.AddressHex}");
+            lines.Add(
+                $"Source sample coords:       {FormatFloat(result.SourceObjectSample.CoordX)}, {FormatFloat(result.SourceObjectSample.CoordY)}, {FormatFloat(result.SourceObjectSample.CoordZ)}");
+        }
+
         if (result.Expected is not null)
         {
             lines.Add($"Expected level:             {result.Expected.Level?.ToString() ?? "n/a"}");
@@ -63,6 +74,13 @@ public static class PlayerCoordAnchorReadTextFormatter
             lines.Add($"Trace coords match:         {result.Match.CoordMatchesWithinTolerance}");
             lines.Add(
                 $"Trace deltas:               {FormatDelta(result.Match.DeltaX)}, {FormatDelta(result.Match.DeltaY)}, {FormatDelta(result.Match.DeltaZ)}");
+        }
+
+        if (result.SourceObjectMatch is not null)
+        {
+            lines.Add($"Source coords match:        {result.SourceObjectMatch.CoordMatchesWithinTolerance}");
+            lines.Add(
+                $"Source deltas:              {FormatDelta(result.SourceObjectMatch.DeltaX)}, {FormatDelta(result.SourceObjectMatch.DeltaY)}, {FormatDelta(result.SourceObjectMatch.DeltaZ)}");
         }
 
         if (result.ModulePattern is not null)

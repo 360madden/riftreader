@@ -133,7 +133,8 @@ The reader now has two near-term targets:
    - loads the latest verified coord-triplet trace artifact
    - validates the traced instruction bytes as a module-local pattern
    - reports the inferred coord-base-relative access offset and derived object-relative field offsets
-   - reads the trace-derived sample back through memory and compares it against the latest ReaderBridge export when possible
+   - reads the trace-derived destination sample back through memory and compares it against the latest ReaderBridge export when possible
+   - also reports the traced upstream source-object candidate from the live register context and verifies its coord sample against ReaderBridge when possible
 
 Discovery-oriented modes:
 
@@ -361,6 +362,7 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first verified access to the current player coord triplet, tries CE-confirmed candidate addresses when available, captures the instruction and register context, and validates the captured instruction bytes through the reader's module-local pattern scan
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd` - captures a small disassembly window around the latest verified coord trace through Cheat Engine, highlights nearby instructions that reuse the traced base register, and labels offsets that line up with the current derived coord/level/health fields
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - derives the pre-coord source/destination handoff chain from the trace cluster, identifies the likely source-object load and resolve call, and verifies a stronger module-local source-chain pattern
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function and verifies each accessor pattern against the live module
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
 - `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scans plus directional next-scan workflows (`changed`, `increased`, `decreased`)
@@ -436,7 +438,7 @@ Recent CE improvement:
 - this materially improved live narrowing on the current Rift client from zero direct triplet confirmations in some runs to dozens of moved-axis candidates and multiple CE-confirmed family sample matches
 - the coord write-trace helper now rejects unverified debugger hits instead of treating unrelated reads as successful writer captures
 - the coord trace helper now treats the current player base as a coord-triplet anchor, accepts verified `x/y/z` member accesses, and can walk CE-confirmed candidate addresses instead of only the default current-player sample
-- the reader now has a matching `--read-player-coord-anchor` mode that loads the saved trace artifact, validates the traced bytes against the live module, and reports the inferred coord-base-relative offset from the verified instruction
+- the reader now has a matching `--read-player-coord-anchor` mode that loads the saved trace artifact, validates the traced bytes against the live module, reports the inferred coord-base-relative offset from the verified instruction, and surfaces the traced upstream source-object candidate when it can be reconstructed from the saved register context
 - `--read-player-current` now attempts that derived object anchor as a fast path before falling back to cached family samples and grouped rescans
 
 ## Next Milestone

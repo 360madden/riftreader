@@ -225,6 +225,9 @@ $accessorInstructions = @()
 $accessorSummary = $null
 $accessorPattern = $null
 $accessorScan = $null
+$preparationSummary = $null
+$preparationPattern = $null
+$preparationScan = $null
 if (-not [string]::IsNullOrWhiteSpace($sourceResolveTarget)) {
     $accessorClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.accessor.tsv')
     $accessorInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value $sourceResolveTarget) -OutputPath $accessorClusterFile -Before 4 -After 12
@@ -266,6 +269,47 @@ if (-not [string]::IsNullOrWhiteSpace($sourceResolveTarget)) {
         ReturnOffset = $accessorReturnOffset
         RawInstructionCount = @($accessorInstructions).Count
     }
+
+    $preparationTarget = $null
+    if ($accessorPrepCall -and ([string]$accessorPrepCall.opcode -match '^call\s+(?<target>[0-9A-Fa-f`]+)$')) {
+        $preparationTarget = $Matches['target'] -replace '`', ''
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($preparationTarget)) {
+        $preparationClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.preparation.tsv')
+        $preparationInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value $preparationTarget) -OutputPath $preparationClusterFile -Before 4 -After 24
+
+        $guardMove = $preparationInstructions | Where-Object { ([string]$_.opcode) -eq 'mov rdi,rcx' } | Select-Object -First 1
+        $guardInstruction = $preparationInstructions | Where-Object { ([string]$_.opcode) -eq 'cmp qword ptr [rcx+00000100],00' } | Select-Object -First 1
+        $guardJump = $preparationInstructions | Where-Object { $null -ne $guardInstruction -and ([string]$_.opcode) -like 'je *' -and [int]$_.index -gt [int]$guardInstruction.index } | Select-Object -First 1
+        $globalLoad = $preparationInstructions | Where-Object { ([string]$_.opcode) -like 'mov rbx,[*]' } | Select-Object -First 1
+        $globalTest = $preparationInstructions | Where-Object { $null -ne $globalLoad -and ([string]$_.opcode) -eq 'test rbx,rbx' -and [int]$_.index -gt [int]$globalLoad.index } | Select-Object -First 1
+
+        $preparationPatternInstructions = @(
+            $guardMove,
+            $guardInstruction,
+            $guardJump,
+            $globalLoad,
+            $globalTest
+        ) | Where-Object { $null -ne $_ }
+
+        if (@($preparationPatternInstructions).Count -ge 5) {
+            $preparationPattern = (@($preparationPatternInstructions) | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
+            $preparationScan = Invoke-ReaderJson -Arguments @(
+                '--process-name', 'rift_x64',
+                '--scan-module-pattern', $preparationPattern,
+                '--scan-module-name', 'rift_x64.exe',
+                '--json')
+        }
+
+        $preparationSummary = [ordered]@{
+            FunctionStart = $preparationTarget
+            GuardInstruction = $guardInstruction
+            GuardOffset = if ($guardInstruction) { 0x100 } else { $null }
+            GlobalLoad = $globalLoad
+            RawInstructionCount = @($preparationInstructions).Count
+        }
+    }
 }
 
 $result = [ordered]@{
@@ -291,6 +335,9 @@ $result = [ordered]@{
     AccessorInstructions = @($accessorInstructions)
     SuggestedAccessorPattern = $accessorPattern
     SuggestedAccessorScan = $accessorScan
+    Preparation = $preparationSummary
+    SuggestedPreparationPattern = $preparationPattern
+    SuggestedPreparationScan = $preparationScan
     SuggestedSourceChainPattern = $sourceChainPattern
     SuggestedSourceChainScan = $sourceChainScan
 }
@@ -318,6 +365,15 @@ else {
         }
         if ($accessorScan -and $accessorScan.Found -eq $true) {
             Write-Host "Accessor pattern:      $($accessorScan.Address) [$($accessorScan.RelativeOffsetHex)]"
+        }
+    }
+    if ($preparationSummary) {
+        Write-Host "Prep guard:            $($preparationSummary.GuardInstruction.address) | $($preparationSummary.GuardInstruction.full)"
+        if ($null -ne $preparationSummary.GuardOffset) {
+            Write-Host ("Prep guard off:        0x{0:X}" -f [int]$preparationSummary.GuardOffset)
+        }
+        if ($preparationScan -and $preparationScan.Found -eq $true) {
+            Write-Host "Prep pattern:          $($preparationScan.Address) [$($preparationScan.RelativeOffsetHex)]"
         }
     }
     Write-Host "Coord X read/write:    $($sourceCoordXRead.Address) -> $($destCoordXWrite.Address)"

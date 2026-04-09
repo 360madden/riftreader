@@ -8,6 +8,8 @@ namespace RiftReader.Reader.Models;
 
 public static partial class PlayerCoordAnchorReader
 {
+    private const string DefaultSourceObjectRegister = "RDI";
+    private const int DefaultSourceCoordRelativeOffset = 0x48;
     private const int DefaultLevelOffsetFromCoordBase = -144;
     private const int DefaultHealthOffsetFromCoordBase = -136;
     private const int DefaultCoordXOffsetFromCoordBase = 0;
@@ -44,8 +46,9 @@ public static partial class PlayerCoordAnchorReader
         }
 
         var resolvedAnchor = TryResolveObjectAnchor(traceDocument);
-
+        var sourceObjectAddress = TryResolveSourceObjectAddress(traceDocument);
         var comparison = BuildComparison(reader, snapshotDocument, resolvedAnchor);
+        var sourceObjectComparison = BuildSourceObjectComparison(reader, snapshotDocument, sourceObjectAddress);
 
         return new PlayerCoordAnchorReadResult(
             Mode: "player-coord-anchor-read",
@@ -80,10 +83,16 @@ public static partial class PlayerCoordAnchorReader
             CoordXRelativeOffset: resolvedAnchor?.CoordXOffset,
             CoordYRelativeOffset: resolvedAnchor?.CoordYOffset,
             CoordZRelativeOffset: resolvedAnchor?.CoordZOffset,
+            SourceObjectRegister: sourceObjectAddress.HasValue ? DefaultSourceObjectRegister : null,
+            SourceObjectRegisterValue: sourceObjectAddress.HasValue ? $"0x{sourceObjectAddress.Value:X}" : null,
+            SourceObjectAddress: sourceObjectAddress.HasValue ? $"0x{sourceObjectAddress.Value:X}" : null,
+            SourceCoordRelativeOffset: sourceObjectAddress.HasValue ? DefaultSourceCoordRelativeOffset : null,
             ReaderBridgeSourceFile: comparison?.ReaderBridgeSourceFile,
             MemorySample: comparison?.Memory,
+            SourceObjectSample: sourceObjectComparison?.Memory,
             Expected: comparison?.Expected,
             Match: comparison?.Match,
+            SourceObjectMatch: sourceObjectComparison?.Match,
             ModulePattern: modulePattern);
     }
 
@@ -218,6 +227,21 @@ public static partial class PlayerCoordAnchorReader
         return match.Success ? match.Groups["register"].Value : null;
     }
 
+    private static long? TryResolveSourceObjectAddress(PlayerCoordTraceAnchorDocument traceDocument)
+    {
+        ArgumentNullException.ThrowIfNull(traceDocument);
+
+        var trace = traceDocument.Trace;
+        if (trace?.Registers is null ||
+            !trace.Registers.TryGetValue(DefaultSourceObjectRegister, out var registerValueText) ||
+            !TryParseAddress(registerValueText, out var address))
+        {
+            return null;
+        }
+
+        return address;
+    }
+
     private static PlayerCoordAnchorComparison? BuildComparison(
         ProcessMemoryReader reader,
         ReaderBridgeSnapshotDocument? snapshotDocument,
@@ -280,6 +304,53 @@ public static partial class PlayerCoordAnchorReader
             match);
     }
 
+    private static PlayerCoordAnchorSourceComparison? BuildSourceObjectComparison(
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        long? sourceObjectAddress)
+    {
+        if (snapshotDocument?.Current?.Player is not { } player || !sourceObjectAddress.HasValue)
+        {
+            return null;
+        }
+
+        var memory = ReadCoordSampleAt(
+            reader,
+            sourceObjectAddress.Value,
+            DefaultSourceCoordRelativeOffset,
+            DefaultSourceCoordRelativeOffset + sizeof(float),
+            DefaultSourceCoordRelativeOffset + (sizeof(float) * 2));
+
+        if (memory is null)
+        {
+            return null;
+        }
+
+        float? deltaX = memory.CoordX.HasValue && player.Coord?.X is double expectedX
+            ? memory.CoordX.Value - (float)expectedX
+            : null;
+        float? deltaY = memory.CoordY.HasValue && player.Coord?.Y is double expectedY
+            ? memory.CoordY.Value - (float)expectedY
+            : null;
+        float? deltaZ = memory.CoordZ.HasValue && player.Coord?.Z is double expectedZ
+            ? memory.CoordZ.Value - (float)expectedZ
+            : null;
+
+        var match = new PlayerCoordAnchorSourceMatch(
+            CoordMatchesWithinTolerance:
+                deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
+                deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
+                deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f,
+            DeltaX: deltaX,
+            DeltaY: deltaY,
+            DeltaZ: deltaZ);
+
+        return new PlayerCoordAnchorSourceComparison(
+            snapshotDocument.SourceFile,
+            memory,
+            match);
+    }
+
     private static PlayerCurrentReadSample? ReadSampleAt(
         ProcessMemoryReader reader,
         long baseAddress,
@@ -306,6 +377,29 @@ public static partial class PlayerCoordAnchorReader
             Health: health,
             Name: null,
             Location: null,
+            CoordX: coordX,
+            CoordY: coordY,
+            CoordZ: coordZ);
+    }
+
+    private static PlayerCoordAnchorSourceSample? ReadCoordSampleAt(
+        ProcessMemoryReader reader,
+        long baseAddress,
+        int coordXOffset,
+        int coordYOffset,
+        int coordZOffset)
+    {
+        var coordX = TryReadFloat(reader, baseAddress + coordXOffset);
+        var coordY = TryReadFloat(reader, baseAddress + coordYOffset);
+        var coordZ = TryReadFloat(reader, baseAddress + coordZOffset);
+
+        if (!coordX.HasValue || !coordY.HasValue || !coordZ.HasValue)
+        {
+            return null;
+        }
+
+        return new PlayerCoordAnchorSourceSample(
+            AddressHex: $"0x{baseAddress:X}",
             CoordX: coordX,
             CoordY: coordY,
             CoordZ: coordZ);
@@ -345,4 +439,9 @@ public static partial class PlayerCoordAnchorReader
         PlayerCurrentReadSample Memory,
         PlayerCurrentReadExpected Expected,
         PlayerCurrentReadMatch Match);
+
+    private sealed record PlayerCoordAnchorSourceComparison(
+        string ReaderBridgeSourceFile,
+        PlayerCoordAnchorSourceSample Memory,
+        PlayerCoordAnchorSourceMatch Match);
 }
