@@ -2,6 +2,8 @@
 param(
     [switch]$Json,
     [switch]$RefreshCluster,
+    [int]$ClusterInstructionsBefore = 32,
+    [int]$ClusterInstructionsAfter = 20,
     [string]$ClusterFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json')
 )
@@ -50,6 +52,42 @@ function Get-RequiredInstruction {
     }
 
     return $match
+}
+
+function Get-RequiredInstructionMatch {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Instructions,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Pattern,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    foreach ($instruction in $Instructions) {
+        $match = [regex]::Match([string]$instruction.Opcode, $Pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($match.Success) {
+            return [pscustomobject]@{
+                Instruction = $instruction
+                Match = $match
+            }
+        }
+    }
+
+    throw "Unable to locate required instruction: $Description"
+}
+
+function Get-InstructionByIndex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Instructions,
+
+        [int]$Index
+    )
+
+    return $Instructions | Where-Object { [int]$_.Index -eq $Index } | Select-Object -First 1
 }
 
 function Normalize-Bytes {
@@ -144,7 +182,17 @@ return RiftReaderDisasmCluster.dump([[$OutputPath]], $Address, $Before, $After)
 }
 
 if ($RefreshCluster -or -not (Test-Path -LiteralPath $resolvedClusterFile)) {
-    & $clusterScript -Json | Out-Null
+    $clusterArguments = @{
+        Json = $true
+        InstructionsBefore = $ClusterInstructionsBefore
+        InstructionsAfter = $ClusterInstructionsAfter
+    }
+
+    if ($RefreshCluster) {
+        $clusterArguments['RefreshTrace'] = $true
+    }
+
+    & $clusterScript @clusterArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
@@ -154,13 +202,22 @@ if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
 $cluster = Get-Content -LiteralPath $resolvedClusterFile -Raw | ConvertFrom-Json -Depth 30
 $instructions = @($cluster.Instructions)
 
-$sourceContainerLoad = Get-RequiredInstruction -Instructions $instructions -Description 'source container load' -Predicate {
-    $_.Opcode -eq 'mov rcx,[rax+78]'
-}
-$sourceObjectLoad = Get-RequiredInstruction -Instructions $instructions -Description 'source object load' -Predicate {
-    $_.Opcode -eq 'mov rdi,[rcx+rdx*8]'
-}
+$sourceContainerLoadMatch = Get-RequiredInstructionMatch `
+    -Instructions $instructions `
+    -Pattern '^mov (?<containerRegister>r[a-z0-9]+),\[rax\+78\]$' `
+    -Description 'source container load'
+$sourceContainerLoad = $sourceContainerLoadMatch.Instruction
+$containerRegister = $sourceContainerLoadMatch.Match.Groups['containerRegister'].Value.ToLowerInvariant()
+
+$sourceObjectLoadMatch = Get-RequiredInstructionMatch `
+    -Instructions @($instructions | Where-Object { [int]$_.Index -gt [int]$sourceContainerLoad.Index }) `
+    -Pattern ('^mov (?<sourceRegister>r[a-z0-9]+),\[' + [regex]::Escape($containerRegister) + '\+(?<indexRegister>r[a-z0-9]+)\*8\]$') `
+    -Description 'source object load'
+$sourceObjectLoad = $sourceObjectLoadMatch.Instruction
+$sourceObjectRegister = $sourceObjectLoadMatch.Match.Groups['sourceRegister'].Value.ToLowerInvariant()
+
 $sourceResolveCall = $null
+$sourceResolvePrepare = $null
 foreach ($instruction in $instructions) {
     if ($instruction.Index -le $sourceObjectLoad.Index) {
         continue
@@ -170,9 +227,9 @@ foreach ($instruction in $instructions) {
         continue
     }
 
-    $previous = $instructions | Where-Object { $_.Index -eq ($instruction.Index - 1) } | Select-Object -First 1
-    $next = $instructions | Where-Object { $_.Index -eq ($instruction.Index + 1) } | Select-Object -First 1
-    if ($previous -and $next -and ([string]$previous.Opcode -eq 'mov rcx,rdi') -and ([string]$next.Opcode -eq 'mov rcx,rdi')) {
+    $previous = Get-InstructionByIndex -Instructions $instructions -Index ($instruction.Index - 1)
+    if ($previous -and ([string]$previous.Opcode).ToLowerInvariant() -eq ("mov rcx,{0}" -f $sourceObjectRegister)) {
+        $sourceResolvePrepare = $previous
         $sourceResolveCall = $instruction
         break
     }
@@ -182,27 +239,19 @@ if ($null -eq $sourceResolveCall) {
     throw "Unable to locate the source resolve call in the current trace cluster."
 }
 
-$sourceCoordXRead = Get-RequiredInstruction -Instructions $instructions -Description 'source coord-x read' -Predicate {
-    $_.Index -gt $sourceResolveCall.Index -and $_.Opcode -eq 'movsd xmm0,[rax]'
-}
-$destCoordXWrite = Get-RequiredInstruction -Instructions $instructions -Description 'destination coord-x write' -Predicate {
-    $_.Index -gt $sourceCoordXRead.Index -and $_.Opcode -eq 'movsd [rsi+00000158],xmm0'
-}
-$sourceCoordZRead = Get-RequiredInstruction -Instructions $instructions -Description 'source coord-z read' -Predicate {
-    $_.Index -gt $destCoordXWrite.Index -and $_.Opcode -eq 'mov eax,[rax+08]'
-}
-$destCoordZWrite = Get-RequiredInstruction -Instructions $instructions -Description 'destination coord-z write' -Predicate {
-    $_.Index -gt $sourceCoordZRead.Index -and $_.Opcode -eq 'mov [rsi+00000160],eax'
-}
+$sourceCoordXRead = $instructions | Where-Object { $_.Opcode -eq 'movsd xmm0,[rax]' } | Select-Object -First 1
+$destCoordXWrite = $instructions | Where-Object { [string]$_.Opcode -match '^movsd \[(?<register>r[a-z0-9]+)\+00000158\],xmm0$' } | Select-Object -First 1
+$sourceCoordZRead = $instructions | Where-Object { $_.Opcode -eq 'mov eax,[rax+08]' } | Select-Object -First 1
+$destCoordZWrite = $instructions | Where-Object { [string]$_.Opcode -match '^mov \[(?<register>r[a-z0-9]+)\+00000160\],eax$' } | Select-Object -First 1
 
 $patternInstructions = @(
     $sourceContainerLoad,
     $sourceObjectLoad,
-    ($instructions | Where-Object { $_.Index -eq ($sourceObjectLoad.Index + 1) } | Select-Object -First 1),
-    ($instructions | Where-Object { $_.Index -eq ($sourceObjectLoad.Index + 2) } | Select-Object -First 1),
-    ($instructions | Where-Object { $_.Index -eq ($sourceResolveCall.Index - 1) } | Select-Object -First 1),
+    (Get-InstructionByIndex -Instructions $instructions -Index ($sourceObjectLoad.Index + 1)),
+    (Get-InstructionByIndex -Instructions $instructions -Index ($sourceObjectLoad.Index + 2)),
+    $sourceResolvePrepare,
     $sourceResolveCall,
-    ($instructions | Where-Object { $_.Index -eq ($sourceResolveCall.Index + 1) } | Select-Object -First 1),
+    (Get-InstructionByIndex -Instructions $instructions -Index ($sourceResolveCall.Index + 1)),
     $sourceCoordXRead,
     $destCoordXWrite,
     $sourceCoordZRead,
@@ -356,8 +405,8 @@ if ($Json) {
 else {
     Write-Host "Source-chain file:     $resolvedOutputFile"
     Write-Host "Source object load:    $($sourceObjectLoad.Address) | $($sourceObjectLoad.Full)"
-        Write-Host "Source resolve call:   $($sourceResolveCall.Address) | $($sourceResolveCall.Full)"
-        Write-Host "Source target:         $sourceResolveTarget"
+    Write-Host "Source resolve call:   $($sourceResolveCall.Address) | $($sourceResolveCall.Full)"
+    Write-Host "Source target:         $sourceResolveTarget"
     if ($accessorSummary) {
         Write-Host "Accessor return lea:   $($accessorSummary.ReturnLea.Address) | $($accessorSummary.ReturnLea.Full)"
         if ($null -ne $accessorSummary.ReturnOffset) {
@@ -376,8 +425,12 @@ else {
             Write-Host "Prep pattern:          $($preparationScan.Address) [$($preparationScan.RelativeOffsetHex)]"
         }
     }
-    Write-Host "Coord X read/write:    $($sourceCoordXRead.Address) -> $($destCoordXWrite.Address)"
-    Write-Host "Coord Z read/write:    $($sourceCoordZRead.Address) -> $($destCoordZWrite.Address)"
+    if ($sourceCoordXRead -and $destCoordXWrite) {
+        Write-Host "Coord X read/write:    $($sourceCoordXRead.Address) -> $($destCoordXWrite.Address)"
+    }
+    if ($sourceCoordZRead -and $destCoordZWrite) {
+        Write-Host "Coord Z read/write:    $($sourceCoordZRead.Address) -> $($destCoordZWrite.Address)"
+    }
     Write-Host "Suggested pattern:     $sourceChainPattern"
     if ($sourceChainScan.Found -eq $true) {
         Write-Host "Pattern match:         $($sourceChainScan.Address) [$($sourceChainScan.RelativeOffsetHex)]"

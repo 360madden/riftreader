@@ -56,6 +56,7 @@ Notes:
   - Use --scan-context to capture bytes around each hit for quick triage.
   - Use --addon-snapshot to normalize the latest RiftReaderValidator saved snapshot for comparison work.
   - Use --readerbridge-snapshot to normalize the latest ReaderBridge export snapshot for richer comparison work.
+  - Use --readerbridge-snapshot-file to override which ReaderBridge export file snapshot modes or stat-hub ranking should load.
   - Use --json to print machine-readable output.
 
 Examples:
@@ -79,6 +80,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-pointer 0x2039DD70 --pointer-width 8 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --addon-snapshot --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --readerbridge-snapshot-file .\ReaderBridgeExport.lua --json
 """;
 
     public static ReaderOptionsParseResult Parse(string[] args)

@@ -2,7 +2,8 @@
 param(
     [switch]$Json,
     [switch]$RefreshSourceChain,
-    [int]$TimeoutSeconds = 8,
+    [int]$MovementHoldMilliseconds = 600,
+    [int]$TimeoutSeconds = 20,
     [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
     [string]$CoordTraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
@@ -15,6 +16,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $sourceChainScript = Join-Path $PSScriptRoot 'capture-player-source-chain.ps1'
+$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $selectorLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderSelectorTrace.lua'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
@@ -133,8 +136,46 @@ function Get-CoordTripletSample {
     }
 }
 
+function Invoke-SelectorTraceStimulus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+
+        [int]$HoldMilliseconds
+    )
+
+    try {
+        if ($Key -eq 'reloadui') {
+            & $refreshScript -NoReader
+            return
+        }
+
+        & $postKeyScript -Key $Key -HoldMilliseconds $HoldMilliseconds
+    }
+    catch {
+        Write-Warning ("Unable to send selector-trace key '{0}'. {1}" -f $Key, $_.Exception.Message)
+    }
+}
+
 if ($RefreshSourceChain -or -not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
-    & $sourceChainScript -Json | Out-Null
+    $sourceChainArguments = @{
+        Json = $true
+    }
+
+    if ($RefreshSourceChain) {
+        $sourceChainArguments['RefreshCluster'] = $true
+    }
+
+    try {
+        & $sourceChainScript @sourceChainArguments | Out-Null
+    }
+    catch {
+        if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
+            throw
+        }
+
+        Write-Warning ("Unable to refresh the player source-chain artifact; reusing the existing file '{0}'. {1}" -f $resolvedSourceChainFile, $_.Exception.Message)
+    }
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
@@ -147,12 +188,26 @@ if ($null -eq $triggerInstruction -or [string]::IsNullOrWhiteSpace([string]$trig
     throw 'Source-chain file did not contain the source-object load instruction.'
 }
 
-$selectorPattern = '0F B6 54 01 18 80 FA FF 0F 84 ?? ?? ?? ?? 48 8B 48 78 48 8B 3C D1 48 85 FF'
+$selectorPattern = '0F B6 54 01 18 80 FA FF 74 ?? 44 8B C2 48 8B 50 78 4A 8B 1C C2 48 85 DB'
 $selectorPatternScan = Invoke-ReaderJson -Arguments @(
     '--process-name', 'rift_x64',
     '--scan-module-pattern', $selectorPattern,
     '--scan-module-name', 'rift_x64.exe',
     '--json')
+
+$triggerAddressText = $null
+$triggerAddressSource = $null
+if ($selectorPatternScan -and $selectorPatternScan.Found -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$selectorPatternScan.Address)) {
+    $triggerAddressText = [string]$selectorPatternScan.Address
+    $triggerAddressSource = 'selector-pattern'
+}
+elseif (-not [string]::IsNullOrWhiteSpace([string]$triggerInstruction.Address)) {
+    $triggerAddressText = [string]$triggerInstruction.Address
+    $triggerAddressSource = 'source-chain'
+}
+else {
+    throw 'Unable to resolve the selector trace trigger instruction address.'
+}
 
 if (Test-Path -LiteralPath $resolvedStatusFile) {
     Remove-Item -LiteralPath $resolvedStatusFile -Force
@@ -160,7 +215,7 @@ if (Test-Path -LiteralPath $resolvedStatusFile) {
 
 & $ceExecScript -LuaFile $selectorLuaFile | Out-Null
 
-$triggerAddress = Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
+$triggerAddress = Parse-HexUInt64 -Value $triggerAddressText
 $luaCode = @"
 return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], 0x70)
 "@
@@ -168,7 +223,21 @@ return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatu
 
 $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
 $status = $null
+$stimuli = @(
+    [pscustomobject]@{ Key = 'w'; HoldMilliseconds = $MovementHoldMilliseconds },
+    [pscustomobject]@{ Key = 'space'; HoldMilliseconds = 120 },
+    [pscustomobject]@{ Key = 'reloadui'; HoldMilliseconds = 0 }
+)
+$stimulusIndex = 0
+$nextStimulusAt = [DateTime]::UtcNow
 while ([DateTime]::UtcNow -lt $deadline) {
+    if ($stimulusIndex -lt $stimuli.Count -and [DateTime]::UtcNow -ge $nextStimulusAt) {
+        $stimulus = $stimuli[$stimulusIndex]
+        Invoke-SelectorTraceStimulus -Key $stimulus.Key -HoldMilliseconds $stimulus.HoldMilliseconds
+        $stimulusIndex++
+        $nextStimulusAt = [DateTime]::UtcNow.AddMilliseconds([Math]::Max($stimulus.HoldMilliseconds + 400, 750))
+    }
+
     if (Test-Path -LiteralPath $resolvedStatusFile) {
         $status = Read-KeyValueFile -Path $resolvedStatusFile
         if ($status.status -eq 'hit' -or $status.status -eq 'error') {
@@ -220,6 +289,8 @@ $result = [ordered]@{
     SourceChainFile = $resolvedSourceChainFile
     CoordTraceFile = if (Test-Path -LiteralPath $resolvedCoordTraceFile) { $resolvedCoordTraceFile } else { $null }
     TriggerInstruction = $triggerInstruction
+    TriggerInstructionAddress = $triggerAddressText
+    TriggerInstructionAddressSource = $triggerAddressSource
     Trace = [ordered]@{
         Status = [string]$status.status
         HitCount = Try-ParseInt32 ([string]$status.hitCount)
@@ -283,7 +354,10 @@ if ($Json) {
 }
 else {
     Write-Host "Selector-owner trace:  $resolvedOutputFile"
-    Write-Host "Trigger instruction:   $($triggerInstruction.Address) | $($triggerInstruction.Full)"
+    Write-Host "Trigger instruction:   $triggerAddressText [$triggerAddressSource]"
+    if ($triggerInstruction -and $triggerInstruction.Full) {
+        Write-Host "Source-chain trigger:  $($triggerInstruction.Address) | $($triggerInstruction.Full)"
+    }
     Write-Host "Owner object:          $($result.Owner.ObjectAddress)"
     Write-Host "Owner container:       $($result.Owner.ContainerAddress)"
     Write-Host "Selector index:        $($result.Owner.SelectorIndex)"

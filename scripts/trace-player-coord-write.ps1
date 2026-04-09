@@ -39,6 +39,37 @@ function Invoke-ReaderJson {
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
 }
 
+function Invoke-ReaderJsonWithRetry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+
+        [int]$MaxAttempts = 3,
+
+        [int]$RetryDelayMilliseconds = 750
+    )
+
+    $lastError = $null
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            return Invoke-ReaderJson -Arguments $Arguments
+        }
+        catch {
+            $lastError = $_.Exception
+            if ($attempt -lt $MaxAttempts) {
+                Start-Sleep -Milliseconds $RetryDelayMilliseconds
+            }
+        }
+    }
+
+    if ($lastError) {
+        throw $lastError
+    }
+
+    throw "Reader command failed after $MaxAttempts attempts."
+}
+
 function Parse-HexAddress {
     param(
         [Parameter(Mandatory = $true)]
@@ -178,6 +209,18 @@ function Convert-StatusToTraceAttempt {
     }
 }
 
+function Invoke-TraceStimulus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+
+        [Parameter(Mandatory = $true)]
+        [int]$HoldMilliseconds
+    )
+
+    & $postKeyScript -Key $Key -HoldMilliseconds $HoldMilliseconds
+}
+
 function Get-CoordTraceResult {
     param(
         [Parameter(Mandatory = $true)]
@@ -200,12 +243,24 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
-    & $postKeyScript -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds
-
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $lastStatus = $null
+    $stimuli = @(
+        [pscustomobject]@{ Key = 'w'; HoldMilliseconds = $MovementHoldMilliseconds },
+        [pscustomobject]@{ Key = 'space'; HoldMilliseconds = 120 },
+        [pscustomobject]@{ Key = 'a'; HoldMilliseconds = [Math]::Min($MovementHoldMilliseconds, 350) }
+    )
+    $stimulusIndex = 0
+    $nextStimulusAt = [DateTime]::UtcNow
 
     while ([DateTime]::UtcNow -lt $deadline) {
+        if ($stimulusIndex -lt $stimuli.Count -and [DateTime]::UtcNow -ge $nextStimulusAt) {
+            $stimulus = $stimuli[$stimulusIndex]
+            Invoke-TraceStimulus -Key $stimulus.Key -HoldMilliseconds $stimulus.HoldMilliseconds
+            $stimulusIndex++
+            $nextStimulusAt = [DateTime]::UtcNow.AddMilliseconds([Math]::Max($stimulus.HoldMilliseconds + 400, 750))
+        }
+
         if (Test-Path -LiteralPath $resolvedStatusFile) {
             $status = Read-KeyValueFile -Path $resolvedStatusFile
             $lastStatus = $status
@@ -252,28 +307,103 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
     }
 }
 
+function Add-TraceCandidate {
+    param(
+        [AllowNull()]
+        [System.Collections.Generic.List[object]]$Candidates,
+
+        [AllowNull()]
+        [System.Collections.Generic.HashSet[string]]$Seen,
+
+        [string]$AddressHex,
+
+        [string]$Source,
+
+        [string]$FamilyId
+    )
+
+    if ($null -eq $Candidates -or $null -eq $Seen) {
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($AddressHex)) {
+        return
+    }
+
+    if (-not $Seen.Add($AddressHex)) {
+        return
+    }
+
+    $Candidates.Add([pscustomobject]@{
+        AddressHex = $AddressHex
+        Source = $Source
+        FamilyId = $FamilyId
+    }) | Out-Null
+}
+
 function Get-TraceCandidates {
     param(
-        [Parameter(Mandatory = $true)]
-        [pscustomobject]$PlayerRead
+        [AllowNull()]
+        [pscustomobject]$PlayerRead,
+
+        [AllowNull()]
+        [pscustomobject]$ProbeCapture,
+
+        [AllowNull()]
+        [pscustomobject]$SignatureScan,
+
+        [AllowNull()]
+        [string]$ExpectedFamilyId
     )
 
     $candidates = New-Object System.Collections.Generic.List[object]
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    $currentAddressHex = [string]$PlayerRead.Memory.AddressHex
-    if (-not [string]::IsNullOrWhiteSpace($currentAddressHex) -and $seen.Add($currentAddressHex)) {
-        $candidates.Add([pscustomobject]@{
-            AddressHex = $currentAddressHex
-            Source = 'player-current'
-            FamilyId = [string]$PlayerRead.FamilyId
-        }) | Out-Null
+    if ($ProbeCapture -and $ProbeCapture.PSObject.Properties['Samples']) {
+        $sampleIndex = 0
+        foreach ($sample in @($ProbeCapture.Samples)) {
+            $sampleIndex++
+            Add-TraceCandidate `
+                -Candidates $candidates `
+                -Seen $seen `
+                -AddressHex ([string]$sample.AddressHex) `
+                -Source ("capture-sample-{0}" -f $sampleIndex) `
+                -FamilyId ([string]$ProbeCapture.FamilyId)
+        }
+    }
+
+    if ($PlayerRead -and $PlayerRead.PSObject.Properties['Memory']) {
+        Add-TraceCandidate `
+            -Candidates $candidates `
+            -Seen $seen `
+            -AddressHex ([string]$PlayerRead.Memory.AddressHex) `
+            -Source 'player-current' `
+            -FamilyId ([string]$PlayerRead.FamilyId)
+    }
+
+    if ($SignatureScan -and $SignatureScan.PSObject.Properties['Families']) {
+        foreach ($family in @($SignatureScan.Families)) {
+            foreach ($address in @($family.SampleAddresses)) {
+                Add-TraceCandidate `
+                    -Candidates $candidates `
+                    -Seen $seen `
+                    -AddressHex ([string]$address) `
+                    -Source 'readerbridge-player-signature' `
+                    -FamilyId ([string]$family.FamilyId)
+            }
+        }
     }
 
     if (Test-Path -LiteralPath $resolvedConfirmationFile) {
         try {
             $confirmation = Get-Content -Path $resolvedConfirmationFile -Raw | ConvertFrom-Json -Depth 20
             $winnerFamilyId = [string]$confirmation.WinnerFamilyId
+            if (-not [string]::IsNullOrWhiteSpace($ExpectedFamilyId) -and
+                -not [string]::IsNullOrWhiteSpace($winnerFamilyId) -and
+                $winnerFamilyId -ne $ExpectedFamilyId) {
+                return @($candidates | Select-Object -First $MaxCandidates)
+            }
+
             $winnerAddresses = @($confirmation.Winner.CeConfirmedSampleAddresses)
 
             foreach ($address in $winnerAddresses) {
@@ -282,13 +412,12 @@ function Get-TraceCandidates {
                     continue
                 }
 
-                if ($seen.Add($addressHex)) {
-                    $candidates.Add([pscustomobject]@{
-                        AddressHex = $addressHex
-                        Source = 'ce-confirmed'
-                        FamilyId = $winnerFamilyId
-                    }) | Out-Null
-                }
+                Add-TraceCandidate `
+                    -Candidates $candidates `
+                    -Seen $seen `
+                    -AddressHex $addressHex `
+                    -Source 'ce-confirmed' `
+                    -FamilyId $winnerFamilyId
             }
         }
         catch {
@@ -317,10 +446,73 @@ try {
         & $refreshScript -NoReader
     }
 
-    $playerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
-    $traceCandidates = @(Get-TraceCandidates -PlayerRead $playerRead)
+    $playerRead = $null
+    $playerReadError = $null
+    try {
+        $playerRead = Invoke-ReaderJsonWithRetry -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+    }
+    catch {
+        $playerReadError = $_.Exception.Message
+        Write-Warning ("Unable to resolve --read-player-current; falling back to best-family capture candidates. {0}" -f $playerReadError)
+    }
+
+    $probeCapture = $null
+    $probeCaptureError = $null
+    try {
+        $probeCapture = Invoke-ReaderJsonWithRetry -Arguments @('--process-name', 'rift_x64', '--capture-readerbridge-best-family', '--json')
+    }
+    catch {
+        $probeCaptureError = $_.Exception.Message
+        if ($null -eq $playerRead) {
+            Write-Warning ("Unable to capture best-family candidates after --read-player-current failed. {0}" -f $probeCaptureError)
+        }
+        else {
+            Write-Warning ("Unable to capture live best-family candidates for coord tracing. {0}" -f $probeCaptureError)
+        }
+    }
+
+    $signatureScan = $null
+    $signatureScanError = $null
+    if ($null -eq $probeCapture -or @($probeCapture.Samples).Count -le 0) {
+        try {
+            $signatureScan = Invoke-ReaderJsonWithRetry -Arguments @(
+                '--process-name', 'rift_x64',
+                '--scan-readerbridge-player-signature',
+                '--scan-context', '96',
+                '--max-hits', ([Math]::Max($MaxCandidates, 8)).ToString([System.Globalization.CultureInfo]::InvariantCulture),
+                '--json')
+        }
+        catch {
+            $signatureScanError = $_.Exception.Message
+            Write-Warning ("Unable to load ReaderBridge player-signature candidates for coord tracing. {0}" -f $signatureScanError)
+        }
+    }
+
+    $expectedFamilyId = if ($probeCapture -and -not [string]::IsNullOrWhiteSpace([string]$probeCapture.FamilyId)) {
+        [string]$probeCapture.FamilyId
+    }
+    elseif ($playerRead -and -not [string]::IsNullOrWhiteSpace([string]$playerRead.FamilyId)) {
+        [string]$playerRead.FamilyId
+    }
+    else {
+        $null
+    }
+
+    $traceCandidates = @(Get-TraceCandidates -PlayerRead $playerRead -ProbeCapture $probeCapture -SignatureScan $signatureScan -ExpectedFamilyId $expectedFamilyId)
     if ($traceCandidates.Count -le 0) {
-        throw "No coord trace candidates were available."
+        $detailParts = New-Object System.Collections.Generic.List[string]
+        if ($playerReadError) {
+            $detailParts.Add("player-current: $playerReadError") | Out-Null
+        }
+        if ($probeCaptureError) {
+            $detailParts.Add("best-family: $probeCaptureError") | Out-Null
+        }
+        if ($signatureScanError) {
+            $detailParts.Add("player-signature-scan: $signatureScanError") | Out-Null
+        }
+
+        $detail = if ($detailParts.Count -gt 0) { ' ' + ($detailParts -join ' | ') } else { '' }
+        throw ("No coord trace candidates were available.{0}" -f $detail)
     }
 
     $attempts = New-Object System.Collections.Generic.List[object]
@@ -399,7 +591,29 @@ try {
     $result = [ordered]@{
         Mode = 'player-coord-write-trace'
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
-        Reader = $playerRead
+        Reader = if ($playerRead) {
+            $playerRead
+        }
+        elseif ($probeCapture) {
+            [ordered]@{
+                Mode = [string]$probeCapture.Mode
+                ProcessId = [int]$probeCapture.ProcessId
+                ProcessName = [string]$probeCapture.ProcessName
+            }
+        }
+        else {
+            [ordered]@{
+                Mode = 'coord-trace-reader'
+                ProcessId = $null
+                ProcessName = 'rift_x64'
+            }
+        }
+        PlayerRead = $playerRead
+        ReaderError = $playerReadError
+        ProbeCapture = $probeCapture
+        ProbeCaptureError = $probeCaptureError
+        SignatureScan = $signatureScan
+        SignatureScanError = $signatureScanError
         Candidates = [ordered]@{
             ConfirmationFile = $resolvedConfirmationFile
             Count = $traceCandidates.Count
@@ -450,7 +664,12 @@ try {
     }
     else {
         Write-Host "Trace file:           $resolvedOutputFile"
-        Write-Host "Player sample:        $($playerRead.Memory.AddressHex)"
+        if ($playerRead) {
+            Write-Host "Player sample:        $($playerRead.Memory.AddressHex)"
+        }
+        elseif ($probeCapture -and @($probeCapture.Samples).Count -gt 0) {
+            Write-Host "Capture sample:       $($probeCapture.Samples[0].AddressHex)"
+        }
         Write-Host "Trace candidate:      $($traceStatus.CandidateAddress) [$($traceStatus.CandidateSource)]"
         Write-Host "Coord write target:   $($traceStatus.TargetAddress)"
         if ($traceStatus.VerificationMethod) {

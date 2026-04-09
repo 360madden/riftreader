@@ -200,11 +200,16 @@ Write-Host "[RiftKey] Key           : $Key"
 Write-Host "[RiftKey] Hold ms       : $HoldMilliseconds"
 
 if (-not $SkipBackgroundFocus) {
-    $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
-    Write-Host "[RiftKey] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
-    Focus-Window -Process $backgroundProcess
-    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
-    Write-Host ("[RiftKey] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+    try {
+        $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
+        Write-Host "[RiftKey] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
+        Focus-Window -Process $backgroundProcess
+        $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+        Write-Host ("[RiftKey] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+    }
+    catch {
+        Write-Warning ("Background focus target '{0}' was unavailable; continuing without foreground redirection. {1}" -f $BackgroundProcessName, $_.Exception.Message)
+    }
 }
 
 $modifiersDown = New-Object System.Collections.Generic.List[int]

@@ -2,9 +2,9 @@
 param(
     [string]$Command = "/reloadui",
     [string]$TargetProcessName = "rift_x64",
-    [string]$VerifyFilePath = "C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
+    [string]$VerifyFilePath,
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
-    [int]$AttemptTimeoutSeconds = 10,
+    [int]$AttemptTimeoutSeconds = 20,
     [int]$InterKeyDelayMilliseconds = 20,
     [switch]$SkipBackgroundFocus
 )
@@ -117,6 +117,61 @@ function Get-FileTimestampUtc {
     }
 
     return (Get-Item -LiteralPath $Path).LastWriteTimeUtc
+}
+
+function Get-SavedRoots {
+    $roots = New-Object System.Collections.Generic.List[string]
+
+    if ($env:RIFT_SAVED_ROOT) {
+        $roots.Add($env:RIFT_SAVED_ROOT)
+    }
+
+    $roots.Add((Join-Path $env:USERPROFILE 'OneDrive\Documents\RIFT\Interface\Saved'))
+    $roots.Add((Join-Path $env:USERPROFILE 'Documents\RIFT\Interface\Saved'))
+
+    return $roots |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_) } |
+        Select-Object -Unique
+}
+
+function Find-LatestVerificationFile {
+    $roots = Get-SavedRoots
+    $matches = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+
+    foreach ($root in $roots) {
+        Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'ReaderBridgeExport.lua' -ErrorAction SilentlyContinue |
+            ForEach-Object { [void]$matches.Add($_) }
+    }
+
+    if ($matches.Count -eq 0) {
+        return $null
+    }
+
+    return $matches |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+}
+
+function Resolve-VerificationFile {
+    param(
+        [AllowEmptyString()]
+        [string]$PreferredPath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($PreferredPath)) {
+        if (-not (Test-Path -LiteralPath $PreferredPath)) {
+            throw "Verification file was not found: $PreferredPath"
+        }
+
+        return Get-Item -LiteralPath $PreferredPath
+    }
+
+    $latest = Find-LatestVerificationFile
+    if ($null -eq $latest) {
+        throw "Unable to locate ReaderBridgeExport.lua under the known RIFT saved-variable roots."
+    }
+
+    return $latest
 }
 
 function Post-Key {
@@ -275,10 +330,10 @@ function Send-CommandStrategySlashThenRest {
 function Wait-ForTimestampAdvance {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Path,
-
-        [Parameter(Mandatory = $true)]
         [datetime]$BaselineUtc,
+
+        [AllowEmptyString()]
+        [string]$PreferredPath,
 
         [Parameter(Mandatory = $true)]
         [int]$TimeoutSeconds
@@ -286,10 +341,20 @@ function Wait-ForTimestampAdvance {
 
     $deadline = (Get-Date).ToUniversalTime().AddSeconds($TimeoutSeconds)
     do {
-        if (Test-Path -LiteralPath $Path) {
-            $currentUtc = Get-FileTimestampUtc -Path $Path
-            if ($currentUtc -gt $BaselineUtc) {
-                return $currentUtc
+        $candidates = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+
+        if (-not [string]::IsNullOrWhiteSpace($PreferredPath) -and (Test-Path -LiteralPath $PreferredPath)) {
+            [void]$candidates.Add((Get-Item -LiteralPath $PreferredPath))
+        }
+
+        $latest = Find-LatestVerificationFile
+        if ($latest -and @($candidates | Where-Object { $_.FullName -eq $latest.FullName }).Count -eq 0) {
+            [void]$candidates.Add($latest)
+        }
+
+        foreach ($candidate in ($candidates | Sort-Object LastWriteTimeUtc -Descending)) {
+            if ($candidate.LastWriteTimeUtc -gt $BaselineUtc) {
+                return $candidate
             }
         }
 
@@ -317,20 +382,27 @@ $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandl
 Write-Host ("[RiftPost] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 
 if (-not $SkipBackgroundFocus) {
-    $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
-    Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
-    Focus-Window -Process $backgroundProcess
+    try {
+        $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
+        Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
+        Focus-Window -Process $backgroundProcess
 
-    $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
-    Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+        $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+        Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
 
-    if ($foregroundHandle -eq $targetHandle) {
-        throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        if ($foregroundHandle -eq $targetHandle) {
+            throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        }
+    }
+    catch {
+        Write-Warning ("Background focus target '{0}' was unavailable; continuing without foreground redirection. {1}" -f $BackgroundProcessName, $_.Exception.Message)
     }
 }
 
-$baselineUtc = Get-FileTimestampUtc -Path $VerifyFilePath
-Write-Host "[RiftPost] Verify file  : $VerifyFilePath"
+$verificationFile = Resolve-VerificationFile -PreferredPath $VerifyFilePath
+$resolvedVerifyFilePath = $verificationFile.FullName
+$baselineUtc = $verificationFile.LastWriteTimeUtc
+Write-Host "[RiftPost] Verify file  : $resolvedVerifyFilePath"
 Write-Host "[RiftPost] Baseline UTC : $($baselineUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
 Write-Host "[RiftPost] Command      : $Command"
 
@@ -343,11 +415,12 @@ foreach ($strategy in $strategies) {
     Write-Host "[RiftPost] Attempting strategy: $($strategy.Name)"
     & $strategy.Action $effectiveTargetHandle $Command
 
-    $updatedUtc = Wait-ForTimestampAdvance -Path $VerifyFilePath -BaselineUtc $baselineUtc -TimeoutSeconds $AttemptTimeoutSeconds
-    if ($updatedUtc) {
+    $updatedFile = Wait-ForTimestampAdvance -PreferredPath $resolvedVerifyFilePath -BaselineUtc $baselineUtc -TimeoutSeconds $AttemptTimeoutSeconds
+    if ($updatedFile) {
         Write-Host "[RiftPost] SUCCESS"
         Write-Host "[RiftPost] Strategy used: $($strategy.Name)"
-        Write-Host "[RiftPost] Updated UTC  : $($updatedUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
+        Write-Host "[RiftPost] Updated file : $($updatedFile.FullName)"
+        Write-Host "[RiftPost] Updated UTC  : $($updatedFile.LastWriteTimeUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
         exit 0
     }
 }

@@ -21,7 +21,8 @@ public record PlayerStatHubRankResult(
     int? PlayerPlanarMax,
     IReadOnlyList<PlayerStatHubIdentityComponentDetail> IdentityComponents,
     IReadOnlyList<PlayerStatHubCandidate> RankedSharedHubs,
-    IReadOnlyList<PlayerStatHubGraphLink> IdentityGraphLinks
+    IReadOnlyList<PlayerStatHubGraphLink> IdentityGraphLinks,
+    string? CheatEngineProbeFile = null
 );
 
 public record PlayerStatHubIdentityComponentDetail(

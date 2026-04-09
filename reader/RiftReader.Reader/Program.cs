@@ -923,6 +923,7 @@ internal static class Program
         }
 
         PlayerStatHubRankResult result;
+        string? generatedProbeFile = null;
         try
         {
             result = PlayerStatHubRanker.Rank(reader, snapshotDocument, artifactDocument);
@@ -953,12 +954,19 @@ internal static class Program
                 {
                     Console.WriteLine($"Cheat Engine probe script generated: {exportResult.OutputFile}");
                 }
+
+                generatedProbeFile = exportResult.OutputFile;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Unable to generate Cheat Engine probe script: {ex.Message}");
                 return 1;
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(generatedProbeFile))
+        {
+            result = result with { CheatEngineProbeFile = generatedProbeFile };
         }
 
         if (options.JsonOutput)

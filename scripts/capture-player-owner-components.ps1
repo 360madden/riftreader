@@ -158,7 +158,24 @@ function Test-TripletMatch {
 }
 
 if ($RefreshSelectorTrace -or -not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
-    & $selectorTraceScript -Json | Out-Null
+    $selectorTraceArguments = @{
+        Json = $true
+    }
+
+    if ($RefreshSelectorTrace) {
+        $selectorTraceArguments['RefreshSourceChain'] = $true
+    }
+
+    try {
+        & $selectorTraceScript @selectorTraceArguments | Out-Null
+    }
+    catch {
+        if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
+            throw
+        }
+
+        Write-Warning ("Unable to refresh the selector-owner trace artifact; reusing the existing file '{0}'. {1}" -f $resolvedSelectorTraceFile, $_.Exception.Message)
+    }
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {

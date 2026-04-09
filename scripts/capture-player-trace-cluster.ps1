@@ -3,7 +3,8 @@ param(
     [switch]$Json,
     [switch]$RefreshTrace,
     [int]$InstructionsBefore = 8,
-    [int]$InstructionsAfter = 16,
+    [int]$InstructionsAfter = 40,
+    [int]$TraceMaxCandidates = 4,
     [string]$TraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json')
 )
@@ -129,25 +130,51 @@ function Convert-OffsetToLittleEndianPattern {
     return ($bytes | ForEach-Object { $_.ToString('X2', [System.Globalization.CultureInfo]::InvariantCulture) }) -join ' '
 }
 
+function Resolve-InstructionAnchor {
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$Anchor
+    )
+
+    if ($Anchor.TraceMatchesProcess -and -not [string]::IsNullOrWhiteSpace([string]$Anchor.InstructionAddress)) {
+        return [pscustomobject]@{
+            Address = [string]$Anchor.InstructionAddress
+            Source = 'trace'
+        }
+    }
+
+    $modulePattern = Get-ObjectValue -Object $Anchor -Name 'ModulePattern'
+    if ($modulePattern -and (Get-ObjectValue -Object $modulePattern -Name 'Found') -eq $true) {
+        $modulePatternAddress = [string](Get-ObjectValue -Object $modulePattern -Name 'Address')
+        if (-not [string]::IsNullOrWhiteSpace($modulePatternAddress)) {
+            return [pscustomobject]@{
+                Address = $modulePatternAddress
+                Source = 'module-pattern'
+            }
+        }
+    }
+
+    return $null
+}
+
 if ($RefreshTrace -or -not (Test-Path -LiteralPath $resolvedTraceFile)) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
+    & $traceScript -Json -MaxCandidates $TraceMaxCandidates | Out-Null
 }
 
 $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
-if (-not $anchor.TraceMatchesProcess) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
+$instructionAnchor = Resolve-InstructionAnchor -Anchor $anchor
+
+if ($null -eq $instructionAnchor -and -not $RefreshTrace) {
+    & $traceScript -Json -MaxCandidates $TraceMaxCandidates | Out-Null
     $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
+    $instructionAnchor = Resolve-InstructionAnchor -Anchor $anchor
 }
 
-if (-not $anchor.TraceMatchesProcess) {
-    throw "The saved coord trace still does not match the current Rift process."
+if ($null -eq $instructionAnchor) {
+    throw "Unable to resolve a live coord-trace instruction address from the saved trace or its module-pattern relocation."
 }
 
-if (-not $anchor.InstructionAddress) {
-    throw "The coord-trace anchor did not contain an instruction address."
-}
-
-$instructionAddress = Parse-HexUInt64 -Value ([string]$anchor.InstructionAddress)
+$instructionAddress = Parse-HexUInt64 -Value ([string]$instructionAnchor.Address)
 $rawDirectory = Split-Path -Parent $rawClusterFile
 if (-not [string]::IsNullOrWhiteSpace($rawDirectory)) {
     New-Item -ItemType Directory -Path $rawDirectory -Force | Out-Null
@@ -234,6 +261,8 @@ $result = [ordered]@{
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     TraceFile = $resolvedTraceFile
     Anchor = $anchor
+    InstructionAddressSource = $instructionAnchor.Source
+    InstructionAddress = $instructionAnchor.Address
     RawClusterFile = $rawClusterFile
     InstructionsBefore = $InstructionsBefore
     InstructionsAfter = $InstructionsAfter
@@ -259,7 +288,8 @@ if ($Json) {
 else {
     Write-Host "Cluster file:          $resolvedOutputFile"
     Write-Host "Raw cluster TSV:       $rawClusterFile"
-    Write-Host "Instruction address:   $($anchor.InstructionAddress)"
+    Write-Host "Instruction address:   $($instructionAnchor.Address)"
+    Write-Host "Instruction source:    $($instructionAnchor.Source)"
     Write-Host "Base register:         $baseRegister"
     Write-Host "Interesting count:     $($interesting.Count)"
     if ($suggestedClusterPattern) {

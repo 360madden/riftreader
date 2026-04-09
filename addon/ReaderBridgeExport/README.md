@@ -28,7 +28,9 @@ components against the live API-visible state.
 ## Notes
 
 - This addon expects `ReaderBridge` to be installed and loaded.
-- If `ReaderBridge` is missing, the export stays in a waiting state instead of
-  throwing runtime errors.
+- If `ReaderBridge` is missing, the addon falls back to a direct API snapshot
+  built from the live `player` / `player.target` units. That fallback can still
+  report a waiting status such as `waiting-for-player`, but it does not stay
+  completely idle.
 - Like other Rift saved-variable workflows, disk persistence still depends on
   the game saving addon state.

@@ -63,21 +63,31 @@ function Resolve-WatchFile {
 }
 
 function Invoke-Reader([string]$snapshotPath) {
-    $arguments = @('--readerbridge-snapshot-file', $snapshotPath)
-    if ($Json) {
-        $arguments += '--json'
+    $arguments = @('--readerbridge-snapshot', '--readerbridge-snapshot-file', $snapshotPath)
+    $arguments += '--json'
+
+    if (-not $Json) {
+        Write-Host ""
+        Write-Host "[RUN] dotnet run --project $readerProject -- $($arguments -join ' ')" -ForegroundColor Cyan
     }
 
-    Write-Host ""
-    Write-Host "[RUN] dotnet run --project $readerProject -- $($arguments -join ' ')" -ForegroundColor Cyan
     $readerOutput = & dotnet run --project $readerProject -- @arguments 2>&1
     $exitCode = $LASTEXITCODE
+    $readerText = $readerOutput -join [Environment]::NewLine
+
+    if ($exitCode -ne 0) {
+        throw "Reader command failed (`$LASTEXITCODE=$exitCode): $readerText"
+    }
+
+    if ($Json) {
+        return $readerText | ConvertFrom-Json -Depth 40
+    }
 
     foreach ($line in $readerOutput) {
         Write-Host $line
     }
 
-    return $exitCode
+    return $null
 }
 
 $status = ''
@@ -85,16 +95,18 @@ $lastPath = ''
 $lastWriteTicks = -1L
 $lastLength = -1L
 
-Write-Host "Watching for ReaderBridgeExport.lua..." -ForegroundColor Yellow
-Write-Host "Repo:   $repoRoot" -ForegroundColor DarkGray
+if (-not $Json) {
+    Write-Host "Watching for ReaderBridgeExport.lua..." -ForegroundColor Yellow
+    Write-Host "Repo:   $repoRoot" -ForegroundColor DarkGray
 
-if ($FilePath) {
-    Write-Host "Target: $FilePath" -ForegroundColor DarkGray
-}
-else {
-    $roots = Get-SavedRoots
-    if ($roots.Count -gt 0) {
-        Write-Host "Roots:  $($roots -join '; ')" -ForegroundColor DarkGray
+    if ($FilePath) {
+        Write-Host "Target: $FilePath" -ForegroundColor DarkGray
+    }
+    else {
+        $roots = Get-SavedRoots
+        if ($roots.Count -gt 0) {
+            Write-Host "Roots:  $($roots -join '; ')" -ForegroundColor DarkGray
+        }
     }
 }
 
@@ -103,7 +115,9 @@ while ($true) {
 
     if (-not $file) {
         if ($status -ne 'waiting') {
-            Write-Host "[WAIT] ReaderBridgeExport.lua not found yet." -ForegroundColor Yellow
+            if (-not $Json) {
+                Write-Host "[WAIT] ReaderBridgeExport.lua not found yet." -ForegroundColor Yellow
+            }
             $status = 'waiting'
         }
 
@@ -119,19 +133,35 @@ while ($true) {
         $lastPath = $file.FullName
         $lastWriteTicks = $writeTicks
         $lastLength = $length
-        Write-Host "[READY] Baseline file found; waiting for a new change: $($file.FullName)" -ForegroundColor Green
+        if (-not $Json) {
+            Write-Host "[READY] Baseline file found; waiting for a new change: $($file.FullName)" -ForegroundColor Green
+        }
         $status = 'ready'
         Start-Sleep -Seconds $PollSeconds
         continue
     }
 
     if ($changed) {
-        Write-Host ""
-        Write-Host "[DETECT] $($file.FullName)" -ForegroundColor Green
-        Write-Host "         LastWrite: $($file.LastWriteTime)" -ForegroundColor DarkGray
-        Write-Host "         Length:    $($file.Length)" -ForegroundColor DarkGray
+        if (-not $Json) {
+            Write-Host ""
+            Write-Host "[DETECT] $($file.FullName)" -ForegroundColor Green
+            Write-Host "         LastWrite: $($file.LastWriteTime)" -ForegroundColor DarkGray
+            Write-Host "         Length:    $($file.Length)" -ForegroundColor DarkGray
+        }
 
-        $exitCode = Invoke-Reader -snapshotPath $file.FullName
+        $snapshot = Invoke-Reader -snapshotPath $file.FullName
+
+        if ($Json) {
+            $event = [ordered]@{
+                Mode = 'watch-readerbridge-export'
+                DetectedFile = $file.FullName
+                LastWriteTimeUtc = $file.LastWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                Length = $file.Length
+                Snapshot = $snapshot
+            }
+
+            Write-Output ($event | ConvertTo-Json -Depth 50)
+        }
 
         $lastPath = $file.FullName
         $lastWriteTicks = $writeTicks
@@ -139,11 +169,13 @@ while ($true) {
         $status = 'ready'
 
         if ($Once) {
-            exit $exitCode
+            exit 0
         }
     }
     elseif ($status -ne 'ready') {
-        Write-Host "[READY] Waiting for changes: $($file.FullName)" -ForegroundColor Green
+        if (-not $Json) {
+            Write-Host "[READY] Waiting for changes: $($file.FullName)" -ForegroundColor Green
+        }
         $status = 'ready'
     }
 

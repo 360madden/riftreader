@@ -25,18 +25,20 @@ C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd
 
 ## Current useful starting point
 
-Latest CE-confirmed player sample base:
+Do **not** assume any hardcoded sample base address in this repo is still valid.
+The player-family and coord-write addresses are session-specific and can drift
+between launches or even between refresh passes.
 
-- `0x144A849A8C0`
+Use the live artifacts first:
 
-Current confirmed relative layout:
+- `C:\RIFT MODDING\RiftReader\scripts\captures\ce-smart-player-family.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\player-coord-write-trace.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\player-source-chain.json`
 
-- `+0` = `coord.x`
-- `+4` = `coord.y`
-- `+8` = `coord.z`
-- `-144` = `level`
-- `-136` = `health[1]`
-- `-128` = `health[2]`
-- `-120` = `health[3]`
+Recommended workflow:
 
-Use `ReClass.NET` to model the structure around that base address, and use `x64dbg` to trace what reads/writes those fields.
+1. Refresh the latest ReaderBridge export.
+2. Regenerate the coord trace / source-chain artifacts for the current process.
+3. Open the resulting live base addresses in `ReClass.NET`.
+4. Use `x64dbg` or Cheat Engine only after confirming the current process still
+   matches the generated artifacts.

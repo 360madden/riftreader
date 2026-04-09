@@ -13,6 +13,10 @@ public static class PlayerStatHubRankTextFormatter
         sb.AppendLine("--------------------------------------------------------------------------------");
         sb.AppendLine($"Snapshot:           {result.SnapshotFile ?? "n/a"}");
         sb.AppendLine($"Owner components:   {result.OwnerComponentsFile ?? "n/a"}");
+        if (!string.IsNullOrWhiteSpace(result.CheatEngineProbeFile))
+        {
+            sb.AppendLine($"CE probe script:    {result.CheatEngineProbeFile}");
+        }
         sb.AppendLine($"Generated:          {result.GeneratedAtUtc}");
         sb.AppendLine();
         sb.AppendLine($"Player UnitId:      {result.PlayerUnitId} ({result.PlayerUnitIdRawHex})");

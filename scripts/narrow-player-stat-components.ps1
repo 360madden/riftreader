@@ -477,7 +477,15 @@ function Expand-ComponentNodes {
 }
 
 if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
-    & $ownerComponentsScript -Json | Out-Null
+    $ownerComponentArguments = @{
+        Json = $true
+    }
+
+    if ($RefreshOwnerComponents) {
+        $ownerComponentArguments['RefreshSelectorTrace'] = $true
+    }
+
+    & $ownerComponentsScript @ownerComponentArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {

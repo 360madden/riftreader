@@ -159,7 +159,15 @@ function Convert-HexToBytes {
 }
 
 if ($RefreshSourceChain -or -not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
-    & $sourceChainScript -Json | Out-Null
+    $sourceChainArguments = @{
+        Json = $true
+    }
+
+    if ($RefreshSourceChain) {
+        $sourceChainArguments['RefreshCluster'] = $true
+    }
+
+    & $sourceChainScript @sourceChainArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {

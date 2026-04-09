@@ -72,7 +72,6 @@ Commands:
 
 The addon should auto-capture only on a few low-frequency markers:
 
-- startup
 - player zone changes
 - player role changes
 - player level changes

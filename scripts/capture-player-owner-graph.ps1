@@ -120,7 +120,15 @@ function Test-CoordMatch {
 }
 
 if ($RefreshSelectorTrace -or -not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
-    & $selectorTraceScript -Json | Out-Null
+    $selectorTraceArguments = @{
+        Json = $true
+    }
+
+    if ($RefreshSelectorTrace) {
+        $selectorTraceArguments['RefreshSourceChain'] = $true
+    }
+
+    & $selectorTraceScript @selectorTraceArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
