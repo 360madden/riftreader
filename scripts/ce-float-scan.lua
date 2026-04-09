@@ -107,6 +107,48 @@ function RiftReaderFloatScan.nextExactFloat(value)
   return state.foundlist.Count
 end
 
+local function rr_next_scan(scanOption, value)
+  if state.memscan == nil then
+    return 0
+  end
+
+  if state.foundlist ~= nil then
+    pcall(function() state.foundlist.deinitialize() end)
+  end
+
+  state.memscan.nextScan(
+    scanOption,
+    rtRounded,
+    value ~= nil and rr_format_float(value) or "",
+    nil,
+    false,
+    false,
+    false,
+    false,
+    false
+  )
+  state.memscan.waitTillDone()
+
+  if state.foundlist == nil then
+    state.foundlist = createFoundList(state.memscan)
+  end
+
+  state.foundlist.initialize()
+  return state.foundlist.Count
+end
+
+function RiftReaderFloatScan.nextChangedFloat()
+  return rr_next_scan(soChanged, nil)
+end
+
+function RiftReaderFloatScan.nextIncreasedFloat()
+  return rr_next_scan(soIncreasedValue, nil)
+end
+
+function RiftReaderFloatScan.nextDecreasedFloat()
+  return rr_next_scan(soDecreasedValue, nil)
+end
+
 function RiftReaderFloatScan.getCount()
   if state.foundlist == nil then
     return 0

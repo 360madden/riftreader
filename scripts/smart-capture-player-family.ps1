@@ -90,6 +90,32 @@ function Next-CeExactFloatScan {
     return Invoke-CeNumeric -Code "return RiftReaderFloatScan.nextExactFloat(${Value})"
 }
 
+function Next-CeDirectionalFloatScan {
+    param(
+        [Parameter(Mandatory = $true)]
+        [double]$Delta
+    )
+
+    if ($Delta -gt 0.01) {
+        return [pscustomobject]@{
+            Mode = 'increased'
+            Count = (Invoke-CeNumeric -Code "return RiftReaderFloatScan.nextIncreasedFloat()")
+        }
+    }
+
+    if ($Delta -lt -0.01) {
+        return [pscustomobject]@{
+            Mode = 'decreased'
+            Count = (Invoke-CeNumeric -Code "return RiftReaderFloatScan.nextDecreasedFloat()")
+        }
+    }
+
+    return [pscustomobject]@{
+        Mode = 'changed'
+        Count = (Invoke-CeNumeric -Code "return RiftReaderFloatScan.nextChangedFloat()")
+    }
+}
+
 function Get-CeAddresses {
     param(
         [int]$Count
@@ -291,9 +317,10 @@ foreach ($axis in $AxisPriority) {
     Write-Host "[SmartFamily] Post-move coords: $(Format-Float $movedX), $(Format-Float $movedY), $(Format-Float $movedZ)" -ForegroundColor DarkGray
     Write-Host "[SmartFamily] Coordinate delta: dX=$(Format-Float $deltaX), dY=$(Format-Float $deltaY), dZ=$(Format-Float $deltaZ)" -ForegroundColor DarkGray
 
-    Write-Host "[SmartFamily] Running CE next exact-float scan for moved $normalizedAxis..." -ForegroundColor Cyan
-    $movedCeCount = Next-CeExactFloatScan -Value $movedAxisValue
-    Write-Host "[SmartFamily] Post-move CE hit count for axis $normalizedAxis`: $movedCeCount" -ForegroundColor DarkGray
+    Write-Host "[SmartFamily] Running CE directional next-scan for axis $normalizedAxis..." -ForegroundColor Cyan
+    $nextScan = Next-CeDirectionalFloatScan -Delta (Get-CoordValue -Coord ([pscustomobject]@{ X = $deltaX; Y = $deltaY; Z = $deltaZ }) -Axis $normalizedAxis)
+    $movedCeCount = [int]$nextScan.Count
+    Write-Host "[SmartFamily] Post-move CE $($nextScan.Mode) hit count for axis $normalizedAxis`: $movedCeCount" -ForegroundColor DarkGray
 
     $ceAddresses = @(Get-CeAddresses -Count ([int]$movedCeCount))
     $tripletBaseAddresses = @(Get-TripletConfirmedBaseAddresses -CeAddresses $ceAddresses -Axis $normalizedAxis -ExpectedX $movedX -ExpectedY $movedY -ExpectedZ $movedZ)
@@ -307,6 +334,7 @@ foreach ($axis in $AxisPriority) {
         MovedCoords = [pscustomobject]@{ X = $movedX; Y = $movedY; Z = $movedZ }
         Delta = [pscustomobject]@{ X = $deltaX; Y = $deltaY; Z = $deltaZ }
         BaselineCeHitCount = [int]$baselineCeCount
+        NextScanMode = [string]$nextScan.Mode
         MovedCeHitCount = [int]$movedCeCount
         RetrievedCeAddressCount = $ceAddresses.Count
         RetrievedCeAddresses = @($ceAddresses)
@@ -395,6 +423,7 @@ $result = [ordered]@{
     MovedCoords = [pscustomobject]@{ X = $movedX; Y = $movedY; Z = $movedZ }
     Delta = [pscustomobject]@{ X = $deltaX; Y = $deltaY; Z = $deltaZ }
     BaselineCeHitCount = [int]$baselineCeCount
+    NextScanMode = [string]$selectedAttempt.NextScanMode
     MovedCeHitCount = [int]$movedCeCount
     RetrievedCeAddressCount = $ceAddresses.Count
     TripletConfirmedAddressCount = $tripletAddresses.Count

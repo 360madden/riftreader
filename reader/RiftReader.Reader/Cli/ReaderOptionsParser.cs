@@ -15,6 +15,7 @@ Usage:
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -36,6 +37,7 @@ Notes:
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
+  - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
@@ -57,6 +59,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --cheatengine-probe --scan-context 192 --max-hits 8
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -87,6 +90,8 @@ Examples:
         string? cheatEngineProbeFile = null;
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
+        var readPlayerCoordAnchor = false;
+        string? playerCoordTraceFile = null;
         string? captureLabel = null;
         string? captureFile = null;
         string? scanString = null;
@@ -222,6 +227,20 @@ Examples:
 
                 case "--read-player-current":
                     readPlayerCurrent = true;
+                    break;
+
+                case "--read-player-coord-anchor":
+                    readPlayerCoordAnchor = true;
+                    break;
+
+                case "--player-coord-trace-file":
+                    if (!TryReadNext(args, ref index, out var playerCoordTraceFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --player-coord-trace-file.", UsageText);
+                    }
+
+                    playerCoordTraceFile = playerCoordTraceFileValue;
+                    readPlayerCoordAnchor = true;
                     break;
 
                 case "--capture-label":
@@ -483,6 +502,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-current.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
         if (readAddonSnapshot && readReaderBridgeSnapshot)
         {
             return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
@@ -508,6 +532,8 @@ Examples:
                     CheatEngineProbeFile: null,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
                     ScanString: null,
@@ -552,6 +578,8 @@ Examples:
                     CheatEngineProbeFile: null,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
                     ScanString: null,
@@ -586,9 +614,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || address.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, or raw memory-read switches.", UsageText);
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, or raw memory-read switches.", UsageText);
         }
 
         if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
@@ -611,6 +639,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with scan switches.", UsageText);
         }
 
+        if (readPlayerCoordAnchor && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with scan switches.", UsageText);
+        }
+
         if (writeCheatEngineProbe && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with raw memory-read switches.", UsageText);
@@ -626,6 +659,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with raw memory-read switches.", UsageText);
         }
 
+        if (readPlayerCoordAnchor && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (captureLabel is not null && !captureReaderBridgeBestFamily)
         {
             return ReaderOptionsParseResult.Fail("--capture-label can only be used with --capture-readerbridge-best-family.", UsageText);
@@ -636,9 +674,19 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-file can only be used with --capture-readerbridge-best-family.", UsageText);
         }
 
+        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor.", UsageText);
+        }
+
         if (listModules && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-current.", UsageText);
+        }
+
+        if (listModules && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
         if (writeCheatEngineProbe && readPlayerCurrent)
@@ -646,9 +694,24 @@ Examples:
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-current.", UsageText);
         }
 
+        if (writeCheatEngineProbe && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
         if (captureReaderBridgeBestFamily && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-current.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (readPlayerCurrent && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
         if (address.HasValue != length.HasValue)
@@ -669,6 +732,8 @@ Examples:
                 CheatEngineProbeFile: cheatEngineProbeFile,
                 CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
                 ReadPlayerCurrent: readPlayerCurrent,
+                ReadPlayerCoordAnchor: readPlayerCoordAnchor,
+                PlayerCoordTraceFile: playerCoordTraceFile,
                 CaptureLabel: captureLabel,
                 CaptureFile: captureFile,
                 ScanString: scanString,

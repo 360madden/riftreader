@@ -121,7 +121,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -167,6 +167,11 @@ internal static class Program
         if (options.ReadPlayerCurrent)
         {
             return RunReadPlayerCurrentMode(options, target, reader);
+        }
+
+        if (options.ReadPlayerCoordAnchor)
+        {
+            return RunReadPlayerCoordAnchorMode(options, process, target, reader);
         }
 
         var address = options.Address!.Value;
@@ -349,6 +354,73 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunReadPlayerCoordAnchorMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(options.PlayerCoordTraceFile, out var loadError);
+        if (traceDocument?.Trace is null || string.IsNullOrWhiteSpace(traceDocument.SourceFile))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest player coord trace artifact.");
+            return 1;
+        }
+
+        ModulePatternScanResult? modulePattern = null;
+        var trace = traceDocument.Trace;
+        if (!string.IsNullOrWhiteSpace(trace.ModuleName) && !string.IsNullOrWhiteSpace(trace.NormalizedPattern ?? trace.InstructionBytes))
+        {
+            var module = ProcessModuleLocator.FindModule(process, trace.ModuleName, out var moduleError);
+            if (module is null)
+            {
+                Console.Error.WriteLine(moduleError ?? "Unable to resolve the traced module.");
+                return 1;
+            }
+
+            var pattern = trace.NormalizedPattern;
+            if (string.IsNullOrWhiteSpace(pattern))
+            {
+                pattern = string.Join(' ', Enumerable.Range(0, trace.InstructionBytes!.Replace(" ", string.Empty).Length / 2)
+                    .Select(index => trace.InstructionBytes.Replace(" ", string.Empty).Substring(index * 2, 2).ToUpperInvariant()));
+            }
+
+            modulePattern = ModulePatternScanner.Scan(
+                process,
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                module.ModuleName,
+                module.FileName,
+                module.BaseAddress.ToInt64(),
+                module.ModuleMemorySize,
+                pattern!,
+                options.ScanContextBytes);
+        }
+
+        PlayerCoordAnchorReadResult result;
+        try
+        {
+            result = PlayerCoordAnchorReader.Read(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                traceDocument.SourceFile,
+                traceDocument,
+                modulePattern);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current player coord anchor: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerCoordAnchorReadTextFormatter.Format(result));
         return 0;
     }
 

@@ -14,6 +14,8 @@ public sealed record ReaderOptions(
     string? CheatEngineProbeFile,
     bool CaptureReaderBridgeBestFamily,
     bool ReadPlayerCurrent,
+    bool ReadPlayerCoordAnchor,
+    string? PlayerCoordTraceFile,
     string? CaptureLabel,
     string? CaptureFile,
     string? ScanString,

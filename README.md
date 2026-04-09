@@ -123,11 +123,15 @@ The reader now has two near-term targets:
    - string / numeric / pointer / module scans
    - Cheat Engine probe generation
    - grouped player-signature family capture
-2. **first working typed reader mode**
+2. **first working typed reader modes**
    - `--read-player-current`
    - resolves the current best player-family sample
    - reads level / health / coords directly from memory
    - compares them against the latest ReaderBridge export
+   - `--read-player-coord-anchor`
+   - loads the latest verified coord-triplet trace artifact
+   - validates the traced instruction bytes as a module-local pattern
+   - reports the inferred coord-base-relative access offset
 
 Discovery-oriented modes:
 
@@ -297,11 +301,18 @@ Force an anchor refresh before the read:
 C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd -RefreshAnchor -Json
 ```
 
-Capture the first live coord write and validate the writer instruction as a
+Capture the first live coord-triplet access and validate the instruction as a
 module-local pattern candidate:
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd -Json
+```
+
+Read the latest verified coord-triplet trace artifact back through the reader
+and derive the current code-path-backed anchor details:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
 ```
 
 List modules in the attached Rift process:
@@ -333,11 +344,11 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using a cached anchor fast path when possible. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read.
-- `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first write to the current player `coord.x`, captures the writer instruction and register context, then validates the captured instruction bytes through the reader's module-local pattern scan
+- `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first verified access to the current player coord triplet, tries CE-confirmed candidate addresses when available, captures the instruction and register context, and validates the captured instruction bytes through the reader's module-local pattern scan
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
-- `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scan / rescan workflows
-- `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd` - CE-assisted player-signature family helper that can retry across multiple movement axes (`X`, then `Z` by default), normalizes non-`X` CE hits back to the player-structure base address, and writes `C:\RIFT MODDING\RiftReader\scripts\captures\ce-smart-player-family.json` so the standard capture flow can prefer or directly confirm the CE-backed family on later runs
+- `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scans plus directional next-scan workflows (`changed`, `increased`, `decreased`)
+- `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd` - CE-assisted player-signature family helper that can retry across multiple movement axes (`X`, then `Z` by default), uses directional next-scans after movement instead of depending only on a second exact-value scan, normalizes non-`X` CE hits back to the player-structure base address, and writes `C:\RIFT MODDING\RiftReader\scripts\captures\ce-smart-player-family.json` so the standard capture flow can prefer or directly confirm the CE-backed family on later runs
 - `C:\RIFT MODDING\RiftReader\scripts\open-reclass.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-reclass.cmd` - launch the repo-local ReClass.NET x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\ReClass.NET`
 - `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd` - launch the repo-local x64dbg x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\x64dbg`
 
@@ -402,6 +413,14 @@ C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd
 ```
 
 After that file exists, the normal reader capture mode will automatically prefer the CE-backed family when it still matches the current grouped scan, and will use `SelectionSource = ce-confirmed` when the helper captured direct sample-address matches.
+
+Recent CE improvement:
+
+- the smart family helper now uses directional next-scans (`increased` / `decreased` / `changed`) after movement instead of relying only on a second exact-value scan
+- this materially improved live narrowing on the current Rift client from zero direct triplet confirmations in some runs to dozens of moved-axis candidates and multiple CE-confirmed family sample matches
+- the coord write-trace helper now rejects unverified debugger hits instead of treating unrelated reads as successful writer captures
+- the coord trace helper now treats the current player base as a coord-triplet anchor, accepts verified `x/y/z` member accesses, and can walk CE-confirmed candidate addresses instead of only the default current-player sample
+- the reader now has a matching `--read-player-coord-anchor` mode that loads the saved trace artifact, validates the traced bytes against the live module, and reports the inferred coord-base-relative offset from the verified instruction
 
 ## Next Milestone
 
