@@ -14,6 +14,8 @@ public sealed record ReaderOptions(
     string? CheatEngineProbeFile,
     bool RankOwnerComponents,
     string? OwnerComponentsFile,
+    bool RankStatHubs,
+    bool CheatEngineStatHubs,
     bool ReadPlayerOrientation,
     bool CaptureReaderBridgeBestFamily,
     bool ReadPlayerCurrent,

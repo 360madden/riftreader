@@ -1,6 +1,34 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # RiftReader — AI Developer Context
 
 Read this file at the start of every session. It is the single authoritative reference for design decisions, verified reverse-engineering facts, anti-patterns, and coding rules. When this file conflicts with README.md or other docs, **this file wins** — those docs describe intent; this file describes what the code actually does.
+
+---
+
+## 0. Build & Run Commands
+
+**Solution file**: `RiftReader.slnx` (repo root)
+
+```cmd
+# Build
+scripts\build-reader.cmd
+# or: dotnet build RiftReader.slnx
+
+# Run (pass args after --)
+scripts\run-reader.cmd -- --process-name rift_x64 --read-player-current --json
+# or: dotnet run --project reader\RiftReader.Reader\RiftReader.Reader.csproj -- <args>
+
+# Deploy addon after Lua changes
+scripts\deploy-addon.cmd
+
+# Sync Cheat Engine probe scripts after reader probe changes
+scripts\sync-cheatengine.cmd
+```
+
+There is no test project. Validate C# changes by building (`dotnet build RiftReader.slnx`) then running `scripts\read-player-current.cmd`.
 
 ---
 
@@ -110,6 +138,7 @@ Things that look reasonable but are wrong for this system. Don't do these.
   - `--read-player-current` — Full player snapshot from memory (coord, health, level, etc.)
   - `--read-player-orientation` — Actor yaw/pitch from basis matrix
   - `--read-player-coord-anchor` — Validates coordinate write instruction and derives anchor details
+  - `--rank-stat-hubs` — Walks identity-component graph and ranks shared memory hubs by player-stat prevalence; optionally emits a CE probe script via `--cheatengine-stat-hubs`
 - **Reverse-engineering tooling**: Cheat Engine workflow helpers, module-local pattern validation, stat-hub graph enumeration
 
 ### In Progress ⏳
@@ -215,10 +244,15 @@ addon/
 
 reader/
   RiftReader.Reader/
-    Cli/                    Command-line interface and help
-    Memory/                 Process attachment, memory read, bounds checks
-    Formatting/             OutputFormatters (text, JSON, colorized output)
-    Models/                 Data classes (PlayerSnapshot, OwnerGraph, etc.)
+    Cli/                    Command-line interface and help (ReaderOptions, ReaderOptionsParser)
+    Memory/                 Process attachment, memory read, bounds checks (ProcessMemoryReader)
+    Processes/              Process/module discovery (ProcessLocator, ProcessModuleLocator)
+    Scanning/               Memory scanners (string, int, float, pointer, signature, module pattern)
+    AddonSnapshots/         Loaders for ReaderBridge and Validator saved-variable files
+    CheatEngine/            CE probe script generation (CheatEngineProbeScriptWriter)
+    Formatting/             Text/JSON output formatters, one per result type
+    Models/                 Typed result records and reader logic (PlayerCurrentReader, PlayerOrientationReader, etc.)
+    Program.cs              Top-level dispatch: checks options in priority order and routes to the correct Run* method
 
 scripts/
   read-player-current.cmd               One-command player snapshot
@@ -242,7 +276,7 @@ docs/
 - No magic numbers — use named constants or existing config values.
 - Match the style of the file being edited; don't reformat unrelated code.
 - After any Lua change: validate syntax with `luac` and deploy with `deploy-addon.cmd`.
-- After any C# memory-read change: test with `dotnet build` and `dotnet test`, then validate via `read-player-current.cmd`.
+- After any C# memory-read change: build with `dotnet build RiftReader.slnx`, then validate via `read-player-current.cmd`.
 - All addresses from reverse engineering: document in trace artifacts (JSON) with session metadata (date, client version if known, last-verified-by-addon timestamp).
 
 ---

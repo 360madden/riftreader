@@ -14,6 +14,7 @@ Usage:
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --rank-owner-components [--owner-components-file <path>] [--json]
+  RiftReader.Reader --rank-stat-hubs [--owner-components-file <path>] [--json]
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
@@ -38,6 +39,7 @@ Notes:
   - Use --scan-module-pattern to run a signature/AOB scan against a specific module or the main module by default.
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --rank-owner-components to score the current owner-component artifact against the latest ReaderBridge snapshot and rank likely stat-bearing components.
+  - Use --rank-stat-hubs to walk the identity-component graph and identify shared memory hubs that store player stats.
   - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
@@ -120,6 +122,8 @@ Examples:
         string? addonSnapshotFile = null;
         var readReaderBridgeSnapshot = false;
         string? readerBridgeSnapshotFile = null;
+        var rankStatHubs = false;
+        var cheatEngineStatHubs = false;
         var jsonOutput = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -231,6 +235,12 @@ Examples:
 
                 case "--rank-owner-components":
                     rankOwnerComponents = true;
+                    break;
+                case "--rank-stat-hubs":
+                    rankStatHubs = true;
+                    break;
+                case "--cheatengine-stat-hubs":
+                    cheatEngineStatHubs = true;
                     break;
 
                 case "--read-player-orientation":
@@ -542,9 +552,14 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-orientation.", UsageText);
         }
 
-        if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation)
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && rankStatHubs)
         {
-            return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components or --read-player-orientation.", UsageText);
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --rank-stat-hubs.", UsageText);
+        }
+
+        if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation && !rankStatHubs)
+        {
+            return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components, --rank-stat-hubs, or --read-player-orientation.", UsageText);
         }
 
         if (readPlayerOrientation)
@@ -572,6 +587,8 @@ Examples:
                     CheatEngineProbeFile: null,
                     RankOwnerComponents: false,
                     OwnerComponentsFile: ownerComponentsFile,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
                     ReadPlayerOrientation: true,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
@@ -626,6 +643,8 @@ Examples:
                     CheatEngineProbeFile: null,
                     RankOwnerComponents: true,
                     OwnerComponentsFile: ownerComponentsFile,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
@@ -675,6 +694,8 @@ Examples:
                     CheatEngineProbeFile: null,
                     RankOwnerComponents: false,
                     OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
@@ -724,6 +745,8 @@ Examples:
                     CheatEngineProbeFile: null,
                     RankOwnerComponents: false,
                     OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
@@ -881,6 +904,8 @@ Examples:
                     CheatEngineProbeFile: cheatEngineProbeFile,
                     RankOwnerComponents: false,
                     OwnerComponentsFile: null,
+                    RankStatHubs: rankStatHubs,
+                    CheatEngineStatHubs: cheatEngineStatHubs,
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
                     ReadPlayerCurrent: readPlayerCurrent,

@@ -52,6 +52,11 @@ internal static class Program
             return RunOwnerComponentRankingMode(options);
         }
 
+        if (options.RankStatHubs)
+        {
+            return RunStatHubRankingMode(options);
+        }
+
         if (!options.JsonOutput)
         {
             Console.WriteLine("RiftReader.Reader");
@@ -873,5 +878,89 @@ internal static class Program
         }
 
         return null;
+    }
+
+    private static int RunStatHubRankingMode(ReaderOptions options)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var snapshotError);
+        if (snapshotDocument?.Current?.Player is null)
+        {
+            Console.Error.WriteLine(snapshotError ?? "Unable to load the latest ReaderBridge export for stat-hub ranking.");
+            return 1;
+        }
+
+        var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(options.OwnerComponentsFile, out var artifactError);
+        if (artifactDocument is null)
+        {
+            Console.Error.WriteLine(artifactError ?? "Unable to load the player owner-component artifact.");
+            return 1;
+        }
+
+        var locator = new ProcessLocator();
+        string? lookupError;
+        using var process = options.ProcessId.HasValue
+            ? locator.FindById(options.ProcessId.Value, out lookupError)
+            : locator.FindByName(options.ProcessName!, out lookupError);
+
+        if (process is null)
+        {
+            Console.Error.WriteLine(lookupError ?? "Unable to resolve the target process for live hub mapping.");
+            return 1;
+        }
+
+        var target = ProcessTarget.FromProcess(process);
+        using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+        if (reader is null)
+        {
+            Console.Error.WriteLine(openError ?? "Unable to open a memory-reading handle for live hub mapping.");
+            return 1;
+        }
+
+        PlayerStatHubRankResult result;
+        try
+        {
+            result = PlayerStatHubRanker.Rank(reader, snapshotDocument, artifactDocument);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to rank stat hubs: {ex.Message}");
+            return 1;
+        }
+
+        if (options.CheatEngineStatHubs)
+        {
+            var outputFile = ResolveCheatEngineProbeOutputFile(options.CheatEngineProbeFile);
+            var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+            try
+            {
+                CheatEngineProbeScriptWriter.WriteProbeScript(
+                    reader,
+                    target,
+                    snapshotDocument,
+                    inspectionRadius,
+                    options.MaxHits,
+                    outputFile,
+                    statHubs: result);
+                Console.WriteLine($"Cheat Engine probe script generated: {outputFile}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Unable to generate Cheat Engine probe script: {ex.Message}");
+                return 1;
+            }
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("RiftReader.Reader");
+        Console.WriteLine("Use this tool only against Rift client artifacts and processes you explicitly intend to inspect.");
+        Console.WriteLine();
+        Console.WriteLine(PlayerStatHubRankTextFormatter.Format(result));
+        return 0;
     }
 }

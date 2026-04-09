@@ -4,6 +4,7 @@ using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Processes;
 using RiftReader.Reader.Scanning;
+using RiftReader.Reader.Models;
 
 namespace RiftReader.Reader.CheatEngine;
 
@@ -15,7 +16,8 @@ public static class CheatEngineProbeScriptWriter
         ReaderBridgeSnapshotDocument snapshotDocument,
         int inspectionRadius,
         int maxHits,
-        string outputFile)
+        string outputFile,
+        PlayerStatHubRankResult? statHubs = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(target);
@@ -47,7 +49,7 @@ public static class CheatEngineProbeScriptWriter
             inspectionRadius,
             maxHits);
 
-        var script = BuildScript(target, snapshotDocument, player, signatureResult);
+        var script = BuildScript(target, snapshotDocument, player, signatureResult, statHubs);
         var fullOutputFile = Path.GetFullPath(outputFile);
         var directory = Path.GetDirectoryName(fullOutputFile);
 
@@ -79,7 +81,8 @@ public static class CheatEngineProbeScriptWriter
         ProcessTarget target,
         ReaderBridgeSnapshotDocument snapshotDocument,
         ReaderBridgeUnitSnapshot player,
-        PlayerSignatureScanResult signatureResult)
+        PlayerSignatureScanResult signatureResult,
+        PlayerStatHubRankResult? statHubs)
     {
         var builder = new StringBuilder(16 * 1024);
         var representativeHits = signatureResult.Hits.ToDictionary(static hit => hit.FamilyId, StringComparer.Ordinal);
@@ -113,8 +116,8 @@ public static class CheatEngineProbeScriptWriter
         builder.AppendLine($"    z = {ToLuaNumber(player.Coord?.Z)},");
         builder.AppendLine("  }");
         builder.AppendLine("}");
-        builder.AppendLine("probe.families = {");
 
+        builder.AppendLine("probe.families = {");
         foreach (var family in signatureResult.Families)
         {
             representativeHits.TryGetValue(family.FamilyId, out var hit);
@@ -151,8 +154,34 @@ public static class CheatEngineProbeScriptWriter
             builder.AppendLine("    }");
             builder.AppendLine("  },");
         }
-
         builder.AppendLine("}");
+
+        if (statHubs != null)
+        {
+            builder.AppendLine();
+            builder.AppendLine("probe.statHubs = {");
+            foreach (var hub in statHubs.RankedSharedHubs)
+            {
+                builder.AppendLine("  {");
+                builder.AppendLine($"    address = {ToLuaHexAddress(ParseHexAddress(hub.Address))},");
+                builder.AppendLine($"    score = {hub.Score},");
+                builder.AppendLine("    reasons = {");
+                foreach (var reason in hub.Reasons)
+                {
+                    builder.AppendLine($"      {ToLuaString(reason)},");
+                }
+                builder.AppendLine("    },");
+                builder.AppendLine("    refs = {");
+                foreach (var r in hub.ComponentRefs)
+                {
+                    builder.AppendLine($"      {{ compIndex = {r.ComponentIndex}, offset = {r.Offset} }},");
+                }
+                builder.AppendLine("    }");
+                builder.AppendLine("  },");
+            }
+            builder.AppendLine("}");
+        }
+
         builder.AppendLine();
         builder.AppendLine("local function rr_hex(value)");
         builder.AppendLine("  return string.format(\"0x%X\", value)");
@@ -246,6 +275,16 @@ public static class CheatEngineProbeScriptWriter
         builder.AppendLine("      end");
         builder.AppendLine("    end");
         builder.AppendLine("  end");
+        builder.AppendLine("end");
+        builder.AppendLine();
+        builder.AppendLine("local function rr_apply_stathub_layout(parent, baseAddress)");
+        builder.AppendLine("  rr_add_byte_array(parent, \"context bytes\", baseAddress - 32, 128)");
+        builder.AppendLine("  rr_add_dword(parent, \"health current\", baseAddress + 0x0)");
+        builder.AppendLine("  rr_add_dword(parent, \"health max\", baseAddress + 0x4)");
+        builder.AppendLine("  rr_add_dword(parent, \"mana/power current\", baseAddress + 0x8)");
+        builder.AppendLine("  rr_add_dword(parent, \"mana/power max\", baseAddress + 0xC)");
+        builder.AppendLine("  rr_add_dword(parent, \"level\", baseAddress + 0x10)");
+        builder.AppendLine("  rr_add_dword(parent, \"combat state\", baseAddress + 0x14)");
         builder.AppendLine("end");
         builder.AppendLine();
         builder.AppendLine("local function rr_find_family(familyId)");
@@ -422,6 +461,15 @@ public static class CheatEngineProbeScriptWriter
         builder.AppendLine("  for _, family in ipairs(probe.families) do");
         builder.AppendLine("    print(string.format(\"[RiftReader]   %s | hits=%d | score=%d | rep=%s | %s\", family.familyId, family.hitCount, family.bestScore, rr_hex(family.representative), tostring(family.notes or \"\")))");
         builder.AppendLine("  end");
+        if (statHubs != null)
+        {
+            builder.AppendLine("  if probe.statHubs then");
+            builder.AppendLine("    print(string.format(\"[RiftReader] Ranked Stat-Hub candidates: %d\", #probe.statHubs))");
+            builder.AppendLine("    for i, hub in ipairs(probe.statHubs) do");
+            builder.AppendLine("      print(string.format(\"[RiftReader]   %d) %s | score=%d\", i, rr_hex(hub.address), hub.score))");
+            builder.AppendLine("    end");
+            builder.AppendLine("  end");
+        }
         builder.AppendLine("end");
         builder.AppendLine();
         builder.AppendLine("function probe.printFamilyValues(familyId)");
@@ -469,6 +517,21 @@ public static class CheatEngineProbeScriptWriter
         builder.AppendLine("    end");
         builder.AppendLine("  end");
         builder.AppendLine();
+        if (statHubs != null)
+        {
+            builder.AppendLine("  if probe.statHubs then");
+            builder.AppendLine("    local hubRoot = rr_group(root, ROOT_PREFIX .. \"Ranked Stat-Hubs\", false)");
+            builder.AppendLine("    for i, hub in ipairs(probe.statHubs) do");
+            builder.AppendLine("      local hubGroup = rr_group(hubRoot, ROOT_PREFIX .. string.format(\"hub %d :: %s :: score=%d\", i, rr_hex(hub.address), hub.score), true)");
+            builder.AppendLine("      rr_apply_stathub_layout(hubGroup, hub.address)");
+            builder.AppendLine("      local refsGroup = rr_group(hubGroup, ROOT_PREFIX .. \"references\", true)");
+            builder.AppendLine("      for j, r in ipairs(hub.refs) do");
+            builder.AppendLine("        rr_record(refsGroup, string.format(\"ref %d :: comp[%d] + 0x%X\", j, r.compIndex, r.offset), nil, nil)");
+            builder.AppendLine("      end");
+            builder.AppendLine("    end");
+            builder.AppendLine("  end");
+            builder.AppendLine();
+        }
         builder.AppendLine("  print(string.format(\"[RiftReader] Populated %d family groups into the Cheat Engine address list.\", #probe.families))");
         builder.AppendLine("end");
         builder.AppendLine();
