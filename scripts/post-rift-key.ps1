@@ -123,8 +123,25 @@ function Get-EffectiveTargetHandle {
 function Resolve-KeyBinding {
     param([string]$KeyText)
 
+    $namedKeys = @{
+        'SPACE' = 0x20
+        'LEFT' = 0x25
+        'UP' = 0x26
+        'RIGHT' = 0x27
+        'DOWN' = 0x28
+    }
+
+    $normalized = $KeyText.Trim().ToUpperInvariant()
+    if ($namedKeys.ContainsKey($normalized)) {
+        return [pscustomobject]@{
+            Character = $KeyText
+            VirtualKey = $namedKeys[$normalized]
+            ShiftState = 0
+        }
+    }
+
     if ($KeyText.Length -ne 1) {
-        throw "This helper currently supports a single character key like W, A, S, D, 1, or space."
+        throw "This helper currently supports a single character key like W, A, S, D, 1, or named keys Space/Left/Up/Right/Down."
     }
 
     $character = $KeyText[0]

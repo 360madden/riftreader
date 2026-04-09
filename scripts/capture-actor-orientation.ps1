@@ -5,6 +5,7 @@ param(
     [switch]$RefreshOwnerComponents,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [string]$ProcessName = 'rift_x64',
     [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.json'),
     [string]$PreviousFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.previous.json')
@@ -17,6 +18,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $ownerComponentScript = Join-Path $PSScriptRoot 'capture-player-owner-components.ps1'
 $refreshReaderBridgeScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
+$coordTolerance = 0.75
 
 function Invoke-ReaderJson {
     param(
@@ -200,6 +202,211 @@ function Write-ActorOrientationText {
     return [string]::Join([Environment]::NewLine, $lines)
 }
 
+function Parse-HexUInt64 {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $normalized = $Value.Trim()
+    if ($normalized.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $normalized = $normalized.Substring(2)
+    }
+
+    return [UInt64]::Parse($normalized, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Convert-HexToByteArray {
+    param([Parameter(Mandatory = $true)][string]$Hex)
+
+    $normalized = ($Hex -replace '\s+', '').Trim()
+    $bytes = New-Object byte[] ($normalized.Length / 2)
+    for ($index = 0; $index -lt $bytes.Length; $index++) {
+        $bytes[$index] = [Convert]::ToByte($normalized.Substring($index * 2, 2), 16)
+    }
+
+    return $bytes
+}
+
+function Read-SingleAt {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][int]$Offset
+    )
+
+    if (($Offset + 4) -gt $Bytes.Length) {
+        throw "Offset 0x{0:X} exceeds byte buffer length {1}." -f $Offset, $Bytes.Length
+    }
+
+    return [BitConverter]::ToSingle($Bytes, $Offset)
+}
+
+function Read-TripletAt {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][int]$Offset
+    )
+
+    return [pscustomobject]@{
+        X = [double](Read-SingleAt -Bytes $Bytes -Offset $Offset)
+        Y = [double](Read-SingleAt -Bytes $Bytes -Offset ($Offset + 4))
+        Z = [double](Read-SingleAt -Bytes $Bytes -Offset ($Offset + 8))
+    }
+}
+
+function New-VectorEstimate {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)]$Vector
+    )
+
+    if ($null -eq $Vector -or $null -eq $Vector.X -or $null -eq $Vector.Y -or $null -eq $Vector.Z) {
+        return [pscustomobject]@{
+            Name = $Name
+            Vector = $Vector
+            YawRadians = $null
+            YawDegrees = $null
+            PitchRadians = $null
+            PitchDegrees = $null
+            Magnitude = $null
+        }
+    }
+
+    $x = [double]$Vector.X
+    $y = [double]$Vector.Y
+    $z = [double]$Vector.Z
+    $magnitude = [Math]::Sqrt(($x * $x) + ($y * $y) + ($z * $z))
+
+    if ($magnitude -le [double]::Epsilon) {
+        return [pscustomobject]@{
+            Name = $Name
+            Vector = $Vector
+            YawRadians = $null
+            YawDegrees = $null
+            PitchRadians = $null
+            PitchDegrees = $null
+            Magnitude = $magnitude
+        }
+    }
+
+    $yawRadians = [Math]::Atan2($z, $x)
+    $pitchRadians = [Math]::Atan2($y, [Math]::Sqrt(($x * $x) + ($z * $z)))
+
+    return [pscustomobject]@{
+        Name = $Name
+        Vector = $Vector
+        YawRadians = $yawRadians
+        YawDegrees = Convert-RadiansToDegrees -Radians $yawRadians
+        PitchRadians = $pitchRadians
+        PitchDegrees = Convert-RadiansToDegrees -Radians $pitchRadians
+        Magnitude = $magnitude
+    }
+}
+
+function Get-LiveSourceSample {
+    param(
+        [Parameter(Mandatory = $true)][string]$SelectedSourceAddress,
+        [Parameter(Mandatory = $true)][string]$ProcessName
+    )
+
+    $address = Parse-HexUInt64 -Value $SelectedSourceAddress
+    $memoryRead = Invoke-ReaderJson -Arguments @(
+        '--process-name', $ProcessName,
+        '--address', ('0x{0:X}' -f $address),
+        '--length', '160',
+        '--json')
+
+    $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
+
+    return [pscustomobject]@{
+        AddressHex = ('0x{0:X}' -f $address)
+        Coord48 = Read-TripletAt -Bytes $bytes -Offset 0x48
+        Orientation60 = Read-TripletAt -Bytes $bytes -Offset 0x60
+        Coord88 = Read-TripletAt -Bytes $bytes -Offset 0x88
+        Orientation94 = Read-TripletAt -Bytes $bytes -Offset 0x94
+    }
+}
+
+function Test-CoordMatch {
+    param(
+        $ExpectedCoord,
+        $ActualCoord,
+        [double]$Tolerance = 0.75
+    )
+
+    if ($null -eq $ExpectedCoord -or $null -eq $ActualCoord) {
+        return $false
+    }
+
+    if ($null -eq $ExpectedCoord.X -or $null -eq $ExpectedCoord.Y -or $null -eq $ExpectedCoord.Z) {
+        return $false
+    }
+
+    if ($null -eq $ActualCoord.X -or $null -eq $ActualCoord.Y -or $null -eq $ActualCoord.Z) {
+        return $false
+    }
+
+    return (
+        ([Math]::Abs([double]$ExpectedCoord.X - [double]$ActualCoord.X) -le $Tolerance) -and
+        ([Math]::Abs([double]$ExpectedCoord.Y - [double]$ActualCoord.Y) -le $Tolerance) -and
+        ([Math]::Abs([double]$ExpectedCoord.Z - [double]$ActualCoord.Z) -le $Tolerance))
+}
+
+function Resolve-LiveOrientation {
+    param(
+        [bool]$AllowOwnerRefresh
+    )
+
+    $metadata = Invoke-ReaderJson -Arguments @(
+        '--read-player-orientation',
+        '--owner-components-file', $resolvedOwnerComponentsFile,
+        '--json')
+
+    if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {
+        throw 'The player-orientation reader did not resolve a selected source address.'
+    }
+
+    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+    $playerCoord = $metadata.PlayerCoord
+    $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
+    $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+
+    if (-not $coord48Matches -and -not $coord88Matches -and $AllowOwnerRefresh) {
+        $refreshError = $null
+
+        try {
+            & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
+
+            $metadata = Invoke-ReaderJson -Arguments @(
+                '--read-player-orientation',
+                '--owner-components-file', $resolvedOwnerComponentsFile,
+                '--json')
+
+            if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {
+                throw 'The player-orientation reader did not resolve a selected source address after owner refresh.'
+            }
+
+            $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+            $playerCoord = $metadata.PlayerCoord
+            $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
+            $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+            $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue $true -Force
+        }
+        catch {
+            $refreshError = $_.Exception.Message
+            $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue $false -Force
+            $metadata | Add-Member -NotePropertyName OwnerRefreshError -NotePropertyValue $refreshError -Force
+        }
+    }
+    else {
+        $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue $false -Force
+    }
+
+    return [pscustomobject]@{
+        Metadata = $metadata
+        LiveSample = $liveSample
+        Coord48Matches = $coord48Matches
+        Coord88Matches = $coord88Matches
+    }
+}
+
 $resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
@@ -214,13 +421,68 @@ if ($RefreshReaderBridge) {
 }
 
 if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
-    & $ownerComponentScript -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
+    & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
 }
 
-$orientation = Invoke-ReaderJson -Arguments @(
-    '--read-player-orientation',
-    '--owner-components-file', $resolvedOwnerComponentsFile,
-    '--json')
+$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh (-not $RefreshOwnerComponents)
+$orientationMetadata = $liveResolution.Metadata
+$liveSourceSample = $liveResolution.LiveSample
+$estimates = @(
+    (New-VectorEstimate -Name 'Orientation60' -Vector $liveSourceSample.Orientation60),
+    (New-VectorEstimate -Name 'Orientation94' -Vector $liveSourceSample.Orientation94)
+)
+
+$preferredEstimate = $estimates | Where-Object { $_.Name -eq 'Orientation60' } | Select-Object -First 1
+if ($null -eq $preferredEstimate) {
+    $preferredEstimate = $estimates | Select-Object -First 1
+}
+
+$orientationNotes = New-Object System.Collections.Generic.List[string]
+if ($orientationMetadata.Notes) {
+    foreach ($note in $orientationMetadata.Notes) {
+        $orientationNotes.Add([string]$note)
+    }
+}
+$orientationNotes.Add('Preferred estimate in this capture was recomputed from a fresh live memory read of the selected source object.')
+$orientationNotes.Add('Coord48/Coord88 and Orientation60/Orientation94 were read directly from source offsets +0x48/+0x88 and +0x60/+0x94.')
+if ($liveResolution.Coord48Matches -or $liveResolution.Coord88Matches) {
+    $orientationNotes.Add('Live source coords matched the current ReaderBridge player coords during capture.')
+}
+else {
+    $orientationNotes.Add('Live source coords did not match the current ReaderBridge player coords during capture.')
+}
+if ($orientationMetadata.RefreshedOwnerComponents -eq $true) {
+    $orientationNotes.Add('The helper refreshed the owner-component artifact because the previously selected source no longer matched the current player coords.')
+}
+elseif ($orientationMetadata.PSObject.Properties.Name -contains 'OwnerRefreshError' -and -not [string]::IsNullOrWhiteSpace([string]$orientationMetadata.OwnerRefreshError)) {
+    $orientationNotes.Add("Owner-component refresh failed; using the last known selected source. $($orientationMetadata.OwnerRefreshError)")
+}
+
+$orientation = [pscustomobject]@{
+    Mode = 'player-orientation-live'
+    ArtifactFile = $orientationMetadata.ArtifactFile
+    ArtifactLoadedAtUtc = $orientationMetadata.ArtifactLoadedAtUtc
+    ArtifactGeneratedAtUtc = $orientationMetadata.ArtifactGeneratedAtUtc
+    SnapshotFile = $orientationMetadata.SnapshotFile
+    SnapshotLoadedAtUtc = $orientationMetadata.SnapshotLoadedAtUtc
+    PlayerName = $orientationMetadata.PlayerName
+    PlayerLevel = $orientationMetadata.PlayerLevel
+    PlayerGuild = $orientationMetadata.PlayerGuild
+    PlayerLocation = $orientationMetadata.PlayerLocation
+    PlayerCoord = $orientationMetadata.PlayerCoord
+    SelectedSourceAddress = $orientationMetadata.SelectedSourceAddress
+    SelectedEntryAddress = $orientationMetadata.SelectedEntryAddress
+    SelectedEntryIndex = $orientationMetadata.SelectedEntryIndex
+    SelectedEntryMatchesSelectedSource = $orientationMetadata.SelectedEntryMatchesSelectedSource
+    SelectedEntryRoleHints = $orientationMetadata.SelectedEntryRoleHints
+    LiveSourceCoord48MatchesPlayerCoord = $liveResolution.Coord48Matches
+    LiveSourceCoord88MatchesPlayerCoord = $liveResolution.Coord88Matches
+    RefreshedOwnerComponents = $orientationMetadata.RefreshedOwnerComponents
+    LiveSourceSample = $liveSourceSample
+    PreferredEstimate = $preferredEstimate
+    Estimates = $estimates
+    Notes = $orientationNotes
+}
 
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add('This helper is actor-oriented: it reads the selected owner/source component and derives yaw/pitch from the live orientation vector snapshot.')

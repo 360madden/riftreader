@@ -58,12 +58,17 @@ That means:
 11. enumerate the stable owner container itself and separate the live selected-source component from its sibling component records
 12. classify the first stat-side graph around that owner/component table by identifying raw-unit-id-bearing identity components and shared level/resource hubs
 13. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
+14. expose a first actor-orientation helper via `--read-player-orientation` plus a capture script so live yaw/pitch experiments can compare repeated owner/source orientation samples instead of rescanning blindly
 
 Current discovery refinement:
 
 - prefer directional CE next-scans after movement (`increased` / `decreased` / `changed`) over relying only on a second exact-value float scan
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
+- prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
+  - the current selected source component already yields stable live orientation vectors
+  - `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` now turn that into repeatable yaw/pitch captures
+  - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` now validates live actor-turn stimuli directly; in the current environment `Left`, `Right`, `A`, and `D` all produced large yaw deltas with zero coord drift, while `Q` and `E` produced no yaw change
 - treat the owner container as a component table, not just a wrapper list:
   - entry `6` is the current transform/source component
   - indices `9`, `12`, and `13` currently behave like identity-bearing siblings because they embed the raw player unit id
