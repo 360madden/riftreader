@@ -8,6 +8,8 @@ param(
     [int]$ProjectorSlotWindowBytes = 216,
     [int]$HubWindowBytes = 512,
     [int]$CombatFieldWindowBytes = 32,
+    [int]$OwnerStateFollowPointerWindowBytes = 128,
+    [int]$MaxOwnerStateSubgraphRegions = 10,
     [int]$MaxOffsetsPerField = 4,
     [switch]$Json
 )
@@ -351,10 +353,109 @@ function Add-ProjectorSlotRegions {
     }
 }
 
+function Add-OwnerStateFollowPointerRegions {
+    param(
+        [Parameter(Mandatory = $true)]
+        $OwnerStateNeighborhood,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SourceArtifactFile
+    )
+
+    if ($null -eq $OwnerStateNeighborhood) {
+        return
+    }
+
+    $targetMap = [ordered]@{}
+    $subgraphProperty = $OwnerStateNeighborhood.PSObject.Properties['PointerSubgraph']
+    if ($null -ne $subgraphProperty -and $null -ne $subgraphProperty.Value) {
+        foreach ($node in @($subgraphProperty.Value.Nodes)) {
+            if ($null -eq $node -or [string]::IsNullOrWhiteSpace([string]$node.Address)) {
+                continue
+            }
+
+            $addressText = [string]$node.Address
+            $knownLabels = @($node.KnownLabels)
+            if ($knownLabels -contains 'owner-state-record' -or $knownLabels -contains 'state-slot-50' -or $knownLabels -contains 'state-slot-58' -or $knownLabels -contains 'state-slot-60') {
+                continue
+            }
+
+            $depth = [int]$node.Depth
+            if ($depth -le 0) {
+                continue
+            }
+
+            $targetKey = $addressText.ToUpperInvariant()
+            if (-not $targetMap.Contains($targetKey)) {
+                $targetMap[$targetKey] = [ordered]@{
+                    Address = $addressText
+                    RootLabels = [System.Collections.Generic.List[string]]::new()
+                    Depth = $depth
+                    AsciiPreview = [string]$node.AsciiPreview
+                }
+            }
+
+            $targetMap[$targetKey].Depth = [Math]::Min([int]$targetMap[$targetKey].Depth, $depth)
+            foreach ($rootLabel in @($node.RootLabels)) {
+                $rootLabelText = [string]$rootLabel
+                if (-not [string]::IsNullOrWhiteSpace($rootLabelText) -and -not $targetMap[$targetKey].RootLabels.Contains($rootLabelText)) {
+                    $targetMap[$targetKey].RootLabels.Add($rootLabelText) | Out-Null
+                }
+            }
+        }
+    }
+    else {
+        foreach ($slot in @($OwnerStateNeighborhood.Slots)) {
+            if ($null -eq $slot) {
+                continue
+            }
+
+            $slotLabel = [string]$slot.Label
+            foreach ($followPointer in @($slot.FollowPointers)) {
+                if ($null -eq $followPointer -or [string]::IsNullOrWhiteSpace([string]$followPointer.Address)) {
+                    continue
+                }
+
+                $addressText = [string]$followPointer.Address
+                $targetKey = $addressText.ToUpperInvariant()
+                if (-not $targetMap.Contains($targetKey)) {
+                    $targetMap[$targetKey] = [ordered]@{
+                        Address = $addressText
+                        RootLabels = [System.Collections.Generic.List[string]]::new()
+                        Depth = 1
+                        AsciiPreview = [string]$followPointer.AsciiPreview
+                    }
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($slotLabel) -and -not $targetMap[$targetKey].RootLabels.Contains($slotLabel)) {
+                    $targetMap[$targetKey].RootLabels.Add($slotLabel) | Out-Null
+                }
+            }
+        }
+    }
+
+    $rank = 0
+    foreach ($target in @($targetMap.Values | Sort-Object Depth, Address | Select-Object -First $MaxOwnerStateSubgraphRegions)) {
+        if ($null -eq $target -or [string]::IsNullOrWhiteSpace([string]$target.Address)) {
+            continue
+        }
+
+        $rank++
+        $rootLabels = @($target.RootLabels | Select-Object -Unique)
+        $labelText = if ($rootLabels.Count -gt 0) { $rootLabels -join ', ' } else { 'unlabeled slot' }
+        $asciiPreview = [string]$target.AsciiPreview
+        $asciiNote = if ([string]::IsNullOrWhiteSpace($asciiPreview)) { 'n/a' } else { ($asciiPreview.Substring(0, [Math]::Min($asciiPreview.Length, 24))).Trim() }
+        $category = if ([int]$target.Depth -le 1) { 'owner-state-follow-pointer' } else { 'owner-state-subgraph' }
+
+        Add-Region -Name ('owner-state-subgraph-{0}' -f $rank) -Category $category -Address (Parse-HexUInt64 -Value ([string]$target.Address)) -Length $OwnerStateFollowPointerWindowBytes -Required $false -Priority ([Math]::Max(60, (78 - ($rank + [int]$target.Depth)))) -SourceArtifactFile $SourceArtifactFile -Notes ('Owner-state subgraph node depth {0} rooted at {1}; preview {2}.' -f [int]$target.Depth, $labelText, $asciiNote)
+    }
+}
+
 $ownerComponentsFile = Join-Path $capturesRoot 'player-owner-components.json'
 $selectorTraceFile = Join-Path $capturesRoot 'player-selector-owner-trace.json'
 $sourceAccessorFile = Join-Path $capturesRoot 'player-source-accessor-family.json'
 $statHubGraphFile = Join-Path $capturesRoot 'player-stat-hub-graph.json'
+$ownerStateNeighborhoodFile = Join-Path $capturesRoot 'owner-state-neighborhood.json'
 $currentAnchorFile = Join-Path $capturesRoot 'player-current-anchor.json'
 $ownerGraphFile = Join-Path $capturesRoot 'player-owner-graph.json'
 $sourceChainFile = Join-Path $capturesRoot 'player-source-chain.json'
@@ -365,6 +466,7 @@ $ownerComponents = Read-JsonArtifact -Path $ownerComponentsFile -Role 'owner-com
 $selectorTrace = Read-JsonArtifact -Path $selectorTraceFile -Role 'selector-owner-trace' -Optional
 $sourceAccessorFamily = Read-JsonArtifact -Path $sourceAccessorFile -Role 'source-accessor-family' -Optional
 $statHubGraph = Read-JsonArtifact -Path $statHubGraphFile -Role 'stat-hub-graph' -Optional
+$ownerStateNeighborhood = Read-JsonArtifact -Path $ownerStateNeighborhoodFile -Role 'owner-state-neighborhood' -Optional
 $currentAnchor = Read-JsonArtifact -Path $currentAnchorFile -Role 'current-anchor' -Optional
 $ownerGraph = Read-JsonArtifact -Path $ownerGraphFile -Role 'owner-graph' -Optional
 $null = Read-JsonArtifact -Path $sourceChainFile -Role 'source-chain' -Optional
@@ -439,6 +541,10 @@ if (-not [string]::IsNullOrWhiteSpace($stateRecordAddress)) {
 
 if ($projectorTrace) {
     Add-ProjectorSlotRegions -ProjectorTrace $projectorTrace -SourceArtifactFile ([System.IO.Path]::GetFullPath($projectorTraceFile))
+}
+
+if ($ownerStateNeighborhood) {
+    Add-OwnerStateFollowPointerRegions -OwnerStateNeighborhood $ownerStateNeighborhood -SourceArtifactFile ([System.IO.Path]::GetFullPath($ownerStateNeighborhoodFile))
 }
 
 $selectedEntry = $null

@@ -5,6 +5,10 @@ param(
     [int]$StateRecordLength = 128,
     [int]$SlotLength = 384,
     [int]$TopHubs = 6,
+    [int]$FollowPointerDepth = 2,
+    [int]$MaxFollowPointersPerNode = 4,
+    [int]$FollowPointerReadLength = 128,
+    [int]$MaxSubgraphNodes = 18,
     [string]$ProjectorTraceFile = (Join-Path $PSScriptRoot 'captures\player-state-projector-trace.json'),
     [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
     [string]$StatHubGraphFile = (Join-Path $PSScriptRoot 'captures\player-stat-hub-graph.json'),
@@ -319,9 +323,81 @@ function Test-PlausibleHeapPointer {
         [UInt64]$Value
     )
 
-    $minAddress = Parse-HexUInt64 -Value '0x10000'
+    $minAddress = Parse-HexUInt64 -Value '0x0000000100000000'
     $maxAddress = Parse-HexUInt64 -Value '0x00007FF000000000'
     return ($Value -ge $minAddress) -and ($Value -lt $maxAddress)
+}
+
+function Get-CandidatePointers {
+    param(
+        [Parameter(Mandatory = $true)]
+        [byte[]]$Bytes,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$KnownAddresses,
+
+        [int]$MaxPointers = 4
+    )
+
+    $items = New-Object System.Collections.Generic.List[object]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+
+    for ($offset = 0; $offset -le ($Bytes.Length - 8); $offset += 8) {
+        if ($items.Count -ge $MaxPointers) {
+            break
+        }
+
+        $value = Read-UInt64At -Bytes $Bytes -Offset $offset
+        if ($null -eq $value -or -not (Test-PlausibleHeapPointer -Value $value)) {
+            continue
+        }
+
+        $valueHex = Format-HexUInt64 -Value $value
+        $normalized = $valueHex.ToUpperInvariant()
+        if (-not $seen.Add($normalized)) {
+            continue
+        }
+
+        $items.Add([ordered]@{
+                SourceOffset = $offset
+                SourceOffsetHex = ('0x{0:X}' -f $offset)
+                Address = $valueHex
+                Labels = if ($KnownAddresses.ContainsKey($normalized)) { @($KnownAddresses[$normalized].ToArray()) } else { @() }
+            }) | Out-Null
+    }
+
+    return @($items.ToArray())
+}
+
+function Get-SubgraphNodeSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [UInt64]$Address,
+
+        [Parameter(Mandatory = $true)]
+        [byte[]]$Bytes,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$KnownAddresses,
+
+        [string[]]$RootLabels = @(),
+
+        [int]$Depth = 0
+    )
+
+    $addressHex = Format-HexUInt64 -Value $Address
+    $normalized = $addressHex.ToUpperInvariant()
+    $pointerMatches = @(Get-PointerMatches -Bytes $Bytes -KnownAddresses $KnownAddresses)
+    return [ordered]@{
+        Address = $addressHex
+        Depth = $Depth
+        RootLabels = @($RootLabels | Sort-Object -Unique)
+        KnownLabels = if ($KnownAddresses.ContainsKey($normalized)) { @($KnownAddresses[$normalized].ToArray()) } else { @() }
+        AsciiPreview = Get-AsciiPreview -Bytes $Bytes
+        QwordPreview = @(Get-NonZeroQwordPreview -Bytes $Bytes -KnownAddresses $KnownAddresses)
+        PointerMatches = $pointerMatches
+        PointerMatchCount = @($pointerMatches).Count
+    }
 }
 
 function Get-FollowPointerSummaries {
@@ -337,31 +413,18 @@ function Get-FollowPointerSummaries {
         [int]$ReadLength = 128
     )
 
-    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
     $results = New-Object System.Collections.Generic.List[object]
-
-    for ($offset = 0; $offset -le ($Bytes.Length - 8); $offset += 8) {
-        if ($results.Count -ge $MaxPointers) {
-            break
-        }
-
-        $value = Read-UInt64At -Bytes $Bytes -Offset $offset
-        if ($null -eq $value -or -not (Test-PlausibleHeapPointer -Value $value)) {
-            continue
-        }
-
-        $valueHex = Format-HexUInt64 -Value $value
-        if (-not $seen.Add($valueHex.ToUpperInvariant())) {
-            continue
-        }
+    foreach ($candidate in @(Get-CandidatePointers -Bytes $Bytes -KnownAddresses $KnownAddresses -MaxPointers $MaxPointers)) {
+        $valueHex = [string]$candidate.Address
 
         try {
-            $targetBytes = Read-Bytes -Address $value -Length $ReadLength
+            $targetBytes = Read-Bytes -Address (Parse-HexUInt64 -Value $valueHex) -Length $ReadLength
             $pointerMatches = @(Get-PointerMatches -Bytes $targetBytes -KnownAddresses $KnownAddresses)
             $results.Add([ordered]@{
-                    SourceOffset = $offset
-                    SourceOffsetHex = ('0x{0:X}' -f $offset)
+                    SourceOffset = [int]$candidate.SourceOffset
+                    SourceOffsetHex = [string]$candidate.SourceOffsetHex
                     Address = $valueHex
+                    Labels = @($candidate.Labels)
                     AsciiPreview = Get-AsciiPreview -Bytes $targetBytes
                     PointerMatches = $pointerMatches
                     PointerMatchCount = @($pointerMatches).Count
@@ -370,15 +433,160 @@ function Get-FollowPointerSummaries {
         }
         catch {
             $results.Add([ordered]@{
-                    SourceOffset = $offset
-                    SourceOffsetHex = ('0x{0:X}' -f $offset)
+                    SourceOffset = [int]$candidate.SourceOffset
+                    SourceOffsetHex = [string]$candidate.SourceOffsetHex
                     Address = $valueHex
+                    Labels = @($candidate.Labels)
                     Error = $_.Exception.Message
                 }) | Out-Null
         }
     }
 
     return @($results.ToArray())
+}
+
+function Build-PointerSubgraph {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Roots,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$KnownAddresses,
+
+        [int]$MaxDepth = 2,
+
+        [int]$MaxPointersPerNode = 4,
+
+        [int]$ReadLength = 128,
+
+        [int]$MaxNodes = 18
+    )
+
+    $queue = [System.Collections.Generic.Queue[object]]::new()
+    $nodesByAddress = @{}
+    $edgesByKey = @{}
+    $seenRead = New-Object 'System.Collections.Generic.HashSet[string]'
+
+    foreach ($root in @($Roots)) {
+        if ($null -eq $root) {
+            continue
+        }
+
+        $rootAddress = [string]$root.Address
+        if ([string]::IsNullOrWhiteSpace($rootAddress)) {
+            continue
+        }
+
+        $queue.Enqueue([ordered]@{
+                Address = $rootAddress
+                Depth = 0
+                RootLabel = [string]$root.Label
+                Bytes = $root.Bytes
+            })
+    }
+
+    while ($queue.Count -gt 0 -and $nodesByAddress.Count -lt $MaxNodes) {
+        $item = $queue.Dequeue()
+        $addressHex = [string]$item.Address
+        $normalized = $addressHex.ToUpperInvariant()
+        if ([string]::IsNullOrWhiteSpace($normalized)) {
+            continue
+        }
+
+        $bytes = $item.Bytes
+        if ($null -eq $bytes) {
+            if (-not $seenRead.Add($normalized)) {
+                continue
+            }
+
+            try {
+                $bytes = Read-Bytes -Address (Parse-HexUInt64 -Value $addressHex) -Length $ReadLength
+            }
+            catch {
+                if (-not $nodesByAddress.ContainsKey($normalized)) {
+                    $nodesByAddress[$normalized] = [ordered]@{
+                        Address = $addressHex
+                        Depth = [int]$item.Depth
+                        RootLabels = @([string]$item.RootLabel)
+                        KnownLabels = if ($KnownAddresses.ContainsKey($normalized)) { @($KnownAddresses[$normalized].ToArray()) } else { @() }
+                        Error = $_.Exception.Message
+                    }
+                }
+                continue
+            }
+        }
+
+        if (-not $nodesByAddress.ContainsKey($normalized)) {
+            $nodesByAddress[$normalized] = Get-SubgraphNodeSummary -Address (Parse-HexUInt64 -Value $addressHex) -Bytes $bytes -KnownAddresses $KnownAddresses -RootLabels @([string]$item.RootLabel) -Depth ([int]$item.Depth)
+        }
+        else {
+            $existingNode = $nodesByAddress[$normalized]
+            $existingRoots = @($existingNode.RootLabels)
+            if ($existingRoots -notcontains [string]$item.RootLabel) {
+                $existingNode.RootLabels = @($existingRoots + [string]$item.RootLabel | Sort-Object -Unique)
+            }
+
+            if ([int]$item.Depth -lt [int]$existingNode.Depth) {
+                $existingNode.Depth = [int]$item.Depth
+            }
+        }
+
+        if ([int]$item.Depth -ge $MaxDepth) {
+            continue
+        }
+
+        foreach ($candidate in @(Get-CandidatePointers -Bytes $bytes -KnownAddresses $KnownAddresses -MaxPointers $MaxPointersPerNode)) {
+            $childAddress = [string]$candidate.Address
+            $edgeKey = '{0}|{1}|{2}' -f $normalized, $childAddress.ToUpperInvariant(), [string]$candidate.SourceOffsetHex
+            if (-not $edgesByKey.ContainsKey($edgeKey)) {
+                $edgesByKey[$edgeKey] = [ordered]@{
+                    FromAddress = $addressHex
+                    ToAddress = $childAddress
+                    SourceOffset = [int]$candidate.SourceOffset
+                    SourceOffsetHex = [string]$candidate.SourceOffsetHex
+                    Depth = ([int]$item.Depth + 1)
+                    RootLabel = [string]$item.RootLabel
+                    Labels = @($candidate.Labels)
+                }
+            }
+
+            $childNormalized = $childAddress.ToUpperInvariant()
+            if ($nodesByAddress.ContainsKey($childNormalized)) {
+                $childNode = $nodesByAddress[$childNormalized]
+                $childRoots = @($childNode.RootLabels)
+                if ($childRoots -notcontains [string]$item.RootLabel) {
+                    $childNode.RootLabels = @($childRoots + [string]$item.RootLabel | Sort-Object -Unique)
+                }
+
+                if (([int]$item.Depth + 1) -lt [int]$childNode.Depth) {
+                    $childNode.Depth = ([int]$item.Depth + 1)
+                }
+                continue
+            }
+
+            if (($queue.Count + $nodesByAddress.Count) -ge $MaxNodes) {
+                continue
+            }
+
+            $queue.Enqueue([ordered]@{
+                    Address = $childAddress
+                    Depth = ([int]$item.Depth + 1)
+                    RootLabel = [string]$item.RootLabel
+                    Bytes = $null
+                })
+        }
+    }
+
+    return [ordered]@{
+        MaxDepth = $MaxDepth
+        MaxNodes = $MaxNodes
+        ReadLength = $ReadLength
+        MaxPointersPerNode = $MaxPointersPerNode
+        NodeCount = $nodesByAddress.Count
+        EdgeCount = $edgesByKey.Count
+        Nodes = @($nodesByAddress.Values | Sort-Object Depth, Address)
+        Edges = @($edgesByKey.Values | Sort-Object Depth, FromAddress, SourceOffset)
+    }
 }
 
 function Get-StateObjectSummary {
@@ -501,13 +709,31 @@ foreach ($slotSpec in @(
 }
 
 $slotRecords = New-Object System.Collections.Generic.List[object]
+$slotRootData = New-Object System.Collections.Generic.List[object]
 foreach ($slot in @($slotMap.Values)) {
     $slotAddress = Parse-HexUInt64 -Value ([string]$slot.Address)
     $slotBytes = Read-Bytes -Address $slotAddress -Length $SlotLength
-    $slotRecords.Add((Get-StateObjectSummary -Label ([string]$slot.Label) -Address $slotAddress -Bytes $slotBytes -KnownAddresses $knownAddresses -Player $player)) | Out-Null
+    $slotLabel = [string]$slot.Label
+    $slotRecords.Add((Get-StateObjectSummary -Label $slotLabel -Address $slotAddress -Bytes $slotBytes -KnownAddresses $knownAddresses -Player $player)) | Out-Null
+    $slotRootData.Add([ordered]@{
+            Label = $slotLabel
+            Address = (Format-HexUInt64 -Value $slotAddress)
+            Bytes = $slotBytes
+        }) | Out-Null
 }
 
 $stateRecordPointers = @(Get-PointerMatches -Bytes $stateRecordBytes -KnownAddresses $knownAddresses)
+$subgraphRoots = @(
+    [ordered]@{
+        Label = 'state-record'
+        Address = (Format-HexUInt64 -Value $stateRecordAddress)
+        Bytes = $stateRecordBytes
+    }
+)
+foreach ($slotRoot in @($slotRootData.ToArray())) {
+    $subgraphRoots += $slotRoot
+}
+$pointerSubgraph = Build-PointerSubgraph -Roots $subgraphRoots -KnownAddresses $knownAddresses -MaxDepth $FollowPointerDepth -MaxPointersPerNode $MaxFollowPointersPerNode -ReadLength $FollowPointerReadLength -MaxNodes $MaxSubgraphNodes
 
 $document = [ordered]@{
     Mode = 'owner-state-neighborhood'
@@ -555,6 +781,7 @@ $document = [ordered]@{
         }
     }
     Slots = @($slotRecords.ToArray())
+    PointerSubgraph = $pointerSubgraph
 }
 
 $outputDirectory = Split-Path -Path $resolvedOutputFile -Parent
@@ -572,6 +799,8 @@ $result = [ordered]@{
     StateRecordPointerMatchCount = @($stateRecordPointers).Count
     SlotPointerMatchCount = (@($slotRecords | ForEach-Object { $_.PointerMatchCount } | Measure-Object -Sum).Sum)
     CoordMatchingSlotCount = (@($slotRecords | Where-Object { $_.ProjectorVector.MatchesPlayerCoords }).Count)
+    PointerSubgraphNodeCount = [int]$pointerSubgraph.NodeCount
+    PointerSubgraphEdgeCount = [int]$pointerSubgraph.EdgeCount
 }
 
 if ($Json) {
