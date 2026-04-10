@@ -86,6 +86,14 @@ Current discovery refinement:
 - once the source chain is found, isolate the accessor it calls so we can recognize stable returned field offsets such as the current coord-source `+0x48` path
 - use `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1` before trusting a new artifact chain, and `C:\RIFT MODDING\RiftReader\scripts\refresh-discovery-chain.ps1` when you want to rebuild the current chain in one pass
 - keep the selected source / owner graph path as the main discovery path; treat the older cache-blob family as a bootstrap, not the final anchor
+- keep CE and other mature reverse-engineering tools as the live acquisition workbench, but freeze each useful run into a repo-owned session package so decoding work can continue offline:
+  - `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1`
+    derives the current named watchset from owner/source/stat artifacts
+  - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1`
+    packages the current artifacts, consistency report, ReaderBridge snapshot, and sampled watchset bytes into `scripts\sessions\...`
+  - `dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session ...`
+    performs the actual one-attach sampling pass
+  - see `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
 
 ## Addon Boundary
 

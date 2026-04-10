@@ -22,6 +22,10 @@ the capture chain aligned while the typed reader work advances:
   - reports provenance, freshness, and anchor drift across the current capture set
 - `scripts\refresh-discovery-chain.ps1`
   - refreshes the current source-chain -> owner -> stat-hub discovery sequence using existing repo scripts
+- `scripts\export-discovery-watchset.ps1`
+  - derives an owned session watchset from the current discovery artifacts
+- `scripts\record-discovery-session.ps1`
+  - packages the current artifacts + truth snapshot + sampled watchset bytes for offline decode work
 
 ## Repository Layout
 
@@ -39,6 +43,7 @@ RiftReader/
 ├── docs/
 │   ├── addon-validation-spec.md
 │   ├── cheat-engine-workflow.md
+│   ├── offline-session-workflow.md
 │   ├── reader-cli-ux.md
 │   └── overview.md
 ├── reader/
@@ -59,6 +64,8 @@ RiftReader/
 │   ├── cheatengine-exec.ps1
 │   ├── cheatengine-reload-probe.cmd
 │   ├── install-cheatengine-autorun.cmd
+│   ├── export-discovery-watchset.cmd
+│   ├── record-discovery-session.cmd
 │   ├── run-reader.cmd
 │   ├── sync-cheatengine.cmd
 │   ├── sync-addon.cmd
@@ -272,6 +279,10 @@ Discovery maintenance helpers:
   - read-only provenance, freshness, and anchor-mismatch report over the current capture set
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-discovery-chain.ps1`
   - reruns the current stable discovery sequence in one pass using the existing capture scripts
+- `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1`
+  - emits a named watchset from the current owner/source/stat artifacts for offline session work
+- `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1`
+  - freezes the current artifact chain plus sampled memory regions into `scripts\sessions\...`
 
 Derive a likely identity string such as `Name@Shard` from the latest ReaderBridge export and scan for it:
 
@@ -321,6 +332,28 @@ Force an anchor refresh before the read:
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd -RefreshAnchor -Json
 ```
+
+Offline session workflow:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd -Label baseline -SampleCount 20 -IntervalMilliseconds 500
+```
+
+Export only the current watchset:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.cmd
+```
+
+Reader-only session sampler:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\captures\session-watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
+```
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
 
 Capture the first live coord-triplet access and validate the instruction as a
 module-local pattern candidate:
