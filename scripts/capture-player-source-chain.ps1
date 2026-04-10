@@ -144,7 +144,7 @@ return RiftReaderDisasmCluster.dump([[$OutputPath]], $Address, $Before, $After)
 }
 
 if ($RefreshCluster -or -not (Test-Path -LiteralPath $resolvedClusterFile)) {
-    & $clusterScript -Json | Out-Null
+    & $clusterScript -Json -InstructionsBefore 40 -InstructionsAfter 24 | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {

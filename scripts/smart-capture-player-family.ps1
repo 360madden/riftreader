@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$MovementKey = "w",
+    [string[]]$FallbackMovementKeys = @("d", "a", "s"),
     [int]$MovementHoldMilliseconds = 500,
     [int]$MaxScanHits = 12,
     [int]$ScanContextBytes = 192,
@@ -151,7 +152,12 @@ function Get-CeScaledFloatAt {
         [int]$Scale
     )
 
-    return Invoke-CeNumeric -Code "return RiftReaderFloatScan.readScaledFloatAt(${AddressHex}, ${Offset}, ${Scale})" -Signed
+    $scaledValue = Invoke-CeNumeric -Code "return RiftReaderFloatScan.readScaledFloatAt(${AddressHex}, ${Offset}, ${Scale})" -Signed
+    if ($scaledValue -lt [int]::MinValue -or $scaledValue -gt [int]::MaxValue) {
+        return $null
+    }
+
+    return [int]$scaledValue
 }
 
 function Get-PlayerSignatureScan {
@@ -218,6 +224,30 @@ function Format-HexAddress {
     return ('0x{0:X}' -f $Address)
 }
 
+function Get-MovementKeySequence {
+    param(
+        [string]$PrimaryKey,
+        [string[]]$FallbackKeys
+    )
+
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $sequence = New-Object System.Collections.Generic.List[string]
+
+    foreach ($key in @($PrimaryKey) + @($FallbackKeys)) {
+        $normalizedKey = [string]$key
+        if ([string]::IsNullOrWhiteSpace($normalizedKey)) {
+            continue
+        }
+
+        $normalizedKey = $normalizedKey.Trim()
+        if ($seen.Add($normalizedKey)) {
+            $sequence.Add($normalizedKey) | Out-Null
+        }
+    }
+
+    return @($sequence)
+}
+
 function Get-TripletConfirmedBaseAddresses {
     param(
         [AllowEmptyCollection()]
@@ -258,9 +288,13 @@ function Get-TripletConfirmedBaseAddresses {
         }
 
         $baseAddressHex = Format-HexAddress -Address ($rawAddress - $axisOffset)
-        $xScaled = [int](Get-CeScaledFloatAt -AddressHex $baseAddressHex -Offset 0 -Scale $CoordScale)
-        $yScaled = [int](Get-CeScaledFloatAt -AddressHex $baseAddressHex -Offset 4 -Scale $CoordScale)
-        $zScaled = [int](Get-CeScaledFloatAt -AddressHex $baseAddressHex -Offset 8 -Scale $CoordScale)
+        $xScaled = Get-CeScaledFloatAt -AddressHex $baseAddressHex -Offset 0 -Scale $CoordScale
+        $yScaled = Get-CeScaledFloatAt -AddressHex $baseAddressHex -Offset 4 -Scale $CoordScale
+        $zScaled = Get-CeScaledFloatAt -AddressHex $baseAddressHex -Offset 8 -Scale $CoordScale
+
+        if ($null -eq $xScaled -or $null -eq $yScaled -or $null -eq $zScaled) {
+            continue
+        }
 
         if ([Math]::Abs($xScaled - $expectedXScaled) -le $CoordToleranceUnits -and
             [Math]::Abs($yScaled - $expectedYScaled) -le $CoordToleranceUnits -and
@@ -276,6 +310,7 @@ Write-Host "[SmartFamily] Loading Cheat Engine float scan helper..." -Foreground
 Load-CeHelper
 
 $attemptResults = New-Object System.Collections.Generic.List[object]
+$movementKeySequence = @(Get-MovementKeySequence -PrimaryKey $MovementKey -FallbackKeys $FallbackMovementKeys)
 
 foreach ($axis in $AxisPriority) {
     $normalizedAxis = $axis.ToUpperInvariant()
@@ -294,25 +329,83 @@ foreach ($axis in $AxisPriority) {
     $baselineCeCount = Start-CeExactFloatScan -Value $baselineAxisValue
     Write-Host "[SmartFamily] Baseline CE hit count for axis $normalizedAxis`: $baselineCeCount" -ForegroundColor DarkGray
 
-    Write-Host "[SmartFamily] Applying movement stimulus via native Rift key helper..." -ForegroundColor Cyan
-    & $postKeyScript -Key $MovementKey -HoldMilliseconds $MovementHoldMilliseconds
+    $stimulusAttempts = New-Object System.Collections.Generic.List[object]
+    $movedSnapshot = $null
+    $movedPlayer = $null
+    $movedX = $baselineX
+    $movedY = $baselineY
+    $movedZ = $baselineZ
+    $movedAxisValue = $baselineAxisValue
+    $deltaX = 0.0
+    $deltaY = 0.0
+    $deltaZ = 0.0
+    $selectedStimulusKey = $null
+    $motionObserved = $false
 
-    Write-Host "[SmartFamily] Refreshing post-move ReaderBridge export for axis $normalizedAxis..." -ForegroundColor Cyan
-    & $refreshScript -NoReader
+    foreach ($movementStimulusKey in $movementKeySequence) {
+        Write-Host "[SmartFamily] Applying movement stimulus key '$movementStimulusKey' via native Rift key helper..." -ForegroundColor Cyan
+        & $postKeyScript -Key $movementStimulusKey -HoldMilliseconds $MovementHoldMilliseconds
 
-    $movedSnapshot = Get-CurrentSnapshot
-    $movedPlayer = $movedSnapshot.Current.Player
-    $movedX = [double]$movedPlayer.Coord.X
-    $movedY = [double]$movedPlayer.Coord.Y
-    $movedZ = [double]$movedPlayer.Coord.Z
-    $movedAxisValue = Get-CoordValue -Coord $movedPlayer.Coord -Axis $normalizedAxis
+        Write-Host "[SmartFamily] Refreshing post-move ReaderBridge export for axis $normalizedAxis..." -ForegroundColor Cyan
+        & $refreshScript -NoReader
 
-    $deltaX = $movedX - $baselineX
-    $deltaY = $movedY - $baselineY
-    $deltaZ = $movedZ - $baselineZ
+        $candidateSnapshot = Get-CurrentSnapshot
+        $candidatePlayer = $candidateSnapshot.Current.Player
+        $candidateX = [double]$candidatePlayer.Coord.X
+        $candidateY = [double]$candidatePlayer.Coord.Y
+        $candidateZ = [double]$candidatePlayer.Coord.Z
+        $candidateAxisValue = Get-CoordValue -Coord $candidatePlayer.Coord -Axis $normalizedAxis
 
-    if ([Math]::Abs($deltaX) -lt 0.01 -and [Math]::Abs($deltaY) -lt 0.01 -and [Math]::Abs($deltaZ) -lt 0.01) {
-        throw "Movement stimulus did not change player coordinates enough to validate candidate families."
+        $candidateDeltaX = $candidateX - $baselineX
+        $candidateDeltaY = $candidateY - $baselineY
+        $candidateDeltaZ = $candidateZ - $baselineZ
+        $candidateMotionObserved = [Math]::Abs($candidateDeltaX) -ge 0.01 -or [Math]::Abs($candidateDeltaY) -ge 0.01 -or [Math]::Abs($candidateDeltaZ) -ge 0.01
+
+        $stimulusAttempts.Add([pscustomobject]@{
+                Key = $movementStimulusKey
+                MovedCoords = [pscustomobject]@{ X = $candidateX; Y = $candidateY; Z = $candidateZ }
+                Delta = [pscustomobject]@{ X = $candidateDeltaX; Y = $candidateDeltaY; Z = $candidateDeltaZ }
+                MotionObserved = $candidateMotionObserved
+            }) | Out-Null
+
+        $movedSnapshot = $candidateSnapshot
+        $movedPlayer = $candidatePlayer
+        $movedX = $candidateX
+        $movedY = $candidateY
+        $movedZ = $candidateZ
+        $movedAxisValue = $candidateAxisValue
+        $deltaX = $candidateDeltaX
+        $deltaY = $candidateDeltaY
+        $deltaZ = $candidateDeltaZ
+
+        if ($candidateMotionObserved) {
+            $motionObserved = $true
+            $selectedStimulusKey = $movementStimulusKey
+            break
+        }
+
+        Write-Warning ("Movement stimulus key '{0}' did not change player coordinates enough; trying the next configured key." -f $movementStimulusKey)
+    }
+
+    if (-not $motionObserved) {
+        $attemptResults.Add([pscustomobject]@{
+                Axis = $normalizedAxis
+                StimulusKey = $null
+                MotionObserved = $false
+                BaselineCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
+                MovedCoords = [pscustomobject]@{ X = $movedX; Y = $movedY; Z = $movedZ }
+                Delta = [pscustomobject]@{ X = $deltaX; Y = $deltaY; Z = $deltaZ }
+                BaselineCeHitCount = [int]$baselineCeCount
+                NextScanMode = $null
+                MovedCeHitCount = 0
+                RetrievedCeAddressCount = 0
+                RetrievedCeAddresses = @()
+                TripletConfirmedAddressCount = 0
+                TripletConfirmedAddresses = @()
+                StimulusAttempts = @($stimulusAttempts.ToArray())
+            }) | Out-Null
+
+        continue
     }
 
     Write-Host "[SmartFamily] Post-move coords: $(Format-Float $movedX), $(Format-Float $movedY), $(Format-Float $movedZ)" -ForegroundColor DarkGray
@@ -331,6 +424,8 @@ foreach ($axis in $AxisPriority) {
 
     $attempt = [pscustomobject]@{
         Axis = $normalizedAxis
+        StimulusKey = $selectedStimulusKey
+        MotionObserved = $true
         BaselineCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
         MovedCoords = [pscustomobject]@{ X = $movedX; Y = $movedY; Z = $movedZ }
         Delta = [pscustomobject]@{ X = $deltaX; Y = $deltaY; Z = $deltaZ }
@@ -341,6 +436,7 @@ foreach ($axis in $AxisPriority) {
         RetrievedCeAddresses = @($ceAddresses)
         TripletConfirmedAddressCount = $tripletBaseAddresses.Count
         TripletConfirmedAddresses = @($tripletBaseAddresses)
+        StimulusAttempts = @($stimulusAttempts.ToArray())
     }
 
     $attemptResults.Add($attempt)
@@ -355,8 +451,19 @@ if ($attemptResults.Count -eq 0) {
 }
 
 $selectedAttempt = $attemptResults |
-    Sort-Object -Property @{ Expression = 'TripletConfirmedAddressCount'; Descending = $true }, @{ Expression = 'MovedCeHitCount'; Descending = $true }, @{ Expression = 'BaselineCeHitCount'; Descending = $true } |
+    Sort-Object -Property @{ Expression = { if ($_.MotionObserved) { 1 } else { 0 } }; Descending = $true }, @{ Expression = 'TripletConfirmedAddressCount'; Descending = $true }, @{ Expression = 'MovedCeHitCount'; Descending = $true }, @{ Expression = 'BaselineCeHitCount'; Descending = $true } |
     Select-Object -First 1
+
+if (-not $selectedAttempt.MotionObserved) {
+    $attemptSummary = $attemptResults | ForEach-Object {
+        $stimulusSummary = @($_.StimulusAttempts | ForEach-Object {
+                "{0}:{1}" -f $_.Key, $(if ($_.MotionObserved) { 'moved' } else { 'static' })
+            }) -join ', '
+        "{0} [{1}]" -f $_.Axis, $stimulusSummary
+    }
+
+    throw ("No configured movement stimulus produced a coordinate delta across the CE narrowing attempts. {0}" -f ($attemptSummary -join '; '))
+}
 
 $baselineX = [double]$selectedAttempt.BaselineCoords.X
 $baselineY = [double]$selectedAttempt.BaselineCoords.Y
@@ -417,8 +524,11 @@ $result = [ordered]@{
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     ProcessName = 'rift_x64'
     MovementKey = $MovementKey
+    FallbackMovementKeys = @($FallbackMovementKeys)
+    MovementKeySequence = @($movementKeySequence)
     MovementHoldMilliseconds = $MovementHoldMilliseconds
     SelectedAxis = $selectedAttempt.Axis
+    SelectedStimulusKey = $selectedAttempt.StimulusKey
     AttemptCount = $attemptResults.Count
     BaselineCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
     MovedCoords = [pscustomobject]@{ X = $movedX; Y = $movedY; Z = $movedZ }

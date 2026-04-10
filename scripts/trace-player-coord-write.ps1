@@ -17,6 +17,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
+$smartCaptureScript = Join-Path $PSScriptRoot 'smart-capture-player-family.ps1'
 $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
@@ -274,20 +275,54 @@ function Get-TraceCandidates {
         try {
             $confirmation = Get-Content -Path $resolvedConfirmationFile -Raw | ConvertFrom-Json -Depth 20
             $winnerFamilyId = [string]$confirmation.WinnerFamilyId
-            $winnerAddresses = @($confirmation.Winner.CeConfirmedSampleAddresses)
-
-            foreach ($address in $winnerAddresses) {
-                $addressHex = [string]$address
-                if ([string]::IsNullOrWhiteSpace($addressHex)) {
-                    continue
+            $candidateBuckets = @(
+                [pscustomobject]@{
+                    Source = 'ce-confirmed'
+                    FamilyId = $winnerFamilyId
+                    Addresses = @($confirmation.Winner.CeConfirmedSampleAddresses)
+                },
+                [pscustomobject]@{
+                    Source = 'ce-triplet-confirmed'
+                    FamilyId = $winnerFamilyId
+                    Addresses = @($confirmation.TripletConfirmedAddresses)
+                },
+                [pscustomobject]@{
+                    Source = 'ce-ranked-family'
+                    FamilyId = $winnerFamilyId
+                    Addresses = @($confirmation.Winner.SampleAddresses)
                 }
+            )
 
-                if ($seen.Add($addressHex)) {
-                    $candidates.Add([pscustomobject]@{
-                        AddressHex = $addressHex
-                        Source = 'ce-confirmed'
-                        FamilyId = $winnerFamilyId
-                    }) | Out-Null
+            foreach ($family in @($confirmation.Families)) {
+                $candidateBuckets += [pscustomobject]@{
+                    Source = 'ce-family-sample'
+                    FamilyId = [string]$family.FamilyId
+                    Addresses = @($family.SampleAddresses)
+                }
+            }
+
+            foreach ($attempt in @($confirmation.Attempts | Where-Object { $_.MotionObserved })) {
+                $candidateBuckets += [pscustomobject]@{
+                    Source = ('ce-axis-{0}' -f ([string]$attempt.Axis).ToLowerInvariant())
+                    FamilyId = $winnerFamilyId
+                    Addresses = @($attempt.RetrievedCeAddresses)
+                }
+            }
+
+            foreach ($bucket in $candidateBuckets) {
+                foreach ($address in @($bucket.Addresses)) {
+                    $addressHex = [string]$address
+                    if ([string]::IsNullOrWhiteSpace($addressHex)) {
+                        continue
+                    }
+
+                    if ($seen.Add($addressHex)) {
+                        $candidates.Add([pscustomobject]@{
+                                AddressHex = $addressHex
+                                Source = [string]$bucket.Source
+                                FamilyId = [string]$bucket.FamilyId
+                            }) | Out-Null
+                    }
                 }
             }
         }
@@ -297,6 +332,53 @@ function Get-TraceCandidates {
     }
 
     return @($candidates | Select-Object -First $MaxCandidates)
+}
+
+function Test-HasUsableConfirmation {
+    if (-not (Test-Path -LiteralPath $resolvedConfirmationFile)) {
+        return $false
+    }
+
+    try {
+        $confirmation = Get-Content -LiteralPath $resolvedConfirmationFile -Raw | ConvertFrom-Json -Depth 20
+        if (@($confirmation.Winner.CeConfirmedSampleAddresses).Count -gt 0) {
+            return $true
+        }
+
+        if (@($confirmation.TripletConfirmedAddresses).Count -gt 0) {
+            return $true
+        }
+
+        if (@($confirmation.Winner.SampleAddresses).Count -gt 0) {
+            return $true
+        }
+
+        foreach ($attempt in @($confirmation.Attempts)) {
+            if ($attempt.MotionObserved -and @($attempt.RetrievedCeAddresses).Count -gt 0) {
+                return $true
+            }
+        }
+
+        return $false
+    }
+    catch {
+        Write-Warning ("Unable to evaluate CE confirmation file '{0}': {1}" -f $resolvedConfirmationFile, $_.Exception.Message)
+        return $false
+    }
+}
+
+function Ensure-CeConfirmation {
+    if (Test-HasUsableConfirmation) {
+        return
+    }
+
+    try {
+        Write-Host "[CoordTrace] No usable CE-confirmed family sample is available; attempting a fresh smart capture first..." -ForegroundColor Yellow
+        & $smartCaptureScript -MovementHoldMilliseconds $MovementHoldMilliseconds | Out-Null
+    }
+    catch {
+        Write-Warning ("CE-backed smart capture failed before trace; continuing with current-player candidates only. {0}" -f $_.Exception.Message)
+    }
 }
 
 function Cleanup-Trace {
@@ -316,6 +398,8 @@ try {
     if (-not $SkipRefresh) {
         & $refreshScript -NoReader
     }
+
+    Ensure-CeConfirmation
 
     $playerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
     $traceCandidates = @(Get-TraceCandidates -PlayerRead $playerRead)
