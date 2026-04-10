@@ -18,6 +18,7 @@ Usage:
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
+  RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -42,6 +43,7 @@ Notes:
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
+  - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
@@ -65,6 +67,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -99,6 +102,12 @@ Examples:
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
         var readPlayerCoordAnchor = false;
+        var recordSession = false;
+        string? sessionWatchsetFile = null;
+        string? sessionOutputDirectory = null;
+        var sessionSampleCount = 1;
+        var sessionIntervalMilliseconds = 500;
+        string? sessionLabel = null;
         string? playerCoordTraceFile = null;
         string? captureLabel = null;
         string? captureFile = null;
@@ -217,6 +226,75 @@ Examples:
 
                 case "--cheatengine-probe":
                     writeCheatEngineProbe = true;
+                    break;
+
+                case "--record-session":
+                    recordSession = true;
+                    break;
+
+                case "--session-watchset-file":
+                    if (!TryReadNext(args, ref index, out var sessionWatchsetFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-watchset-file.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(sessionWatchsetFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Session watchset file must not be blank.", UsageText);
+                    }
+
+                    sessionWatchsetFile = sessionWatchsetFileValue;
+                    break;
+
+                case "--session-output-directory":
+                    if (!TryReadNext(args, ref index, out var sessionOutputDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-output-directory.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(sessionOutputDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Session output directory must not be blank.", UsageText);
+                    }
+
+                    sessionOutputDirectory = sessionOutputDirectoryValue;
+                    break;
+
+                case "--session-sample-count":
+                    if (!TryReadNext(args, ref index, out var sessionSampleCountValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-sample-count.", UsageText);
+                    }
+
+                    if (!int.TryParse(sessionSampleCountValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out sessionSampleCount) || sessionSampleCount <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid session sample count '{sessionSampleCountValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--session-interval-ms":
+                    if (!TryReadNext(args, ref index, out var sessionIntervalMillisecondsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-interval-ms.", UsageText);
+                    }
+
+                    if (!int.TryParse(sessionIntervalMillisecondsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out sessionIntervalMilliseconds) || sessionIntervalMilliseconds < 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid session interval '{sessionIntervalMillisecondsValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--session-label":
+                    if (!TryReadNext(args, ref index, out var sessionLabelValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-label.", UsageText);
+                    }
+
+                    sessionLabel = string.IsNullOrWhiteSpace(sessionLabelValue)
+                        ? null
+                        : sessionLabelValue.Trim();
                     break;
 
                 case "--cheatengine-probe-file":
@@ -542,6 +620,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-orientation.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --record-session.", UsageText);
+        }
+
         if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation)
         {
             return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components or --read-player-orientation.", UsageText);
@@ -554,7 +637,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
             }
@@ -576,6 +659,12 @@ Examples:
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
                     PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
@@ -606,6 +695,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Choose either --addon-snapshot or --readerbridge-snapshot, not both.", UsageText);
         }
 
+        if (rankOwnerComponents && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with --record-session.", UsageText);
+        }
+
         if (rankOwnerComponents)
         {
             if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
@@ -630,6 +724,12 @@ Examples:
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
                     PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
@@ -679,6 +779,12 @@ Examples:
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
                     PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
@@ -728,6 +834,12 @@ Examples:
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
                     PlayerCoordTraceFile: null,
                     CaptureLabel: null,
                     CaptureFile: null,
@@ -758,14 +870,44 @@ Examples:
             return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name.", UsageText);
         }
 
+        if (sessionWatchsetFile is not null && !recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--session-watchset-file can only be used with --record-session.", UsageText);
+        }
+
+        if (sessionOutputDirectory is not null && !recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--session-output-directory can only be used with --record-session.", UsageText);
+        }
+
+        if (sessionLabel is not null && !recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--session-label can only be used with --record-session.", UsageText);
+        }
+
+        if ((sessionSampleCount != 1 || sessionIntervalMilliseconds != 500) && !recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--session-sample-count and --session-interval-ms can only be used with --record-session.", UsageText);
+        }
+
+        if (recordSession && string.IsNullOrWhiteSpace(sessionWatchsetFile))
+        {
+            return ReaderOptionsParseResult.Fail("--record-session requires --session-watchset-file.", UsageText);
+        }
+
+        if (recordSession && string.IsNullOrWhiteSpace(sessionOutputDirectory))
+        {
+            return ReaderOptionsParseResult.Fail("--record-session requires --session-output-directory.", UsageText);
+        }
+
         if (scanRequested && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || recordSession || address.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, or raw memory-read switches.", UsageText);
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, record-session, or raw memory-read switches.", UsageText);
         }
 
         if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
@@ -793,6 +935,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with scan switches.", UsageText);
         }
 
+        if (recordSession && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--record-session cannot be combined with scan switches.", UsageText);
+        }
+
         if (writeCheatEngineProbe && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with raw memory-read switches.", UsageText);
@@ -811,6 +958,11 @@ Examples:
         if (readPlayerCoordAnchor && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (recordSession && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--record-session cannot be combined with raw memory-read switches.", UsageText);
         }
 
         if (captureLabel is not null && !captureReaderBridgeBestFamily)
@@ -838,6 +990,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (listModules && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --record-session.", UsageText);
+        }
+
         if (writeCheatEngineProbe && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-current.", UsageText);
@@ -863,6 +1020,26 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (writeCheatEngineProbe && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --record-session.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --record-session.", UsageText);
+        }
+
+        if (readPlayerCurrent && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --record-session.", UsageText);
+        }
+
+        if (readPlayerCoordAnchor && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --record-session.", UsageText);
+        }
+
         if (address.HasValue != length.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Specify --address and --length together.", UsageText);
@@ -885,28 +1062,34 @@ Examples:
                     CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
                     ReadPlayerCurrent: readPlayerCurrent,
                     ReadPlayerCoordAnchor: readPlayerCoordAnchor,
-                PlayerCoordTraceFile: playerCoordTraceFile,
-                CaptureLabel: captureLabel,
-                CaptureFile: captureFile,
-                ScanString: scanString,
-                ScanPointer: scanPointer,
-                ScanInt32: scanInt32,
-                ScanFloat: scanFloat,
-                ScanDouble: scanDouble,
-                ScanTolerance: scanTolerance,
-                PointerWidth: pointerWidth,
-                ScanEncoding: scanEncoding,
-                ScanContextBytes: scanContextBytes,
-                MaxHits: maxHits,
-                ScanReaderBridgePlayerName: scanReaderBridgePlayerName,
-                ScanReaderBridgePlayerCoords: scanReaderBridgePlayerCoords,
-                ScanReaderBridgePlayerSignature: scanReaderBridgePlayerSignature,
-                ScanReaderBridgeIdentity: scanReaderBridgeIdentity,
-                ReadAddonSnapshot: false,
-                AddonSnapshotFile: null,
-                ReadReaderBridgeSnapshot: false,
-                ReaderBridgeSnapshotFile: null,
-                JsonOutput: jsonOutput),
+                    RecordSession: recordSession,
+                    SessionWatchsetFile: sessionWatchsetFile,
+                    SessionOutputDirectory: sessionOutputDirectory,
+                    SessionSampleCount: sessionSampleCount,
+                    SessionIntervalMilliseconds: sessionIntervalMilliseconds,
+                    SessionLabel: sessionLabel,
+                    PlayerCoordTraceFile: playerCoordTraceFile,
+                    CaptureLabel: captureLabel,
+                    CaptureFile: captureFile,
+                    ScanString: scanString,
+                    ScanPointer: scanPointer,
+                    ScanInt32: scanInt32,
+                    ScanFloat: scanFloat,
+                    ScanDouble: scanDouble,
+                    ScanTolerance: scanTolerance,
+                    PointerWidth: pointerWidth,
+                    ScanEncoding: scanEncoding,
+                    ScanContextBytes: scanContextBytes,
+                    MaxHits: maxHits,
+                    ScanReaderBridgePlayerName: scanReaderBridgePlayerName,
+                    ScanReaderBridgePlayerCoords: scanReaderBridgePlayerCoords,
+                    ScanReaderBridgePlayerSignature: scanReaderBridgePlayerSignature,
+                    ScanReaderBridgeIdentity: scanReaderBridgeIdentity,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput),
             UsageText);
     }
 

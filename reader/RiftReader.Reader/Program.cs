@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.CheatEngine;
 using RiftReader.Reader.Cli;
@@ -7,11 +10,17 @@ using RiftReader.Reader.Memory;
 using RiftReader.Reader.Models;
 using RiftReader.Reader.Processes;
 using RiftReader.Reader.Scanning;
+using RiftReader.Reader.Sessions;
 
 namespace RiftReader.Reader;
 
 internal static class Program
 {
+    private static readonly JsonSerializerOptions NdjsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     private static int Main(string[] args)
     {
         var parseResult = ReaderOptionsParser.Parse(args);
@@ -131,7 +140,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -182,6 +191,11 @@ internal static class Program
         if (options.ReadPlayerCoordAnchor)
         {
             return RunReadPlayerCoordAnchorMode(options, process, target, reader);
+        }
+
+        if (options.RecordSession)
+        {
+            return RunRecordSessionMode(options, process, target, reader);
         }
 
         var address = options.Address!.Value;
@@ -815,6 +829,233 @@ internal static class Program
         return 0;
     }
 
+    private static int RunRecordSessionMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var watchset = SessionWatchsetLoader.TryLoad(options.SessionWatchsetFile, out var loadError);
+        if (watchset?.Regions is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the session watchset.");
+            return 1;
+        }
+
+        var outputDirectory = Path.GetFullPath(options.SessionOutputDirectory!);
+        Directory.CreateDirectory(outputDirectory);
+
+        var sessionId = new DirectoryInfo(outputDirectory).Name;
+        var watchsetFile = Path.GetFullPath(options.SessionWatchsetFile!);
+        var manifestFile = Path.Combine(outputDirectory, "recording-manifest.json");
+        var samplesFile = Path.Combine(outputDirectory, "samples.ndjson");
+        var markersFile = Path.Combine(outputDirectory, "markers.ndjson");
+        var modulesFile = Path.Combine(outputDirectory, "modules.json");
+
+        var warnings = new List<string>();
+        if (!string.IsNullOrWhiteSpace(watchset.ProcessName) &&
+            !string.Equals(watchset.ProcessName, target.ProcessName, StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add($"Watchset targets process '{watchset.ProcessName}', but the active process is '{target.ProcessName}'.");
+        }
+
+        var watchsetWarnings = watchset.Warnings?
+            .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+            .Select(static warning => warning!)
+            .ToArray()
+            ?? Array.Empty<string>();
+
+        warnings.AddRange(watchsetWarnings);
+
+        IReadOnlyList<ProcessModuleInfo> modules;
+        try
+        {
+            modules = ProcessModuleLocator.ListModules(process);
+        }
+        catch (Exception ex)
+        {
+            modules = Array.Empty<ProcessModuleInfo>();
+            warnings.Add($"Unable to enumerate modules for the session manifest: {ex.Message}");
+        }
+
+        File.WriteAllText(modulesFile, JsonOutput.Serialize(modules));
+
+        var startedAtUtc = DateTimeOffset.UtcNow;
+        var requiredReadFailures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var recordedSampleCount = 0;
+
+        using var sampleWriter = new StreamWriter(samplesFile, append: false);
+        using var markerWriter = new StreamWriter(markersFile, append: false);
+
+        var stopwatch = Stopwatch.StartNew();
+        WriteSessionMarker(
+            markerWriter,
+            new SessionMarkerRecord(
+                Kind: "session-start",
+                RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                ElapsedMilliseconds: 0,
+                Label: options.SessionLabel,
+                Message: "Session recording started."));
+
+        if (!string.IsNullOrWhiteSpace(options.SessionLabel))
+        {
+            WriteSessionMarker(
+                markerWriter,
+                new SessionMarkerRecord(
+                    Kind: "label",
+                    RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                    ElapsedMilliseconds: 0,
+                    Label: options.SessionLabel,
+                    Message: "Initial session label."));
+        }
+
+        for (var sampleIndex = 0; sampleIndex < options.SessionSampleCount; sampleIndex++)
+        {
+            if (sampleIndex > 0 && options.SessionIntervalMilliseconds > 0)
+            {
+                Thread.Sleep(options.SessionIntervalMilliseconds);
+            }
+
+            var sampleTimeUtc = DateTimeOffset.UtcNow;
+            var regions = new List<SessionRegionSampleRecord>(watchset.Regions.Count);
+
+            foreach (var region in watchset.Regions)
+            {
+                if (region is null)
+                {
+                    continue;
+                }
+
+                var regionName = string.IsNullOrWhiteSpace(region.Name)
+                    ? $"region-{regions.Count}"
+                    : region.Name!;
+                var regionCategory = string.IsNullOrWhiteSpace(region.Category)
+                    ? "memory"
+                    : region.Category!;
+
+                if (!TryParseSessionAddress(region.Address, out var regionAddress))
+                {
+                    regions.Add(new SessionRegionSampleRecord(
+                        Name: regionName,
+                        Category: regionCategory,
+                        Address: region.Address ?? string.Empty,
+                        Length: region.Length,
+                        Required: region.Required,
+                        ReadSucceeded: false,
+                        BytesRead: 0,
+                        BytesHex: null,
+                        Error: $"Invalid address '{region.Address}'."));
+
+                    if (region.Required)
+                    {
+                        requiredReadFailures.Add(regionName);
+                    }
+
+                    continue;
+                }
+
+                var readSucceeded = reader.TryReadBytes(regionAddress, region.Length, out var bytes, out var readError);
+                var bytesHex = bytes.Length > 0
+                    ? Convert.ToHexString(bytes)
+                    : null;
+
+                regions.Add(new SessionRegionSampleRecord(
+                    Name: regionName,
+                    Category: regionCategory,
+                    Address: $"0x{regionAddress.ToInt64():X}",
+                    Length: region.Length,
+                    Required: region.Required,
+                    ReadSucceeded: readSucceeded,
+                    BytesRead: bytes.Length,
+                    BytesHex: bytesHex,
+                    Error: readError));
+
+                if (region.Required && !readSucceeded)
+                {
+                    requiredReadFailures.Add(regionName);
+                }
+            }
+
+            var sample = new SessionSampleRecord(
+                SampleIndex: sampleIndex,
+                RecordedAtUtc: sampleTimeUtc.ToString("O", CultureInfo.InvariantCulture),
+                ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                Regions: regions);
+
+            sampleWriter.WriteLine(JsonSerializer.Serialize(sample, NdjsonOptions));
+            sampleWriter.Flush();
+            recordedSampleCount++;
+        }
+
+        var completedAtUtc = DateTimeOffset.UtcNow;
+        WriteSessionMarker(
+            markerWriter,
+            new SessionMarkerRecord(
+                Kind: "session-end",
+                RecordedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                Label: options.SessionLabel,
+                Message: "Session recording completed."));
+        markerWriter.Flush();
+
+        if (requiredReadFailures.Count > 0)
+        {
+            warnings.Add($"Required watchset regions had read failures: {string.Join(", ", requiredReadFailures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))}");
+        }
+
+        var result = new SessionRecordResult(
+            Mode: "record-session",
+            SessionId: sessionId,
+            OutputDirectory: outputDirectory,
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            ModuleName: target.ModuleName,
+            MainWindowTitle: target.MainWindowTitle,
+            WatchsetFile: watchsetFile,
+            WatchsetRegionCount: watchset.Regions.Count,
+            RequestedSampleCount: options.SessionSampleCount,
+            RecordedSampleCount: recordedSampleCount,
+            IntervalMilliseconds: options.SessionIntervalMilliseconds,
+            Label: options.SessionLabel,
+            StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            ManifestFile: manifestFile,
+            SamplesFile: samplesFile,
+            MarkersFile: markersFile,
+            ModulesFile: modulesFile,
+            Modules: modules,
+            WatchsetWarnings: watchsetWarnings,
+            Warnings: warnings
+                .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+
+        File.WriteAllText(manifestFile, JsonOutput.Serialize(result));
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine($"Session recorded: {result.SessionId}");
+        Console.WriteLine($"Output directory: {result.OutputDirectory}");
+        Console.WriteLine($"Watchset file:    {result.WatchsetFile}");
+        Console.WriteLine($"Samples:          {result.RecordedSampleCount}/{result.RequestedSampleCount} at {result.IntervalMilliseconds} ms");
+        Console.WriteLine($"Regions:          {result.WatchsetRegionCount}");
+        Console.WriteLine($"Manifest:         {result.ManifestFile}");
+        Console.WriteLine($"Samples file:     {result.SamplesFile}");
+        Console.WriteLine($"Markers file:     {result.MarkersFile}");
+
+        if (result.Warnings.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Warnings:");
+            foreach (var warning in result.Warnings)
+            {
+                Console.WriteLine($"- {warning}");
+            }
+        }
+
+        return 0;
+    }
+
     private static bool TryBuildReaderBridgeIdentitySearchText(
         ReaderBridgeSnapshotDocument? document,
         out string searchText,
@@ -873,5 +1114,48 @@ internal static class Program
         }
 
         return null;
+    }
+
+    private static void WriteSessionMarker(StreamWriter writer, SessionMarkerRecord marker)
+    {
+        writer.WriteLine(JsonSerializer.Serialize(marker, NdjsonOptions));
+    }
+
+    private static bool TryParseSessionAddress(string? value, out nint address)
+    {
+        address = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        long parsedValue;
+        if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!long.TryParse(value[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parsedValue))
+            {
+                return false;
+            }
+        }
+        else if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedValue))
+        {
+            return false;
+        }
+
+        if (parsedValue <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            address = checked((nint)parsedValue);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 }
