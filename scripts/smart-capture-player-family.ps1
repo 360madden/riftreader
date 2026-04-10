@@ -49,7 +49,8 @@ function Invoke-CeNumeric {
 
     $valueText = [string]($result | Select-Object -Last 1)
     if ($Signed) {
-        return [Int64]::Parse($valueText, [System.Globalization.CultureInfo]::InvariantCulture)
+        $unsignedValue = [UInt64]::Parse($valueText, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [BitConverter]::ToInt64([BitConverter]::GetBytes($unsignedValue), 0)
     }
 
     return [UInt64]::Parse($valueText, [System.Globalization.CultureInfo]::InvariantCulture)

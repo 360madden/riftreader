@@ -53,7 +53,7 @@ if (-not $NoReaderBridgeRefresh) {
 }
 
 Invoke-DiscoveryStep -Name 'capture-player-source-chain' -Action {
-    & $sourceChainScript
+    & $sourceChainScript -RefreshCluster
 }
 
 Invoke-DiscoveryStep -Name 'trace-player-selector-owner' -Action {
