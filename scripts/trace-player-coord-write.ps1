@@ -255,20 +255,21 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
 
 function Get-TraceCandidates {
     param(
-        [Parameter(Mandatory = $true)]
         [pscustomobject]$PlayerRead
     )
 
     $candidates = New-Object System.Collections.Generic.List[object]
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    $currentAddressHex = [string]$PlayerRead.Memory.AddressHex
-    if (-not [string]::IsNullOrWhiteSpace($currentAddressHex) -and $seen.Add($currentAddressHex)) {
-        $candidates.Add([pscustomobject]@{
-            AddressHex = $currentAddressHex
-            Source = 'player-current'
-            FamilyId = [string]$PlayerRead.FamilyId
-        }) | Out-Null
+    if ($null -ne $PlayerRead -and $null -ne $PlayerRead.Memory) {
+        $currentAddressHex = [string]$PlayerRead.Memory.AddressHex
+        if (-not [string]::IsNullOrWhiteSpace($currentAddressHex) -and $seen.Add($currentAddressHex)) {
+            $candidates.Add([pscustomobject]@{
+                AddressHex = $currentAddressHex
+                Source = 'player-current'
+                FamilyId = [string]$PlayerRead.FamilyId
+            }) | Out-Null
+        }
     }
 
     if (Test-Path -LiteralPath $resolvedConfirmationFile) {
@@ -401,9 +402,22 @@ try {
 
     Ensure-CeConfirmation
 
-    $playerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+    $playerRead = $null
+    $playerReadError = $null
+    try {
+        $playerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+    }
+    catch {
+        $playerReadError = $_.Exception.Message
+        Write-Warning ("Unable to refresh the current-player snapshot before trace; continuing with CE-derived candidates only. {0}" -f $playerReadError)
+    }
+
     $traceCandidates = @(Get-TraceCandidates -PlayerRead $playerRead)
     if ($traceCandidates.Count -le 0) {
+        if (-not [string]::IsNullOrWhiteSpace($playerReadError)) {
+            throw "No coord trace candidates were available after the current-player snapshot failed. $playerReadError"
+        }
+
         throw "No coord trace candidates were available."
     }
 
@@ -484,6 +498,7 @@ try {
         Mode = 'player-coord-write-trace'
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
         SourceObjectRegisterValue = $(if ($null -ne $traceStatus.Registers) { [string]$traceStatus.Registers.RDI } else { $null })
+        ReaderError = $playerReadError
         Reader = $playerRead
         Candidates = [ordered]@{
             ConfirmationFile = $resolvedConfirmationFile
