@@ -22,9 +22,11 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $refreshDiscoveryChainScript = Join-Path $PSScriptRoot 'refresh-discovery-chain.ps1'
 $refreshProjectorTraceScript = Join-Path $PSScriptRoot 'trace-player-state-projector.ps1'
+$ownerStateNeighborhoodScript = Join-Path $PSScriptRoot 'capture-owner-state-neighborhood.ps1'
 $watchsetScript = Join-Path $PSScriptRoot 'export-discovery-watchset.ps1'
 $consistencyScript = Join-Path $PSScriptRoot 'inspect-capture-consistency.ps1'
 $capturesRoot = Join-Path $PSScriptRoot 'captures'
+$ownerStateNeighborhoodFile = Join-Path $capturesRoot 'owner-state-neighborhood.json'
 
 if ($SampleCount -le 0) {
     throw "SampleCount must be greater than zero."
@@ -124,6 +126,15 @@ if ($RefreshProjectorTrace) {
     }
 }
 
+if ($RefreshProjectorTrace -or -not (Test-Path -LiteralPath $ownerStateNeighborhoodFile)) {
+    try {
+        & $ownerStateNeighborhoodScript -Json | Out-Null
+    }
+    catch {
+        $warnings.Add("Owner-state neighborhood capture failed before session capture: $($_.Exception.Message)") | Out-Null
+    }
+}
+
 try {
     & $consistencyScript -Json | Set-Content -LiteralPath $consistencyFile -Encoding UTF8
 }
@@ -145,7 +156,11 @@ catch {
 }
 
 $artifactNames = @(
+    'ce-family-neighborhood.json',
+    'ce-smart-player-family.json',
+    'owner-state-neighborhood.json',
     'player-current-anchor.json',
+    'player-coord-trace-cluster.json',
     'player-selector-owner-trace.json',
     'player-owner-components.json',
     'player-owner-graph.json',

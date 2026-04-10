@@ -153,6 +153,9 @@ if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
 
 $cluster = Get-Content -LiteralPath $resolvedClusterFile -Raw | ConvertFrom-Json -Depth 30
 $instructions = @($cluster.Instructions)
+$clusterSourceObjectAddress = [string]$cluster.Anchor.SourceObjectAddress
+$clusterSourceObjectRegister = [string]$cluster.Anchor.SourceObjectRegister
+$clusterSourceObjectRegisterValue = [string]$cluster.Anchor.SourceObjectRegisterValue
 
 $sourceContainerLoad = Get-RequiredInstruction -Instructions $instructions -Description 'source container load' -Predicate {
     $_.Opcode -eq 'mov rcx,[rax+78]'
@@ -316,10 +319,15 @@ $result = [ordered]@{
     Mode = 'player-source-chain'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     ClusterFile = $resolvedClusterFile
+    SourceObjectAddress = $clusterSourceObjectAddress
+    SelectedSourceAddress = $clusterSourceObjectAddress
     ClusterSummary = [ordered]@{
         TraceInstruction = $cluster.Anchor.InstructionAddress
         ClusterPatternAddress = $cluster.SuggestedClusterScan.Address
         ClusterPatternOffset = $cluster.SuggestedClusterScan.RelativeOffsetHex
+        SourceObjectRegister = $clusterSourceObjectRegister
+        SourceObjectRegisterValue = $clusterSourceObjectRegisterValue
+        SourceObjectAddress = $clusterSourceObjectAddress
     }
     SourceChain = [ordered]@{
         SourceContainerLoad = $sourceContainerLoad
