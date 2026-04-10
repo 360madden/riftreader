@@ -6,6 +6,8 @@ param(
     [int]$ObjectWindowBytes = 384,
     [int]$StateWindowBytes = 256,
     [int]$HubWindowBytes = 512,
+    [int]$CombatFieldWindowBytes = 32,
+    [int]$MaxOffsetsPerField = 4,
     [switch]$Json
 )
 
@@ -230,6 +232,63 @@ function Add-Warning {
     }
 }
 
+function Add-HubFieldRegions {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Hub,
+
+        [Parameter(Mandatory = $true)]
+        [int]$HubRank,
+
+        [Parameter(Mandatory = $true)]
+        [string]$HubCategory,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SourceArtifactFile
+    )
+
+    $hubAddressText = [string]$Hub.Address
+    if ([string]::IsNullOrWhiteSpace($hubAddressText)) {
+        return
+    }
+
+    $fieldMap = @(
+        @{ Property = 'LevelOffsets'; Label = 'level'; Priority = 78; Notes = 'Candidate level field neighborhood within ranked shared hub.' },
+        @{ Property = 'HpOffsets'; Label = 'hp'; Priority = 82; Notes = 'Candidate health field neighborhood within ranked shared hub.' },
+        @{ Property = 'HpMaxOffsets'; Label = 'hpmax'; Priority = 80; Notes = 'Candidate max-health field neighborhood within ranked shared hub.' },
+        @{ Property = 'ResourceOffsets'; Label = 'resource'; Priority = 81; Notes = 'Candidate primary-resource field neighborhood within ranked shared hub.' },
+        @{ Property = 'ResourceMaxOffsets'; Label = 'resource-max'; Priority = 79; Notes = 'Candidate max-resource field neighborhood within ranked shared hub.' },
+        @{ Property = 'ComboOffsets'; Label = 'combo'; Priority = 74; Notes = 'Candidate combo/counter field neighborhood within ranked shared hub.' },
+        @{ Property = 'PlanarMaxOffsets'; Label = 'planar-max'; Priority = 72; Notes = 'Candidate planar/capacity field neighborhood within ranked shared hub.' },
+        @{ Property = 'OwnerOffsets'; Label = 'owner-backref'; Priority = 66; Notes = 'Owner-backreference field neighborhood within ranked shared hub.' },
+        @{ Property = 'StateOffsets'; Label = 'state-backref'; Priority = 65; Notes = 'State-backreference field neighborhood within ranked shared hub.' },
+        @{ Property = 'SourceOffsets'; Label = 'source-backref'; Priority = 64; Notes = 'Source-backreference field neighborhood within ranked shared hub.' }
+    )
+
+    foreach ($field in $fieldMap) {
+        $property = $Hub.PSObject.Properties[$field.Property]
+        if ($null -eq $property -or $null -eq $property.Value) {
+            continue
+        }
+
+        $offsetCount = 0
+        foreach ($offsetText in @($property.Value)) {
+            if ($offsetCount -ge $MaxOffsetsPerField) {
+                break
+            }
+
+            $offsetString = [string]$offsetText
+            if ([string]::IsNullOrWhiteSpace($offsetString)) {
+                continue
+            }
+
+            $offsetValue = [long](Parse-HexUInt64 -Value $offsetString)
+            Add-OffsetRegion -Name ('shared-hub-{0}-{1}-{2}' -f $HubRank, $field.Label, ($offsetString -replace '^0x', '')) -Category ('{0}-{1}' -f $HubCategory, $field.Label) -BaseAddress $hubAddressText -Offset $offsetValue -Length $CombatFieldWindowBytes -Required $false -Priority ([Math]::Max(1, ([int]$field.Priority - ($HubRank - 1)))) -SourceArtifactFile $SourceArtifactFile -Notes ('{0} Offset {1} within ranked shared hub #{2}.' -f $field.Notes, $offsetString, $HubRank)
+            $offsetCount++
+        }
+    }
+}
+
 $ownerComponentsFile = Join-Path $capturesRoot 'player-owner-components.json'
 $selectorTraceFile = Join-Path $capturesRoot 'player-selector-owner-trace.json'
 $sourceAccessorFile = Join-Path $capturesRoot 'player-source-accessor-family.json'
@@ -245,7 +304,7 @@ $selectorTrace = Read-JsonArtifact -Path $selectorTraceFile -Role 'selector-owne
 $sourceAccessorFamily = Read-JsonArtifact -Path $sourceAccessorFile -Role 'source-accessor-family' -Optional
 $statHubGraph = Read-JsonArtifact -Path $statHubGraphFile -Role 'stat-hub-graph' -Optional
 $currentAnchor = Read-JsonArtifact -Path $currentAnchorFile -Role 'current-anchor' -Optional
-$null = Read-JsonArtifact -Path $ownerGraphFile -Role 'owner-graph' -Optional
+$ownerGraph = Read-JsonArtifact -Path $ownerGraphFile -Role 'owner-graph' -Optional
 $null = Read-JsonArtifact -Path $sourceChainFile -Role 'source-chain' -Optional
 $null = Read-JsonArtifact -Path $coordTraceFile -Role 'coord-write-trace' -Optional
 $null = Read-JsonArtifact -Path $projectorTraceFile -Role 'state-projector-trace' -Optional
@@ -321,6 +380,30 @@ if ($selectedEntry -and -not [string]::IsNullOrWhiteSpace($containerAddress)) {
     Add-OffsetRegion -Name 'selected-source-slot' -Category 'owner-container-slot' -BaseAddress $containerAddress -Offset $slotOffset -Length 8 -Required $true -Priority 92 -SourceArtifactFile $ownerArtifactFile -Notes ('Container slot for selected source index {0}.' -f $selectedEntry.Index)
 }
 
+if ($ownerGraph) {
+    $wrapperRank = 0
+    $wrapperMap = [ordered]@{}
+    foreach ($child in @($ownerGraph.Children | Where-Object { [string]$_.Role -eq 'owner-state-wrapper' } | Sort-Object OwnerOffset)) {
+        $wrapperAddress = [string]$child.Address
+        if ([string]::IsNullOrWhiteSpace($wrapperAddress)) {
+            continue
+        }
+
+        if (-not $wrapperMap.Contains($wrapperAddress)) {
+            $wrapperMap[$wrapperAddress] = $child
+        }
+    }
+
+    foreach ($wrapper in @($wrapperMap.Values)) {
+        if ($null -eq $wrapper -or [string]::IsNullOrWhiteSpace([string]$wrapper.Address)) {
+            continue
+        }
+
+        $wrapperRank++
+        Add-Region -Name ('owner-state-wrapper-{0}' -f $wrapperRank) -Category 'owner-state-wrapper' -Address (Parse-HexUInt64 -Value ([string]$wrapper.Address)) -Length $ObjectWindowBytes -Required $false -Priority (84 - $wrapperRank) -SourceArtifactFile ([System.IO.Path]::GetFullPath($ownerGraphFile)) -Notes ('Owner-linked state wrapper discovered in the owner graph at offset {0}.' -f [string]$wrapper.OwnerOffsetHex)
+    }
+}
+
 if ($statHubGraph) {
     $lineageMatches = ([string]$statHubGraph.SelectedSourceAddress).Equals($selectedSourceAddress, [System.StringComparison]::OrdinalIgnoreCase)
 
@@ -348,6 +431,7 @@ if ($statHubGraph) {
         }
 
         Add-Region -Name ('shared-hub-{0}' -f $hubRank) -Category ($(if ($lineageMatches) { 'stat-hub' } else { 'stat-hub-stale' })) -Address (Parse-HexUInt64 -Value ([string]$hub.Address)) -Length $HubWindowBytes -Required $false -Priority (60 - $hubRank) -SourceArtifactFile $statArtifactFile -Notes $note
+        Add-HubFieldRegions -Hub $hub -HubRank $hubRank -HubCategory $(if ($lineageMatches) { 'stat-hub-field' } else { 'stat-hub-stale-field' }) -SourceArtifactFile $statArtifactFile
     }
 }
 

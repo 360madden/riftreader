@@ -7,6 +7,7 @@ param(
     [int]$IntervalMilliseconds = 500,
     [int]$TopSharedHubs = 4,
     [string]$SessionRoot = (Join-Path $PSScriptRoot 'sessions'),
+    [switch]$RefreshDiscoveryChain,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [switch]$Json
@@ -18,6 +19,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
+$refreshDiscoveryChainScript = Join-Path $PSScriptRoot 'refresh-discovery-chain.ps1'
 $watchsetScript = Join-Path $PSScriptRoot 'export-discovery-watchset.ps1'
 $consistencyScript = Join-Path $PSScriptRoot 'inspect-capture-consistency.ps1'
 $capturesRoot = Join-Path $PSScriptRoot 'captures'
@@ -74,7 +76,20 @@ New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
 $warnings = [System.Collections.Generic.List[string]]::new()
 $copiedArtifacts = [System.Collections.Generic.List[object]]::new()
 
-if ($RefreshReaderBridge) {
+if ($RefreshDiscoveryChain) {
+    try {
+        $chainArguments = @{}
+        if (-not $RefreshReaderBridge) {
+            $chainArguments['NoReaderBridgeRefresh'] = $true
+        }
+
+        & $refreshDiscoveryChainScript @chainArguments
+    }
+    catch {
+        $warnings.Add("Discovery-chain refresh failed before session capture: $($_.Exception.Message)") | Out-Null
+    }
+}
+elseif ($RefreshReaderBridge) {
     try {
         $refreshArguments = @{
             NoReader = $true
