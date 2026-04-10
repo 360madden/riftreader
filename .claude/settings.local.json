@@ -4,7 +4,10 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet run:*)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('Current',{}\\).get\\('Player',{}\\), indent=2\\)\\)\")",
-      "Bash(ls -ltr scripts/captures/*actor-orientation*)"
+      "Bash(ls -ltr scripts/captures/*actor-orientation*)",
+      "Bash(scripts/read-player-current.cmd)",
+      "Bash(tasklist)",
+      "Bash(reader/RiftReader.Reader/bin/Release/net10.0/RiftReader.exe --process-name rift_x64 --read-player-current --json)"
     ]
   }
 }
