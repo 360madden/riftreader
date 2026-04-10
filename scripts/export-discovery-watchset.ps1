@@ -8,6 +8,7 @@ param(
     [int]$ProjectorSlotWindowBytes = 216,
     [int]$HubWindowBytes = 512,
     [int]$CombatFieldWindowBytes = 32,
+    [int]$OwnerStateFollowPointerWindowBytes = 128,
     [int]$MaxOffsetsPerField = 4,
     [switch]$Json
 )
@@ -351,10 +352,73 @@ function Add-ProjectorSlotRegions {
     }
 }
 
+function Add-OwnerStateFollowPointerRegions {
+    param(
+        [Parameter(Mandatory = $true)]
+        $OwnerStateNeighborhood,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SourceArtifactFile
+    )
+
+    if ($null -eq $OwnerStateNeighborhood) {
+        return
+    }
+
+    $targetMap = [ordered]@{}
+    foreach ($slot in @($OwnerStateNeighborhood.Slots)) {
+        if ($null -eq $slot) {
+            continue
+        }
+
+        $slotLabel = [string]$slot.Label
+        foreach ($followPointer in @($slot.FollowPointers)) {
+            if ($null -eq $followPointer -or [string]::IsNullOrWhiteSpace([string]$followPointer.Address)) {
+                continue
+            }
+
+            $addressText = [string]$followPointer.Address
+            $targetKey = $addressText.ToUpperInvariant()
+            if (-not $targetMap.Contains($targetKey)) {
+                $targetMap[$targetKey] = [ordered]@{
+                    Address = $addressText
+                    SlotLabels = [System.Collections.Generic.List[string]]::new()
+                    SourceOffsets = [System.Collections.Generic.List[string]]::new()
+                }
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($slotLabel) -and -not $targetMap[$targetKey].SlotLabels.Contains($slotLabel)) {
+                $targetMap[$targetKey].SlotLabels.Add($slotLabel) | Out-Null
+            }
+
+            $sourceOffset = [string]$followPointer.SourceOffsetHex
+            if (-not [string]::IsNullOrWhiteSpace($sourceOffset) -and -not $targetMap[$targetKey].SourceOffsets.Contains($sourceOffset)) {
+                $targetMap[$targetKey].SourceOffsets.Add($sourceOffset) | Out-Null
+            }
+        }
+    }
+
+    $rank = 0
+    foreach ($target in @($targetMap.Values)) {
+        if ($null -eq $target -or [string]::IsNullOrWhiteSpace([string]$target.Address)) {
+            continue
+        }
+
+        $rank++
+        $slotLabels = @($target.SlotLabels | Select-Object -Unique)
+        $sourceOffsets = @($target.SourceOffsets | Select-Object -Unique)
+        $labelText = if ($slotLabels.Count -gt 0) { $slotLabels -join ', ' } else { 'unlabeled slot' }
+        $offsetText = if ($sourceOffsets.Count -gt 0) { $sourceOffsets -join ', ' } else { 'unknown offsets' }
+
+        Add-Region -Name ('owner-state-follow-pointer-{0}' -f $rank) -Category 'owner-state-follow-pointer' -Address (Parse-HexUInt64 -Value ([string]$target.Address)) -Length $OwnerStateFollowPointerWindowBytes -Required $false -Priority (77 - $rank) -SourceArtifactFile $SourceArtifactFile -Notes ('Owner-state follow-pointer target from {0} at {1}.' -f $labelText, $offsetText)
+    }
+}
+
 $ownerComponentsFile = Join-Path $capturesRoot 'player-owner-components.json'
 $selectorTraceFile = Join-Path $capturesRoot 'player-selector-owner-trace.json'
 $sourceAccessorFile = Join-Path $capturesRoot 'player-source-accessor-family.json'
 $statHubGraphFile = Join-Path $capturesRoot 'player-stat-hub-graph.json'
+$ownerStateNeighborhoodFile = Join-Path $capturesRoot 'owner-state-neighborhood.json'
 $currentAnchorFile = Join-Path $capturesRoot 'player-current-anchor.json'
 $ownerGraphFile = Join-Path $capturesRoot 'player-owner-graph.json'
 $sourceChainFile = Join-Path $capturesRoot 'player-source-chain.json'
@@ -365,6 +429,7 @@ $ownerComponents = Read-JsonArtifact -Path $ownerComponentsFile -Role 'owner-com
 $selectorTrace = Read-JsonArtifact -Path $selectorTraceFile -Role 'selector-owner-trace' -Optional
 $sourceAccessorFamily = Read-JsonArtifact -Path $sourceAccessorFile -Role 'source-accessor-family' -Optional
 $statHubGraph = Read-JsonArtifact -Path $statHubGraphFile -Role 'stat-hub-graph' -Optional
+$ownerStateNeighborhood = Read-JsonArtifact -Path $ownerStateNeighborhoodFile -Role 'owner-state-neighborhood' -Optional
 $currentAnchor = Read-JsonArtifact -Path $currentAnchorFile -Role 'current-anchor' -Optional
 $ownerGraph = Read-JsonArtifact -Path $ownerGraphFile -Role 'owner-graph' -Optional
 $null = Read-JsonArtifact -Path $sourceChainFile -Role 'source-chain' -Optional
@@ -439,6 +504,10 @@ if (-not [string]::IsNullOrWhiteSpace($stateRecordAddress)) {
 
 if ($projectorTrace) {
     Add-ProjectorSlotRegions -ProjectorTrace $projectorTrace -SourceArtifactFile ([System.IO.Path]::GetFullPath($projectorTraceFile))
+}
+
+if ($ownerStateNeighborhood) {
+    Add-OwnerStateFollowPointerRegions -OwnerStateNeighborhood $ownerStateNeighborhood -SourceArtifactFile ([System.IO.Path]::GetFullPath($ownerStateNeighborhoodFile))
 }
 
 $selectedEntry = $null
