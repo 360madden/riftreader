@@ -5,6 +5,7 @@ param(
     [int]$TopSharedHubs = 4,
     [int]$ObjectWindowBytes = 384,
     [int]$StateWindowBytes = 256,
+    [int]$ProjectorSlotWindowBytes = 216,
     [int]$HubWindowBytes = 512,
     [int]$CombatFieldWindowBytes = 32,
     [int]$MaxOffsetsPerField = 4,
@@ -289,6 +290,67 @@ function Add-HubFieldRegions {
     }
 }
 
+function Add-ProjectorSlotRegions {
+    param(
+        [Parameter(Mandatory = $true)]
+        $ProjectorTrace,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SourceArtifactFile
+    )
+
+    if ($null -eq $ProjectorTrace -or $null -eq $ProjectorTrace.Owner) {
+        return
+    }
+
+    $slotDefinitions = @(
+        @{ Property = 'StateSlot50'; Offset = '0x50'; Priority = 83; Notes = 'Projector-traced owner state slot pointer at +0x50.' },
+        @{ Property = 'StateSlot58'; Offset = '0x58'; Priority = 82; Notes = 'Projector-traced owner state slot pointer at +0x58.' },
+        @{ Property = 'StateSlot60'; Offset = '0x60'; Priority = 81; Notes = 'Projector-traced owner state slot pointer at +0x60.' }
+    )
+
+    $slotMap = [ordered]@{}
+    foreach ($definition in $slotDefinitions) {
+        $property = $ProjectorTrace.Owner.PSObject.Properties[$definition.Property]
+        if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+            continue
+        }
+
+        $slotAddressText = [string]$property.Value
+        $slotKey = $slotAddressText.ToUpperInvariant()
+        if (-not $slotMap.Contains($slotKey)) {
+            $slotMap[$slotKey] = [ordered]@{
+                Address = $slotAddressText
+                Offsets = [System.Collections.Generic.List[string]]::new()
+                Notes = [System.Collections.Generic.List[string]]::new()
+                Priority = [int]$definition.Priority
+            }
+        }
+
+        $slotMap[$slotKey].Offsets.Add($definition.Offset) | Out-Null
+        $slotMap[$slotKey].Notes.Add($definition.Notes) | Out-Null
+        $slotMap[$slotKey].Priority = [Math]::Max([int]$slotMap[$slotKey].Priority, [int]$definition.Priority)
+    }
+
+    foreach ($slot in @($slotMap.Values)) {
+        if ($null -eq $slot -or [string]::IsNullOrWhiteSpace([string]$slot.Address)) {
+            continue
+        }
+
+        $offsetLabels = @($slot.Offsets | Select-Object -Unique)
+        $offsetSuffix = (($offsetLabels | ForEach-Object { $_ -replace '^0x', '' }) -join '-').ToLowerInvariant()
+        $slotNotes = @($slot.Notes | Select-Object -Unique)
+        $note = if ($slotNotes.Count -gt 0) {
+            '{0} Combined slot offsets: {1}.' -f ($slotNotes[0]), ($offsetLabels -join ', ')
+        }
+        else {
+            'Projector-traced owner state slot.'
+        }
+
+        Add-Region -Name ('owner-state-slot-{0}' -f $offsetSuffix) -Category 'owner-state-slot' -Address (Parse-HexUInt64 -Value ([string]$slot.Address)) -Length $ProjectorSlotWindowBytes -Required $false -Priority ([int]$slot.Priority) -SourceArtifactFile $SourceArtifactFile -Notes $note
+    }
+}
+
 $ownerComponentsFile = Join-Path $capturesRoot 'player-owner-components.json'
 $selectorTraceFile = Join-Path $capturesRoot 'player-selector-owner-trace.json'
 $sourceAccessorFile = Join-Path $capturesRoot 'player-source-accessor-family.json'
@@ -307,7 +369,7 @@ $currentAnchor = Read-JsonArtifact -Path $currentAnchorFile -Role 'current-ancho
 $ownerGraph = Read-JsonArtifact -Path $ownerGraphFile -Role 'owner-graph' -Optional
 $null = Read-JsonArtifact -Path $sourceChainFile -Role 'source-chain' -Optional
 $null = Read-JsonArtifact -Path $coordTraceFile -Role 'coord-write-trace' -Optional
-$null = Read-JsonArtifact -Path $projectorTraceFile -Role 'state-projector-trace' -Optional
+$projectorTrace = Read-JsonArtifact -Path $projectorTraceFile -Role 'state-projector-trace' -Optional
 
 $selectedSourceAddress = [string]$ownerComponents.Owner.SelectedSourceAddress
 $ownerAddress = [string]$ownerComponents.Owner.Address
@@ -339,6 +401,18 @@ if ($statHubGraph) {
     }
 }
 
+if ($projectorTrace) {
+    $projectorOwnerAddress = [string]$projectorTrace.Owner.Address
+    if (-not [string]::IsNullOrWhiteSpace($projectorOwnerAddress) -and -not $projectorOwnerAddress.Equals($ownerAddress, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-Warning "State-projector trace owner '$projectorOwnerAddress' differs from owner-components owner '$ownerAddress'. Projector slots were included as optional stale-run regions."
+    }
+
+    $projectorStateRecordAddress = [string]$projectorTrace.Owner.StateRecordAddress
+    if (-not [string]::IsNullOrWhiteSpace($projectorStateRecordAddress) -and -not $projectorStateRecordAddress.Equals($stateRecordAddress, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-Warning "State-projector trace state record '$projectorStateRecordAddress' differs from owner-components state record '$stateRecordAddress'. Projector slots were included as optional stale-run regions."
+    }
+}
+
 $ownerArtifactFile = [System.IO.Path]::GetFullPath($ownerComponentsFile)
 $sourceArtifactFile = if ($sourceAccessorFamily) { [System.IO.Path]::GetFullPath($sourceAccessorFile) } else { $ownerArtifactFile }
 $selectorArtifactFile = if ($selectorTrace) { [System.IO.Path]::GetFullPath($selectorTraceFile) } else { $ownerArtifactFile }
@@ -361,6 +435,10 @@ if (-not [string]::IsNullOrWhiteSpace($containerAddress)) {
 
 if (-not [string]::IsNullOrWhiteSpace($stateRecordAddress)) {
     Add-Region -Name 'owner-state-record' -Category 'owner-state' -Address (Parse-HexUInt64 -Value $stateRecordAddress) -Length $StateWindowBytes -Required $true -Priority 85 -SourceArtifactFile $ownerArtifactFile -Notes 'Owner-linked state record sampled alongside the selected source.'
+}
+
+if ($projectorTrace) {
+    Add-ProjectorSlotRegions -ProjectorTrace $projectorTrace -SourceArtifactFile ([System.IO.Path]::GetFullPath($projectorTraceFile))
 }
 
 $selectedEntry = $null

@@ -175,14 +175,14 @@ foreach ($file in $captureFiles) {
     }
 
     $mode = if ($null -ne $document) { Format-Value (Get-FirstValue $document @('Mode', 'mode')) } else { 'n/a' }
-    $generatedAtUtc = Try-ParseDateTimeOffset (Get-FirstValue $document @('GeneratedAtUtc', 'generatedAtUtc'))
+    $generatedAtUtc = Try-ParseDateTimeOffset (Get-FirstValue $document @('GeneratedAtUtc', 'generatedAtUtc', 'SavedAtUtc', 'savedAtUtc'))
     $loadedAtUtc = Try-ParseDateTimeOffset (Get-FirstValue $document @('LoadedAtUtc', 'loadedAtUtc'))
     $sourceFile = Format-Value (Get-FirstValue $document @('SourceFile', 'sourceFile', 'ReaderBridgeSourceFile', 'Reader.SourceFile', 'ClusterFile', 'TraceFile', 'SelectorTraceFile'))
     $processName = Format-Value (Get-FirstValue $document @('ProcessName', 'processName', 'Reader.ProcessName', 'Trace.ProcessName', 'Owner.ProcessName'))
     $processId = Get-FirstValue $document @('ProcessId', 'processId', 'Reader.ProcessId', 'Trace.ProcessId', 'Owner.ProcessId')
     $ownerAddress = Normalize-Hex (Get-FirstValue $document @('Owner.Address', 'Owner.ObjectAddress', 'OwnerAddress', 'ownerAddress'))
     $containerAddress = Normalize-Hex (Get-FirstValue $document @('Owner.ContainerAddress', 'ContainerAddress', 'containerAddress'))
-    $selectedSourceAddress = Normalize-Hex (Get-FirstValue $document @('SelectedSource.Address', 'Owner.SelectedSourceAddress', 'SelectedSourceAddress', 'SourceObjectAddress', 'SourceObjectRegisterValue'))
+    $selectedSourceAddress = Normalize-Hex (Get-FirstValue $document @('SelectedSource.Address', 'Owner.SelectedSourceAddress', 'SelectedSourceAddress', 'PreferredSourceAddress', 'SourceObjectAddress', 'SourceObjectRegisterValue'))
     $stateRecordAddress = Normalize-Hex (Get-FirstValue $document @('Owner.StateRecordAddress', 'StateRecordAddress', 'StateSlot50', 'StateSlot58', 'StateSlot60'))
     $selectedEntryAddress = Normalize-Hex (Get-FirstValue $document @('SelectedEntry.Address', 'SelectedEntryAddress'))
     $sourceObjectAddress = Normalize-Hex (Get-FirstValue $document @('SourceObjectAddress', 'SelectedSourceAddress', 'SourceObjectRegisterValue'))

@@ -8,6 +8,7 @@ param(
     [int]$TopSharedHubs = 4,
     [string]$SessionRoot = (Join-Path $PSScriptRoot 'sessions'),
     [switch]$RefreshDiscoveryChain,
+    [switch]$RefreshProjectorTrace,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [switch]$Json
@@ -20,6 +21,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $refreshDiscoveryChainScript = Join-Path $PSScriptRoot 'refresh-discovery-chain.ps1'
+$refreshProjectorTraceScript = Join-Path $PSScriptRoot 'trace-player-state-projector.ps1'
 $watchsetScript = Join-Path $PSScriptRoot 'export-discovery-watchset.ps1'
 $consistencyScript = Join-Path $PSScriptRoot 'inspect-capture-consistency.ps1'
 $capturesRoot = Join-Path $PSScriptRoot 'captures'
@@ -75,6 +77,7 @@ New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
 
 $warnings = [System.Collections.Generic.List[string]]::new()
 $copiedArtifacts = [System.Collections.Generic.List[object]]::new()
+$ownerLineageFresh = $false
 
 if ($RefreshDiscoveryChain) {
     try {
@@ -84,6 +87,7 @@ if ($RefreshDiscoveryChain) {
         }
 
         & $refreshDiscoveryChainScript @chainArguments
+        $ownerLineageFresh = $true
     }
     catch {
         $warnings.Add("Discovery-chain refresh failed before session capture: $($_.Exception.Message)") | Out-Null
@@ -103,6 +107,20 @@ elseif ($RefreshReaderBridge) {
     }
     catch {
         $warnings.Add("ReaderBridge refresh failed before session capture: $($_.Exception.Message)") | Out-Null
+    }
+}
+
+if ($RefreshProjectorTrace) {
+    try {
+        $projectorArguments = @{}
+        if (-not $ownerLineageFresh) {
+            $projectorArguments['RefreshOwnerGraph'] = $true
+        }
+
+        & $refreshProjectorTraceScript @projectorArguments | Out-Null
+    }
+    catch {
+        $warnings.Add("State-projector trace refresh failed before session capture: $($_.Exception.Message)") | Out-Null
     }
 }
 

@@ -190,6 +190,7 @@ if (-not (Test-Path -LiteralPath $resolvedOwnerGraphFile)) {
 
 $ownerGraph = Get-Content -LiteralPath $resolvedOwnerGraphFile -Raw | ConvertFrom-Json -Depth 30
 $ownerAddress = Parse-HexUInt64 -Value ([string]$ownerGraph.Owner.Address)
+$selectedSourceAddress = [string]$ownerGraph.Owner.SelectedSourceAddress
 $stateRecordAddress = $ownerAddress + 0xC8
 $stateRecordBytes = Read-Bytes -Address $stateRecordAddress -Length 0x80
 if ($stateRecordBytes.Length -lt 0x68) {
@@ -223,7 +224,7 @@ for ($attemptIndex = 1; $attemptIndex -le $RepeatCount; $attemptIndex++) {
     & $ceExecScript -LuaFile $projectorLuaFile | Out-Null
 
     $luaCode = @"
-return RiftReaderProjectorTrace.arm('rift_x64', $projectorAddress, [[$resolvedStatusFile]])
+return RiftReaderProjectorTrace.armAsync('rift_x64', $projectorAddress, [[$resolvedStatusFile]])
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
@@ -316,6 +317,7 @@ $result = @{
     ProjectorFunctionAddress = ('0x{0:X}' -f $projectorAddress)
     Owner = [ordered]@{
         Address = ('0x{0:X}' -f $ownerAddress)
+        SelectedSourceAddress = $selectedSourceAddress
         StateRecordAddress = ('0x{0:X}' -f $stateRecordAddress)
         StateSlot50 = ('0x{0:X}' -f $stateSlot50)
         StateSlot58 = ('0x{0:X}' -f $stateSlot58)

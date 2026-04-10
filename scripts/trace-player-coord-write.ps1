@@ -483,6 +483,7 @@ try {
     $result = [ordered]@{
         Mode = 'player-coord-write-trace'
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        SourceObjectRegisterValue = $(if ($null -ne $traceStatus.Registers) { [string]$traceStatus.Registers.RDI } else { $null })
         Reader = $playerRead
         Candidates = [ordered]@{
             ConfirmationFile = $resolvedConfirmationFile

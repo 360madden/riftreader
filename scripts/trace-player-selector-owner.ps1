@@ -3,6 +3,9 @@ param(
     [switch]$Json,
     [switch]$RefreshSourceChain,
     [int]$TimeoutSeconds = 8,
+    [int]$MaxArmAttempts = 2,
+    [int]$MovementHoldMilliseconds = 750,
+    [string[]]$MovementKeys = @('w', 'd', 'a', 's'),
     [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
     [string]$CoordTraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
@@ -17,6 +20,7 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $sourceChainScript = Join-Path $PSScriptRoot 'capture-player-source-chain.ps1'
 $selectorLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderSelectorTrace.lua'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
+$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedCoordTraceFile = [System.IO.Path]::GetFullPath($CoordTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
@@ -154,37 +158,93 @@ $selectorPatternScan = Invoke-ReaderJson -Arguments @(
     '--scan-module-name', 'rift_x64.exe',
     '--json')
 
-if (Test-Path -LiteralPath $resolvedStatusFile) {
-    Remove-Item -LiteralPath $resolvedStatusFile -Force
-}
-
-& $ceExecScript -LuaFile $selectorLuaFile | Out-Null
-
 $triggerAddress = Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
-$luaCode = @"
+$status = $null
+$producedStatusFile = $false
+$movementSequence = @($MovementKeys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+
+for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
+    if (Test-Path -LiteralPath $resolvedStatusFile) {
+        Remove-Item -LiteralPath $resolvedStatusFile -Force
+    }
+
+    & $ceExecScript -LuaFile $selectorLuaFile | Out-Null
+
+    $luaCode = @"
 return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], 0x70)
 "@
-& $ceExecScript -Code $luaCode | Out-Null
+    & $ceExecScript -Code $luaCode | Out-Null
 
-$deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-$status = $null
-while ([DateTime]::UtcNow -lt $deadline) {
-    if (Test-Path -LiteralPath $resolvedStatusFile) {
-        $status = Read-KeyValueFile -Path $resolvedStatusFile
-        if ($status.status -eq 'hit' -or $status.status -eq 'error') {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $status = $null
+    foreach ($movementKey in $movementSequence) {
+        if ([DateTime]::UtcNow -ge $deadline) {
+            break
+        }
+
+        try {
+            & $postKeyScript -Key $movementKey -HoldMilliseconds $MovementHoldMilliseconds | Out-Null
+        }
+        catch {
+        }
+
+        $movementDeadline = [DateTime]::UtcNow.AddMilliseconds([Math]::Min([Math]::Max(($MovementHoldMilliseconds + 400), 600), 1800))
+        if ($movementDeadline -gt $deadline) {
+            $movementDeadline = $deadline
+        }
+
+        while ([DateTime]::UtcNow -lt $movementDeadline) {
+            if (Test-Path -LiteralPath $resolvedStatusFile) {
+                $producedStatusFile = $true
+                $status = Read-KeyValueFile -Path $resolvedStatusFile
+                if ($status.status -eq 'hit' -or $status.status -eq 'error') {
+                    break
+                }
+            }
+
+            Start-Sleep -Milliseconds 150
+        }
+
+        if ($null -ne $status -and ($status.status -eq 'hit' -or $status.status -eq 'error')) {
             break
         }
     }
 
-    Start-Sleep -Milliseconds 200
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if (Test-Path -LiteralPath $resolvedStatusFile) {
+            $producedStatusFile = $true
+            $status = Read-KeyValueFile -Path $resolvedStatusFile
+            if ($status.status -eq 'hit' -or $status.status -eq 'error') {
+                break
+            }
+        }
+
+        Start-Sleep -Milliseconds 200
+    }
+
+    if ($null -ne $status -and ($status.status -eq 'hit' -or $status.status -eq 'error')) {
+        break
+    }
+
+    if ($armAttempt -lt $MaxArmAttempts) {
+        Start-Sleep -Milliseconds 300
+    }
 }
 
 if ($null -eq $status) {
-    throw "Selector-owner trace timed out without producing '$resolvedStatusFile'."
+    if ($producedStatusFile) {
+        throw "Selector-owner trace did not produce a terminal hit/error status after $MaxArmAttempts arm attempt(s)."
+    }
+
+    throw "Selector-owner trace timed out without producing '$resolvedStatusFile' after $MaxArmAttempts arm attempt(s)."
 }
 
 if ($status.status -ne 'hit') {
-    throw "Selector-owner trace failed with status '$($status.status)'."
+    if ($producedStatusFile) {
+        throw "Selector-owner trace failed with status '$($status.status)' after $MaxArmAttempts arm attempt(s)."
+    }
+
+    throw "Selector-owner trace did not produce a hit after $MaxArmAttempts arm attempt(s)."
 }
 
 $coordTrace = $null
