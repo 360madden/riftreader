@@ -27,6 +27,35 @@ local function rr_format_float(value)
   return string.format("%.9f", tonumber(value) or 0)
 end
 
+local function rr_resolve_address(value, fallback)
+  if value == nil or value == "" then
+    return fallback
+  end
+
+  if type(value) == "number" then
+    return value
+  end
+
+  local addressValue = getAddressSafe(value)
+  if addressValue ~= nil then
+    return addressValue
+  end
+
+  return fallback
+end
+
+local function rr_apply_region_override(scanPrivate, scanImage, scanMapped)
+  if scanPrivate == nil and scanImage == nil and scanMapped == nil then
+    return
+  end
+
+  setSpecialScanOptionsOverride({
+    MEM_PRIVATE = scanPrivate,
+    MEM_IMAGE = scanImage,
+    MEM_MAPPED = scanMapped
+  })
+end
+
 function RiftReaderFloatScan.clear()
   rr_destroy_foundlist()
   rr_destroy_memscan()
@@ -75,6 +104,39 @@ function RiftReaderFloatScan.startExactFloat(processName, value)
   state.foundlist = createFoundList(state.memscan)
   state.foundlist.initialize()
   return state.foundlist.Count
+end
+
+function RiftReaderFloatScan.startUnknownFloatRange(processName, startAddress, stopAddress, scanPrivate, scanImage, scanMapped)
+  local pid = RiftReaderFloatScan.attach(processName)
+  if pid == nil or pid == 0 then
+    return 0
+  end
+
+  RiftReaderFloatScan.clear()
+  state.processName = processName
+  rr_apply_region_override(scanPrivate, scanImage, scanMapped)
+
+  state.memscan = createMemScan()
+  state.memscan.firstScan(
+    soUnknownValue,
+    vtSingle,
+    rtRounded,
+    "",
+    nil,
+    rr_resolve_address(startAddress, 0),
+    rr_resolve_address(stopAddress, 0xffffffffffffffff),
+    "",
+    fsmAligned,
+    "4",
+    false,
+    false,
+    false,
+    false
+  )
+  state.memscan.waitTillDone()
+
+  rr_destroy_foundlist()
+  return 1
 end
 
 function RiftReaderFloatScan.nextExactFloat(value)
