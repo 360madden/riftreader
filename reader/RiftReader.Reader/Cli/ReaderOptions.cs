@@ -20,6 +20,7 @@ public sealed record ReaderOptions(
     bool CaptureReaderBridgeBestFamily,
     bool ReadPlayerCurrent,
     bool ReadPlayerCoordAnchor,
+    bool ReadTargetCurrent,
     bool RecordSession,
     string? SessionWatchsetFile,
     string? SessionOutputDirectory,

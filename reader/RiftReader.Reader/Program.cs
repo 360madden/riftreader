@@ -193,6 +193,11 @@ internal static class Program
             return RunReadPlayerCurrentMode(options, target, reader);
         }
 
+        if (options.ReadTargetCurrent)
+        {
+            return RunReadTargetCurrentMode(options, target, reader);
+        }
+
         if (options.ReadPlayerCoordAnchor)
         {
             return RunReadPlayerCoordAnchorMode(options, process, target, reader);
@@ -383,6 +388,45 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunReadTargetCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (document?.Current?.Target is null && document?.Current?.Player is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for target-current reading.");
+            return 1;
+        }
+
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+        TargetCurrentReadResult result;
+
+        try
+        {
+            result = TargetCurrentReader.ReadCurrent(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                document!,
+                inspectionRadius,
+                options.MaxHits);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current target snapshot: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(TargetCurrentReadTextFormatter.Format(result));
         return 0;
     }
 

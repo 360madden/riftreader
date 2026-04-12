@@ -147,12 +147,18 @@ The reader now has two near-term targets:
    - `--read-player-orientation`
    - reuses the owner-selected source component
    - surfaces the artifact-side basis forward-row agreement and the live helper derives actor yaw / pitch from the full source basis matrix, with forward/up/right rows at `+0x60/+0x6C/+0x78` and a duplicate block at `+0x94/+0xA0/+0xAC`
-   - `--read-player-coord-anchor`
-   - loads the latest verified coord-triplet trace artifact
-   - validates the traced instruction bytes as a module-local pattern
-   - reports the inferred coord-base-relative access offset and derived object-relative field offsets
-   - reads the trace-derived destination sample back through memory and compares it against the latest ReaderBridge export when possible
-   - also reports the traced upstream source-object candidate from the live register context and verifies its coord sample against ReaderBridge when possible
+  - `--read-player-coord-anchor`
+    - loads the latest verified coord-triplet trace artifact
+    - validates the traced instruction bytes as a module-local pattern
+    - reports the inferred coord-base-relative access offset and derived object-relative field offsets
+    - reads the trace-derived destination sample back through memory and compares it against the latest ReaderBridge export when possible
+    - also reports the traced upstream source-object candidate from the live register context and verifies its coord sample against ReaderBridge when possible
+  - `--read-target-current`
+    - resolves the current best target-signature family from memory
+    - reads level / health / coords directly from memory
+    - compares them against the latest ReaderBridge export target snapshot
+    - caches target anchors by name for faster repeated reads
+    - returns a clean "no target selected" result when the player has no target
 
 Discovery-oriented modes:
 
@@ -312,6 +318,18 @@ Emit that player snapshot as JSON:
 
 ```powershell
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+```
+
+Read the current target snapshot from memory:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-target-current
+```
+
+Emit that target snapshot as JSON:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-target-current --json
 ```
 
 One-command product path: refresh the addon export, try to refresh the CE-backed

@@ -138,6 +138,7 @@ Things that look reasonable but are wrong for this system. Don't do these.
   - `--read-player-current` — Full player snapshot from memory (coord, health, level, etc.)
   - `--read-player-orientation` — Actor yaw/pitch from basis matrix
   - `--read-player-coord-anchor` — Validates coordinate write instruction and derives anchor details
+  - `--read-target-current` — Full target snapshot from memory (coord, health, level, name, distance)
   - `--rank-stat-hubs` — Walks identity-component graph and ranks shared memory hubs by player-stat prevalence; optionally emits a CE probe script via `--cheatengine-stat-hubs`
 - **Reverse-engineering tooling**: Cheat Engine workflow helpers, module-local pattern validation, stat-hub graph enumeration
 
@@ -148,7 +149,7 @@ Things that look reasonable but are wrong for this system. Don't do these.
 
 ### Next (v0.2.0)
 
-- **Multiple entity readers** — Extend player snapshot reader to read target, party members
+- **Party member readers** — Extend target reader pattern to enumerate and read party members
 - **Persistent anchor caching** — Cache validated owner paths and trace artifacts across sessions
 - **Broader stat coverage** — Mana, energy, power, stat values
 - **Combat state tracking** — Read in-combat flag and cooldown timers
