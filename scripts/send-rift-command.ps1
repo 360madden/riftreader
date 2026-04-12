@@ -1,15 +1,39 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string]$ChatCommand,
 
     [string]$ProcessName = "rift_x64",
     [int]$HoldMilliseconds = 80,
-    [int]$FocusDelayMilliseconds = 200
+    [int]$FocusDelayMilliseconds = 200,
+    [switch]$Help
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# Display help if requested
+if ($Help) {
+    Write-Host "Usage: send-rift-command.ps1 -ChatCommand <command> [-ProcessName <name>] [-HoldMilliseconds <ms>] [-FocusDelayMilliseconds <ms>] [-Help]"
+    Write-Host ""
+    Write-Host "Parameters:"
+    Write-Host "  -ChatCommand                The chat command to send to Rift (e.g., '/reloadui', '/help')"
+    Write-Host "  -ProcessName                Target process name (default: 'rift_x64')"
+    Write-Host "  -HoldMilliseconds           How long to hold each key (default: 80)"
+    Write-Host "  -FocusDelayMilliseconds     Delay after focusing the window (default: 200)"
+    Write-Host "  -Help                       Display this help message"
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  .\send-rift-command.ps1 -ChatCommand '/reloadui'"
+    Write-Host "  .\send-rift-command.ps1 -ChatCommand '/test' -ProcessName 'rift_x64' -HoldMilliseconds 100"
+    exit 0
+}
+
+# Validate that ChatCommand is provided if Help is not requested
+if ([string]::IsNullOrWhiteSpace($ChatCommand)) {
+    Write-Error "ChatCommand parameter is required. Use -Help for usage information."
+    exit 1
+}
 
 # ---------------------------------------------------------------------------
 # Win32 P/Invoke — minimal set needed for keyboard input
@@ -160,41 +184,46 @@ function Send-ChatCommand {
 # ---------------------------------------------------------------------------
 # Main — find rift_x64 by process name + MainWindowHandle, focus, send
 # ---------------------------------------------------------------------------
-$proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-        Where-Object { $_.MainWindowHandle -ne 0 } |
-        Select-Object -First 1
+try {
+    $proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne 0 } |
+            Select-Object -First 1
 
-if (-not $proc) {
-    Write-Error "No windowed '$ProcessName' process found. Is RIFT running?"
+    if (-not $proc) {
+        Write-Error "No windowed '$ProcessName' process found. Is RIFT running?"
+        exit 1
+    }
+
+    $hwnd = [IntPtr]$proc.MainWindowHandle
+    Write-Host "Found $ProcessName (PID $($proc.Id)) HWND 0x$($hwnd.ToString('X'))"
+
+    # Restore if minimised
+    [void][RiftSendCommand]::ShowWindow($hwnd, $SW_RESTORE)
+    Start-Sleep -Milliseconds 80
+
+    # Use AttachThreadInput to bypass Windows foreground-lock restriction
+    $fgHwnd     = [RiftSendCommand]::GetForegroundWindow()
+    $dummy      = 0
+    $targetTid  = [RiftSendCommand]::GetWindowThreadProcessId($hwnd, [ref]$dummy)
+    $currentTid = [RiftSendCommand]::GetCurrentThreadId()
+    $fgTid      = [RiftSendCommand]::GetWindowThreadProcessId($fgHwnd, [ref]$dummy)
+
+    [void][RiftSendCommand]::AttachThreadInput($currentTid, $fgTid, $true)
+    [void][RiftSendCommand]::AttachThreadInput($currentTid, $targetTid, $true)
+    [void][RiftSendCommand]::SetForegroundWindow($hwnd)
+    Start-Sleep -Milliseconds $FocusDelayMilliseconds
+    [void][RiftSendCommand]::AttachThreadInput($currentTid, $fgTid, $false)
+    [void][RiftSendCommand]::AttachThreadInput($currentTid, $targetTid, $false)
+
+    $fg = [RiftSendCommand]::GetForegroundWindow()
+    if ($fg -ne $hwnd) {
+        Write-Warning "SetForegroundWindow did not take - foreground is 0x$($fg.ToString('X')), expected 0x$($hwnd.ToString('X')). Proceeding anyway."
+    }
+
+    Write-Host "Sending: $ChatCommand"
+    Send-ChatCommand -Text $ChatCommand
+    Write-Host "Done."
+} catch {
+    Write-Error "Failed to send command '$ChatCommand': $_"
     exit 1
 }
-
-$hwnd = [IntPtr]$proc.MainWindowHandle
-Write-Host "Found $ProcessName (PID $($proc.Id)) HWND 0x$($hwnd.ToString('X'))"
-
-# Restore if minimised
-[void][RiftSendCommand]::ShowWindow($hwnd, $SW_RESTORE)
-Start-Sleep -Milliseconds 80
-
-# Use AttachThreadInput to bypass Windows foreground-lock restriction
-$fgHwnd     = [RiftSendCommand]::GetForegroundWindow()
-$dummy      = 0
-$targetTid  = [RiftSendCommand]::GetWindowThreadProcessId($hwnd, [ref]$dummy)
-$currentTid = [RiftSendCommand]::GetCurrentThreadId()
-$fgTid      = [RiftSendCommand]::GetWindowThreadProcessId($fgHwnd, [ref]$dummy)
-
-[void][RiftSendCommand]::AttachThreadInput($currentTid, $fgTid, $true)
-[void][RiftSendCommand]::AttachThreadInput($currentTid, $targetTid, $true)
-[void][RiftSendCommand]::SetForegroundWindow($hwnd)
-Start-Sleep -Milliseconds $FocusDelayMilliseconds
-[void][RiftSendCommand]::AttachThreadInput($currentTid, $fgTid, $false)
-[void][RiftSendCommand]::AttachThreadInput($currentTid, $targetTid, $false)
-
-$fg = [RiftSendCommand]::GetForegroundWindow()
-if ($fg -ne $hwnd) {
-    Write-Warning "SetForegroundWindow did not take - foreground is 0x$($fg.ToString('X')), expected 0x$($hwnd.ToString('X')). Proceeding anyway."
-}
-
-Write-Host "Sending: $ChatCommand"
-Send-ChatCommand -Text $ChatCommand
-Write-Host "Done."
