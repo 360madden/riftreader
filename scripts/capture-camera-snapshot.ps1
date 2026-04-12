@@ -18,7 +18,7 @@ $componentAddr = $orient.SelectedSourceAddress
 $componentUint = [UInt64]::Parse($componentAddr.TrimStart('0x'), [System.Globalization.NumberStyles]::HexNumber)
 
 # Step 2: Read 2048 bytes from component
-$dumpJson = & dotnet run --project $readerProject --configuration Release -- --process-name rift_x64 --address $componentAddr --length 2048 --json 2>&1
+$dumpJson = & dotnet run --project $readerProject -- --process-name rift_x64 --address $componentAddr --length 2048 --json 2>&1
 $dump = $dumpJson | ConvertFrom-Json -Depth 30
 
 $hex = $dump.BytesHex -replace ' ', ''
