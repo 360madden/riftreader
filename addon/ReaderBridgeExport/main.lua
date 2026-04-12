@@ -487,7 +487,7 @@ local function readUnit(unitSpecOrId)
   }
 end
 
-local function readNearbyUnits(excludeTargetId)
+local function readNearbyUnits(excludePlayerId, excludeTargetId)
   local list = safeUnitList()
   if type(list) ~= "table" then
     return nil
@@ -495,7 +495,10 @@ local function readNearbyUnits(excludeTargetId)
 
   local result = {}
   for unitId, _ in pairs(list) do
-    if type(unitId) == "string" and unitId ~= "player" and unitId ~= excludeTargetId then
+    if type(unitId) == "string"
+        and unitId ~= "player"
+        and unitId ~= excludePlayerId
+        and unitId ~= excludeTargetId then
       local unit = readUnit(unitId)
       if unit then
         table.insert(result, unit)
@@ -607,7 +610,7 @@ local function buildDirectSnapshot(reason)
     targetDebuffLines = targetId and buildBuffLines(targetId, true) or {},
     playerStats = buildStatSnapshot(),
     playerCoordDelta = coordDelta,
-    nearbyUnits = readNearbyUnits(targetId),
+    nearbyUnits = readNearbyUnits(playerId, targetId),
     partyUnits = readPartyMembers(),
   }
 end
