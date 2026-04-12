@@ -5,6 +5,8 @@ local addonIdentifier = (addonInfo and addonInfo.identifier) or "ReaderBridgeExp
 local addonVersion = (addonInfo and addonInfo.version) or "0.1.0"
 local UPDATE_INTERVAL = 0.5
 local MAX_BUFF_ROWS = 5
+local MAX_NEARBY_UNITS = 10
+local MAX_PARTY_SLOTS = 5
 
 local Exporter = {}
 privateVars.Exporter = Exporter
@@ -15,6 +17,8 @@ local runtime = {
   lastRefreshAt = 0,
   lastBridgeSeenAt = 0,
   targetTtdSamples = {},
+  lastPlayerCoord = nil,
+  lastPlayerCoordAt = 0,
 }
 
 local function now()
@@ -177,6 +181,15 @@ local function distance3d(ax, ay, az, bx, by, bz)
   local dy = ay - by
   local dz = az - bz
   return math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+end
+
+local function safeStatRead()
+  return safeCall(Inspect.Stat)
+end
+
+local function safeUnitList()
+  -- NilRisk: Inspect.Unit.List is unverified in this RIFT version; safeCall returns nil on failure
+  return safeCall(Inspect.Unit.List)
 end
 
 local function safeUnitLookup(unit)
@@ -362,6 +375,65 @@ local function buildBuffLines(unitSpecOrId, wantDebuffs)
   return result
 end
 
+local function buildStatSnapshot()
+  local stats = safeStatRead()
+  if type(stats) ~= "table" then
+    return nil
+  end
+
+  local result = {}
+  for k, v in pairs(stats) do
+    if type(k) == "string" and tonumber(v) ~= nil then
+      result[k] = tonumber(v)
+    end
+  end
+
+  return result
+end
+
+local function buildCoordDelta(coord, currentTime)
+  if type(coord) ~= "table" then
+    runtime.lastPlayerCoord = nil
+    runtime.lastPlayerCoordAt = 0
+    return nil
+  end
+
+  local cx = toNumber(coord.x)
+  local cy = toNumber(coord.y)
+  local cz = toNumber(coord.z)
+
+  if cx == nil or cy == nil or cz == nil then
+    return nil
+  end
+
+  local delta = nil
+  -- NilRisk: lastPlayerCoord may be nil on first call or after coord loss
+  if type(runtime.lastPlayerCoord) == "table" then
+    local px = toNumber(runtime.lastPlayerCoord.x)
+    local py = toNumber(runtime.lastPlayerCoord.y)
+    local pz = toNumber(runtime.lastPlayerCoord.z)
+    local dt = (currentTime or 0) - (runtime.lastPlayerCoordAt or 0)
+
+    if px ~= nil and py ~= nil and pz ~= nil and dt > 0 then
+      local dx = cx - px
+      local dy = cy - py
+      local dz = cz - pz
+      delta = {
+        dx = dx,
+        dy = dy,
+        dz = dz,
+        distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz)),
+        dt = dt,
+      }
+    end
+  end
+
+  runtime.lastPlayerCoord = { x = cx, y = cy, z = cz }
+  runtime.lastPlayerCoordAt = currentTime or 0
+
+  return delta
+end
+
 local function readUnit(unitSpecOrId)
   local detail = safeUnitDetail(unitSpecOrId)
   if type(detail) ~= "table" then
@@ -415,6 +487,45 @@ local function readUnit(unitSpecOrId)
   }
 end
 
+local function readNearbyUnits(excludeTargetId)
+  local list = safeUnitList()
+  if type(list) ~= "table" then
+    return nil
+  end
+
+  local result = {}
+  for unitId, _ in pairs(list) do
+    if type(unitId) == "string" and unitId ~= "player" and unitId ~= excludeTargetId then
+      local unit = readUnit(unitId)
+      if unit then
+        table.insert(result, unit)
+      end
+      if #result >= MAX_NEARBY_UNITS then
+        break
+      end
+    end
+  end
+
+  return #result > 0 and result or nil
+end
+
+local function readPartyMembers()
+  local result = {}
+  for i = 1, MAX_PARTY_SLOTS do
+    local spec = "group0" .. i
+    local id = safeUnitLookup(spec)
+    -- NilRisk: id may be nil if slot is empty or group specifier unsupported
+    if id then
+      local unit = readUnit(id)
+      if unit then
+        table.insert(result, unit)
+      end
+    end
+  end
+
+  return #result > 0 and result or nil
+end
+
 local function updateTargetTtd(target)
   if type(target) ~= "table" or toNumber(target.hp) == nil or toNumber(target.hp) <= 0 then
     runtime.targetTtdSamples = {}
@@ -454,6 +565,7 @@ local function updateTargetTtd(target)
 end
 
 local function buildDirectSnapshot(reason)
+  local currentTime = now()
   local playerId = safeUnitLookup("player")
   local targetId = safeUnitLookup("player.target")
   local player = readUnit("player")
@@ -471,11 +583,14 @@ local function buildDirectSnapshot(reason)
     runtime.targetTtdSamples = {}
   end
 
+  -- NilRisk: player may be nil before player unit is available
+  local coordDelta = buildCoordDelta(player and player.coord, currentTime)
+
   return {
     schemaVersion = 1,
     status = player and "ready" or "waiting-for-player",
     exportReason = tostring(reason or "unspecified"),
-    generatedAtRealtime = now(),
+    generatedAtRealtime = currentTime,
     sourceMode = "DirectAPI",
     sourceAddon = "RiftAPI",
     sourceVersion = nil,
@@ -490,6 +605,10 @@ local function buildDirectSnapshot(reason)
     playerDebuffLines = buildBuffLines("player", true),
     targetBuffLines = targetId and buildBuffLines(targetId, false) or {},
     targetDebuffLines = targetId and buildBuffLines(targetId, true) or {},
+    playerStats = buildStatSnapshot(),
+    playerCoordDelta = coordDelta,
+    nearbyUnits = readNearbyUnits(targetId),
+    partyUnits = readPartyMembers(),
   }
 end
 
@@ -590,6 +709,10 @@ local function buildSnapshot(reason)
 
   runtime.lastBridgeSeenAt = generatedAt
 
+  -- NilRisk: bridgeState.player may be nil if bridge state not yet populated
+  local player = copyUnit(bridgeState.player)
+  local coordDelta = buildCoordDelta(player and player.coord, generatedAt)
+
   return {
     schemaVersion = 1,
     status = "ready",
@@ -601,12 +724,16 @@ local function buildSnapshot(reason)
     exportAddon = addonIdentifier,
     exportVersion = addonVersion,
     hud = copyHud(bridgeState.hud),
-    player = copyUnit(bridgeState.player),
+    player = player,
     target = copyUnit(bridgeState.target),
     playerBuffLines = copyList(bridgeState.playerBuffLines),
     playerDebuffLines = copyList(bridgeState.playerDebuffLines),
     targetBuffLines = copyList(bridgeState.targetBuffLines),
     targetDebuffLines = copyList(bridgeState.targetDebuffLines),
+    playerStats = buildStatSnapshot(),
+    playerCoordDelta = coordDelta,
+    nearbyUnits = nil,
+    partyUnits = readPartyMembers(),
   }
 end
 
