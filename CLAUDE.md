@@ -90,16 +90,95 @@ See saved trace artifacts in `scripts/captures/` for the last verified anchors (
 
 ### Verified ✅
 
+#### Unit APIs
+
 | API | Returns / Notes |
 |-----|----------------|
-| `Inspect.Unit.Detail("player")` | Table with `.health`, `.healthMax`, `.level`, `.calling` (string), `.combat` (bool), `.dead` (bool), `.mana`/`.manaMax`, `.energy`/`.energyMax`, `.power`/`.powerMax` |
+| `Inspect.Unit.Lookup("player")` | Unit ID string of player, or nil |
 | `Inspect.Unit.Lookup("player.target")` | Unit ID string of current target, or nil |
-| `Inspect.Unit.Detail(unitId)` | Same table as above for any unit ID |
-| `Inspect.Stat()` | Table keyed by stat name |
-| `Inspect.Time.Real()` | Realtime float clock (seconds) |
+| `Inspect.Unit.Detail(unitId)` | Table with unit details (see fields below) |
+| `Inspect.Unit.List()` | Table of visible unit IDs (keys only, values are nil) |
+| `Inspect.Unit.Castbar(unitId)` | Table with cast info: `.active`, `.abilityName`, `.duration`, `.remaining`, `.channeled`, `.uninterruptible`, `.progressPct`, `.text` |
+
+#### Inspect.Unit.Detail Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `.id` | string | Unit ID |
+| `.name` | string | Display name |
+| `.level` | number | Unit level |
+| `.calling` | string | Calling (class archetype) |
+| `.guild` | string | Guild name |
+| `.relation` | string | Relation to player (ally, enemy, etc.) |
+| `.role` | string | Combat role |
+| `.player` | boolean | Is a player character |
+| `.combat` | boolean | In combat |
+| `.pvp` | boolean | In PvP |
+| `.health` | number | Current health |
+| `.healthMax` | number | Maximum health |
+| `.absorb` | number | Absorb shield value |
+| `.vitality` | number | Vitality stat |
+| `.mana` / `.manaMax` | number | Mana resource |
+| `.energy` / `.energyMax` | number | Energy resource |
+| `.power` / `.powerMax` | number | Power resource |
+| `.charge` / `.chargeMax` | number | Charge resource |
+| `.planar` / `.planarMax` | number | Planar attunement |
+| `.combo` | number | Combo points |
+| `.zone` | string | Current zone name |
+| `.locationName` | string | Sub-zone/location name |
+| `.coordX` / `.coordY` / `.coordZ` | number | 3D coordinates |
+| `.dead` | boolean | Is dead |
+
+#### Buff APIs
+
+| API | Returns / Notes |
+|-----|----------------|
+| `Inspect.Buff.List(unitId)` | Table of buff IDs (keys only) |
+| `Inspect.Buff.Detail(unitId, buffIds)` | Table keyed by buff ID with `.name`, `.stack`, `.remaining`, `.debuff` |
+
+#### Stat API
+
+| API | Returns / Notes |
+|-----|----------------|
+| `Inspect.Stat()` | Table keyed by stat name (string keys, number values). Fields vary by class/build. |
+
+#### System APIs
+
+| API | Returns / Notes |
+|-----|----------------|
+| `Inspect.Time.Real()` | Realtime float clock (seconds since session start) |
+| `Inspect.System.Secure()` | Boolean: true if in secure instance (raid, dungeon) |
+| `Inspect.Mouse()` | Table with `.x`, `.y` screen coordinates |
+
+#### Event APIs
+
+| API | Returns / Notes |
+|-----|----------------|
 | `Command.Event.Attach(event, handler, name)` | Attaches event handler; name must be unique |
 | `Event.System.Update.Begin` | Fires every frame |
-| `UI.CreateContext(name)` + `UI.CreateFrame()` | Standard UI frame creation |
+| `Event.System.Update.End` | Fires every frame (after update) |
+| `Event.System.Secure.Enter` | Fires when entering secure instance |
+| `Event.System.Secure.Leave` | Fires when leaving secure instance |
+| `Event.Unit.Detail.Zone` | Fires on zone change |
+| `Event.Unit.Detail.Role` | Fires on role change |
+| `Event.Unit.Detail.Level` | Fires on level change |
+| `Event.Addon.Startup.End` | Fires after addon loads |
+| `Event.Addon.SavedVariables.Load.End` | Fires when saved variables load |
+| `Event.Addon.SavedVariables.Save.Begin` | Fires before saved variables save |
+
+#### UI APIs
+
+| API | Returns / Notes |
+|-----|----------------|
+| `UI.CreateContext(name)` | Creates UI context |
+| `UI.CreateFrame(type, name, parent)` | Creates UI frame (types: "Text", "Frame", "RiftButton", "RiftWindow", etc.) |
+
+#### Command APIs
+
+| API | Returns / Notes |
+|-----|----------------|
+| `Command.Console.Display(channel, showPrefix, message, showInChat)` | Displays console message |
+| `Command.Slash.Register(cmd)` | Registers slash command (returns table to insert handlers into) |
 
 ### Not exposed / unverified ⚠️
 
@@ -107,6 +186,9 @@ See saved trace artifacts in `scripts/captures/` for the last verified anchors (
 |------|--------|
 | Player facing / yaw via Rift API | **NOT EXPOSED**. Derive from memory basis matrix or position deltas. |
 | Direct memory addresses | UNVERIFIED until validated in live session. Use addon exports to verify. |
+| `Inspect.Unit.Heading()` / `.Pitch()` | UNVERIFIED - not used in current addon code |
+| `Inspect.Unit.Gear()` / `.GearScore()` | UNVERIFIED - not used in current addon code |
+| `Inspect.Zone.ID()` / `Inspect.Map.ID()` | UNVERIFIED - not used in current addon code |
 
 ---
 

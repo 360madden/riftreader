@@ -99,11 +99,30 @@ Current discovery refinement:
 
 The helper addon exists to reduce blind memory hunting, not replace the reader.
 
-Addon responsibilities:
+### Addon Capabilities
+
+**RiftReaderValidator** (`/rrv` commands):
+- Manual snapshot capture via `/rrv snapshot`
+- Rolling history (default 64 samples)
+- Auto-capture on zone/role/level changes and secure instance transitions
+- In-game status window with indicator lights
+- Fields captured: name, level, health/mana/energy/power/charge, combo, role, combat, zone, locationName, coords
+
+**ReaderBridgeExport** (`/rbx` commands):
+- Automatic export every 0.5 seconds (heartbeat)
+- Exports ReaderBridge.State when available, falls back to direct API
+- Extended telemetry: buffs/debuffs (top 5 each), castbar state, target distance, TTD estimator
+- Party member snapshots (up to 5)
+- Nearby unit enumeration (up to 10)
+- Coord delta tracking for movement detection
+- Raw `Inspect.Stat()` snapshot for class-specific stats
+
+### Addon responsibilities:
 
 - surface API-visible values that already exist in the client UI API
 - mark important transitions such as zone, role, and combat-state changes
 - keep lightweight history for manual comparison against memory reads
+- provide ground-truth validation for memory reader anchors
 
 Reader responsibilities:
 

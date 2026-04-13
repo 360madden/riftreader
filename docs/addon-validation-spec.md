@@ -30,27 +30,95 @@ It is **not** intended to replace the reader or become the main data source.
 - hard environment-specific compatibility guarantees without verification
 - any dependency from the reader on the addon for core functionality
 
-## Data Contract v0
+## Data Contract v1
 
-Each snapshot should capture a compact subset of **player-visible** state:
+### RiftReaderValidator Snapshot Schema
 
-- sequence number
-- capture reason
-- capture timestamp
-- player unit id
-- name
-- level
-- health / healthMax
-- mana / manaMax
-- energy / energyMax
-- power
-- charge / chargeMax
-- combo
-- role
-- combat state
-- zone
-- location name
-- raw coord payload if available from the API
+Each snapshot captures the following **player-visible** state:
+
+| Field | Type | Source |
+|-------|------|--------|
+| `sequence` | number | Incrementing counter |
+| `reason` | string | Capture trigger (manual, event, auto) |
+| `capturedAt` | number | `Inspect.Time.Real()` timestamp |
+| `playerUnit` | string | Unit ID from `Inspect.Unit.Lookup("player")` |
+| `name` | string | `Inspect.Unit.Detail().name` |
+| `level` | number | `Inspect.Unit.Detail().level` |
+| `health` | number | `Inspect.Unit.Detail().health` |
+| `healthMax` | number | `Inspect.Unit.Detail().healthMax` |
+| `mana` | number | `Inspect.Unit.Detail().mana` |
+| `manaMax` | number | `Inspect.Unit.Detail().manaMax` |
+| `energy` | number | `Inspect.Unit.Detail().energy` |
+| `energyMax` | number | `Inspect.Unit.Detail().energyMax` |
+| `power` | number | `Inspect.Unit.Detail().power` |
+| `charge` | number | `Inspect.Unit.Detail().charge` |
+| `chargeMax` | number | `Inspect.Unit.Detail().chargeMax` |
+| `combo` | number | `Inspect.Unit.Detail().combo` |
+| `role` | string | `Inspect.Unit.Detail().role` |
+| `combat` | boolean | `Inspect.Unit.Detail().combat` |
+| `zone` | string | `Inspect.Unit.Detail().zone` |
+| `locationName` | string | `Inspect.Unit.Detail().locationName` |
+| `coord` | table | `{x, y, z}` from `coordX/Y/Z` fields |
+
+### ReaderBridgeExport Snapshot Schema
+
+Extended schema with additional telemetry:
+
+| Field | Type | Source |
+|-------|------|--------|
+| `schemaVersion` | number | Export format version |
+| `status` | string | `"ready"` or `"waiting-for-player"` |
+| `exportReason` | string | Trigger reason |
+| `generatedAtRealtime` | number | `Inspect.Time.Real()` timestamp |
+| `sourceMode` | string | `"ReaderBridge"` or `"DirectAPI"` |
+| `sourceAddon` | string | Source addon name |
+| `exportAddon` | string | `"ReaderBridgeExport"` |
+| `exportVersion` | string | Addon version |
+| `hud` | table | HUD state (visible, locked, showBuffPanel) |
+| `player` | table | Player unit snapshot (see below) |
+| `target` | table | Target unit snapshot (see below) |
+| `playerId` | string | Player unit ID |
+| `targetId` | string | Target unit ID |
+| `playerBuffLines` | array | Top 5 buff descriptions |
+| `playerDebuffLines` | array | Top 5 debuff descriptions |
+| `targetBuffLines` | array | Target's top 5 buffs |
+| `targetDebuffLines` | array | Target's top 5 debuffs |
+| `playerStats` | table | Raw `Inspect.Stat()` snapshot |
+| `playerCoordDelta` | table | Movement delta since last update |
+| `nearbyUnits` | array | Up to 10 units from `Inspect.Unit.List()` |
+| `partyUnits` | array | Up to 5 party members |
+
+#### Player/Target Unit Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | string | Unit ID |
+| `name` | string | Display name |
+| `level` | number | Unit level |
+| `calling` | string | Class archetype |
+| `guild` | string | Guild name |
+| `relation` | string | Relation to player |
+| `role` | string | Combat role |
+| `player` | boolean | Is player character |
+| `combat` | boolean | In combat flag |
+| `pvp` | boolean | In PvP flag |
+| `hp` / `hpMax` / `hpPct` | number | Health values |
+| `absorb` | number | Absorb shield |
+| `vitality` | number | Vitality stat |
+| `resourceKind` | string | Primary resource type (Mana/Energy/Power/Charge) |
+| `resource` / `resourceMax` / `resourcePct` | number | Primary resource values |
+| `mana` / `manaMax` | number | Mana fields |
+| `energy` / `energyMax` | number | Energy fields |
+| `power` | number | Power field |
+| `charge` / `chargeMax` / `chargePct` | number | Charge fields |
+| `planar` / `planarMax` / `planarPct` | number | Planar attunement |
+| `combo` | number | Combo points |
+| `zone` | string | Zone name |
+| `locationName` | string | Sub-zone name |
+| `coord` | table | `{x, y, z}` coordinates |
+| `cast` | table | Castbar state (active, abilityName, duration, remaining, etc.) |
+| `distance` | number | 3D distance to player (target only) |
+| `ttd` / `ttdText` | number/string | Time-to-death estimate (target only) |
 
 This is intentionally narrow. The reader should later grow its own typed models and only use addon data as a comparison surface.
 
