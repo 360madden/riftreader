@@ -1,0 +1,188 @@
+{
+  "Mode": "camera-discovery-altz-retry",
+  "Version": "1.0.0",
+  "GeneratedAtUtc": "2026-04-13T07:58:07.4183581+00:00",
+  "RunId": "20260413-035807",
+  "RunDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery-altz\\run-20260413-035807",
+  "ProcessName": "rift_x64",
+  "ReadLength": 1024,
+  "RefreshOwnerComponents": false,
+  "SkipBackgroundFocus": false,
+  "Status": "completed",
+  "Attempts": [
+    {
+      "Label": "attempt-1",
+      "HoldMilliseconds": 750,
+      "WaitMilliseconds": 800,
+      "ExitCode": 0,
+      "ExceptionMessage": null,
+      "ResultFileCreated": true,
+      "ResultFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery-altz\\run-20260413-035807\\alt-z-attempt-1.json",
+      "ParseError": null,
+      "OutputTail": "{\r\n  \"Mode\": \"camera-altz-stimulus-safe\",\r\n  \"GeneratedAtUtc\": \"2026-04-13T07:58:31.7925523+00:00\",\r\n  \"Stimulus\": \"Alt-Z (alternate zoom)\",\r\n  \"HoldMilliseconds\": 750,\r\n  \"WaitMilliseconds\": 800,\r\n  \"OwnerAddress\": \"0x1576A38AA10\",\r\n  \"ContainerAddress\": \"0x1577AD9B540\",\r\n  \"SelectedSourceAddress\": \"0x1577AC2FB60\",\r\n  \"EntryCount\": 16,\r\n  \"RegionsScanned\": 4,\r\n  \"RegionDetails\": [\r\n    {\r\n      \"Name\": \"selected-source\",\r\n      \"Address\": \"0x1577AC2FB60\",\r\n      \"Length\": 192,\r\n      \"IsControl\": true\r\n    },\r\n    {\r\n      \"Name\": \"lead-B-entry15\",\r\n      \"Address\": \"0x1575264C000\",\r\n      \"Length\": 1024,\r\n      \"IsControl\": false\r\n    },\r\n    {\r\n      \"Name\": \"entry4\",\r\n      \"Address\": \"0x1577AC2C120\",\r\n      \"Length\": 512,\r\n      \"IsControl\": false\r\n    },\r\n    {\r\n      \"Name\": \"owner-neighborhood\",\r\n      \"Address\": \"0x1576A38AA10\",\r\n      \"Length\": 512,\r\n      \"IsControl\": false\r\n    }\r\n  ],\r\n  \"TotalFloatChanges\": 0,\r\n  \"DistanceCandidateCount\": 0,\r\n  \"Changes\": [],\r\n  \"DistanceCandidates\": [],\r\n  \"Errors\": [\r\n    {\r\n      \"Phase\": \"lead-a-resolution\",\r\n      \"Message\": \"memory read 0x1576A38AAE0 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AAE0: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"selected-source\",\r\n      \"Address\": \"0x1577AC2FB60\",\r\n      \"Message\": \"memory read 0x1577AC2FB60 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"lead-B-entry15\",\r\n      \"Address\": \"0x1575264C000\",\r\n      \"Message\": \"memory read 0x1575264C000 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1575264C000: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"entry4\",\r\n      \"Address\": \"0x1577AC2C120\",\r\n      \"Message\": \"memory read 0x1577AC2C120 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2C120: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"owner-neighborhood\",\r\n      \"Address\": \"0x1576A38AA10\",\r\n      \"Message\": \"memory read 0x1576A38AA10 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AA10: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    }\r\n  ]\r\n}",
+      "ParsedJson": {
+        "Mode": "camera-altz-stimulus-safe",
+        "GeneratedAtUtc": "2026-04-13T03:58:31.7925523-04:00",
+        "Stimulus": "Alt-Z (alternate zoom)",
+        "HoldMilliseconds": 750,
+        "WaitMilliseconds": 800,
+        "OwnerAddress": "0x1576A38AA10",
+        "ContainerAddress": "0x1577AD9B540",
+        "SelectedSourceAddress": "0x1577AC2FB60",
+        "EntryCount": 16,
+        "RegionsScanned": 4,
+        "RegionDetails": [
+          {
+            "Name": "selected-source",
+            "Address": "0x1577AC2FB60",
+            "Length": 192,
+            "IsControl": true
+          },
+          {
+            "Name": "lead-B-entry15",
+            "Address": "0x1575264C000",
+            "Length": 1024,
+            "IsControl": false
+          },
+          {
+            "Name": "entry4",
+            "Address": "0x1577AC2C120",
+            "Length": 512,
+            "IsControl": false
+          },
+          {
+            "Name": "owner-neighborhood",
+            "Address": "0x1576A38AA10",
+            "Length": 512,
+            "IsControl": false
+          }
+        ],
+        "TotalFloatChanges": 0,
+        "DistanceCandidateCount": 0,
+        "Changes": [],
+        "DistanceCandidates": [],
+        "Errors": [
+          {
+            "Phase": "lead-a-resolution",
+            "Message": "memory read 0x1576A38AAE0 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AAE0: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "selected-source",
+            "Address": "0x1577AC2FB60",
+            "Message": "memory read 0x1577AC2FB60 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "lead-B-entry15",
+            "Address": "0x1575264C000",
+            "Message": "memory read 0x1575264C000 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1575264C000: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "entry4",
+            "Address": "0x1577AC2C120",
+            "Message": "memory read 0x1577AC2C120 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2C120: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "owner-neighborhood",
+            "Address": "0x1576A38AA10",
+            "Message": "memory read 0x1576A38AA10 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AA10: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          }
+        ]
+      }
+    },
+    {
+      "Label": "attempt-2",
+      "HoldMilliseconds": 1200,
+      "WaitMilliseconds": 1000,
+      "ExitCode": 0,
+      "ExceptionMessage": null,
+      "ResultFileCreated": true,
+      "ResultFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery-altz\\run-20260413-035807\\alt-z-attempt-2.json",
+      "ParseError": null,
+      "OutputTail": "{\r\n  \"Mode\": \"camera-altz-stimulus-safe\",\r\n  \"GeneratedAtUtc\": \"2026-04-13T07:58:55.8393273+00:00\",\r\n  \"Stimulus\": \"Alt-Z (alternate zoom)\",\r\n  \"HoldMilliseconds\": 1200,\r\n  \"WaitMilliseconds\": 1000,\r\n  \"OwnerAddress\": \"0x1576A38AA10\",\r\n  \"ContainerAddress\": \"0x1577AD9B540\",\r\n  \"SelectedSourceAddress\": \"0x1577AC2FB60\",\r\n  \"EntryCount\": 16,\r\n  \"RegionsScanned\": 4,\r\n  \"RegionDetails\": [\r\n    {\r\n      \"Name\": \"selected-source\",\r\n      \"Address\": \"0x1577AC2FB60\",\r\n      \"Length\": 192,\r\n      \"IsControl\": true\r\n    },\r\n    {\r\n      \"Name\": \"lead-B-entry15\",\r\n      \"Address\": \"0x1575264C000\",\r\n      \"Length\": 1024,\r\n      \"IsControl\": false\r\n    },\r\n    {\r\n      \"Name\": \"entry4\",\r\n      \"Address\": \"0x1577AC2C120\",\r\n      \"Length\": 512,\r\n      \"IsControl\": false\r\n    },\r\n    {\r\n      \"Name\": \"owner-neighborhood\",\r\n      \"Address\": \"0x1576A38AA10\",\r\n      \"Length\": 512,\r\n      \"IsControl\": false\r\n    }\r\n  ],\r\n  \"TotalFloatChanges\": 0,\r\n  \"DistanceCandidateCount\": 0,\r\n  \"Changes\": [],\r\n  \"DistanceCandidates\": [],\r\n  \"Errors\": [\r\n    {\r\n      \"Phase\": \"lead-a-resolution\",\r\n      \"Message\": \"memory read 0x1576A38AAE0 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AAE0: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"selected-source\",\r\n      \"Address\": \"0x1577AC2FB60\",\r\n      \"Message\": \"memory read 0x1577AC2FB60 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"lead-B-entry15\",\r\n      \"Address\": \"0x1575264C000\",\r\n      \"Message\": \"memory read 0x1575264C000 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1575264C000: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"entry4\",\r\n      \"Address\": \"0x1577AC2C120\",\r\n      \"Message\": \"memory read 0x1577AC2C120 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2C120: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    },\r\n    {\r\n      \"Phase\": \"before-read\",\r\n      \"Region\": \"owner-neighborhood\",\r\n      \"Address\": \"0x1576A38AA10\",\r\n      \"Message\": \"memory read 0x1576A38AA10 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AA10: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)\"\r\n    }\r\n  ]\r\n}",
+      "ParsedJson": {
+        "Mode": "camera-altz-stimulus-safe",
+        "GeneratedAtUtc": "2026-04-13T03:58:55.8393273-04:00",
+        "Stimulus": "Alt-Z (alternate zoom)",
+        "HoldMilliseconds": 1200,
+        "WaitMilliseconds": 1000,
+        "OwnerAddress": "0x1576A38AA10",
+        "ContainerAddress": "0x1577AD9B540",
+        "SelectedSourceAddress": "0x1577AC2FB60",
+        "EntryCount": 16,
+        "RegionsScanned": 4,
+        "RegionDetails": [
+          {
+            "Name": "selected-source",
+            "Address": "0x1577AC2FB60",
+            "Length": 192,
+            "IsControl": true
+          },
+          {
+            "Name": "lead-B-entry15",
+            "Address": "0x1575264C000",
+            "Length": 1024,
+            "IsControl": false
+          },
+          {
+            "Name": "entry4",
+            "Address": "0x1577AC2C120",
+            "Length": 512,
+            "IsControl": false
+          },
+          {
+            "Name": "owner-neighborhood",
+            "Address": "0x1576A38AA10",
+            "Length": 512,
+            "IsControl": false
+          }
+        ],
+        "TotalFloatChanges": 0,
+        "DistanceCandidateCount": 0,
+        "Changes": [],
+        "DistanceCandidates": [],
+        "Errors": [
+          {
+            "Phase": "lead-a-resolution",
+            "Message": "memory read 0x1576A38AAE0 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AAE0: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "selected-source",
+            "Address": "0x1577AC2FB60",
+            "Message": "memory read 0x1577AC2FB60 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "lead-B-entry15",
+            "Address": "0x1575264C000",
+            "Message": "memory read 0x1575264C000 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1575264C000: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "entry4",
+            "Address": "0x1577AC2C120",
+            "Message": "memory read 0x1577AC2C120 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1577AC2C120: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          },
+          {
+            "Phase": "before-read",
+            "Region": "owner-neighborhood",
+            "Address": "0x1576A38AA10",
+            "Message": "memory read 0x1576A38AA10 did not return JSON. Raw output: ReadProcessMemory failed for PID 65324 at 0x1576A38AA10: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+          }
+        ]
+      }
+    }
+  ],
+  "Errors": [],
+  "Summary": {
+    "AttemptCount": 2,
+    "ErrorCount": 0,
+    "BestAttempt": "attempt-1",
+    "BestAttemptDistanceCandidateCount": 0,
+    "BestAttemptTotalFloatChanges": 0
+  }
+}

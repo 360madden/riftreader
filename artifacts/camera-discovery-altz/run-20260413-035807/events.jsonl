@@ -1,0 +1,6 @@
+
+{"TimestampUtc":"2026-04-13T07:58:07.4263291+00:00","Phase":"suite","Kind":"start","Data":{"RunId":"20260413-035807"}}
+{"TimestampUtc":"2026-04-13T07:58:31.8485290+00:00","Phase":"attempt-1","Kind":"finish","Data":{"ExitCode":0,"HoldMilliseconds":750,"WaitMilliseconds":800}}
+{"TimestampUtc":"2026-04-13T07:58:31.8547064+00:00","Phase":"attempt-2","Kind":"start","Data":{"Reason":"first attempt had no useful Alt-Z signal or failed"}}
+{"TimestampUtc":"2026-04-13T07:58:55.9004464+00:00","Phase":"attempt-2","Kind":"finish","Data":{"ExitCode":0,"HoldMilliseconds":1200,"WaitMilliseconds":1000}}
+{"TimestampUtc":"2026-04-13T07:58:55.9441519+00:00","Phase":"suite","Kind":"finish","Data":{"Status":"completed","AttemptCount":2,"ErrorCount":0}}
