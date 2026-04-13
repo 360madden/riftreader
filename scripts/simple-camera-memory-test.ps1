@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: direct memory-diff camera stimulus test.
+# Prefer the safe Alt-S / Alt-Z harnesses or test-camera-stimulus.ps1 for repeatable evidence runs.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]

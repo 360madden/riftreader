@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: manual-assisted yaw-value scan workflow.
+# Prefer the safe Alt-S / Alt-Z discovery harnesses before falling back to this scan-heavy approach.
 [CmdletBinding()]
 param()
 
@@ -21,7 +23,7 @@ function Get-CameraYaw {
 }
 
 function Scan-ForYaw($yawValue, $iteration) {
-    Write-Host "Scan iteration $iteration: Looking for yaw ≈ $yawValue..." -ForegroundColor Yellow
+    Write-Host "Scan iteration ${iteration}: Looking for yaw ≈ $yawValue..." -ForegroundColor Yellow
 
     $scanOutput = & dotnet run --project $readerProject --configuration Release -- `
         --process-name rift_x64 `
@@ -158,7 +160,7 @@ if ($validCandidates.Count -eq 0) {
 
 Write-Host "Top 5 candidates:" -ForegroundColor Cyan
 $top5 = $validCandidates | Select-Object -First 5
-foreach ($i = 0; $i -lt $top5.Count; $i++) {
+for ($i = 0; $i -lt $top5.Count; $i++) {
     $addr = $top5[$i]
     Write-Host "  $($i+1). Address: $($addr.AddressHex)" -ForegroundColor White
     Write-Host "     Value (baseline): $([Math]::Round($baselineYaw, 4))°" -ForegroundColor Gray

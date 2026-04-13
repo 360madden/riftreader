@@ -1,4 +1,5 @@
-# Send a key to RIFT using SendInput (real keyboard input, requires foreground focus)
+# PREFERRED INPUT PRIMITIVE: Send a key to RIFT using SendInput (real keyboard input, requires foreground focus).
+# Prefer this script when the live client must actually react to gameplay keys.
 # Unlike post-rift-key.ps1 (PostMessage), this actually works for gameplay keys.
 [CmdletBinding()]
 param(

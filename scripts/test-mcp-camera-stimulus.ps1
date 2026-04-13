@@ -1,4 +1,5 @@
-# MCP Camera Stimulus Test Script
+# EXPERIMENTAL PROBE: MCP camera stimulus test script.
+# Prefer Run-CameraDiscoveryStable.ps1 or test-rmb-camera.ps1 for the normal camera-control workflow.
 # Uses MCP for mouse control, reads memory via reader
 
 $ErrorActionPreference = 'Stop'

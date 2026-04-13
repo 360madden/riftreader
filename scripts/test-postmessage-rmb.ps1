@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: PostMessage right-button hold test.
+# Prefer test-rmb-camera.ps1 for canonical RMB-plus-mouse camera rotation checks.
 Add-Type @"
 using System; using System.Runtime.InteropServices;
 public class Win32 {

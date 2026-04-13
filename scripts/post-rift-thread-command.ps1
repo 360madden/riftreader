@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: PostThreadMessage command injection reference.
+# Prefer refresh-readerbridge-export.ps1 or post-rift-command.ps1 for the normal command path.
 [CmdletBinding()]
 param(
     [string]$Command = "/reloadui",

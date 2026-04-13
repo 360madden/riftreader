@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: quick Alt-S test that leans on cached anchors.
+# Prefer test-camera-alts-stimulus-safe.ps1 or Run-CameraDiscoveryStable.ps1 for the supported path.
 # Quick camera Alt-S test — uses anchor cache address directly
 # No owner-component trace needed; scans wider regions around coord base
 [CmdletBinding()]

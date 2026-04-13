@@ -30,6 +30,19 @@ scripts\sync-cheatengine.cmd
 
 There is no test project. Validate C# changes by building (`dotnet build RiftReader.slnx`) then running `scripts\read-player-current.cmd`.
 
+### Input / Control workflow
+
+When a task involves scripted RIFT input or camera-control helpers, use:
+
+- `C:\RIFT MODDING\RiftReader\docs\input-control-workflow.md`
+
+That document is the canonical tiering for:
+
+- preferred gameplay key input
+- preferred `/reloadui` refresh path
+- preferred camera discovery runners
+- experimental probes vs supported entrypoints
+
 ---
 
 ## 1. System Identity

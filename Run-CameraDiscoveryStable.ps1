@@ -1,4 +1,5 @@
 # ====================================================================================
+# PREFERRED CAMERA DISCOVERY ENTRYPOINT: use this root runner first for scripted Alt-S / Alt-Z camera work.
 # Script: Run-CameraDiscoveryStable.ps1
 # Version: 1.0.0
 # Purpose: Minimal, defensive root runner for the safe camera discovery scripts.

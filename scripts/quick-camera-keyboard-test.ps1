@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: ultra-simple keyboard/candidate memory test.
+# Prefer send-rift-key.ps1 plus Run-CameraDiscoveryStable.ps1 for the supported workflow.
 # Ultra Simple Camera Test
 
 $ErrorActionPreference = 'Stop'

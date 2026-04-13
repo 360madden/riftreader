@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: manual-assisted camera-yaw value scan.
+# Prefer Run-CameraDiscoveryStable.ps1 and the safe stimulus scripts before using this helper.
 [CmdletBinding()]
 param()
 

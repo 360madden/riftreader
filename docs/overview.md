@@ -94,6 +94,11 @@ Current discovery refinement:
   - `dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session ...`
     performs the actual one-attach sampling pass
   - see `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
+- keep the input/control stack explicit and tiered so future runs use the same proven entrypoints:
+  - preferred gameplay key input: `C:\RIFT MODDING\RiftReader\scripts\send-rift-key.ps1`
+  - preferred ReaderBridge refresh: `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1`
+  - preferred camera harness: `C:\RIFT MODDING\RiftReader\Run-CameraDiscoveryStable.ps1`
+  - see `C:\RIFT MODDING\RiftReader\docs\input-control-workflow.md`
 
 ## Addon Boundary
 

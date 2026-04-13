@@ -1,3 +1,5 @@
+# EXPERIMENTAL PROBE: PostMessage mouse injection test.
+# Prefer test-rmb-camera.ps1 or test-camera-stimulus.ps1 for normal camera-input work.
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
