@@ -1,0 +1,3 @@
+
+{"TimestampUtc":"2026-04-13T05:57:45.6606070+00:00","Phase":"suite","Kind":"start","Data":{"RunId":"20260413-015745","RefreshOwnerComponents":false}}
+{"TimestampUtc":"2026-04-13T05:57:45.6784206+00:00","Phase":"AltS","Kind":"phase-start","Data":{"ScriptPath":"C:\\RIFT MODDING\\RiftReader\\scripts\\test-camera-alts-stimulus.ps1"}}

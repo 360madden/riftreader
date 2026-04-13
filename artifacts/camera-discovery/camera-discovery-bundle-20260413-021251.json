@@ -1,0 +1,100 @@
+{
+  "Mode": "camera-discovery-artifact",
+  "Version": "1.0.3",
+  "GeneratedAtUtc": "2026-04-13T06:12:51.7708318+00:00",
+  "RunId": "20260413-021251",
+  "RepoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery",
+  "BundlePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery\\camera-discovery-bundle-20260413-021251.json",
+  "EventsPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery\\camera-discovery-events-20260413-021251.jsonl",
+  "ConsoleLogPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery\\camera-discovery-console-20260413-021251.log",
+  "ProcessName": "rift_x64",
+  "HoldMilliseconds": 300,
+  "WaitMilliseconds": 500,
+  "ReadLength": 1024,
+  "RefreshOwnerComponents": false,
+  "SkipBackgroundFocus": false,
+  "ContinueOnError": true,
+  "Status": "completed",
+  "Results": {
+    "AltS": {
+      "ExitCode": 0,
+      "LineCount": 1,
+      "ParseError": null,
+      "OutputTextTail": "{\r\n  \"Mode\": \"camera-alts-stimulus\",\r\n  \"GeneratedAtUtc\": \"2026-04-13T06:13:30.3348847+00:00\",\r\n  \"Stimulus\": \"Alt-S (look behind)\",\r\n  \"HoldMilliseconds\": 300,\r\n  \"WaitMilliseconds\": 500,\r\n  \"OwnerAddress\": \"0x1576A38AA10\",\r\n  \"ContainerAddress\": \"0x1577AD9B540\",\r\n  \"SelectedSourceAddress\": \"0x1577AC2FB60\",\r\n  \"EntryCount\": 16,\r\n  \"RegionsScanned\": 4,\r\n  \"RegionDetails\": [\r\n    {\r\n      \"Name\": \"selected-source\",\r\n      \"Address\": \"0x1577AC2FB60\",\r\n      \"Length\": 192,\r\n      \"IsControl\": true\r\n    },\r\n    {\r\n      \"Name\": \"lead-B-entry15\",\r\n      \"Address\": \"0x1575264C000\",\r\n      \"Length\": 1024,\r\n      \"IsControl\": false\r\n    },\r\n    {\r\n      \"Name\": \"entry4\",\r\n      \"Address\": \"0x1577AC2C120\",\r\n      \"Length\": 512,\r\n      \"IsControl\": false\r\n    },\r\n    {\r\n      \"Name\": \"owner-neighborhood\",\r\n      \"Address\": \"0x1576A38AA10\",\r\n      \"Length\": 512,\r\n      \"IsControl\": false\r\n    }\r\n  ],\r\n  \"TotalFloatChanges\": 0,\r\n  \"FlipCandidateCount\": 0,\r\n  \"ChangedUnitVectorCount\": 0,\r\n  \"Changes\": [],\r\n  \"FlipCandidates\": [],\r\n  \"ChangedUnitVectors\": []\r\n}",
+      "ParsedJson": {
+        "Mode": "camera-alts-stimulus",
+        "GeneratedAtUtc": "2026-04-13T02:13:30.3348847-04:00",
+        "Stimulus": "Alt-S (look behind)",
+        "HoldMilliseconds": 300,
+        "WaitMilliseconds": 500,
+        "OwnerAddress": "0x1576A38AA10",
+        "ContainerAddress": "0x1577AD9B540",
+        "SelectedSourceAddress": "0x1577AC2FB60",
+        "EntryCount": 16,
+        "RegionsScanned": 4,
+        "RegionDetails": [
+          {
+            "Name": "selected-source",
+            "Address": "0x1577AC2FB60",
+            "Length": 192,
+            "IsControl": true
+          },
+          {
+            "Name": "lead-B-entry15",
+            "Address": "0x1575264C000",
+            "Length": 1024,
+            "IsControl": false
+          },
+          {
+            "Name": "entry4",
+            "Address": "0x1577AC2C120",
+            "Length": 512,
+            "IsControl": false
+          },
+          {
+            "Name": "owner-neighborhood",
+            "Address": "0x1576A38AA10",
+            "Length": 512,
+            "IsControl": false
+          }
+        ],
+        "TotalFloatChanges": 0,
+        "FlipCandidateCount": 0,
+        "ChangedUnitVectorCount": 0,
+        "Changes": [],
+        "FlipCandidates": [],
+        "ChangedUnitVectors": []
+      }
+    },
+    "AltZ": {
+      "ExitCode": 0,
+      "LineCount": 1,
+      "ParseError": null,
+      "OutputTextTail": "{\r\n  \"Mode\": \"camera-altz-stimulus\",\r\n  \"GeneratedAtUtc\": \"2026-04-13T06:14:01.5532133+00:00\",\r\n  \"Stimulus\": \"Alt-Z (alternate zoom)\",\r\n  \"HoldMilliseconds\": 300,\r\n  \"WaitMilliseconds\": 500,\r\n  \"OwnerAddress\": \"0x1576A38AA10\",\r\n  \"ContainerAddress\": \"0x1577AD9B540\",\r\n  \"SelectedSourceAddress\": \"0x1577AC2FB60\",\r\n  \"EntryCount\": 16,\r\n  \"RegionsScanned\": 4,\r\n  \"TotalFloatChanges\": 0,\r\n  \"DistanceCandidateCount\": 0,\r\n  \"Changes\": [],\r\n  \"DistanceCandidates\": []\r\n}",
+      "ParsedJson": {
+        "Mode": "camera-altz-stimulus",
+        "GeneratedAtUtc": "2026-04-13T02:14:01.5532133-04:00",
+        "Stimulus": "Alt-Z (alternate zoom)",
+        "HoldMilliseconds": 300,
+        "WaitMilliseconds": 500,
+        "OwnerAddress": "0x1576A38AA10",
+        "ContainerAddress": "0x1577AD9B540",
+        "SelectedSourceAddress": "0x1577AC2FB60",
+        "EntryCount": 16,
+        "RegionsScanned": 4,
+        "TotalFloatChanges": 0,
+        "DistanceCandidateCount": 0,
+        "Changes": [],
+        "DistanceCandidates": []
+      }
+    }
+  },
+  "Errors": [],
+  "Summary": {
+    "PhaseCount": 2,
+    "ErrorCount": 0,
+    "AltSExitCode": 0,
+    "AltZExitCode": 0
+  }
+}

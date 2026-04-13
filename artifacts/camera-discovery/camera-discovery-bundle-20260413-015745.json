@@ -1,0 +1,21 @@
+{
+  "Mode": "camera-discovery-artifact",
+  "Version": "1.0.1",
+  "GeneratedAtUtc": "2026-04-13T05:57:45.6078721+00:00",
+  "RunId": "20260413-015745",
+  "RepoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery",
+  "BundlePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery\\camera-discovery-bundle-20260413-015745.json",
+  "EventsPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery\\camera-discovery-events-20260413-015745.jsonl",
+  "ConsoleLogPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\camera-discovery\\camera-discovery-console-20260413-015745.log",
+  "ProcessName": "rift_x64",
+  "HoldMilliseconds": 300,
+  "WaitMilliseconds": 500,
+  "ReadLength": 1024,
+  "RefreshOwnerComponents": false,
+  "SkipBackgroundFocus": false,
+  "ContinueOnError": true,
+  "Status": "running",
+  "Results": {},
+  "Errors": []
+}

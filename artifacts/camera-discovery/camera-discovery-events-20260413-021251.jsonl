@@ -1,0 +1,6 @@
+{"TimestampUtc":"2026-04-13T06:12:51.8126910+00:00","Phase":"suite","Kind":"start","Data":{"RunId":"20260413-021251"}}
+{"TimestampUtc":"2026-04-13T06:12:51.8391649+00:00","Phase":"AltS","Kind":"phase-start","Data":{"ScriptPath":"C:\\RIFT MODDING\\RiftReader\\scripts\\test-camera-alts-stimulus.ps1"}}
+{"TimestampUtc":"2026-04-13T06:13:30.4764858+00:00","Phase":"AltS","Kind":"phase-finish","Data":{"ExitCode":0,"ParseError":null}}
+{"TimestampUtc":"2026-04-13T06:13:30.4931209+00:00","Phase":"AltZ","Kind":"phase-start","Data":{"ScriptPath":"C:\\RIFT MODDING\\RiftReader\\scripts\\test-camera-altz-stimulus.ps1"}}
+{"TimestampUtc":"2026-04-13T06:14:01.5712096+00:00","Phase":"AltZ","Kind":"phase-finish","Data":{"ExitCode":0,"ParseError":null}}
+{"TimestampUtc":"2026-04-13T06:14:01.6059807+00:00","Phase":"suite","Kind":"finish","Data":{"Status":"completed","ErrorCount":0}}
