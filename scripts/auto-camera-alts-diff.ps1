@@ -68,6 +68,17 @@ $sigRaw = & dotnet run --project $readerProject --configuration Release -- `
     --process-name $ProcessName --scan-readerbridge-player-signature --scan-context 512 --max-hits 20 --json 2>&1
 $sigStr = ($sigRaw | Out-String)
 $sigStart = $sigStr.IndexOf('{')
+if ($sigStart -lt 0) {
+    Write-Host '' -ForegroundColor Red
+    Write-Host 'ERROR: Signature scan returned no JSON.' -ForegroundColor Red
+    Write-Host 'Make sure RIFT is running, you are logged in, and ReaderBridge export is fresh.' -ForegroundColor Red
+    Write-Host '' -ForegroundColor Yellow
+    Write-Host 'Scanner output:' -ForegroundColor Yellow
+    Write-Host $sigStr -ForegroundColor Gray
+    Write-Host '' -ForegroundColor Yellow
+    Write-Host 'Try: /reloadui in RIFT, then: scripts\read-player-current.cmd' -ForegroundColor Yellow
+    exit 1
+}
 $sigData = $sigStr.Substring($sigStart) | ConvertFrom-Json -Depth 30
 
 Write-Host "  Found $($sigData.HitCount) hits in $($sigData.FamilyCount) families" -ForegroundColor Green

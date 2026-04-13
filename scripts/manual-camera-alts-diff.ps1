@@ -67,6 +67,17 @@ $currentRaw = & dotnet run --project $readerProject --configuration Release -- `
     --process-name $ProcessName --read-player-current --json 2>&1
 $currentStr = ($currentRaw | Out-String)
 $startIdx = $currentStr.IndexOf('{')
+if ($startIdx -lt 0) {
+    Write-Host '' -ForegroundColor Red
+    Write-Host 'ERROR: Could not get player data from memory reader.' -ForegroundColor Red
+    Write-Host 'Make sure RIFT is running and you are logged in.' -ForegroundColor Red
+    Write-Host '' -ForegroundColor Yellow
+    Write-Host 'Reader output:' -ForegroundColor Yellow
+    Write-Host $currentStr -ForegroundColor Gray
+    Write-Host '' -ForegroundColor Yellow
+    Write-Host 'Try running:  scripts\read-player-current.cmd' -ForegroundColor Yellow
+    exit 1
+}
 $current = $currentStr.Substring($startIdx) | ConvertFrom-Json -Depth 30
 $coordBaseHex = $current.Memory.AddressHex
 $coordBase = [UInt64]::Parse(($coordBaseHex -replace '^0x', ''), [System.Globalization.NumberStyles]::HexNumber)
@@ -81,6 +92,11 @@ $sigRaw = & dotnet run --project $readerProject --configuration Release -- `
     --process-name $ProcessName --scan-readerbridge-player-signature --scan-context 192 --max-hits 20 --json 2>&1
 $sigStr = ($sigRaw | Out-String)
 $sigStart = $sigStr.IndexOf('{')
+if ($sigStart -lt 0) {
+    Write-Host 'ERROR: Signature scan returned no JSON. Is RIFT running and ReaderBridge export fresh?' -ForegroundColor Red
+    Write-Host 'Try: /reloadui in RIFT, then scripts\read-player-current.cmd' -ForegroundColor Yellow
+    exit 1
+}
 $sigData = $sigStr.Substring($sigStart) | ConvertFrom-Json -Depth 30
 
 $sampleAddresses = @()
