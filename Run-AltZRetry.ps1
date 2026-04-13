@@ -31,7 +31,7 @@ $ownerComponentsFile = Join-Path $scriptRoot 'captures' 'player-owner-components
 $selectorTraceFile = Join-Path $scriptRoot 'captures' 'player-selector-owner-trace.json'
 $artifactBase = Join-Path $repoRoot $ArtifactRoot
 
-function Ensure-Directory {
+function New-DirectoryIfMissing {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
@@ -46,7 +46,7 @@ function Write-Utf8File {
 
     $parent = Split-Path -Parent $Path
     if (-not [string]::IsNullOrWhiteSpace($parent)) {
-        Ensure-Directory -Path $parent
+        New-DirectoryIfMissing -Path $parent
     }
 
     Set-Content -LiteralPath $Path -Value $Content -Encoding UTF8
@@ -101,7 +101,7 @@ function Invoke-AltZAttempt {
         [Parameter(Mandatory)][string]$DestinationResultFile
     )
 
-    $args = @{
+    $scriptArgs = @{
         ProcessName = $ProcessName
         HoldMilliseconds = $HoldMilliseconds
         WaitMilliseconds = $WaitMilliseconds
@@ -110,10 +110,10 @@ function Invoke-AltZAttempt {
     }
 
     if ($RefreshOwnerComponents) {
-        $args['RefreshOwnerComponents'] = $true
+        $scriptArgs['RefreshOwnerComponents'] = $true
     }
     if ($SkipBackgroundFocus) {
-        $args['SkipBackgroundFocus'] = $true
+        $scriptArgs['SkipBackgroundFocus'] = $true
     }
 
     $output = $null
@@ -121,7 +121,7 @@ function Invoke-AltZAttempt {
     $exceptionMessage = $null
 
     try {
-        $output = & $altZScript @args 2>&1
+        $output = & $altZScript @scriptArgs 2>&1
         if ($null -ne $LASTEXITCODE) {
             $exitCode = $LASTEXITCODE
         }
@@ -173,10 +173,10 @@ if (-not $RefreshOwnerComponents) {
     }
 }
 
-Ensure-Directory -Path $artifactBase
+New-DirectoryIfMissing -Path $artifactBase
 $runId = Get-Date -Format 'yyyyMMdd-HHmmss'
 $runDirectory = Join-Path $artifactBase ("run-{0}" -f $runId)
-Ensure-Directory -Path $runDirectory
+New-DirectoryIfMissing -Path $runDirectory
 $bundlePath = Join-Path $runDirectory 'bundle.json'
 $eventsPath = Join-Path $runDirectory 'events.jsonl'
 Write-Utf8File -Path $eventsPath -Content ''
