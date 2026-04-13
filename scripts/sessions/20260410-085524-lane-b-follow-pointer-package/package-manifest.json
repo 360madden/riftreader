@@ -1,0 +1,74 @@
+{
+  "Mode": "discovery-session-package",
+  "SessionId": "20260410-085524-lane-b-follow-pointer-package",
+  "Label": "lane-b-follow-pointer-package",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\watchset.json",
+  "CaptureConsistencyFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\capture-consistency.json",
+  "ReaderBridgeSnapshotFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\readerbridge-snapshot.json",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts",
+  "RecordingManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\modules.json",
+  "ProcessId": 98428,
+  "ProcessName": "rift_x64",
+  "WatchsetRegionCount": 53,
+  "SampleCount": 1,
+  "IntervalMilliseconds": 100,
+  "CopiedArtifacts": [
+    {
+      "Name": "ce-family-neighborhood.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\ce-family-neighborhood.json"
+    },
+    {
+      "Name": "ce-smart-player-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\ce-smart-player-family.json"
+    },
+    {
+      "Name": "owner-state-neighborhood.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\owner-state-neighborhood.json"
+    },
+    {
+      "Name": "player-current-anchor.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-current-anchor.json"
+    },
+    {
+      "Name": "player-coord-trace-cluster.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-coord-trace-cluster.json"
+    },
+    {
+      "Name": "player-selector-owner-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-selector-owner-trace.json"
+    },
+    {
+      "Name": "player-owner-components.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-owner-components.json"
+    },
+    {
+      "Name": "player-owner-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-owner-graph.json"
+    },
+    {
+      "Name": "player-source-chain.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-source-chain.json"
+    },
+    {
+      "Name": "player-source-accessor-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-source-accessor-family.json"
+    },
+    {
+      "Name": "player-coord-write-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-coord-write-trace.json"
+    },
+    {
+      "Name": "player-stat-hub-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-stat-hub-graph.json"
+    },
+    {
+      "Name": "player-state-projector-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-085524-lane-b-follow-pointer-package\\artifacts\\player-state-projector-trace.json"
+    }
+  ],
+  "Warnings": []
+}

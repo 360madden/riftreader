@@ -1,0 +1,188 @@
+{
+  "Mode": "ce-smart-player-family",
+  "GeneratedAtUtc": "2026-04-10T12:05:30.2660623+00:00",
+  "ProcessName": "rift_x64",
+  "MovementKey": "w",
+  "FallbackMovementKeys": [
+    "d",
+    "a",
+    "s"
+  ],
+  "MovementKeySequence": [
+    "w",
+    "d",
+    "a",
+    "s"
+  ],
+  "MovementHoldMilliseconds": 750,
+  "SelectedAxis": "X",
+  "SelectedStimulusKey": "s",
+  "AttemptCount": 1,
+  "BaselineCoords": {
+    "X": 7461.8798828125,
+    "Y": 865.72998046875,
+    "Z": 2988.0100097656
+  },
+  "MovedCoords": {
+    "X": 7461.8999023438,
+    "Y": 865.88000488281,
+    "Z": 2985.7099609375
+  },
+  "Delta": {
+    "X": 0.02001953130002221,
+    "Y": 0.1500244140599989,
+    "Z": -2.300048828099989
+  },
+  "BaselineCeHitCount": 104,
+  "NextScanMode": "increased",
+  "MovedCeHitCount": 9,
+  "RetrievedCeAddressCount": 9,
+  "TripletConfirmedAddressCount": 3,
+  "TripletConfirmedAddresses": [
+    "0x157695B1EC0",
+    "0x15790E48FB0",
+    "0x157BABFF430"
+  ],
+  "Attempts": [
+    {
+      "Axis": "X",
+      "StimulusKey": "s",
+      "MotionObserved": true,
+      "BaselineCoords": {
+        "X": 7461.8798828125,
+        "Y": 865.72998046875,
+        "Z": 2988.0100097656
+      },
+      "MovedCoords": {
+        "X": 7461.8999023438,
+        "Y": 865.88000488281,
+        "Z": 2985.7099609375
+      },
+      "Delta": {
+        "X": 0.02001953130002221,
+        "Y": 0.1500244140599989,
+        "Z": -2.300048828099989
+      },
+      "BaselineCeHitCount": 104,
+      "NextScanMode": "increased",
+      "MovedCeHitCount": 9,
+      "RetrievedCeAddressCount": 9,
+      "RetrievedCeAddresses": [
+        "0x157695B1EC0",
+        "0x1577CD496A0",
+        "0x1577D3F1B40",
+        "0x1577D530D80",
+        "0x1578A28F8F0",
+        "0x1578D13D7F0",
+        "0x1578D1C24B0",
+        "0x15790E48FB0",
+        "0x157BABFF430"
+      ],
+      "TripletConfirmedAddressCount": 3,
+      "TripletConfirmedAddresses": [
+        "0x157695B1EC0",
+        "0x15790E48FB0",
+        "0x157BABFF430"
+      ],
+      "StimulusAttempts": [
+        {
+          "Key": "w",
+          "MovedCoords": {
+            "X": 7461.8798828125,
+            "Y": 865.72998046875,
+            "Z": 2988.0100097656
+          },
+          "Delta": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 0.0
+          },
+          "MotionObserved": false
+        },
+        {
+          "Key": "d",
+          "MovedCoords": {
+            "X": 7461.8798828125,
+            "Y": 865.72998046875,
+            "Z": 2988.0100097656
+          },
+          "Delta": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 0.0
+          },
+          "MotionObserved": false
+        },
+        {
+          "Key": "a",
+          "MovedCoords": {
+            "X": 7461.8798828125,
+            "Y": 865.72998046875,
+            "Z": 2988.0100097656
+          },
+          "Delta": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 0.0
+          },
+          "MotionObserved": false
+        },
+        {
+          "Key": "s",
+          "MovedCoords": {
+            "X": 7461.8999023438,
+            "Y": 865.88000488281,
+            "Z": 2985.7099609375
+          },
+          "Delta": {
+            "X": 0.02001953130002221,
+            "Y": 0.1500244140599989,
+            "Z": -2.300048828099989
+          },
+          "MotionObserved": true
+        }
+      ]
+    }
+  ],
+  "CandidateFamilyCount": 1,
+  "CeConfirmedFamilyCount": 1,
+  "PreCeTopFamilyId": "fam-CEC3708F",
+  "WinnerFamilyId": "fam-CEC3708F",
+  "Winner": {
+    "FamilyId": "fam-CEC3708F",
+    "Signature": "coords@0",
+    "Notes": "unclassified blob",
+    "BestScore": 1,
+    "HitCount": 3,
+    "RepresentativeAddressHex": "0x1577BED8620",
+    "SampleAddresses": [
+      "0x1577BED8620",
+      "0x15790D91CE0",
+      "0x15790E48FB0"
+    ],
+    "CeConfirmedSampleCount": 1,
+    "CeConfirmedSampleAddresses": [
+      "0x15790E48FB0"
+    ]
+  },
+  "Families": [
+    {
+      "FamilyId": "fam-CEC3708F",
+      "Signature": "coords@0",
+      "Notes": "unclassified blob",
+      "BestScore": 1,
+      "HitCount": 3,
+      "RepresentativeAddressHex": "0x1577BED8620",
+      "SampleAddresses": [
+        "0x1577BED8620",
+        "0x15790D91CE0",
+        "0x15790E48FB0"
+      ],
+      "CeConfirmedSampleCount": 1,
+      "CeConfirmedSampleAddresses": [
+        "0x15790E48FB0"
+      ]
+    }
+  ],
+  "ConfirmationFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\ce-smart-player-family.json"
+}

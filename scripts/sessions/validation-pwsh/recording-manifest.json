@@ -1,0 +1,913 @@
+{
+  "Mode": "record-session",
+  "SessionId": "validation-pwsh",
+  "OutputDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\validation-pwsh",
+  "ProcessId": 40980,
+  "ProcessName": "pwsh",
+  "ModuleName": "pwsh.exe",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\validation-pwsh\\watchset.json",
+  "WatchsetRegionCount": 1,
+  "RequestedSampleCount": 2,
+  "RecordedSampleCount": 2,
+  "IntervalMilliseconds": 10,
+  "Label": "validation",
+  "StartedAtUtc": "2026-04-10T00:13:14.5113832\u002B00:00",
+  "CompletedAtUtc": "2026-04-10T00:13:14.5460021\u002B00:00",
+  "ManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\validation-pwsh\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\validation-pwsh\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\validation-pwsh\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\validation-pwsh\\modules.json",
+  "Modules": [
+    {
+      "ModuleName": "System.Diagnostics.Tracing.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Diagnostics.Tracing.dll",
+      "BaseAddressHex": "0x15A7ECB0000",
+      "BaseAddress": 1488185917440,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Runtime.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Runtime.dll",
+      "BaseAddressHex": "0x15A7ECF0000",
+      "BaseAddress": 1488186179584,
+      "ModuleMemorySize": 57344
+    },
+    {
+      "ModuleName": "System.Threading.Thread.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Threading.Thread.dll",
+      "BaseAddressHex": "0x15A7ED00000",
+      "BaseAddress": 1488186245120,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Xml.ReaderWriter.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Xml.ReaderWriter.dll",
+      "BaseAddressHex": "0x15A7ED10000",
+      "BaseAddress": 1488186310656,
+      "ModuleMemorySize": 40960
+    },
+    {
+      "ModuleName": "System.Text.Encoding.Extensions.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Text.Encoding.Extensions.dll",
+      "BaseAddressHex": "0x15A7ED20000",
+      "BaseAddress": 1488186376192,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "Microsoft.Win32.Primitives.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.Win32.Primitives.dll",
+      "BaseAddressHex": "0x15A7ED30000",
+      "BaseAddress": 1488186441728,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Reflection.Emit.Lightweight.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Reflection.Emit.Lightweight.dll",
+      "BaseAddressHex": "0x15A7ED40000",
+      "BaseAddress": 1488186507264,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Reflection.Emit.ILGeneration.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Reflection.Emit.ILGeneration.dll",
+      "BaseAddressHex": "0x15A7EFC0000",
+      "BaseAddress": 1488189128704,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Reflection.Primitives.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Reflection.Primitives.dll",
+      "BaseAddressHex": "0x15A7F1B0000",
+      "BaseAddress": 1488191160320,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "netstandard.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\netstandard.dll",
+      "BaseAddressHex": "0x15A7F1C0000",
+      "BaseAddress": 1488191225856,
+      "ModuleMemorySize": 114688
+    },
+    {
+      "ModuleName": "System.Xml.XDocument.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Xml.XDocument.dll",
+      "BaseAddressHex": "0x15A7F1E0000",
+      "BaseAddress": 1488191356928,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Runtime.Loader.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Runtime.Loader.dll",
+      "BaseAddressHex": "0x15A7F1F0000",
+      "BaseAddress": 1488191422464,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Threading.Overlapped.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Threading.Overlapped.dll",
+      "BaseAddressHex": "0x15A7F200000",
+      "BaseAddress": 1488191488000,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Numerics.Vectors.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Numerics.Vectors.dll",
+      "BaseAddressHex": "0x15A7F210000",
+      "BaseAddress": 1488191553536,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "System.Threading.ThreadPool.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Threading.ThreadPool.dll",
+      "BaseAddressHex": "0x15A7F220000",
+      "BaseAddress": 1488191619072,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "pwsh.exe",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "BaseAddressHex": "0x7FF614250000",
+      "BaseAddress": 140694876651520,
+      "ModuleMemorySize": 311296
+    },
+    {
+      "ModuleName": "System.Management.Automation.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Management.Automation.dll",
+      "BaseAddressHex": "0x7FFB99DE0000",
+      "BaseAddress": 140718594981888,
+      "ModuleMemorySize": 19562496
+    },
+    {
+      "ModuleName": "System.Text.Json.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Text.Json.dll",
+      "BaseAddressHex": "0x7FFB9B4D0000",
+      "BaseAddress": 140718619033600,
+      "ModuleMemorySize": 1875968
+    },
+    {
+      "ModuleName": "Microsoft.PowerShell.Commands.Utility.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.PowerShell.Commands.Utility.dll",
+      "BaseAddressHex": "0x7FFB9FC60000",
+      "BaseAddress": 140718694072320,
+      "ModuleMemorySize": 1642496
+    },
+    {
+      "ModuleName": "Microsoft.PowerShell.Commands.Management.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.PowerShell.Commands.Management.dll",
+      "BaseAddressHex": "0x7FFBA5670000",
+      "BaseAddress": 140718788509696,
+      "ModuleMemorySize": 1114112
+    },
+    {
+      "ModuleName": "System.Private.CoreLib.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Private.CoreLib.dll",
+      "BaseAddressHex": "0x7FFBA5780000",
+      "BaseAddress": 140718789623808,
+      "ModuleMemorySize": 16019456
+    },
+    {
+      "ModuleName": "System.Data.Common.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Data.Common.dll",
+      "BaseAddressHex": "0x7FFBB11D0000",
+      "BaseAddress": 140718984986624,
+      "ModuleMemorySize": 2760704
+    },
+    {
+      "ModuleName": "System.Security.Cryptography.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Security.Cryptography.dll",
+      "BaseAddressHex": "0x7FFBB3F20000",
+      "BaseAddress": 140719032500224,
+      "ModuleMemorySize": 2535424
+    },
+    {
+      "ModuleName": "System.Private.Xml.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Private.Xml.dll",
+      "BaseAddressHex": "0x7FFBB4190000",
+      "BaseAddress": 140719035056128,
+      "ModuleMemorySize": 7778304
+    },
+    {
+      "ModuleName": "System.Linq.Expressions.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Linq.Expressions.dll",
+      "BaseAddressHex": "0x7FFBB4900000",
+      "BaseAddress": 140719042854912,
+      "ModuleMemorySize": 3629056
+    },
+    {
+      "ModuleName": "System.Net.Http.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Net.Http.dll",
+      "BaseAddressHex": "0x7FFBB4E40000",
+      "BaseAddress": 140719048359936,
+      "ModuleMemorySize": 1736704
+    },
+    {
+      "ModuleName": "Newtonsoft.Json.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Newtonsoft.Json.dll",
+      "BaseAddressHex": "0x7FFBB5240000",
+      "BaseAddress": 140719052554240,
+      "ModuleMemorySize": 1814528
+    },
+    {
+      "ModuleName": "coreclr.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\coreclr.dll",
+      "BaseAddressHex": "0x7FFBB5400000",
+      "BaseAddress": 140719054389248,
+      "ModuleMemorySize": 4694016
+    },
+    {
+      "ModuleName": "System.Text.Encoding.CodePages.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Text.Encoding.CodePages.dll",
+      "BaseAddressHex": "0x7FFBB7270000",
+      "BaseAddress": 140719086305280,
+      "ModuleMemorySize": 851968
+    },
+    {
+      "ModuleName": "clrjit.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\clrjit.dll",
+      "BaseAddressHex": "0x7FFBB7580000",
+      "BaseAddress": 140719089516544,
+      "ModuleMemorySize": 2109440
+    },
+    {
+      "ModuleName": "System.Text.RegularExpressions.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Text.RegularExpressions.dll",
+      "BaseAddressHex": "0x7FFBB7C30000",
+      "BaseAddress": 140719096528896,
+      "ModuleMemorySize": 1024000
+    },
+    {
+      "ModuleName": "Microsoft.ApplicationInsights.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.ApplicationInsights.dll",
+      "BaseAddressHex": "0x7FFBB82E0000",
+      "BaseAddress": 140719103541248,
+      "ModuleMemorySize": 913408
+    },
+    {
+      "ModuleName": "System.ComponentModel.TypeConverter.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.ComponentModel.TypeConverter.dll",
+      "BaseAddressHex": "0x7FFBBFAA0000",
+      "BaseAddress": 140719229108224,
+      "ModuleMemorySize": 757760
+    },
+    {
+      "ModuleName": "System.Management.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Management.dll",
+      "BaseAddressHex": "0x7FFBC1580000",
+      "BaseAddress": 140719257288704,
+      "ModuleMemorySize": 823296
+    },
+    {
+      "ModuleName": "System.Linq.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Linq.dll",
+      "BaseAddressHex": "0x7FFBC9C80000",
+      "BaseAddress": 140719398846464,
+      "ModuleMemorySize": 688128
+    },
+    {
+      "ModuleName": "System.Diagnostics.DiagnosticSource.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Diagnostics.DiagnosticSource.dll",
+      "BaseAddressHex": "0x7FFBCBA80000",
+      "BaseAddress": 140719430303744,
+      "ModuleMemorySize": 491520
+    },
+    {
+      "ModuleName": "System.DirectoryServices.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.DirectoryServices.dll",
+      "BaseAddressHex": "0x7FFBCD740000",
+      "BaseAddress": 140719460450304,
+      "ModuleMemorySize": 1011712
+    },
+    {
+      "ModuleName": "System.Private.Xml.Linq.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Private.Xml.Linq.dll",
+      "BaseAddressHex": "0x7FFBD8060000",
+      "BaseAddress": 140719637790720,
+      "ModuleMemorySize": 380928
+    },
+    {
+      "ModuleName": "System.Net.Mail.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Net.Mail.dll",
+      "BaseAddressHex": "0x7FFBD9970000",
+      "BaseAddress": 140719664070656,
+      "ModuleMemorySize": 466944
+    },
+    {
+      "ModuleName": "System.Runtime.Numerics.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Runtime.Numerics.dll",
+      "BaseAddressHex": "0x7FFBE05E0000",
+      "BaseAddress": 140719777775616,
+      "ModuleMemorySize": 344064
+    },
+    {
+      "ModuleName": "Microsoft.PowerShell.ConsoleHost.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.PowerShell.ConsoleHost.dll",
+      "BaseAddressHex": "0x7FFBF2270000",
+      "BaseAddress": 140720076161024,
+      "ModuleMemorySize": 589824
+    },
+    {
+      "ModuleName": "AppxSip.dll",
+      "FileName": "C:\\Windows\\System32\\AppxSip.dll",
+      "BaseAddressHex": "0x7FFBF36D0000",
+      "BaseAddress": 140720097525760,
+      "ModuleMemorySize": 409600
+    },
+    {
+      "ModuleName": "System.Security.Permissions.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Security.Permissions.dll",
+      "BaseAddressHex": "0x7FFBF3740000",
+      "BaseAddress": 140720097984512,
+      "ModuleMemorySize": 180224
+    },
+    {
+      "ModuleName": "System.IO.Pipes.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.IO.Pipes.dll",
+      "BaseAddressHex": "0x7FFC1B930000",
+      "BaseAddress": 140720771104768,
+      "ModuleMemorySize": 155648
+    },
+    {
+      "ModuleName": "System.Memory.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Memory.dll",
+      "BaseAddressHex": "0x7FFC1BEF0000",
+      "BaseAddress": 140720777134080,
+      "ModuleMemorySize": 151552
+    },
+    {
+      "ModuleName": "hostpolicy.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\hostpolicy.dll",
+      "BaseAddressHex": "0x7FFC1BF50000",
+      "BaseAddress": 140720777527296,
+      "ModuleMemorySize": 389120
+    },
+    {
+      "ModuleName": "System.Security.AccessControl.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Security.AccessControl.dll",
+      "BaseAddressHex": "0x7FFC1C040000",
+      "BaseAddress": 140720778510336,
+      "ModuleMemorySize": 217088
+    },
+    {
+      "ModuleName": "microsoft.management.infrastructure.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\microsoft.management.infrastructure.dll",
+      "BaseAddressHex": "0x7FFC1E080000",
+      "BaseAddress": 140720812326912,
+      "ModuleMemorySize": 299008
+    },
+    {
+      "ModuleName": "System.Net.Primitives.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Net.Primitives.dll",
+      "BaseAddressHex": "0x7FFC1E640000",
+      "BaseAddress": 140720818356224,
+      "ModuleMemorySize": 200704
+    },
+    {
+      "ModuleName": "System.IO.FileSystem.AccessControl.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.IO.FileSystem.AccessControl.dll",
+      "BaseAddressHex": "0x7FFC21130000",
+      "BaseAddress": 140720863379456,
+      "ModuleMemorySize": 94208
+    },
+    {
+      "ModuleName": "System.Threading.Tasks.Parallel.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Threading.Tasks.Parallel.dll",
+      "BaseAddressHex": "0x7FFC21290000",
+      "BaseAddress": 140720864821248,
+      "ModuleMemorySize": 122880
+    },
+    {
+      "ModuleName": "OpcServices.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\OpcServices.DLL",
+      "BaseAddressHex": "0x7FFC21E40000",
+      "BaseAddress": 140720877076480,
+      "ModuleMemorySize": 1970176
+    },
+    {
+      "ModuleName": "System.Private.Uri.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Private.Uri.dll",
+      "BaseAddressHex": "0x7FFC22030000",
+      "BaseAddress": 140720879108096,
+      "ModuleMemorySize": 245760
+    },
+    {
+      "ModuleName": "System.IO.MemoryMappedFiles.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.IO.MemoryMappedFiles.dll",
+      "BaseAddressHex": "0x7FFC24080000",
+      "BaseAddress": 140720912990208,
+      "ModuleMemorySize": 73728
+    },
+    {
+      "ModuleName": "System.Diagnostics.Process.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Diagnostics.Process.dll",
+      "BaseAddressHex": "0x7FFC273A0000",
+      "BaseAddress": 140720966598656,
+      "ModuleMemorySize": 319488
+    },
+    {
+      "ModuleName": "System.Security.Claims.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Security.Claims.dll",
+      "BaseAddressHex": "0x7FFC38600000",
+      "BaseAddress": 140721254301696,
+      "ModuleMemorySize": 90112
+    },
+    {
+      "ModuleName": "System.Security.Principal.Windows.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Security.Principal.Windows.dll",
+      "BaseAddressHex": "0x7FFC38630000",
+      "BaseAddress": 140721254498304,
+      "ModuleMemorySize": 167936
+    },
+    {
+      "ModuleName": "System.Collections.Concurrent.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Collections.Concurrent.dll",
+      "BaseAddressHex": "0x7FFC3CB40000",
+      "BaseAddress": 140721326915584,
+      "ModuleMemorySize": 221184
+    },
+    {
+      "ModuleName": "System.Console.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Console.dll",
+      "BaseAddressHex": "0x7FFC3FC10000",
+      "BaseAddress": 140721378099200,
+      "ModuleMemorySize": 159744
+    },
+    {
+      "ModuleName": "wshext.dll",
+      "FileName": "C:\\Windows\\System32\\wshext.dll",
+      "BaseAddressHex": "0x7FFC40310000",
+      "BaseAddress": 140721385439232,
+      "ModuleMemorySize": 110592
+    },
+    {
+      "ModuleName": "Microsoft.PowerShell.CoreCLR.Eventing.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.PowerShell.CoreCLR.Eventing.dll",
+      "BaseAddressHex": "0x7FFC53290000",
+      "BaseAddress": 140721703682048,
+      "ModuleMemorySize": 221184
+    },
+    {
+      "ModuleName": "MSISIP.DLL",
+      "FileName": "C:\\Windows\\System32\\MSISIP.DLL",
+      "BaseAddressHex": "0x7FFC54580000",
+      "BaseAddress": 140721723539456,
+      "ModuleMemorySize": 98304
+    },
+    {
+      "ModuleName": "System.Collections.NonGeneric.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Collections.NonGeneric.dll",
+      "BaseAddressHex": "0x7FFC546C0000",
+      "BaseAddress": 140721724850176,
+      "ModuleMemorySize": 94208
+    },
+    {
+      "ModuleName": "System.Collections.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Collections.dll",
+      "BaseAddressHex": "0x7FFC5BC10000",
+      "BaseAddress": 140721847861248,
+      "ModuleMemorySize": 286720
+    },
+    {
+      "ModuleName": "MpOav.dll",
+      "FileName": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26020.6-0\\MpOav.dll",
+      "BaseAddressHex": "0x7FFC63620000",
+      "BaseAddress": 140721975853056,
+      "ModuleMemorySize": 663552
+    },
+    {
+      "ModuleName": "amsi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\amsi.dll",
+      "BaseAddressHex": "0x7FFC64D60000",
+      "BaseAddress": 140722000232448,
+      "ModuleMemorySize": 118784
+    },
+    {
+      "ModuleName": "hostfxr.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\hostfxr.dll",
+      "BaseAddressHex": "0x7FFC64E10000",
+      "BaseAddress": 140722000953344,
+      "ModuleMemorySize": 389120
+    },
+    {
+      "ModuleName": "System.Net.NetworkInformation.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Net.NetworkInformation.dll",
+      "BaseAddressHex": "0x7FFC65960000",
+      "BaseAddress": 140722012815360,
+      "ModuleMemorySize": 147456
+    },
+    {
+      "ModuleName": "System.ObjectModel.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.ObjectModel.dll",
+      "BaseAddressHex": "0x7FFC65E00000",
+      "BaseAddress": 140722017665024,
+      "ModuleMemorySize": 69632
+    },
+    {
+      "ModuleName": "Microsoft.Win32.Registry.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.Win32.Registry.dll",
+      "BaseAddressHex": "0x7FFC66140000",
+      "BaseAddress": 140722021072896,
+      "ModuleMemorySize": 106496
+    },
+    {
+      "ModuleName": "System.IO.FileSystem.DriveInfo.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.IO.FileSystem.DriveInfo.dll",
+      "BaseAddressHex": "0x7FFC66290000",
+      "BaseAddress": 140722022449152,
+      "ModuleMemorySize": 45056
+    },
+    {
+      "ModuleName": "System.Diagnostics.TraceSource.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Diagnostics.TraceSource.dll",
+      "BaseAddressHex": "0x7FFC662A0000",
+      "BaseAddress": 140722022514688,
+      "ModuleMemorySize": 131072
+    },
+    {
+      "ModuleName": "mpr.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\mpr.dll",
+      "BaseAddressHex": "0x7FFC690D0000",
+      "BaseAddress": 140722070945792,
+      "ModuleMemorySize": 135168
+    },
+    {
+      "ModuleName": "MPCLIENT.DLL",
+      "FileName": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26020.6-0\\MPCLIENT.DLL",
+      "BaseAddressHex": "0x7FFC69480000",
+      "BaseAddress": 140722074812416,
+      "ModuleMemorySize": 1818624
+    },
+    {
+      "ModuleName": "icu.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\icu.dll",
+      "BaseAddressHex": "0x7FFC6B680000",
+      "BaseAddress": 140722110464000,
+      "ModuleMemorySize": 2744320
+    },
+    {
+      "ModuleName": "pwsh.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\pwsh.dll",
+      "BaseAddressHex": "0x7FFC6CAE0000",
+      "BaseAddress": 140722131828736,
+      "ModuleMemorySize": 147456
+    },
+    {
+      "ModuleName": "System.ComponentModel.Primitives.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.ComponentModel.Primitives.dll",
+      "BaseAddressHex": "0x7FFC6CBC0000",
+      "BaseAddress": 140722132746240,
+      "ModuleMemorySize": 69632
+    },
+    {
+      "ModuleName": "Windows.StateRepositoryPS.dll",
+      "FileName": "C:\\Windows\\System32\\Windows.StateRepositoryPS.dll",
+      "BaseAddressHex": "0x7FFC6CFB0000",
+      "BaseAddress": 140722136875008,
+      "ModuleMemorySize": 802816
+    },
+    {
+      "ModuleName": "System.Collections.Specialized.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Collections.Specialized.dll",
+      "BaseAddressHex": "0x7FFC73C90000",
+      "BaseAddress": 140722251038720,
+      "ModuleMemorySize": 94208
+    },
+    {
+      "ModuleName": "System.Runtime.Serialization.Formatters.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Runtime.Serialization.Formatters.dll",
+      "BaseAddressHex": "0x7FFC74250000",
+      "BaseAddress": 140722257068032,
+      "ModuleMemorySize": 114688
+    },
+    {
+      "ModuleName": "System.ComponentModel.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.ComponentModel.dll",
+      "BaseAddressHex": "0x7FFC74540000",
+      "BaseAddress": 140722260148224,
+      "ModuleMemorySize": 20480
+    },
+    {
+      "ModuleName": "System.Threading.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Threading.dll",
+      "BaseAddressHex": "0x7FFC7E7C0000",
+      "BaseAddress": 140722430541824,
+      "ModuleMemorySize": 73728
+    },
+    {
+      "ModuleName": "System.Diagnostics.FileVersionInfo.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Diagnostics.FileVersionInfo.dll",
+      "BaseAddressHex": "0x7FFC85560000",
+      "BaseAddress": 140722545491968,
+      "ModuleMemorySize": 36864
+    },
+    {
+      "ModuleName": "System.Runtime.InteropServices.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Runtime.InteropServices.dll",
+      "BaseAddressHex": "0x7FFC86020000",
+      "BaseAddress": 140722556764160,
+      "ModuleMemorySize": 102400
+    },
+    {
+      "ModuleName": "Microsoft.PowerShell.MarkdownRender.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\Microsoft.PowerShell.MarkdownRender.dll",
+      "BaseAddressHex": "0x7FFC86050000",
+      "BaseAddress": 140722556960768,
+      "ModuleMemorySize": 45056
+    },
+    {
+      "ModuleName": "version.dll",
+      "FileName": "C:\\WINDOWS\\system32\\version.dll",
+      "BaseAddressHex": "0x7FFC871A0000",
+      "BaseAddress": 140722575114240,
+      "ModuleMemorySize": 45056
+    },
+    {
+      "ModuleName": "pwrshsip.dll",
+      "FileName": "C:\\Windows\\System32\\pwrshsip.dll",
+      "BaseAddressHex": "0x7FFC895F0000",
+      "BaseAddress": 140722613190656,
+      "ModuleMemorySize": 53248
+    },
+    {
+      "ModuleName": "System.Runtime.Serialization.Primitives.dll",
+      "FileName": "C:\\Program Files\\PowerShell\\7\\System.Runtime.Serialization.Primitives.dll",
+      "BaseAddressHex": "0x7FFC89690000",
+      "BaseAddress": 140722613846016,
+      "ModuleMemorySize": 28672
+    },
+    {
+      "ModuleName": "secur32.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\secur32.dll",
+      "BaseAddressHex": "0x7FFC8BCB0000",
+      "BaseAddress": 140722653822976,
+      "ModuleMemorySize": 53248
+    },
+    {
+      "ModuleName": "uxtheme.dll",
+      "FileName": "C:\\WINDOWS\\system32\\uxtheme.dll",
+      "BaseAddressHex": "0x7FFC8BD20000",
+      "BaseAddress": 140722654281728,
+      "ModuleMemorySize": 692224
+    },
+    {
+      "ModuleName": "rsaenh.dll",
+      "FileName": "C:\\WINDOWS\\system32\\rsaenh.dll",
+      "BaseAddressHex": "0x7FFC8D4A0000",
+      "BaseAddress": 140722678923264,
+      "ModuleMemorySize": 233472
+    },
+    {
+      "ModuleName": "kernel.appcore.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",
+      "BaseAddressHex": "0x7FFC8D540000",
+      "BaseAddress": 140722679578624,
+      "ModuleMemorySize": 110592
+    },
+    {
+      "ModuleName": "SSPICLI.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\SSPICLI.DLL",
+      "BaseAddressHex": "0x7FFC8D7E0000",
+      "BaseAddress": 140722682331136,
+      "ModuleMemorySize": 299008
+    },
+    {
+      "ModuleName": "gpapi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\gpapi.dll",
+      "BaseAddressHex": "0x7FFC8DB20000",
+      "BaseAddress": 140722685739008,
+      "ModuleMemorySize": 196608
+    },
+    {
+      "ModuleName": "USERENV.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\USERENV.dll",
+      "BaseAddressHex": "0x7FFC8DB60000",
+      "BaseAddress": 140722686001152,
+      "ModuleMemorySize": 208896
+    },
+    {
+      "ModuleName": "CRYPTSP.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\CRYPTSP.dll",
+      "BaseAddressHex": "0x7FFC8DD90000",
+      "BaseAddress": 140722688294912,
+      "ModuleMemorySize": 110592
+    },
+    {
+      "ModuleName": "CRYPTBASE.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\CRYPTBASE.dll",
+      "BaseAddressHex": "0x7FFC8DDB0000",
+      "BaseAddress": 140722688425984,
+      "ModuleMemorySize": 49152
+    },
+    {
+      "ModuleName": "MSASN1.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\MSASN1.dll",
+      "BaseAddressHex": "0x7FFC8DE00000",
+      "BaseAddress": 140722688753664,
+      "ModuleMemorySize": 77824
+    },
+    {
+      "ModuleName": "wldp.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\wldp.dll",
+      "BaseAddressHex": "0x7FFC8DE70000",
+      "BaseAddress": 140722689212416,
+      "ModuleMemorySize": 425984
+    },
+    {
+      "ModuleName": "BCrypt.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\BCrypt.dll",
+      "BaseAddressHex": "0x7FFC8E6A0000",
+      "BaseAddress": 140722697797632,
+      "ModuleMemorySize": 172032
+    },
+    {
+      "ModuleName": "profapi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\profapi.dll",
+      "BaseAddressHex": "0x7FFC8E6D0000",
+      "BaseAddress": 140722697994240,
+      "ModuleMemorySize": 167936
+    },
+    {
+      "ModuleName": "win32u.dll",
+      "FileName": "C:\\WINDOWS\\System32\\win32u.dll",
+      "BaseAddressHex": "0x7FFC8E7B0000",
+      "BaseAddress": 140722698911744,
+      "ModuleMemorySize": 159744
+    },
+    {
+      "ModuleName": "wintypes.dll",
+      "FileName": "C:\\WINDOWS\\System32\\wintypes.dll",
+      "BaseAddressHex": "0x7FFC8E8A0000",
+      "BaseAddress": 140722699894784,
+      "ModuleMemorySize": 1482752
+    },
+    {
+      "ModuleName": "gdi32full.dll",
+      "FileName": "C:\\WINDOWS\\System32\\gdi32full.dll",
+      "BaseAddressHex": "0x7FFC8EA10000",
+      "BaseAddress": 140722701402112,
+      "ModuleMemorySize": 1220608
+    },
+    {
+      "ModuleName": "ucrtbase.dll",
+      "FileName": "C:\\WINDOWS\\System32\\ucrtbase.dll",
+      "BaseAddressHex": "0x7FFC8EB40000",
+      "BaseAddress": 140722702647296,
+      "ModuleMemorySize": 1355776
+    },
+    {
+      "ModuleName": "bcryptPrimitives.dll",
+      "FileName": "C:\\WINDOWS\\System32\\bcryptPrimitives.dll",
+      "BaseAddressHex": "0x7FFC8EC90000",
+      "BaseAddress": 140722704023552,
+      "ModuleMemorySize": 675840
+    },
+    {
+      "ModuleName": "KERNELBASE.dll",
+      "FileName": "C:\\WINDOWS\\System32\\KERNELBASE.dll",
+      "BaseAddressHex": "0x7FFC8ED40000",
+      "BaseAddress": 140722704744448,
+      "ModuleMemorySize": 4145152
+    },
+    {
+      "ModuleName": "msvcp_win.dll",
+      "FileName": "C:\\WINDOWS\\System32\\msvcp_win.dll",
+      "BaseAddressHex": "0x7FFC8F140000",
+      "BaseAddress": 140722708938752,
+      "ModuleMemorySize": 667648
+    },
+    {
+      "ModuleName": "windows.storage.dll",
+      "FileName": "C:\\WINDOWS\\System32\\windows.storage.dll",
+      "BaseAddressHex": "0x7FFC8F1F0000",
+      "BaseAddress": 140722709659648,
+      "ModuleMemorySize": 8802304
+    },
+    {
+      "ModuleName": "WINTRUST.dll",
+      "FileName": "C:\\WINDOWS\\System32\\WINTRUST.dll",
+      "BaseAddressHex": "0x7FFC8FA60000",
+      "BaseAddress": 140722718507008,
+      "ModuleMemorySize": 532480
+    },
+    {
+      "ModuleName": "CRYPT32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\CRYPT32.dll",
+      "BaseAddressHex": "0x7FFC8FAF0000",
+      "BaseAddress": 140722719096832,
+      "ModuleMemorySize": 1536000
+    },
+    {
+      "ModuleName": "shlwapi.dll",
+      "FileName": "C:\\WINDOWS\\System32\\shlwapi.dll",
+      "BaseAddressHex": "0x7FFC8FC70000",
+      "BaseAddress": 140722720669696,
+      "ModuleMemorySize": 417792
+    },
+    {
+      "ModuleName": "SHCORE.dll",
+      "FileName": "C:\\WINDOWS\\System32\\SHCORE.dll",
+      "BaseAddressHex": "0x7FFC8FDE0000",
+      "BaseAddress": 140722722177024,
+      "ModuleMemorySize": 1011712
+    },
+    {
+      "ModuleName": "combase.dll",
+      "FileName": "C:\\WINDOWS\\System32\\combase.dll",
+      "BaseAddressHex": "0x7FFC8FEE0000",
+      "BaseAddress": 140722723225600,
+      "ModuleMemorySize": 3678208
+    },
+    {
+      "ModuleName": "clbcatq.dll",
+      "FileName": "C:\\WINDOWS\\System32\\clbcatq.dll",
+      "BaseAddressHex": "0x7FFC90590000",
+      "BaseAddress": 140722730237952,
+      "ModuleMemorySize": 712704
+    },
+    {
+      "ModuleName": "KERNEL32.DLL",
+      "FileName": "C:\\WINDOWS\\System32\\KERNEL32.DLL",
+      "BaseAddressHex": "0x7FFC90650000",
+      "BaseAddress": 140722731024384,
+      "ModuleMemorySize": 823296
+    },
+    {
+      "ModuleName": "RPCRT4.dll",
+      "FileName": "C:\\WINDOWS\\System32\\RPCRT4.dll",
+      "BaseAddressHex": "0x7FFC90920000",
+      "BaseAddress": 140722733973504,
+      "ModuleMemorySize": 1146880
+    },
+    {
+      "ModuleName": "ADVAPI32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\ADVAPI32.dll",
+      "BaseAddressHex": "0x7FFC90A40000",
+      "BaseAddress": 140722735153152,
+      "ModuleMemorySize": 745472
+    },
+    {
+      "ModuleName": "SHELL32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\SHELL32.dll",
+      "BaseAddressHex": "0x7FFC90B70000",
+      "BaseAddress": 140722736398336,
+      "ModuleMemorySize": 7757824
+    },
+    {
+      "ModuleName": "IMM32.DLL",
+      "FileName": "C:\\WINDOWS\\System32\\IMM32.DLL",
+      "BaseAddressHex": "0x7FFC91300000",
+      "BaseAddress": 140722744328192,
+      "ModuleMemorySize": 204800
+    },
+    {
+      "ModuleName": "OLEAUT32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\OLEAUT32.dll",
+      "BaseAddressHex": "0x7FFC91430000",
+      "BaseAddress": 140722745573376,
+      "ModuleMemorySize": 880640
+    },
+    {
+      "ModuleName": "sechost.dll",
+      "FileName": "C:\\WINDOWS\\System32\\sechost.dll",
+      "BaseAddressHex": "0x7FFC91510000",
+      "BaseAddress": 140722746490880,
+      "ModuleMemorySize": 684032
+    },
+    {
+      "ModuleName": "GDI32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\GDI32.dll",
+      "BaseAddressHex": "0x7FFC915C0000",
+      "BaseAddress": 140722747211776,
+      "ModuleMemorySize": 176128
+    },
+    {
+      "ModuleName": "msvcrt.dll",
+      "FileName": "C:\\WINDOWS\\System32\\msvcrt.dll",
+      "BaseAddressHex": "0x7FFC915F0000",
+      "BaseAddress": 140722747408384,
+      "ModuleMemorySize": 692224
+    },
+    {
+      "ModuleName": "USER32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\USER32.dll",
+      "BaseAddressHex": "0x7FFC916A0000",
+      "BaseAddress": 140722748129280,
+      "ModuleMemorySize": 1855488
+    },
+    {
+      "ModuleName": "ole32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\ole32.dll",
+      "BaseAddressHex": "0x7FFC91870000",
+      "BaseAddress": 140722750029824,
+      "ModuleMemorySize": 1667072
+    },
+    {
+      "ModuleName": "ntdll.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\ntdll.dll",
+      "BaseAddressHex": "0x7FFC91EE0000",
+      "BaseAddress": 140722756780032,
+      "ModuleMemorySize": 2519040
+    }
+  ],
+  "WatchsetWarnings": [],
+  "Warnings": []
+}

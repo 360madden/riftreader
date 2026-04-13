@@ -1,0 +1,3 @@
+{"Kind":"session-start","RecordedAtUtc":"2026-04-10T06:37:19.6046510\u002B00:00","ElapsedMilliseconds":0,"Label":"combat-smoke","Message":"Session recording started."}
+{"Kind":"label","RecordedAtUtc":"2026-04-10T06:37:19.6046510\u002B00:00","ElapsedMilliseconds":0,"Label":"combat-smoke","Message":"Initial session label."}
+{"Kind":"session-end","RecordedAtUtc":"2026-04-10T06:37:20.0267807\u002B00:00","ElapsedMilliseconds":419,"Label":"combat-smoke","Message":"Session recording completed."}

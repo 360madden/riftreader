@@ -1,0 +1,55 @@
+{
+  "Mode": "ce-family-neighborhood",
+  "GeneratedAtUtc": "2026-04-10T12:21:39.7677125+00:00",
+  "ConfirmationFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\ce-smart-player-family.json",
+  "ConfirmationGeneratedAtUtc": "04/10/2026 08:20:32",
+  "SourceObjectAddress": "0x1577AC2FB60",
+  "SelectedSourceAddress": "0x1577AC2FB60",
+  "WinnerFamilyId": "fam-6F81F26E",
+  "WinnerSignature": "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
+  "WinnerNotes": "location/cache blob",
+  "NeighborhoodBytes": 384,
+  "SampleCount": 2,
+  "KnownAddresses": {
+    "OwnerObject": "0x1576A38AA10",
+    "OwnerContainer": "0x1577AD9B540",
+    "SelectedSource": "0x1577AC2FB60",
+    "OwnerStateRecord": "0x1576A38AAD8",
+    "StateSlot50": "0x1576A38AB40",
+    "StateSlot58": "0x1576A38AB40",
+    "StateSlot60": "0x1576A38ABC0",
+    "CurrentAnchor": "0x15759A45EE0",
+    "SharedHubs": [
+      "0x1577AE055E0",
+      "0x1575264C000",
+      "0x157513CA930",
+      "0x1577AD95C20",
+      "0x1577AD9B8E0",
+      "0x1577AD96420"
+    ]
+  },
+  "Samples": [
+    {
+      "Address": "0x15755CFCE00",
+      "Coords": {
+        "X": 7461.42,
+        "Y": 865.5,
+        "Z": 2987.95
+      },
+      "PointerMatchCount": 0,
+      "PointerMatches": []
+    },
+    {
+      "Address": "0x15798B34630",
+      "Coords": {
+        "X": 7461.42,
+        "Y": 865.5,
+        "Z": 2987.95
+      },
+      "PointerMatchCount": 0,
+      "PointerMatches": []
+    }
+  ],
+  "SharedPointers": [],
+  "Warnings": []
+}

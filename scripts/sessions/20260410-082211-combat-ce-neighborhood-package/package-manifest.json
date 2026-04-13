@@ -1,0 +1,70 @@
+{
+  "Mode": "discovery-session-package",
+  "SessionId": "20260410-082211-combat-ce-neighborhood-package",
+  "Label": "combat-ce-neighborhood-package",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\watchset.json",
+  "CaptureConsistencyFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\capture-consistency.json",
+  "ReaderBridgeSnapshotFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\readerbridge-snapshot.json",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts",
+  "RecordingManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\modules.json",
+  "ProcessId": 98428,
+  "ProcessName": "rift_x64",
+  "WatchsetRegionCount": 49,
+  "SampleCount": 3,
+  "IntervalMilliseconds": 200,
+  "CopiedArtifacts": [
+    {
+      "Name": "ce-family-neighborhood.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\ce-family-neighborhood.json"
+    },
+    {
+      "Name": "ce-smart-player-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\ce-smart-player-family.json"
+    },
+    {
+      "Name": "player-current-anchor.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-current-anchor.json"
+    },
+    {
+      "Name": "player-coord-trace-cluster.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-coord-trace-cluster.json"
+    },
+    {
+      "Name": "player-selector-owner-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-selector-owner-trace.json"
+    },
+    {
+      "Name": "player-owner-components.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-owner-components.json"
+    },
+    {
+      "Name": "player-owner-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-owner-graph.json"
+    },
+    {
+      "Name": "player-source-chain.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-source-chain.json"
+    },
+    {
+      "Name": "player-source-accessor-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-source-accessor-family.json"
+    },
+    {
+      "Name": "player-coord-write-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-coord-write-trace.json"
+    },
+    {
+      "Name": "player-stat-hub-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-stat-hub-graph.json"
+    },
+    {
+      "Name": "player-state-projector-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-082211-combat-ce-neighborhood-package\\artifacts\\player-state-projector-trace.json"
+    }
+  ],
+  "Warnings": []
+}

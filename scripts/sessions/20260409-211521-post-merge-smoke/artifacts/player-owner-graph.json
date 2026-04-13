@@ -1,0 +1,308 @@
+{
+  "Mode": "player-owner-graph",
+  "GeneratedAtUtc": "2026-04-09T03:12:31.9148219+00:00",
+  "SelectorTraceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-selector-owner-trace.json",
+  "Owner": {
+    "Address": "0x1AED5A67610",
+    "SelectedSourceAddress": "0x1AEBA302B40",
+    "ContainerAddress": "0x1AEE411B280",
+    "SelectorIndex": 6
+  },
+  "ChildCount": 14,
+  "Children": [
+    {
+      "OwnerOffset": 0,
+      "OwnerOffsetHex": "0x0",
+      "Address": "0x7FF6066699E0",
+      "Role": "linked-child",
+      "BackrefAt100": "0x7FF60402E0A0",
+      "BackrefAt68": "0x4D00450054005B",
+      "SourceAt8": "0x7FF6045AE330",
+      "Coord48": {
+        "X": 8.023225E-36,
+        "Y": 4.5904E-41,
+        "Z": 2.5722922E-36,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 7.163288E-39,
+        "Y": 8.540796E-39,
+        "Z": 0.0,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 8,
+      "OwnerOffsetHex": "0x8",
+      "Address": "0x1AEE411A0C0",
+      "Role": "linked-child",
+      "BackrefAt100": "0x20",
+      "BackrefAt68": "0x53",
+      "SourceAt8": "0x1AED5A67618",
+      "Coord48": {
+        "X": -32.95526,
+        "Y": 6.03E-43,
+        "Z": 0.0,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": -1.1427055E+22,
+        "Y": 6.03E-43,
+        "Z": -1.1428208E+22,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 120,
+      "OwnerOffsetHex": "0x78",
+      "Address": "0x1AEE411B280",
+      "Role": "linked-child",
+      "BackrefAt100": "0x40E98000410C8000",
+      "BackrefAt68": "0x1AEBA303820",
+      "SourceAt8": "0x1AEE3E0B1F0",
+      "Coord48": {
+        "X": -0.00067218207,
+        "Y": 6.03E-43,
+        "Z": -0.00067218766,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": -4.680054E+14,
+        "Y": 6.03E-43,
+        "Z": -1.0749678E+22,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 128,
+      "OwnerOffsetHex": "0x80",
+      "Address": "0x1AEE411B318",
+      "Role": "linked-child",
+      "BackrefAt100": "0x4190900041A0D000",
+      "BackrefAt68": "0x40E98000410C8000",
+      "SourceAt8": "0x1AEC20A8CC8",
+      "Coord48": {
+        "X": 6.875,
+        "Y": 5.484375,
+        "Z": 6.875,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 9.609375,
+        "Y": 9.609375,
+        "Z": 9.609375,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 136,
+      "OwnerOffsetHex": "0x88",
+      "Address": "0x1AEE411B318",
+      "Role": "linked-child",
+      "BackrefAt100": "0x4190900041A0D000",
+      "BackrefAt68": "0x40E98000410C8000",
+      "SourceAt8": "0x1AEC20A8CC8",
+      "Coord48": {
+        "X": 6.875,
+        "Y": 5.484375,
+        "Z": 6.875,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 9.609375,
+        "Y": 9.609375,
+        "Z": 9.609375,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 160,
+      "OwnerOffsetHex": "0xA0",
+      "Address": "0x1AEE3E0FEA0",
+      "Role": "source-wrapper",
+      "BackrefAt100": "0x1AED5A67610",
+      "BackrefAt68": "0x1AEE3E0B270",
+      "SourceAt8": "0x1AEBA302B40",
+      "Coord48": {
+        "X": -4.680054E+14,
+        "Y": 6.03E-43,
+        "Z": -8.289785E+21,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": -0.00067222584,
+        "Y": 6.03E-43,
+        "Z": -1.0748903E+22,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 168,
+      "OwnerOffsetHex": "0xA8",
+      "Address": "0x1AEE3E0FF38",
+      "Role": "owner-backref-wrapper",
+      "BackrefAt100": "0xFFFFFFFF",
+      "BackrefAt68": "0x1AED5A67610",
+      "SourceAt8": "0x1AEE4113030",
+      "Coord48": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 7.1E-44,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": -8.2641413E+21,
+        "Y": 6.03E-43,
+        "Z": 9.1835E-41,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 176,
+      "OwnerOffsetHex": "0xB0",
+      "Address": "0x1AEE3E0FF38",
+      "Role": "owner-backref-wrapper",
+      "BackrefAt100": "0xFFFFFFFF",
+      "BackrefAt68": "0x1AED5A67610",
+      "SourceAt8": "0x1AEE4113030",
+      "Coord48": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 7.1E-44,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": -8.2641413E+21,
+        "Y": 6.03E-43,
+        "Z": 9.1835E-41,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 208,
+      "OwnerOffsetHex": "0xD0",
+      "Address": "0x1AEE557A460",
+      "Role": "owner-state-wrapper",
+      "BackrefAt100": "0x6081000000001",
+      "BackrefAt68": "0x1AEC1D6D9B0",
+      "SourceAt8": "0x1AED5A676D8",
+      "Coord48": {
+        "X": 9.4E-44,
+        "Y": 0.0,
+        "Z": 1E-45,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 1.84E-43,
+        "Y": 0.0,
+        "Z": 4.6580754E-35,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 216,
+      "OwnerOffsetHex": "0xD8",
+      "Address": "0x1AEE557A460",
+      "Role": "owner-state-wrapper",
+      "BackrefAt100": "0x6081000000001",
+      "BackrefAt68": "0x1AEC1D6D9B0",
+      "SourceAt8": "0x1AED5A676D8",
+      "Coord48": {
+        "X": 9.4E-44,
+        "Y": 0.0,
+        "Z": 1E-45,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 1.84E-43,
+        "Y": 0.0,
+        "Z": 4.6580754E-35,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 224,
+      "OwnerOffsetHex": "0xE0",
+      "Address": "0x1AEE557A460",
+      "Role": "owner-state-wrapper",
+      "BackrefAt100": "0x6081000000001",
+      "BackrefAt68": "0x1AEC1D6D9B0",
+      "SourceAt8": "0x1AED5A676D8",
+      "Coord48": {
+        "X": 9.4E-44,
+        "Y": 0.0,
+        "Z": 1E-45,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 1.84E-43,
+        "Y": 0.0,
+        "Z": 4.6580754E-35,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 280,
+      "OwnerOffsetHex": "0x118",
+      "Address": "0x1AED5A67740",
+      "Role": "linked-child",
+      "BackrefAt100": "0xFF01FFFFFFFFFFFF",
+      "BackrefAt68": null,
+      "SourceAt8": "0x7265646E65526F",
+      "Coord48": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 0.0,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 1.401E-42,
+        "Y": 0.0,
+        "Z": -4.59758E+14,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 288,
+      "OwnerOffsetHex": "0x120",
+      "Address": "0x1AED5A67740",
+      "Role": "linked-child",
+      "BackrefAt100": "0xFF01FFFFFFFFFFFF",
+      "BackrefAt68": null,
+      "SourceAt8": "0x7265646E65526F",
+      "Coord48": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 0.0,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": 1.401E-42,
+        "Y": 0.0,
+        "Z": -4.59758E+14,
+        "MatchesSelectedSource": false
+      }
+    },
+    {
+      "OwnerOffset": 296,
+      "OwnerOffsetHex": "0x128",
+      "Address": "0x1AED5A677C0",
+      "Role": "linked-child",
+      "BackrefAt100": "0x1AEE41AF3C8",
+      "BackrefAt68": "0xFFFFFFFFFFFFFFFF",
+      "SourceAt8": "0x3E8",
+      "Coord48": {
+        "X": 7.22E-43,
+        "Y": 0.0,
+        "Z": 4.3371242E-35,
+        "MatchesSelectedSource": false
+      },
+      "Coord88": {
+        "X": "NaN",
+        "Y": "NaN",
+        "Z": "NaN",
+        "MatchesSelectedSource": false
+      }
+    }
+  ]
+}

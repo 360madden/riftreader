@@ -1,0 +1,304 @@
+{
+  "Mode": "player-source-chain",
+  "GeneratedAtUtc": "2026-04-10T06:59:30.6129518+00:00",
+  "ClusterFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-coord-trace-cluster.json",
+  "ClusterSummary": {
+    "TraceInstruction": "0x7FF767442B3E",
+    "ClusterPatternAddress": "0x7FF767442B29",
+    "ClusterPatternOffset": "0x932B29"
+  },
+  "SourceChain": {
+    "SourceContainerLoad": {
+      "Index": 25,
+      "Address": "7FF767442AF3",
+      "Bytes": "48 8B 48 78",
+      "Opcode": "mov rcx,[rax+78]",
+      "Extra": "",
+      "Full": "7FF767442AF3 - 48 8B 48 78  - mov rcx,[rax+78]",
+      "UsesBaseRegister": false,
+      "MemoryOperand": "[rax+78]",
+      "RelativeOffset": null,
+      "RoleHint": null
+    },
+    "SourceObjectLoad": {
+      "Index": 26,
+      "Address": "7FF767442AF7",
+      "Bytes": "48 8B 3C D1",
+      "Opcode": "mov rdi,[rcx+rdx*8]",
+      "Extra": "",
+      "Full": "7FF767442AF7 - 48 8B 3C D1   - mov rdi,[rcx+rdx*8]",
+      "UsesBaseRegister": false,
+      "MemoryOperand": "[rcx+rdx*8]",
+      "RelativeOffset": null,
+      "RoleHint": null
+    },
+    "SourceResolveCall": {
+      "Index": 30,
+      "Address": "7FF767442B07",
+      "Bytes": "E8 244AD5FF",
+      "Opcode": "call 7FF767197530",
+      "Extra": "",
+      "Full": "7FF767442B07 - E8 244AD5FF - call 7FF767197530",
+      "UsesBaseRegister": false,
+      "MemoryOperand": null,
+      "RelativeOffset": null,
+      "RoleHint": null
+    },
+    "SourceResolveTarget": "7FF767197530",
+    "SourceCoordXRead": {
+      "Index": 32,
+      "Address": "7FF767442B0F",
+      "Bytes": "F2 0F10 00",
+      "Opcode": "movsd xmm0,[rax]",
+      "Extra": "",
+      "Full": "7FF767442B0F - F2 0F10 00  - movsd xmm0,[rax]",
+      "UsesBaseRegister": false,
+      "MemoryOperand": "[rax]",
+      "RelativeOffset": null,
+      "RoleHint": null
+    },
+    "DestinationCoordXWrite": {
+      "Index": 33,
+      "Address": "7FF767442B13",
+      "Bytes": "F2 0F11 86 58010000",
+      "Opcode": "movsd [rsi+00000158],xmm0",
+      "Extra": "",
+      "Full": "7FF767442B13 - F2 0F11 86 58010000  - movsd [rsi+00000158],xmm0",
+      "UsesBaseRegister": true,
+      "MemoryOperand": "[rsi+00000158]",
+      "RelativeOffset": 344,
+      "RoleHint": "coord-x"
+    },
+    "SourceCoordZRead": {
+      "Index": 34,
+      "Address": "7FF767442B1B",
+      "Bytes": "8B 40 08",
+      "Opcode": "mov eax,[rax+08]",
+      "Extra": "",
+      "Full": "7FF767442B1B - 8B 40 08  - mov eax,[rax+08]",
+      "UsesBaseRegister": false,
+      "MemoryOperand": "[rax+08]",
+      "RelativeOffset": null,
+      "RoleHint": null
+    },
+    "DestinationCoordZWrite": {
+      "Index": 35,
+      "Address": "7FF767442B1E",
+      "Bytes": "89 86 60010000",
+      "Opcode": "mov [rsi+00000160],eax",
+      "Extra": "",
+      "Full": "7FF767442B1E - 89 86 60010000  - mov [rsi+00000160],eax",
+      "UsesBaseRegister": true,
+      "MemoryOperand": "[rsi+00000160]",
+      "RelativeOffset": 352,
+      "RoleHint": "coord-z"
+    }
+  },
+  "Accessor": {
+    "FunctionStart": "7FF767197530",
+    "PreparationCall": {
+      "index": "7",
+      "address": "7FF767197539",
+      "bytes": "E8 52120000",
+      "opcode": "call 7FF767198790",
+      "extra": "",
+      "full": "7FF767197539 - E8 52120000 - call 7FF767198790"
+    },
+    "ReturnLea": {
+      "index": "8",
+      "address": "7FF76719753E",
+      "bytes": "48 8D 43 48",
+      "opcode": "lea rax,[rbx+48]",
+      "extra": "",
+      "full": "7FF76719753E - 48 8D 43 48  - lea rax,[rbx+48]"
+    },
+    "ReturnOffset": 72,
+    "RawInstructionCount": 17
+  },
+  "AccessorInstructions": [
+    {
+      "index": "0",
+      "address": "7FF76719752C",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719752C - CC - int 3 "
+    },
+    {
+      "index": "1",
+      "address": "7FF76719752D",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719752D - CC - int 3 "
+    },
+    {
+      "index": "2",
+      "address": "7FF76719752E",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719752E - CC - int 3 "
+    },
+    {
+      "index": "3",
+      "address": "7FF76719752F",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719752F - CC - int 3 "
+    },
+    {
+      "index": "4",
+      "address": "7FF767197530",
+      "bytes": "40 53",
+      "opcode": "push rbx",
+      "extra": "",
+      "full": "7FF767197530 - 40 53 - push rbx"
+    },
+    {
+      "index": "5",
+      "address": "7FF767197532",
+      "bytes": "48 83 EC 20",
+      "opcode": "sub rsp,20",
+      "extra": "",
+      "full": "7FF767197532 - 48 83 EC 20 - sub rsp,20"
+    },
+    {
+      "index": "6",
+      "address": "7FF767197536",
+      "bytes": "48 8B D9",
+      "opcode": "mov rbx,rcx",
+      "extra": "",
+      "full": "7FF767197536 - 48 8B D9  - mov rbx,rcx"
+    },
+    {
+      "index": "7",
+      "address": "7FF767197539",
+      "bytes": "E8 52120000",
+      "opcode": "call 7FF767198790",
+      "extra": "",
+      "full": "7FF767197539 - E8 52120000 - call 7FF767198790"
+    },
+    {
+      "index": "8",
+      "address": "7FF76719753E",
+      "bytes": "48 8D 43 48",
+      "opcode": "lea rax,[rbx+48]",
+      "extra": "",
+      "full": "7FF76719753E - 48 8D 43 48  - lea rax,[rbx+48]"
+    },
+    {
+      "index": "9",
+      "address": "7FF767197542",
+      "bytes": "48 83 C4 20",
+      "opcode": "add rsp,20",
+      "extra": "",
+      "full": "7FF767197542 - 48 83 C4 20 - add rsp,20"
+    },
+    {
+      "index": "10",
+      "address": "7FF767197546",
+      "bytes": "5B",
+      "opcode": "pop rbx",
+      "extra": "",
+      "full": "7FF767197546 - 5B - pop rbx"
+    },
+    {
+      "index": "11",
+      "address": "7FF767197547",
+      "bytes": "C3",
+      "opcode": "ret ",
+      "extra": "",
+      "full": "7FF767197547 - C3 - ret "
+    },
+    {
+      "index": "12",
+      "address": "7FF767197548",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF767197548 - CC - int 3 "
+    },
+    {
+      "index": "13",
+      "address": "7FF767197549",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF767197549 - CC - int 3 "
+    },
+    {
+      "index": "14",
+      "address": "7FF76719754A",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719754A - CC - int 3 "
+    },
+    {
+      "index": "15",
+      "address": "7FF76719754B",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719754B - CC - int 3 "
+    },
+    {
+      "index": "16",
+      "address": "7FF76719754C",
+      "bytes": "CC",
+      "opcode": "int 3 ",
+      "extra": "",
+      "full": "7FF76719754C - CC - int 3 "
+    }
+  ],
+  "SuggestedAccessorPattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 43 48 48 83 C4 20 5B C3",
+  "SuggestedAccessorScan": {
+    "Mode": "module-pattern-scan",
+    "ProcessId": 98428,
+    "ProcessName": "rift_x64",
+    "ModuleName": "rift_x64.exe",
+    "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "ModuleBaseAddress": "0x7FF766B10000",
+    "ModuleMemorySize": 62615552,
+    "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 43 48 48 83 C4 20 5B C3",
+    "Found": true,
+    "RelativeOffset": 6845744,
+    "RelativeOffsetHex": "0x687530",
+    "Address": "0x7FF767197530",
+    "ContextBytes": 0
+  },
+  "Preparation": {
+    "FunctionStart": "7FF767198790",
+    "GuardInstruction": {
+      "index": "15",
+      "address": "7FF7671987B7",
+      "bytes": "48 83 B9 00010000 00",
+      "opcode": "cmp qword ptr [rcx+00000100],00",
+      "extra": "",
+      "full": "7FF7671987B7 - 48 83 B9 00010000 00 - cmp qword ptr [rcx+00000100],00"
+    },
+    "GuardOffset": 256,
+    "GlobalLoad": null,
+    "RawInstructionCount": 29
+  },
+  "SuggestedPreparationPattern": null,
+  "SuggestedPreparationScan": null,
+  "SuggestedSourceChainPattern": "48 8B 48 78 48 8B 3C D1 48 85 FF 0F 84 ?? ?? ?? ?? 48 8B CF E8 ?? ?? ?? ?? 48 8B CF F2 0F 10 00 F2 0F 11 86 58 01 00 00 8B 40 08 89 86 60 01 00 00",
+  "SuggestedSourceChainScan": {
+    "Mode": "module-pattern-scan",
+    "ProcessId": 98428,
+    "ProcessName": "rift_x64",
+    "ModuleName": "rift_x64.exe",
+    "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "ModuleBaseAddress": "0x7FF766B10000",
+    "ModuleMemorySize": 62615552,
+    "Pattern": "48 8B 48 78 48 8B 3C D1 48 85 FF 0F 84 ?? ?? ?? ?? 48 8B CF E8 ?? ?? ?? ?? 48 8B CF F2 0F 10 00 F2 0F 11 86 58 01 00 00 8B 40 08 89 86 60 01 00 00",
+    "Found": true,
+    "RelativeOffset": 9644787,
+    "RelativeOffsetHex": "0x932AF3",
+    "Address": "0x7FF767442AF3",
+    "ContextBytes": 0
+  }
+}

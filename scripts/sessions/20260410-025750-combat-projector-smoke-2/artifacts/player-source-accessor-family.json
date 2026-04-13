@@ -1,0 +1,172 @@
+{
+  "Mode": "player-source-accessor-family",
+  "GeneratedAtUtc": "2026-04-10T06:59:44.5301701+00:00",
+  "SourceChainFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-chain.json",
+  "TraceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-coord-write-trace.json",
+  "SourceObjectAddress": "0x1577AC2FB60",
+  "FamilyClusterFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-accessor-family.tsv",
+  "PreparationTarget": "7FF767198790",
+  "AccessorCount": 4,
+  "Accessors": [
+    {
+      "FunctionStart": "7FF7671974C0",
+      "ReturnOffset": 96,
+      "ReturnOffsetHex": "0x60",
+      "PreparationTarget": "7FF767198790",
+      "ReturnInstruction": {
+        "index": "93",
+        "address": "7FF7671974CE",
+        "bytes": "48 8D 43 60",
+        "opcode": "lea rax,[rbx+60]",
+        "extra": "",
+        "full": "7FF7671974CE - 48 8D 43 60  - lea rax,[rbx+60]"
+      },
+      "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 43 60 48 83 C4 20 5B C3",
+      "PatternScan": {
+        "Mode": "module-pattern-scan",
+        "ProcessId": 98428,
+        "ProcessName": "rift_x64",
+        "ModuleName": "rift_x64.exe",
+        "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+        "ModuleBaseAddress": "0x7FF766B10000",
+        "ModuleMemorySize": 62615552,
+        "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 43 60 48 83 C4 20 5B C3",
+        "Found": true,
+        "RelativeOffset": 6845632,
+        "RelativeOffsetHex": "0x6874C0",
+        "Address": "0x7FF7671974C0",
+        "ContextBytes": 0
+      },
+      "LiveProbe": {
+        "SourceObjectAddress": "0x1577AC2FB60",
+        "ProbeAddress": "0x1577AC2FBC0",
+        "Float0": 0.9991082,
+        "Float1": 0.0,
+        "Float2": 0.042222593,
+        "Dword0": 1065338254,
+        "Dword1": 0,
+        "Dword2": 1026355609
+      }
+    },
+    {
+      "FunctionStart": "7FF7671974E0",
+      "ReturnOffset": 148,
+      "ReturnOffsetHex": "0x94",
+      "PreparationTarget": "7FF767198790",
+      "ReturnInstruction": {
+        "index": "109",
+        "address": "7FF7671974EE",
+        "bytes": "48 8D 83 94000000",
+        "opcode": "lea rax,[rbx+00000094]",
+        "extra": "",
+        "full": "7FF7671974EE - 48 8D 83 94000000  - lea rax,[rbx+00000094]"
+      },
+      "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 83 94 00 00 00 48 83 C4 20 5B C3",
+      "PatternScan": {
+        "Mode": "module-pattern-scan",
+        "ProcessId": 98428,
+        "ProcessName": "rift_x64",
+        "ModuleName": "rift_x64.exe",
+        "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+        "ModuleBaseAddress": "0x7FF766B10000",
+        "ModuleMemorySize": 62615552,
+        "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 83 94 00 00 00 48 83 C4 20 5B C3",
+        "Found": true,
+        "RelativeOffset": 6845664,
+        "RelativeOffsetHex": "0x6874E0",
+        "Address": "0x7FF7671974E0",
+        "ContextBytes": 0
+      },
+      "LiveProbe": {
+        "SourceObjectAddress": "0x1577AC2FB60",
+        "ProbeAddress": "0x1577AC2FBF4",
+        "Float0": 0.99910843,
+        "Float1": 0.0,
+        "Float2": 0.04221716,
+        "Dword0": 1065338258,
+        "Dword1": 0,
+        "Dword2": 1026354151
+      }
+    },
+    {
+      "FunctionStart": "7FF767197510",
+      "ReturnOffset": 136,
+      "ReturnOffsetHex": "0x88",
+      "PreparationTarget": "7FF767198790",
+      "ReturnInstruction": {
+        "index": "131",
+        "address": "7FF76719751E",
+        "bytes": "48 8D 83 88000000",
+        "opcode": "lea rax,[rbx+00000088]",
+        "extra": "",
+        "full": "7FF76719751E - 48 8D 83 88000000  - lea rax,[rbx+00000088]"
+      },
+      "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 83 88 00 00 00 48 83 C4 20 5B C3",
+      "PatternScan": {
+        "Mode": "module-pattern-scan",
+        "ProcessId": 98428,
+        "ProcessName": "rift_x64",
+        "ModuleName": "rift_x64.exe",
+        "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+        "ModuleBaseAddress": "0x7FF766B10000",
+        "ModuleMemorySize": 62615552,
+        "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 83 88 00 00 00 48 83 C4 20 5B C3",
+        "Found": true,
+        "RelativeOffset": 6845712,
+        "RelativeOffsetHex": "0x687510",
+        "Address": "0x7FF767197510",
+        "ContextBytes": 0
+      },
+      "LiveProbe": {
+        "SourceObjectAddress": "0x1577AC2FB60",
+        "ProbeAddress": "0x1577AC2FBE8",
+        "Float0": 7460.963,
+        "Float1": 865.08344,
+        "Float2": 2987.7783,
+        "Dword0": 1172907956,
+        "Dword1": 1146635607,
+        "Dword2": 1161477236
+      }
+    },
+    {
+      "FunctionStart": "7FF767197530",
+      "ReturnOffset": 72,
+      "ReturnOffsetHex": "0x48",
+      "PreparationTarget": "7FF767198790",
+      "ReturnInstruction": {
+        "index": "144",
+        "address": "7FF76719753E",
+        "bytes": "48 8D 43 48",
+        "opcode": "lea rax,[rbx+48]",
+        "extra": "",
+        "full": "7FF76719753E - 48 8D 43 48  - lea rax,[rbx+48]"
+      },
+      "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 43 48 48 83 C4 20 5B C3",
+      "PatternScan": {
+        "Mode": "module-pattern-scan",
+        "ProcessId": 98428,
+        "ProcessName": "rift_x64",
+        "ModuleName": "rift_x64.exe",
+        "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+        "ModuleBaseAddress": "0x7FF766B10000",
+        "ModuleMemorySize": 62615552,
+        "Pattern": "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 8D 43 48 48 83 C4 20 5B C3",
+        "Found": true,
+        "RelativeOffset": 6845744,
+        "RelativeOffsetHex": "0x687530",
+        "Address": "0x7FF767197530",
+        "ContextBytes": 0
+      },
+      "LiveProbe": {
+        "SourceObjectAddress": "0x1577AC2FB60",
+        "ProbeAddress": "0x1577AC2FBA8",
+        "Float0": 7460.963,
+        "Float1": 865.08344,
+        "Float2": 2987.7783,
+        "Dword0": 1172907956,
+        "Dword1": 1146635607,
+        "Dword2": 1161477236
+      }
+    }
+  ]
+}

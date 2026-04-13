@@ -1,0 +1,62 @@
+{
+  "Mode": "discovery-session-package",
+  "SessionId": "20260409-201336-package-validation",
+  "Label": "package-validation",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\watchset.json",
+  "CaptureConsistencyFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\capture-consistency.json",
+  "ReaderBridgeSnapshotFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\readerbridge-snapshot.json",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts",
+  "RecordingManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\modules.json",
+  "ProcessId": 69796,
+  "ProcessName": "pwsh",
+  "WatchsetRegionCount": 18,
+  "SampleCount": 1,
+  "IntervalMilliseconds": 0,
+  "CopiedArtifacts": [
+    {
+      "Name": "player-current-anchor.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-current-anchor.json"
+    },
+    {
+      "Name": "player-selector-owner-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-selector-owner-trace.json"
+    },
+    {
+      "Name": "player-owner-components.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-owner-components.json"
+    },
+    {
+      "Name": "player-owner-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-owner-graph.json"
+    },
+    {
+      "Name": "player-source-chain.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-source-chain.json"
+    },
+    {
+      "Name": "player-source-accessor-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-source-accessor-family.json"
+    },
+    {
+      "Name": "player-coord-write-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-coord-write-trace.json"
+    },
+    {
+      "Name": "player-stat-hub-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-stat-hub-graph.json"
+    },
+    {
+      "Name": "player-state-projector-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-201336-package-validation\\artifacts\\player-state-projector-trace.json"
+    }
+  ],
+  "Warnings": [
+    "Source-accessor family still points at '0x1AEBA302B40' while owner-components selected source is '0x1AEF0941250'. Offsets were kept, but the lineage is stale.",
+    "Stat-hub graph still points at '0x1AEBA302B40' while owner-components selected source is '0x1AEF0941250'. Ranked hubs were included as optional stale-run regions.",
+    "Required watchset regions had read failures: owner-container-slots, owner-object, owner-state-record, selected-source-basis60, selected-source-basis94, selected-source-coord48, selected-source-coord88, selected-source-object, selected-source-slot"
+  ]
+}

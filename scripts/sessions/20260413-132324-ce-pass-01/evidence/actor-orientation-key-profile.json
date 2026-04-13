@@ -1,0 +1,57 @@
+{
+  "Mode": "actor-orientation-key-profile",
+  "GeneratedAtUtc": "2026-04-13T17:26:14.0092641+00:00",
+  "OutputFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-132324-ce-pass-01\\evidence\\actor-orientation-key-profile.json",
+  "Keys": [
+    "Left",
+    "Right",
+    "A",
+    "D",
+    "Q",
+    "E",
+    "Up",
+    "Down",
+    "Space"
+  ],
+  "HoldMilliseconds": 700,
+  "WaitMilliseconds": 250,
+  "RefreshReaderBridge": true,
+  "Results": [
+    {
+      "Key": "Left",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "Right",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "A",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "D",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "Q",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "E",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "Up",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "Down",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "Space",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    }
+  ]
+}

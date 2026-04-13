@@ -1,0 +1,248 @@
+{
+  "Mode": "session-watchset",
+  "GeneratedAtUtc": "2026-04-10T01:15:23.2483425+00:00",
+  "ProcessName": "rift_x64",
+  "PreferredSourceAddress": "0x1AEF0941250",
+  "Artifacts": [
+    {
+      "Role": "owner-components",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "GeneratedAtUtc": "2026-04-09T02:20:31.6167249-04:00",
+      "SelectedSourceAddress": "0x1AEF0941250"
+    },
+    {
+      "Role": "selector-owner-trace",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-selector-owner-trace.json",
+      "GeneratedAtUtc": "2026-04-09T02:19:37.7064702-04:00",
+      "SelectedSourceAddress": "0x1AEF0941250"
+    },
+    {
+      "Role": "source-accessor-family",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-accessor-family.json",
+      "GeneratedAtUtc": "2026-04-08T22:36:05.7703819-04:00",
+      "SelectedSourceAddress": "0x1AEBA302B40"
+    },
+    {
+      "Role": "stat-hub-graph",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "GeneratedAtUtc": "2026-04-09T00:36:09.1531663-04:00",
+      "SelectedSourceAddress": "0x1AEBA302B40"
+    },
+    {
+      "Role": "current-anchor",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-current-anchor.json",
+      "GeneratedAtUtc": "2026-04-09T19:38:23.9307454-04:00",
+      "SelectedSourceAddress": null
+    },
+    {
+      "Role": "owner-graph",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-graph.json",
+      "GeneratedAtUtc": "2026-04-08T23:12:31.9148219-04:00",
+      "SelectedSourceAddress": "0x1AEBA302B40"
+    },
+    {
+      "Role": "source-chain",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-chain.json",
+      "GeneratedAtUtc": "2026-04-08T22:22:40.0709296-04:00",
+      "SelectedSourceAddress": null
+    },
+    {
+      "Role": "coord-write-trace",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-coord-write-trace.json",
+      "GeneratedAtUtc": "2026-04-08T21:34:42.6120324-04:00",
+      "SelectedSourceAddress": null
+    },
+    {
+      "Role": "state-projector-trace",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-state-projector-trace.json",
+      "GeneratedAtUtc": "2026-04-08T23:43:21.61188-04:00",
+      "SelectedSourceAddress": null
+    }
+  ],
+  "Warnings": [
+    "Source-accessor family still points at '0x1AEBA302B40' while owner-components selected source is '0x1AEF0941250'. Offsets were kept, but the lineage is stale.",
+    "Stat-hub graph still points at '0x1AEBA302B40' while owner-components selected source is '0x1AEF0941250'. Ranked hubs were included as optional stale-run regions."
+  ],
+  "Regions": [
+    {
+      "Name": "selected-source-object",
+      "Category": "source-object",
+      "Address": "0x1AEF0941250",
+      "Length": 384,
+      "Required": true,
+      "Priority": 100,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "Notes": "Primary selected source component from the owner/component table."
+    },
+    {
+      "Name": "selected-source-coord48",
+      "Category": "source-field",
+      "Address": "0x1AEF0941298",
+      "Length": 12,
+      "Required": true,
+      "Priority": 110,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-accessor-family.json",
+      "Notes": "Coordinate triplet at +0x48."
+    },
+    {
+      "Name": "selected-source-basis60",
+      "Category": "source-field",
+      "Address": "0x1AEF09412B0",
+      "Length": 36,
+      "Required": true,
+      "Priority": 105,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-accessor-family.json",
+      "Notes": "Orientation/basis block at +0x60."
+    },
+    {
+      "Name": "selected-source-coord88",
+      "Category": "source-field",
+      "Address": "0x1AEF09412D8",
+      "Length": 12,
+      "Required": true,
+      "Priority": 110,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-accessor-family.json",
+      "Notes": "Duplicate coordinate triplet at +0x88."
+    },
+    {
+      "Name": "selected-source-basis94",
+      "Category": "source-field",
+      "Address": "0x1AEF09412E4",
+      "Length": 36,
+      "Required": true,
+      "Priority": 105,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-accessor-family.json",
+      "Notes": "Duplicate orientation/basis block at +0x94."
+    },
+    {
+      "Name": "owner-object",
+      "Category": "owner-object",
+      "Address": "0x1AEBC2B4C10",
+      "Length": 384,
+      "Required": true,
+      "Priority": 90,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "Notes": "Current owner object selected by the selector trace / owner-components chain."
+    },
+    {
+      "Name": "owner-container-slots",
+      "Category": "owner-container",
+      "Address": "0x1AEF09444B0",
+      "Length": 128,
+      "Required": true,
+      "Priority": 90,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "Notes": "Live owner container/component-table slots."
+    },
+    {
+      "Name": "owner-state-record",
+      "Category": "owner-state",
+      "Address": "0x1AEBC2B4CD8",
+      "Length": 256,
+      "Required": true,
+      "Priority": 85,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "Notes": "Owner-linked state record sampled alongside the selected source."
+    },
+    {
+      "Name": "selected-source-slot",
+      "Category": "owner-container-slot",
+      "Address": "0x1AEF09444E0",
+      "Length": 8,
+      "Required": true,
+      "Priority": 92,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "Notes": "Container slot for selected source index 6."
+    },
+    {
+      "Name": "identity-component-12",
+      "Category": "identity-component",
+      "Address": "0x1AEBA3037B0",
+      "Length": 384,
+      "Required": false,
+      "Priority": 58,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Identity-bearing component candidate at index 12."
+    },
+    {
+      "Name": "identity-component-9",
+      "Category": "identity-component",
+      "Address": "0x1AEBA303560",
+      "Length": 384,
+      "Required": false,
+      "Priority": 61,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Identity-bearing component candidate at index 9."
+    },
+    {
+      "Name": "identity-component-13",
+      "Category": "identity-component",
+      "Address": "0x1AEBA303820",
+      "Length": 384,
+      "Required": false,
+      "Priority": 57,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Identity-bearing component candidate at index 13."
+    },
+    {
+      "Name": "identity-component-8",
+      "Category": "identity-component",
+      "Address": "0x1AEBA303430",
+      "Length": 384,
+      "Required": false,
+      "Priority": 62,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Identity-bearing component candidate at index 8."
+    },
+    {
+      "Name": "shared-hub-1",
+      "Category": "stat-hub-stale",
+      "Address": "0x1AEE40A4600",
+      "Length": 512,
+      "Required": false,
+      "Priority": 59,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Ranked shared hub #1. shared by 4 components; contains level match at 0x100, 0x138; contains combo/planarMax pair"
+    },
+    {
+      "Name": "shared-hub-2",
+      "Category": "stat-hub-stale",
+      "Address": "0x1AEE411B4B0",
+      "Length": 512,
+      "Required": false,
+      "Priority": 58,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Ranked shared hub #2. shared by 2 components; contains level match at 0x208; contains combo/planarMax pair; contains owner backref at 0x108"
+    },
+    {
+      "Name": "shared-hub-3",
+      "Category": "stat-hub-stale",
+      "Address": "0x1AEBBF6E380",
+      "Length": 512,
+      "Required": false,
+      "Priority": 57,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Ranked shared hub #3. shared by 4 components; contains resource/resourceMax pair; contains combo/planarMax pair"
+    },
+    {
+      "Name": "shared-hub-4",
+      "Category": "stat-hub-stale",
+      "Address": "0x1AEBA3038D0",
+      "Length": 512,
+      "Required": false,
+      "Priority": 56,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+      "Notes": "Ranked shared hub #4. shared by 4 components; contains owner backref at 0x10"
+    },
+    {
+      "Name": "player-current-cache-window",
+      "Category": "bootstrap-cache",
+      "Address": "0x24D5B6E2700",
+      "Length": 304,
+      "Required": false,
+      "Priority": 20,
+      "SourceArtifactFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-current-anchor.json",
+      "Notes": "Legacy current-player cache/blob window kept only as a bootstrap/reference capture."
+    }
+  ]
+}

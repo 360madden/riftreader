@@ -1,0 +1,16 @@
+{
+  "ProcessName": "rift_x64",
+  "AddressHex": "0x15759A45EE0",
+  "FamilyId": "fam-6F81F26E",
+  "FamilyNotes": "location/cache blob",
+  "Signature": "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
+  "SelectionSource": "ce-guided-family -\u003E heuristic-fallback",
+  "ConfirmationFile": null,
+  "CeConfirmedSampleCount": 0,
+  "LevelOffset": -144,
+  "HealthOffset": -136,
+  "CoordXOffset": 0,
+  "CoordYOffset": 4,
+  "CoordZOffset": 8,
+  "SavedAtUtc": "2026-04-10T12:07:15.4692462+00:00"
+}

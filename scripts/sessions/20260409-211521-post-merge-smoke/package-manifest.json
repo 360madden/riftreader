@@ -1,0 +1,62 @@
+{
+  "Mode": "discovery-session-package",
+  "SessionId": "20260409-211521-post-merge-smoke",
+  "Label": "post-merge-smoke",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\watchset.json",
+  "CaptureConsistencyFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\capture-consistency.json",
+  "ReaderBridgeSnapshotFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\readerbridge-snapshot.json",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts",
+  "RecordingManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\modules.json",
+  "ProcessId": 32580,
+  "ProcessName": "rift_x64",
+  "WatchsetRegionCount": 18,
+  "SampleCount": 2,
+  "IntervalMilliseconds": 50,
+  "CopiedArtifacts": [
+    {
+      "Name": "player-current-anchor.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-current-anchor.json"
+    },
+    {
+      "Name": "player-selector-owner-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-selector-owner-trace.json"
+    },
+    {
+      "Name": "player-owner-components.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-owner-components.json"
+    },
+    {
+      "Name": "player-owner-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-owner-graph.json"
+    },
+    {
+      "Name": "player-source-chain.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-source-chain.json"
+    },
+    {
+      "Name": "player-source-accessor-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-source-accessor-family.json"
+    },
+    {
+      "Name": "player-coord-write-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-coord-write-trace.json"
+    },
+    {
+      "Name": "player-stat-hub-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-stat-hub-graph.json"
+    },
+    {
+      "Name": "player-state-projector-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260409-211521-post-merge-smoke\\artifacts\\player-state-projector-trace.json"
+    }
+  ],
+  "Warnings": [
+    "Source-accessor family still points at '0x1AEBA302B40' while owner-components selected source is '0x1AEF0941250'. Offsets were kept, but the lineage is stale.",
+    "Stat-hub graph still points at '0x1AEBA302B40' while owner-components selected source is '0x1AEF0941250'. Ranked hubs were included as optional stale-run regions.",
+    "Required watchset regions had read failures: owner-container-slots, owner-object, owner-state-record, selected-source-basis60, selected-source-basis94, selected-source-coord48, selected-source-coord88, selected-source-object, selected-source-slot"
+  ]
+}

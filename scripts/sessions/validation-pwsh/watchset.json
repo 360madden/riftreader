@@ -1,0 +1,20 @@
+{
+  "Mode": "session-watchset",
+  "GeneratedAtUtc": "2026-04-10T00:13:12.0839067+00:00",
+  "ProcessName": "pwsh",
+  "PreferredSourceAddress": "0x7FF614250000",
+  "Artifacts": [],
+  "Warnings": [],
+  "Regions": [
+    {
+      "Name": "pwsh-main-module",
+      "Category": "validation",
+      "Address": "0x7FF614250000",
+      "Length": 64,
+      "Required": true,
+      "Priority": 100,
+      "SourceArtifactFile": null,
+      "Notes": "Validation watch region for the current PowerShell process."
+    }
+  ]
+}

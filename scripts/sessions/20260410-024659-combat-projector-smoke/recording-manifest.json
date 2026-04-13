@@ -1,0 +1,774 @@
+{
+  "Mode": "record-session",
+  "SessionId": "20260410-024659-combat-projector-smoke",
+  "OutputDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-024659-combat-projector-smoke",
+  "ProcessId": 98428,
+  "ProcessName": "rift_x64",
+  "ModuleName": "rift_x64.exe",
+  "MainWindowTitle": "RIFT",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-024659-combat-projector-smoke\\watchset.json",
+  "WatchsetRegionCount": 49,
+  "RequestedSampleCount": 3,
+  "RecordedSampleCount": 3,
+  "IntervalMilliseconds": 200,
+  "Label": "combat-projector-smoke",
+  "StartedAtUtc": "2026-04-10T06:48:59.5061369\u002B00:00",
+  "CompletedAtUtc": "2026-04-10T06:48:59.9510385\u002B00:00",
+  "ManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-024659-combat-projector-smoke\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-024659-combat-projector-smoke\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-024659-combat-projector-smoke\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260410-024659-combat-projector-smoke\\modules.json",
+  "Modules": [
+    {
+      "ModuleName": "nvcpl.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\nvcpl.dll",
+      "BaseAddressHex": "0x6E100000",
+      "BaseAddress": 1846542336,
+      "ModuleMemorySize": 6057984
+    },
+    {
+      "ModuleName": "steam_api64.dll",
+      "FileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\steam_api64.dll",
+      "BaseAddressHex": "0x6E6D0000",
+      "BaseAddress": 1852637184,
+      "ModuleMemorySize": 139264
+    },
+    {
+      "ModuleName": "vehdebug-x86_64.dll",
+      "FileName": "C:\\Program Files\\Cheat Engine\\vehdebug-x86_64.dll",
+      "BaseAddressHex": "0x110000000",
+      "BaseAddress": 4563402752,
+      "ModuleMemorySize": 434176
+    },
+    {
+      "ModuleName": "rift_x64.exe",
+      "FileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+      "BaseAddressHex": "0x7FF766B10000",
+      "BaseAddress": 140700556525568,
+      "ModuleMemorySize": 62615552
+    },
+    {
+      "ModuleName": "d3dx9_43.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\d3dx9_43.dll",
+      "BaseAddressHex": "0x7FFB95D50000",
+      "BaseAddress": 140718527283200,
+      "ModuleMemorySize": 2502656
+    },
+    {
+      "ModuleName": "MSVCP140.dll",
+      "FileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\MSVCP140.dll",
+      "BaseAddressHex": "0x7FFB9B610000",
+      "BaseAddress": 140718620344320,
+      "ModuleMemorySize": 561152
+    },
+    {
+      "ModuleName": "D3DREF9.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\D3DREF9.DLL",
+      "BaseAddressHex": "0x7FFB9ECA0000",
+      "BaseAddress": 140718677557248,
+      "ModuleMemorySize": 503808
+    },
+    {
+      "ModuleName": "wdmaud.drv",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\wdmaud.drv",
+      "BaseAddressHex": "0x7FFB9FA70000",
+      "BaseAddress": 140718692040704,
+      "ModuleMemorySize": 290816
+    },
+    {
+      "ModuleName": "ResampleDmo.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\ResampleDmo.DLL",
+      "BaseAddressHex": "0x7FFBA3040000",
+      "BaseAddress": 140718748467200,
+      "ModuleMemorySize": 724992
+    },
+    {
+      "ModuleName": "DSOUND.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\DSOUND.DLL",
+      "BaseAddressHex": "0x7FFBA8AB0000",
+      "BaseAddress": 140718843297792,
+      "ModuleMemorySize": 606208
+    },
+    {
+      "ModuleName": "MSACM32.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\MSACM32.dll",
+      "BaseAddressHex": "0x7FFBAF890000",
+      "BaseAddress": 140718958510080,
+      "ModuleMemorySize": 135168
+    },
+    {
+      "ModuleName": "nvd3dumx.dll",
+      "FileName": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_2c2a10115c2556ed\\nvd3dumx.dll",
+      "BaseAddressHex": "0x7FFBB1480000",
+      "BaseAddress": 140718987804672,
+      "ModuleMemorySize": 41115648
+    },
+    {
+      "ModuleName": "binkw64.dll",
+      "FileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\binkw64.dll",
+      "BaseAddressHex": "0x7FFBB8150000",
+      "BaseAddress": 140719101902848,
+      "ModuleMemorySize": 294912
+    },
+    {
+      "ModuleName": "VCRUNTIME140.dll",
+      "FileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\VCRUNTIME140.dll",
+      "BaseAddressHex": "0x7FFBD91D0000",
+      "BaseAddress": 140719656075264,
+      "ModuleMemorySize": 122880
+    },
+    {
+      "ModuleName": "wtdccm.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\wtdccm.dll",
+      "BaseAddressHex": "0x7FFC1B960000",
+      "BaseAddress": 140720771301376,
+      "ModuleMemorySize": 69632
+    },
+    {
+      "ModuleName": "VCRUNTIME140_1.dll",
+      "FileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\VCRUNTIME140_1.dll",
+      "BaseAddressHex": "0x7FFC1E520000",
+      "BaseAddress": 140720817176576,
+      "ModuleMemorySize": 49152
+    },
+    {
+      "ModuleName": "explorerframe.dll",
+      "FileName": "C:\\WINDOWS\\system32\\explorerframe.dll",
+      "BaseAddressHex": "0x7FFC25300000",
+      "BaseAddress": 140720932388864,
+      "ModuleMemorySize": 3022848
+    },
+    {
+      "ModuleName": "nvppex.dll",
+      "FileName": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_2c2a10115c2556ed\\nvppex.dll",
+      "BaseAddressHex": "0x7FFC42110000",
+      "BaseAddress": 140721416896512,
+      "ModuleMemorySize": 7491584
+    },
+    {
+      "ModuleName": "nvspcap64.dll",
+      "FileName": "C:\\WINDOWS\\system32\\nvspcap64.dll",
+      "BaseAddressHex": "0x7FFC455F0000",
+      "BaseAddress": 140721472339968,
+      "ModuleMemorySize": 1339392
+    },
+    {
+      "ModuleName": "NvMessageBus.dll",
+      "FileName": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_2c2a10115c2556ed\\Display.NvContainer\\NvMessageBus.dll",
+      "BaseAddressHex": "0x7FFC57940000",
+      "BaseAddress": 140721777803264,
+      "ModuleMemorySize": 3551232
+    },
+    {
+      "ModuleName": "Windows.UI.dll",
+      "FileName": "C:\\Windows\\System32\\Windows.UI.dll",
+      "BaseAddressHex": "0x7FFC57CB0000",
+      "BaseAddress": 140721781407744,
+      "ModuleMemorySize": 1404928
+    },
+    {
+      "ModuleName": "textinputframework.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\textinputframework.dll",
+      "BaseAddressHex": "0x7FFC57E90000",
+      "BaseAddress": 140721783373824,
+      "ModuleMemorySize": 1343488
+    },
+    {
+      "ModuleName": "msacm32.drv",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\msacm32.drv",
+      "BaseAddressHex": "0x7FFC589A0000",
+      "BaseAddress": 140721794973696,
+      "ModuleMemorySize": 61440
+    },
+    {
+      "ModuleName": "wdmaud2.drv",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\wdmaud2.drv",
+      "BaseAddressHex": "0x7FFC5B420000",
+      "BaseAddress": 140721839538176,
+      "ModuleMemorySize": 143360
+    },
+    {
+      "ModuleName": "midimap.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\midimap.dll",
+      "BaseAddressHex": "0x7FFC5B7C0000",
+      "BaseAddress": 140721843339264,
+      "ModuleMemorySize": 49152
+    },
+    {
+      "ModuleName": "MpOav.dll",
+      "FileName": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26020.6-0\\MpOav.dll",
+      "BaseAddressHex": "0x7FFC63620000",
+      "BaseAddress": 140721975853056,
+      "ModuleMemorySize": 663552
+    },
+    {
+      "ModuleName": "amsi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\amsi.dll",
+      "BaseAddressHex": "0x7FFC64D60000",
+      "BaseAddress": 140722000232448,
+      "ModuleMemorySize": 118784
+    },
+    {
+      "ModuleName": "wbemsvc.dll",
+      "FileName": "C:\\WINDOWS\\system32\\wbem\\wbemsvc.dll",
+      "BaseAddressHex": "0x7FFC67540000",
+      "BaseAddress": 140722042044416,
+      "ModuleMemorySize": 86016
+    },
+    {
+      "ModuleName": "fastprox.dll",
+      "FileName": "C:\\WINDOWS\\system32\\wbem\\fastprox.dll",
+      "BaseAddressHex": "0x7FFC67610000",
+      "BaseAddress": 140722042896384,
+      "ModuleMemorySize": 983040
+    },
+    {
+      "ModuleName": "d3d9.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\d3d9.dll",
+      "BaseAddressHex": "0x7FFC6F760000",
+      "BaseAddress": 140722178490368,
+      "ModuleMemorySize": 1777664
+    },
+    {
+      "ModuleName": "UIAutomationCore.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\UIAutomationCore.DLL",
+      "BaseAddressHex": "0x7FFC6F920000",
+      "BaseAddress": 140722180325376,
+      "ModuleMemorySize": 4325376
+    },
+    {
+      "ModuleName": "OLEACC.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\OLEACC.dll",
+      "BaseAddressHex": "0x7FFC6FD50000",
+      "BaseAddress": 140722184716288,
+      "ModuleMemorySize": 483328
+    },
+    {
+      "ModuleName": "wbemcomn.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\wbemcomn.dll",
+      "BaseAddressHex": "0x7FFC71560000",
+      "BaseAddress": 140722209947648,
+      "ModuleMemorySize": 499712
+    },
+    {
+      "ModuleName": "wbemprox.dll",
+      "FileName": "C:\\WINDOWS\\system32\\wbem\\wbemprox.dll",
+      "BaseAddressHex": "0x7FFC716E0000",
+      "BaseAddress": 140722211520512,
+      "ModuleMemorySize": 73728
+    },
+    {
+      "ModuleName": "winmmbase.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",
+      "BaseAddressHex": "0x7FFC735E0000",
+      "BaseAddress": 140722244026368,
+      "ModuleMemorySize": 225280
+    },
+    {
+      "ModuleName": "gameux.dll",
+      "FileName": "C:\\Windows\\System32\\gameux.dll",
+      "BaseAddressHex": "0x7FFC74250000",
+      "BaseAddress": 140722257068032,
+      "ModuleMemorySize": 49152
+    },
+    {
+      "ModuleName": "AUDIOSES.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\AUDIOSES.DLL",
+      "BaseAddressHex": "0x7FFC77200000",
+      "BaseAddress": 140722307072000,
+      "ModuleMemorySize": 1777664
+    },
+    {
+      "ModuleName": "WINMM.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\WINMM.dll",
+      "BaseAddressHex": "0x7FFC7EB90000",
+      "BaseAddress": 140722434539520,
+      "ModuleMemorySize": 221184
+    },
+    {
+      "ModuleName": "NvMemMapStoragex.dll",
+      "FileName": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_2c2a10115c2556ed\\NvMemMapStoragex.dll",
+      "BaseAddressHex": "0x7FFC7EBD0000",
+      "BaseAddress": 140722434801664,
+      "ModuleMemorySize": 1290240
+    },
+    {
+      "ModuleName": "MMDevApi.dll",
+      "FileName": "C:\\WINDOWS\\System32\\MMDevApi.dll",
+      "BaseAddressHex": "0x7FFC7F430000",
+      "BaseAddress": 140722443583488,
+      "ModuleMemorySize": 618496
+    },
+    {
+      "ModuleName": "nvgpucomp64.dll",
+      "FileName": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_2c2a10115c2556ed\\nvgpucomp64.dll",
+      "BaseAddressHex": "0x7FFC801F0000",
+      "BaseAddress": 140722458001408,
+      "ModuleMemorySize": 83193856
+    },
+    {
+      "ModuleName": "drvstore.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\drvstore.dll",
+      "BaseAddressHex": "0x7FFC86E40000",
+      "BaseAddress": 140722571575296,
+      "ModuleMemorySize": 1540096
+    },
+    {
+      "ModuleName": "cryptnet.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\cryptnet.dll",
+      "BaseAddressHex": "0x7FFC87040000",
+      "BaseAddress": 140722573672448,
+      "ModuleMemorySize": 241664
+    },
+    {
+      "ModuleName": "dhcpcsvc.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\dhcpcsvc.DLL",
+      "BaseAddressHex": "0x7FFC87090000",
+      "BaseAddress": 140722574000128,
+      "ModuleMemorySize": 151552
+    },
+    {
+      "ModuleName": "VERSION.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\VERSION.dll",
+      "BaseAddressHex": "0x7FFC871A0000",
+      "BaseAddress": 140722575114240,
+      "ModuleMemorySize": 45056
+    },
+    {
+      "ModuleName": "nvldumdx.dll",
+      "FileName": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_2c2a10115c2556ed\\nvldumdx.dll",
+      "BaseAddressHex": "0x7FFC871B0000",
+      "BaseAddress": 140722575179776,
+      "ModuleMemorySize": 802816
+    },
+    {
+      "ModuleName": "CoreUIComponents.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\CoreUIComponents.dll",
+      "BaseAddressHex": "0x7FFC87930000",
+      "BaseAddress": 140722583044096,
+      "ModuleMemorySize": 3022848
+    },
+    {
+      "ModuleName": "avrt.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\avrt.dll",
+      "BaseAddressHex": "0x7FFC87EC0000",
+      "BaseAddress": 140722588876800,
+      "ModuleMemorySize": 45056
+    },
+    {
+      "ModuleName": "directxdatabasehelper.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\directxdatabasehelper.dll",
+      "BaseAddressHex": "0x7FFC88B30000",
+      "BaseAddress": 140722601918464,
+      "ModuleMemorySize": 397312
+    },
+    {
+      "ModuleName": "msdmo.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\msdmo.dll",
+      "BaseAddressHex": "0x7FFC89570000",
+      "BaseAddress": 140722612666368,
+      "ModuleMemorySize": 57344
+    },
+    {
+      "ModuleName": "CoreMessaging.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\CoreMessaging.dll",
+      "BaseAddressHex": "0x7FFC8B820000",
+      "BaseAddress": 140722649038848,
+      "ModuleMemorySize": 1208320
+    },
+    {
+      "ModuleName": "WTSAPI32.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\WTSAPI32.dll",
+      "BaseAddressHex": "0x7FFC8BCC0000",
+      "BaseAddress": 140722653888512,
+      "ModuleMemorySize": 167936
+    },
+    {
+      "ModuleName": "uxtheme.dll",
+      "FileName": "C:\\WINDOWS\\system32\\uxtheme.dll",
+      "BaseAddressHex": "0x7FFC8BD20000",
+      "BaseAddress": 140722654281728,
+      "ModuleMemorySize": 692224
+    },
+    {
+      "ModuleName": "dxcore.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\dxcore.dll",
+      "BaseAddressHex": "0x7FFC8BE10000",
+      "BaseAddress": 140722655264768,
+      "ModuleMemorySize": 274432
+    },
+    {
+      "ModuleName": "dwmapi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\dwmapi.dll",
+      "BaseAddressHex": "0x7FFC8C0A0000",
+      "BaseAddress": 140722657951744,
+      "ModuleMemorySize": 192512
+    },
+    {
+      "ModuleName": "resourcepolicyclient.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\resourcepolicyclient.dll",
+      "BaseAddressHex": "0x7FFC8C810000",
+      "BaseAddress": 140722665750528,
+      "ModuleMemorySize": 81920
+    },
+    {
+      "ModuleName": "IPHLPAPI.DLL",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL",
+      "BaseAddressHex": "0x7FFC8CFB0000",
+      "BaseAddress": 140722673745920,
+      "ModuleMemorySize": 204800
+    },
+    {
+      "ModuleName": "rsaenh.dll",
+      "FileName": "C:\\WINDOWS\\system32\\rsaenh.dll",
+      "BaseAddressHex": "0x7FFC8D4A0000",
+      "BaseAddress": 140722678923264,
+      "ModuleMemorySize": 233472
+    },
+    {
+      "ModuleName": "kernel.appcore.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",
+      "BaseAddressHex": "0x7FFC8D540000",
+      "BaseAddress": 140722679578624,
+      "ModuleMemorySize": 110592
+    },
+    {
+      "ModuleName": "ntmarta.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\ntmarta.dll",
+      "BaseAddressHex": "0x7FFC8D660000",
+      "BaseAddress": 140722680758272,
+      "ModuleMemorySize": 221184
+    },
+    {
+      "ModuleName": "SspiCli.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\SspiCli.dll",
+      "BaseAddressHex": "0x7FFC8D7E0000",
+      "BaseAddress": 140722682331136,
+      "ModuleMemorySize": 299008
+    },
+    {
+      "ModuleName": "MSWSOCK.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\MSWSOCK.dll",
+      "BaseAddressHex": "0x7FFC8DAB0000",
+      "BaseAddress": 140722685280256,
+      "ModuleMemorySize": 442368
+    },
+    {
+      "ModuleName": "gpapi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\gpapi.dll",
+      "BaseAddressHex": "0x7FFC8DB20000",
+      "BaseAddress": 140722685739008,
+      "ModuleMemorySize": 196608
+    },
+    {
+      "ModuleName": "USERENV.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\USERENV.dll",
+      "BaseAddressHex": "0x7FFC8DB60000",
+      "BaseAddress": 140722686001152,
+      "ModuleMemorySize": 208896
+    },
+    {
+      "ModuleName": "CRYPTSP.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\CRYPTSP.dll",
+      "BaseAddressHex": "0x7FFC8DD90000",
+      "BaseAddress": 140722688294912,
+      "ModuleMemorySize": 110592
+    },
+    {
+      "ModuleName": "CRYPTBASE.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\CRYPTBASE.dll",
+      "BaseAddressHex": "0x7FFC8DDB0000",
+      "BaseAddress": 140722688425984,
+      "ModuleMemorySize": 49152
+    },
+    {
+      "ModuleName": "msasn1.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\msasn1.dll",
+      "BaseAddressHex": "0x7FFC8DE00000",
+      "BaseAddress": 140722688753664,
+      "ModuleMemorySize": 77824
+    },
+    {
+      "ModuleName": "wldp.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\wldp.dll",
+      "BaseAddressHex": "0x7FFC8DE70000",
+      "BaseAddress": 140722689212416,
+      "ModuleMemorySize": 425984
+    },
+    {
+      "ModuleName": "cfgmgr32.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\cfgmgr32.dll",
+      "BaseAddressHex": "0x7FFC8E360000",
+      "BaseAddress": 140722694389760,
+      "ModuleMemorySize": 331776
+    },
+    {
+      "ModuleName": "devobj.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\devobj.dll",
+      "BaseAddressHex": "0x7FFC8E3E0000",
+      "BaseAddress": 140722694914048,
+      "ModuleMemorySize": 184320
+    },
+    {
+      "ModuleName": "DPAPI.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\DPAPI.dll",
+      "BaseAddressHex": "0x7FFC8E410000",
+      "BaseAddress": 140722695110656,
+      "ModuleMemorySize": 40960
+    },
+    {
+      "ModuleName": "UMPDC.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\UMPDC.dll",
+      "BaseAddressHex": "0x7FFC8E440000",
+      "BaseAddress": 140722695307264,
+      "ModuleMemorySize": 81920
+    },
+    {
+      "ModuleName": "POWRPROF.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\POWRPROF.dll",
+      "BaseAddressHex": "0x7FFC8E560000",
+      "BaseAddress": 140722696486912,
+      "ModuleMemorySize": 385024
+    },
+    {
+      "ModuleName": "bcrypt.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\bcrypt.dll",
+      "BaseAddressHex": "0x7FFC8E6A0000",
+      "BaseAddress": 140722697797632,
+      "ModuleMemorySize": 172032
+    },
+    {
+      "ModuleName": "profapi.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\profapi.dll",
+      "BaseAddressHex": "0x7FFC8E6D0000",
+      "BaseAddress": 140722697994240,
+      "ModuleMemorySize": 167936
+    },
+    {
+      "ModuleName": "win32u.dll",
+      "FileName": "C:\\WINDOWS\\System32\\win32u.dll",
+      "BaseAddressHex": "0x7FFC8E7B0000",
+      "BaseAddress": 140722698911744,
+      "ModuleMemorySize": 159744
+    },
+    {
+      "ModuleName": "wintypes.dll",
+      "FileName": "C:\\WINDOWS\\System32\\wintypes.dll",
+      "BaseAddressHex": "0x7FFC8E8A0000",
+      "BaseAddress": 140722699894784,
+      "ModuleMemorySize": 1482752
+    },
+    {
+      "ModuleName": "gdi32full.dll",
+      "FileName": "C:\\WINDOWS\\System32\\gdi32full.dll",
+      "BaseAddressHex": "0x7FFC8EA10000",
+      "BaseAddress": 140722701402112,
+      "ModuleMemorySize": 1220608
+    },
+    {
+      "ModuleName": "ucrtbase.dll",
+      "FileName": "C:\\WINDOWS\\System32\\ucrtbase.dll",
+      "BaseAddressHex": "0x7FFC8EB40000",
+      "BaseAddress": 140722702647296,
+      "ModuleMemorySize": 1355776
+    },
+    {
+      "ModuleName": "bcryptprimitives.dll",
+      "FileName": "C:\\WINDOWS\\System32\\bcryptprimitives.dll",
+      "BaseAddressHex": "0x7FFC8EC90000",
+      "BaseAddress": 140722704023552,
+      "ModuleMemorySize": 675840
+    },
+    {
+      "ModuleName": "KERNELBASE.dll",
+      "FileName": "C:\\WINDOWS\\System32\\KERNELBASE.dll",
+      "BaseAddressHex": "0x7FFC8ED40000",
+      "BaseAddress": 140722704744448,
+      "ModuleMemorySize": 4145152
+    },
+    {
+      "ModuleName": "msvcp_win.dll",
+      "FileName": "C:\\WINDOWS\\System32\\msvcp_win.dll",
+      "BaseAddressHex": "0x7FFC8F140000",
+      "BaseAddress": 140722708938752,
+      "ModuleMemorySize": 667648
+    },
+    {
+      "ModuleName": "Windows.Storage.dll",
+      "FileName": "C:\\WINDOWS\\System32\\Windows.Storage.dll",
+      "BaseAddressHex": "0x7FFC8F1F0000",
+      "BaseAddress": 140722709659648,
+      "ModuleMemorySize": 8802304
+    },
+    {
+      "ModuleName": "wintrust.dll",
+      "FileName": "C:\\WINDOWS\\System32\\wintrust.dll",
+      "BaseAddressHex": "0x7FFC8FA60000",
+      "BaseAddress": 140722718507008,
+      "ModuleMemorySize": 532480
+    },
+    {
+      "ModuleName": "CRYPT32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\CRYPT32.dll",
+      "BaseAddressHex": "0x7FFC8FAF0000",
+      "BaseAddress": 140722719096832,
+      "ModuleMemorySize": 1536000
+    },
+    {
+      "ModuleName": "shlwapi.dll",
+      "FileName": "C:\\WINDOWS\\System32\\shlwapi.dll",
+      "BaseAddressHex": "0x7FFC8FC70000",
+      "BaseAddress": 140722720669696,
+      "ModuleMemorySize": 417792
+    },
+    {
+      "ModuleName": "shcore.dll",
+      "FileName": "C:\\WINDOWS\\System32\\shcore.dll",
+      "BaseAddressHex": "0x7FFC8FDE0000",
+      "BaseAddress": 140722722177024,
+      "ModuleMemorySize": 1011712
+    },
+    {
+      "ModuleName": "combase.dll",
+      "FileName": "C:\\WINDOWS\\System32\\combase.dll",
+      "BaseAddressHex": "0x7FFC8FEE0000",
+      "BaseAddress": 140722723225600,
+      "ModuleMemorySize": 3678208
+    },
+    {
+      "ModuleName": "imagehlp.dll",
+      "FileName": "C:\\WINDOWS\\System32\\imagehlp.dll",
+      "BaseAddressHex": "0x7FFC90270000",
+      "BaseAddress": 140722726961152,
+      "ModuleMemorySize": 131072
+    },
+    {
+      "ModuleName": "clbcatq.dll",
+      "FileName": "C:\\WINDOWS\\System32\\clbcatq.dll",
+      "BaseAddressHex": "0x7FFC90590000",
+      "BaseAddress": 140722730237952,
+      "ModuleMemorySize": 712704
+    },
+    {
+      "ModuleName": "KERNEL32.DLL",
+      "FileName": "C:\\WINDOWS\\System32\\KERNEL32.DLL",
+      "BaseAddressHex": "0x7FFC90650000",
+      "BaseAddress": 140722731024384,
+      "ModuleMemorySize": 823296
+    },
+    {
+      "ModuleName": "MSCTF.dll",
+      "FileName": "C:\\WINDOWS\\System32\\MSCTF.dll",
+      "BaseAddressHex": "0x7FFC90720000",
+      "BaseAddress": 140722731876352,
+      "ModuleMemorySize": 1425408
+    },
+    {
+      "ModuleName": "PSAPI.DLL",
+      "FileName": "C:\\WINDOWS\\System32\\PSAPI.DLL",
+      "BaseAddressHex": "0x7FFC90900000",
+      "BaseAddress": 140722733842432,
+      "ModuleMemorySize": 32768
+    },
+    {
+      "ModuleName": "RPCRT4.dll",
+      "FileName": "C:\\WINDOWS\\System32\\RPCRT4.dll",
+      "BaseAddressHex": "0x7FFC90920000",
+      "BaseAddress": 140722733973504,
+      "ModuleMemorySize": 1146880
+    },
+    {
+      "ModuleName": "ADVAPI32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\ADVAPI32.dll",
+      "BaseAddressHex": "0x7FFC90A40000",
+      "BaseAddress": 140722735153152,
+      "ModuleMemorySize": 745472
+    },
+    {
+      "ModuleName": "SHELL32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\SHELL32.dll",
+      "BaseAddressHex": "0x7FFC90B70000",
+      "BaseAddress": 140722736398336,
+      "ModuleMemorySize": 7757824
+    },
+    {
+      "ModuleName": "NSI.dll",
+      "FileName": "C:\\WINDOWS\\System32\\NSI.dll",
+      "BaseAddressHex": "0x7FFC912F0000",
+      "BaseAddress": 140722744262656,
+      "ModuleMemorySize": 40960
+    },
+    {
+      "ModuleName": "IMM32.DLL",
+      "FileName": "C:\\WINDOWS\\System32\\IMM32.DLL",
+      "BaseAddressHex": "0x7FFC91300000",
+      "BaseAddress": 140722744328192,
+      "ModuleMemorySize": 204800
+    },
+    {
+      "ModuleName": "WS2_32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\WS2_32.dll",
+      "BaseAddressHex": "0x7FFC91340000",
+      "BaseAddress": 140722744590336,
+      "ModuleMemorySize": 524288
+    },
+    {
+      "ModuleName": "OLEAUT32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\OLEAUT32.dll",
+      "BaseAddressHex": "0x7FFC91430000",
+      "BaseAddress": 140722745573376,
+      "ModuleMemorySize": 880640
+    },
+    {
+      "ModuleName": "sechost.dll",
+      "FileName": "C:\\WINDOWS\\System32\\sechost.dll",
+      "BaseAddressHex": "0x7FFC91510000",
+      "BaseAddress": 140722746490880,
+      "ModuleMemorySize": 684032
+    },
+    {
+      "ModuleName": "GDI32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\GDI32.dll",
+      "BaseAddressHex": "0x7FFC915C0000",
+      "BaseAddress": 140722747211776,
+      "ModuleMemorySize": 176128
+    },
+    {
+      "ModuleName": "msvcrt.dll",
+      "FileName": "C:\\WINDOWS\\System32\\msvcrt.dll",
+      "BaseAddressHex": "0x7FFC915F0000",
+      "BaseAddress": 140722747408384,
+      "ModuleMemorySize": 692224
+    },
+    {
+      "ModuleName": "USER32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\USER32.dll",
+      "BaseAddressHex": "0x7FFC916A0000",
+      "BaseAddress": 140722748129280,
+      "ModuleMemorySize": 1855488
+    },
+    {
+      "ModuleName": "ole32.dll",
+      "FileName": "C:\\WINDOWS\\System32\\ole32.dll",
+      "BaseAddressHex": "0x7FFC91870000",
+      "BaseAddress": 140722750029824,
+      "ModuleMemorySize": 1667072
+    },
+    {
+      "ModuleName": "SETUPAPI.dll",
+      "FileName": "C:\\WINDOWS\\System32\\SETUPAPI.dll",
+      "BaseAddressHex": "0x7FFC91A10000",
+      "BaseAddress": 140722751733760,
+      "ModuleMemorySize": 4747264
+    },
+    {
+      "ModuleName": "ntdll.dll",
+      "FileName": "C:\\WINDOWS\\SYSTEM32\\ntdll.dll",
+      "BaseAddressHex": "0x7FFC91EE0000",
+      "BaseAddress": 140722756780032,
+      "ModuleMemorySize": 2519040
+    }
+  ],
+  "WatchsetWarnings": [],
+  "Warnings": []
+}

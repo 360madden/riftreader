@@ -1,0 +1,1095 @@
+{
+  "Mode": "owner-state-neighborhood",
+  "GeneratedAtUtc": "2026-04-10T12:33:40.0734536+00:00",
+  "ProjectorTraceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-state-projector-trace.json",
+  "OwnerComponentsFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+  "StatHubGraphFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-stat-hub-graph.json",
+  "Owner": {
+    "Address": "0x1576A38AA10",
+    "SelectedSourceAddress": "0x1577AC2FB60",
+    "StateRecordAddress": "0x1576A38AAD8",
+    "StateSlot50": "0x1576A38AB40",
+    "StateSlot58": "0x1576A38AB40",
+    "StateSlot60": "0x1576A38ABC0"
+  },
+  "PlayerSnapshot": {
+    "Name": "Atank",
+    "Location": "Bahralt Street",
+    "Level": 44,
+    "Hp": 17027,
+    "HpMax": 17027,
+    "Resource": 100,
+    "ResourceMax": 100,
+    "Combo": 3,
+    "PlanarMax": 3,
+    "Coord": {
+      "X": 7461.419921875,
+      "Y": 865.5,
+      "Z": 2987.9499511719
+    }
+  },
+  "StateRecord": {
+    "Address": "0x1576A38AAD8",
+    "Length": 128,
+    "PointerMatches": [
+      {
+        "Offset": 80,
+        "OffsetHex": "0x50",
+        "Address": "0x1576A38AB40",
+        "Labels": [
+          "state-slot-50",
+          "state-slot-58"
+        ]
+      },
+      {
+        "Offset": 88,
+        "OffsetHex": "0x58",
+        "Address": "0x1576A38AB40",
+        "Labels": [
+          "state-slot-50",
+          "state-slot-58"
+        ]
+      },
+      {
+        "Offset": 96,
+        "OffsetHex": "0x60",
+        "Address": "0x1576A38ABC0",
+        "Labels": [
+          "state-slot-60"
+        ]
+      }
+    ],
+    "PointerMatchCount": 3,
+    "IntMatches": {
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": []
+    }
+  },
+  "Slots": [
+    {
+      "Label": "slot-50-58",
+      "Address": "0x1576A38AB40",
+      "Length": 384,
+      "AsciiPreview": ".sReadyToRender.........?.......................................",
+      "PointerMatches": [],
+      "PointerMatchCount": 0,
+      "QwordPreview": [
+        {
+          "Offset": 0,
+          "OffsetHex": "0x0",
+          "Value": "0x5479646165527300",
+          "Labels": null
+        },
+        {
+          "Offset": 8,
+          "OffsetHex": "0x8",
+          "Value": "0x7265646E65526F",
+          "Labels": null
+        },
+        {
+          "Offset": 24,
+          "OffsetHex": "0x18",
+          "Value": "0xF",
+          "Labels": null
+        },
+        {
+          "Offset": 136,
+          "OffsetHex": "0x88",
+          "Value": "0x3E8",
+          "Labels": null
+        },
+        {
+          "Offset": 144,
+          "OffsetHex": "0x90",
+          "Value": "0x15769DDFC80",
+          "Labels": null
+        },
+        {
+          "Offset": 200,
+          "OffsetHex": "0xC8",
+          "Value": "0x203",
+          "Labels": null
+        },
+        {
+          "Offset": 208,
+          "OffsetHex": "0xD0",
+          "Value": "0x7FF7691599E0",
+          "Labels": null
+        },
+        {
+          "Offset": 224,
+          "OffsetHex": "0xE0",
+          "Value": "0x4A",
+          "Labels": null
+        },
+        {
+          "Offset": 232,
+          "OffsetHex": "0xE8",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 240,
+          "OffsetHex": "0xF0",
+          "Value": "0xFFFFFFFFFF00FFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 248,
+          "OffsetHex": "0xF8",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 256,
+          "OffsetHex": "0x100",
+          "Value": "0xFF01FFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 264,
+          "OffsetHex": "0x108",
+          "Value": "0xFFFFFFFFFFFFFF02",
+          "Labels": null
+        },
+        {
+          "Offset": 272,
+          "OffsetHex": "0x110",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 280,
+          "OffsetHex": "0x118",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 288,
+          "OffsetHex": "0x120",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        }
+      ],
+      "FollowPointers": [
+        {
+          "SourceOffset": 144,
+          "SourceOffsetHex": "0x90",
+          "Address": "0x15769DDFC80",
+          "AsciiPreview": " ?KgW?..??KgW?..??KgW?..........???iW?..???iW?..???iW?..........",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x157674B0320",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x157674B03B8",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x157674B03B8",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x15769DDFCB8",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x15769DDFCC8",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x15769DDFCD8",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x4200000004",
+              "Labels": null
+            },
+            {
+              "Offset": 96,
+              "OffsetHex": "0x60",
+              "Value": "0x1",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x1",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x1577ACAFE90",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x1577ACAFEA8",
+              "Labels": null
+            }
+          ]
+        },
+        {
+          "SourceOffset": 328,
+          "SourceOffsetHex": "0x148",
+          "Address": "0x1576BDEFA90",
+          "AsciiPreview": "?V.{W?..??~jW?..?X.{W?..C.......naifukishi@gmail.com.ian.lua.lua",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x1577B0056A0",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x1576A7E8F80",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x1577B0058E0",
+              "Labels": null
+            },
+            {
+              "Offset": 24,
+              "OffsetHex": "0x18",
+              "Value": "0x43",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x73696B756669616E",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x6C69616D67406968",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x6E6169006D6F632E",
+              "Labels": null
+            },
+            {
+              "Offset": 56,
+              "OffsetHex": "0x38",
+              "Value": "0x61756C0061756C2E",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x73006400726500",
+              "Labels": null
+            },
+            {
+              "Offset": 72,
+              "OffsetHex": "0x48",
+              "Value": "0x15769CC0000",
+              "Labels": null
+            },
+            {
+              "Offset": 80,
+              "OffsetHex": "0x50",
+              "Value": "0x40",
+              "Labels": null
+            },
+            {
+              "Offset": 88,
+              "OffsetHex": "0x58",
+              "Value": "0x53",
+              "Labels": null
+            },
+            {
+              "Offset": 96,
+              "OffsetHex": "0x60",
+              "Value": "0x43004D005F0041",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x6900630073005F",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x66005F006E006F",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x64006100630061",
+              "Labels": null
+            }
+          ]
+        },
+        {
+          "SourceOffset": 336,
+          "SourceOffsetHex": "0x150",
+          "Address": "0x1576BDEFAA8",
+          "AsciiPreview": "C.......naifukishi@gmail.com.ian.lua.lua.er.d.s...?iW?..@.......",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x43",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x73696B756669616E",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x6C69616D67406968",
+              "Labels": null
+            },
+            {
+              "Offset": 24,
+              "OffsetHex": "0x18",
+              "Value": "0x6E6169006D6F632E",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x61756C0061756C2E",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x73006400726500",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x15769CC0000",
+              "Labels": null
+            },
+            {
+              "Offset": 56,
+              "OffsetHex": "0x38",
+              "Value": "0x40",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x53",
+              "Labels": null
+            },
+            {
+              "Offset": 72,
+              "OffsetHex": "0x48",
+              "Value": "0x43004D005F0041",
+              "Labels": null
+            },
+            {
+              "Offset": 80,
+              "OffsetHex": "0x50",
+              "Value": "0x6900630073005F",
+              "Labels": null
+            },
+            {
+              "Offset": 88,
+              "OffsetHex": "0x58",
+              "Value": "0x66005F006E006F",
+              "Labels": null
+            },
+            {
+              "Offset": 96,
+              "OffsetHex": "0x60",
+              "Value": "0x64006100630061",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x330030005F0065",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x64006F006C005F",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x69006E002E0031",
+              "Labels": null
+            }
+          ]
+        },
+        {
+          "SourceOffset": 368,
+          "SourceOffsetHex": "0x170",
+          "Address": "0x1577AF64D20",
+          "AsciiPreview": "??~jW?..?V.{W?..?X.{W?..S.......O.B.J.E.C.T.I.V.E.6.I.T.E.M.T.A.",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x1576A7E8F80",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x1577B0056A0",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x1577B0058E0",
+              "Labels": null
+            },
+            {
+              "Offset": 24,
+              "OffsetHex": "0x18",
+              "Value": "0x53",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x45004A0042004F",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x56004900540043",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x54004900360045",
+              "Labels": null
+            },
+            {
+              "Offset": 56,
+              "OffsetHex": "0x38",
+              "Value": "0x410054004D0045",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x4E004900530047",
+              "Labels": null
+            },
+            {
+              "Offset": 72,
+              "OffsetHex": "0x48",
+              "Value": "0x41004C00550047",
+              "Labels": null
+            },
+            {
+              "Offset": 80,
+              "OffsetHex": "0x50",
+              "Value": "0x15700000052",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x43",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x45004A0042004F",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x56004900540043",
+              "Labels": null
+            }
+          ]
+        }
+      ],
+      "IntMatches": {
+        "LevelOffsets": [],
+        "HpOffsets": [],
+        "HpMaxOffsets": [],
+        "ResourceOffsets": [],
+        "ResourceMaxOffsets": [],
+        "ComboOffsets": [],
+        "PlanarMaxOffsets": []
+      },
+      "ProjectorVector": {
+        "B8": 0.0,
+        "BC": 0.0,
+        "C0": 0.0,
+        "D0": 1.1303538E+25,
+        "D4": 32759,
+        "MatchesPlayerCoords": false,
+        "DeltaX": -7461.419921875,
+        "DeltaY": -865.5,
+        "DeltaZ": -2987.9499511719
+      }
+    },
+    {
+      "Label": "slot-60",
+      "Address": "0x1576A38ABC0",
+      "Length": 384,
+      "AsciiPreview": "........??......???iW?..........................................",
+      "PointerMatches": [],
+      "PointerMatchCount": 0,
+      "QwordPreview": [
+        {
+          "Offset": 8,
+          "OffsetHex": "0x8",
+          "Value": "0x3E8",
+          "Labels": null
+        },
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Value": "0x15769DDFC80",
+          "Labels": null
+        },
+        {
+          "Offset": 72,
+          "OffsetHex": "0x48",
+          "Value": "0x203",
+          "Labels": null
+        },
+        {
+          "Offset": 80,
+          "OffsetHex": "0x50",
+          "Value": "0x7FF7691599E0",
+          "Labels": null
+        },
+        {
+          "Offset": 96,
+          "OffsetHex": "0x60",
+          "Value": "0x4A",
+          "Labels": null
+        },
+        {
+          "Offset": 104,
+          "OffsetHex": "0x68",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 112,
+          "OffsetHex": "0x70",
+          "Value": "0xFFFFFFFFFF00FFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 120,
+          "OffsetHex": "0x78",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 128,
+          "OffsetHex": "0x80",
+          "Value": "0xFF01FFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 136,
+          "OffsetHex": "0x88",
+          "Value": "0xFFFFFFFFFFFFFF02",
+          "Labels": null
+        },
+        {
+          "Offset": 144,
+          "OffsetHex": "0x90",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 152,
+          "OffsetHex": "0x98",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 160,
+          "OffsetHex": "0xA0",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 168,
+          "OffsetHex": "0xA8",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 176,
+          "OffsetHex": "0xB0",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        },
+        {
+          "Offset": 184,
+          "OffsetHex": "0xB8",
+          "Value": "0xFFFFFFFFFFFFFFFF",
+          "Labels": null
+        }
+      ],
+      "FollowPointers": [
+        {
+          "SourceOffset": 16,
+          "SourceOffsetHex": "0x10",
+          "Address": "0x15769DDFC80",
+          "AsciiPreview": " ?KgW?..??KgW?..??KgW?..........???iW?..???iW?..???iW?..........",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x157674B0320",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x157674B03B8",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x157674B03B8",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x15769DDFCB8",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x15769DDFCC8",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x15769DDFCD8",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x4200000004",
+              "Labels": null
+            },
+            {
+              "Offset": 96,
+              "OffsetHex": "0x60",
+              "Value": "0x1",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x1",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x1577ACAFE90",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x1577ACAFEA8",
+              "Labels": null
+            }
+          ]
+        },
+        {
+          "SourceOffset": 200,
+          "SourceOffsetHex": "0xC8",
+          "Address": "0x1576BDEFA90",
+          "AsciiPreview": "?V.{W?..??~jW?..?X.{W?..C.......naifukishi@gmail.com.ian.lua.lua",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x1577B0056A0",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x1576A7E8F80",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x1577B0058E0",
+              "Labels": null
+            },
+            {
+              "Offset": 24,
+              "OffsetHex": "0x18",
+              "Value": "0x43",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x73696B756669616E",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x6C69616D67406968",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x6E6169006D6F632E",
+              "Labels": null
+            },
+            {
+              "Offset": 56,
+              "OffsetHex": "0x38",
+              "Value": "0x61756C0061756C2E",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x73006400726500",
+              "Labels": null
+            },
+            {
+              "Offset": 72,
+              "OffsetHex": "0x48",
+              "Value": "0x15769CC0000",
+              "Labels": null
+            },
+            {
+              "Offset": 80,
+              "OffsetHex": "0x50",
+              "Value": "0x40",
+              "Labels": null
+            },
+            {
+              "Offset": 88,
+              "OffsetHex": "0x58",
+              "Value": "0x53",
+              "Labels": null
+            },
+            {
+              "Offset": 96,
+              "OffsetHex": "0x60",
+              "Value": "0x43004D005F0041",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x6900630073005F",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x66005F006E006F",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x64006100630061",
+              "Labels": null
+            }
+          ]
+        },
+        {
+          "SourceOffset": 208,
+          "SourceOffsetHex": "0xD0",
+          "Address": "0x1576BDEFAA8",
+          "AsciiPreview": "C.......naifukishi@gmail.com.ian.lua.lua.er.d.s...?iW?..@.......",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x43",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x73696B756669616E",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x6C69616D67406968",
+              "Labels": null
+            },
+            {
+              "Offset": 24,
+              "OffsetHex": "0x18",
+              "Value": "0x6E6169006D6F632E",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x61756C0061756C2E",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x73006400726500",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x15769CC0000",
+              "Labels": null
+            },
+            {
+              "Offset": 56,
+              "OffsetHex": "0x38",
+              "Value": "0x40",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x53",
+              "Labels": null
+            },
+            {
+              "Offset": 72,
+              "OffsetHex": "0x48",
+              "Value": "0x43004D005F0041",
+              "Labels": null
+            },
+            {
+              "Offset": 80,
+              "OffsetHex": "0x50",
+              "Value": "0x6900630073005F",
+              "Labels": null
+            },
+            {
+              "Offset": 88,
+              "OffsetHex": "0x58",
+              "Value": "0x66005F006E006F",
+              "Labels": null
+            },
+            {
+              "Offset": 96,
+              "OffsetHex": "0x60",
+              "Value": "0x64006100630061",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x330030005F0065",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x64006F006C005F",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x69006E002E0031",
+              "Labels": null
+            }
+          ]
+        },
+        {
+          "SourceOffset": 240,
+          "SourceOffsetHex": "0xF0",
+          "Address": "0x1577AF64D20",
+          "AsciiPreview": "??~jW?..?V.{W?..?X.{W?..S.......O.B.J.E.C.T.I.V.E.6.I.T.E.M.T.A.",
+          "PointerMatches": [],
+          "PointerMatchCount": 0,
+          "QwordPreview": [
+            {
+              "Offset": 0,
+              "OffsetHex": "0x0",
+              "Value": "0x1576A7E8F80",
+              "Labels": null
+            },
+            {
+              "Offset": 8,
+              "OffsetHex": "0x8",
+              "Value": "0x1577B0056A0",
+              "Labels": null
+            },
+            {
+              "Offset": 16,
+              "OffsetHex": "0x10",
+              "Value": "0x1577B0058E0",
+              "Labels": null
+            },
+            {
+              "Offset": 24,
+              "OffsetHex": "0x18",
+              "Value": "0x53",
+              "Labels": null
+            },
+            {
+              "Offset": 32,
+              "OffsetHex": "0x20",
+              "Value": "0x45004A0042004F",
+              "Labels": null
+            },
+            {
+              "Offset": 40,
+              "OffsetHex": "0x28",
+              "Value": "0x56004900540043",
+              "Labels": null
+            },
+            {
+              "Offset": 48,
+              "OffsetHex": "0x30",
+              "Value": "0x54004900360045",
+              "Labels": null
+            },
+            {
+              "Offset": 56,
+              "OffsetHex": "0x38",
+              "Value": "0x410054004D0045",
+              "Labels": null
+            },
+            {
+              "Offset": 64,
+              "OffsetHex": "0x40",
+              "Value": "0x4E004900530047",
+              "Labels": null
+            },
+            {
+              "Offset": 72,
+              "OffsetHex": "0x48",
+              "Value": "0x41004C00550047",
+              "Labels": null
+            },
+            {
+              "Offset": 80,
+              "OffsetHex": "0x50",
+              "Value": "0x15700000052",
+              "Labels": null
+            },
+            {
+              "Offset": 104,
+              "OffsetHex": "0x68",
+              "Value": "0x43",
+              "Labels": null
+            },
+            {
+              "Offset": 112,
+              "OffsetHex": "0x70",
+              "Value": "0x45004A0042004F",
+              "Labels": null
+            },
+            {
+              "Offset": 120,
+              "OffsetHex": "0x78",
+              "Value": "0x56004900540043",
+              "Labels": null
+            }
+          ]
+        }
+      ],
+      "IntMatches": {
+        "LevelOffsets": [],
+        "HpOffsets": [],
+        "HpMaxOffsets": [],
+        "ResourceOffsets": [],
+        "ResourceMaxOffsets": [],
+        "ComboOffsets": [],
+        "PlanarMaxOffsets": []
+      },
+      "ProjectorVector": {
+        "B8": "NaN",
+        "BC": "NaN",
+        "C0": "NaN",
+        "D0": 5.3913045E+26,
+        "D4": 343,
+        "MatchesPlayerCoords": false,
+        "DeltaX": "NaN",
+        "DeltaY": "NaN",
+        "DeltaZ": "NaN"
+      }
+    }
+  ]
+}

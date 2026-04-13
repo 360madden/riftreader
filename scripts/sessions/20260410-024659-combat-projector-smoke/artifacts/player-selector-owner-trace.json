@@ -1,0 +1,92 @@
+{
+  "Mode": "player-selector-owner-trace",
+  "GeneratedAtUtc": "2026-04-10T06:35:58.7448818+00:00",
+  "SourceChainFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-source-chain.json",
+  "CoordTraceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-coord-write-trace.json",
+  "TriggerInstruction": {
+    "Index": 26,
+    "Address": "7FF767442AF7",
+    "Bytes": "48 8B 3C D1",
+    "Opcode": "mov rdi,[rcx+rdx*8]",
+    "Extra": "",
+    "Full": "7FF767442AF7 - 48 8B 3C D1   - mov rdi,[rcx+rdx*8]",
+    "UsesBaseRegister": false,
+    "MemoryOperand": "[rcx+rdx*8]",
+    "RelativeOffset": null,
+    "RoleHint": null
+  },
+  "Trace": {
+    "Status": "hit",
+    "HitCount": 1,
+    "InstructionAddress": "0x7FF767442AF7",
+    "InstructionSymbol": "rift_x64.exe+932AF7",
+    "Instruction": "7FF767442AF7 - 48 8B 3C D1   - mov rdi,[rcx+rdx*8]",
+    "InstructionBytes": "48 8B 3C D1",
+    "InstructionOpcode": "mov rdi,[rcx+rdx*8]",
+    "ModuleName": "rift_x64.exe",
+    "ModuleBase": "0x7FF766B10000",
+    "ModuleOffset": "0x932AF7",
+    "Registers": {
+      "RAX": "0x1576A38AA10",
+      "RBX": "0x427CB3D998",
+      "RCX": "0x1577AD9B540",
+      "RDX": "0x6",
+      "RSI": "0x1578D24A248",
+      "RDI": "0x0",
+      "RBP": "0x427CB3DA10",
+      "RSP": "0x427CB3D910",
+      "R8": "0x1574006E8D8",
+      "R9": "0x1577CBEB9B8",
+      "R10": "0x7FFBD91D0000",
+      "R11": "0x427CB3D880",
+      "R12": "0x427CB3E300",
+      "R13": "0x1575264C000",
+      "R14": "0x1575264C000",
+      "R15": "0x1577AC2F1E0"
+    }
+  },
+  "Owner": {
+    "SlotAddress": "0x427CB3D9A0",
+    "ObjectAddress": "0x1576A38AA10",
+    "ContainerAddress": "0x1577AD9B540",
+    "ContainerFromObject": "0x1577AD9B540",
+    "ContainerMatchesObject78": true,
+    "SelectorIndex": 6,
+    "Coord48": {
+      "X": "NaN",
+      "Y": "NaN",
+      "Z": "NaN"
+    }
+  },
+  "SelectedSource": {
+    "Address": "0x1577AC2FB60",
+    "MatchesCoordTraceSource": true,
+    "Coord48": {
+      "X": 7439.5512695313,
+      "Y": 863.64385986328,
+      "Z": 2952.6110839844
+    },
+    "Coord88": {
+      "X": 7439.5512695313,
+      "Y": 863.64385986328,
+      "Z": 2952.6110839844
+    }
+  },
+  "CoordTraceSourceAddress": "0x1577AC2FB60",
+  "SuggestedSelectorPattern": "0F B6 54 01 18 80 FA FF 0F 84 ?? ?? ?? ?? 48 8B 48 78 48 8B 3C D1 48 85 FF",
+  "SuggestedSelectorPatternScan": {
+    "Mode": "module-pattern-scan",
+    "ProcessId": 98428,
+    "ProcessName": "rift_x64",
+    "ModuleName": "rift_x64.exe",
+    "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "ModuleBaseAddress": "0x7FF766B10000",
+    "ModuleMemorySize": 62615552,
+    "Pattern": "0F B6 54 01 18 80 FA FF 0F 84 ?? ?? ?? ?? 48 8B 48 78 48 8B 3C D1 48 85 FF",
+    "Found": true,
+    "RelativeOffset": 5381317,
+    "RelativeOffsetHex": "0x521CC5",
+    "Address": "0x7FF767031CC5",
+    "ContextBytes": 0
+  }
+}

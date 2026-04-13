@@ -1,0 +1,63 @@
+{
+  "SourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+  "LoadedAtUtc": "2026-04-10T13:05:15.8238462+00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 26514.32421875,
+  "LastReason": "save-begin",
+  "ExportCount": 396,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "save-begin",
+    "ExportCount": 396,
+    "GeneratedAtRealtime": 26514.32421875,
+    "SourceMode": "DirectAPI",
+    "SourceAddon": "RiftAPI",
+    "Player": {
+      "Id": "u035400012FA2D207",
+      "Name": "Atank",
+      "Level": 44,
+      "Calling": "warrior",
+      "Guild": "The Regulators",
+      "Relation": "friendly",
+      "Role": "tank",
+      "Player": true,
+      "Hp": 17027,
+      "HpMax": 17027,
+      "HpPct": 100,
+      "Vitality": 100,
+      "ResourceKind": "Power",
+      "Resource": 100,
+      "ResourceMax": 100,
+      "ResourcePct": 100,
+      "Power": 100,
+      "Charge": 0,
+      "ChargeMax": 0,
+      "ChargePct": 0,
+      "Planar": 0,
+      "PlanarMax": 3,
+      "PlanarPct": 0,
+      "Combo": 3,
+      "Zone": "z487C9102D2EA79BE",
+      "LocationName": "Bahralt Street",
+      "Coord": {
+        "X": 7461.419921875,
+        "Y": 865.5,
+        "Z": 2987.9499511719
+      },
+      "Cast": {
+        "Active": false,
+        "Channeled": false,
+        "Uninterruptible": false,
+        "ProgressPct": 0,
+        "Text": "-"
+      }
+    },
+    "PlayerBuffLines": [
+      "Rested"
+    ],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": []
+  }
+}

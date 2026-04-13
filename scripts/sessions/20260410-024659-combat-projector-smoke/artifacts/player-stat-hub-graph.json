@@ -1,0 +1,2932 @@
+{
+  "Mode": "player-stat-hub-graph",
+  "GeneratedAtUtc": "2026-04-10T06:37:16.0110845+00:00",
+  "OwnerComponentsFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+  "SnapshotFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+  "OwnerAddress": "0x1576A38AA10",
+  "StateRecordAddress": "0x1576A38AAD8",
+  "SelectedSourceAddress": "0x1577AC2FB60",
+  "PlayerUnitId": "u035400012FA2D207",
+  "PlayerUnitIdRawHex": "0x035400012FA2D207",
+  "PlayerLevel": 44,
+  "PlayerHp": 17027,
+  "PlayerHpMax": 17027,
+  "PlayerResource": 100,
+  "PlayerResourceMax": 100,
+  "PlayerCombo": 3,
+  "PlayerPlanarMax": 3,
+  "IdentityComponents": [
+    {
+      "Index": 12,
+      "Address": "0x1575264BEE0",
+      "RoleHints": [],
+      "PointerTargets": [
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 32,
+          "OffsetHex": "0x20",
+          "Address": "0x1576905BD30",
+          "Value": 1474935766320
+        },
+        {
+          "Offset": 64,
+          "OffsetHex": "0x40",
+          "Address": "0x1575264BF10",
+          "Value": 1474556116752
+        },
+        {
+          "Offset": 144,
+          "OffsetHex": "0x90",
+          "Address": "0x1575130C9F0",
+          "Value": 1474535934448
+        },
+        {
+          "Offset": 200,
+          "OffsetHex": "0xC8",
+          "Address": "0x1576A6B3900",
+          "Value": 1474959194368
+        },
+        {
+          "Offset": 208,
+          "OffsetHex": "0xD0",
+          "Address": "0x1577AF3C230",
+          "Value": 1475236577840
+        },
+        {
+          "Offset": 296,
+          "OffsetHex": "0x128",
+          "Address": "0x1577B00C320",
+          "Value": 1475237430048
+        },
+        {
+          "Offset": 328,
+          "OffsetHex": "0x148",
+          "Address": "0x1575264C000",
+          "Value": 1474556116992
+        },
+        {
+          "Offset": 344,
+          "OffsetHex": "0x158",
+          "Address": "0x1575264CA80",
+          "Value": 1474556119680
+        },
+        {
+          "Offset": 352,
+          "OffsetHex": "0x160",
+          "Address": "0x1577AE055E0",
+          "Value": 1475235304928
+        },
+        {
+          "Offset": 360,
+          "OffsetHex": "0x168",
+          "Address": "0x1574FAF74E0",
+          "Value": 1474510681312
+        },
+        {
+          "Offset": 368,
+          "OffsetHex": "0x170",
+          "Address": "0x157513CA930",
+          "Value": 1474536712496
+        }
+      ],
+      "UnitIdOffsets": [
+        40,
+        216
+      ],
+      "OwnerOffsets": [
+        16,
+        128,
+        176,
+        304
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": []
+    },
+    {
+      "Index": 9,
+      "Address": "0x1577AC2FE00",
+      "RoleHints": [],
+      "PointerTargets": [
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 40,
+          "OffsetHex": "0x28",
+          "Address": "0x1575230BB18",
+          "Value": 1474552707864
+        },
+        {
+          "Offset": 48,
+          "OffsetHex": "0x30",
+          "Address": "0x1575230BB48",
+          "Value": 1474552707912
+        },
+        {
+          "Offset": 72,
+          "OffsetHex": "0x48",
+          "Address": "0x157513CB3B0",
+          "Value": 1474536715184
+        },
+        {
+          "Offset": 128,
+          "OffsetHex": "0x80",
+          "Address": "0x1574C7C6AD0",
+          "Value": 1474457004752
+        },
+        {
+          "Offset": 176,
+          "OffsetHex": "0xB0",
+          "Address": "0x15751380E20",
+          "Value": 1474536410656
+        },
+        {
+          "Offset": 184,
+          "OffsetHex": "0xB8",
+          "Address": "0x1577AE02400",
+          "Value": 1475235292160
+        },
+        {
+          "Offset": 192,
+          "OffsetHex": "0xC0",
+          "Address": "0x1576A763B98",
+          "Value": 1474959915928
+        },
+        {
+          "Offset": 224,
+          "OffsetHex": "0xE0",
+          "Address": "0x1577AC2AA00",
+          "Value": 1475233360384
+        },
+        {
+          "Offset": 248,
+          "OffsetHex": "0xF8",
+          "Address": "0x157512C7070",
+          "Value": 1474535649392
+        },
+        {
+          "Offset": 288,
+          "OffsetHex": "0x120",
+          "Address": "0x1577AC2FF28",
+          "Value": 1475233382184
+        },
+        {
+          "Offset": 368,
+          "OffsetHex": "0x170",
+          "Address": "0x1577AD95020",
+          "Value": 1475234844704
+        }
+      ],
+      "UnitIdOffsets": [
+        56
+      ],
+      "OwnerOffsets": [
+        16,
+        112,
+        160
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": []
+    },
+    {
+      "Index": 13,
+      "Address": "0x1575264BF50",
+      "RoleHints": [],
+      "PointerTargets": [
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 32,
+          "OffsetHex": "0x20",
+          "Address": "0x1575130C9F0",
+          "Value": 1474535934448
+        },
+        {
+          "Offset": 88,
+          "OffsetHex": "0x58",
+          "Address": "0x1576A6B3900",
+          "Value": 1474959194368
+        },
+        {
+          "Offset": 96,
+          "OffsetHex": "0x60",
+          "Address": "0x1577AF3C230",
+          "Value": 1475236577840
+        },
+        {
+          "Offset": 184,
+          "OffsetHex": "0xB8",
+          "Address": "0x1577B00C320",
+          "Value": 1475237430048
+        },
+        {
+          "Offset": 216,
+          "OffsetHex": "0xD8",
+          "Address": "0x1575264C000",
+          "Value": 1474556116992
+        },
+        {
+          "Offset": 232,
+          "OffsetHex": "0xE8",
+          "Address": "0x1575264CA80",
+          "Value": 1474556119680
+        },
+        {
+          "Offset": 240,
+          "OffsetHex": "0xF0",
+          "Address": "0x1577AE055E0",
+          "Value": 1475235304928
+        },
+        {
+          "Offset": 248,
+          "OffsetHex": "0xF8",
+          "Address": "0x1574FAF74E0",
+          "Value": 1474510681312
+        },
+        {
+          "Offset": 256,
+          "OffsetHex": "0x100",
+          "Address": "0x157513CA930",
+          "Value": 1474536712496
+        },
+        {
+          "Offset": 272,
+          "OffsetHex": "0x110",
+          "Address": "0x1576999BFC0",
+          "Value": 1474945466304
+        },
+        {
+          "Offset": 304,
+          "OffsetHex": "0x130",
+          "Address": "0x100000003",
+          "Value": 4294967299
+        }
+      ],
+      "UnitIdOffsets": [
+        104
+      ],
+      "OwnerOffsets": [
+        16,
+        64,
+        192
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        304
+      ],
+      "PlanarMaxOffsets": [
+        304
+      ]
+    },
+    {
+      "Index": 8,
+      "Address": "0x1577AC2FCD0",
+      "RoleHints": [],
+      "PointerTargets": [
+        {
+          "Offset": 8,
+          "OffsetHex": "0x8",
+          "Address": "0x1576BE1AED0",
+          "Value": 1474983734992
+        },
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 56,
+          "OffsetHex": "0x38",
+          "Address": "0x1577AC2C1B0",
+          "Value": 1475233366448
+        },
+        {
+          "Offset": 72,
+          "OffsetHex": "0x48",
+          "Address": "0x1576A723F78",
+          "Value": 1474959654776
+        },
+        {
+          "Offset": 80,
+          "OffsetHex": "0x50",
+          "Address": "0x15750D33530",
+          "Value": 1474529801520
+        },
+        {
+          "Offset": 88,
+          "OffsetHex": "0x58",
+          "Address": "0x1577AD9B8E0",
+          "Value": 1475234871520
+        },
+        {
+          "Offset": 104,
+          "OffsetHex": "0x68",
+          "Address": "0x1577AD9A380",
+          "Value": 1475234866048
+        },
+        {
+          "Offset": 120,
+          "OffsetHex": "0x78",
+          "Address": "0x1577AD9AAB0",
+          "Value": 1475234867888
+        },
+        {
+          "Offset": 192,
+          "OffsetHex": "0xC0",
+          "Address": "0x1577CFE0170",
+          "Value": 1475270803824
+        },
+        {
+          "Offset": 240,
+          "OffsetHex": "0xF0",
+          "Address": "0x1577CFE01F0",
+          "Value": 1475270803952
+        },
+        {
+          "Offset": 344,
+          "OffsetHex": "0x158",
+          "Address": "0x1575230BB18",
+          "Value": 1474552707864
+        },
+        {
+          "Offset": 352,
+          "OffsetHex": "0x160",
+          "Address": "0x1575230BB48",
+          "Value": 1474552707912
+        },
+        {
+          "Offset": 376,
+          "OffsetHex": "0x178",
+          "Address": "0x157513CB3B0",
+          "Value": 1474536715184
+        }
+      ],
+      "UnitIdOffsets": [
+        96,
+        360
+      ],
+      "OwnerOffsets": [
+        16,
+        320
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        152
+      ],
+      "PlanarMaxOffsets": [
+        152
+      ]
+    },
+    {
+      "Index": 7,
+      "Address": "0x1577AC2FC80",
+      "RoleHints": [],
+      "PointerTargets": [
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 32,
+          "OffsetHex": "0x20",
+          "Address": "0x1574FBBDFA0",
+          "Value": 1474511495072
+        },
+        {
+          "Offset": 40,
+          "OffsetHex": "0x28",
+          "Address": "0x15767482C50",
+          "Value": 1474906565712
+        },
+        {
+          "Offset": 88,
+          "OffsetHex": "0x58",
+          "Address": "0x1576BE1AED0",
+          "Value": 1474983734992
+        },
+        {
+          "Offset": 136,
+          "OffsetHex": "0x88",
+          "Address": "0x1577AC2C1B0",
+          "Value": 1475233366448
+        },
+        {
+          "Offset": 152,
+          "OffsetHex": "0x98",
+          "Address": "0x1576A723F78",
+          "Value": 1474959654776
+        },
+        {
+          "Offset": 160,
+          "OffsetHex": "0xA0",
+          "Address": "0x15750D33530",
+          "Value": 1474529801520
+        },
+        {
+          "Offset": 168,
+          "OffsetHex": "0xA8",
+          "Address": "0x1577AD9B8E0",
+          "Value": 1475234871520
+        },
+        {
+          "Offset": 184,
+          "OffsetHex": "0xB8",
+          "Address": "0x1577AD9A380",
+          "Value": 1475234866048
+        },
+        {
+          "Offset": 200,
+          "OffsetHex": "0xC8",
+          "Address": "0x1577AD9AAB0",
+          "Value": 1475234867888
+        },
+        {
+          "Offset": 272,
+          "OffsetHex": "0x110",
+          "Address": "0x1577CFE0170",
+          "Value": 1475270803824
+        },
+        {
+          "Offset": 320,
+          "OffsetHex": "0x140",
+          "Address": "0x1577CFE01F0",
+          "Value": 1475270803952
+        }
+      ],
+      "UnitIdOffsets": [
+        48,
+        176
+      ],
+      "OwnerOffsets": [
+        16,
+        96
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        232
+      ],
+      "PlanarMaxOffsets": [
+        232
+      ]
+    },
+    {
+      "Index": 14,
+      "Address": "0x1575264BF80",
+      "RoleHints": [],
+      "PointerTargets": [
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 40,
+          "OffsetHex": "0x28",
+          "Address": "0x1576A6B3900",
+          "Value": 1474959194368
+        },
+        {
+          "Offset": 48,
+          "OffsetHex": "0x30",
+          "Address": "0x1577AF3C230",
+          "Value": 1475236577840
+        },
+        {
+          "Offset": 136,
+          "OffsetHex": "0x88",
+          "Address": "0x1577B00C320",
+          "Value": 1475237430048
+        },
+        {
+          "Offset": 168,
+          "OffsetHex": "0xA8",
+          "Address": "0x1575264C000",
+          "Value": 1474556116992
+        },
+        {
+          "Offset": 184,
+          "OffsetHex": "0xB8",
+          "Address": "0x1575264CA80",
+          "Value": 1474556119680
+        },
+        {
+          "Offset": 192,
+          "OffsetHex": "0xC0",
+          "Address": "0x1577AE055E0",
+          "Value": 1475235304928
+        },
+        {
+          "Offset": 200,
+          "OffsetHex": "0xC8",
+          "Address": "0x1574FAF74E0",
+          "Value": 1474510681312
+        },
+        {
+          "Offset": 208,
+          "OffsetHex": "0xD0",
+          "Address": "0x157513CA930",
+          "Value": 1474536712496
+        },
+        {
+          "Offset": 224,
+          "OffsetHex": "0xE0",
+          "Address": "0x1576999BFC0",
+          "Value": 1474945466304
+        },
+        {
+          "Offset": 256,
+          "OffsetHex": "0x100",
+          "Address": "0x100000003",
+          "Value": 4294967299
+        },
+        {
+          "Offset": 336,
+          "OffsetHex": "0x150",
+          "Address": "0x157514DCAF0",
+          "Value": 1474537835248
+        }
+      ],
+      "UnitIdOffsets": [
+        56
+      ],
+      "OwnerOffsets": [
+        16,
+        144
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        256
+      ],
+      "PlanarMaxOffsets": [
+        256
+      ]
+    },
+    {
+      "Index": 6,
+      "Address": "0x1577AC2FB60",
+      "RoleHints": [
+        "selected-source",
+        "coord48-match",
+        "coord88-match",
+        "orientation60-match",
+        "orientation94-match"
+      ],
+      "PointerTargets": [
+        {
+          "Offset": 8,
+          "OffsetHex": "0x8",
+          "Address": "0x1577B00C0A0",
+          "Value": 1475237429408
+        },
+        {
+          "Offset": 16,
+          "OffsetHex": "0x10",
+          "Address": "0x1576A38AA10",
+          "Value": 1474955880976
+        },
+        {
+          "Offset": 128,
+          "OffsetHex": "0x80",
+          "Address": "0x13E88C5A5",
+          "Value": 5344118181
+        },
+        {
+          "Offset": 248,
+          "OffsetHex": "0xF8",
+          "Address": "0x157513AF0F0",
+          "Value": 1474536599792
+        },
+        {
+          "Offset": 320,
+          "OffsetHex": "0x140",
+          "Address": "0x1574FBBDFA0",
+          "Value": 1474511495072
+        },
+        {
+          "Offset": 328,
+          "OffsetHex": "0x148",
+          "Address": "0x15767482C50",
+          "Value": 1474906565712
+        },
+        {
+          "Offset": 376,
+          "OffsetHex": "0x178",
+          "Address": "0x1576BE1AED0",
+          "Value": 1474983734992
+        }
+      ],
+      "UnitIdOffsets": [
+        336
+      ],
+      "OwnerOffsets": [
+        16,
+        304
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [
+        40
+      ],
+      "ResourceMaxOffsets": [
+        40
+      ],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": []
+    }
+  ],
+  "RankedSharedHubs": [
+    {
+      "Address": "0x1577AE055E0",
+      "Score": 108,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 352,
+          "OffsetHex": "0x160"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 240,
+          "OffsetHex": "0xF0"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 192,
+          "OffsetHex": "0xC0"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 64,
+          "OffsetHex": "0x40"
+        }
+      ],
+      "LevelOffsets": [
+        "0x100",
+        "0x138"
+      ],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x118",
+        "0x124",
+        "0x13C",
+        "0x158"
+      ],
+      "PlanarMaxOffsets": [
+        "0x118",
+        "0x124",
+        "0x13C",
+        "0x158"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components",
+        "contains level match at 0x100, 0x138",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1575264C000",
+      "Score": 92,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 328,
+          "OffsetHex": "0x148"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 216,
+          "OffsetHex": "0xD8"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 168,
+          "OffsetHex": "0xA8"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 40,
+          "OffsetHex": "0x28"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x80"
+      ],
+      "PlanarMaxOffsets": [
+        "0x80"
+      ],
+      "OwnerOffsets": [
+        "0x10"
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components",
+        "contains combo/planarMax pair",
+        "contains owner backref at 0x10"
+      ]
+    },
+    {
+      "Address": "0x157513CA930",
+      "Score": 86,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 368,
+          "OffsetHex": "0x170"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 256,
+          "OffsetHex": "0x100"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 208,
+          "OffsetHex": "0xD0"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 80,
+          "OffsetHex": "0x50"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [
+        "0x18",
+        "0x20"
+      ],
+      "ResourceMaxOffsets": [
+        "0x18",
+        "0x20"
+      ],
+      "ComboOffsets": [
+        "0x24",
+        "0x28",
+        "0x70",
+        "0xDC",
+        "0x100",
+        "0x130",
+        "0x160",
+        "0x1F0",
+        "0x2E0"
+      ],
+      "PlanarMaxOffsets": [
+        "0x24",
+        "0x28",
+        "0x70",
+        "0xDC",
+        "0x100",
+        "0x130",
+        "0x160",
+        "0x1F0",
+        "0x2E0"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components",
+        "contains resource/resourceMax pair",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD95C20",
+      "Score": 78,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 296,
+          "OffsetHex": "0x128"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 248,
+          "OffsetHex": "0xF8"
+        }
+      ],
+      "LevelOffsets": [
+        "0xA0"
+      ],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x120"
+      ],
+      "PlanarMaxOffsets": [
+        "0x120"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains level match at 0xA0",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD9B8E0",
+      "Score": 78,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 168,
+          "OffsetHex": "0xA8"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 88,
+          "OffsetHex": "0x58"
+        }
+      ],
+      "LevelOffsets": [
+        "0xB8"
+      ],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0xE0",
+        "0xE4",
+        "0xE8",
+        "0xEC",
+        "0xF0",
+        "0xF4",
+        "0xF8",
+        "0xFC",
+        "0x100",
+        "0x104",
+        "0x108",
+        "0x10C",
+        "0x110",
+        "0x114",
+        "0x118",
+        "0x11C"
+      ],
+      "PlanarMaxOffsets": [
+        "0xE0",
+        "0xE4",
+        "0xE8",
+        "0xEC",
+        "0xF0",
+        "0xF4",
+        "0xF8",
+        "0xFC",
+        "0x100",
+        "0x104",
+        "0x108",
+        "0x10C",
+        "0x110",
+        "0x114",
+        "0x118",
+        "0x11C"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains level match at 0xB8",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD96420",
+      "Score": 70,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 312,
+          "OffsetHex": "0x138"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 264,
+          "OffsetHex": "0x108"
+        }
+      ],
+      "LevelOffsets": [
+        "0x50"
+      ],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains level match at 0x50"
+      ]
+    },
+    {
+      "Address": "0x1575264CA80",
+      "Score": 68,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 344,
+          "OffsetHex": "0x158"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 232,
+          "OffsetHex": "0xE8"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 184,
+          "OffsetHex": "0xB8"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 56,
+          "OffsetHex": "0x38"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x100"
+      ],
+      "PlanarMaxOffsets": [
+        "0x100"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577B00C0A0",
+      "Score": 68,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 1,
+          "ComponentAddress": "0x1577AC2FAB0",
+          "Offset": 184,
+          "OffsetHex": "0xB8"
+        },
+        {
+          "ComponentIndex": 2,
+          "ComponentAddress": "0x1577AC2FAF0",
+          "Offset": 120,
+          "OffsetHex": "0x78"
+        },
+        {
+          "ComponentIndex": 3,
+          "ComponentAddress": "0x1577AC2FB20",
+          "Offset": 72,
+          "OffsetHex": "0x48"
+        },
+        {
+          "ComponentIndex": 6,
+          "ComponentAddress": "0x1577AC2FB60",
+          "Offset": 8,
+          "OffsetHex": "0x8"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x138",
+        "0x300"
+      ],
+      "PlanarMaxOffsets": [
+        "0x138",
+        "0x300"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577B00C320",
+      "Score": 68,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 296,
+          "OffsetHex": "0x128"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 184,
+          "OffsetHex": "0xB8"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 136,
+          "OffsetHex": "0x88"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 8,
+          "OffsetHex": "0x8"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x80",
+        "0x208"
+      ],
+      "PlanarMaxOffsets": [
+        "0x80",
+        "0x208"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AC2AA00",
+      "Score": 63,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 224,
+          "OffsetHex": "0xE0"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 128,
+          "OffsetHex": "0x80"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 80,
+          "OffsetHex": "0x50"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [
+        "0x23C"
+      ],
+      "ResourceMaxOffsets": [
+        "0x23C"
+      ],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains resource/resourceMax pair"
+      ]
+    },
+    {
+      "Address": "0x1574FAF74E0",
+      "Score": 60,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 360,
+          "OffsetHex": "0x168"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 248,
+          "OffsetHex": "0xF8"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 200,
+          "OffsetHex": "0xC8"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 72,
+          "OffsetHex": "0x48"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 4 components"
+      ]
+    },
+    {
+      "Address": "0x15750D33530",
+      "Score": 56,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 160,
+          "OffsetHex": "0xA0"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 80,
+          "OffsetHex": "0x50"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [
+        "0x30",
+        "0x100",
+        "0x1D0",
+        "0x2A0"
+      ],
+      "ResourceMaxOffsets": [
+        "0x30",
+        "0x100",
+        "0x1D0",
+        "0x2A0"
+      ],
+      "ComboOffsets": [
+        "0x38",
+        "0x108",
+        "0x278"
+      ],
+      "PlanarMaxOffsets": [
+        "0x38",
+        "0x108",
+        "0x278"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains resource/resourceMax pair",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AC2C1B0",
+      "Score": 54,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 136,
+          "OffsetHex": "0x88"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 56,
+          "OffsetHex": "0x38"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [
+        "0x108"
+      ],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains owner backref at 0x108"
+      ]
+    },
+    {
+      "Address": "0x15751380E20",
+      "Score": 53,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 176,
+          "OffsetHex": "0xB0"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 80,
+          "OffsetHex": "0x50"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 32,
+          "OffsetHex": "0x20"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x100",
+        "0x1B0"
+      ],
+      "PlanarMaxOffsets": [
+        "0x100",
+        "0x1B0"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1576A6B3900",
+      "Score": 53,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 200,
+          "OffsetHex": "0xC8"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 88,
+          "OffsetHex": "0x58"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 40,
+          "OffsetHex": "0x28"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x1A0"
+      ],
+      "PlanarMaxOffsets": [
+        "0x1A0"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1576BE1AED0",
+      "Score": 53,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 6,
+          "ComponentAddress": "0x1577AC2FB60",
+          "Offset": 376,
+          "OffsetHex": "0x178"
+        },
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 88,
+          "OffsetHex": "0x58"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 8,
+          "OffsetHex": "0x8"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x78"
+      ],
+      "PlanarMaxOffsets": [
+        "0x78"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD95020",
+      "Score": 53,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 368,
+          "OffsetHex": "0x170"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 272,
+          "OffsetHex": "0x110"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 224,
+          "OffsetHex": "0xE0"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x250",
+        "0x254",
+        "0x258",
+        "0x25C"
+      ],
+      "PlanarMaxOffsets": [
+        "0x250",
+        "0x254",
+        "0x258",
+        "0x25C"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD9AAB0",
+      "Score": 53,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 5,
+          "ComponentAddress": "0x1577AC2F1E0",
+          "Offset": 8,
+          "OffsetHex": "0x8"
+        },
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 200,
+          "OffsetHex": "0xC8"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 120,
+          "OffsetHex": "0x78"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x28",
+        "0xC8",
+        "0x180",
+        "0x208"
+      ],
+      "PlanarMaxOffsets": [
+        "0x28",
+        "0xC8",
+        "0x180",
+        "0x208"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AF3C230",
+      "Score": 53,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 208,
+          "OffsetHex": "0xD0"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 96,
+          "OffsetHex": "0x60"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 48,
+          "OffsetHex": "0x30"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x70"
+      ],
+      "PlanarMaxOffsets": [
+        "0x70"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD95820",
+      "Score": 48,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 288,
+          "OffsetHex": "0x120"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 240,
+          "OffsetHex": "0xF0"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [
+        "0x2CC"
+      ],
+      "ResourceMaxOffsets": [
+        "0x2CC"
+      ],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains resource/resourceMax pair"
+      ]
+    },
+    {
+      "Address": "0x1574FC38DE0",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 1,
+          "ComponentAddress": "0x1577AC2FAB0",
+          "Offset": 144,
+          "OffsetHex": "0x90"
+        },
+        {
+          "ComponentIndex": 2,
+          "ComponentAddress": "0x1577AC2FAF0",
+          "Offset": 80,
+          "OffsetHex": "0x50"
+        },
+        {
+          "ComponentIndex": 3,
+          "ComponentAddress": "0x1577AC2FB20",
+          "Offset": 32,
+          "OffsetHex": "0x20"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x157512C7070",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 248,
+          "OffsetHex": "0xF8"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 152,
+          "OffsetHex": "0x98"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 104,
+          "OffsetHex": "0x68"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x157513AF0F0",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 2,
+          "ComponentAddress": "0x1577AC2FAF0",
+          "Offset": 360,
+          "OffsetHex": "0x168"
+        },
+        {
+          "ComponentIndex": 3,
+          "ComponentAddress": "0x1577AC2FB20",
+          "Offset": 312,
+          "OffsetHex": "0x138"
+        },
+        {
+          "ComponentIndex": 6,
+          "ComponentAddress": "0x1577AC2FB60",
+          "Offset": 248,
+          "OffsetHex": "0xF8"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x1576999BFC0",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 272,
+          "OffsetHex": "0x110"
+        },
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 224,
+          "OffsetHex": "0xE0"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 96,
+          "OffsetHex": "0x60"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x1576A763B98",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 192,
+          "OffsetHex": "0xC0"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 96,
+          "OffsetHex": "0x60"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 48,
+          "OffsetHex": "0x30"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x1577AC2FF28",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 288,
+          "OffsetHex": "0x120"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 192,
+          "OffsetHex": "0xC0"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 144,
+          "OffsetHex": "0x90"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x1577AE02400",
+      "Score": 45,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 184,
+          "OffsetHex": "0xB8"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 88,
+          "OffsetHex": "0x58"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 40,
+          "OffsetHex": "0x28"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 3 components"
+      ]
+    },
+    {
+      "Address": "0x1574C7C6AD0",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 128,
+          "OffsetHex": "0x80"
+        },
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 32,
+          "OffsetHex": "0x20"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x10",
+        "0x140"
+      ],
+      "PlanarMaxOffsets": [
+        "0x10",
+        "0x140"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1575130C9F0",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 12,
+          "ComponentAddress": "0x1575264BEE0",
+          "Offset": 144,
+          "OffsetHex": "0x90"
+        },
+        {
+          "ComponentIndex": 13,
+          "ComponentAddress": "0x1575264BF50",
+          "Offset": 32,
+          "OffsetHex": "0x20"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x198"
+      ],
+      "PlanarMaxOffsets": [
+        "0x198"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x157513CB3B0",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 376,
+          "OffsetHex": "0x178"
+        },
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 72,
+          "OffsetHex": "0x48"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x40",
+        "0x70",
+        "0xA0",
+        "0xD0",
+        "0x100",
+        "0x160",
+        "0x190",
+        "0x220",
+        "0x280",
+        "0x2E0",
+        "0x310"
+      ],
+      "PlanarMaxOffsets": [
+        "0x40",
+        "0x70",
+        "0xA0",
+        "0xD0",
+        "0x100",
+        "0x160",
+        "0x190",
+        "0x220",
+        "0x280",
+        "0x2E0",
+        "0x310"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AC20000",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 352,
+          "OffsetHex": "0x160"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 304,
+          "OffsetHex": "0x130"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x194"
+      ],
+      "PlanarMaxOffsets": [
+        "0x194"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577AD9A380",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 184,
+          "OffsetHex": "0xB8"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 104,
+          "OffsetHex": "0x68"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x0",
+        "0x28",
+        "0xF8"
+      ],
+      "PlanarMaxOffsets": [
+        "0x0",
+        "0x28",
+        "0xF8"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577CFE0170",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 272,
+          "OffsetHex": "0x110"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 192,
+          "OffsetHex": "0xC0"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x288"
+      ],
+      "PlanarMaxOffsets": [
+        "0x288"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1577CFE01F0",
+      "Score": 38,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 320,
+          "OffsetHex": "0x140"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 240,
+          "OffsetHex": "0xF0"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [
+        "0x208"
+      ],
+      "PlanarMaxOffsets": [
+        "0x208"
+      ],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components",
+        "contains combo/planarMax pair"
+      ]
+    },
+    {
+      "Address": "0x1574FBBDFA0",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 6,
+          "ComponentAddress": "0x1577AC2FB60",
+          "Offset": 320,
+          "OffsetHex": "0x140"
+        },
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 32,
+          "OffsetHex": "0x20"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x157514DCAF0",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 14,
+          "ComponentAddress": "0x1575264BF80",
+          "Offset": 336,
+          "OffsetHex": "0x150"
+        },
+        {
+          "ComponentIndex": 15,
+          "ComponentAddress": "0x1575264C000",
+          "Offset": 208,
+          "OffsetHex": "0xD0"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x1575230BB18",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 344,
+          "OffsetHex": "0x158"
+        },
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 40,
+          "OffsetHex": "0x28"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x1575230BB48",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 352,
+          "OffsetHex": "0x160"
+        },
+        {
+          "ComponentIndex": 9,
+          "ComponentAddress": "0x1577AC2FE00",
+          "Offset": 48,
+          "OffsetHex": "0x30"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x15767482C50",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 6,
+          "ComponentAddress": "0x1577AC2FB60",
+          "Offset": 328,
+          "OffsetHex": "0x148"
+        },
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 40,
+          "OffsetHex": "0x28"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x1576A6FFCE0",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 1,
+          "ComponentAddress": "0x1577AC2FAB0",
+          "Offset": 96,
+          "OffsetHex": "0x60"
+        },
+        {
+          "ComponentIndex": 2,
+          "ComponentAddress": "0x1577AC2FAF0",
+          "Offset": 32,
+          "OffsetHex": "0x20"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x1576A723F78",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 7,
+          "ComponentAddress": "0x1577AC2FC80",
+          "Offset": 152,
+          "OffsetHex": "0x98"
+        },
+        {
+          "ComponentIndex": 8,
+          "ComponentAddress": "0x1577AC2FCD0",
+          "Offset": 72,
+          "OffsetHex": "0x48"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x15779BBFFC0",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 368,
+          "OffsetHex": "0x170"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 320,
+          "OffsetHex": "0x140"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    },
+    {
+      "Address": "0x1577AD96020",
+      "Score": 30,
+      "ComponentRefs": [
+        {
+          "ComponentIndex": 10,
+          "ComponentAddress": "0x1577AC2FE60",
+          "Offset": 304,
+          "OffsetHex": "0x130"
+        },
+        {
+          "ComponentIndex": 11,
+          "ComponentAddress": "0x1577AC2FE90",
+          "Offset": 256,
+          "OffsetHex": "0x100"
+        }
+      ],
+      "LevelOffsets": [],
+      "HpOffsets": [],
+      "HpMaxOffsets": [],
+      "ResourceOffsets": [],
+      "ResourceMaxOffsets": [],
+      "ComboOffsets": [],
+      "PlanarMaxOffsets": [],
+      "OwnerOffsets": [],
+      "StateOffsets": [],
+      "SourceOffsets": [],
+      "Reasons": [
+        "shared by 2 components"
+      ]
+    }
+  ],
+  "IdentityGraphLinks": [
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x90",
+      "HubAddress": "0x1575130C9F0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0xC8",
+      "HubAddress": "0x1576A6B3900",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0xD0",
+      "HubAddress": "0x1577AF3C230",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x128",
+      "HubAddress": "0x1577B00C320",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x148",
+      "HubAddress": "0x1575264C000",
+      "HubScore": 92
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x158",
+      "HubAddress": "0x1575264CA80",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x160",
+      "HubAddress": "0x1577AE055E0",
+      "HubScore": 108
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x168",
+      "HubAddress": "0x1574FAF74E0",
+      "HubScore": 60
+    },
+    {
+      "IdentityComponentIndex": 12,
+      "IdentityComponentAddress": "0x1575264BEE0",
+      "OffsetHex": "0x170",
+      "HubAddress": "0x157513CA930",
+      "HubScore": 86
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0x28",
+      "HubAddress": "0x1575230BB18",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0x30",
+      "HubAddress": "0x1575230BB48",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0x48",
+      "HubAddress": "0x157513CB3B0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0x80",
+      "HubAddress": "0x1574C7C6AD0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0xB0",
+      "HubAddress": "0x15751380E20",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0xB8",
+      "HubAddress": "0x1577AE02400",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0xC0",
+      "HubAddress": "0x1576A763B98",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0xE0",
+      "HubAddress": "0x1577AC2AA00",
+      "HubScore": 63
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0xF8",
+      "HubAddress": "0x157512C7070",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0x120",
+      "HubAddress": "0x1577AC2FF28",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 9,
+      "IdentityComponentAddress": "0x1577AC2FE00",
+      "OffsetHex": "0x170",
+      "HubAddress": "0x1577AD95020",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0x20",
+      "HubAddress": "0x1575130C9F0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0x58",
+      "HubAddress": "0x1576A6B3900",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0x60",
+      "HubAddress": "0x1577AF3C230",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0xB8",
+      "HubAddress": "0x1577B00C320",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0xD8",
+      "HubAddress": "0x1575264C000",
+      "HubScore": 92
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0xE8",
+      "HubAddress": "0x1575264CA80",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0xF0",
+      "HubAddress": "0x1577AE055E0",
+      "HubScore": 108
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0xF8",
+      "HubAddress": "0x1574FAF74E0",
+      "HubScore": 60
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0x100",
+      "HubAddress": "0x157513CA930",
+      "HubScore": 86
+    },
+    {
+      "IdentityComponentIndex": 13,
+      "IdentityComponentAddress": "0x1575264BF50",
+      "OffsetHex": "0x110",
+      "HubAddress": "0x1576999BFC0",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x8",
+      "HubAddress": "0x1576BE1AED0",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x38",
+      "HubAddress": "0x1577AC2C1B0",
+      "HubScore": 54
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x48",
+      "HubAddress": "0x1576A723F78",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x50",
+      "HubAddress": "0x15750D33530",
+      "HubScore": 56
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x58",
+      "HubAddress": "0x1577AD9B8E0",
+      "HubScore": 78
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x68",
+      "HubAddress": "0x1577AD9A380",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x78",
+      "HubAddress": "0x1577AD9AAB0",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0xC0",
+      "HubAddress": "0x1577CFE0170",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0xF0",
+      "HubAddress": "0x1577CFE01F0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x158",
+      "HubAddress": "0x1575230BB18",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x160",
+      "HubAddress": "0x1575230BB48",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 8,
+      "IdentityComponentAddress": "0x1577AC2FCD0",
+      "OffsetHex": "0x178",
+      "HubAddress": "0x157513CB3B0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x20",
+      "HubAddress": "0x1574FBBDFA0",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x28",
+      "HubAddress": "0x15767482C50",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x58",
+      "HubAddress": "0x1576BE1AED0",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x88",
+      "HubAddress": "0x1577AC2C1B0",
+      "HubScore": 54
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x98",
+      "HubAddress": "0x1576A723F78",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0xA0",
+      "HubAddress": "0x15750D33530",
+      "HubScore": 56
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0xA8",
+      "HubAddress": "0x1577AD9B8E0",
+      "HubScore": 78
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0xB8",
+      "HubAddress": "0x1577AD9A380",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0xC8",
+      "HubAddress": "0x1577AD9AAB0",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x110",
+      "HubAddress": "0x1577CFE0170",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 7,
+      "IdentityComponentAddress": "0x1577AC2FC80",
+      "OffsetHex": "0x140",
+      "HubAddress": "0x1577CFE01F0",
+      "HubScore": 38
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0x28",
+      "HubAddress": "0x1576A6B3900",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0x30",
+      "HubAddress": "0x1577AF3C230",
+      "HubScore": 53
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0x88",
+      "HubAddress": "0x1577B00C320",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0xA8",
+      "HubAddress": "0x1575264C000",
+      "HubScore": 92
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0xB8",
+      "HubAddress": "0x1575264CA80",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0xC0",
+      "HubAddress": "0x1577AE055E0",
+      "HubScore": 108
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0xC8",
+      "HubAddress": "0x1574FAF74E0",
+      "HubScore": 60
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0xD0",
+      "HubAddress": "0x157513CA930",
+      "HubScore": 86
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0xE0",
+      "HubAddress": "0x1576999BFC0",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 14,
+      "IdentityComponentAddress": "0x1575264BF80",
+      "OffsetHex": "0x150",
+      "HubAddress": "0x157514DCAF0",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 6,
+      "IdentityComponentAddress": "0x1577AC2FB60",
+      "OffsetHex": "0x8",
+      "HubAddress": "0x1577B00C0A0",
+      "HubScore": 68
+    },
+    {
+      "IdentityComponentIndex": 6,
+      "IdentityComponentAddress": "0x1577AC2FB60",
+      "OffsetHex": "0xF8",
+      "HubAddress": "0x157513AF0F0",
+      "HubScore": 45
+    },
+    {
+      "IdentityComponentIndex": 6,
+      "IdentityComponentAddress": "0x1577AC2FB60",
+      "OffsetHex": "0x140",
+      "HubAddress": "0x1574FBBDFA0",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 6,
+      "IdentityComponentAddress": "0x1577AC2FB60",
+      "OffsetHex": "0x148",
+      "HubAddress": "0x15767482C50",
+      "HubScore": 30
+    },
+    {
+      "IdentityComponentIndex": 6,
+      "IdentityComponentAddress": "0x1577AC2FB60",
+      "OffsetHex": "0x178",
+      "HubAddress": "0x1576BE1AED0",
+      "HubScore": 53
+    }
+  ]
+}

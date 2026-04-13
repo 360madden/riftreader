@@ -1,0 +1,51 @@
+{
+  "SuccessfulAttemptCount": 0,
+  "StableState60SourceCount": 0,
+  "ProjectorFunctionAddress": "0x7FF767197550",
+  "Attempts": [
+    {
+      "Attempt": 1,
+      "Status": "armed"
+    },
+    {
+      "Attempt": 2,
+      "Status": "armed"
+    },
+    {
+      "Attempt": 3,
+      "Status": "armed"
+    }
+  ],
+  "ProjectorPatternScan": {
+    "Mode": "module-pattern-scan",
+    "ProcessId": 98428,
+    "ProcessName": "rift_x64",
+    "ModuleName": "rift_x64.exe",
+    "ModuleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "ModuleBaseAddress": "0x7FF766B10000",
+    "ModuleMemorySize": 62615552,
+    "Pattern": "44 89 81 D4 00 00 00 48 8B 02 F3 0F 10 40 28 F3 0F 11 81 B8 00 00 00 F3 0F 11 81 BC 00 00 00 F3 0F 11 81 C0 00 00 00 F3 0F 11 81 D0 00 00 00 C3",
+    "Found": true,
+    "RelativeOffset": 6845787,
+    "RelativeOffsetHex": "0x68755B",
+    "Address": "0x7FF76719755B",
+    "ContextBytes": 0
+  },
+  "ProjectorWriteClusterPattern": "44 89 81 D4 00 00 00 48 8B 02 F3 0F 10 40 28 F3 0F 11 81 B8 00 00 00 F3 0F 11 81 BC 00 00 00 F3 0F 11 81 C0 00 00 00 F3 0F 11 81 D0 00 00 00 C3",
+  "OwnerGraphFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-graph.json",
+  "Owner": {
+    "Address": "0x1576A38AA10",
+    "SelectedSourceAddress": "0x1577AC2FB60",
+    "StateRecordAddress": "0x1576A38AAD8",
+    "StateSlot50": "0x1576A38AB40",
+    "StateSlot58": "0x1576A38AB40",
+    "StateSlot60": "0x1576A38ABC0"
+  },
+  "ProjectorFunctionDelta": "0xB",
+  "AttemptCount": 3,
+  "GeneratedAtUtc": "2026-04-10T13:04:31.5044478+00:00",
+  "StableState58SourceCount": 0,
+  "StableState50SourceCount": 0,
+  "StableTargetMatchCount": 0,
+  "Mode": "player-state-projector-trace"
+}
