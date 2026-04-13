@@ -81,7 +81,11 @@ function Convert-JsonTextToObject {
         return $null
     }
 
-    return $JsonText | ConvertFrom-Json -Depth 80
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return $JsonText | ConvertFrom-Json -Depth 80
+    }
+
+    return $JsonText | ConvertFrom-Json
 }
 
 function Get-ClassificationCounts {
@@ -330,4 +334,5 @@ if ($warnings.Count -gt 0) {
 }
 
 # End of script
+
 
