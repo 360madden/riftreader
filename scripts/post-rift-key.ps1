@@ -6,7 +6,10 @@ param(
     [string]$TargetProcessName = "rift_x64",
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
     [int]$InterKeyDelayMilliseconds = 20,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [switch]$Alt,
+    [switch]$Shift,
+    [switch]$Ctrl
 )
 
 Set-StrictMode -Version Latest
@@ -69,6 +72,8 @@ public static class RiftKeyNative
 
 $WM_KEYDOWN = 0x0100
 $WM_KEYUP = 0x0101
+$WM_SYSKEYDOWN = 0x0104
+$WM_SYSKEYUP = 0x0105
 $MAPVK_VK_TO_VSC = 0
 $SW_RESTORE = 9
 $VK_SHIFT = 0x10
@@ -160,11 +165,16 @@ function Resolve-KeyBinding {
 function New-KeyLParam {
     param(
         [int]$VirtualKey,
-        [switch]$KeyUp
+        [switch]$KeyUp,
+        [switch]$AltContext
     )
 
     $scanCode = [RiftKeyNative]::MapVirtualKey([uint32]$VirtualKey, $MAPVK_VK_TO_VSC)
     $value = 1 -bor ($scanCode -shl 16)
+    if ($AltContext) {
+        # Bit 29: context code — set when Alt is held during the keystroke
+        $value = $value -bor 0x20000000
+    }
     if ($KeyUp) {
         $value = $value -bor 0xC0000000
     }
@@ -172,13 +182,30 @@ function New-KeyLParam {
 }
 
 function Post-KeyDown {
-    param([IntPtr]$WindowHandle, [int]$VirtualKey)
-    [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYDOWN, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey))
+    param(
+        [IntPtr]$WindowHandle,
+        [int]$VirtualKey,
+        [switch]$AltContext
+    )
+    if ($AltContext) {
+        # Some games require WM_SYSKEYDOWN for Alt combos
+        [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_SYSKEYDOWN, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -AltContext))
+    } else {
+        [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYDOWN, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey))
+    }
 }
 
 function Post-KeyUp {
-    param([IntPtr]$WindowHandle, [int]$VirtualKey)
-    [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -KeyUp))
+    param(
+        [IntPtr]$WindowHandle,
+        [int]$VirtualKey,
+        [switch]$AltContext
+    )
+    if ($AltContext) {
+        [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_SYSKEYUP, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -KeyUp -AltContext))
+    } else {
+        [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -KeyUp))
+    }
 }
 
 $targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
@@ -208,29 +235,39 @@ if (-not $SkipBackgroundFocus) {
 }
 
 $modifiersDown = New-Object System.Collections.Generic.List[int]
-if (($binding.ShiftState -band 1) -ne 0) {
-    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_SHIFT
+
+# Determine if Alt context is active (for WM_SYSKEYDOWN/UP support)
+$altActive = $Alt -or (($binding.ShiftState -band 4) -ne 0)
+
+# Explicit modifier switches take priority over VkKeyScan shift-state bits
+if ($Alt) {
+    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_MENU -AltContext:$altActive
+    $modifiersDown.Add($VK_MENU)
+    Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+}
+if ($Shift -or (($binding.ShiftState -band 1) -ne 0)) {
+    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_SHIFT -AltContext:$altActive
     $modifiersDown.Add($VK_SHIFT)
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
 }
-if (($binding.ShiftState -band 2) -ne 0) {
-    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_CONTROL
+if ($Ctrl -or (($binding.ShiftState -band 2) -ne 0)) {
+    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_CONTROL -AltContext:$altActive
     $modifiersDown.Add($VK_CONTROL)
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
 }
-if (($binding.ShiftState -band 4) -ne 0) {
-    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_MENU
+if (-not $Alt -and (($binding.ShiftState -band 4) -ne 0)) {
+    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_MENU -AltContext:$altActive
     $modifiersDown.Add($VK_MENU)
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
 }
 
-Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey
+Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey -AltContext:$altActive
 Start-Sleep -Milliseconds $HoldMilliseconds
-Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey
+Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey -AltContext:$altActive
 
 for ($i = $modifiersDown.Count - 1; $i -ge 0; $i--) {
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
-    Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $modifiersDown[$i]
+    Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $modifiersDown[$i] -AltContext:$altActive
 }
 
 Write-Host "[RiftKey] SUCCESS"
