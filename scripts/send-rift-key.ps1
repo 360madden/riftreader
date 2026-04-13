@@ -147,22 +147,26 @@ $previousForeground = [RiftSendKeyNative]::GetForegroundWindow()
 # Focus RIFT window
 [void][RiftSendKeyNative]::ShowWindow($hwnd, $SW_RESTORE)
 
-# Use AttachThreadInput trick for more reliable SetForegroundWindow
+# Use AttachThreadInput to bypass Windows foreground-lock restriction
+# Must attach to BOTH the current foreground window's thread AND the target thread
+$fgHwnd = [RiftSendKeyNative]::GetForegroundWindow()
 $targetPid = [uint32]0
+$dummy = [uint32]0
 $targetTid = [RiftSendKeyNative]::GetWindowThreadProcessId($hwnd, [ref]$targetPid)
 $currentTid = [RiftSendKeyNative]::GetCurrentThreadId()
+$fgTid = [RiftSendKeyNative]::GetWindowThreadProcessId($fgHwnd, [ref]$dummy)
 
-if ($targetTid -ne $currentTid) {
-    [void][RiftSendKeyNative]::AttachThreadInput($currentTid, $targetTid, $true)
-}
-
+[void][RiftSendKeyNative]::AttachThreadInput($currentTid, $fgTid, $true)
+[void][RiftSendKeyNative]::AttachThreadInput($currentTid, $targetTid, $true)
 [void][RiftSendKeyNative]::SetForegroundWindow($hwnd)
 Start-Sleep -Milliseconds $FocusDelayMilliseconds
+[void][RiftSendKeyNative]::AttachThreadInput($currentTid, $fgTid, $false)
+[void][RiftSendKeyNative]::AttachThreadInput($currentTid, $targetTid, $false)
 
 # Verify foreground
 $fg = [RiftSendKeyNative]::GetForegroundWindow()
 if ($fg -ne $hwnd) {
-    Write-Warning "SetForegroundWindow may not have taken - foreground is 0x$($fg.ToString('X')), expected 0x$($hwnd.ToString('X'))."
+    Write-Warning "SetForegroundWindow may not have taken - foreground is 0x$($fg.ToString('X')), expected 0x$($hwnd.ToString('X')). Proceeding anyway."
 }
 
 # Resolve key
