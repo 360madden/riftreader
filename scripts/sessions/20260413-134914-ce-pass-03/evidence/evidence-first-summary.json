@@ -1,0 +1,125 @@
+{
+  "Mode": "evidence-first-session",
+  "GeneratedAtUtc": "2026-04-13T17:53:51.2798292+00:00",
+  "Label": "ce-pass-03",
+  "SessionId": "20260413-134914-ce-pass-03",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134914-ce-pass-03",
+  "EvidenceDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134914-ce-pass-03\\evidence",
+  "Inputs": {
+    "Keys": [
+      "Left",
+      "Right",
+      "A",
+      "D",
+      "Q",
+      "E",
+      "Up",
+      "Down",
+      "Space"
+    ],
+    "ProcessName": "rift_x64",
+    "SampleCount": 20,
+    "IntervalMilliseconds": 500,
+    "TopSharedHubs": 4,
+    "HoldMilliseconds": 700,
+    "WaitMilliseconds": 250,
+    "RefreshDiscoveryChain": true,
+    "RefreshProjectorTrace": true,
+    "RefreshReaderBridge": true,
+    "RefreshOwnerComponents": false,
+    "NoAhkFallback": false
+  },
+  "Files": {
+    "SummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134914-ce-pass-03\\evidence\\evidence-first-summary.json",
+    "BaselineCaptureFile": null,
+    "KeyProfileFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134914-ce-pass-03\\evidence\\actor-orientation-key-profile.json"
+  },
+  "BaselineCapture": null,
+  "KeyProfile": {
+    "Mode": "actor-orientation-key-profile",
+    "GeneratedAtUtc": "2026-04-13T13:51:50.8098413-04:00",
+    "OutputFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134914-ce-pass-03\\evidence\\actor-orientation-key-profile.json",
+    "Keys": [
+      "Left",
+      "Right",
+      "A",
+      "D",
+      "Q",
+      "E",
+      "Up",
+      "Down",
+      "Space"
+    ],
+    "HoldMilliseconds": 700,
+    "WaitMilliseconds": 250,
+    "RefreshReaderBridge": true,
+    "Results": [
+      {
+        "Key": "Left",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "Right",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "A",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "D",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "Q",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "E",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "Up",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "Down",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "Space",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      }
+    ]
+  },
+  "ClassificationCounts": {
+    "error": 9
+  },
+  "DiscoverySession": null,
+  "Steps": [
+    {
+      "Name": "refresh-readerbridge-export",
+      "Success": true,
+      "Error": null
+    },
+    {
+      "Name": "capture-baseline-actor-orientation",
+      "Success": false,
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Name": "profile-actor-orientation-keys",
+      "Success": true,
+      "Error": null
+    },
+    {
+      "Name": "record-discovery-session",
+      "Success": false,
+      "Error": "Conversion from JSON failed with error: Unexpected character encountered while parsing value: R. Path '', line 0, position 0."
+    }
+  ],
+  "Warnings": [
+    "Baseline actor-orientation capture failed: Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)",
+    "Discovery session packaging failed: Conversion from JSON failed with error: Unexpected character encountered while parsing value: R. Path '', line 0, position 0."
+  ]
+}

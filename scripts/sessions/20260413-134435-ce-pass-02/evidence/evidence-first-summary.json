@@ -1,0 +1,70 @@
+{
+    "Mode":  "evidence-first-session",
+    "GeneratedAtUtc":  "2026-04-13T17:46:35.0175113+00:00",
+    "Label":  "ce-pass-02",
+    "SessionId":  "20260413-134435-ce-pass-02",
+    "SessionDirectory":  "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134435-ce-pass-02",
+    "EvidenceDirectory":  "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134435-ce-pass-02\\evidence",
+    "Inputs":  {
+                   "Keys":  [
+                                "Left",
+                                "Right",
+                                "A",
+                                "D",
+                                "Q",
+                                "E",
+                                "Up",
+                                "Down",
+                                "Space"
+                            ],
+                   "ProcessName":  "rift_x64",
+                   "SampleCount":  20,
+                   "IntervalMilliseconds":  500,
+                   "TopSharedHubs":  4,
+                   "HoldMilliseconds":  700,
+                   "WaitMilliseconds":  250,
+                   "RefreshDiscoveryChain":  true,
+                   "RefreshProjectorTrace":  true,
+                   "RefreshReaderBridge":  true,
+                   "RefreshOwnerComponents":  false,
+                   "NoAhkFallback":  false
+               },
+    "Files":  {
+                  "SummaryFile":  "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134435-ce-pass-02\\evidence\\evidence-first-summary.json",
+                  "BaselineCaptureFile":  null,
+                  "KeyProfileFile":  "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134435-ce-pass-02\\evidence\\actor-orientation-key-profile.json"
+              },
+    "BaselineCapture":  null,
+    "KeyProfile":  null,
+    "ClassificationCounts":  {
+
+                             },
+    "DiscoverySession":  null,
+    "Steps":  [
+                  {
+                      "Name":  "refresh-readerbridge-export",
+                      "Success":  true,
+                      "Error":  null
+                  },
+                  {
+                      "Name":  "capture-baseline-actor-orientation",
+                      "Success":  false,
+                      "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                  },
+                  {
+                      "Name":  "profile-actor-orientation-keys",
+                      "Success":  false,
+                      "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                  },
+                  {
+                      "Name":  "record-discovery-session",
+                      "Success":  false,
+                      "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                  }
+              ],
+    "Warnings":  [
+                     "Baseline actor-orientation capture failed: A parameter cannot be found that matches parameter name \u0027Depth\u0027.",
+                     "Actor-orientation key profile failed: A parameter cannot be found that matches parameter name \u0027Depth\u0027.",
+                     "Discovery session packaging failed: A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                 ]
+}

@@ -1,0 +1,57 @@
+{
+    "Mode":  "actor-orientation-key-profile",
+    "GeneratedAtUtc":  "2026-04-13T17:46:10.9349243+00:00",
+    "OutputFile":  "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-134435-ce-pass-02\\evidence\\actor-orientation-key-profile.json",
+    "Keys":  [
+                 "Left",
+                 "Right",
+                 "A",
+                 "D",
+                 "Q",
+                 "E",
+                 "Up",
+                 "Down",
+                 "Space"
+             ],
+    "HoldMilliseconds":  700,
+    "WaitMilliseconds":  250,
+    "RefreshReaderBridge":  true,
+    "Results":  [
+                    {
+                        "Key":  "Left",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "Right",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "A",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "D",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "Q",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "E",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "Up",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "Down",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    },
+                    {
+                        "Key":  "Space",
+                        "Error":  "A parameter cannot be found that matches parameter name \u0027Depth\u0027."
+                    }
+                ]
+}

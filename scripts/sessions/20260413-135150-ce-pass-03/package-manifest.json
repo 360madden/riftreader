@@ -1,0 +1,80 @@
+{
+  "Mode": "discovery-session-package",
+  "SessionId": "20260413-135150-ce-pass-03",
+  "Label": "ce-pass-03",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03",
+  "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\watchset.json",
+  "CaptureConsistencyFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\capture-consistency.json",
+  "ReaderBridgeSnapshotFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\readerbridge-snapshot.json",
+  "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts",
+  "RecordingManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\recording-manifest.json",
+  "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\samples.ndjson",
+  "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\markers.ndjson",
+  "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\modules.json",
+  "ProcessId": 80684,
+  "ProcessName": "rift_x64",
+  "WatchsetRegionCount": 59,
+  "SampleCount": 20,
+  "IntervalMilliseconds": 500,
+  "CopiedArtifacts": [
+    {
+      "Name": "ce-family-neighborhood.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\ce-family-neighborhood.json"
+    },
+    {
+      "Name": "ce-smart-player-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\ce-smart-player-family.json"
+    },
+    {
+      "Name": "owner-state-neighborhood.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\owner-state-neighborhood.json"
+    },
+    {
+      "Name": "player-current-anchor.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-current-anchor.json"
+    },
+    {
+      "Name": "player-coord-trace-cluster.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-coord-trace-cluster.json"
+    },
+    {
+      "Name": "player-selector-owner-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-selector-owner-trace.json"
+    },
+    {
+      "Name": "player-owner-components.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-owner-components.json"
+    },
+    {
+      "Name": "player-owner-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-owner-graph.json"
+    },
+    {
+      "Name": "player-source-chain.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-source-chain.json"
+    },
+    {
+      "Name": "player-source-accessor-family.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-source-accessor-family.json"
+    },
+    {
+      "Name": "player-coord-write-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-coord-write-trace.json"
+    },
+    {
+      "Name": "player-stat-hub-graph.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-stat-hub-graph.json"
+    },
+    {
+      "Name": "player-state-projector-trace.json",
+      "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-135150-ce-pass-03\\artifacts\\player-state-projector-trace.json"
+    }
+  ],
+  "Warnings": [
+    "Discovery-chain refresh failed before session capture: Timed out waiting for a verified coord write trace hit across 1 candidates. 0x19D8E18C280:armed",
+    "State-projector trace refresh failed before session capture: Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x2E19901B210: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)",
+    "Owner-state neighborhood capture failed before session capture: Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1576A38AAD8: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)",
+    "Selector trace selected source '0x2E199183210' differs from owner-components selected source '0x1577AC2FB60'.",
+    "Required watchset regions had read failures: identity-component-12, identity-component-13, identity-component-8, identity-component-9, owner-container-slots, owner-object, owner-state-record, selected-source-basis60, selected-source-basis94, selected-source-coord48, selected-source-coord88, selected-source-object, selected-source-slot"
+  ]
+}

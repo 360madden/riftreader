@@ -1,0 +1,165 @@
+{
+  "Mode": "evidence-first-session",
+  "GeneratedAtUtc": "2026-04-13T18:04:38.1866180+00:00",
+  "Label": "ce-pass-slow-01",
+  "SessionId": "20260413-140326-ce-pass-slow-01",
+  "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140326-ce-pass-slow-01",
+  "EvidenceDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140326-ce-pass-slow-01\\evidence",
+  "Inputs": {
+    "Keys": [
+      "Left",
+      "Right",
+      "A",
+      "D"
+    ],
+    "ProcessName": "rift_x64",
+    "SampleCount": 20,
+    "IntervalMilliseconds": 500,
+    "TopSharedHubs": 4,
+    "HoldMilliseconds": 1000,
+    "WaitMilliseconds": 1000,
+    "RefreshDiscoveryChain": false,
+    "RefreshProjectorTrace": false,
+    "RefreshReaderBridge": false,
+    "RefreshOwnerComponents": false,
+    "NoAhkFallback": false
+  },
+  "Files": {
+    "SummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140326-ce-pass-slow-01\\evidence\\evidence-first-summary.json",
+    "BaselineCaptureFile": null,
+    "KeyProfileFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140326-ce-pass-slow-01\\evidence\\actor-orientation-key-profile.json"
+  },
+  "BaselineCapture": null,
+  "KeyProfile": {
+    "Mode": "actor-orientation-key-profile",
+    "GeneratedAtUtc": "2026-04-13T14:04:16.787577-04:00",
+    "OutputFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140326-ce-pass-slow-01\\evidence\\actor-orientation-key-profile.json",
+    "Keys": [
+      "Left",
+      "Right",
+      "A",
+      "D"
+    ],
+    "HoldMilliseconds": 1000,
+    "WaitMilliseconds": 1000,
+    "RefreshReaderBridge": false,
+    "Results": [
+      {
+        "Key": "Left",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "Right",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "A",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      },
+      {
+        "Key": "D",
+        "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      }
+    ]
+  },
+  "ClassificationCounts": {
+    "error": 4
+  },
+  "DiscoverySession": {
+    "Mode": "discovery-session-package",
+    "SessionId": "20260413-140416-ce-pass-slow-01",
+    "Label": "ce-pass-slow-01",
+    "SessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01",
+    "WatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\watchset.json",
+    "CaptureConsistencyFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\capture-consistency.json",
+    "ReaderBridgeSnapshotFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\readerbridge-snapshot.json",
+    "ArtifactDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts",
+    "RecordingManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\recording-manifest.json",
+    "SamplesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\samples.ndjson",
+    "MarkersFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\markers.ndjson",
+    "ModulesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\modules.json",
+    "ProcessId": 80684,
+    "ProcessName": "rift_x64",
+    "WatchsetRegionCount": 59,
+    "SampleCount": 20,
+    "IntervalMilliseconds": 500,
+    "CopiedArtifacts": [
+      {
+        "Name": "ce-family-neighborhood.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\ce-family-neighborhood.json"
+      },
+      {
+        "Name": "ce-smart-player-family.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\ce-smart-player-family.json"
+      },
+      {
+        "Name": "owner-state-neighborhood.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\owner-state-neighborhood.json"
+      },
+      {
+        "Name": "player-current-anchor.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-current-anchor.json"
+      },
+      {
+        "Name": "player-coord-trace-cluster.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-coord-trace-cluster.json"
+      },
+      {
+        "Name": "player-selector-owner-trace.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-selector-owner-trace.json"
+      },
+      {
+        "Name": "player-owner-components.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-owner-components.json"
+      },
+      {
+        "Name": "player-owner-graph.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-owner-graph.json"
+      },
+      {
+        "Name": "player-source-chain.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-source-chain.json"
+      },
+      {
+        "Name": "player-source-accessor-family.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-source-accessor-family.json"
+      },
+      {
+        "Name": "player-coord-write-trace.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-coord-write-trace.json"
+      },
+      {
+        "Name": "player-stat-hub-graph.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-stat-hub-graph.json"
+      },
+      {
+        "Name": "player-state-projector-trace.json",
+        "File": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140416-ce-pass-slow-01\\artifacts\\player-state-projector-trace.json"
+      }
+    ],
+    "Warnings": [
+      "Selector trace selected source '0x2E199183210' differs from owner-components selected source '0x1577AC2FB60'.",
+      "Required watchset regions had read failures: identity-component-12, identity-component-13, identity-component-8, identity-component-9, owner-container-slots, owner-object, owner-state-record, selected-source-basis60, selected-source-basis94, selected-source-coord48, selected-source-coord88, selected-source-object, selected-source-slot"
+    ]
+  },
+  "Steps": [
+    {
+      "Name": "capture-baseline-actor-orientation",
+      "Success": false,
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Name": "profile-actor-orientation-keys",
+      "Success": true,
+      "Error": null
+    },
+    {
+      "Name": "record-discovery-session",
+      "Success": true,
+      "Error": null
+    }
+  ],
+  "Warnings": [
+    "Baseline actor-orientation capture failed: Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+  ]
+}

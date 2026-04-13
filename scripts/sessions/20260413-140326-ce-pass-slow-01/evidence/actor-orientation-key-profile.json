@@ -1,0 +1,32 @@
+{
+  "Mode": "actor-orientation-key-profile",
+  "GeneratedAtUtc": "2026-04-13T18:04:16.7875770+00:00",
+  "OutputFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\20260413-140326-ce-pass-slow-01\\evidence\\actor-orientation-key-profile.json",
+  "Keys": [
+    "Left",
+    "Right",
+    "A",
+    "D"
+  ],
+  "HoldMilliseconds": 1000,
+  "WaitMilliseconds": 1000,
+  "RefreshReaderBridge": false,
+  "Results": [
+    {
+      "Key": "Left",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "Right",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "A",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    },
+    {
+      "Key": "D",
+      "Error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 80684 at 0x1577AC2FB60: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+    }
+  ]
+}

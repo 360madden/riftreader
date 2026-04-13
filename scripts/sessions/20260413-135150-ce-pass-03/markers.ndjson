@@ -1,0 +1,3 @@
+{"Kind":"session-start","RecordedAtUtc":"2026-04-13T17:53:41.2888399\u002B00:00","ElapsedMilliseconds":0,"Label":"ce-pass-03","Message":"Session recording started."}
+{"Kind":"label","RecordedAtUtc":"2026-04-13T17:53:41.2888399\u002B00:00","ElapsedMilliseconds":0,"Label":"ce-pass-03","Message":"Initial session label."}
+{"Kind":"session-end","RecordedAtUtc":"2026-04-13T17:53:51.0542699\u002B00:00","ElapsedMilliseconds":9764,"Label":"ce-pass-03","Message":"Session recording completed."}

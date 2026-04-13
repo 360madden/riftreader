@@ -1,0 +1,223 @@
+{
+  "Mode": "ce-smart-player-family",
+  "GeneratedAtUtc": "2026-04-10T12:20:32.9688738+00:00",
+  "ProcessName": "rift_x64",
+  "MovementKey": "w",
+  "FallbackMovementKeys": [
+    "d",
+    "a",
+    "s"
+  ],
+  "MovementKeySequence": [
+    "w",
+    "d",
+    "a",
+    "s"
+  ],
+  "MovementHoldMilliseconds": 750,
+  "SelectedAxis": "X",
+  "SelectedStimulusKey": "s",
+  "AttemptCount": 2,
+  "BaselineCoords": {
+    "X": 7461.7900390625,
+    "Y": 865.69995117188,
+    "Z": 2988.0100097656
+  },
+  "MovedCoords": {
+    "X": 7461.849609375,
+    "Y": 865.82995605469,
+    "Z": 2985.5998535156
+  },
+  "Delta": {
+    "X": 0.0595703125,
+    "Y": 0.1300048828099989,
+    "Z": -2.41015625
+  },
+  "BaselineCeHitCount": 25,
+  "NextScanMode": "increased",
+  "MovedCeHitCount": 2,
+  "RetrievedCeAddressCount": 2,
+  "TripletConfirmedAddressCount": 0,
+  "TripletConfirmedAddresses": [],
+  "Attempts": [
+    {
+      "Axis": "X",
+      "StimulusKey": "s",
+      "MotionObserved": true,
+      "BaselineCoords": {
+        "X": 7461.7900390625,
+        "Y": 865.69995117188,
+        "Z": 2988.0100097656
+      },
+      "MovedCoords": {
+        "X": 7461.849609375,
+        "Y": 865.82995605469,
+        "Z": 2985.5998535156
+      },
+      "Delta": {
+        "X": 0.0595703125,
+        "Y": 0.1300048828099989,
+        "Z": -2.41015625
+      },
+      "BaselineCeHitCount": 25,
+      "NextScanMode": "increased",
+      "MovedCeHitCount": 2,
+      "RetrievedCeAddressCount": 2,
+      "RetrievedCeAddresses": [
+        "0x157A72A23D0",
+        "0x157A72A2990"
+      ],
+      "TripletConfirmedAddressCount": 0,
+      "TripletConfirmedAddresses": [],
+      "StimulusAttempts": [
+        {
+          "Key": "w",
+          "MovedCoords": {
+            "X": 7461.7900390625,
+            "Y": 865.69995117188,
+            "Z": 2988.0100097656
+          },
+          "Delta": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 0.0
+          },
+          "MotionObserved": false
+        },
+        {
+          "Key": "d",
+          "MovedCoords": {
+            "X": 7461.7900390625,
+            "Y": 865.69995117188,
+            "Z": 2988.0100097656
+          },
+          "Delta": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 0.0
+          },
+          "MotionObserved": false
+        },
+        {
+          "Key": "a",
+          "MovedCoords": {
+            "X": 7461.7900390625,
+            "Y": 865.69995117188,
+            "Z": 2988.0100097656
+          },
+          "Delta": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 0.0
+          },
+          "MotionObserved": false
+        },
+        {
+          "Key": "s",
+          "MovedCoords": {
+            "X": 7461.849609375,
+            "Y": 865.82995605469,
+            "Z": 2985.5998535156
+          },
+          "Delta": {
+            "X": 0.0595703125,
+            "Y": 0.1300048828099989,
+            "Z": -2.41015625
+          },
+          "MotionObserved": true
+        }
+      ]
+    },
+    {
+      "Axis": "Z",
+      "StimulusKey": "w",
+      "MotionObserved": true,
+      "BaselineCoords": {
+        "X": 7461.849609375,
+        "Y": 865.82995605469,
+        "Z": 2985.5998535156
+      },
+      "MovedCoords": {
+        "X": 7461.419921875,
+        "Y": 865.5,
+        "Z": 2987.9499511719
+      },
+      "Delta": {
+        "X": -0.4296875,
+        "Y": -0.3299560546900011,
+        "Z": 2.350097656300022
+      },
+      "BaselineCeHitCount": 2,
+      "NextScanMode": "increased",
+      "MovedCeHitCount": 0,
+      "RetrievedCeAddressCount": 0,
+      "RetrievedCeAddresses": [],
+      "TripletConfirmedAddressCount": 0,
+      "TripletConfirmedAddresses": [],
+      "StimulusAttempts": [
+        {
+          "Key": "w",
+          "MovedCoords": {
+            "X": 7461.419921875,
+            "Y": 865.5,
+            "Z": 2987.9499511719
+          },
+          "Delta": {
+            "X": -0.4296875,
+            "Y": -0.3299560546900011,
+            "Z": 2.350097656300022
+          },
+          "MotionObserved": true
+        }
+      ]
+    }
+  ],
+  "CandidateFamilyCount": 2,
+  "CeConfirmedFamilyCount": 0,
+  "PreCeTopFamilyId": "fam-6F81F26E",
+  "WinnerFamilyId": "fam-6F81F26E",
+  "Winner": {
+    "FamilyId": "fam-6F81F26E",
+    "Signature": "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
+    "Notes": "location/cache blob",
+    "BestScore": 6,
+    "HitCount": 2,
+    "RepresentativeAddressHex": "0x15755CFCE00",
+    "SampleAddresses": [
+      "0x15755CFCE00",
+      "0x15798B34630"
+    ],
+    "CeConfirmedSampleCount": 0,
+    "CeConfirmedSampleAddresses": []
+  },
+  "Families": [
+    {
+      "FamilyId": "fam-6F81F26E",
+      "Signature": "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
+      "Notes": "location/cache blob",
+      "BestScore": 6,
+      "HitCount": 2,
+      "RepresentativeAddressHex": "0x15755CFCE00",
+      "SampleAddresses": [
+        "0x15755CFCE00",
+        "0x15798B34630"
+      ],
+      "CeConfirmedSampleCount": 0,
+      "CeConfirmedSampleAddresses": []
+    },
+    {
+      "FamilyId": "fam-CEC3708F",
+      "Signature": "coords@0",
+      "Notes": "unclassified blob",
+      "BestScore": 1,
+      "HitCount": 1,
+      "RepresentativeAddressHex": "0x1578D272850",
+      "SampleAddresses": [
+        "0x1578D272850"
+      ],
+      "CeConfirmedSampleCount": 0,
+      "CeConfirmedSampleAddresses": []
+    }
+  ],
+  "ConfirmationFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\ce-smart-player-family.json"
+}

@@ -1,0 +1,16 @@
+{
+  "ProcessName": "rift_x64",
+  "AddressHex": "0x19D8E18C280",
+  "FamilyId": "fam-6F81F26E",
+  "FamilyNotes": "location/cache blob",
+  "Signature": "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
+  "SelectionSource": "ce-guided-family",
+  "ConfirmationFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\ce-smart-player-family.json",
+  "CeConfirmedSampleCount": 0,
+  "LevelOffset": -144,
+  "HealthOffset": -136,
+  "CoordXOffset": 0,
+  "CoordYOffset": 4,
+  "CoordZOffset": 8,
+  "SavedAtUtc": "2026-04-13T17:52:48.2402903+00:00"
+}

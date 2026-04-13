@@ -1,0 +1,63 @@
+{
+  "SourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+  "LoadedAtUtc": "2026-04-13T18:04:22.3778565+00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 25139.587890625,
+  "LastReason": "save-begin",
+  "ExportCount": 531,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "save-begin",
+    "ExportCount": 531,
+    "GeneratedAtRealtime": 25139.587890625,
+    "SourceMode": "DirectAPI",
+    "SourceAddon": "RiftAPI",
+    "Player": {
+      "Id": "u035400012FA2D207",
+      "Name": "Atank",
+      "Level": 44,
+      "Calling": "warrior",
+      "Guild": "The Regulators",
+      "Relation": "friendly",
+      "Role": "tank",
+      "Player": true,
+      "Hp": 17027,
+      "HpMax": 17027,
+      "HpPct": 100,
+      "Vitality": 100,
+      "ResourceKind": "Power",
+      "Resource": 100,
+      "ResourceMax": 100,
+      "ResourcePct": 100,
+      "Power": 100,
+      "Charge": 0,
+      "ChargeMax": 0,
+      "ChargePct": 0,
+      "Planar": 0,
+      "PlanarMax": 3,
+      "PlanarPct": 0,
+      "Combo": 3,
+      "Zone": "z487C9102D2EA79BE",
+      "LocationName": "Thedeor\u0027s Circle",
+      "Coord": {
+        "X": 7417.0200195312,
+        "Y": 863.57995605469,
+        "Z": 2943.1098632812
+      },
+      "Cast": {
+        "Active": false,
+        "Channeled": false,
+        "Uninterruptible": false,
+        "ProgressPct": 0,
+        "Text": "-"
+      }
+    },
+    "PlayerBuffLines": [
+      "Rested"
+    ],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": []
+  }
+}
