@@ -1,0 +1,7 @@
+
+{"TimestampUtc":"2026-04-13T22:55:41.6279269+00:00","Phase":"suite","Kind":"start","Data":{"RunId":"20260413-185541"}}
+{"TimestampUtc":"2026-04-13T22:55:41.6384201+00:00","Phase":"AltS","Kind":"start","Data":{}}
+{"TimestampUtc":"2026-04-13T22:56:25.0443148+00:00","Phase":"AltS","Kind":"finish","Data":{"ExitCode":0}}
+{"TimestampUtc":"2026-04-13T22:56:25.0586055+00:00","Phase":"AltZ","Kind":"start","Data":{}}
+{"TimestampUtc":"2026-04-13T22:56:51.8500916+00:00","Phase":"AltZ","Kind":"finish","Data":{"ExitCode":0}}
+{"TimestampUtc":"2026-04-13T22:56:51.8863427+00:00","Phase":"suite","Kind":"finish","Data":{"Status":"completed","ErrorCount":0}}

@@ -1,0 +1,99 @@
+{
+  "RunId": "20260413-191119",
+  "RunDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc",
+  "AmbientChangePercent": 1.1324,
+  "PassThresholdPercent": 1.6324,
+  "Results": [
+    {
+      "Name": "control-noinput",
+      "Pass": false,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 1.1324,
+      "CoordDeltaMagnitude": 0.0,
+      "DeltaX": 0.0,
+      "DeltaY": 0.0,
+      "DeltaZ": 0.0,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\control-noinput-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\control-noinput-after.png"
+    },
+    {
+      "Name": "send-w",
+      "Pass": true,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 2.6361,
+      "CoordDeltaMagnitude": 0.0,
+      "DeltaX": 0.0,
+      "DeltaY": 0.0,
+      "DeltaZ": 0.0,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-w-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-w-after.png"
+    },
+    {
+      "Name": "send-a",
+      "Pass": true,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 2.3762,
+      "CoordDeltaMagnitude": 0.0,
+      "DeltaX": 0.0,
+      "DeltaY": 0.0,
+      "DeltaZ": 0.0,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-a-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-a-after.png"
+    },
+    {
+      "Name": "send-s",
+      "Pass": false,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 1.2314,
+      "CoordDeltaMagnitude": 0.0,
+      "DeltaX": 0.0,
+      "DeltaY": 0.0,
+      "DeltaZ": 0.0,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-s-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-s-after.png"
+    },
+    {
+      "Name": "send-d",
+      "Pass": true,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 2.8218,
+      "CoordDeltaMagnitude": 0.0,
+      "DeltaX": 0.0,
+      "DeltaY": 0.0,
+      "DeltaZ": 0.0,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-d-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-d-after.png"
+    },
+    {
+      "Name": "send-space",
+      "Pass": false,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 1.6027,
+      "CoordDeltaMagnitude": 0.0,
+      "DeltaX": 0.0,
+      "DeltaY": 0.0,
+      "DeltaZ": 0.0,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-space-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\send-space-after.png"
+    },
+    {
+      "Name": "post-alt-z",
+      "Pass": false,
+      "ActionExitCode": 0,
+      "ChangeDetected": true,
+      "ChangePercent": 1.0396,
+      "CoordDeltaMagnitude": null,
+      "DeltaX": null,
+      "DeltaY": null,
+      "DeltaZ": null,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\post-alt-z-before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191119-esc\\post-alt-z-after.png"
+    }
+  ]
+}

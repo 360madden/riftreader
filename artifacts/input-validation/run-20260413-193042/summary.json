@@ -1,0 +1,83 @@
+{
+  "RunId": "20260413-193042",
+  "RunDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042",
+  "ProcessName": "rift_x64",
+  "AmbientChangePercent": 2.5309,
+  "PassThresholdPercent": 3.0309,
+  "MovementHoldMilliseconds": 1000,
+  "AltHoldMilliseconds": 500,
+  "Results": [
+    {
+      "Name": "control-noinput",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 2.5309,
+      "ElapsedMilliseconds": 745,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\control-noinput\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\control-noinput\\after.png"
+    },
+    {
+      "Name": "send-w",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 1.0891,
+      "ElapsedMilliseconds": 736,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-w\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-w\\after.png"
+    },
+    {
+      "Name": "send-a",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 3.0136,
+      "ElapsedMilliseconds": 738,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-a\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-a\\after.png"
+    },
+    {
+      "Name": "send-s",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 1.3119,
+      "ElapsedMilliseconds": 1288,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-s\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-s\\after.png"
+    },
+    {
+      "Name": "send-d",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 2.3515,
+      "ElapsedMilliseconds": 1315,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-d\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-d\\after.png"
+    },
+    {
+      "Name": "send-space",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 0.8911,
+      "ElapsedMilliseconds": 736,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-space\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-space\\after.png"
+    },
+    {
+      "Name": "send-alt-z",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 0.8045,
+      "ElapsedMilliseconds": 718,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-alt-z\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\send-alt-z\\after.png"
+    },
+    {
+      "Name": "post-alt-z",
+      "Pass": false,
+      "ChangeDetected": true,
+      "ChangePercent": 2.302,
+      "ElapsedMilliseconds": 746,
+      "BeforeScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\post-alt-z\\before.png",
+      "AfterScreenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193042\\post-alt-z\\after.png"
+    }
+  ]
+}

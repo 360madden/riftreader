@@ -1,0 +1,66 @@
+[
+  {
+    "name": "control",
+    "changed": true,
+    "changePercent": 1.2438,
+    "elapsedMilliseconds": 734,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\control\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\control\\after.png"
+  },
+  {
+    "name": "send-w",
+    "changed": true,
+    "changePercent": 1.8193,
+    "elapsedMilliseconds": 759,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-w\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-w\\after.png"
+  },
+  {
+    "name": "send-a",
+    "changed": true,
+    "changePercent": 0.9097,
+    "elapsedMilliseconds": 728,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-a\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-a\\after.png"
+  },
+  {
+    "name": "send-s",
+    "changed": true,
+    "changePercent": 2.0978,
+    "elapsedMilliseconds": 728,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-s\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-s\\after.png"
+  },
+  {
+    "name": "send-d",
+    "changed": true,
+    "changePercent": 1.7141,
+    "elapsedMilliseconds": 735,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-d\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-d\\after.png"
+  },
+  {
+    "name": "send-space",
+    "changed": true,
+    "changePercent": 1.0953,
+    "elapsedMilliseconds": 753,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-space\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-space\\after.png"
+  },
+  {
+    "name": "send-alt-z",
+    "changed": true,
+    "changePercent": 1.4728,
+    "elapsedMilliseconds": 1264,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-alt-z\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\send-alt-z\\after.png"
+  },
+  {
+    "name": "post-alt-z",
+    "changed": true,
+    "changePercent": 1.0829,
+    "elapsedMilliseconds": 729,
+    "baselinePath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\post-alt-z\\before.png",
+    "resultPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191814-baseline\\post-alt-z\\after.png"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "name": "control",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\control"
+  },
+  {
+    "name": "send-w",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\send-w"
+  },
+  {
+    "name": "send-a",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\send-a"
+  },
+  {
+    "name": "send-s",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\send-s"
+  },
+  {
+    "name": "send-d",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\send-d"
+  },
+  {
+    "name": "send-space",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\send-space"
+  },
+  {
+    "name": "send-alt-z",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\send-alt-z"
+  },
+  {
+    "name": "post-alt-z",
+    "changed": false,
+    "changePercent": 0.0,
+    "elapsedMs": 0,
+    "outputPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-191712-focused\\post-alt-z"
+  }
+]

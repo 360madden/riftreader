@@ -1,0 +1,78 @@
+{
+  "BatchId": "20260413-193626",
+  "BatchDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\batch-20260413-193626",
+  "TrialCount": 3,
+  "TrialRunDirectories": [
+    "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193626",
+    "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193700",
+    "C:\\RIFT MODDING\\RiftReader\\artifacts\\input-validation\\run-20260413-193732"
+  ],
+  "AmbientChangePercents": [
+    0.8045,
+    1.021,
+    1.2871
+  ],
+  "PassThresholdPercents": [
+    1.3045,
+    1.521,
+    1.7871
+  ],
+  "AggregatedResults": [
+    {
+      "Name": "control-noinput",
+      "MedianChangePercent": 1.021,
+      "MedianRelativeToAmbient": 0.0,
+      "OverAmbientRuns": "0/3",
+      "OverPassThresholdRuns": "0/3"
+    },
+    {
+      "Name": "post-alt-z",
+      "MedianChangePercent": 1.4109,
+      "MedianRelativeToAmbient": 0.1238,
+      "OverAmbientRuns": "2/3",
+      "OverPassThresholdRuns": "1/3"
+    },
+    {
+      "Name": "send-a",
+      "MedianChangePercent": 1.1386,
+      "MedianRelativeToAmbient": 0.1114,
+      "OverAmbientRuns": "3/3",
+      "OverPassThresholdRuns": "0/3"
+    },
+    {
+      "Name": "send-alt-z",
+      "MedianChangePercent": 1.1015,
+      "MedianRelativeToAmbient": 0.2475,
+      "OverAmbientRuns": "2/3",
+      "OverPassThresholdRuns": "1/3"
+    },
+    {
+      "Name": "send-d",
+      "MedianChangePercent": 1.0953,
+      "MedianRelativeToAmbient": -0.1114,
+      "OverAmbientRuns": "1/3",
+      "OverPassThresholdRuns": "0/3"
+    },
+    {
+      "Name": "send-s",
+      "MedianChangePercent": 0.9035,
+      "MedianRelativeToAmbient": -0.3836,
+      "OverAmbientRuns": "0/3",
+      "OverPassThresholdRuns": "0/3"
+    },
+    {
+      "Name": "send-space",
+      "MedianChangePercent": 0.9839,
+      "MedianRelativeToAmbient": 0.0928,
+      "OverAmbientRuns": "2/3",
+      "OverPassThresholdRuns": "1/3"
+    },
+    {
+      "Name": "send-w",
+      "MedianChangePercent": 1.4233,
+      "MedianRelativeToAmbient": 0.6188,
+      "OverAmbientRuns": "2/3",
+      "OverPassThresholdRuns": "2/3"
+    }
+  ]
+}
