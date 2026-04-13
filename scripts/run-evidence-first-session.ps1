@@ -96,10 +96,25 @@ function Get-ClassificationCounts {
     }
 
     foreach ($entry in @($ProfileDocument.Results)) {
-        $name = if (-not [string]::IsNullOrWhiteSpace([string]$entry.Classification)) {
-            [string]$entry.Classification
+        $classification = $null
+        $errorText = $null
+
+        if ($null -ne $entry -and $null -ne $entry.PSObject) {
+            $classificationProperty = $entry.PSObject.Properties['Classification']
+            if ($null -ne $classificationProperty) {
+                $classification = [string]$classificationProperty.Value
+            }
+
+            $errorProperty = $entry.PSObject.Properties['Error']
+            if ($null -ne $errorProperty) {
+                $errorText = [string]$errorProperty.Value
+            }
         }
-        elseif (-not [string]::IsNullOrWhiteSpace([string]$entry.Error)) {
+
+        $name = if (-not [string]::IsNullOrWhiteSpace($classification)) {
+            $classification
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($errorText)) {
             'error'
         }
         else {
@@ -315,3 +330,4 @@ if ($warnings.Count -gt 0) {
 }
 
 # End of script
+
