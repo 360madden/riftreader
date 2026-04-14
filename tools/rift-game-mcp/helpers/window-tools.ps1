@@ -139,6 +139,9 @@ public static class RiftGameWindowNative
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern short VkKeyScan(char ch);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
 }
 "@
 
@@ -148,6 +151,9 @@ $INPUT_KEYBOARD = 1
 $MOUSEEVENTF_LEFTDOWN = 0x0002
 $MOUSEEVENTF_LEFTUP = 0x0004
 $KEYEVENTF_KEYUP = 0x0002
+$KEYEVENTF_SCANCODE = 0x0008
+$KEYEVENTF_EXTENDEDKEY = 0x0001
+$MAPVK_VK_TO_VSC = 0
 $MaxComparisonDimension = 160
 $PixelDifferenceThreshold = 24
 
@@ -181,6 +187,11 @@ $namedKeys = @{
     "PGDN" = 0x22
     "NEXT" = 0x22
     "PAGEDOWN" = 0x22
+}
+
+$extendedKeys = [System.Collections.Generic.HashSet[int]]::new()
+foreach ($extendedKey in @(0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22)) {
+    [void]$extendedKeys.Add($extendedKey)
 }
 
 for ($i = 1; $i -le 12; $i++) {
@@ -367,9 +378,22 @@ function New-KeyboardInput {
 
     $input = New-Object RiftGameWindowNative+INPUT
     $input.type = $INPUT_KEYBOARD
-    $input.U.ki.wVk = [uint16]$VirtualKey
-    $input.U.ki.wScan = 0
-    $input.U.ki.dwFlags = if ($KeyUp) { $KEYEVENTF_KEYUP } else { 0 }
+    $scanCode = [RiftGameWindowNative]::MapVirtualKey([uint32]$VirtualKey, $MAPVK_VK_TO_VSC)
+    if ($scanCode -eq 0) {
+        throw "MapVirtualKey returned 0 for VK 0x$($VirtualKey.ToString('X2'))."
+    }
+
+    $flags = $KEYEVENTF_SCANCODE
+    if ($KeyUp) {
+        $flags = $flags -bor $KEYEVENTF_KEYUP
+    }
+    if ($extendedKeys.Contains($VirtualKey)) {
+        $flags = $flags -bor $KEYEVENTF_EXTENDEDKEY
+    }
+
+    $input.U.ki.wVk = 0
+    $input.U.ki.wScan = [uint16]$scanCode
+    $input.U.ki.dwFlags = $flags
     $input.U.ki.time = 0
     $input.U.ki.dwExtraInfo = [IntPtr]::Zero
     return $input
@@ -427,9 +451,9 @@ function Resolve-KeyPlan {
         throw "A key chord is required."
     }
 
-    $tokens = $Chord.Split('+', [System.StringSplitOptions]::RemoveEmptyEntries) |
+    $tokens = @($Chord.Split('+', [System.StringSplitOptions]::RemoveEmptyEntries) |
         ForEach-Object { $_.Trim() } |
-        Where-Object { $_ }
+        Where-Object { $_ })
 
     if (-not $tokens -or $tokens.Count -eq 0) {
         throw "A key chord is required."
@@ -519,24 +543,27 @@ function Send-KeyPlan {
         [int]$HoldMilliseconds
     )
 
-    foreach ($modifier in $Plan.modifiers) {
+    $modifiers = @($Plan.modifiers)
+    $keys = @($Plan.keys)
+
+    foreach ($modifier in $modifiers) {
         Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $modifier))
         Start-Sleep -Milliseconds 10
     }
 
-    foreach ($key in $Plan.keys) {
+    foreach ($key in $keys) {
         Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $key.virtualKey))
     }
 
     Start-Sleep -Milliseconds $HoldMilliseconds
 
-    for ($i = $Plan.keys.Count - 1; $i -ge 0; $i--) {
-        Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $Plan.keys[$i].virtualKey -KeyUp))
+    for ($i = $keys.Count - 1; $i -ge 0; $i--) {
+        Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $keys[$i].virtualKey -KeyUp))
         Start-Sleep -Milliseconds 10
     }
 
-    for ($i = $Plan.modifiers.Count - 1; $i -ge 0; $i--) {
-        Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $Plan.modifiers[$i] -KeyUp))
+    for ($i = $modifiers.Count - 1; $i -ge 0; $i--) {
+        Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $modifiers[$i] -KeyUp))
         Start-Sleep -Milliseconds 10
     }
 }

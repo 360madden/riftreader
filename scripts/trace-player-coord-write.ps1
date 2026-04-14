@@ -201,6 +201,13 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
+    try {
+        & $sendKeyScript -ProcessName 'rift_x64' -Key 'ESC' -HoldMilliseconds 80 -NoRefocus | Out-Null
+        Start-Sleep -Milliseconds 250
+    }
+    catch {
+    }
+
     & $sendKeyScript -ProcessName 'rift_x64' -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)

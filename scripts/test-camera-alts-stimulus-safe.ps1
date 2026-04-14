@@ -84,6 +84,21 @@ function Read-Pointer {
     return [BitConverter]::ToUInt64($bytes, 0)
 }
 
+function Test-ReadableAddress {
+    param(
+        [string]$Address,
+        [int]$Length = 16
+    )
+
+    try {
+        $bytes = Read-MemoryBlock -Address $Address -Length $Length
+        return $bytes.Length -ge $Length
+    }
+    catch {
+        return $false
+    }
+}
+
 function Get-FloatsFromBytes {
     param([byte[]]$Bytes)
 
@@ -275,8 +290,12 @@ try {
     $wrapperPtr = Read-Pointer -Address $ownerD0Addr
     if ($wrapperPtr -gt 0x10000 -and $wrapperPtr -lt 0x00007FFFFFFFFFFF) {
         $targetPtr = Read-Pointer -Address ('0x{0:X}' -f ($wrapperPtr + 0x100))
-        if ($targetPtr -gt 0x10000 -and $targetPtr -lt 0x00007FFFFFFFFFFF) {
+        $targetPtrHex = ('0x{0:X}' -f $targetPtr)
+        if ($targetPtr -gt 0x10000 -and $targetPtr -lt 0x00007FFFFFFFFFFF -and (Test-ReadableAddress -Address $targetPtrHex -Length 16)) {
             $regions += @{ Name = 'lead-A-owner-D0-chain'; Address = ('0x{0:X}' -f $targetPtr); Length = 256; IsControl = $false }
+        }
+        elseif ($targetPtr -gt 0x10000) {
+            Write-Host "Skipping stale lead-A target: $targetPtrHex" -ForegroundColor DarkYellow
         }
     }
 }

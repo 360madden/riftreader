@@ -54,6 +54,9 @@ public static class RiftSendKeyNative
     public static extern short VkKeyScan(char ch);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -76,6 +79,9 @@ public static class RiftSendKeyNative
 $SW_RESTORE      = 9
 $INPUT_KEYBOARD  = 1
 $KEYEVENTF_KEYUP = 0x0002
+$KEYEVENTF_SCANCODE = 0x0008
+$KEYEVENTF_EXTENDEDKEY = 0x0001
+$MAPVK_VK_TO_VSC = 0
 
 $VK_SHIFT   = 0x10
 $VK_CONTROL = 0x11
@@ -95,13 +101,31 @@ $namedKeys = @{
     "TAB"       = 0x09
 }
 
+$extendedKeys = [System.Collections.Generic.HashSet[int]]::new()
+foreach ($extendedKey in @(0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22)) {
+    [void]$extendedKeys.Add($extendedKey)
+}
+
 function New-KeyboardInput {
     param([int]$VirtualKey, [switch]$KeyUp)
     $inp = New-Object RiftSendKeyNative+INPUT
     $inp.type = $INPUT_KEYBOARD
-    $inp.U.ki.wVk = [uint16]$VirtualKey
-    $inp.U.ki.wScan = 0
-    $inp.U.ki.dwFlags = if ($KeyUp) { $KEYEVENTF_KEYUP } else { 0 }
+    $scanCode = [RiftSendKeyNative]::MapVirtualKey([uint32]$VirtualKey, $MAPVK_VK_TO_VSC)
+    if ($scanCode -eq 0) {
+        throw "MapVirtualKey returned 0 for VK 0x$($VirtualKey.ToString('X2'))."
+    }
+
+    $flags = $KEYEVENTF_SCANCODE
+    if ($KeyUp) {
+        $flags = $flags -bor $KEYEVENTF_KEYUP
+    }
+    if ($extendedKeys.Contains($VirtualKey)) {
+        $flags = $flags -bor $KEYEVENTF_EXTENDEDKEY
+    }
+
+    $inp.U.ki.wVk = 0
+    $inp.U.ki.wScan = [uint16]$scanCode
+    $inp.U.ki.dwFlags = $flags
     $inp.U.ki.time = 0
     $inp.U.ki.dwExtraInfo = [IntPtr]::Zero
     return $inp
