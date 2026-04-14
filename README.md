@@ -9,6 +9,26 @@ Hybrid Rift tooling project:
 
 Current work is scoped primarily to the **memory reader**.
 
+## Post-Update Status (April 14, 2026)
+
+The April 14, 2026 Rift update did **not** break the low-level reader, but it
+**did** break the current source-chain / selector-owner / owner-components
+refresh path.
+
+Right now on `main`:
+
+- `--read-player-current` is still working
+- `--read-player-coord-anchor` still finds the module-local coord pattern
+- actor-orientation notes are historical until the owner/source chain is rebuilt
+- camera live workflow is currently documented on
+  `feature/camera-orientation-discovery`, not on the `main` worktree
+
+Use these before trusting older actor/camera claims in this file:
+
+- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+
 Constraints:
 
 - target explicitly selected Rift client processes and installs
@@ -25,7 +45,9 @@ the capture chain aligned while the typed reader work advances:
 - `scripts\export-discovery-watchset.ps1`
   - derives a schema-versioned owned session watchset from the current discovery artifacts
 - `scripts\record-discovery-session.ps1`
-  - packages the current artifacts + truth snapshot + sampled watchset bytes for offline decode work, with explicit package integrity/failure reporting
+  - packages the current artifacts + truth snapshot + sampled watchset bytes for offline decode work, with explicit package integrity/failure reporting plus timing, interruption, and region-summary metadata
+- `scripts\append-session-marker.ps1`
+  - appends a normalized manual/scripted marker record into a watched marker-input file during a live session capture
 
 ## Recovery / Rebuild Docs
 
@@ -150,7 +172,7 @@ The reader now has two near-term targets:
    - prefers a verified coord-trace object anchor when it belongs to the current process and still matches current exported state
    - reads level / health / coords directly from memory
    - compares them against the latest ReaderBridge export
-   - `--read-player-orientation`
+   - `--read-player-orientation` *(historical/stale after the April 14, 2026 update until the owner/source chain is rebuilt)*
    - reuses the owner-selected source component
    - surfaces the artifact-side basis forward-row agreement and the live helper derives actor yaw / pitch from the full source basis matrix, with forward/up/right rows at `+0x60/+0x6C/+0x78` and a duplicate block at `+0x94/+0xA0/+0xAC`
   - `--read-player-coord-anchor`
@@ -294,7 +316,7 @@ Discovery maintenance helpers:
 - `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1`
   - emits a named watchset from the current owner/source/stat artifacts for offline session work
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1`
-  - freezes the current artifact chain plus sampled memory regions into `scripts\sessions\...`
+  - freezes the current artifact chain plus sampled memory regions into `scripts\sessions\...`, including timing drift, capture duration, marker summaries, and interruption state
 
 Derive a likely identity string such as `Name@Shard` from the latest ReaderBridge export and scan for it:
 
@@ -369,6 +391,12 @@ Inspect a recorded package without attaching to the game:
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
 ```
 
+Append a manual/scripted session marker during a live recording:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\append-session-marker.ps1 -File .\scripts\sessions\20260409-baseline\marker-input.ndjson -Kind combat-start -Label baseline -Message "entered combat"
+```
+
 Export only the current watchset:
 
 ```powershell
@@ -426,6 +454,11 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 
 ## Helper Scripts
 
+> **Post-update note:** scripts on `main` that depend on the source-chain →
+> selector-owner → owner-components path are currently historical until rebuilt
+> on the updated client. Camera-specific live helpers currently live on
+> `C:\RIFT MODDING\RiftReader_camera_feature`, not this `main` worktree.
+
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check all project Lua addons with `luac`
 - `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy all project addons into the Rift `Interface\AddOns` folder
 - `C:\RIFT MODDING\RiftReader\scripts\sync-addon.cmd` - validate and deploy all project addons in one step
@@ -440,17 +473,19 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
+- `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review
+- `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1` - append a normalized NDJSON marker record to a watched marker-input file during a live session recording
 - `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using the best available fast path. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read, or `-RefreshTraceAnchor` to refresh a stale saved coord trace before the read.
-- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.cmd` - actor yaw/pitch helper; reads the live selected source object, derives yaw/pitch from the forward row of the source basis matrix, reports the duplicated basis blocks and their agreement, and stores current/previous actor-orientation captures so live facing changes can be compared quickly
-- `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.cmd` - runs a before/after actor-orientation capture around a no-focus key stimulus and reports yaw/pitch/vector/coord deltas; useful for validating whether a given key actually turns the actor in the live client
-- `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` / `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.cmd` - profiles multiple no-focus key stimuli in one pass, classifies them as actor-turn / no-turn / movement / mixed, and records basis-quality metrics so control bindings can be triaged quickly
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.cmd` - **historical/pre-update until rebuilt** actor yaw/pitch helper; older workflow reads the selected source object, derives yaw/pitch from the forward row of the source basis matrix, and stores actor-orientation captures
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.cmd` - **historical/pre-update until rebuilt** actor-orientation before/after stimulus harness
+- `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` / `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.cmd` - **historical/pre-update until rebuilt** key-profile harness for actor yaw tests
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first verified access to the current player coord triplet, tries CE-confirmed candidate addresses when available, captures the instruction and register context, and validates the captured instruction bytes through the reader's module-local pattern scan
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd` - captures a small disassembly window around the latest verified coord trace through Cheat Engine, highlights nearby instructions that reuse the traced base register, and labels offsets that line up with the current derived coord/level/health fields
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - derives the pre-coord source/destination handoff chain from the trace cluster, identifies the likely source-object load and resolve call, and verifies a stronger module-local source-chain pattern
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - **historical/pre-update until rebuilt** source/destination handoff-chain capture
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function and verifies each accessor pattern against the live module
-- `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.cmd` - breaks on the source-object load, captures the owning selector object / container / selected index, verifies the selected source object against the current coord trace, and records the selector-owner path as a JSON artifact
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.cmd` - walks the stable owner object discovered by the selector trace, classifies linked children (source-wrapper, owner-backref wrapper, owner-state wrapper), and records the live owner graph as a structured artifact
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.cmd` - enumerates the stable owner container entries, classifies the live selected-source component against sibling component records, and records the current owner/component table as a JSON artifact
+- `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.cmd` - **historical/pre-update until rebuilt** selector-owner trace helper
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.cmd` - **historical/pre-update until rebuilt** owner-graph capture helper
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.cmd` - **historical/pre-update until rebuilt** owner/component-table capture helper
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.cmd` - walks the owner-component artifact plus current ReaderBridge snapshot, identifies raw-unit-id-bearing identity components, ranks shared child stat hubs, and records the current stat-side graph as a JSON artifact
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.cmd` - experimentally try a no-focus `PostThreadMessage` command injection against the Rift UI thread and verify success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
@@ -521,7 +556,9 @@ C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd
 
 After that file exists, the normal reader capture mode will automatically prefer the CE-backed family when it still matches the current grouped scan, and will use `SelectionSource = ce-confirmed` when the helper captured direct sample-address matches.
 
-Recent CE improvement:
+Historical pre-update CE improvement notes
+_(keep as evidence; do not treat selector-owner / owner-components /
+actor-orientation claims below as current post-update truth until rebuilt):_
 
 - the smart family helper now uses directional next-scans (`increased` / `decreased` / `changed`) after movement instead of relying only on a second exact-value scan
 - this materially improved live narrowing on the current Rift client from zero direct triplet confirmations in some runs to dozens of moved-axis candidates and multiple CE-confirmed family sample matches

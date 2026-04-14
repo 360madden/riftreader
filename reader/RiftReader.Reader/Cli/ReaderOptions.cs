@@ -26,6 +26,7 @@ public sealed record ReaderOptions(
     bool RecordSession,
     string? SessionWatchsetFile,
     string? SessionOutputDirectory,
+    string? SessionMarkerInputFile,
     int SessionSampleCount,
     int SessionIntervalMilliseconds,
     string? SessionLabel,

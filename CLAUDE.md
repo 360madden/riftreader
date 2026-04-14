@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Read this file at the start of every session. It is the single authoritative reference for design decisions, verified reverse-engineering facts, anti-patterns, and coding rules. When this file conflicts with README.md or other docs, **this file wins** — those docs describe intent; this file describes what the code actually does.
 
+> **Post-update warning (April 14, 2026):** parts of this file are a
+> pre-update historical snapshot. The low-level reader baseline still works, but
+> the source-chain / selector-owner / owner-components path drifted after the
+> game update. Before trusting actor-orientation or camera-specific claims
+> below, check:
+>
+> - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+> - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
+> - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+
 ---
 
 ## 0. Build & Run Commands
@@ -52,9 +62,9 @@ These decisions are locked. Do not propose changing them without a full rational
 | Addon exports validate reader anchors | Addon data is Rift-API-backed ground truth; reader compares memory reads against it to confirm anchor validity. |
 | Typed reader modes > generic memory dumps | Player snapshot readers (`--read-player-current`, `--read-player-orientation`, `--read-player-coord-anchor`) ship before building N-entity generic readers. |
 | Cheat Engine for validation only | CE assists discovery and helps confirm addresses during reverse engineering. Reader does not depend on CE at runtime. |
-| Owner graph and component structure | Player data is accessed through a stable owner object → container → selected-source component hierarchy. Structure is hierarchical, not flat. |
+| Owner graph and component structure | Historical pre-update model: player data was accessed through an owner object → container → selected-source component hierarchy. Revalidate after updates before assuming this remains stable. |
 | Coordinate triplet as anchor | Player position (x/y/z as float triplet) is the primary stable anchor. Other fields are located relative to it. |
-| Actor orientation from basis matrix | Player facing/yaw/pitch derived from a 3×3 basis matrix (forward/up/right rows) at fixed offsets (`+0x60/+0x6C/+0x78` and duplicate at `+0x94/+0xA0/+0xAC`). |
+| Actor orientation from basis matrix | Historical pre-update model: player facing/yaw/pitch was derived from a 3×3 basis matrix (forward/up/right rows) at offsets `+0x60/+0x6C/+0x78` with a duplicate at `+0x94/+0xA0/+0xAC`. Revalidate after updates. |
 | Stat-hub graph for identity and resources | Player stats (health, mana, level) accessed through a stable owner-component graph; stat hubs are shared and ranked by prevalence. |
 | Module-local pattern validation | Instruction patterns discovered via CE are validated as module-local (within rift_x64.exe bounds) before being trusted for reader use. |
 | No runtime CE dependency | Reader runs standalone. CE-assisted capture helpers are tooling, not runtime requirements. |
@@ -70,9 +80,11 @@ When any two files disagree, use this priority order:
 3. **README.md** — user-facing overview and command reference
 4. **Script documentation** — helper scripts document their own workflows
 
-### Verified Addresses & Structure Offsets (as of 2026-04-09)
+### Historical Verified Addresses & Structure Offsets (last verified 2026-04-09)
 
-These are live observations from the current Rift client session. They may shift between game updates or client sessions:
+These are **pre-April-14-2026** observations from a previously validated Rift
+client session. Treat them as historical evidence until revalidated on the
+updated client:
 
 - **Player coord triplet**: Accessed via owner object → selected-source component at stable index 6
 - **Actor basis matrix**: Forward row at `+0x60`, duplicate basis at `+0x94` (three 12-byte rows: forward/up/right)
@@ -230,7 +242,7 @@ Things that look reasonable but are wrong for this system. Don't do these.
 - **Discovery modes**: Cheat Engine probe generation, module pattern scanning, pointer reference scanning
 - **Typed reader modes**:
   - `--read-player-current` — Full player snapshot from memory (coord, health, level, etc.)
-  - `--read-player-orientation` — Actor yaw/pitch from basis matrix
+  - `--read-player-orientation` — Historical pre-update actor yaw/pitch path from the basis matrix; revalidation currently required
   - `--read-player-coord-anchor` — Validates coordinate write instruction and derives anchor details
   - `--read-target-current` — Full target snapshot from memory (coord, health, level, name, distance)
   - `--rank-stat-hubs` — Walks identity-component graph and ranks shared memory hubs by player-stat prevalence; optionally emits a CE probe script via `--cheatengine-stat-hubs`
@@ -238,8 +250,8 @@ Things that look reasonable but are wrong for this system. Don't do these.
 
 ### In Progress ⏳
 
-- **Actor orientation key profiling** — Testing which input keys actually turn the player; building a control-binding classification (actor-turn / no-turn / movement / mixed)
-- **Live actor orientation capture** — Comparing before/after basis matrices to measure yaw/pitch/vector changes in response to input
+- **Actor orientation key profiling** — Historical pre-update workstream; rerun required on the updated client
+- **Live actor orientation capture** — Historical pre-update workflow until rerun on the updated client
 
 ### Next (v0.2.0)
 

@@ -44,6 +44,27 @@ If artifacts or notes are corrupted, start here:
 
 - C:\RIFT MODDING\RiftReader\docs\recovery\README.md
 
+## Post-Update Status (April 14, 2026)
+
+The April 14, 2026 Rift update left the reader baseline partially intact but
+drifted the owner/source discovery chain.
+
+Current short version:
+
+- `player-current` still works
+- the coord-anchor module pattern still works
+- source-chain refresh is broken
+- selector-owner trace is broken
+- actor-orientation and camera claims below are historical until rebuilt
+- camera live workflow currently lives on
+  `feature/camera-orientation-discovery`, not the `main` worktree
+
+Use these first:
+
+- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+
 ## Immediate Milestones
 
 1. confirm reliable process targeting
@@ -68,6 +89,13 @@ If artifacts or notes are corrupted, start here:
 
 Current discovery refinement:
 
+Post-update note:
+
+- as of April 14, 2026, only the player-current path and coord-anchor module
+  pattern are currently revalidated on `main`
+- the selected-source / selector-owner / owner-components / actor-orientation
+  bullets below are historical until the chain is rebuilt on the updated client
+
 - keep artifact freshness and provenance explicit before promoting a new anchor:
   - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
     catches stale or cross-run capture drift early
@@ -78,15 +106,16 @@ Current discovery refinement:
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
-  - the current selected source component already yields stable live orientation vectors
-  - the same selected source now also exposes duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
-  - `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` now turn that into repeatable yaw/pitch captures derived from the forward basis row
-  - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` now validates live actor-turn stimuli directly and auto-skips the old Cheat Engine background-focus dependency when that process is not running
-  - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` now profiles multiple key stimuli in one pass and classifies which bindings produce clean actor yaw changes vs no-turn/movement noise
+  - pre-update, the selected source component yielded the strongest actor-orientation vectors
+  - pre-update, that selected source also exposed duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
+  - pre-update, `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` produced repeatable yaw/pitch captures derived from the forward basis row
+  - pre-update, `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` validated actor-turn stimuli directly
+  - pre-update, `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` classified bindings that produced clean actor yaw changes vs no-turn/movement noise
+  - current camera live workflow is branch-specific and lives on `feature/camera-orientation-discovery`, not `main`
 - treat the owner container as a component table, not just a wrapper list:
-  - entry `6` is the current transform/source component
-  - indices `9`, `12`, and `13` currently behave like identity-bearing siblings because they embed the raw player unit id
-  - shared stat hubs currently cluster around `0x1AEE40A4600`, `0x1AEE411B4B0`, and `0x1AEBBF6E380`
+  - pre-update, entry `6` behaved like the transform/source component
+  - pre-update, indices `9`, `12`, and `13` behaved like identity-bearing siblings because they embedded the raw player unit id
+  - pre-update, shared stat hubs clustered around `0x1AEE40A4600`, `0x1AEE411B4B0`, and `0x1AEBBF6E380`
 - inspect a small disassembly cluster around any verified coord trace before promoting it, so nearby instructions using the same base register can be compared quickly
 - derive a stronger pre-coord source chain from that cluster so we can pivot from the destination coord cache toward the likely source object/owner path
 - once the source chain is found, isolate the accessor it calls so we can recognize stable returned field offsets such as the current coord-source `+0x48` path
@@ -96,11 +125,13 @@ Current discovery refinement:
   - `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1`
     derives the current schema-versioned named watchset from owner/source/stat artifacts
   - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1`
-    packages the current artifacts, consistency report, ReaderBridge snapshot, and sampled watchset bytes into `scripts\sessions\...`, and marks failed/incomplete packages explicitly
+    packages the current artifacts, consistency report, ReaderBridge snapshot, and sampled watchset bytes into `scripts\sessions\...`, and now records timing drift, capture duration, interruption state, marker summaries, and per-region read summaries
+  - `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1`
+    appends normalized manual/scripted markers into a watched marker-input file during a live recording window
   - `dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session ...`
-    performs the actual one-attach sampling pass
+    performs the actual one-attach sampling pass and supports burst/high-frequency intervals without changing the package contract
   - `dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory ...`
-    inspects a recorded package without attaching to a live process
+    inspects a recorded package without attaching to a live process, loading the package manifest, recording manifest, samples, markers, and frozen ReaderBridge truth when available
   - see `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
 
 ## Addon Boundary

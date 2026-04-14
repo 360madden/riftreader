@@ -77,9 +77,24 @@ $VK_MENU = 0x12
 
 function Get-MainWindowProcess {
     param([string]$ProcessName)
-    $candidate = Get-Process -Name $ProcessName -ErrorAction Stop |
-        Where-Object { $_.MainWindowHandle -ne 0 } |
-        Select-Object -First 1
+
+    $candidates = @()
+
+    try {
+        $candidates = @(Get-Process -Name $ProcessName -ErrorAction Stop |
+            Where-Object { $_.MainWindowHandle -ne 0 })
+    }
+    catch {
+        $candidates = @()
+    }
+
+    if ($candidates.Count -eq 0 -and $ProcessName -like 'cheatengine*') {
+        $candidates = @(Get-Process -Name 'cheatengine*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne 0 })
+    }
+
+    $candidate = $candidates | Select-Object -First 1
+
     if (-not $candidate) {
         throw "No process named '$ProcessName' with a main window was found."
     }

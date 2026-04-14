@@ -10,7 +10,11 @@ param(
     [int]$CombatFieldWindowBytes = 32,
     [int]$OwnerStateFollowPointerWindowBytes = 128,
     [int]$MaxOwnerStateSubgraphRegions = 10,
+    [int]$MaxOwnerStateWrapperRegions = 8,
     [int]$MaxOffsetsPerField = 4,
+    [int]$MaxFieldRegionBytes = 256,
+    [int]$MaxRegionLengthBytes = 4096,
+    [int]$MaxTotalRegionBytes = 65536,
     [switch]$Json
 )
 
@@ -26,6 +30,7 @@ $artifacts = [System.Collections.Generic.List[object]]::new()
 $regions = [System.Collections.Generic.List[object]]::new()
 $warnings = [System.Collections.Generic.List[string]]::new()
 $regionKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$warningKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
 function Read-JsonArtifact {
     param(
@@ -167,6 +172,12 @@ function Add-Region {
         return
     }
 
+    $maxAllowedLength = Get-MaxAllowedRegionLength -Category $Category
+    if ($Length -gt $maxAllowedLength) {
+        Add-Warning "Region '$Name' in category '$Category' requested length $Length bytes, exceeding the guardrail of $maxAllowedLength bytes. The exported watchset region was clamped."
+        $Length = $maxAllowedLength
+    }
+
     $addressHex = Format-HexUInt64 -Value $Address
     $key = '{0}|{1}|{2}' -f $Name, $addressHex, $Length
     if (-not $regionKeys.Add($key)) {
@@ -232,8 +243,34 @@ function Add-Warning {
         [string]$Message
     )
 
-    if (-not [string]::IsNullOrWhiteSpace($Message)) {
+    if (-not [string]::IsNullOrWhiteSpace($Message) -and $warningKeys.Add($Message)) {
         $warnings.Add($Message) | Out-Null
+    }
+}
+
+function Get-MaxAllowedRegionLength {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Category
+    )
+
+    switch -Wildcard ($Category) {
+        'source-field' { return [Math]::Max($CombatFieldWindowBytes, $MaxFieldRegionBytes) }
+        'owner-container-slot' { return [Math]::Max(64, $MaxFieldRegionBytes) }
+        'stat-hub-field*' { return [Math]::Max($CombatFieldWindowBytes, $MaxFieldRegionBytes) }
+        'source-object' { return [Math]::Max($ObjectWindowBytes, $MaxRegionLengthBytes) }
+        'owner-object' { return [Math]::Max($ObjectWindowBytes, $MaxRegionLengthBytes) }
+        'owner-state-wrapper' { return [Math]::Max($ObjectWindowBytes, $MaxRegionLengthBytes) }
+        'identity-component' { return [Math]::Max($ObjectWindowBytes, $MaxRegionLengthBytes) }
+        'owner-state' { return [Math]::Max($StateWindowBytes, $MaxRegionLengthBytes) }
+        'owner-state-slot' { return [Math]::Max($ProjectorSlotWindowBytes, $MaxRegionLengthBytes) }
+        'owner-state-follow-pointer' { return [Math]::Max($OwnerStateFollowPointerWindowBytes, $MaxRegionLengthBytes) }
+        'owner-state-subgraph' { return [Math]::Max($OwnerStateFollowPointerWindowBytes, $MaxRegionLengthBytes) }
+        'owner-container' { return [Math]::Max(1024, $MaxRegionLengthBytes) }
+        'stat-hub' { return [Math]::Max($HubWindowBytes, $MaxRegionLengthBytes) }
+        'stat-hub-stale' { return [Math]::Max($HubWindowBytes, $MaxRegionLengthBytes) }
+        'bootstrap-cache' { return [Math]::Max(1024, $MaxRegionLengthBytes) }
+        default { return $MaxRegionLengthBytes }
     }
 }
 
@@ -259,6 +296,125 @@ function Write-Utf8TextAtomic {
     finally {
         if (Test-Path -LiteralPath $tempPath) {
             Remove-Item -LiteralPath $tempPath -Force
+        }
+    }
+}
+
+function Get-RegionAddressValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Region
+    )
+
+    return Parse-HexUInt64 -Value ([string]$Region.Address)
+}
+
+function Test-IsExpectedContainedOverlap {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OuterCategory,
+
+        [Parameter(Mandatory = $true)]
+        [string]$InnerCategory
+    )
+
+    if ($OuterCategory -eq 'source-object' -and $InnerCategory -eq 'source-field') {
+        return $true
+    }
+
+    if ($OuterCategory -eq 'owner-container' -and $InnerCategory -eq 'owner-container-slot') {
+        return $true
+    }
+
+    if ($OuterCategory -eq 'owner-object' -and $InnerCategory -eq 'owner-state') {
+        return $true
+    }
+
+    if ($OuterCategory -eq 'owner-state-wrapper' -and ($InnerCategory -eq 'owner-state-follow-pointer' -or $InnerCategory -eq 'owner-state-subgraph')) {
+        return $true
+    }
+
+    if (($OuterCategory -eq 'stat-hub' -or $OuterCategory -eq 'stat-hub-stale') -and $InnerCategory -like 'stat-hub*-*') {
+        return $true
+    }
+
+    if ($OuterCategory -eq 'bootstrap-cache') {
+        return $true
+    }
+
+    return $false
+}
+
+function Test-ShouldWarnForRegionOverlap {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Left,
+
+        [Parameter(Mandatory = $true)]
+        $Right
+    )
+
+    $leftStart = Get-RegionAddressValue -Region $Left
+    $rightStart = Get-RegionAddressValue -Region $Right
+    $leftEnd = $leftStart + [UInt64]([Math]::Max(0, [int]$Left.Length - 1))
+    $rightEnd = $rightStart + [UInt64]([Math]::Max(0, [int]$Right.Length - 1))
+
+    if ($leftEnd -lt $rightStart -or $rightEnd -lt $leftStart) {
+        return $false
+    }
+
+    if (-not [bool]$Left.Required -or -not [bool]$Right.Required) {
+        return $false
+    }
+
+    if (([string]$Left.Category -eq 'owner-object' -and [string]$Right.Category -eq 'owner-state') -or
+        ([string]$Left.Category -eq 'owner-state' -and [string]$Right.Category -eq 'owner-object')) {
+        return $false
+    }
+
+    if ($leftStart -eq $rightStart -and [int]$Left.Length -eq [int]$Right.Length) {
+        return $true
+    }
+
+    $leftContainsRight = $leftStart -le $rightStart -and $leftEnd -ge $rightEnd
+    if ($leftContainsRight) {
+        return -not (Test-IsExpectedContainedOverlap -OuterCategory ([string]$Left.Category) -InnerCategory ([string]$Right.Category))
+    }
+
+    $rightContainsLeft = $rightStart -le $leftStart -and $rightEnd -ge $leftEnd
+    if ($rightContainsLeft) {
+        return -not (Test-IsExpectedContainedOverlap -OuterCategory ([string]$Right.Category) -InnerCategory ([string]$Left.Category))
+    }
+
+    return $true
+}
+
+function Add-RegionOverlapWarnings {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$SortedRegions
+    )
+
+    $addressSortedRegions = @($SortedRegions | Sort-Object @{ Expression = { Get-RegionAddressValue -Region $_ } }, Length, Name)
+    for ($leftIndex = 0; $leftIndex -lt $addressSortedRegions.Count; $leftIndex++) {
+        $left = $addressSortedRegions[$leftIndex]
+        $leftStart = Get-RegionAddressValue -Region $left
+        $leftEnd = $leftStart + [UInt64]([Math]::Max(0, [int]$left.Length - 1))
+
+        for ($rightIndex = $leftIndex + 1; $rightIndex -lt $addressSortedRegions.Count; $rightIndex++) {
+            $right = $addressSortedRegions[$rightIndex]
+            $rightStart = Get-RegionAddressValue -Region $right
+            if ($rightStart -gt $leftEnd) {
+                break
+            }
+
+            if (-not (Test-ShouldWarnForRegionOverlap -Left $left -Right $right)) {
+                continue
+            }
+
+            Add-Warning ("Watchset overlap detected between '{0}' ({1}, {2}, len {3}) and '{4}' ({5}, {6}, len {7})." -f `
+                    [string]$left.Name, [string]$left.Category, [string]$left.Address, [int]$left.Length,
+                    [string]$right.Name, [string]$right.Category, [string]$right.Address, [int]$right.Length)
         }
     }
 }
@@ -606,7 +762,12 @@ if ($ownerGraph) {
         }
     }
 
-    foreach ($wrapper in @($wrapperMap.Values)) {
+    $wrapperValues = @($wrapperMap.Values)
+    if ($wrapperValues.Count -gt $MaxOwnerStateWrapperRegions) {
+        Add-Warning "Owner-state wrapper coverage discovered $($wrapperValues.Count) candidate wrappers; only the first $MaxOwnerStateWrapperRegions were exported."
+    }
+
+    foreach ($wrapper in @($wrapperValues | Select-Object -First $MaxOwnerStateWrapperRegions)) {
         if ($null -eq $wrapper -or [string]::IsNullOrWhiteSpace([string]$wrapper.Address)) {
             continue
         }
@@ -669,15 +830,38 @@ if ($currentAnchor -and -not [string]::IsNullOrWhiteSpace([string]$currentAnchor
     }
 }
 
+$sortedArtifacts = @($artifacts.ToArray() | Sort-Object Role, File)
+$sortedRegions = @(
+    $regions.ToArray() |
+        Sort-Object `
+            @{ Expression = { if ([bool]$_.Required) { 0 } else { 1 } } }, `
+            @{ Expression = { -1 * [int]$_.Priority } }, `
+            Category, `
+            Name, `
+            @{ Expression = { Get-RegionAddressValue -Region $_ } }, `
+            Length
+)
+
+Add-RegionOverlapWarnings -SortedRegions $sortedRegions
+
+$regionByteCount = 0L
+foreach ($region in $sortedRegions) {
+    $regionByteCount += [int]$region.Length
+}
+
+if ($regionByteCount -gt $MaxTotalRegionBytes) {
+    Add-Warning "Watchset covers $regionByteCount bytes across $($sortedRegions.Count) regions, exceeding the guardrail of $MaxTotalRegionBytes bytes."
+}
+
 $document = [ordered]@{
     SchemaVersion = $watchsetSchemaVersion
     Mode = 'session-watchset'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     ProcessName = $ProcessName
     PreferredSourceAddress = $selectedSourceAddress
-    Artifacts = $artifacts.ToArray()
-    Warnings = $warnings.ToArray()
-    Regions = $regions.ToArray()
+    Artifacts = $sortedArtifacts
+    Warnings = @($warnings.ToArray() | Sort-Object)
+    Regions = $sortedRegions
 }
 
 $outputDirectory = Split-Path -Path $resolvedOutputFile -Parent
@@ -692,9 +876,10 @@ $result = [ordered]@{
     OutputFile = $resolvedOutputFile
     ProcessName = $ProcessName
     PreferredSourceAddress = $selectedSourceAddress
-    RegionCount = $regions.Count
+    RegionCount = $sortedRegions.Count
+    RegionByteCount = $regionByteCount
     WarningCount = $warnings.Count
-    Warnings = $warnings.ToArray()
+    Warnings = @($warnings.ToArray() | Sort-Object)
 }
 
 if ($Json) {
@@ -705,7 +890,8 @@ if ($Json) {
 Write-Host "Discovery watchset exported." -ForegroundColor Green
 Write-Host ("Output:              {0}" -f $resolvedOutputFile)
 Write-Host ("Preferred source:    {0}" -f $selectedSourceAddress)
-Write-Host ("Regions:             {0}" -f $regions.Count)
+Write-Host ("Regions:             {0}" -f $sortedRegions.Count)
+Write-Host ("Total bytes:         {0}" -f $regionByteCount)
 Write-Host ("Warnings:            {0}" -f $warnings.Count)
 
 if ($warnings.Count -gt 0) {

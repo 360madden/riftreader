@@ -1,6 +1,6 @@
 # Offline Session Troubleshooting
 
-Use this guide when an offline session package is **missing files**, **ends early**, or looks **partial/incomplete**.
+Use this guide when an offline session package is **missing files**, **ends early**, **fails to load offline**, or looks **partial/incomplete**.
 
 ## Expected package location
 
@@ -25,9 +25,15 @@ A healthy package normally includes:
 1. Confirm the command completed without interruption.
 2. Open the session folder and verify the expected files exist.
 3. Check whether `package-manifest.json` is present and whether `Status` /
-   `IntegrityStatus` report `complete` / `ok` or `warning`.
+   `IntegrityStatus` report `complete` / `ok`, `warning`, or `failed`.
 4. Check `capture-consistency.json` for stale or cross-run warnings.
 5. Confirm the selected process was actually `rift_x64`.
+6. Run `--session-summary --json` and inspect:
+   - `Warnings`
+   - `RecordingManifest.Interrupted`
+   - `RecordingManifest.TotalRegionReadFailures`
+   - `MarkerKinds`
+   - `Regions`
 
 Quick summary command:
 
@@ -102,14 +108,56 @@ Likely cause:
 - `-SampleCount` was too small
 - `-IntervalMilliseconds` was too large
 - the session ended early
+- the operator cancelled the recording intentionally
 
 What to do:
 
 - increase sample count for the scenario
 - reduce interval only if the reader and target process can keep up
 - verify the recorder stayed attached for the full run
+- inspect `recording-manifest.json` for:
+  - `Interrupted`
+  - `RecordedSampleCount`
+  - `MarkerCount`
+  - `TotalRegionReadFailures`
 
-### 5) Watchset exports but the region set looks wrong
+### 5) The package loads, but `--session-summary` reports timing drift or burst warnings
+
+Likely cause:
+
+- sampling interval was intentionally very small
+- the requested byte budget was too large for the sample cadence
+- the target process or reader could not keep up cleanly
+
+What to do:
+
+- review `MaxTimingDriftMilliseconds` and `MaxCaptureDurationMilliseconds`
+- reduce watchset scope if too many bytes are being sampled every interval
+- increase `-IntervalMilliseconds` when the run is meant to be stable instead of bursty
+- keep burst-mode packages for short stimulus windows only
+
+### 6) External markers did not appear in `markers.ndjson`
+
+Likely cause:
+
+- `--session-marker-input-file` was not supplied to `--record-session`
+- the marker file path did not match the one being watched
+- the marker input line was malformed JSON
+- PowerShell execution policy blocked `append-session-marker.ps1`
+
+What to do:
+
+- confirm the recording manifest reports `SessionMarkerInputFile`
+- append a marker with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1 -File <marker-input.ndjson> -Kind note -Message "smoke"
+```
+
+- inspect `Warnings` from `--session-summary --json` for marker-input parse errors
+- verify the marker file is outside the recorder-managed output files (`markers.ndjson`, `samples.ndjson`, etc.)
+
+### 7) Watchset exports but the region set looks wrong
 
 Likely cause:
 
@@ -147,6 +195,7 @@ Discard the session and start over if:
 - the package is missing core files
 - the process target was wrong
 - the session was interrupted mid-run
+- timing drift or capture duration warnings show the package could not keep up
 - the watchset clearly came from stale artifacts
 - the package cannot be trusted for offline decode or diff work
 
@@ -156,4 +205,6 @@ Discard the session and start over if:
 - A partial session should be treated as evidence of a failed run, not a valid package.
 - `package-manifest.json` is the authoritative top-level summary for session
   status and integrity.
+- `recording-manifest.json` is the authoritative recorder-side source for
+  interruption state, marker counts, region summaries, and byte/read-failure totals.
 - If the recorder keeps failing, investigate the current artifact chain before changing sample settings.

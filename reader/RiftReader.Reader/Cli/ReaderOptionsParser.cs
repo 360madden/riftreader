@@ -21,7 +21,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
-  RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
+  RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -50,6 +50,7 @@ Notes:
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
+  - Use --session-marker-input-file with --record-session when you want manual or script-driven markers appended during the live recording window.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
@@ -74,7 +75,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -114,6 +115,7 @@ Examples:
         string? sessionDirectory = null;
         string? sessionWatchsetFile = null;
         string? sessionOutputDirectory = null;
+        string? sessionMarkerInputFile = null;
         var sessionSampleCount = 1;
         var sessionIntervalMilliseconds = 500;
         string? sessionLabel = null;
@@ -270,6 +272,20 @@ Examples:
                     }
 
                     sessionOutputDirectory = sessionOutputDirectoryValue;
+                    break;
+
+                case "--session-marker-input-file":
+                    if (!TryReadNext(args, ref index, out var sessionMarkerInputFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-marker-input-file.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(sessionMarkerInputFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Session marker input file must not be blank.", UsageText);
+                    }
+
+                    sessionMarkerInputFile = sessionMarkerInputFileValue;
                     break;
 
                 case "--session-sample-count":
@@ -717,6 +733,7 @@ Examples:
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
                     SessionSampleCount: 1,
                     SessionIntervalMilliseconds: 500,
                     SessionLabel: null,
@@ -792,6 +809,7 @@ Examples:
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
                     SessionSampleCount: 1,
                     SessionIntervalMilliseconds: 500,
                     SessionLabel: null,
@@ -867,6 +885,7 @@ Examples:
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
                     SessionSampleCount: 1,
                     SessionIntervalMilliseconds: 500,
                     SessionLabel: null,
@@ -927,6 +946,7 @@ Examples:
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
                     SessionSampleCount: 1,
                     SessionIntervalMilliseconds: 500,
                     SessionLabel: null,
@@ -987,6 +1007,7 @@ Examples:
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
                     SessionSampleCount: 1,
                     SessionIntervalMilliseconds: 500,
                     SessionLabel: null,
@@ -1028,6 +1049,11 @@ Examples:
         if (sessionOutputDirectory is not null && !recordSession)
         {
             return ReaderOptionsParseResult.Fail("--session-output-directory can only be used with --record-session.", UsageText);
+        }
+
+        if (sessionMarkerInputFile is not null && !recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--session-marker-input-file can only be used with --record-session.", UsageText);
         }
 
         if (sessionDirectory is not null && !sessionSummary)
@@ -1270,6 +1296,7 @@ Examples:
                     RecordSession: recordSession,
                     SessionWatchsetFile: sessionWatchsetFile,
                     SessionOutputDirectory: sessionOutputDirectory,
+                    SessionMarkerInputFile: sessionMarkerInputFile,
                     SessionSampleCount: sessionSampleCount,
                     SessionIntervalMilliseconds: sessionIntervalMilliseconds,
                     SessionLabel: sessionLabel,

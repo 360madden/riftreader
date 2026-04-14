@@ -7,6 +7,7 @@ param(
     [int]$IntervalMilliseconds = 500,
     [int]$TopSharedHubs = 4,
     [string]$SessionRoot = (Join-Path $PSScriptRoot 'sessions'),
+    [string]$SessionMarkerInputFile,
     [switch]$RefreshDiscoveryChain,
     [switch]$RefreshProjectorTrace,
     [switch]$RefreshReaderBridge,
@@ -122,6 +123,10 @@ $watchsetFile = Join-Path $sessionDirectory 'watchset.json'
 $consistencyFile = Join-Path $sessionDirectory 'capture-consistency.json'
 $readerBridgeSnapshotFile = Join-Path $sessionDirectory 'readerbridge-snapshot.json'
 $packageManifestFile = Join-Path $sessionDirectory 'package-manifest.json'
+$resolvedSessionMarkerInputFile = $null
+if (-not [string]::IsNullOrWhiteSpace($SessionMarkerInputFile)) {
+    $resolvedSessionMarkerInputFile = [System.IO.Path]::GetFullPath($SessionMarkerInputFile)
+}
 
 $warnings = [System.Collections.Generic.List[string]]::new()
 $copiedArtifacts = [System.Collections.Generic.List[object]]::new()
@@ -244,6 +249,19 @@ try {
 
     $readerArguments = @('--record-session', '--session-watchset-file', $watchsetFile, '--session-output-directory', $sessionDirectory, '--session-sample-count', $SampleCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '--session-interval-ms', $IntervalMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '--session-label', $Label, '--json')
 
+    if (-not [string]::IsNullOrWhiteSpace($resolvedSessionMarkerInputFile)) {
+        $markerInputDirectory = Split-Path -Path $resolvedSessionMarkerInputFile -Parent
+        if (-not [string]::IsNullOrWhiteSpace($markerInputDirectory)) {
+            New-Item -ItemType Directory -Path $markerInputDirectory -Force | Out-Null
+        }
+
+        if (-not (Test-Path -LiteralPath $resolvedSessionMarkerInputFile)) {
+            Write-Utf8TextAtomic -Path $resolvedSessionMarkerInputFile -Content ''
+        }
+
+        $readerArguments += @('--session-marker-input-file', $resolvedSessionMarkerInputFile)
+    }
+
     if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) {
         $readerArguments = @('--pid', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture)) + $readerArguments
     }
@@ -307,6 +325,13 @@ try {
         SamplesFile = [string]$recordDocument.SamplesFile
         MarkersFile = [string]$recordDocument.MarkersFile
         ModulesFile = [string]$recordDocument.ModulesFile
+        Interrupted = $recordDocument.Interrupted
+        SessionMarkerInputFile = [string]$recordDocument.SessionMarkerInputFile
+        MarkerCount = $recordDocument.MarkerCount
+        MarkerKinds = @($recordDocument.MarkerKinds)
+        RequestedRegionByteCount = $recordDocument.RequestedRegionByteCount
+        TotalBytesRead = $recordDocument.TotalBytesRead
+        TotalRegionReadFailures = $recordDocument.TotalRegionReadFailures
         ProcessId = $recordDocument.ProcessId
         ProcessName = $recordDocument.ProcessName
         WatchsetRegionCount = $recordDocument.WatchsetRegionCount
@@ -336,6 +361,9 @@ try {
     Write-Host ("Watchset:             {0}" -f $watchsetFile)
     Write-Host ("Samples file:         {0}" -f $recordDocument.SamplesFile)
     Write-Host ("Markers file:         {0}" -f $recordDocument.MarkersFile)
+    if (-not [string]::IsNullOrWhiteSpace([string]$recordDocument.SessionMarkerInputFile)) {
+        Write-Host ("Marker input file:    {0}" -f $recordDocument.SessionMarkerInputFile)
+    }
     Write-Host ("Copied artifacts:     {0}" -f $copiedArtifacts.Count)
     Write-Host ("Integrity:            {0}" -f $packageManifest['IntegrityStatus'])
     Write-Host ("Warnings:             {0}" -f $packageWarningsList.Count)
@@ -390,6 +418,13 @@ catch {
             SamplesFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.SamplesFile } else { $null })
             MarkersFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.MarkersFile } else { $null })
             ModulesFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.ModulesFile } else { $null })
+            Interrupted = $(if ($null -ne $recordDocument) { $recordDocument.Interrupted } else { $null })
+            SessionMarkerInputFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.SessionMarkerInputFile } else { $resolvedSessionMarkerInputFile })
+            MarkerCount = $(if ($null -ne $recordDocument) { $recordDocument.MarkerCount } else { $null })
+            MarkerKinds = $(if ($null -ne $recordDocument) { @($recordDocument.MarkerKinds) } else { @() })
+            RequestedRegionByteCount = $(if ($null -ne $recordDocument) { $recordDocument.RequestedRegionByteCount } else { $null })
+            TotalBytesRead = $(if ($null -ne $recordDocument) { $recordDocument.TotalBytesRead } else { $null })
+            TotalRegionReadFailures = $(if ($null -ne $recordDocument) { $recordDocument.TotalRegionReadFailures } else { $null })
             ProcessId = $(if ($null -ne $recordDocument) { $recordDocument.ProcessId } else { $ProcessId })
             ProcessName = $(if ($null -ne $recordDocument) { $recordDocument.ProcessName } else { $ProcessName })
             WatchsetRegionCount = $(if ($null -ne $recordDocument) { $recordDocument.WatchsetRegionCount } else { $null })

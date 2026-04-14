@@ -85,6 +85,16 @@ public static class SessionPackageManifestLoader
             SamplesFile: document.SamplesFile,
             MarkersFile: document.MarkersFile,
             ModulesFile: document.ModulesFile,
+            Interrupted: document.Interrupted,
+            SessionMarkerInputFile: document.SessionMarkerInputFile,
+            MarkerCount: document.MarkerCount,
+            MarkerKinds: document.MarkerKinds?
+                .Where(static kind => !string.IsNullOrWhiteSpace(kind))
+                .Select(static kind => kind!)
+                .ToArray(),
+            RequestedRegionByteCount: document.RequestedRegionByteCount,
+            TotalBytesRead: document.TotalBytesRead,
+            TotalRegionReadFailures: document.TotalRegionReadFailures,
             ProcessId: document.ProcessId,
             ProcessName: document.ProcessName,
             WatchsetRegionCount: document.WatchsetRegionCount,

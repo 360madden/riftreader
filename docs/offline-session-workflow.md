@@ -40,13 +40,15 @@ Current package contents:
 - `package-manifest.json`
   - top-level package summary, status, integrity result, and missing-file report
 - `recording-manifest.json`
-  - schema-versioned process/module/sample metadata from the reader recorder
+  - schema-versioned process/module/sample metadata from the reader recorder,
+    including timing drift, capture duration, marker summaries, region summaries,
+    interruption state, and byte/read-failure totals
 - `watchset.json`
   - schema-versioned named memory regions derived from the current artifact chain
 - `samples.ndjson`
   - one sampled timeline row per interval
 - `markers.ndjson`
-  - start/end markers plus the initial label marker
+  - built-in lifecycle markers plus manual/scripted external markers
 - `modules.json`
   - current module list for the attached process
 - `capture-consistency.json`
@@ -92,6 +94,10 @@ Important rule:
 - if the current artifacts disagree on selected source lineage, the watchset still
   exports, but stale paths are marked via warnings and only the owner-component
   lineage is treated as preferred
+- exported regions are now sorted deterministically and guarded so one bad artifact
+  cannot silently explode the watchset surface area
+- overlap warnings are aimed at suspicious required-region collisions while still
+  allowing expected parent/child coverage within the current discovery model
 
 ## Commands
 
@@ -104,7 +110,7 @@ C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.cmd
 Direct reader-side recording from an existing watchset:
 
 ```powershell
-dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file C:\RIFT MODDING\RiftReader\scripts\captures\session-watchset.json --session-output-directory C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file C:\RIFT MODDING\RiftReader\scripts\captures\session-watchset.json --session-output-directory C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline --session-marker-input-file C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline\marker-input.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
 ```
 
 Full owned package flow:
@@ -125,9 +131,15 @@ Offline package summary:
 dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline --json
 ```
 
+Append a manual/scripted stimulus marker during a recording window:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1 -File C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline\marker-input.ndjson -Kind combat-start -Label baseline -Message "entered combat" -Source manual
+```
+
 ## What is implemented now
 
-This change implements the first owned session slice:
+This change implements the current owned session foundation:
 
 - reader CLI support for `--record-session`
 - reader CLI support for `--session-summary`
@@ -136,19 +148,26 @@ This change implements the first owned session slice:
 - schema-versioned `watchset.json`, `recording-manifest.json`, `package-manifest.json`, and `capture-consistency.json`
 - explicit package integrity checks and missing-file reporting before success is reported
 - explicit failed-package manifests when the owned package flow aborts after the session folder is created
+- per-sample timing drift and capture duration metrics
+- per-region read-failure and byte-count summaries
+- graceful cancellation with explicit interrupted-session markers and manifest state
+- burst/high-frequency sampling support without changing the package file contract
+- manual/scripted marker ingestion through `--session-marker-input-file`
+- `append-session-marker.ps1` helper for one-off external marker writes
+- offline package inspection that loads package + recording manifest + samples + markers
+- offline JSON output that exposes raw sample bytes, region summaries, marker timeline data, and frozen ReaderBridge truth when available
 
 It does **not** yet implement:
 
-- automatic stimulus markers beyond start/end/label
-- burst/high-frequency sampling
-- offline decoder passes over recorded sessions
+- package-vs-package diff reports
+- targeted offline decoder passes over recorded sessions
 - a GUI capture tool
 
 ## Near-term next phases
 
-1. add richer markers from manual/scripted stimuli
-2. add offline reader modes that inspect/diff saved sessions
-3. add targeted stat-diff helpers for hub decoding
+1. add package-vs-package diff reports
+2. add targeted stat-diff and coord/orientation decode helpers
+3. add curated capture scenarios and regression corpus packages
 4. drop CE only after session-driven decoding and reader parity are proven
 
 ## Operator notes
@@ -157,3 +176,6 @@ It does **not** yet implement:
   when a session folder exists but the package is failed or incomplete
 - use `C:\RIFT MODDING\RiftReader\docs\offline-session-implementation-checklist.md`
   for the current foundation-slice backlog
+- `--session-summary --json` is now the package-first inspect entry point when
+  you need raw sample bytes, marker timelines, region summaries, or frozen truth
+  without attaching to a live Rift process

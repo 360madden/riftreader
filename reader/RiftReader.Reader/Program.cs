@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using RiftReader.Reader.AddonSnapshots;
@@ -17,6 +18,11 @@ namespace RiftReader.Reader;
 internal static class Program
 {
     private const int SessionRecordingSchemaVersion = 1;
+    private const int SessionMarkerPollSliceMilliseconds = 50;
+    private const int SessionRecentMarkerDisplayCount = 12;
+    private const long SessionRecommendedRawByteBudget = 8L * 1024L * 1024L;
+    private const int SessionRecommendedBurstSampleCount = 200;
+    private const int SessionRecommendedBurstIntervalMilliseconds = 50;
 
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
@@ -249,8 +255,8 @@ internal static class Program
 
     private static int RunSessionSummaryMode(ReaderOptions options)
     {
-        var package = SessionPackageManifestLoader.TryLoad(options.SessionDirectory, out var loadError);
-        if (package is null)
+        var inspection = BuildSessionInspectResult(options.SessionDirectory, out var loadError);
+        if (inspection is null)
         {
             Console.Error.WriteLine(loadError ?? "Unable to load the session package manifest.");
             return 1;
@@ -258,14 +264,14 @@ internal static class Program
 
         if (options.JsonOutput)
         {
-            Console.WriteLine(JsonOutput.Serialize(package));
+            Console.WriteLine(JsonOutput.Serialize(inspection));
             return 0;
         }
 
         Console.WriteLine("RiftReader.Reader");
         Console.WriteLine("Use this tool only against Rift client artifacts and processes you explicitly intend to inspect.");
         Console.WriteLine();
-        Console.WriteLine(SessionSummaryTextFormatter.Format(package));
+        Console.WriteLine(SessionSummaryTextFormatter.Format(inspection));
         return 0;
     }
 
@@ -916,6 +922,12 @@ internal static class Program
             return 1;
         }
 
+        if (watchset.Regions.Count == 0)
+        {
+            Console.Error.WriteLine("The session watchset does not contain any regions.");
+            return 1;
+        }
+
         var outputDirectory = Path.GetFullPath(options.SessionOutputDirectory!);
         Directory.CreateDirectory(outputDirectory);
 
@@ -925,6 +937,9 @@ internal static class Program
         var samplesFile = Path.Combine(outputDirectory, "samples.ndjson");
         var markersFile = Path.Combine(outputDirectory, "markers.ndjson");
         var modulesFile = Path.Combine(outputDirectory, "modules.json");
+        var sessionMarkerInputFile = string.IsNullOrWhiteSpace(options.SessionMarkerInputFile)
+            ? null
+            : Path.GetFullPath(options.SessionMarkerInputFile);
         var tempFileSuffix = $".{Guid.NewGuid():N}.tmp";
         var tempManifestFile = manifestFile + tempFileSuffix;
         var tempSamplesFile = samplesFile + tempFileSuffix;
@@ -948,6 +963,16 @@ internal static class Program
             return 1;
         }
 
+        if (!string.IsNullOrWhiteSpace(sessionMarkerInputFile) &&
+            (string.Equals(sessionMarkerInputFile, manifestFile, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(sessionMarkerInputFile, samplesFile, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(sessionMarkerInputFile, markersFile, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(sessionMarkerInputFile, modulesFile, StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.Error.WriteLine("--session-marker-input-file cannot target a recorder-managed output file.");
+            return 1;
+        }
+
         var warnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(watchset.ProcessName) &&
             !string.Equals(watchset.ProcessName, target.ProcessName, StringComparison.OrdinalIgnoreCase))
@@ -963,6 +988,28 @@ internal static class Program
 
         warnings.AddRange(watchsetWarnings);
 
+        var requestedRegionByteCount = watchset.Regions
+            .Where(static region => region is not null)
+            .Sum(static region => Math.Max(region!.Length, 0));
+        var projectedRawBytes = (long)requestedRegionByteCount * Math.Max(options.SessionSampleCount, 0);
+        if (projectedRawBytes > SessionRecommendedRawByteBudget)
+        {
+            warnings.Add(
+                $"Projected raw session payload is {projectedRawBytes} bytes ({requestedRegionByteCount} bytes/sample x {options.SessionSampleCount} samples), which exceeds the recommended budget of {SessionRecommendedRawByteBudget} bytes.");
+        }
+
+        if (options.SessionIntervalMilliseconds <= SessionRecommendedBurstIntervalMilliseconds)
+        {
+            warnings.Add(
+                $"Session interval {options.SessionIntervalMilliseconds} ms enables burst/high-frequency sampling. Review timing drift and capture duration before promoting anchors.");
+        }
+
+        if (options.SessionIntervalMilliseconds == 0 && options.SessionSampleCount >= SessionRecommendedBurstSampleCount)
+        {
+            warnings.Add(
+                $"Zero-interval session requested {options.SessionSampleCount} samples. This is supported, but treat the output as burst-mode evidence and verify capture duration before using it for stability decisions.");
+        }
+
         IReadOnlyList<ProcessModuleInfo> modules;
         try
         {
@@ -974,48 +1021,141 @@ internal static class Program
             warnings.Add($"Unable to enumerate modules for the session manifest: {ex.Message}");
         }
 
+        ConsoleCancelEventHandler? cancelHandler = null;
+
         try
         {
+            if (!string.IsNullOrWhiteSpace(sessionMarkerInputFile))
+            {
+                var markerInputDirectory = Path.GetDirectoryName(sessionMarkerInputFile);
+                if (!string.IsNullOrWhiteSpace(markerInputDirectory))
+                {
+                    Directory.CreateDirectory(markerInputDirectory);
+                }
+
+                if (!File.Exists(sessionMarkerInputFile))
+                {
+                    File.WriteAllText(sessionMarkerInputFile, string.Empty);
+                }
+            }
+
             File.WriteAllText(tempModulesFile, JsonOutput.Serialize(modules));
 
             var startedAtUtc = DateTimeOffset.UtcNow;
             var requiredReadFailures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var regionAccumulators = new Dictionary<string, SessionRegionAccumulator>(StringComparer.OrdinalIgnoreCase);
+            var markerKinds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var emittedMarkerInputWarnings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var totalBytesRead = 0L;
+            var totalRegionReadFailures = 0;
             var recordedSampleCount = 0;
+            var markerCount = 0;
+            var interrupted = false;
+            var markerInputProcessedLineCount = 0;
+            var cancelRequested = false;
             SessionRecordResult result;
 
             using (var sampleWriter = new StreamWriter(tempSamplesFile, append: false))
             using (var markerWriter = new StreamWriter(tempMarkersFile, append: false))
             {
+                cancelHandler = (_, eventArgs) =>
+                {
+                    eventArgs.Cancel = true;
+                    cancelRequested = true;
+                };
+
+                Console.CancelKeyPress += cancelHandler;
+
                 var stopwatch = Stopwatch.StartNew();
-                WriteSessionMarker(
+                RecordSessionMarker(
                     markerWriter,
-                    new SessionMarkerRecord(
+                    CreateSessionMarker(
                         Kind: "session-start",
                         RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
                         ElapsedMilliseconds: 0,
+                        SampleIndex: 0,
                         Label: options.SessionLabel,
-                        Message: "Session recording started."));
+                        Message: "Session recording started.",
+                        Source: "system",
+                        Metadata: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["watchsetFile"] = watchsetFile,
+                            ["outputDirectory"] = outputDirectory
+                        }),
+                    markerKinds,
+                    ref markerCount);
 
                 if (!string.IsNullOrWhiteSpace(options.SessionLabel))
                 {
-                    WriteSessionMarker(
+                    RecordSessionMarker(
                         markerWriter,
-                        new SessionMarkerRecord(
+                        CreateSessionMarker(
                             Kind: "label",
                             RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
                             ElapsedMilliseconds: 0,
+                            SampleIndex: 0,
                             Label: options.SessionLabel,
-                            Message: "Initial session label."));
+                            Message: "Initial session label.",
+                            Source: "system"),
+                        markerKinds,
+                        ref markerCount);
                 }
+
+                DrainSessionMarkerInputFile(
+                    markerWriter,
+                    sessionMarkerInputFile,
+                    ref markerInputProcessedLineCount,
+                    options.SessionLabel,
+                    sampleIndex: 0,
+                    stopwatch,
+                    markerKinds,
+                    ref markerCount,
+                    warnings,
+                    emittedMarkerInputWarnings);
 
                 for (var sampleIndex = 0; sampleIndex < options.SessionSampleCount; sampleIndex++)
                 {
-                    if (sampleIndex > 0 && options.SessionIntervalMilliseconds > 0)
+                    var expectedElapsedMilliseconds = (long)sampleIndex * options.SessionIntervalMilliseconds;
+                    if (!WaitForNextSessionSample(
+                            stopwatch,
+                            expectedElapsedMilliseconds,
+                            () => cancelRequested,
+                            () => DrainSessionMarkerInputFile(
+                                markerWriter,
+                                sessionMarkerInputFile,
+                                ref markerInputProcessedLineCount,
+                                options.SessionLabel,
+                                sampleIndex,
+                                stopwatch,
+                                markerKinds,
+                                ref markerCount,
+                                warnings,
+                                emittedMarkerInputWarnings)))
                     {
-                        Thread.Sleep(options.SessionIntervalMilliseconds);
+                        interrupted = true;
+                        break;
+                    }
+
+                    DrainSessionMarkerInputFile(
+                        markerWriter,
+                        sessionMarkerInputFile,
+                        ref markerInputProcessedLineCount,
+                        options.SessionLabel,
+                        sampleIndex,
+                        stopwatch,
+                        markerKinds,
+                        ref markerCount,
+                        warnings,
+                        emittedMarkerInputWarnings);
+
+                    if (cancelRequested)
+                    {
+                        interrupted = true;
+                        break;
                     }
 
                     var sampleTimeUtc = DateTimeOffset.UtcNow;
+                    var sampleStartedElapsed = stopwatch.ElapsedMilliseconds;
                     var regions = new List<SessionRegionSampleRecord>(watchset.Regions.Count);
 
                     foreach (var region in watchset.Regions)
@@ -1034,7 +1174,7 @@ internal static class Program
 
                         if (!TryParseSessionAddress(region.Address, out var regionAddress))
                         {
-                            regions.Add(new SessionRegionSampleRecord(
+                            var regionRecord = new SessionRegionSampleRecord(
                                 Name: regionName,
                                 Category: regionCategory,
                                 Address: region.Address ?? string.Empty,
@@ -1043,7 +1183,10 @@ internal static class Program
                                 ReadSucceeded: false,
                                 BytesRead: 0,
                                 BytesHex: null,
-                                Error: $"Invalid address '{region.Address}'."));
+                                Error: $"Invalid address '{region.Address}'.");
+                            regions.Add(regionRecord);
+                            UpdateSessionRegionAccumulator(regionAccumulators, regionRecord);
+                            totalRegionReadFailures++;
 
                             if (region.Required)
                             {
@@ -1058,7 +1201,7 @@ internal static class Program
                             ? Convert.ToHexString(bytes)
                             : null;
 
-                        regions.Add(new SessionRegionSampleRecord(
+                        var sampledRegionRecord = new SessionRegionSampleRecord(
                             Name: regionName,
                             Category: regionCategory,
                             Address: $"0x{regionAddress.ToInt64():X}",
@@ -1067,7 +1210,15 @@ internal static class Program
                             ReadSucceeded: readSucceeded,
                             BytesRead: bytes.Length,
                             BytesHex: bytesHex,
-                            Error: readError));
+                            Error: readError);
+                        regions.Add(sampledRegionRecord);
+                        UpdateSessionRegionAccumulator(regionAccumulators, sampledRegionRecord);
+                        totalBytesRead += bytes.Length;
+
+                        if (!readSucceeded)
+                        {
+                            totalRegionReadFailures++;
+                        }
 
                         if (region.Required && !readSucceeded)
                         {
@@ -1075,26 +1226,97 @@ internal static class Program
                         }
                     }
 
+                    var captureDurationMilliseconds = Math.Max(0, stopwatch.ElapsedMilliseconds - sampleStartedElapsed);
                     var sample = new SessionSampleRecord(
                         SampleIndex: sampleIndex,
                         RecordedAtUtc: sampleTimeUtc.ToString("O", CultureInfo.InvariantCulture),
                         ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                        ExpectedElapsedMilliseconds: expectedElapsedMilliseconds,
+                        TimingDriftMilliseconds: sampleStartedElapsed - expectedElapsedMilliseconds,
+                        CaptureDurationMilliseconds: captureDurationMilliseconds,
                         Regions: regions);
 
                     sampleWriter.WriteLine(JsonSerializer.Serialize(sample, NdjsonOptions));
                     sampleWriter.Flush();
                     recordedSampleCount++;
+
+                    DrainSessionMarkerInputFile(
+                        markerWriter,
+                        sessionMarkerInputFile,
+                        ref markerInputProcessedLineCount,
+                        options.SessionLabel,
+                        sampleIndex,
+                        stopwatch,
+                        markerKinds,
+                        ref markerCount,
+                        warnings,
+                        emittedMarkerInputWarnings);
+
+                    if (cancelRequested)
+                    {
+                        interrupted = true;
+                        break;
+                    }
                 }
 
                 var completedAtUtc = DateTimeOffset.UtcNow;
-                WriteSessionMarker(
+                var terminalSampleIndex = recordedSampleCount > 0
+                    ? Math.Max(0, recordedSampleCount - 1)
+                    : 0;
+
+                DrainSessionMarkerInputFile(
                     markerWriter,
-                    new SessionMarkerRecord(
+                    sessionMarkerInputFile,
+                    ref markerInputProcessedLineCount,
+                    options.SessionLabel,
+                    terminalSampleIndex,
+                    stopwatch,
+                    markerKinds,
+                    ref markerCount,
+                    warnings,
+                    emittedMarkerInputWarnings);
+
+                if (interrupted)
+                {
+                    warnings.Add($"Session recording was interrupted after {recordedSampleCount} of {options.SessionSampleCount} samples.");
+                    RecordSessionMarker(
+                        markerWriter,
+                        CreateSessionMarker(
+                            Kind: "session-interrupted",
+                            RecordedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                            ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                            SampleIndex: terminalSampleIndex,
+                            Label: options.SessionLabel,
+                            Message: "Session recording interrupted by the operator.",
+                            Source: "system",
+                            Metadata: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["recordedSampleCount"] = recordedSampleCount.ToString(CultureInfo.InvariantCulture),
+                                ["requestedSampleCount"] = options.SessionSampleCount.ToString(CultureInfo.InvariantCulture)
+                            }),
+                        markerKinds,
+                        ref markerCount);
+                }
+
+                RecordSessionMarker(
+                    markerWriter,
+                    CreateSessionMarker(
                         Kind: "session-end",
                         RecordedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
                         ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                        SampleIndex: terminalSampleIndex,
                         Label: options.SessionLabel,
-                        Message: "Session recording completed."));
+                        Message: interrupted
+                            ? "Session recording ended after interruption."
+                            : "Session recording completed.",
+                        Source: "system",
+                        Metadata: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["outcome"] = interrupted ? "interrupted" : "completed",
+                            ["recordedSampleCount"] = recordedSampleCount.ToString(CultureInfo.InvariantCulture)
+                        }),
+                    markerKinds,
+                    ref markerCount);
                 markerWriter.Flush();
 
                 if (requiredReadFailures.Count > 0)
@@ -1133,14 +1355,29 @@ internal static class Program
                     SamplesFile: samplesFile,
                     MarkersFile: markersFile,
                     ModulesFile: modulesFile,
-                    IntegrityStatus: missingFiles.Count > 0 ? "failed" : (requiredReadFailures.Count == 0 ? "ok" : "warning"),
+                    Interrupted: interrupted,
+                    SessionMarkerInputFile: sessionMarkerInputFile,
+                    MarkerCount: markerCount,
+                    MarkerKinds: markerKinds.Keys
+                        .OrderBy(static kind => kind, StringComparer.OrdinalIgnoreCase)
+                        .ToArray(),
+                    RequestedRegionByteCount: requestedRegionByteCount,
+                    TotalBytesRead: totalBytesRead,
+                    TotalRegionReadFailures: totalRegionReadFailures,
+                    IntegrityStatus: missingFiles.Count > 0 ? "failed" : (!interrupted && requiredReadFailures.Count == 0 && totalRegionReadFailures == 0 ? "ok" : "warning"),
                     MissingFiles: missingFiles,
+                    RegionSummaries: BuildSessionRegionSummaries(regionAccumulators),
                     Modules: modules,
                     WatchsetWarnings: watchsetWarnings,
                     Warnings: warnings
                         .Where(static warning => !string.IsNullOrWhiteSpace(warning))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToArray());
+            }
+
+            if (cancelHandler is not null)
+            {
+                Console.CancelKeyPress -= cancelHandler;
             }
 
             File.WriteAllText(tempManifestFile, JsonOutput.Serialize(result));
@@ -1157,6 +1394,9 @@ internal static class Program
             Console.WriteLine($"Watchset file:    {result.WatchsetFile}");
             Console.WriteLine($"Samples:          {result.RecordedSampleCount}/{result.RequestedSampleCount} at {result.IntervalMilliseconds} ms");
             Console.WriteLine($"Regions:          {result.WatchsetRegionCount}");
+            Console.WriteLine($"Markers:          {result.MarkerCount}");
+            Console.WriteLine($"Bytes read:       {result.TotalBytesRead}");
+            Console.WriteLine($"Interrupted:      {(result.Interrupted ? "yes" : "no")}");
             Console.WriteLine($"Manifest:         {result.ManifestFile}");
             Console.WriteLine($"Samples file:     {result.SamplesFile}");
             Console.WriteLine($"Markers file:     {result.MarkersFile}");
@@ -1176,6 +1416,11 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            if (cancelHandler is not null)
+            {
+                Console.CancelKeyPress -= cancelHandler;
+            }
+
             DeleteFileIfExists(tempManifestFile);
             DeleteFileIfExists(tempSamplesFile);
             DeleteFileIfExists(tempMarkersFile);
@@ -1329,6 +1574,559 @@ internal static class Program
         return 0;
     }
 
+    private static SessionInspectResult? BuildSessionInspectResult(string? sessionDirectory, out string? error)
+    {
+        var package = SessionPackageManifestLoader.TryLoad(sessionDirectory, out error);
+        if (package is null)
+        {
+            return null;
+        }
+
+        var warnings = new List<string>();
+        AddSessionWarnings(warnings, package.Warnings);
+
+        SessionRecordResult? recordingManifest = null;
+        if (!string.IsNullOrWhiteSpace(package.RecordingManifestFile))
+        {
+            recordingManifest = SessionRecordManifestLoader.TryLoad(package.RecordingManifestFile, out var recordingError);
+            if (recordingManifest is null)
+            {
+                warnings.Add(recordingError ?? $"Unable to load session recording manifest '{package.RecordingManifestFile}'.");
+            }
+            else
+            {
+                AddSessionWarnings(warnings, recordingManifest.Warnings);
+                AddSessionWarnings(warnings, recordingManifest.WatchsetWarnings);
+            }
+        }
+
+        ReaderBridgeSnapshotDocument? readerBridgeSnapshot = null;
+        if (!string.IsNullOrWhiteSpace(package.ReaderBridgeSnapshotFile))
+        {
+            readerBridgeSnapshot = ReaderBridgeSnapshotLoader.TryLoad(package.ReaderBridgeSnapshotFile, out var readerBridgeError);
+            if (readerBridgeSnapshot is null)
+            {
+                warnings.Add(readerBridgeError ?? $"Unable to load ReaderBridge snapshot '{package.ReaderBridgeSnapshotFile}'.");
+            }
+        }
+
+        var samples = Array.Empty<SessionSampleRecord>();
+        if (!string.IsNullOrWhiteSpace(package.SamplesFile))
+        {
+            var loadedSamples = SessionNdjsonLoader.TryLoadSamples(package.SamplesFile, out var sampleError);
+            if (loadedSamples is null)
+            {
+                warnings.Add(sampleError ?? $"Unable to load session samples '{package.SamplesFile}'.");
+            }
+            else
+            {
+                samples = loadedSamples.ToArray();
+            }
+        }
+
+        var markers = Array.Empty<SessionMarkerRecord>();
+        if (!string.IsNullOrWhiteSpace(package.MarkersFile))
+        {
+            var loadedMarkers = SessionNdjsonLoader.TryLoadMarkers(package.MarkersFile, out var markerError);
+            if (loadedMarkers is null)
+            {
+                warnings.Add(markerError ?? $"Unable to load session markers '{package.MarkersFile}'.");
+            }
+            else
+            {
+                markers = loadedMarkers.ToArray();
+            }
+        }
+
+        if (recordingManifest is not null)
+        {
+            if (samples.Length > 0 && recordingManifest.RecordedSampleCount != samples.Length)
+            {
+                warnings.Add(
+                    $"Session sample count mismatch: package loaded {samples.Length} sample records, but the recording manifest reports {recordingManifest.RecordedSampleCount}.");
+            }
+
+            if (markers.Length > 0 && recordingManifest.MarkerCount != markers.Length)
+            {
+                warnings.Add(
+                    $"Session marker count mismatch: package loaded {markers.Length} marker records, but the recording manifest reports {recordingManifest.MarkerCount}.");
+            }
+        }
+
+        ValidateSessionMarkerTimeline(markers, samples.Length, warnings);
+
+        var maxTimingDriftMilliseconds = samples.Length > 0
+            ? (long?)samples.Max(static sample => AbsoluteSessionValue(sample.TimingDriftMilliseconds))
+            : null;
+        var maxCaptureDurationMilliseconds = samples.Length > 0
+            ? (long?)samples.Max(static sample => sample.CaptureDurationMilliseconds)
+            : null;
+        var averageCaptureDurationMilliseconds = samples.Length > 0
+            ? (long?)Math.Round(samples.Average(static sample => (double)sample.CaptureDurationMilliseconds))
+            : null;
+
+        var markerKinds = BuildSessionMarkerKindSummaries(markers);
+        var regionSummaries = recordingManifest?.RegionSummaries is { Count: > 0 }
+            ? recordingManifest.RegionSummaries
+                .OrderByDescending(static region => region.Required)
+                .ThenByDescending(static region => region.FailedReadCount)
+                .ThenBy(static region => region.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : BuildSessionRegionSummaries(samples);
+
+        error = null;
+        return new SessionInspectResult(
+            SchemaVersion: package.SchemaVersion ?? SessionRecordingSchemaVersion,
+            Mode: "session-summary",
+            SessionDirectory: package.SessionDirectory ?? Path.GetFullPath(sessionDirectory!),
+            Package: package,
+            RecordingManifest: recordingManifest,
+            ReaderBridgeSnapshot: readerBridgeSnapshot,
+            Samples: samples,
+            LoadedSampleCount: samples.Length,
+            LoadedMarkerCount: markers.Length,
+            MaxTimingDriftMilliseconds: maxTimingDriftMilliseconds,
+            MaxCaptureDurationMilliseconds: maxCaptureDurationMilliseconds,
+            AverageCaptureDurationMilliseconds: averageCaptureDurationMilliseconds,
+            MarkerKinds: markerKinds,
+            Markers: markers,
+            Regions: regionSummaries,
+            Warnings: warnings
+                .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+    }
+
+    private static IReadOnlyList<SessionRegionSummaryRecord> BuildSessionRegionSummaries(IReadOnlyList<SessionSampleRecord> samples)
+    {
+        var accumulators = new Dictionary<string, SessionRegionAccumulator>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sample in samples)
+        {
+            if (sample?.Regions is null)
+            {
+                continue;
+            }
+
+            foreach (var region in sample.Regions)
+            {
+                if (region is null)
+                {
+                    continue;
+                }
+
+                UpdateSessionRegionAccumulator(accumulators, region);
+            }
+        }
+
+        return BuildSessionRegionSummaries(accumulators);
+    }
+
+    private static void DrainSessionMarkerInputFile(
+        StreamWriter markerWriter,
+        string? markerInputFile,
+        ref int processedLineCount,
+        string? sessionLabel,
+        int? sampleIndex,
+        Stopwatch stopwatch,
+        Dictionary<string, int> markerKinds,
+        ref int markerCount,
+        List<string> warnings,
+        HashSet<string> emittedWarnings)
+    {
+        if (string.IsNullOrWhiteSpace(markerInputFile))
+        {
+            return;
+        }
+
+        var pendingLines = TryReadPendingSessionMarkerLines(markerInputFile, ref processedLineCount, out var loadError);
+        if (pendingLines is null)
+        {
+            if (!string.IsNullOrWhiteSpace(loadError) && emittedWarnings.Add(loadError))
+            {
+                warnings.Add(loadError);
+            }
+
+            return;
+        }
+
+        foreach (var line in pendingLines)
+        {
+            if (!TryParseExternalSessionMarker(
+                    line,
+                    stopwatch.ElapsedMilliseconds,
+                    sampleIndex,
+                    sessionLabel,
+                    out var marker,
+                    out var parseError))
+            {
+                if (!string.IsNullOrWhiteSpace(parseError) && emittedWarnings.Add(parseError))
+                {
+                    warnings.Add(parseError);
+                }
+
+                continue;
+            }
+
+            if (marker is not null)
+            {
+                RecordSessionMarker(markerWriter, marker, markerKinds, ref markerCount);
+            }
+        }
+    }
+
+    private static IReadOnlyList<string>? TryReadPendingSessionMarkerLines(string filePath, ref int processedLineCount, out string? error)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            error = null;
+            return Array.Empty<string>();
+        }
+
+        List<string> allLines;
+        try
+        {
+            allLines = ReadSharedSessionLines(filePath);
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to read session marker input file '{filePath}': {ex.Message}";
+            return null;
+        }
+
+        if (processedLineCount < 0 || processedLineCount > allLines.Count)
+        {
+            processedLineCount = 0;
+        }
+
+        var pendingLines = allLines.Skip(processedLineCount).ToArray();
+        processedLineCount = allLines.Count;
+        error = null;
+        return pendingLines;
+    }
+
+    private static List<string> ReadSharedSessionLines(string filePath)
+    {
+        var lines = new List<string>();
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+
+        while (!reader.EndOfStream)
+        {
+            lines.Add(reader.ReadLine() ?? string.Empty);
+        }
+
+        return lines;
+    }
+
+    private static bool TryParseExternalSessionMarker(
+        string line,
+        long elapsedMilliseconds,
+        int? sampleIndex,
+        string? sessionLabel,
+        out SessionMarkerRecord? marker,
+        out string? error)
+    {
+        marker = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        var trimmedLine = line.Trim();
+        if (trimmedLine.StartsWith('{'))
+        {
+            SessionExternalMarkerInputRecord? inputRecord;
+            try
+            {
+                inputRecord = JsonSerializer.Deserialize<SessionExternalMarkerInputRecord>(trimmedLine, NdjsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                error = $"Unable to parse session marker input JSON: {ex.Message}";
+                return false;
+            }
+
+            if (inputRecord is null)
+            {
+                error = "Session marker input JSON line did not contain a valid marker record.";
+                return false;
+            }
+
+            marker = CreateSessionMarker(
+                Kind: inputRecord.Kind,
+                RecordedAtUtc: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+                ElapsedMilliseconds: elapsedMilliseconds,
+                SampleIndex: sampleIndex,
+                Label: string.IsNullOrWhiteSpace(inputRecord.Label) ? sessionLabel : inputRecord.Label,
+                Message: inputRecord.Message,
+                Source: string.IsNullOrWhiteSpace(inputRecord.Source) ? "external" : inputRecord.Source,
+                Metadata: inputRecord.Metadata);
+            return true;
+        }
+
+        marker = CreateSessionMarker(
+            Kind: "note",
+            RecordedAtUtc: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+            ElapsedMilliseconds: elapsedMilliseconds,
+            SampleIndex: sampleIndex,
+            Label: sessionLabel,
+            Message: trimmedLine,
+            Source: "external-text");
+        return true;
+    }
+
+    private static bool WaitForNextSessionSample(
+        Stopwatch stopwatch,
+        long expectedElapsedMilliseconds,
+        Func<bool> isCancelled,
+        Action drainMarkers)
+    {
+        while (!isCancelled())
+        {
+            var remainingMilliseconds = expectedElapsedMilliseconds - stopwatch.ElapsedMilliseconds;
+            if (remainingMilliseconds <= 0)
+            {
+                return true;
+            }
+
+            drainMarkers();
+            var sleepMilliseconds = (int)Math.Min(SessionMarkerPollSliceMilliseconds, remainingMilliseconds);
+            if (sleepMilliseconds > 0)
+            {
+                Thread.Sleep(sleepMilliseconds);
+            }
+        }
+
+        return false;
+    }
+
+    private static SessionMarkerRecord CreateSessionMarker(
+        string? Kind,
+        string RecordedAtUtc,
+        long? ElapsedMilliseconds,
+        int? SampleIndex,
+        string? Label,
+        string? Message,
+        string? Source = null,
+        IReadOnlyDictionary<string, string>? Metadata = null) =>
+        new(
+            Kind: NormalizeSessionMarkerKind(Kind),
+            RecordedAtUtc: RecordedAtUtc,
+            ElapsedMilliseconds: ElapsedMilliseconds,
+            SampleIndex: SampleIndex,
+            Label: string.IsNullOrWhiteSpace(Label) ? null : Label.Trim(),
+            Message: string.IsNullOrWhiteSpace(Message) ? null : Message.Trim(),
+            Source: string.IsNullOrWhiteSpace(Source) ? null : Source.Trim(),
+            Metadata: NormalizeSessionMarkerMetadata(Metadata));
+
+    private static void RecordSessionMarker(
+        StreamWriter writer,
+        SessionMarkerRecord marker,
+        Dictionary<string, int> markerKinds,
+        ref int markerCount)
+    {
+        WriteSessionMarker(writer, marker);
+        markerCount++;
+
+        if (markerKinds.TryGetValue(marker.Kind, out var currentCount))
+        {
+            markerKinds[marker.Kind] = currentCount + 1;
+        }
+        else
+        {
+            markerKinds[marker.Kind] = 1;
+        }
+    }
+
+    private static string NormalizeSessionMarkerKind(string? kind)
+    {
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            return "note";
+        }
+
+        var builder = new StringBuilder(kind.Length);
+        var previousWasDash = false;
+        foreach (var character in kind.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(character);
+                previousWasDash = false;
+                continue;
+            }
+
+            if (!previousWasDash)
+            {
+                builder.Append('-');
+                previousWasDash = true;
+            }
+        }
+
+        var normalized = builder.ToString().Trim('-');
+        return string.IsNullOrWhiteSpace(normalized)
+            ? "note"
+            : normalized;
+    }
+
+    private static IReadOnlyDictionary<string, string>? NormalizeSessionMarkerMetadata(IReadOnlyDictionary<string, string>? metadata)
+    {
+        if (metadata is null || metadata.Count == 0)
+        {
+            return null;
+        }
+
+        var normalized = metadata
+            .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+            .ToDictionary(
+                static pair => pair.Key.Trim(),
+                static pair => pair.Value.Trim(),
+                StringComparer.OrdinalIgnoreCase);
+
+        return normalized.Count == 0 ? null : normalized;
+    }
+
+    private static void UpdateSessionRegionAccumulator(
+        Dictionary<string, SessionRegionAccumulator> accumulators,
+        SessionRegionSampleRecord region)
+    {
+        var key = $"{region.Name}|{region.Category}|{region.Address}|{region.Length}|{region.Required}";
+        if (!accumulators.TryGetValue(key, out var accumulator))
+        {
+            accumulator = new SessionRegionAccumulator(
+                region.Name,
+                region.Category,
+                region.Address,
+                region.Length,
+                region.Required);
+            accumulators[key] = accumulator;
+        }
+
+        accumulator.SampleCount++;
+        accumulator.TotalBytesRead += region.BytesRead;
+        accumulator.LastError = string.IsNullOrWhiteSpace(region.Error) ? accumulator.LastError : region.Error;
+
+        if (region.ReadSucceeded)
+        {
+            accumulator.SuccessfulReadCount++;
+            if (!string.IsNullOrWhiteSpace(region.BytesHex) &&
+                accumulator.LastSuccessfulBytesHex is not null &&
+                !string.Equals(accumulator.LastSuccessfulBytesHex, region.BytesHex, StringComparison.Ordinal))
+            {
+                accumulator.ChangedSampleCount++;
+            }
+
+            if (!string.IsNullOrWhiteSpace(region.BytesHex))
+            {
+                accumulator.LastSuccessfulBytesHex = region.BytesHex;
+            }
+        }
+        else
+        {
+            accumulator.FailedReadCount++;
+        }
+    }
+
+    private static IReadOnlyList<SessionRegionSummaryRecord> BuildSessionRegionSummaries(
+        Dictionary<string, SessionRegionAccumulator> accumulators) =>
+        accumulators.Values
+            .Select(static accumulator => new SessionRegionSummaryRecord(
+                Name: accumulator.Name,
+                Category: accumulator.Category,
+                Address: accumulator.Address,
+                Length: accumulator.Length,
+                Required: accumulator.Required,
+                SampleCount: accumulator.SampleCount,
+                SuccessfulReadCount: accumulator.SuccessfulReadCount,
+                FailedReadCount: accumulator.FailedReadCount,
+                TotalBytesRead: accumulator.TotalBytesRead,
+                ChangedSampleCount: accumulator.ChangedSampleCount,
+                LastError: accumulator.LastError))
+            .OrderByDescending(static region => region.Required)
+            .ThenByDescending(static region => region.FailedReadCount)
+            .ThenBy(static region => region.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static IReadOnlyList<SessionMarkerKindSummaryRecord> BuildSessionMarkerKindSummaries(IReadOnlyList<SessionMarkerRecord> markers) =>
+        markers
+            .GroupBy(static marker => NormalizeSessionMarkerKind(marker.Kind), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => new SessionMarkerKindSummaryRecord(group.Key, group.Count()))
+            .ToArray();
+
+    private static void ValidateSessionMarkerTimeline(
+        IReadOnlyList<SessionMarkerRecord> markers,
+        int sampleCount,
+        List<string> warnings)
+    {
+        long? lastElapsedMilliseconds = null;
+        DateTimeOffset? lastRecordedAtUtc = null;
+        var warnedElapsedOrdering = false;
+        var warnedTimeOrdering = false;
+
+        foreach (var marker in markers)
+        {
+            if (marker.ElapsedMilliseconds.HasValue &&
+                lastElapsedMilliseconds.HasValue &&
+                marker.ElapsedMilliseconds.Value < lastElapsedMilliseconds.Value &&
+                !warnedElapsedOrdering)
+            {
+                warnings.Add("Session markers are not ordered by elapsed time.");
+                warnedElapsedOrdering = true;
+            }
+
+            if (DateTimeOffset.TryParse(marker.RecordedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var recordedAtUtc))
+            {
+                if (lastRecordedAtUtc.HasValue && recordedAtUtc < lastRecordedAtUtc.Value && !warnedTimeOrdering)
+                {
+                    warnings.Add("Session markers are not ordered by recorded timestamp.");
+                    warnedTimeOrdering = true;
+                }
+
+                lastRecordedAtUtc = recordedAtUtc;
+            }
+
+            if (marker.ElapsedMilliseconds.HasValue)
+            {
+                lastElapsedMilliseconds = marker.ElapsedMilliseconds.Value;
+            }
+
+            if (marker.SampleIndex.HasValue &&
+                marker.SampleIndex.Value < 0)
+            {
+                warnings.Add($"Session marker '{marker.Kind}' has negative sample index {marker.SampleIndex.Value}.");
+            }
+
+            if (marker.SampleIndex.HasValue &&
+                sampleCount > 0 &&
+                marker.SampleIndex.Value >= sampleCount)
+            {
+                warnings.Add($"Session marker '{marker.Kind}' references sample index {marker.SampleIndex.Value}, but only {sampleCount} samples were loaded.");
+            }
+        }
+    }
+
+    private static void AddSessionWarnings(List<string> target, IEnumerable<string>? warnings)
+    {
+        if (warnings is null)
+        {
+            return;
+        }
+
+        foreach (var warning in warnings)
+        {
+            if (!string.IsNullOrWhiteSpace(warning))
+            {
+                target.Add(warning);
+            }
+        }
+    }
+
+    private static long AbsoluteSessionValue(long value) =>
+        value == long.MinValue ? long.MaxValue : Math.Abs(value);
+
     private static void WriteSessionMarker(StreamWriter writer, SessionMarkerRecord marker)
     {
         writer.WriteLine(JsonSerializer.Serialize(marker, NdjsonOptions));
@@ -1407,5 +2205,26 @@ internal static class Program
         {
             return false;
         }
+    }
+
+    private sealed class SessionRegionAccumulator(
+        string name,
+        string category,
+        string address,
+        int length,
+        bool required)
+    {
+        public string Name { get; } = name;
+        public string Category { get; } = category;
+        public string Address { get; } = address;
+        public int Length { get; } = length;
+        public bool Required { get; } = required;
+        public int SampleCount { get; set; }
+        public int SuccessfulReadCount { get; set; }
+        public int FailedReadCount { get; set; }
+        public long TotalBytesRead { get; set; }
+        public int ChangedSampleCount { get; set; }
+        public string? LastError { get; set; }
+        public string? LastSuccessfulBytesHex { get; set; }
     }
 }
