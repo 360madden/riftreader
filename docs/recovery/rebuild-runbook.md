@@ -40,6 +40,21 @@ Then, in-game:
 - `/rap orientation`
 - optionally `/rbx export`, then inspect `ReaderBridgeExport.lua`
 
+Then, out-of-game, summarize the latest exported orientation candidates:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\inspect-readerbridge-orientation.cmd
+```
+
+If you capture a before/after pair around a live turn or pitch stimulus,
+compare them directly:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\compare-readerbridge-orientation-probes.cmd `
+  C:\RIFT MODDING\RiftReader\scripts\captures\readerbridge-orientation-probe-baseline.json `
+  C:\RIFT MODDING\RiftReader\scripts\captures\readerbridge-orientation-probe-after.json
+```
+
 Resume criteria:
 
 - if the addon/API layer exposes a usable heading / pitch / facing signal, keep
@@ -50,6 +65,23 @@ Resume criteria:
 Reference:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+
+## 2.5 Reintegrate CE in scan / inspection mode before debugger-trace mode
+
+Bring CE back as the interactive discovery workbench first, not as the default
+debugger-attach lane.
+
+Use this mode for:
+
+- grouped family inspection
+- changed/unchanged narrowing
+- address-list validation
+- quick manual structure inspection
+
+Reference:
+
+- `C:\RIFT MODDING\RiftReader\docs\cheat-engine-workflow.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md`
 
 ## 3. Attempt to rebuild the owner/source chain
 
@@ -70,6 +102,13 @@ Current post-update warning:
   source-container load, stop and mark the actor/camera chain stale
 - if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
   mark the actor/camera chain stale
+- if CE throws `Error attaching the windows debugger: 87`, stop the
+  debugger-trace attempt, log the run, and do **not** patch the Lua attach
+  guards until that failure is repeated across multiple fresh runs
+
+Current trace scripts append that attach failure to
+`C:\RIFT MODDING\RiftReader\scripts\captures\ce-debugger-attach-failures.csv`
+by default unless `-SkipAttachFailureLedger` is used.
 
 Do not promote stale owner/source artifacts as current truth.
 

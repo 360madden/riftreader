@@ -12,6 +12,8 @@ _Last updated: April 14, 2026 (post-update triage)_
 | Coord-anchor module pattern | working |
 | Source-chain refresh | broken after the update |
 | Selector-owner trace | broken after the update |
+| CE scan / inspection lane | usable for bounded reintegration |
+| CE debugger-trace lane | suspected Windows debugger attach instability; keep opt-in and log repeated failures before patching guards |
 | Player orientation read | stale; resume actor yaw/pitch recovery via addon-first orientation probing before rebuilding the old owner/source chain |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
@@ -24,6 +26,7 @@ Use this report before trusting older actor/camera captures:
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-live-camera-script-behavior-and-offset-drift.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md`
 - `C:\RIFT MODDING\RiftReader\docs\input-safety.md`
 
 ## Surviving baselines
@@ -57,12 +60,23 @@ The current recommended recovery path is:
 
 1. addon-first orientation probing
 2. export any API-visible heading / pitch / facing candidates
-3. only then fall back to raw-memory rediscovery if the addon layer yields nothing useful
+3. inspect the latest exported probe with `C:\RIFT MODDING\RiftReader\scripts\inspect-readerbridge-orientation.ps1`
+4. use CE scan / inspection only as a secondary discovery lane when it helps
+5. only then fall back to raw-memory rediscovery or CE debugger-trace if the addon layer yields nothing useful
 
 Do **not** treat the old debugger-driven owner/source chain as the default first
 step for actor yaw / pitch recovery on the updated client. Use:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md`
+
+If CE shows:
+
+- `Error attaching the windows debugger: 87`
+
+log the run and stop the debugger-trace attempt for that pass. Do **not** patch
+the Lua attach guards until that failure is repeated and documented across
+multiple fresh runs.
 
 ## Canonical scripts on `main`
 

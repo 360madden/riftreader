@@ -3,6 +3,51 @@
 Cheat Engine is now treated as the **interactive discovery workbench** for
 RiftReader, not as a replacement for the reader itself.
 
+## Current operating modes (2026-04-14)
+
+Cheat Engine is back in the workflow, but it should be treated as two separate
+lanes:
+
+### 1. CE scan / inspection lane
+
+Use this lane by default when CE is needed:
+
+- grouped family inspection
+- changed/unchanged narrowing
+- address-list materialization
+- quick structure inspection
+- manual comparison of candidate families
+- helper-script loading through the CE Lua server
+
+This lane is the preferred way to reintegrate CE into active work.
+
+### 2. CE debugger-trace lane
+
+Use this lane only when a trace is explicitly needed:
+
+- coord write trace
+- selector-owner trace
+- projector trace
+- live breakpoint-backed register capture
+
+This lane is currently **opt-in**, not the default first step.
+
+## Immediate attach note
+
+Current operator evidence indicates that CE can fail very early with:
+
+- `Error attaching the windows debugger: 87`
+
+That symptom appears to happen at the debugger-attach layer itself, before the
+repo's higher-level trace logic becomes useful.
+
+Because of that:
+
+- do not treat `/reloadui` or later game-window behavior as the primary cause
+- do not patch the Lua debugger guards from a single failure alone
+- wait for **multiple fresh attach failures** before changing the shared
+  `debugProcess(2)` path
+
 ## Verified local integration points
 
 From the installed Cheat Engine 7.6 files on this machine:
@@ -119,6 +164,57 @@ Useful follow-up actions inside CE:
 - change health and compare which health copies move together
 - change target/location and see which candidate survives without turning into UI noise
 - use CE access/write tracing on the best behaving sample
+
+## Crash-ledger fields for debugger-trace attempts
+
+When a debugger-trace run fails, capture at least:
+
+1. date/time
+2. script used
+3. whether CE was already attached or freshly started
+4. whether CE and Rift were elevated
+5. exact dialog/error text
+6. whether a `.status.txt` file was produced
+7. whether CE stayed open, detached, or fully crashed
+8. whether the failure happened before any breakpoint was armed
+
+This keeps future debugger-guard changes evidence-based.
+
+The debugger-trace scripts now append attach-related failures to the ledger by
+default when they fail during `debug-attach` / `debug-ready`:
+
+- `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\trace-player-state-projector.ps1`
+
+Use `-SkipAttachFailureLedger` only when you explicitly do **not** want that
+CSV entry for a run.
+
+Use the repo helper to append one entry:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\log-ce-debugger-failure.ps1 `
+  -ScriptName trace-player-selector-owner.ps1 `
+  -ErrorText "Error attaching the windows debugger: 87" `
+  -StatusFile C:\RIFT MODDING\RiftReader\scripts\captures\player-selector-owner-trace.status.txt `
+  -CeStayedOpen
+```
+
+Ledger path:
+
+- `C:\RIFT MODDING\RiftReader\scripts\captures\ce-debugger-attach-failures.csv`
+
+Summarize the currently logged failures:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\summarize-ce-debugger-failures.cmd
+```
+
+Structured output:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\summarize-ce-debugger-failures.cmd -Json
+```
 
 ## Expected next use
 

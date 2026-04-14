@@ -21,12 +21,14 @@ Start with:
 1. `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 2. `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
 3. `C:\RIFT MODDING\RiftReader\docs\recovery\artifact-tiers.md`
+4. `C:\RIFT MODDING\RiftReader\docs\recovery\ce-reintegration-ranked-todo.md`
 
 ## Rules
 
 - `current-truth.md` = what is true right now
 - `rebuild-runbook.md` = what order to rebuild in
 - `artifact-tiers.md` = what to preserve vs regenerate vs ignore
+- `ce-reintegration-ranked-todo.md` = ranked CE workflow reintegration checklist and hold items
 - `C:\RIFT MODDING\RiftReader\docs\analysis\README.md` = how to record dated
   update/drift investigations without overwriting current truth
 - historical handoff docs are background only unless one of the files above sends you there

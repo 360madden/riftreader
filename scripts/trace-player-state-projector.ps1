@@ -7,8 +7,13 @@ param(
     [int]$MoveHoldMilliseconds = 800,
     [string]$OwnerGraphFile = (Join-Path $PSScriptRoot 'captures\player-owner-graph.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-state-projector-trace.json'),
-    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-state-projector-trace.status.txt')
+    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-state-projector-trace.status.txt'),
+    [switch]$SkipAttachFailureLedger,
+    [string]$AttachFailureLedgerFile = (Join-Path $PSScriptRoot 'captures\ce-debugger-attach-failures.csv'),
+    [string]$AttachFailureNotes
 )
+
+. (Join-Path $PSScriptRoot 'ce-debugger-attach-helpers.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -22,6 +27,7 @@ $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $resolvedOwnerGraphFile = [System.IO.Path]::GetFullPath($OwnerGraphFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($StatusFile)
+$resolvedAttachFailureLedgerFile = [System.IO.Path]::GetFullPath($AttachFailureLedgerFile)
 
 function Invoke-ReaderJson {
     param(
@@ -229,6 +235,19 @@ return RiftReaderProjectorTrace.armAsync('rift_x64', $projectorAddress, [[$resol
     & $ceExecScript -Code $luaCode | Out-Null
 
     Start-Sleep -Milliseconds 250
+    if (Test-Path -LiteralPath $resolvedStatusFile) {
+        $status = Read-KeyValueFile -Path $resolvedStatusFile
+        if ($status.status -eq 'error') {
+            $attempts.Add([ordered]@{
+                Attempt = $attemptIndex
+                Status = [string]$status.status
+                Stage = [string]$status.stage
+                Error = [string]$status.error
+            })
+            continue
+        }
+    }
+
     & $postKeyScript -Key 'w' -HoldMilliseconds $MoveHoldMilliseconds | Out-Null
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -256,6 +275,8 @@ return RiftReaderProjectorTrace.armAsync('rift_x64', $projectorAddress, [[$resol
         $attempts.Add([ordered]@{
             Attempt = $attemptIndex
             Status = [string]$status.status
+            Stage = [string]$status.stage
+            Error = [string]$status.error
         })
         continue
     }
@@ -268,6 +289,8 @@ return RiftReaderProjectorTrace.armAsync('rift_x64', $projectorAddress, [[$resol
     $attempts.Add([ordered]@{
         Attempt = $attemptIndex
         Status = [string]$status.status
+        Stage = [string]$status.stage
+        Error = [string]$status.error
         InstructionAddress = [string]$status.rip
         InstructionSymbol = [string]$status.instructionSymbol
         Instruction = [string]$status.instruction
@@ -301,11 +324,27 @@ return RiftReaderProjectorTrace.armAsync('rift_x64', $projectorAddress, [[$resol
 }
 
 $successfulAttempts = @($attempts | Where-Object { $_.Status -eq 'hit' })
+$attachFailureAttempts = @($attempts | Where-Object { Test-CeDebuggerAttachFailureStatus -Status $_ })
 $targetMatches = @($successfulAttempts | Where-Object { $_.TargetMatchesOwnerState })
 $source50Matches = @($successfulAttempts | Where-Object { $_.SourceArgumentMatchesState50 })
 $source58Matches = @($successfulAttempts | Where-Object { $_.SourceArgumentMatchesState58 })
 $source60Matches = @($successfulAttempts | Where-Object { $_.SourceArgumentMatchesState60 })
 $attemptArray = @($attempts.ToArray())
+
+if (-not $SkipAttachFailureLedger -and $attachFailureAttempts.Count -gt 0 -and $successfulAttempts.Count -eq 0) {
+    $primaryAttachFailure = $attachFailureAttempts[-1]
+    Write-CeDebuggerAttachLedgerEntry `
+        -ScriptPath $PSCommandPath `
+        -Status $primaryAttachFailure `
+        -StatusFile $resolvedStatusFile `
+        -LedgerFile $resolvedAttachFailureLedgerFile `
+        -Notes (Join-TraceNotes -Parts @(
+            "repeatCount=$RepeatCount",
+            "attachFailureCount=$($attachFailureAttempts.Count)",
+            "successfulAttemptCount=$($successfulAttempts.Count)",
+            $AttachFailureNotes
+        )) | Out-Null
+}
 
 $result = @{
     Mode = 'player-state-projector-trace'
@@ -325,6 +364,7 @@ $result = @{
     }
     AttemptCount = $attempts.Count
     SuccessfulAttemptCount = $successfulAttempts.Count
+    AttachFailureCount = $attachFailureAttempts.Count
     StableTargetMatchCount = $targetMatches.Count
     StableState50SourceCount = $source50Matches.Count
     StableState58SourceCount = $source58Matches.Count

@@ -269,6 +269,20 @@ Emit that ReaderBridge snapshot as JSON:
 dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
 ```
 
+Inspect the latest exported orientation probe candidates in a focused report:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\inspect-readerbridge-orientation.cmd
+```
+
+Compare two captured orientation-probe summaries:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\compare-readerbridge-orientation-probes.cmd `
+  C:\RIFT MODDING\RiftReader\scripts\captures\readerbridge-orientation-probe-baseline.json `
+  C:\RIFT MODDING\RiftReader\scripts\captures\readerbridge-orientation-probe-after.json
+```
+
 Scan a process for a specific string:
 
 ```powershell
@@ -473,6 +487,8 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
+- `C:\RIFT MODDING\RiftReader\scripts\inspect-readerbridge-orientation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\inspect-readerbridge-orientation.cmd` - summarize the latest ReaderBridge orientation probe block so player/target heading, pitch, facing, and orientation-like detail/state/stat candidates can be reviewed without reopening the full saved-variable export
+- `C:\RIFT MODDING\RiftReader\scripts\compare-readerbridge-orientation-probes.ps1` / `C:\RIFT MODDING\RiftReader\scripts\compare-readerbridge-orientation-probes.cmd` - diff two normalized orientation-probe capture files so before/after heading, pitch, yaw, facing, and candidate-list changes are obvious after a live stimulus
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review
 - `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1` - append a normalized NDJSON marker record to a watched marker-input file during a live session recording
 - `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using the best available fast path. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read, or `-RefreshTraceAnchor` to refresh a stale saved coord trace before the read.
@@ -491,6 +507,8 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.cmd` - AutoHotkey fallback/reference helper kept as the known-good message-pattern baseline
 - `C:\RIFT MODDING\RiftReader\scripts\ce-float-scan.lua` - tracked CE Lua helper for exact float scans plus directional next-scan workflows (`changed`, `increased`, `decreased`)
 - `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\smart-capture-player-family.cmd` - CE-assisted player-signature family helper that can retry across multiple movement axes (`X`, then `Z` by default), uses directional next-scans after movement instead of depending only on a second exact-value scan, normalizes non-`X` CE hits back to the player-structure base address, and writes `C:\RIFT MODDING\RiftReader\scripts\captures\ce-smart-player-family.json` so the standard capture flow can prefer or directly confirm the CE-backed family on later runs
+- `C:\RIFT MODDING\RiftReader\scripts\log-ce-debugger-failure.ps1` / `C:\RIFT MODDING\RiftReader\scripts\log-ce-debugger-failure.cmd` - append one CE debugger-attach failure row into `C:\RIFT MODDING\RiftReader\scripts\captures\ce-debugger-attach-failures.csv` when a trace run fails before it becomes usable
+- `C:\RIFT MODDING\RiftReader\scripts\summarize-ce-debugger-failures.ps1` / `C:\RIFT MODDING\RiftReader\scripts\summarize-ce-debugger-failures.cmd` - summarize the current CE attach-failure ledger by script, stage, and error text so repeated `windows debugger: 87` runs are easy to compare
 - `C:\RIFT MODDING\RiftReader\scripts\open-reclass.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-reclass.cmd` - launch the repo-local ReClass.NET x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\ReClass.NET`
 - `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd` - launch the repo-local x64dbg x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\x64dbg`
 
