@@ -3,6 +3,7 @@ using RiftReader.Reader.Processes;
 namespace RiftReader.Reader.Sessions;
 
 public sealed record SessionRecordResult(
+    int SchemaVersion,
     string Mode,
     string SessionId,
     string OutputDirectory,
@@ -22,6 +23,8 @@ public sealed record SessionRecordResult(
     string SamplesFile,
     string MarkersFile,
     string ModulesFile,
+    string IntegrityStatus,
+    IReadOnlyList<string> MissingFiles,
     IReadOnlyList<ProcessModuleInfo> Modules,
     IReadOnlyList<string> WatchsetWarnings,
     IReadOnlyList<string> Warnings);

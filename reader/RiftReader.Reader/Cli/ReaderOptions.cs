@@ -21,6 +21,8 @@ public sealed record ReaderOptions(
     bool ReadPlayerCurrent,
     bool ReadPlayerCoordAnchor,
     bool ReadTargetCurrent,
+    bool SessionSummary,
+    string? SessionDirectory,
     bool RecordSession,
     string? SessionWatchsetFile,
     string? SessionOutputDirectory,

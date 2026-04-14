@@ -16,6 +16,8 @@ namespace RiftReader.Reader;
 
 internal static class Program
 {
+    private const int SessionRecordingSchemaVersion = 1;
+
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
@@ -896,6 +898,28 @@ internal static class Program
         var samplesFile = Path.Combine(outputDirectory, "samples.ndjson");
         var markersFile = Path.Combine(outputDirectory, "markers.ndjson");
         var modulesFile = Path.Combine(outputDirectory, "modules.json");
+        var tempFileSuffix = $".{Guid.NewGuid():N}.tmp";
+        var tempManifestFile = manifestFile + tempFileSuffix;
+        var tempSamplesFile = samplesFile + tempFileSuffix;
+        var tempMarkersFile = markersFile + tempFileSuffix;
+        var tempModulesFile = modulesFile + tempFileSuffix;
+
+        var conflictingOutputFiles = new[]
+        {
+            manifestFile,
+            samplesFile,
+            markersFile,
+            modulesFile
+        }
+        .Where(File.Exists)
+        .ToArray();
+
+        if (conflictingOutputFiles.Length > 0)
+        {
+            Console.Error.WriteLine(
+                $"Session output directory '{outputDirectory}' already contains recorder-managed files: {string.Join(", ", conflictingOutputFiles.Select(Path.GetFileName))}. Choose a new directory or remove the stale files first.");
+            return 1;
+        }
 
         var warnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(watchset.ProcessName) &&
@@ -923,186 +947,215 @@ internal static class Program
             warnings.Add($"Unable to enumerate modules for the session manifest: {ex.Message}");
         }
 
-        File.WriteAllText(modulesFile, JsonOutput.Serialize(modules));
-
-        var startedAtUtc = DateTimeOffset.UtcNow;
-        var requiredReadFailures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var recordedSampleCount = 0;
-
-        using var sampleWriter = new StreamWriter(samplesFile, append: false);
-        using var markerWriter = new StreamWriter(markersFile, append: false);
-
-        var stopwatch = Stopwatch.StartNew();
-        WriteSessionMarker(
-            markerWriter,
-            new SessionMarkerRecord(
-                Kind: "session-start",
-                RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                ElapsedMilliseconds: 0,
-                Label: options.SessionLabel,
-                Message: "Session recording started."));
-
-        if (!string.IsNullOrWhiteSpace(options.SessionLabel))
+        try
         {
-            WriteSessionMarker(
-                markerWriter,
-                new SessionMarkerRecord(
-                    Kind: "label",
-                    RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                    ElapsedMilliseconds: 0,
-                    Label: options.SessionLabel,
-                    Message: "Initial session label."));
-        }
+            File.WriteAllText(tempModulesFile, JsonOutput.Serialize(modules));
 
-        for (var sampleIndex = 0; sampleIndex < options.SessionSampleCount; sampleIndex++)
-        {
-            if (sampleIndex > 0 && options.SessionIntervalMilliseconds > 0)
+            var startedAtUtc = DateTimeOffset.UtcNow;
+            var requiredReadFailures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var recordedSampleCount = 0;
+            SessionRecordResult result;
+
+            using (var sampleWriter = new StreamWriter(tempSamplesFile, append: false))
+            using (var markerWriter = new StreamWriter(tempMarkersFile, append: false))
             {
-                Thread.Sleep(options.SessionIntervalMilliseconds);
-            }
+                var stopwatch = Stopwatch.StartNew();
+                WriteSessionMarker(
+                    markerWriter,
+                    new SessionMarkerRecord(
+                        Kind: "session-start",
+                        RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                        ElapsedMilliseconds: 0,
+                        Label: options.SessionLabel,
+                        Message: "Session recording started."));
 
-            var sampleTimeUtc = DateTimeOffset.UtcNow;
-            var regions = new List<SessionRegionSampleRecord>(watchset.Regions.Count);
-
-            foreach (var region in watchset.Regions)
-            {
-                if (region is null)
+                if (!string.IsNullOrWhiteSpace(options.SessionLabel))
                 {
-                    continue;
+                    WriteSessionMarker(
+                        markerWriter,
+                        new SessionMarkerRecord(
+                            Kind: "label",
+                            RecordedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                            ElapsedMilliseconds: 0,
+                            Label: options.SessionLabel,
+                            Message: "Initial session label."));
                 }
 
-                var regionName = string.IsNullOrWhiteSpace(region.Name)
-                    ? $"region-{regions.Count}"
-                    : region.Name!;
-                var regionCategory = string.IsNullOrWhiteSpace(region.Category)
-                    ? "memory"
-                    : region.Category!;
-
-                if (!TryParseSessionAddress(region.Address, out var regionAddress))
+                for (var sampleIndex = 0; sampleIndex < options.SessionSampleCount; sampleIndex++)
                 {
-                    regions.Add(new SessionRegionSampleRecord(
-                        Name: regionName,
-                        Category: regionCategory,
-                        Address: region.Address ?? string.Empty,
-                        Length: region.Length,
-                        Required: region.Required,
-                        ReadSucceeded: false,
-                        BytesRead: 0,
-                        BytesHex: null,
-                        Error: $"Invalid address '{region.Address}'."));
-
-                    if (region.Required)
+                    if (sampleIndex > 0 && options.SessionIntervalMilliseconds > 0)
                     {
-                        requiredReadFailures.Add(regionName);
+                        Thread.Sleep(options.SessionIntervalMilliseconds);
                     }
 
-                    continue;
+                    var sampleTimeUtc = DateTimeOffset.UtcNow;
+                    var regions = new List<SessionRegionSampleRecord>(watchset.Regions.Count);
+
+                    foreach (var region in watchset.Regions)
+                    {
+                        if (region is null)
+                        {
+                            continue;
+                        }
+
+                        var regionName = string.IsNullOrWhiteSpace(region.Name)
+                            ? $"region-{regions.Count}"
+                            : region.Name!;
+                        var regionCategory = string.IsNullOrWhiteSpace(region.Category)
+                            ? "memory"
+                            : region.Category!;
+
+                        if (!TryParseSessionAddress(region.Address, out var regionAddress))
+                        {
+                            regions.Add(new SessionRegionSampleRecord(
+                                Name: regionName,
+                                Category: regionCategory,
+                                Address: region.Address ?? string.Empty,
+                                Length: region.Length,
+                                Required: region.Required,
+                                ReadSucceeded: false,
+                                BytesRead: 0,
+                                BytesHex: null,
+                                Error: $"Invalid address '{region.Address}'."));
+
+                            if (region.Required)
+                            {
+                                requiredReadFailures.Add(regionName);
+                            }
+
+                            continue;
+                        }
+
+                        var readSucceeded = reader.TryReadBytes(regionAddress, region.Length, out var bytes, out var readError);
+                        var bytesHex = bytes.Length > 0
+                            ? Convert.ToHexString(bytes)
+                            : null;
+
+                        regions.Add(new SessionRegionSampleRecord(
+                            Name: regionName,
+                            Category: regionCategory,
+                            Address: $"0x{regionAddress.ToInt64():X}",
+                            Length: region.Length,
+                            Required: region.Required,
+                            ReadSucceeded: readSucceeded,
+                            BytesRead: bytes.Length,
+                            BytesHex: bytesHex,
+                            Error: readError));
+
+                        if (region.Required && !readSucceeded)
+                        {
+                            requiredReadFailures.Add(regionName);
+                        }
+                    }
+
+                    var sample = new SessionSampleRecord(
+                        SampleIndex: sampleIndex,
+                        RecordedAtUtc: sampleTimeUtc.ToString("O", CultureInfo.InvariantCulture),
+                        ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                        Regions: regions);
+
+                    sampleWriter.WriteLine(JsonSerializer.Serialize(sample, NdjsonOptions));
+                    sampleWriter.Flush();
+                    recordedSampleCount++;
                 }
 
-                var readSucceeded = reader.TryReadBytes(regionAddress, region.Length, out var bytes, out var readError);
-                var bytesHex = bytes.Length > 0
-                    ? Convert.ToHexString(bytes)
-                    : null;
+                var completedAtUtc = DateTimeOffset.UtcNow;
+                WriteSessionMarker(
+                    markerWriter,
+                    new SessionMarkerRecord(
+                        Kind: "session-end",
+                        RecordedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                        ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                        Label: options.SessionLabel,
+                        Message: "Session recording completed."));
+                markerWriter.Flush();
 
-                regions.Add(new SessionRegionSampleRecord(
-                    Name: regionName,
-                    Category: regionCategory,
-                    Address: $"0x{regionAddress.ToInt64():X}",
-                    Length: region.Length,
-                    Required: region.Required,
-                    ReadSucceeded: readSucceeded,
-                    BytesRead: bytes.Length,
-                    BytesHex: bytesHex,
-                    Error: readError));
-
-                if (region.Required && !readSucceeded)
+                if (requiredReadFailures.Count > 0)
                 {
-                    requiredReadFailures.Add(regionName);
+                    warnings.Add($"Required watchset regions had read failures: {string.Join(", ", requiredReadFailures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))}");
+                }
+
+                PromoteTempFile(tempModulesFile, modulesFile);
+                PromoteTempFile(tempSamplesFile, samplesFile);
+                PromoteTempFile(tempMarkersFile, markersFile);
+
+                var missingFiles = BuildMissingSessionFiles(watchsetFile, modulesFile, samplesFile, markersFile);
+                if (missingFiles.Count > 0)
+                {
+                    warnings.Add($"Session output files are missing after recording: {string.Join(", ", missingFiles)}");
+                }
+
+                result = new SessionRecordResult(
+                    SchemaVersion: SessionRecordingSchemaVersion,
+                    Mode: "record-session",
+                    SessionId: sessionId,
+                    OutputDirectory: outputDirectory,
+                    ProcessId: target.ProcessId,
+                    ProcessName: target.ProcessName,
+                    ModuleName: target.ModuleName,
+                    MainWindowTitle: target.MainWindowTitle,
+                    WatchsetFile: watchsetFile,
+                    WatchsetRegionCount: watchset.Regions.Count,
+                    RequestedSampleCount: options.SessionSampleCount,
+                    RecordedSampleCount: recordedSampleCount,
+                    IntervalMilliseconds: options.SessionIntervalMilliseconds,
+                    Label: options.SessionLabel,
+                    StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                    CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                    ManifestFile: manifestFile,
+                    SamplesFile: samplesFile,
+                    MarkersFile: markersFile,
+                    ModulesFile: modulesFile,
+                    IntegrityStatus: missingFiles.Count == 0 && requiredReadFailures.Count == 0 ? "ok" : "warning",
+                    MissingFiles: missingFiles,
+                    Modules: modules,
+                    WatchsetWarnings: watchsetWarnings,
+                    Warnings: warnings
+                        .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray());
+            }
+
+            File.WriteAllText(tempManifestFile, JsonOutput.Serialize(result));
+            PromoteTempFile(tempManifestFile, manifestFile);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(result));
+                return 0;
+            }
+
+            Console.WriteLine($"Session recorded: {result.SessionId}");
+            Console.WriteLine($"Output directory: {result.OutputDirectory}");
+            Console.WriteLine($"Watchset file:    {result.WatchsetFile}");
+            Console.WriteLine($"Samples:          {result.RecordedSampleCount}/{result.RequestedSampleCount} at {result.IntervalMilliseconds} ms");
+            Console.WriteLine($"Regions:          {result.WatchsetRegionCount}");
+            Console.WriteLine($"Manifest:         {result.ManifestFile}");
+            Console.WriteLine($"Samples file:     {result.SamplesFile}");
+            Console.WriteLine($"Markers file:     {result.MarkersFile}");
+            Console.WriteLine($"Integrity:        {result.IntegrityStatus}");
+
+            if (result.Warnings.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Warnings:");
+                foreach (var warning in result.Warnings)
+                {
+                    Console.WriteLine($"- {warning}");
                 }
             }
 
-            var sample = new SessionSampleRecord(
-                SampleIndex: sampleIndex,
-                RecordedAtUtc: sampleTimeUtc.ToString("O", CultureInfo.InvariantCulture),
-                ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
-                Regions: regions);
-
-            sampleWriter.WriteLine(JsonSerializer.Serialize(sample, NdjsonOptions));
-            sampleWriter.Flush();
-            recordedSampleCount++;
-        }
-
-        var completedAtUtc = DateTimeOffset.UtcNow;
-        WriteSessionMarker(
-            markerWriter,
-            new SessionMarkerRecord(
-                Kind: "session-end",
-                RecordedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
-                Label: options.SessionLabel,
-                Message: "Session recording completed."));
-        markerWriter.Flush();
-
-        if (requiredReadFailures.Count > 0)
-        {
-            warnings.Add($"Required watchset regions had read failures: {string.Join(", ", requiredReadFailures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))}");
-        }
-
-        var result = new SessionRecordResult(
-            Mode: "record-session",
-            SessionId: sessionId,
-            OutputDirectory: outputDirectory,
-            ProcessId: target.ProcessId,
-            ProcessName: target.ProcessName,
-            ModuleName: target.ModuleName,
-            MainWindowTitle: target.MainWindowTitle,
-            WatchsetFile: watchsetFile,
-            WatchsetRegionCount: watchset.Regions.Count,
-            RequestedSampleCount: options.SessionSampleCount,
-            RecordedSampleCount: recordedSampleCount,
-            IntervalMilliseconds: options.SessionIntervalMilliseconds,
-            Label: options.SessionLabel,
-            StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-            CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-            ManifestFile: manifestFile,
-            SamplesFile: samplesFile,
-            MarkersFile: markersFile,
-            ModulesFile: modulesFile,
-            Modules: modules,
-            WatchsetWarnings: watchsetWarnings,
-            Warnings: warnings
-                .Where(static warning => !string.IsNullOrWhiteSpace(warning))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray());
-
-        File.WriteAllText(manifestFile, JsonOutput.Serialize(result));
-
-        if (options.JsonOutput)
-        {
-            Console.WriteLine(JsonOutput.Serialize(result));
             return 0;
         }
-
-        Console.WriteLine($"Session recorded: {result.SessionId}");
-        Console.WriteLine($"Output directory: {result.OutputDirectory}");
-        Console.WriteLine($"Watchset file:    {result.WatchsetFile}");
-        Console.WriteLine($"Samples:          {result.RecordedSampleCount}/{result.RequestedSampleCount} at {result.IntervalMilliseconds} ms");
-        Console.WriteLine($"Regions:          {result.WatchsetRegionCount}");
-        Console.WriteLine($"Manifest:         {result.ManifestFile}");
-        Console.WriteLine($"Samples file:     {result.SamplesFile}");
-        Console.WriteLine($"Markers file:     {result.MarkersFile}");
-
-        if (result.Warnings.Count > 0)
+        catch (Exception ex)
         {
-            Console.WriteLine();
-            Console.WriteLine("Warnings:");
-            foreach (var warning in result.Warnings)
-            {
-                Console.WriteLine($"- {warning}");
-            }
+            DeleteFileIfExists(tempManifestFile);
+            DeleteFileIfExists(tempSamplesFile);
+            DeleteFileIfExists(tempMarkersFile);
+            DeleteFileIfExists(tempModulesFile);
+            Console.Error.WriteLine($"Session recording failed: {ex.Message}");
+            return 1;
         }
-
-        return 0;
     }
 
     private static bool TryBuildReaderBridgeIdentitySearchText(
@@ -1252,6 +1305,43 @@ internal static class Program
     private static void WriteSessionMarker(StreamWriter writer, SessionMarkerRecord marker)
     {
         writer.WriteLine(JsonSerializer.Serialize(marker, NdjsonOptions));
+    }
+
+    private static IReadOnlyList<string> BuildMissingSessionFiles(params string[] paths) =>
+        paths
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(static path => !File.Exists(path))
+            .ToArray();
+
+    private static void PromoteTempFile(string sourcePath, string destinationPath)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            throw new FileNotFoundException($"Temporary session file '{sourcePath}' was not created.", sourcePath);
+        }
+
+        if (File.Exists(destinationPath))
+        {
+            throw new IOException($"Destination session file '{destinationPath}' already exists.");
+        }
+
+        File.Move(sourcePath, destinationPath);
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Best-effort temp cleanup only.
+        }
     }
 
     private static bool TryParseSessionAddress(string? value, out nint address)

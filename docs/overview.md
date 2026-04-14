@@ -40,12 +40,10 @@ That means:
 
 ## Recovery / Rebuild
 
-If current artifacts or notes are corrupted, use the repo recovery docs first:
+If artifacts or notes are corrupted, start here:
 
 - C:\RIFT MODDING\RiftReader\docs\recovery\README.md
-- C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md
-- C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md
-- C:\RIFT MODDING\RiftReader\docs\recovery\artifact-tiers.md
+
 ## Immediate Milestones
 
 1. confirm reliable process targeting

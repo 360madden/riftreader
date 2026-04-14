@@ -7,6 +7,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$captureConsistencySchemaVersion = 1
+
 $scriptRoot = if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 if ([string]::IsNullOrWhiteSpace($CapturesPath)) {
     $CapturesPath = Join-Path $scriptRoot 'captures'
@@ -275,6 +277,7 @@ $ownerGroups = @(
 
 if ($Json) {
     $jsonReport = [ordered]@{
+        SchemaVersion = $captureConsistencySchemaVersion
         Mode = 'capture-consistency-report'
         Root = $resolvedCapturesPath
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)

@@ -4,6 +4,8 @@ namespace RiftReader.Reader.Sessions;
 
 public static class SessionWatchsetLoader
 {
+    private const int SupportedSchemaVersion = 1;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -52,6 +54,12 @@ public static class SessionWatchsetLoader
             return null;
         }
 
+        if (document.SchemaVersion.HasValue && document.SchemaVersion.Value != SupportedSchemaVersion)
+        {
+            error = $"Session watchset file '{fullPath}' uses unsupported schema version {document.SchemaVersion.Value}. Supported version: {SupportedSchemaVersion}.";
+            return null;
+        }
+
         var normalizedRegions = document.Regions?
             .Where(static region => region is not null)
             .Select(static region => region!)
@@ -90,6 +98,7 @@ public static class SessionWatchsetLoader
         return new SessionWatchsetDocument(
             Mode: document.Mode,
             GeneratedAtUtc: document.GeneratedAtUtc,
+            SchemaVersion: document.SchemaVersion ?? SupportedSchemaVersion,
             ProcessName: document.ProcessName,
             PreferredSourceAddress: document.PreferredSourceAddress,
             Artifacts: document.Artifacts?

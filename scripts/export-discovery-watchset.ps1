@@ -17,6 +17,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$watchsetSchemaVersion = 1
+
 $capturesRoot = Join-Path $PSScriptRoot 'captures'
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
@@ -232,6 +234,32 @@ function Add-Warning {
 
     if (-not [string]::IsNullOrWhiteSpace($Message)) {
         $warnings.Add($Message) | Out-Null
+    }
+}
+
+function Write-Utf8TextAtomic {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Content
+    )
+
+    $directory = Split-Path -Path $Path -Parent
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $tempPath = '{0}.{1}.tmp' -f $Path, ([Guid]::NewGuid().ToString('N'))
+    try {
+        [System.IO.File]::WriteAllText($tempPath, $Content, [System.Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $tempPath -Destination $Path -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempPath) {
+            Remove-Item -LiteralPath $tempPath -Force
+        }
     }
 }
 
@@ -642,6 +670,7 @@ if ($currentAnchor -and -not [string]::IsNullOrWhiteSpace([string]$currentAnchor
 }
 
 $document = [ordered]@{
+    SchemaVersion = $watchsetSchemaVersion
     Mode = 'session-watchset'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     ProcessName = $ProcessName
@@ -656,7 +685,7 @@ if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 }
 
-$document | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resolvedOutputFile -Encoding UTF8
+Write-Utf8TextAtomic -Path $resolvedOutputFile -Content ($document | ConvertTo-Json -Depth 12)
 
 $result = [ordered]@{
     Mode = 'session-watchset-export'

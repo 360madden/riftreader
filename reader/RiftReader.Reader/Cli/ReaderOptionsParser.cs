@@ -20,6 +20,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
@@ -47,6 +48,7 @@ Notes:
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
+  - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
@@ -71,6 +73,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
@@ -107,6 +110,8 @@ Examples:
         var readPlayerCurrent = false;
         var readPlayerCoordAnchor = false;
         var recordSession = false;
+        var sessionSummary = false;
+        string? sessionDirectory = null;
         string? sessionWatchsetFile = null;
         string? sessionOutputDirectory = null;
         var sessionSampleCount = 1;
@@ -351,6 +356,24 @@ Examples:
 
                 case "--read-target-current":
                     readTargetCurrent = true;
+                    break;
+
+                case "--session-summary":
+                    sessionSummary = true;
+                    break;
+
+                case "--session-directory":
+                    if (!TryReadNext(args, ref index, out var sessionDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --session-directory.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(sessionDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Session directory must not be blank.", UsageText);
+                    }
+
+                    sessionDirectory = sessionDirectoryValue;
                     break;
 
                 case "--player-coord-trace-file":
@@ -657,6 +680,71 @@ Examples:
             return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components, --rank-stat-hubs, or --read-player-orientation.", UsageText);
         }
 
+        if (sessionSummary)
+        {
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with process attach or memory-read switches.", UsageText);
+            }
+
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            {
+                return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with scan, snapshot, live reader, or record-session modes.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    ReadTargetCurrent: false,
+                    SessionSummary: true,
+                    SessionDirectory: sessionDirectory,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput),
+                UsageText);
+        }
+
         if (cheatEngineStatHubs && !rankStatHubs)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-stat-hubs can only be used with --rank-stat-hubs.", UsageText);
@@ -699,6 +787,8 @@ Examples:
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
@@ -772,6 +862,8 @@ Examples:
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
@@ -830,6 +922,8 @@ Examples:
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
@@ -888,6 +982,8 @@ Examples:
                     ReadPlayerCurrent: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
                     RecordSession: false,
                     SessionWatchsetFile: null,
                     SessionOutputDirectory: null,
@@ -934,6 +1030,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--session-output-directory can only be used with --record-session.", UsageText);
         }
 
+        if (sessionDirectory is not null && !sessionSummary)
+        {
+            return ReaderOptionsParseResult.Fail("--session-directory can only be used with --session-summary.", UsageText);
+        }
+
         if (sessionLabel is not null && !recordSession)
         {
             return ReaderOptionsParseResult.Fail("--session-label can only be used with --record-session.", UsageText);
@@ -952,6 +1053,11 @@ Examples:
         if (recordSession && string.IsNullOrWhiteSpace(sessionOutputDirectory))
         {
             return ReaderOptionsParseResult.Fail("--record-session requires --session-output-directory.", UsageText);
+        }
+
+        if (sessionSummary && string.IsNullOrWhiteSpace(sessionDirectory))
+        {
+            return ReaderOptionsParseResult.Fail("--session-summary requires --session-directory.", UsageText);
         }
 
         if (scanRequested && address.HasValue)
@@ -1159,6 +1265,8 @@ Examples:
                     ReadPlayerCurrent: readPlayerCurrent,
                     ReadPlayerCoordAnchor: readPlayerCoordAnchor,
                     ReadTargetCurrent: readTargetCurrent,
+                    SessionSummary: false,
+                    SessionDirectory: null,
                     RecordSession: recordSession,
                     SessionWatchsetFile: sessionWatchsetFile,
                     SessionOutputDirectory: sessionOutputDirectory,

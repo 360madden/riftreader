@@ -3,6 +3,7 @@ namespace RiftReader.Reader.Sessions;
 public sealed record SessionWatchsetDocument(
     string? Mode,
     string? GeneratedAtUtc,
+    int? SchemaVersion,
     string? ProcessName,
     string? PreferredSourceAddress,
     IReadOnlyList<SessionWatchsetArtifact>? Artifacts,

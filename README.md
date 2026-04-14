@@ -29,14 +29,10 @@ the capture chain aligned while the typed reader work advances:
 
 ## Recovery / Rebuild Docs
 
-If artifacts, notes, or workflows drift or get corrupted, start here:
+Start here if state drifts or gets corrupted:
 
 - C:\RIFT MODDING\RiftReader\docs\recovery\README.md
-- C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md
-- C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md
-- C:\RIFT MODDING\RiftReader\docs\recovery\artifact-tiers.md
 
-These files define the current truth, exact rebuild order, and which artifacts are authoritative vs historical.
 ## Repository Layout
 
 ```text
