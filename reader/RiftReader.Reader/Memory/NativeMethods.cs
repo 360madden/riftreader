@@ -5,6 +5,8 @@ namespace RiftReader.Reader.Memory;
 internal static class NativeMethods
 {
     internal const uint MemCommit = 0x1000;
+    internal const uint MemReserve = 0x2000;
+    internal const uint MemFree = 0x10000;
     internal const uint PageNoAccess = 0x01;
     internal const uint PageGuard = 0x100;
 

@@ -20,7 +20,7 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $ceFloatScanLua = Join-Path $PSScriptRoot 'ce-float-scan.lua'
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
 function Invoke-ReaderJson {
@@ -344,7 +344,7 @@ foreach ($axis in $AxisPriority) {
 
     foreach ($movementStimulusKey in $movementKeySequence) {
         Write-Host "[SmartFamily] Applying movement stimulus key '$movementStimulusKey' via native Rift key helper..." -ForegroundColor Cyan
-        & $postKeyScript -Key $movementStimulusKey -HoldMilliseconds $MovementHoldMilliseconds
+        & $sendKeyScript -ProcessName 'rift_x64' -Key $movementStimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
 
         Write-Host "[SmartFamily] Refreshing post-move ReaderBridge export for axis $normalizedAxis..." -ForegroundColor Cyan
         & $refreshScript -NoReader

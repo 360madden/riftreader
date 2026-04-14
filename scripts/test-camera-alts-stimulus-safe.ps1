@@ -212,7 +212,33 @@ function Check-180DegreeFlip {
 }
 
 function Load-OwnerComponents {
-    if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $ownerComponentsFile)) {
+    $mustRefresh = $RefreshOwnerComponents -or -not (Test-Path -LiteralPath $ownerComponentsFile)
+    $refreshReason = $null
+
+    if (-not $mustRefresh) {
+        $cached = Get-Content -LiteralPath $ownerComponentsFile -Raw | ConvertFrom-Json -Depth 30
+        try {
+            $probeAddress = [string]$cached.Owner.SelectedSourceAddress
+            $probeBytes = Read-MemoryBlock -Address $probeAddress -Length 16
+            if ($probeBytes.Length -lt 16) {
+                $mustRefresh = $true
+                $refreshReason = "cached selected-source probe at $probeAddress returned only $($probeBytes.Length) bytes"
+            }
+            else {
+                return $cached
+            }
+        }
+        catch {
+            $mustRefresh = $true
+            $refreshReason = "cached selected-source probe failed: $($_.Exception.Message)"
+        }
+    }
+
+    if ($mustRefresh) {
+        if ($refreshReason) {
+            Write-Host "Refreshing owner components because $refreshReason" -ForegroundColor Yellow
+        }
+
         $ocOutput = & $ownerComponentsScript -Json -RefreshSelectorTrace 2>&1
         $ownerComponents = Convert-CommandOutputToJson -OutputLines $ocOutput -CommandName 'capture-player-owner-components'
         return $ownerComponents

@@ -18,7 +18,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $smartCaptureScript = Join-Path $PSScriptRoot 'smart-capture-player-family.ps1'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
 $resolvedConfirmationFile = [System.IO.Path]::GetFullPath($ConfirmationFile)
@@ -201,7 +201,7 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
-    & $postKeyScript -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds
+    & $sendKeyScript -ProcessName 'rift_x64' -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $lastStatus = $null

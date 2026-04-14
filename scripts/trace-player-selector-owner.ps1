@@ -20,7 +20,7 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $sourceChainScript = Join-Path $PSScriptRoot 'capture-player-source-chain.ps1'
 $selectorLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderSelectorTrace.lua'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
 $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedCoordTraceFile = [System.IO.Path]::GetFullPath($CoordTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
@@ -158,7 +158,12 @@ $selectorPatternScan = Invoke-ReaderJson -Arguments @(
     '--scan-module-name', 'rift_x64.exe',
     '--json')
 
-$triggerAddress = Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
+$triggerAddress = if ($selectorPatternScan.Found -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$selectorPatternScan.Address)) {
+    Parse-HexUInt64 -Value ([string]$selectorPatternScan.Address)
+}
+else {
+    Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
+}
 $status = $null
 $producedStatusFile = $false
 $movementSequence = @($MovementKeys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
@@ -183,7 +188,7 @@ return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatu
         }
 
         try {
-            & $postKeyScript -Key $movementKey -HoldMilliseconds $MovementHoldMilliseconds | Out-Null
+            & $sendKeyScript -ProcessName 'rift_x64' -Key $movementKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus | Out-Null
         }
         catch {
         }
@@ -280,6 +285,7 @@ $result = [ordered]@{
     SourceChainFile = $resolvedSourceChainFile
     CoordTraceFile = if (Test-Path -LiteralPath $resolvedCoordTraceFile) { $resolvedCoordTraceFile } else { $null }
     TriggerInstruction = $triggerInstruction
+    ArmedInstructionAddress = ('0x{0:X}' -f $triggerAddress)
     Trace = [ordered]@{
         Status = [string]$status.status
         HitCount = Try-ParseInt32 ([string]$status.hitCount)

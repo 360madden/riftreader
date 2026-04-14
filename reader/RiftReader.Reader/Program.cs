@@ -206,7 +206,7 @@ internal static class Program
         var address = options.Address!.Value;
         var length = options.Length!.Value;
 
-        if (!reader.TryReadBytes(address, length, out var bytes, out var readError))
+        if (!reader.TryReadBytes(address, length, out var bytes, out var readError, allowPartial: true))
         {
             Console.Error.WriteLine(readError ?? "Memory read failed.");
             return 1;
@@ -221,14 +221,21 @@ internal static class Program
                 ModuleName: target.ModuleName,
                 MainWindowTitle: target.MainWindowTitle,
                 Address: $"0x{address.ToInt64():X}",
+                RequestedLength: length,
+                CompleteRead: bytes.Length == length,
                 Length: bytes.Length,
-                BytesHex: Convert.ToHexString(bytes));
+                BytesHex: Convert.ToHexString(bytes),
+                Warning: readError);
 
             Console.WriteLine(JsonOutput.Serialize(memoryReadResult));
             return 0;
         }
 
-        Console.WriteLine($"Read {bytes.Length} bytes from 0x{address.ToInt64():X}.");
+        Console.WriteLine($"Read {bytes.Length} of {length} bytes from 0x{address.ToInt64():X}.");
+        if (!string.IsNullOrWhiteSpace(readError))
+        {
+            Console.WriteLine($"Warning: {readError}");
+        }
         Console.WriteLine();
         Console.WriteLine(HexDumpFormatter.Format(bytes, address));
 

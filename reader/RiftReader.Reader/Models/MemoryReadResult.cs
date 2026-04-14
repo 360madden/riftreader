@@ -7,5 +7,8 @@ public sealed record MemoryReadResult(
     string? ModuleName,
     string? MainWindowTitle,
     string Address,
+    int RequestedLength,
+    bool CompleteRead,
     int Length,
-    string BytesHex);
+    string BytesHex,
+    string? Warning);
