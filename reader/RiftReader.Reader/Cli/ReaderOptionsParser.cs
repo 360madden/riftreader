@@ -22,6 +22,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --post-update-triage [--player-coord-trace-file <path>] [--session-watchset-file <path>] [--recovery-bundle-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --sample-triage-watch-regions [--recovery-bundle-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
@@ -52,6 +53,8 @@ Notes:
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --post-update-triage to run a single-attach recovery pass that validates surviving anchors, clusters current structure families, scores live yaw candidates against saved session evidence, and emits a recovery bundle.
+  - --post-update-triage writes the bundle to .\scripts\captures\post-update-triage-bundle.json by default; use --recovery-bundle-file to override the path.
+  - Use --sample-triage-watch-regions to read only the suggested watch regions from the latest triage bundle so the top stable yaw candidates can be sampled without rerunning broader discovery.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
   - Use --session-marker-input-file with --record-session when you want manual or script-driven markers appended during the live recording window.
@@ -80,6 +83,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --post-update-triage --recovery-bundle-file .\scripts\captures\post-update-triage-bundle.json --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --sample-triage-watch-regions --max-hits 6 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
@@ -118,6 +122,7 @@ Examples:
         var findPlayerOrientationCandidate = false;
         var readPlayerCoordAnchor = false;
         var postUpdateTriage = false;
+        var sampleTriageWatchRegions = false;
         var recordSession = false;
         var sessionSummary = false;
         string? sessionDirectory = null;
@@ -391,6 +396,10 @@ Examples:
                     postUpdateTriage = true;
                     break;
 
+                case "--sample-triage-watch-regions":
+                    sampleTriageWatchRegions = true;
+                    break;
+
                 case "--session-summary":
                     sessionSummary = true;
                     break;
@@ -434,7 +443,6 @@ Examples:
                     }
 
                     recoveryBundleFile = recoveryBundleFileValue;
-                    postUpdateTriage = true;
                     break;
 
                 case "--capture-label":
@@ -711,6 +719,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --post-update-triage.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && sampleTriageWatchRegions)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --sample-triage-watch-regions.", UsageText);
+        }
+
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && rankOwnerComponents)
         {
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --rank-owner-components.", UsageText);
@@ -743,7 +756,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || postUpdateTriage || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || postUpdateTriage || sampleTriageWatchRegions || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
             {
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with scan, snapshot, live reader, or record-session modes.", UsageText);
             }
@@ -830,7 +843,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || postUpdateTriage || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || postUpdateTriage || sampleTriageWatchRegions || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
             }
@@ -1121,9 +1134,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--session-label can only be used with --record-session.", UsageText);
         }
 
-        if (recoveryBundleFile is not null && !postUpdateTriage)
+        if (recoveryBundleFile is not null && !postUpdateTriage && !sampleTriageWatchRegions)
         {
-            return ReaderOptionsParseResult.Fail("--recovery-bundle-file can only be used with --post-update-triage.", UsageText);
+            return ReaderOptionsParseResult.Fail("--recovery-bundle-file can only be used with --post-update-triage or --sample-triage-watch-regions.", UsageText);
         }
 
         if ((sessionSampleCount != 1 || sessionIntervalMilliseconds != 500) && !recordSession)
@@ -1151,9 +1164,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || postUpdateTriage || recordSession || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || postUpdateTriage || sampleTriageWatchRegions || recordSession || address.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, post-update-triage, record-session, or raw memory-read switches.", UsageText);
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, post-update-triage, sample-triage-watch-regions, record-session, or raw memory-read switches.", UsageText);
         }
 
         if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
@@ -1244,6 +1257,11 @@ Examples:
         if (postUpdateTriage && (writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent))
         {
             return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with other live reader modes.", UsageText);
+        }
+
+        if (sampleTriageWatchRegions && (writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || postUpdateTriage || readTargetCurrent))
+        {
+            return ReaderOptionsParseResult.Fail("--sample-triage-watch-regions cannot be combined with other live reader modes.", UsageText);
         }
 
         if (captureLabel is not null && !captureReaderBridgeBestFamily)
@@ -1411,6 +1429,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with --record-session.", UsageText);
         }
 
+        if (sampleTriageWatchRegions && (listModules || scanRequested || address.HasValue || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation))
+        {
+            return ReaderOptionsParseResult.Fail("--sample-triage-watch-regions cannot be combined with scan, raw memory-read, snapshot, ranking, or record-session modes.", UsageText);
+        }
+
         if (address.HasValue != length.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Specify --address and --length together.", UsageText);
@@ -1469,7 +1492,8 @@ Examples:
                     ReaderBridgeSnapshotFile: null,
                     JsonOutput: jsonOutput,
                     PostUpdateTriage: postUpdateTriage,
-                    RecoveryBundleFile: recoveryBundleFile),
+                    RecoveryBundleFile: recoveryBundleFile,
+                    SampleTriageWatchRegions: sampleTriageWatchRegions),
             UsageText);
     }
 

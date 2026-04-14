@@ -24,6 +24,20 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
 
 Add-Type -AssemblyName System.Drawing
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$JsonText,
+        [int]$Depth = 20
+    )
+
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return $JsonText | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $JsonText | ConvertFrom-Json
+}
+
 function Invoke-WindowCapture {
     param(
         [Parameter(Mandatory = $true)]
@@ -40,7 +54,7 @@ function Invoke-WindowCapture {
         throw "Window capture failed."
     }
 
-    return $json | ConvertFrom-Json -Depth 10
+    return ConvertFrom-JsonCompat -JsonText ([string]$json) -Depth 10
 }
 
 function New-Rect {

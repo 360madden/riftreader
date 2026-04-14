@@ -9,10 +9,12 @@ param(
     [int]$InterKeyDelayMilliseconds = 60,
     [int]$FocusSettleMilliseconds = 500,
     [int]$PostKeySettleMilliseconds = 150,
+    [int]$WarningCountdownSeconds = 3,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus,
-    [switch]$SkipUiClearCheck
+    [switch]$SkipUiClearCheck,
+    [switch]$SkipLiveInputWarning
 )
 
 Set-StrictMode -Version Latest
@@ -56,6 +58,20 @@ function Convert-RadiansToDegrees {
     return $Radians * 180.0 / [Math]::PI
 }
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$JsonText,
+        [int]$Depth = 20
+    )
+
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return $JsonText | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $JsonText | ConvertFrom-Json
+}
+
 function Invoke-Capture {
     param([Parameter(Mandatory = $true)][string]$CaptureLabel)
 
@@ -74,7 +90,7 @@ function Invoke-Capture {
         throw "Actor orientation capture failed for '$CaptureLabel'."
     }
 
-    return $json | ConvertFrom-Json -Depth 30
+    return ConvertFrom-JsonCompat -JsonText ([string]$json) -Depth 30
 }
 
 function Assert-UiClear {
@@ -89,7 +105,7 @@ function Assert-UiClear {
     }
 
     [System.IO.File]::WriteAllText($uiCheckOutput, [string]$json)
-    $document = $json | ConvertFrom-Json -Depth 20
+    $document = ConvertFrom-JsonCompat -JsonText ([string]$json) -Depth 20
     if (-not $document.SafeForGameplayInput) {
         $screenshot = if ($document.ScreenshotPath) { [string]$document.ScreenshotPath } else { 'n/a' }
         throw "Blocking gameplay UI detected before stimulus. Screenshot: $screenshot"
@@ -159,9 +175,33 @@ function Format-Nullable {
     return ([double]$Value).ToString($Format, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Show-LiveInputWarning {
+    param([int]$CountdownSeconds)
+
+    if ($SkipLiveInputWarning) {
+        return
+    }
+
+    Write-Host ''
+    Write-Host '■■■ LIVE INPUT WARNING ■■■'
+    Write-Host 'DO NOT TYPE, CLICK, OR PRESS ANYTHING'
+    Write-Host 'WAIT UNTIL I SAY THE TEST IS DONE'
+
+    if ($CountdownSeconds -gt 0) {
+        for ($remaining = $CountdownSeconds; $remaining -ge 1; $remaining--) {
+            Write-Host ("TEST STARTING IN {0}..." -f $remaining)
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    Write-Host 'TEST STARTING NOW'
+    Write-Host ''
+}
+
 $effectiveLabel = if ([string]::IsNullOrWhiteSpace($Label)) { $Key.ToLowerInvariant() } else { $Label }
 $before = Invoke-Capture -CaptureLabel ("before-{0}" -f $effectiveLabel)
 $uiClear = Assert-UiClear
+Show-LiveInputWarning -CountdownSeconds $WarningCountdownSeconds
 
 $keyArguments = @{
     Key = $Key

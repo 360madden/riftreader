@@ -19,6 +19,13 @@ public static class PlayerOrientationCandidateFinder
     private const int PointerHopRootReadLength = 0x100;
     private const int PointerHopChildReadLength = 0x200;
     private const int PointerHopMaxBasisOffset = 0x160;
+    private const int PointerHopMaxDepth = 2;
+    private const int PointerHopMaxChildrenPerNode = 16;
+    private const int PointerHopMaxQueuedNodes = 96;
+    private const int PointerCarrierMinimumPointers = 2;
+    private const int MinimumLocalWindowReadLength = 0x80;
+    private const int MinimumPointerRootReadLength = 0x80;
+    private const int MinimumPointerChildReadLength = 0x80;
     private const double PointerHopForwardComponentFloor = 0.05d;
     private const double PointerHopHorizontalMagnitudeFloor = 0.20d;
 
@@ -27,7 +34,8 @@ public static class PlayerOrientationCandidateFinder
         int processId,
         string processName,
         ReaderBridgeSnapshotDocument snapshotDocument,
-        int maxHits)
+        int maxHits,
+        IReadOnlyList<PlayerOrientationProbeSeed>? probeSeeds = null)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
         var coord = player.Coord ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain current player coordinates.");
@@ -47,6 +55,13 @@ public static class PlayerOrientationCandidateFinder
             contextBytes: 0,
             maxHits: Math.Max(maxHits, 4));
 
+        var normalizedProbeSeeds = NormalizeProbeSeeds(probeSeeds);
+        var diagnostics = new OrientationProbeDiagnosticsAccumulator
+        {
+            CoordHitCount = scan.Hits.Count,
+            SeedProbeCount = normalizedProbeSeeds.Count
+        };
+
         var dedup = new Dictionary<long, PlayerOrientationCandidate>();
 
         foreach (var hit in scan.Hits)
@@ -59,52 +74,29 @@ public static class PlayerOrientationCandidateFinder
                 }
 
                 var baseAddress = hit.Address - assumedOffset;
-                if (!reader.TryReadBytes(new nint(baseAddress), SearchWindowLength, out var bytes, out _))
+                diagnostics.LocalWindowProbeCount++;
+                if (!TryReadWindowWithFallback(reader, baseAddress, SearchWindowLength, MinimumLocalWindowReadLength, out var bytes))
                 {
+                    diagnostics.LocalWindowReadFailures++;
                     continue;
                 }
 
-                var primaryCoord = ReadTriplet(bytes, assumedOffset);
-                var primaryCoordMatch = MatchesCoord(primaryCoord, coord, CoordTolerance);
-                var secondaryCoordMatch = FindBestSecondaryCoordMatch(bytes, assumedOffset, coord);
-
-                PlayerOrientationCandidate? bestForBase = null;
-
-                foreach (var forwardOffset in EnumeratePrimaryForwardOffsets(assumedOffset, bytes.Length))
-                {
-                    foreach (var duplicateForwardOffset in EnumerateDuplicateForwardOffsets(forwardOffset, bytes.Length))
-                    {
-                        var basis = TryBuildCandidate(
-                            bytes,
-                            baseAddress,
-                            hit.AddressHex,
-                            assumedOffset,
-                            primaryCoord,
-                            secondaryCoordMatch.Coord,
-                            primaryCoordMatch,
-                            secondaryCoordMatch.Matches,
-                            secondaryCoordMatch.Offset,
-                            forwardOffset,
-                            duplicateForwardOffset);
-
-                        if (basis is null)
-                        {
-                            continue;
-                        }
-
-                        if (bestForBase is null || basis.Score > bestForBase.Score)
-                        {
-                            bestForBase = basis;
-                        }
-                    }
-                }
-
-                if (bestForBase is not null && (!dedup.TryGetValue(baseAddress, out var existing) || bestForBase.Score > existing.Score))
-                {
-                    dedup[baseAddress] = bestForBase;
-                }
+                ProbeLocalCandidateWindow(
+                    bytes,
+                    baseAddress,
+                    hit.AddressHex,
+                    assumedOffset,
+                    coord,
+                    discoveryMode: "coord-hit-window",
+                    probeSource: "readerbridge-player-coord-hit",
+                    probeRootAddress: $"0x{baseAddress:X}",
+                    scoreBonus: 0,
+                    dedup,
+                    diagnostics);
             }
         }
+
+        ProbeSeededLocalCandidates(reader, coord, normalizedProbeSeeds, dedup, diagnostics);
 
         var ranked = dedup.Values
             .OrderByDescending(static c => c.Score)
@@ -116,6 +108,8 @@ public static class PlayerOrientationCandidateFinder
                 processId,
                 processName,
                 snapshotDocument,
+                normalizedProbeSeeds,
+                diagnostics,
                 Math.Max(maxHits, 12))
             .Take(maxHits)
             .ToArray();
@@ -132,13 +126,199 @@ public static class PlayerOrientationCandidateFinder
             PointerHopCandidateCount: pointerHopCandidates.Length,
             BestPointerHopCandidate: pointerHopCandidates.FirstOrDefault(),
             PointerHopCandidates: pointerHopCandidates,
-            Notes: new[]
+            Diagnostics: diagnostics.ToRecord(),
+            Notes: BuildSearchNotes(normalizedProbeSeeds, diagnostics.ToRecord()));
+    }
+
+    private static IReadOnlyList<string> BuildSearchNotes(
+        IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
+        PlayerOrientationProbeDiagnostics diagnostics)
+    {
+        var notes = new List<string>
+        {
+            "Read-only single-process search over live player coord hits.",
+            "Candidates scored by coord agreement, transform-like basis quality, and basis-duplicate agreement.",
+            "The search now performs a bounded local sweep around coord hits instead of relying only on the original fixed offsets.",
+            "When local coord-window candidates fail, the finder also follows first-hop and second-hop readable pointers from grouped player-signature family roots and explicit live probe seeds."
+        };
+
+        if (probeSeeds.Count > 0)
+        {
+            notes.Add($"Explicit probe seeds were used: {string.Join(", ", probeSeeds.Select(static seed => $"{seed.Source}@{seed.Address}"))}.");
+        }
+
+        notes.Add($"Pointer-hop diagnostics: roots={diagnostics.PointerRootCount}, children={diagnostics.UniqueChildPointerCount}, secondHopRoots={diagnostics.SecondHopRootCount}, childReadFailures={diagnostics.ChildReadFailures}.");
+
+        if (diagnostics.RejectedNonOrthonormalBasisCount > 0 ||
+            diagnostics.RejectedLowComponentDiversityCount > 0 ||
+            diagnostics.RejectedLowHorizontalMagnitudeCount > 0)
+        {
+            notes.Add($"Rejected pointer-hop bases: nonOrthonormal={diagnostics.RejectedNonOrthonormalBasisCount}, lowComponentDiversity={diagnostics.RejectedLowComponentDiversityCount}, lowHorizontalMagnitude={diagnostics.RejectedLowHorizontalMagnitudeCount}.");
+        }
+
+        return notes;
+    }
+
+    private static IReadOnlyList<PlayerOrientationProbeSeed> NormalizeProbeSeeds(IReadOnlyList<PlayerOrientationProbeSeed>? probeSeeds)
+    {
+        if (probeSeeds is null || probeSeeds.Count == 0)
+        {
+            return Array.Empty<PlayerOrientationProbeSeed>();
+        }
+
+        var dedup = new Dictionary<long, PlayerOrientationProbeSeed>();
+        foreach (var seed in probeSeeds)
+        {
+            if (!TryParseHexAddress(seed.Address, out var address))
             {
-                "Read-only single-process search over live player coord hits.",
-                "Candidates scored by coord agreement, transform-like basis quality, and basis-duplicate agreement.",
-                "The search now performs a bounded local sweep around coord hits instead of relying only on the original fixed offsets.",
-                "When local coord-window candidates fail, the finder also follows first-hop readable pointers from grouped player-signature family roots and ranks meaningful transform-like child bases."
-            });
+                continue;
+            }
+
+            var normalized = seed with { Address = $"0x{address:X}" };
+            if (!dedup.TryGetValue(address, out var existing) || normalized.RootScore > existing.RootScore)
+            {
+                dedup[address] = normalized;
+            }
+        }
+
+        return dedup.Values
+            .OrderByDescending(static seed => seed.RootScore)
+            .ThenBy(static seed => seed.Source, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void ProbeSeededLocalCandidates(
+        ProcessMemoryReader reader,
+        ValidatorCoordinateSnapshot expectedCoord,
+        IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
+        IDictionary<long, PlayerOrientationCandidate> dedup,
+        OrientationProbeDiagnosticsAccumulator diagnostics)
+    {
+        foreach (var seed in probeSeeds)
+        {
+            if (!TryParseHexAddress(seed.Address, out var baseAddress))
+            {
+                continue;
+            }
+
+            diagnostics.LocalWindowProbeCount++;
+            if (!TryReadWindowWithFallback(reader, baseAddress, SearchWindowLength, MinimumLocalWindowReadLength, out var bytes))
+            {
+                diagnostics.LocalWindowReadFailures++;
+                diagnostics.SeedProbeReadFailures++;
+                continue;
+            }
+
+            foreach (var assumedOffset in EnumerateSeedCoordOffsets(seed.PreferredCoordOffset, bytes.Length))
+            {
+                ProbeLocalCandidateWindow(
+                    bytes,
+                    baseAddress,
+                    $"0x{baseAddress + assumedOffset:X}",
+                    assumedOffset,
+                    expectedCoord,
+                    discoveryMode: "seeded-root-local",
+                    probeSource: seed.Source,
+                    probeRootAddress: $"0x{baseAddress:X}",
+                    scoreBonus: Math.Max(0, seed.RootScore),
+                    dedup,
+                    diagnostics,
+                    seedProbe: true);
+            }
+        }
+    }
+
+    private static IEnumerable<int> EnumerateSeedCoordOffsets(int? preferredCoordOffset, int byteLength)
+    {
+        if (preferredCoordOffset.HasValue &&
+            preferredCoordOffset.Value >= 0 &&
+            preferredCoordOffset.Value + 0x0C <= byteLength)
+        {
+            yield return preferredCoordOffset.Value;
+        }
+
+        foreach (var offset in EnumerateCoordOffsets())
+        {
+            if (preferredCoordOffset.HasValue && offset == preferredCoordOffset.Value)
+            {
+                continue;
+            }
+
+            if (offset + 0x0C <= byteLength)
+            {
+                yield return offset;
+            }
+        }
+    }
+
+    private static void ProbeLocalCandidateWindow(
+        byte[] bytes,
+        long baseAddress,
+        string hitAddressHex,
+        int assumedCoordOffset,
+        ValidatorCoordinateSnapshot expectedCoord,
+        string discoveryMode,
+        string probeSource,
+        string probeRootAddress,
+        int scoreBonus,
+        IDictionary<long, PlayerOrientationCandidate> dedup,
+        OrientationProbeDiagnosticsAccumulator diagnostics,
+        bool seedProbe = false)
+    {
+        var primaryCoord = ReadTriplet(bytes, assumedCoordOffset);
+        var primaryCoordMatch = MatchesCoord(primaryCoord, expectedCoord, CoordTolerance);
+        if (!primaryCoordMatch)
+        {
+            diagnostics.LocalCoordMismatchCount++;
+            return;
+        }
+
+        if (seedProbe)
+        {
+            diagnostics.SeedCoordMatchCount++;
+        }
+
+        var secondaryCoordMatch = FindBestSecondaryCoordMatch(bytes, assumedCoordOffset, expectedCoord);
+        PlayerOrientationCandidate? bestForBase = null;
+
+        foreach (var forwardOffset in EnumeratePrimaryForwardOffsets(assumedCoordOffset, bytes.Length))
+        {
+            foreach (var duplicateForwardOffset in EnumerateDuplicateForwardOffsets(forwardOffset, bytes.Length))
+            {
+                var basis = TryBuildCandidate(
+                    bytes,
+                    baseAddress,
+                    hitAddressHex,
+                    assumedCoordOffset,
+                    primaryCoord,
+                    secondaryCoordMatch.Coord,
+                    primaryCoordMatch,
+                    secondaryCoordMatch.Matches,
+                    secondaryCoordMatch.Offset,
+                    forwardOffset,
+                    duplicateForwardOffset,
+                    discoveryMode,
+                    probeSource,
+                    probeRootAddress,
+                    scoreBonus);
+
+                if (basis is null)
+                {
+                    continue;
+                }
+
+                if (bestForBase is null || basis.Score > bestForBase.Score)
+                {
+                    bestForBase = basis;
+                }
+            }
+        }
+
+        if (bestForBase is not null &&
+            (!dedup.TryGetValue(baseAddress, out var existing) || bestForBase.Score > existing.Score))
+        {
+            dedup[baseAddress] = bestForBase;
+        }
     }
 
     private static PlayerOrientationCandidate? TryBuildCandidate(
@@ -152,7 +332,11 @@ public static class PlayerOrientationCandidateFinder
         bool secondaryCoordMatch,
         int? secondaryCoordOffset,
         int forwardOffset,
-        int duplicateForwardOffset)
+        int duplicateForwardOffset,
+        string discoveryMode,
+        string probeSource,
+        string probeRootAddress,
+        int scoreBonus)
     {
         var basisPrimary = ReadBasis(
             bytes,
@@ -185,7 +369,7 @@ public static class PlayerOrientationCandidateFinder
             CoordDuplicateOffset: secondaryCoordOffset.HasValue ? $"0x{secondaryCoordOffset.Value:X}" : null,
             BasisPrimaryForwardOffset: $"0x{forwardOffset:X}",
             BasisDuplicateForwardOffset: $"0x{duplicateForwardOffset:X}",
-            Score: score,
+            Score: score + Math.Max(0, scoreBonus),
             Coord48MatchesPlayer: primaryCoordMatch,
             Coord88MatchesPlayer: secondaryCoordMatch,
             Coord48: primaryCoord,
@@ -194,7 +378,10 @@ public static class PlayerOrientationCandidateFinder
             Basis94: basisDuplicate,
             BasisDuplicateAgreement: duplicateAgreement,
             PreferredEstimate: preferredEstimate,
-            DuplicateEstimate: duplicateEstimate);
+            DuplicateEstimate: duplicateEstimate,
+            DiscoveryMode: discoveryMode,
+            ProbeSource: probeSource,
+            ProbeRootAddress: probeRootAddress);
     }
 
     private static ValidatorCoordinateSnapshot ReadTriplet(byte[] bytes, int offset) =>
@@ -422,6 +609,8 @@ public static class PlayerOrientationCandidateFinder
         int processId,
         string processName,
         ReaderBridgeSnapshotDocument snapshotDocument,
+        IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
+        OrientationProbeDiagnosticsAccumulator diagnostics,
         int maxHits)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
@@ -447,7 +636,119 @@ public static class PlayerOrientationCandidateFinder
             inspectionRadius: 96,
             maxHits: maxHits);
 
+        var roots = BuildPointerProbeRoots(scan, probeSeeds);
+        diagnostics.PointerRootCount = roots.Count;
+
         var bestByChildAddress = new Dictionary<long, PlayerOrientationPointerHopCandidate>();
+        var queuedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var queue = new Queue<PointerProbeNode>();
+
+        foreach (var root in roots)
+        {
+            if (queuedNodeKeys.Add(root.Key))
+            {
+                queue.Enqueue(root);
+            }
+        }
+
+        var queuedNodeCount = queue.Count;
+        while (queue.Count > 0 && queuedNodeCount <= PointerHopMaxQueuedNodes)
+        {
+            var node = queue.Dequeue();
+            var readLength = node.Depth == 0 ? PointerHopRootReadLength : PointerHopChildReadLength;
+            var minimumReadLength = node.Depth == 0 ? MinimumPointerRootReadLength : MinimumPointerChildReadLength;
+
+            if (!TryReadWindowWithFallback(reader, node.CurrentAddress, readLength, minimumReadLength, out var rootBytes))
+            {
+                diagnostics.PointerRootReadFailures++;
+                continue;
+            }
+
+            var seenChildAddresses = new HashSet<long>();
+            var enqueuedChildren = 0;
+
+            for (var offset = 0; offset + sizeof(ulong) <= rootBytes.Length; offset += sizeof(ulong))
+            {
+                diagnostics.PointerSlotCount++;
+
+                var childAddressValue = BitConverter.ToUInt64(rootBytes, offset);
+                if (!LooksLikeUserPointer(childAddressValue))
+                {
+                    continue;
+                }
+
+                var childAddress = checked((long)childAddressValue);
+                if (!seenChildAddresses.Add(childAddress))
+                {
+                    continue;
+                }
+
+                diagnostics.UniqueChildPointerCount++;
+
+                if (!TryReadWindowWithFallback(reader, childAddress, PointerHopChildReadLength, MinimumPointerChildReadLength, out var childBytes))
+                {
+                    diagnostics.ChildReadFailures++;
+                    continue;
+                }
+
+                var bestForChild = FindBestPointerHopBasisForChild(
+                    childBytes,
+                    childAddress,
+                    node.CurrentAddressHex,
+                    node.RootAddressHex,
+                    node.RootSource,
+                    node.FamilyId,
+                    node.RootScore,
+                    node.Depth + 1,
+                    offset,
+                    diagnostics);
+
+                if (bestForChild is not null &&
+                    (!bestByChildAddress.TryGetValue(childAddress, out var existing) || bestForChild.Score > existing.Score))
+                {
+                    bestByChildAddress[childAddress] = bestForChild;
+                }
+
+                if (node.Depth + 1 >= PointerHopMaxDepth ||
+                    enqueuedChildren >= PointerHopMaxChildrenPerNode ||
+                    queuedNodeCount >= PointerHopMaxQueuedNodes ||
+                    !LooksLikePointerCarrier(childBytes))
+                {
+                    continue;
+                }
+
+                var childNode = new PointerProbeNode(
+                    RootAddress: node.RootAddress,
+                    RootAddressHex: node.RootAddressHex,
+                    RootSource: node.RootSource,
+                    FamilyId: node.FamilyId,
+                    RootScore: Math.Max(node.RootScore, bestForChild?.Score ?? node.RootScore),
+                    CurrentAddress: childAddress,
+                    CurrentAddressHex: $"0x{childAddress:X}",
+                    Depth: node.Depth + 1);
+
+                if (queuedNodeKeys.Add(childNode.Key))
+                {
+                    queue.Enqueue(childNode);
+                    queuedNodeCount++;
+                    enqueuedChildren++;
+                    diagnostics.SecondHopRootCount++;
+                }
+            }
+        }
+
+        return bestByChildAddress.Values
+            .OrderByDescending(static candidate => candidate.Score)
+            .ThenBy(static candidate => candidate.HopDepth)
+            .ThenBy(static candidate => Math.Abs(candidate.PreferredEstimate.YawDegrees ?? double.MaxValue))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<PointerProbeNode> BuildPointerProbeRoots(
+        PlayerSignatureScanResult scan,
+        IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds)
+    {
+        var roots = new List<PointerProbeNode>();
 
         foreach (var family in scan.Families)
         {
@@ -458,63 +759,50 @@ public static class PlayerOrientationCandidateFinder
                     continue;
                 }
 
-                if (!reader.TryReadBytes(new nint(sampleAddress), PointerHopRootReadLength, out var rootBytes, out _))
-                {
-                    continue;
-                }
-
-                var seenChildAddresses = new HashSet<long>();
-                for (var offset = 0; offset + sizeof(ulong) <= rootBytes.Length; offset += sizeof(ulong))
-                {
-                    var childAddressValue = BitConverter.ToUInt64(rootBytes, offset);
-                    if (!LooksLikeUserPointer(childAddressValue))
-                    {
-                        continue;
-                    }
-
-                    var childAddress = checked((long)childAddressValue);
-                    if (!seenChildAddresses.Add(childAddress))
-                    {
-                        continue;
-                    }
-
-                    if (!reader.TryReadBytes(new nint(childAddress), PointerHopChildReadLength, out var childBytes, out _))
-                    {
-                        continue;
-                    }
-
-                    var bestForChild = FindBestPointerHopBasisForChild(
-                        childBytes,
-                        childAddress,
-                        sampleAddressText,
-                        family.FamilyId,
-                        family.BestScore);
-
-                    if (bestForChild is null)
-                    {
-                        continue;
-                    }
-
-                    if (!bestByChildAddress.TryGetValue(childAddress, out var existing) || bestForChild.Score > existing.Score)
-                    {
-                        bestByChildAddress[childAddress] = bestForChild;
-                    }
-                }
+                roots.Add(new PointerProbeNode(
+                    RootAddress: sampleAddress,
+                    RootAddressHex: $"0x{sampleAddress:X}",
+                    RootSource: "player-signature-family",
+                    FamilyId: family.FamilyId,
+                    RootScore: family.BestScore,
+                    CurrentAddress: sampleAddress,
+                    CurrentAddressHex: $"0x{sampleAddress:X}",
+                    Depth: 0));
             }
         }
 
-        return bestByChildAddress.Values
-            .OrderByDescending(static candidate => candidate.Score)
-            .ThenBy(static candidate => Math.Abs(candidate.PreferredEstimate.YawDegrees ?? double.MaxValue))
-            .ToArray();
+        foreach (var seed in probeSeeds)
+        {
+            if (!TryParseHexAddress(seed.Address, out var seedAddress))
+            {
+                continue;
+            }
+
+            roots.Add(new PointerProbeNode(
+                RootAddress: seedAddress,
+                RootAddressHex: $"0x{seedAddress:X}",
+                RootSource: seed.Source,
+                FamilyId: null,
+                RootScore: Math.Max(0, seed.RootScore),
+                CurrentAddress: seedAddress,
+                CurrentAddressHex: $"0x{seedAddress:X}",
+                Depth: 0));
+        }
+
+        return roots;
     }
 
     private static PlayerOrientationPointerHopCandidate? FindBestPointerHopBasisForChild(
         byte[] childBytes,
         long childAddress,
         string parentAddressHex,
-        string parentFamilyId,
-        int parentScore)
+        string rootAddressHex,
+        string rootSource,
+        string? parentFamilyId,
+        int parentScore,
+        int hopDepth,
+        int pointerOffset,
+        OrientationProbeDiagnosticsAccumulator diagnostics)
     {
         PlayerOrientationPointerHopCandidate? best = null;
         var maxBasisOffset = Math.Min(PointerHopMaxBasisOffset, childBytes.Length - 0x1C);
@@ -528,8 +816,10 @@ public static class PlayerOrientationCandidateFinder
                 basisOffset + 0x18,
                 $"Basis@0x{basisOffset:X}");
 
-            if (!IsMeaningfulPointerHopBasisCandidate(basis))
+            var rejectionReason = GetPointerHopBasisRejectionReason(basis);
+            if (rejectionReason is not PointerHopBasisRejectionReason.None)
             {
+                diagnostics.RecordPointerHopRejection(rejectionReason);
                 continue;
             }
 
@@ -539,11 +829,15 @@ public static class PlayerOrientationCandidateFinder
                 ParentAddress: parentAddressHex,
                 ParentFamilyId: parentFamilyId,
                 ParentScore: parentScore,
-                DiscoveryMode: "pointer-hop-from-player-signature-family",
+                DiscoveryMode: hopDepth == 1 ? "pointer-hop" : "second-hop-pointer-hop",
                 BasisPrimaryForwardOffset: $"0x{basisOffset:X}",
-                Score: ScorePointerHopCandidate(basis, estimate, parentScore),
+                Score: ScorePointerHopCandidate(basis, estimate, parentScore, hopDepth, rootSource),
                 Basis: basis,
-                PreferredEstimate: estimate);
+                PreferredEstimate: estimate,
+                RootAddress: rootAddressHex,
+                RootSource: rootSource,
+                HopDepth: hopDepth,
+                PointerOffset: $"0x{pointerOffset:X}");
 
             if (best is null || candidate.Score > best.Score)
             {
@@ -574,16 +868,16 @@ public static class PlayerOrientationCandidateFinder
         return long.TryParse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out address) && address > 0;
     }
 
-    private static bool IsMeaningfulPointerHopBasisCandidate(PlayerOrientationBasisCandidate basis)
+    private static PointerHopBasisRejectionReason GetPointerHopBasisRejectionReason(PlayerOrientationBasisCandidate basis)
     {
         if (!basis.IsOrthonormal)
         {
-            return false;
+            return PointerHopBasisRejectionReason.NonOrthonormal;
         }
 
         if (basis.Forward.X is not double x || basis.Forward.Y is not double y || basis.Forward.Z is not double z)
         {
-            return false;
+            return PointerHopBasisRejectionReason.NonOrthonormal;
         }
 
         var components = new[]
@@ -594,15 +888,65 @@ public static class PlayerOrientationCandidateFinder
         };
 
         var nonTrivialComponents = components.Count(component => component >= PointerHopForwardComponentFloor);
-        var horizontalMagnitude = Math.Sqrt((x * x) + (z * z));
+        if (nonTrivialComponents < 2)
+        {
+            return PointerHopBasisRejectionReason.LowComponentDiversity;
+        }
 
-        return nonTrivialComponents >= 2 && horizontalMagnitude >= PointerHopHorizontalMagnitudeFloor;
+        var horizontalMagnitude = Math.Sqrt((x * x) + (z * z));
+        return horizontalMagnitude < PointerHopHorizontalMagnitudeFloor
+            ? PointerHopBasisRejectionReason.LowHorizontalMagnitude
+            : PointerHopBasisRejectionReason.None;
+    }
+
+    private static bool LooksLikePointerCarrier(byte[] bytes)
+    {
+        var pointerCount = 0;
+        for (var offset = 0; offset + sizeof(ulong) <= bytes.Length; offset += sizeof(ulong))
+        {
+            if (!LooksLikeUserPointer(BitConverter.ToUInt64(bytes, offset)))
+            {
+                continue;
+            }
+
+            pointerCount++;
+            if (pointerCount >= PointerCarrierMinimumPointers)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryReadWindowWithFallback(
+        ProcessMemoryReader reader,
+        long address,
+        int preferredLength,
+        int minimumLength,
+        out byte[] bytes)
+    {
+        var length = preferredLength;
+        while (length >= minimumLength)
+        {
+            if (reader.TryReadBytes(new nint(address), length, out bytes, out _))
+            {
+                return true;
+            }
+
+            length -= 0x20;
+        }
+
+        bytes = Array.Empty<byte>();
+        return false;
     }
 
     private static int ScorePointerHopCandidate(
         PlayerOrientationBasisCandidate basis,
         PlayerOrientationVectorEstimate estimate,
-        int parentScore)
+        int parentScore,
+        int hopDepth,
+        string rootSource)
     {
         var score = Math.Max(0, parentScore);
 
@@ -618,7 +962,94 @@ public static class PlayerOrientationCandidateFinder
             score += 40;
         }
 
+        score += hopDepth == 1 ? 20 : 10;
+
+        if (string.Equals(rootSource, "coord-anchor-source-object", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 60;
+        }
+        else if (string.Equals(rootSource, "coord-anchor-object-base", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 35;
+        }
+
         return score;
+    }
+
+    private sealed record PointerProbeNode(
+        long RootAddress,
+        string RootAddressHex,
+        string RootSource,
+        string? FamilyId,
+        int RootScore,
+        long CurrentAddress,
+        string CurrentAddressHex,
+        int Depth)
+    {
+        public string Key => $"{RootAddressHex}:{CurrentAddressHex}:{Depth}";
+    }
+
+    private enum PointerHopBasisRejectionReason
+    {
+        None = 0,
+        NonOrthonormal,
+        LowComponentDiversity,
+        LowHorizontalMagnitude
+    }
+
+    private sealed class OrientationProbeDiagnosticsAccumulator
+    {
+        public int CoordHitCount { get; set; }
+        public int LocalWindowProbeCount { get; set; }
+        public int LocalWindowReadFailures { get; set; }
+        public int LocalCoordMismatchCount { get; set; }
+        public int SeedProbeCount { get; set; }
+        public int SeedProbeReadFailures { get; set; }
+        public int SeedCoordMatchCount { get; set; }
+        public int PointerRootCount { get; set; }
+        public int PointerRootReadFailures { get; set; }
+        public int PointerSlotCount { get; set; }
+        public int UniqueChildPointerCount { get; set; }
+        public int ChildReadFailures { get; set; }
+        public int SecondHopRootCount { get; set; }
+        public int RejectedNonOrthonormalBasisCount { get; set; }
+        public int RejectedLowComponentDiversityCount { get; set; }
+        public int RejectedLowHorizontalMagnitudeCount { get; set; }
+
+        public void RecordPointerHopRejection(PointerHopBasisRejectionReason reason)
+        {
+            switch (reason)
+            {
+                case PointerHopBasisRejectionReason.NonOrthonormal:
+                    RejectedNonOrthonormalBasisCount++;
+                    break;
+                case PointerHopBasisRejectionReason.LowComponentDiversity:
+                    RejectedLowComponentDiversityCount++;
+                    break;
+                case PointerHopBasisRejectionReason.LowHorizontalMagnitude:
+                    RejectedLowHorizontalMagnitudeCount++;
+                    break;
+            }
+        }
+
+        public PlayerOrientationProbeDiagnostics ToRecord() =>
+            new(
+                CoordHitCount,
+                LocalWindowProbeCount,
+                LocalWindowReadFailures,
+                LocalCoordMismatchCount,
+                SeedProbeCount,
+                SeedProbeReadFailures,
+                SeedCoordMatchCount,
+                PointerRootCount,
+                PointerRootReadFailures,
+                PointerSlotCount,
+                UniqueChildPointerCount,
+                ChildReadFailures,
+                SecondHopRootCount,
+                RejectedNonOrthonormalBasisCount,
+                RejectedLowComponentDiversityCount,
+                RejectedLowHorizontalMagnitudeCount);
     }
 }
 
@@ -634,6 +1065,7 @@ public sealed record PlayerOrientationCandidateSearchResult(
     int PointerHopCandidateCount,
     PlayerOrientationPointerHopCandidate? BestPointerHopCandidate,
     IReadOnlyList<PlayerOrientationPointerHopCandidate> PointerHopCandidates,
+    PlayerOrientationProbeDiagnostics Diagnostics,
     IReadOnlyList<string> Notes);
 
 public sealed record PlayerOrientationCandidate(
@@ -653,7 +1085,10 @@ public sealed record PlayerOrientationCandidate(
     PlayerOrientationBasisCandidate Basis94,
     PlayerOrientationBasisDuplicateAgreement? BasisDuplicateAgreement,
     PlayerOrientationVectorEstimate PreferredEstimate,
-    PlayerOrientationVectorEstimate DuplicateEstimate);
+    PlayerOrientationVectorEstimate DuplicateEstimate,
+    string DiscoveryMode,
+    string ProbeSource,
+    string ProbeRootAddress);
 
 public sealed record PlayerOrientationBasisCandidate(
     string Name,
@@ -677,10 +1112,38 @@ public sealed record PlayerOrientationBasisDuplicateAgreement(
 public sealed record PlayerOrientationPointerHopCandidate(
     string Address,
     string ParentAddress,
-    string ParentFamilyId,
+    string? ParentFamilyId,
     int ParentScore,
     string DiscoveryMode,
     string BasisPrimaryForwardOffset,
     int Score,
     PlayerOrientationBasisCandidate Basis,
-    PlayerOrientationVectorEstimate PreferredEstimate);
+    PlayerOrientationVectorEstimate PreferredEstimate,
+    string RootAddress,
+    string RootSource,
+    int HopDepth,
+    string PointerOffset);
+
+public sealed record PlayerOrientationProbeSeed(
+    string Address,
+    string Source,
+    int RootScore = 0,
+    int? PreferredCoordOffset = null);
+
+public sealed record PlayerOrientationProbeDiagnostics(
+    int CoordHitCount,
+    int LocalWindowProbeCount,
+    int LocalWindowReadFailures,
+    int LocalCoordMismatchCount,
+    int SeedProbeCount,
+    int SeedProbeReadFailures,
+    int SeedCoordMatchCount,
+    int PointerRootCount,
+    int PointerRootReadFailures,
+    int PointerSlotCount,
+    int UniqueChildPointerCount,
+    int ChildReadFailures,
+    int SecondHopRootCount,
+    int RejectedNonOrthonormalBasisCount,
+    int RejectedLowComponentDiversityCount,
+    int RejectedLowHorizontalMagnitudeCount);

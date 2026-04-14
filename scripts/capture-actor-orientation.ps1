@@ -32,7 +32,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
+    return ConvertFrom-JsonCompat -JsonText ($output -join [Environment]::NewLine) -Depth 30
 }
 
 function Normalize-AngleRadians {
@@ -53,6 +53,20 @@ function Normalize-AngleRadians {
 function Convert-RadiansToDegrees {
     param([double]$Radians)
     return $Radians * 180.0 / [Math]::PI
+}
+
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$JsonText,
+        [int]$Depth = 20
+    )
+
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return $JsonText | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $JsonText | ConvertFrom-Json
 }
 
 function Format-Nullable {
@@ -700,7 +714,7 @@ $previousCapture = $null
 if (Test-Path -LiteralPath $resolvedOutputFile) {
     $previousJson = Get-Content -LiteralPath $resolvedOutputFile -Raw
     if (-not [string]::IsNullOrWhiteSpace($previousJson)) {
-        $previousCapture = $previousJson | ConvertFrom-Json -Depth 30
+        $previousCapture = ConvertFrom-JsonCompat -JsonText $previousJson -Depth 30
     }
 
     $previousDirectory = Split-Path -Path $resolvedPreviousFile -Parent

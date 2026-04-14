@@ -163,7 +163,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.PostUpdateTriage && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.PostUpdateTriage && !options.SampleTriageWatchRegions && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -229,6 +229,11 @@ internal static class Program
         if (options.PostUpdateTriage)
         {
             return RunPostUpdateTriageMode(options, process, target, reader);
+        }
+
+        if (options.SampleTriageWatchRegions)
+        {
+            return RunSampleTriageWatchRegionsMode(options, target, reader);
         }
 
         if (options.RecordSession)
@@ -604,21 +609,18 @@ internal static class Program
             return 1;
         }
 
-        if (!string.IsNullOrWhiteSpace(options.RecoveryBundleFile))
-        {
-            var outputFile = ResolveRecoveryBundleOutputFile(options.RecoveryBundleFile);
+        var outputFile = ResolveRecoveryBundleOutputFile(options.RecoveryBundleFile);
 
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
-                File.WriteAllText(outputFile, JsonOutput.Serialize(bundle with { OutputFile = outputFile }));
-                bundle = bundle with { OutputFile = outputFile };
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Unable to write the recovery bundle: {ex.Message}");
-                return 1;
-            }
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+            File.WriteAllText(outputFile, JsonOutput.Serialize(bundle with { OutputFile = outputFile }));
+            bundle = bundle with { OutputFile = outputFile };
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to write the recovery bundle: {ex.Message}");
+            return 1;
         }
 
         if (options.JsonOutput)
@@ -646,11 +648,119 @@ internal static class Program
             Console.WriteLine($"Best ranked yaw candidate:    {best.Address} ({best.Kind}, score {best.TotalScore})");
         }
 
+        if (bundle.SuggestedWatchRegions.Count > 0)
+        {
+            Console.WriteLine($"Suggested watch regions:      {bundle.SuggestedWatchRegions.Count}");
+            foreach (var region in bundle.SuggestedWatchRegions.Take(3))
+            {
+                Console.WriteLine($"  - {region.Name}: {region.Address} len 0x{region.Length:X} ({region.Kind})");
+            }
+        }
+
+        if (bundle.PreviousBundleEvidence.Loaded || !string.IsNullOrWhiteSpace(bundle.PreviousBundleEvidence.Error))
+        {
+            Console.WriteLine("Bundle diff:");
+            if (bundle.PreviousBundleEvidence.Loaded)
+            {
+                Console.WriteLine($"  Prior ranked candidates:    {bundle.PreviousBundleEvidence.RankedYawCandidateCount}");
+                Console.WriteLine($"  Stable current candidates:  {bundle.PreviousBundleEvidence.StableCandidateCount}");
+
+                if (bundle.RankedYawCandidates.Count > 0)
+                {
+                    var best = bundle.RankedYawCandidates[0];
+                    var priorMatch = best.SeenInPreviousBundle
+                        ? $"{best.PreviousMatchKind ?? "match"}{(best.PreviousRank.HasValue ? $" (previous rank {best.PreviousRank.Value})" : string.Empty)}"
+                        : "new candidate";
+                    Console.WriteLine($"  Top candidate prior match:  {priorMatch}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"  Previous bundle status:     {bundle.PreviousBundleEvidence.Error}");
+            }
+        }
+
+        if (bundle.LineageSummaries.Count > 0)
+        {
+            Console.WriteLine($"Lineage summaries:            {bundle.LineageSummaries.Count}");
+            Console.WriteLine($"  - {bundle.LineageSummaries[0].Summary}");
+        }
+
         if (bundle.Notes.Count > 0)
         {
             Console.WriteLine();
             Console.WriteLine("Notes:");
             foreach (var note in bundle.Notes)
+            {
+                Console.WriteLine($"- {note}");
+            }
+        }
+
+        return 0;
+    }
+
+    private static int RunSampleTriageWatchRegionsMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var bundleFile = ResolveRecoveryBundleOutputFile(options.RecoveryBundleFile);
+
+        PostUpdateTriageWatchRegionSampleResult result;
+        try
+        {
+            result = PostUpdateTriageWatchRegionSampler.Sample(target, reader, bundleFile, options.MaxHits);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to sample triage watch regions: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("Triage watch-region sampling completed.");
+        Console.WriteLine($"Bundle file:                  {result.BundleFile}");
+        if (!string.IsNullOrWhiteSpace(result.BundleGeneratedAtUtc))
+        {
+            Console.WriteLine($"Bundle generated:             {result.BundleGeneratedAtUtc}");
+        }
+
+        Console.WriteLine($"Requested region count:       {result.RequestedRegionCount}");
+        Console.WriteLine($"Sampled region count:         {result.SampledRegionCount}");
+        Console.WriteLine($"Successful reads:             {result.SuccessfulRegionCount}");
+        Console.WriteLine($"Failed reads:                 {result.FailedRegionCount}");
+
+        foreach (var sample in result.Samples)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"{sample.Name}: {sample.Address} len 0x{sample.Length:X} ({sample.Kind})");
+            Console.WriteLine($"  Candidate: {sample.CandidateAddress}{(sample.StableAcrossBundles ? " [stable]" : string.Empty)}");
+            if (!string.IsNullOrWhiteSpace(sample.CandidateLineageSummary))
+            {
+                Console.WriteLine($"  Lineage:   {sample.CandidateLineageSummary}");
+            }
+
+            if (sample.ReadSucceeded)
+            {
+                Console.WriteLine($"  Read:      {sample.BytesRead} bytes");
+                if (!string.IsNullOrWhiteSpace(sample.PreviewHex))
+                {
+                    Console.WriteLine($"  Preview:   {sample.PreviewHex}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"  Error:     {sample.Error}");
+            }
+        }
+
+        if (result.Notes.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Notes:");
+            foreach (var note in result.Notes)
             {
                 Console.WriteLine($"- {note}");
             }

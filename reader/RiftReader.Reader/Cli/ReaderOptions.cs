@@ -54,4 +54,5 @@ public sealed record ReaderOptions(
     string? ReaderBridgeSnapshotFile,
     bool JsonOutput,
     bool PostUpdateTriage = false,
-    string? RecoveryBundleFile = null);
+    string? RecoveryBundleFile = null,
+    bool SampleTriageWatchRegions = false);
