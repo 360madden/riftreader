@@ -7,6 +7,7 @@ param(
     [string]$Label,
     [int]$HoldMilliseconds = 500,
     [int]$WaitMilliseconds = 250,
+    [int]$MousePixels = 60,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus
@@ -17,9 +18,12 @@ $ErrorActionPreference = 'Stop'
 
 $captureScript = Join-Path $PSScriptRoot 'capture-actor-orientation.ps1'
 $keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$windowToolsScript = Join-Path (Join-Path $PSScriptRoot '..\tools\rift-game-mcp\helpers') 'window-tools.ps1'
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-camera-stimulus-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
+$baselineScreenshot = '{0}.baseline.png' -f $tempPrefix
+$changeScreenshot = '{0}.changed.png' -f $tempPrefix
 $backgroundProcessAvailable = $SkipBackgroundFocus.IsPresent
 
 if (-not $backgroundProcessAvailable) {
@@ -105,81 +109,111 @@ function Send-MouseInput {
     param(
         [ValidateSet('left', 'right', 'up', 'down', 'wheel-up', 'wheel-down')]
         [string]$Direction,
-        [int]$Magnitude = 100
+        [int]$Magnitude = 100,
+        [switch]$HoldRightButton
     )
 
-    $ahkScript = Join-Path $PSScriptRoot 'send-mouse-input.ahk'
-    if (-not (Test-Path $ahkScript)) {
-        throw "AutoHotkey script not found: $ahkScript"
+    if (-not ('RiftCameraStimulusNative' -as [type])) {
+        Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftCameraStimulusNative
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
     }
 
-    # Direction maps to AHK mouse commands
-    # Left/Right = horizontal yaw movement
-    # Up/Down = vertical pitch movement
-    # Wheel-Up/Wheel-Down = camera distance
-    Add-Type -AssemblyName System.Windows.Forms
-    $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-    $centerX = $screen.Bounds.Width / 2
-    $centerY = $screen.Bounds.Height / 2
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetCursorPos(int X, int Y);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, UIntPtr dwExtraInfo);
+
+    public const uint MOUSEEVENTF_MOVE = 0x0001;
+    public const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    public const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    public const uint MOUSEEVENTF_WHEEL = 0x0800;
+}
+"@
+    }
+
+    $riftProcess = Get-Process -Name 'rift_x64' -ErrorAction Stop |
+        Where-Object { $_.MainWindowHandle -ne 0 } |
+        Select-Object -First 1
+    if (-not $riftProcess) {
+        throw 'No foreground-capable RIFT window was found.'
+    }
+
+    $rect = New-Object RiftCameraStimulusNative+RECT
+    if (-not [RiftCameraStimulusNative]::GetWindowRect($riftProcess.MainWindowHandle, [ref]$rect)) {
+        throw 'GetWindowRect failed for the RIFT window.'
+    }
+
+    $centerX = [int](($rect.Left + $rect.Right) / 2)
+    $centerY = [int](($rect.Top + $rect.Bottom) / 2)
+    if (-not [RiftCameraStimulusNative]::SetCursorPos($centerX, $centerY)) {
+        throw 'SetCursorPos failed while centering the cursor over RIFT.'
+    }
+
+    Start-Sleep -Milliseconds 40
+
+    if ($HoldRightButton) {
+        [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 50
+    }
 
     switch ($Direction) {
         'right' {
-            # Camera yaw right: move mouse right
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($centerX + $Magnitude, $centerY)
+            [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_MOVE, $Magnitude, 0, 0, [UIntPtr]::Zero)
         }
         'left' {
-            # Camera yaw left: move mouse left
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($centerX - $Magnitude, $centerY)
+            [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_MOVE, -$Magnitude, 0, 0, [UIntPtr]::Zero)
         }
         'up' {
-            # Camera pitch up: move mouse up
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($centerX, $centerY - $Magnitude)
+            [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_MOVE, 0, -$Magnitude, 0, [UIntPtr]::Zero)
         }
         'down' {
-            # Camera pitch down: move mouse down
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($centerX, $centerY + $Magnitude)
+            [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_MOVE, 0, $Magnitude, 0, [UIntPtr]::Zero)
         }
         'wheel-up' {
-            # Camera zoom in: scroll wheel up
-            $mouseEvent = [System.Windows.Forms.MouseEventArgs]::new([System.Windows.Forms.MouseButtons]::Middle, 1, $centerX, $centerY, 120)
-            # Note: Direct wheel scroll via .NET is limited; using simpler approach below
-            Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public class MouseWheel {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint cButtons, uint dwExtraInfo);
-
-    public const uint MOUSEEVENTF_WHEEL = 0x0800;
-
-    public static void ScrollWheel(int delta) {
-        mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)delta, 0);
-    }
-}
-"@
-            [MouseWheel]::ScrollWheel($Magnitude)
+            $wheelDelta = 120 * [Math]::Max(1, [Math]::Ceiling($Magnitude / 120.0))
+            [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_WHEEL, 0, 0, [uint32]$wheelDelta, [UIntPtr]::Zero)
         }
         'wheel-down' {
-            # Camera zoom out: scroll wheel down
-            Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public class MouseWheel {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint cButtons, uint dwExtraInfo);
-
-    public const uint MOUSEEVENTF_WHEEL = 0x0800;
-
-    public static void ScrollWheel(int delta) {
-        mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)delta, 0);
-    }
-}
-"@
-            [MouseWheel]::ScrollWheel(-$Magnitude)
+            $wheelDelta = 120 * [Math]::Max(1, [Math]::Ceiling($Magnitude / 120.0))
+            [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_WHEEL, 0, 0, [uint32](-$wheelDelta), [UIntPtr]::Zero)
         }
     }
+
+    Start-Sleep -Milliseconds 60
+
+    if ($HoldRightButton) {
+        [RiftCameraStimulusNative]::mouse_event([RiftCameraStimulusNative]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 30
+    }
+}
+
+function Invoke-WindowToolsJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $json = & powershell -NoProfile -ExecutionPolicy Bypass -File $windowToolsScript @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "window-tools failed: $($Arguments -join ' ')"
+    }
+
+    return $json | ConvertFrom-Json -Depth 20
 }
 
 function Get-StimulusResult {
@@ -189,16 +223,21 @@ function Get-StimulusResult {
         $AfterCapture
     )
 
+    $beforeEstimate = $BeforeCapture.ReaderOrientation.PreferredEstimate
+    $afterEstimate = $AfterCapture.ReaderOrientation.PreferredEstimate
+
     $result = [ordered]@{
         StimulusType = $StimulusType
         ActorCoordDelta = Get-CoordDeltaMagnitude $BeforeCapture.ReaderOrientation.PlayerCoord $AfterCapture.ReaderOrientation.PlayerCoord
-        ActorYawBefore = $BeforeCapture.ReaderOrientation.LiveSourceSample.ActorYaw.Degrees
-        ActorYawAfter = $AfterCapture.ReaderOrientation.LiveSourceSample.ActorYaw.Degrees
-        ActorYawDelta = [double]$AfterCapture.ReaderOrientation.LiveSourceSample.ActorYaw.Degrees - [double]$BeforeCapture.ReaderOrientation.LiveSourceSample.ActorYaw.Degrees
-        ActorPitchBefore = $BeforeCapture.ReaderOrientation.LiveSourceSample.ActorPitch.Degrees
-        ActorPitchAfter = $AfterCapture.ReaderOrientation.LiveSourceSample.ActorPitch.Degrees
-        ActorPitchDelta = [double]$AfterCapture.ReaderOrientation.LiveSourceSample.ActorPitch.Degrees - [double]$BeforeCapture.ReaderOrientation.LiveSourceSample.ActorPitch.Degrees
-        ActorForwardVectorDelta = Get-VectorDeltaMagnitude $BeforeCapture.ReaderOrientation.LiveSourceSample.ActorForwardVector $AfterCapture.ReaderOrientation.LiveSourceSample.ActorForwardVector
+        ActorYawBefore = $beforeEstimate.YawDegrees
+        ActorYawAfter = $afterEstimate.YawDegrees
+        ActorYawDelta = [double]$afterEstimate.YawDegrees - [double]$beforeEstimate.YawDegrees
+        ActorPitchBefore = $beforeEstimate.PitchDegrees
+        ActorPitchAfter = $afterEstimate.PitchDegrees
+        ActorPitchDelta = [double]$afterEstimate.PitchDegrees - [double]$beforeEstimate.PitchDegrees
+        ActorForwardVectorDelta = Get-VectorDeltaMagnitude $beforeEstimate.Vector $afterEstimate.Vector
+        SelectedSourceAddress = $AfterCapture.ReaderOrientation.SelectedSourceAddress
+        PreferredEstimateName = $afterEstimate.Name
         Notes = @()
     }
 
@@ -217,7 +256,11 @@ Write-Host "=== Camera Stimulus Test ===" -ForegroundColor Cyan
 Write-Host "Stimulus: $Stimulus" -ForegroundColor Green
 Write-Host "Hold duration: ${HoldMilliseconds}ms" -ForegroundColor Green
 Write-Host "Wait after: ${WaitMilliseconds}ms" -ForegroundColor Green
+Write-Host "Mouse pixels: $MousePixels" -ForegroundColor Green
 Write-Host ""
+
+$null = Invoke-WindowToolsJson -Arguments @('-Operation', 'focus', '-ProcessName', 'rift_x64')
+$baselineFrame = Invoke-WindowToolsJson -Arguments @('-Operation', 'capture', '-ProcessName', 'rift_x64', '-OutputPath', $baselineScreenshot)
 
 # Capture baseline
 Write-Host "Capturing baseline..." -ForegroundColor Yellow
@@ -236,23 +279,38 @@ $stimuli = switch ($Stimulus) {
     ) }
 }
 
-foreach ($stimulus in $stimuli) {
-    Write-Host "Testing: $($stimulus.Label)..." -ForegroundColor Yellow
+foreach ($stimulusConfig in $stimuli) {
+    Write-Host "Testing: $($stimulusConfig.Label)..." -ForegroundColor Yellow
 
     # Send input
-    Send-MouseInput -Direction $stimulus.Direction -Magnitude 50
+    $holdRightButton = $stimulusConfig.Direction -ne 'wheel-up' -and $stimulusConfig.Direction -ne 'wheel-down'
+    Send-MouseInput -Direction $stimulusConfig.Direction -Magnitude $MousePixels -HoldRightButton:$holdRightButton
     Start-Sleep -Milliseconds $HoldMilliseconds
 
+    $visualChange = Invoke-WindowToolsJson -Arguments @(
+        '-Operation', 'wait-for-change',
+        '-ProcessName', 'rift_x64',
+        '-BaselinePath', $baselineScreenshot,
+        '-OutputPath', $changeScreenshot,
+        '-TimeoutMilliseconds', '1500',
+        '-PollIntervalMilliseconds', '100',
+        '-ChangeThresholdPercent', '0.5'
+    )
+
     # Capture after input
-    $after = Invoke-Capture "camera-stimulus-$($stimulus.Label)-after"
+    $after = Invoke-Capture "camera-stimulus-$($stimulusConfig.Label)-after"
 
     # Compute delta
-    $delta = Get-StimulusResult -StimulusType $stimulus.Label -BeforeCapture $baseline -AfterCapture $after
+    $delta = Get-StimulusResult -StimulusType $stimulusConfig.Label -BeforeCapture $baseline -AfterCapture $after
+    $delta | Add-Member -NotePropertyName VisualChangeObserved -NotePropertyValue ([bool]$visualChange.changed)
+    $delta | Add-Member -NotePropertyName VisualChangePercent -NotePropertyValue ([double]$visualChange.changePercent)
+    $delta | Add-Member -NotePropertyName VisualChangeScreenshot -NotePropertyValue $visualChange.screenshotPath
     $results += $delta
 
     Write-Host "  Yaw delta: $([Math]::Round($delta.ActorYawDelta, 2))°" -ForegroundColor Cyan
     Write-Host "  Pitch delta: $([Math]::Round($delta.ActorPitchDelta, 2))°" -ForegroundColor Cyan
     Write-Host "  Coord delta: $([Math]::Round($delta.ActorCoordDelta, 3)) units" -ForegroundColor Cyan
+    Write-Host "  Visual change: $([Math]::Round($delta.VisualChangePercent, 3))% (changed=$($delta.VisualChangeObserved))" -ForegroundColor Cyan
 
     # Wait between stimuli
     Start-Sleep -Milliseconds $WaitMilliseconds
