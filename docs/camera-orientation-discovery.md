@@ -3,12 +3,56 @@
 ## Overview
 Camera yaw/pitch/distance are not exposed via the Rift API and must be discovered through memory scanning and stimulus testing. Camera is independent from actor orientation — the player character can face one direction while the camera looks another.
 
-**Status**: Discovery in progress  
+**Status**: Yaw verified live, pitch available via orbit derivation, direct pitch scalar still unresolved  
 **Branch**: `feature/camera-orientation-discovery`  
 **Key files**: 
 - `scripts/test-camera-stimulus.ps1` — stimulus testing helper
+- `scripts/read-live-camera-yaw-pitch.ps1` — current live yaw + derived pitch reader
+- `scripts/find-live-camera-angle-candidates.ps1` — paired pitch/yaw candidate scanner
 - `scripts/generate-camera-probe.ps1` — CE probe generator
 - `scripts/captures/player-actor-orientation.json` — baseline component address (known)
+
+---
+
+## Latest Live Findings (April 13, 2026)
+
+### Confirmed
+
+- **Yaw is live in the selected-source basis**, not just actor state in theory.
+  - Current live selected source: `0x1FDA0D13170`
+  - Strong yaw rows remain the duplicated basis vectors:
+    - `+0x60/+0x68/+0x78`
+    - `+0x94/+0x9C/+0xAC`
+- `scripts/test-camera-stimulus.ps1 -Stimulus mouse-yaw -Json` now produces real camera-only deltas:
+  - yaw changes
+  - pitch remains `0`
+  - player coord delta remains `0`
+- **Pitch is currently recoverable from orbit coordinates, not from a direct scalar.**
+  - Best live source is the duplicated camera-orbit triplet in **entry 15**:
+    - `+0xA8/+0xAC/+0xB0`
+    - duplicate at `+0xB4/+0xB8/+0xBC`
+  - Derive pitch from `(cameraCoord - playerCoord)` using `atan2(dy, horizontalDistance)`
+  - `scripts/read-live-camera-yaw-pitch.ps1 -Json` is the current canonical live reader
+
+### Important negative results
+
+- A paired live scan across:
+  - `selected-source`
+  - `entry4`
+  - `entry15`
+  - then **all owner entries**
+  - with scan windows up to **8 KB**
+  did **not** find a credible direct pitch scalar in normal radians/degrees ranges.
+- `selected-source +0x7D0` basis hypothesis did **not** validate live; those rows are zero in the current client.
+- The only angle-like pitch-only candidate found in widened scans was:
+  - `entry4 +0x1D0`
+  - but repeated live trials showed it is **too noisy and not trustworthy**.
+
+### Practical conclusion
+
+- **Use direct yaw + derived pitch for now.**
+- Do **not** treat `entry4 +0x1D0` as verified.
+- The next real target is a **direct pitch scalar** or a direct camera basis outside the currently scanned owner-entry neighborhoods.
 
 ---
 
@@ -30,15 +74,22 @@ SelectedSourceAddress = 0x1AEF0941250 (example, varies per session)
 +0x150 [Camera search range ends]
 ```
 
-### Camera Expected Structure (Hypothesis)
-Based on actor orientation pattern, camera likely contains:
-- **Camera forward vector** (float32 triplet, normalized ~1.0 magnitude)
-- **Camera yaw angle** (degrees or radians)
-- **Camera pitch angle** (degrees or radians, range ~-60 to +60)
-- **Camera distance** (float32 scalar, range ~5-100 units)
-- **Camera up vector** (optional, if using basis matrix like actor)
+### Camera Expected Structure (Revised)
+Current live evidence suggests:
+- **Yaw** is represented by the selected-source basis rows
+- **Pitch** is recoverable from orbit position relative to the player
+- **Distance** is also recoverable from the same orbit vector magnitude
+- A **direct pitch scalar** has not yet been found in the nearby owner-entry neighborhoods
 
-Search range: **+0xB8 to +0x150** (88 bytes)
+Search areas that have already been tested live:
+- selected-source: up to **+0x2000**
+- owner entries: up to **+0x2000**
+- all entries paired against pitch up/down and yaw left/right stimulus
+
+Result so far:
+- strong yaw basis: **confirmed**
+- orbit-position pitch: **confirmed**
+- direct pitch scalar: **not yet confirmed**
 
 ---
 
@@ -121,14 +172,12 @@ scripts\test-camera-stimulus.ps1 -Stimulus all -Json | ConvertFrom-Json -Depth 2
 ```
 
 **Expected Results:**
-- `mouse-yaw-right`: Actor yaw delta > 0 (positive rotation)
-- `mouse-pitch-up`: Actor pitch delta < 0 (negative tilt, convention-dependent)
-- `mouse-wheel-zoom-in`: Camera distance delta < 0 (zoom closer)
-- **Important**: Actor coordinate delta should remain ~0 (camera-only movement)
+- `mouse-yaw-right`: selected-source yaw basis changes while player coord remains stable
+- `mouse-pitch-up`: entry15 orbit coordinates change while selected-source pitch remains flat
+- `mouse-wheel-zoom-in`: orbit distance should change
+- **Important**: player coordinates should remain ~stable during pure camera movement
 
-**Important Note**: The stimulus test currently measures **actor orientation** changes. For camera validation, we need to:
-1. Add camera-specific fields to the capture (requires C# reader updates)
-2. Compare camera deltas to actor deltas to verify decoupling
+**Current Note**: `scripts/test-camera-stimulus.ps1` is now useful for live yaw verification, but the current pitch source is better read through `scripts/read-live-camera-yaw-pitch.ps1`.
 
 ---
 
@@ -216,11 +265,13 @@ Once offsets are validated, update:
 
 | Field | Hypothesis | Confirmed | Offset | Type | Range | Notes |
 |-------|-----------|-----------|--------|------|-------|-------|
-| Camera forward | Yes | ❌ | +0xC0? | float32 triplet | ±1.0 (normalized) | Similar to actor basis |
-| Camera yaw | Yes | ❌ | +0xCC? | float32 | 0-360° or 0-2π | Degrees or radians TBD |
-| Camera pitch | Yes | ❌ | +0xD0? | float32 | -60 to +60° | Negative when looking down |
-| Camera distance | Yes | ❌ | +0xD4? | float32 | 5-100 units | Zoom level |
-| Camera up | Maybe | ❌ | +0xE0? | float32 triplet | ±1.0 (if using basis) | Optional |
+| Field | Hypothesis | Confirmed | Offset / Source | Type | Range | Notes |
+|-------|-----------|-----------|-----------------|------|-------|-------|
+| Camera yaw | Yes | ✅ | selected-source `+0x60/+0x94` basis forward rows | basis-derived | degrees from basis | Live verified with RMB yaw |
+| Camera pitch | Yes | ⚠️ | entry15 orbit coords `+0xA8..+0xBC` relative to player coord | derived | camera-relative angle | Works live, but not a direct scalar |
+| Camera distance | Yes | ⚠️ | entry15 orbit vector magnitude | derived | world units | Strong lead, derived not direct |
+| Direct pitch scalar | Yes | ❌ | none verified in nearby 8 KB entry scans | float32 | n/a | `entry4 +0x1D0` is weak/noisy only |
+| Camera basis at selected-source `+0x7D0` | Maybe | ❌ | zero rows in current client | basis | n/a | Old hypothesis did not validate |
 
 ---
 
