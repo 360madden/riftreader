@@ -163,7 +163,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.PostUpdateTriage && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -224,6 +224,11 @@ internal static class Program
         if (options.ReadPlayerCoordAnchor)
         {
             return RunReadPlayerCoordAnchorMode(options, process, target, reader);
+        }
+
+        if (options.PostUpdateTriage)
+        {
+            return RunPostUpdateTriageMode(options, process, target, reader);
         }
 
         if (options.RecordSession)
@@ -429,6 +434,12 @@ internal static class Program
         }
 
         Console.WriteLine($"Best live orientation candidate: {result.BestCandidate?.Address ?? "n/a"} (score {result.BestCandidate?.Score ?? 0})");
+        Console.WriteLine($"Pointer-hop candidates:          {result.PointerHopCandidateCount}");
+        if (result.BestPointerHopCandidate is not null)
+        {
+            Console.WriteLine($"Best pointer-hop candidate:      {result.BestPointerHopCandidate.Address} via {result.BestPointerHopCandidate.ParentAddress} @ {result.BestPointerHopCandidate.BasisPrimaryForwardOffset} (score {result.BestPointerHopCandidate.Score})");
+        }
+
         return 0;
     }
 
@@ -577,6 +588,74 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerCoordAnchorReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunPostUpdateTriageMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        PostUpdateTriageBundle bundle;
+        try
+        {
+            bundle = PostUpdateTriageBundleBuilder.Build(process, target, reader, options);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to run post-update triage: {ex.Message}");
+            return 1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.RecoveryBundleFile))
+        {
+            var outputFile = ResolveRecoveryBundleOutputFile(options.RecoveryBundleFile);
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+                File.WriteAllText(outputFile, JsonOutput.Serialize(bundle with { OutputFile = outputFile }));
+                bundle = bundle with { OutputFile = outputFile };
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Unable to write the recovery bundle: {ex.Message}");
+                return 1;
+            }
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(bundle));
+            return 0;
+        }
+
+        Console.WriteLine("Post-update triage completed.");
+        if (!string.IsNullOrWhiteSpace(bundle.OutputFile))
+        {
+            Console.WriteLine($"Recovery bundle:              {bundle.OutputFile}");
+        }
+
+        Console.WriteLine($"Player-current usable:        {(bundle.SurvivingAnchors.PlayerCurrentUsable ? "yes" : "no")}");
+        Console.WriteLine($"Coord-anchor pattern matched: {(bundle.SurvivingAnchors.CoordAnchorPatternMatched ? "yes" : "no")}");
+        Console.WriteLine($"Coord-anchor memory matched:  {(bundle.SurvivingAnchors.CoordAnchorMemoryMatched ? "yes" : "no")}");
+        Console.WriteLine($"Structure families:           {bundle.StructureFamilies.Count}");
+        Console.WriteLine($"Local yaw candidates:         {bundle.CoordNeighborhoodProbe.Result?.CandidateCount ?? 0}");
+        Console.WriteLine($"Pointer-hop candidates:       {bundle.CoordNeighborhoodProbe.Result?.PointerHopCandidateCount ?? 0}");
+
+        if (bundle.RankedYawCandidates.Count > 0)
+        {
+            var best = bundle.RankedYawCandidates[0];
+            Console.WriteLine($"Best ranked yaw candidate:    {best.Address} ({best.Kind}, score {best.TotalScore})");
+        }
+
+        if (bundle.Notes.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Notes:");
+            foreach (var note in bundle.Notes)
+            {
+                Console.WriteLine($"- {note}");
+            }
+        }
+
         return 0;
     }
 
@@ -1510,6 +1589,17 @@ internal static class Program
 
         var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
         return Path.Combine(repoRoot, "scripts", "cheat-engine", "RiftReaderProbe.lua");
+    }
+
+    private static string ResolveRecoveryBundleOutputFile(string? explicitPath)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            return Path.GetFullPath(explicitPath);
+        }
+
+        var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
+        return Path.Combine(repoRoot, "scripts", "captures", "post-update-triage-bundle.json");
     }
 
     private static string? TryFindRepoRoot(string startDirectory)

@@ -1,0 +1,550 @@
+{
+  "task": {
+    "goal": "recover actor yaw first, pitch second",
+    "priority": "speed",
+    "strategy": "addon_first_then_bounded_memory_then_ce_scan",
+    "definition_of_done": [
+      "Identify a current-process actor yaw source that survives the April 14, 2026 update and does not depend on stale lineage.",
+      "Prefer addon/API-visible heading, facing, yaw, or pitch when it validates cleanly under controlled Left/Right turn stimuli.",
+      "Only fall back to bounded live memory recovery when the addon path still yields no usable yaw signal.",
+      "Keep edits minimal and capture machine-readable evidence, commands run, validation results, and exact stop point."
+    ],
+    "forbidden_actions": [
+      "Start from the old source-chain or selector-owner rebuild path.",
+      "Treat stale actor-orientation captures as authoritative current truth.",
+      "Reuse stale absolute addresses, stale source objects, or pre-update offsets as if they were current.",
+      "Spend time on camera recovery unless actor-yaw recovery is blocked."
+    ]
+  },
+  "context": {
+    "schema_version": "2026-04-14.actor-yaw-recovery.v1",
+    "repo_root": "C:\\RIFT MODDING\\RiftReader",
+    "branch": "codex/actor-yaw-pitch",
+    "process_name": "rift_x64",
+    "date": "2026-04-14",
+    "timezone": "America/New_York",
+    "active_truth_state": "post-update",
+    "focus": "actor_yaw",
+    "defer_until_blocked": [
+      "camera_yaw_pitch_distance"
+    ],
+    "current_probe_fact": {
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\readerbridge-orientation-probe.json",
+      "state": "current",
+      "orientationProbePresent": false,
+      "playerHasAnySignal": false,
+      "targetHasAnySignal": false,
+      "statCandidateCount": 0,
+      "note": "Latest exported ReaderBridge orientation probe file contains no orientationProbe block and no player or target signal."
+    },
+    "repo_source_fact": {
+      "files": [
+        "C:\\RIFT MODDING\\RiftReader\\addon\\ReaderBridgeExport\\main.lua",
+        "C:\\RIFT MODDING\\RiftReader\\addon\\RiftReaderApiProbe\\main.lua"
+      ],
+      "note": "The repo source already contains orientation-probe-related code paths for Inspect.Unit.Heading, Inspect.Unit.Pitch, orientation-like key scans, and ReaderBridge.State probing. If the live export is still empty, verify addon validation, sync, export freshness, and pruning behavior before broad rewrites."
+    }
+  },
+  "operating_envelope": {
+    "repo_edits_allowed": true,
+    "validation_allowed": true,
+    "build_allowed": true,
+    "direct_key_input_allowed": true,
+    "chat_reload_helpers_allowed_if_faster": true,
+    "ce_scan_inspection_allowed": true,
+    "ce_debugger_trace_default": false,
+    "use_repo_historical_brief_before_any_fresh_research": true,
+    "artifact_grounding_required": true,
+    "forbidden_actions": [
+      "Assume any dated analysis report is current truth without checking its state and role.",
+      "Promote any stale artifact-derived address to current truth without current-process validation.",
+      "Patch the shared Cheat Engine debugger attach guards based on a single Error 87 occurrence.",
+      "Mix the fresh selected-source lineage and the older projector or hub lineage without relabeling the evidence."
+    ]
+  },
+  "authoritative_inputs": [
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-truth.md",
+      "state": "current",
+      "role": "living truth for what is currently valid",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\rebuild-runbook.md",
+      "state": "current",
+      "role": "canonical rebuild order and escalation order",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-14-actor-orientation-stop-point-and-resume-plan.md",
+      "state": "historical",
+      "role": "authoritative stop-point evidence for the actor-yaw recovery restart path",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-14-post-update-anchor-drift-report.md",
+      "state": "historical",
+      "role": "authoritative dated evidence that the reader baseline survived but the owner or source chain drifted",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md",
+      "state": "historical",
+      "role": "authoritative dated evidence for CE usage constraints and Error 87 handling",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\input-safety.md",
+      "state": "current",
+      "role": "current live-input risk classification",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\readerbridge-orientation-probe.json",
+      "state": "current",
+      "role": "latest live addon export evidence",
+      "must_read_before_execution": true,
+      "observed": {
+        "orientationProbePresent": false,
+        "playerHasAnySignal": false,
+        "targetHasAnySignal": false,
+        "statCandidateCount": 0
+      }
+    }
+  ],
+  "historical_priors": [
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\historical-rift-discovery-brief.md",
+      "state": "historical",
+      "role": "field-role, naming, and side-channel priors only",
+      "allowed_use": [
+        "generate hypotheses",
+        "prioritize likely state families",
+        "choose test scenarios"
+      ],
+      "forbidden_use": [
+        "literal offsets",
+        "literal addresses",
+        "current-client truth"
+      ]
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-10-orientation-evidence-report.md",
+      "state": "historical",
+      "role": "pre-update actor-orientation evidence and transform-family shape prior",
+      "allowed_use": [
+        "basis layout hypothesis",
+        "expected transform invariants",
+        "stimulus design"
+      ],
+      "forbidden_use": [
+        "current selected-source address",
+        "current owner or container address",
+        "current authoritative yaw source"
+      ]
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-10-basis-integrity-report.md",
+      "state": "historical",
+      "role": "pre-update basis determinant and duplicate-agreement prior",
+      "allowed_use": [
+        "orthonormality expectations",
+        "duplicate-basis agreement expectations",
+        "yaw validation heuristics"
+      ],
+      "forbidden_use": [
+        "current basis offsets without revalidation"
+      ]
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-10-source-lineage-map.md",
+      "state": "historical",
+      "role": "lineage-split warning and component-family vocabulary",
+      "allowed_use": [
+        "lineage labeling",
+        "graph vocabulary",
+        "avoidance of mixed-family conclusions"
+      ],
+      "forbidden_use": [
+        "current lineage authority"
+      ]
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+      "state": "stale",
+      "role": "stale transform-family prior only",
+      "allowed_use": [
+        "role hints",
+        "historical offset clustering",
+        "basis-shape priors"
+      ],
+      "forbidden_use": [
+        "current selected-source address",
+        "current owner/container/state truth"
+      ]
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-actor-orientation.json",
+      "state": "stale",
+      "role": "stale post-update failure evidence only",
+      "allowed_use": [
+        "understand recent failure mode",
+        "confirm stale-path rejection"
+      ],
+      "forbidden_use": [
+        "current actor yaw truth"
+      ]
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-orientation-key-profile.json",
+      "state": "stale",
+      "role": "stale or failed stimulus evidence only",
+      "allowed_use": [
+        "reproduce recent no-turn failure",
+        "compare against new validation thresholds"
+      ],
+      "forbidden_use": [
+        "proof that actor yaw is solved"
+      ]
+    }
+  ],
+  "known_good_baselines": {
+    "readerbridge_snapshot": {
+      "state": "current",
+      "command": "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --readerbridge-snapshot --json",
+      "expected": [
+        "snapshot loads successfully",
+        "current player snapshot is present"
+      ]
+    },
+    "player_current": {
+      "state": "current",
+      "family_id": "fam-6F81F26E",
+      "signature": "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
+      "command": "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json",
+      "expected": [
+        "matches ReaderBridge player level",
+        "matches ReaderBridge player health",
+        "matches ReaderBridge player coords"
+      ]
+    },
+    "coord_anchor": {
+      "state": "current",
+      "pattern": "F3 0F 10 86 5C 01 00 00",
+      "coord_offsets": [
+        "0x158",
+        "0x15C",
+        "0x160"
+      ],
+      "command": "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json",
+      "expected": [
+        "module-local pattern match succeeds",
+        "coord offsets resolve to 0x158/0x15C/0x160",
+        "trace-derived sample remains consistent with current ReaderBridge coordinates"
+      ]
+    }
+  },
+  "known_broken_paths": {
+    "broken_paths": [
+      {
+        "path": "old owner/source rebuild path",
+        "state": "broken",
+        "as_of": "2026-04-14",
+        "evidence": "post-update source-chain refresh and selector-owner trace drifted"
+      },
+      {
+        "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\capture-player-source-chain.ps1",
+        "state": "broken",
+        "as_of": "2026-04-14",
+        "evidence": "failed to locate required instruction: source container load"
+      },
+      {
+        "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\trace-player-selector-owner.ps1",
+        "state": "broken",
+        "as_of": "2026-04-14",
+        "evidence": "status remained armed without live hit"
+      },
+      {
+        "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-selector-owner-trace.json",
+        "state": "stale",
+        "as_of": "2026-04-14",
+        "evidence": "not current truth unless regenerated on the updated client"
+      },
+      {
+        "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-owner-components.json",
+        "state": "stale",
+        "as_of": "2026-04-14",
+        "evidence": "not current truth unless regenerated on the updated client"
+      },
+      {
+        "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-actor-orientation.json",
+        "state": "stale",
+        "as_of": "2026-04-14",
+        "evidence": "not current truth unless regenerated on the updated client"
+      },
+      {
+        "path": "selected-source basis layout +0x60/+0x6C/+0x78 and +0x94/+0xA0/+0xAC",
+        "state": "historical",
+        "as_of": "2026-04-14",
+        "evidence": "use as a historical clue only, never as a literal modern offset contract"
+      },
+      {
+        "path": "Cheat Engine debugger attach",
+        "state": "unstable",
+        "as_of": "2026-04-14",
+        "evidence": "may fail with Error attaching the windows debugger: 87"
+      }
+    ],
+    "forbidden_start_points": [
+      "trace-player-selector-owner.ps1",
+      "capture-player-source-chain.ps1",
+      "camera recovery scripts on feature branches",
+      "stale absolute addresses copied from dated captures"
+    ]
+  },
+  "execution_order": [
+    {
+      "step": 1,
+      "name": "ground_and_verify_baselines",
+      "goal": "Prove the reader baseline still works before touching actor-yaw-specific recovery.",
+      "commands": [
+        "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --readerbridge-snapshot --json",
+        "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json",
+        "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json"
+      ],
+      "required_classification": [
+        "Mark each cited input as current, stale, or historical before using it.",
+        "Reject stale addresses and stale source objects even if they look plausible."
+      ],
+      "advance_when": [
+        "all three commands succeed",
+        "player-current still matches ReaderBridge",
+        "coord-anchor still resolves through the current module-local pattern"
+      ],
+      "stop_when": [
+        "reader baseline fails",
+        "coord-anchor no longer resolves"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "inspect_current_orientation_probe",
+      "goal": "Determine whether the addon layer already exposes a usable actor heading, facing, yaw, or pitch signal.",
+      "commands": [
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\inspect-readerbridge-orientation.cmd",
+        "type C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\readerbridge-orientation-probe.json"
+      ],
+      "decision": {
+        "if_orientation_probe_present_and_nonempty": "skip to step 5",
+        "if_orientation_probe_absent_or_empty": "continue to step 3"
+      }
+    },
+    {
+      "step": 3,
+      "name": "repair_addon_first",
+      "goal": "Make the addon export a non-empty orientationProbe block before doing broad memory recovery.",
+      "inspect_before_patch": [
+        "C:\\RIFT MODDING\\RiftReader\\addon\\ReaderBridgeExport\\main.lua",
+        "C:\\RIFT MODDING\\RiftReader\\addon\\RiftReaderApiProbe\\main.lua"
+      ],
+      "patch_targets": [
+        "C:\\RIFT MODDING\\RiftReader\\addon\\ReaderBridgeExport\\main.lua",
+        "C:\\RIFT MODDING\\RiftReader\\addon\\RiftReaderApiProbe\\main.lua"
+      ],
+      "notes": [
+        "The repo already contains orientation-probe logic; first determine whether the problem is missing deployment, missing export trigger, pruning to nil, or incomplete probe data.",
+        "Patch only what is necessary to emit orientationProbe and make /rap orientation surface direct heading/pitch or orientation-like candidates."
+      ],
+      "required_behavior": [
+        "Probe Inspect.Unit.Heading and Inspect.Unit.Pitch for player and target.",
+        "Scan Inspect.Unit.Detail, ReaderBridge.State, and Inspect.Stat for heading, pitch, yaw, face, facing, orient, orientation, or rotation keys.",
+        "Preserve minimal-risk behavior and avoid unrelated addon rewrites."
+      ]
+    },
+    {
+      "step": 4,
+      "name": "validate_sync_export_recheck",
+      "goal": "Validate addon changes, deploy them, refresh the live export, and confirm whether orientationProbe is now present.",
+      "commands": [
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\validate-addon.cmd",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\sync-addon.cmd",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\refresh-readerbridge-export.cmd",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\inspect-readerbridge-orientation.cmd"
+      ],
+      "in_game_commands": [
+        "/rap orientation",
+        "/rbx export"
+      ],
+      "decision": {
+        "if_orientation_probe_now_present_and_useful": "continue to step 5",
+        "if_orientation_probe_still_empty": "continue to step 6"
+      }
+    },
+    {
+      "step": 5,
+      "name": "validate_addon_as_primary_yaw_source",
+      "goal": "Use controlled Left and Right stimuli to prove that the addon-exposed signal behaves like actor yaw.",
+      "commands": [
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\test-actor-orientation-stimulus.ps1 -Key Left -Json",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\test-actor-orientation-stimulus.ps1 -Key Right -Json",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\compare-readerbridge-orientation-probes.cmd C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\readerbridge-orientation-probe-baseline.json C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\readerbridge-orientation-probe-after.json"
+      ],
+      "advance_when": [
+        "a direct heading, yaw, or facing-derived signal changes correctly under Left and Right turns",
+        "Left and Right produce opposite-sign turn deltas or equivalent directional facing change",
+        "coord drift remains near zero"
+      ],
+      "then": [
+        "Adopt the addon-visible signal as the primary actor-yaw source.",
+        "Do only the smallest reader or tooling wiring needed to consume or preserve that signal.",
+        "Do not broaden into raw memory rediscovery once addon truth is sufficient."
+      ]
+    },
+    {
+      "step": 6,
+      "name": "bounded_live_memory_recovery",
+      "goal": "If addon truth is still unavailable, recover actor yaw from bounded live memory around current player coordinates.",
+      "commands": [
+        "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\test-actor-orientation-stimulus.ps1 -Key Left -Json",
+        "C:\\RIFT MODDING\\RiftReader\\scripts\\test-actor-orientation-stimulus.ps1 -Key Right -Json"
+      ],
+      "selection_rules": [
+        "Prefer candidates that match current player coordinates in the current process.",
+        "Prefer transform-like candidates with meaningful vectors, orthonormality, determinant near 1, and duplicate-basis agreement.",
+        "Reject any candidate that depends on stale owner-components lineage or stale absolute addresses."
+      ],
+      "advance_when": [
+        "candidate search returns a current-process source with coord agreement",
+        "controlled Left and Right validation produces believable opposite-sign yaw change with low coord drift"
+      ]
+    },
+    {
+      "step": 7,
+      "name": "ce_scan_confirmation_only",
+      "goal": "Use CE as a confirmation lane, not as the default discovery lane.",
+      "allowed_modes": [
+        "scan",
+        "inspection",
+        "manual structure review",
+        "address-list confirmation"
+      ],
+      "disallowed_by_default": [
+        "debugger-trace-first recovery"
+      ],
+      "on_error_87": [
+        "log the failure",
+        "stop debugger-trace for that pass",
+        "do not patch shared Lua attach guards from a single failure"
+      ]
+    }
+  ],
+  "success_gates": [
+    {
+      "name": "baseline_gate",
+      "criteria": [
+        "ReaderBridge snapshot loads successfully.",
+        "player-current read succeeds and still matches ReaderBridge.",
+        "coord-anchor still resolves pattern F3 0F 10 86 5C 01 00 00 with coord offsets 0x158/0x15C/0x160."
+      ]
+    },
+    {
+      "name": "addon_signal_gate",
+      "criteria": [
+        "orientationProbe is present in the exported ReaderBridge snapshot.",
+        "At least one player-facing signal exists: directHeading, yaw, facing, or a stable orientation-like candidate.",
+        "The signal is current-process evidence, not copied from stale captures."
+      ]
+    },
+    {
+      "name": "yaw_validation_gate",
+      "criteria": [
+        "Left and Right turn stimuli produce opposite-sign yaw or heading deltas, or equivalent monotonic facing change.",
+        "Absolute left and right turn delta should each be at least 15 degrees when the measured signal is numeric.",
+        "Coord drift should remain at or below 0.25 during a clean turn-in-place validation."
+      ]
+    },
+    {
+      "name": "memory_fallback_gate",
+      "criteria": [
+        "A bounded candidate search returns a current-process coord-matching candidate.",
+        "The winning candidate shows transform-like basis quality or duplicate-basis agreement strong enough to survive stimulus validation.",
+        "No stale lineage assumption is required to explain the result."
+      ]
+    },
+    {
+      "name": "final_gate",
+      "criteria": [
+        "The winning actor-yaw source is identified and labeled as addon-derived or memory-derived.",
+        "Any code changes are minimal, targeted, and validated.",
+        "A machine-readable recovery artifact captures commands run, source chosen, evidence, validation, and stop point."
+      ]
+    }
+  ],
+  "deliverables": [
+    {
+      "name": "machine_readable_recovery_summary",
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-orientation-recovery.json",
+      "required_fields": [
+        "chosen_yaw_source",
+        "source_origin",
+        "commands_run",
+        "files_changed",
+        "validation_results",
+        "stale_artifacts_rejected",
+        "exact_stop_point"
+      ]
+    },
+    {
+      "name": "refreshed_orientation_probe",
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\readerbridge-orientation-probe.json",
+      "required_fields": [
+        "OrientationProbePresent",
+        "Player",
+        "Target",
+        "StatCandidates",
+        "Notes"
+      ]
+    },
+    {
+      "name": "minimal_patch_set",
+      "required_fields": [
+        "changed_files",
+        "root_cause",
+        "why_this_patch_is_minimal"
+      ]
+    },
+    {
+      "name": "validation_summary",
+      "required_fields": [
+        "baseline_status",
+        "addon_probe_status",
+        "left_turn_result",
+        "right_turn_result",
+        "ce_status_if_used"
+      ]
+    }
+  ],
+  "stop_conditions": [
+    {
+      "condition": "reader baseline broken",
+      "action": "Stop actor-yaw recovery and repair the baseline before continuing."
+    },
+    {
+      "condition": "only stale lineage supports the current hypothesis",
+      "action": "Reject the hypothesis and reacquire current-process evidence."
+    },
+    {
+      "condition": "Cheat Engine debugger attach fails with Error attaching the windows debugger: 87",
+      "action": "Log the failure, abandon debugger-trace for that pass, and continue only with addon, reader, or CE scan and inspection lanes."
+    },
+    {
+      "condition": "camera-specific work becomes the next step without actor-yaw being blocked",
+      "action": "Stop and return focus to actor-yaw recovery."
+    },
+    {
+      "condition": "addon path yields a validated current-process yaw source",
+      "action": "Stop broad rediscovery and keep follow-up wiring minimal."
+    }
+  ]
+}

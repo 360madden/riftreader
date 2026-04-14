@@ -1,6 +1,7 @@
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Scanning;
+using System.Globalization;
 
 namespace RiftReader.Reader.Models;
 
@@ -15,6 +16,11 @@ public static class PlayerOrientationCandidateFinder
     private const int BasisPrimaryTrail = 0x50;
     private const int BasisDuplicateLead = 0x20;
     private const int BasisDuplicateTrail = 0x48;
+    private const int PointerHopRootReadLength = 0x100;
+    private const int PointerHopChildReadLength = 0x200;
+    private const int PointerHopMaxBasisOffset = 0x160;
+    private const double PointerHopForwardComponentFloor = 0.05d;
+    private const double PointerHopHorizontalMagnitudeFloor = 0.20d;
 
     public static PlayerOrientationCandidateSearchResult Find(
         ProcessMemoryReader reader,
@@ -105,6 +111,15 @@ public static class PlayerOrientationCandidateFinder
             .ThenBy(static c => c.BasisDuplicateAgreement?.MaxRowDeltaMagnitude ?? double.MaxValue)
             .ToArray();
 
+        var pointerHopCandidates = FindPointerHopCandidates(
+                reader,
+                processId,
+                processName,
+                snapshotDocument,
+                Math.Max(maxHits, 12))
+            .Take(maxHits)
+            .ToArray();
+
         return new PlayerOrientationCandidateSearchResult(
             Mode: "player-orientation-candidate-search",
             ProcessId: processId,
@@ -114,11 +129,15 @@ public static class PlayerOrientationCandidateFinder
             CandidateCount: ranked.Length,
             BestCandidate: ranked.FirstOrDefault(),
             Candidates: ranked.Take(maxHits).ToArray(),
+            PointerHopCandidateCount: pointerHopCandidates.Length,
+            BestPointerHopCandidate: pointerHopCandidates.FirstOrDefault(),
+            PointerHopCandidates: pointerHopCandidates,
             Notes: new[]
             {
                 "Read-only single-process search over live player coord hits.",
                 "Candidates scored by coord agreement, transform-like basis quality, and basis-duplicate agreement.",
-                "The search now performs a bounded local sweep around coord hits instead of relying only on the original fixed offsets."
+                "The search now performs a bounded local sweep around coord hits instead of relying only on the original fixed offsets.",
+                "When local coord-window candidates fail, the finder also follows first-hop readable pointers from grouped player-signature family roots and ranks meaningful transform-like child bases."
             });
     }
 
@@ -397,6 +416,210 @@ public static class PlayerOrientationCandidateFinder
 
         return (bestOffset, bestCoord, bestOffset.HasValue);
     }
+
+    private static IReadOnlyList<PlayerOrientationPointerHopCandidate> FindPointerHopCandidates(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        int maxHits)
+    {
+        var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
+        var coord = player.Coord ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain current player coordinates.");
+        if (coord.X is null || coord.Y is null || coord.Z is null)
+        {
+            return Array.Empty<PlayerOrientationPointerHopCandidate>();
+        }
+
+        var scan = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
+            reader,
+            processId,
+            processName,
+            $"readerbridge-player-signature ({snapshotDocument.SourceFile})",
+            (float)coord.X.Value,
+            (float)coord.Y.Value,
+            (float)coord.Z.Value,
+            player.Level,
+            player.Hp,
+            player.HpMax,
+            player.Name,
+            player.LocationName,
+            inspectionRadius: 96,
+            maxHits: maxHits);
+
+        var bestByChildAddress = new Dictionary<long, PlayerOrientationPointerHopCandidate>();
+
+        foreach (var family in scan.Families)
+        {
+            foreach (var sampleAddressText in family.SampleAddresses)
+            {
+                if (!TryParseHexAddress(sampleAddressText, out var sampleAddress))
+                {
+                    continue;
+                }
+
+                if (!reader.TryReadBytes(new nint(sampleAddress), PointerHopRootReadLength, out var rootBytes, out _))
+                {
+                    continue;
+                }
+
+                var seenChildAddresses = new HashSet<long>();
+                for (var offset = 0; offset + sizeof(ulong) <= rootBytes.Length; offset += sizeof(ulong))
+                {
+                    var childAddressValue = BitConverter.ToUInt64(rootBytes, offset);
+                    if (!LooksLikeUserPointer(childAddressValue))
+                    {
+                        continue;
+                    }
+
+                    var childAddress = checked((long)childAddressValue);
+                    if (!seenChildAddresses.Add(childAddress))
+                    {
+                        continue;
+                    }
+
+                    if (!reader.TryReadBytes(new nint(childAddress), PointerHopChildReadLength, out var childBytes, out _))
+                    {
+                        continue;
+                    }
+
+                    var bestForChild = FindBestPointerHopBasisForChild(
+                        childBytes,
+                        childAddress,
+                        sampleAddressText,
+                        family.FamilyId,
+                        family.BestScore);
+
+                    if (bestForChild is null)
+                    {
+                        continue;
+                    }
+
+                    if (!bestByChildAddress.TryGetValue(childAddress, out var existing) || bestForChild.Score > existing.Score)
+                    {
+                        bestByChildAddress[childAddress] = bestForChild;
+                    }
+                }
+            }
+        }
+
+        return bestByChildAddress.Values
+            .OrderByDescending(static candidate => candidate.Score)
+            .ThenBy(static candidate => Math.Abs(candidate.PreferredEstimate.YawDegrees ?? double.MaxValue))
+            .ToArray();
+    }
+
+    private static PlayerOrientationPointerHopCandidate? FindBestPointerHopBasisForChild(
+        byte[] childBytes,
+        long childAddress,
+        string parentAddressHex,
+        string parentFamilyId,
+        int parentScore)
+    {
+        PlayerOrientationPointerHopCandidate? best = null;
+        var maxBasisOffset = Math.Min(PointerHopMaxBasisOffset, childBytes.Length - 0x1C);
+
+        for (var basisOffset = 0; basisOffset <= maxBasisOffset; basisOffset += CoordStep)
+        {
+            var basis = ReadBasis(
+                childBytes,
+                basisOffset,
+                basisOffset + 0x0C,
+                basisOffset + 0x18,
+                $"Basis@0x{basisOffset:X}");
+
+            if (!IsMeaningfulPointerHopBasisCandidate(basis))
+            {
+                continue;
+            }
+
+            var estimate = Estimate($"Basis@0x{basisOffset:X}", basis.Forward);
+            var candidate = new PlayerOrientationPointerHopCandidate(
+                Address: $"0x{childAddress:X}",
+                ParentAddress: parentAddressHex,
+                ParentFamilyId: parentFamilyId,
+                ParentScore: parentScore,
+                DiscoveryMode: "pointer-hop-from-player-signature-family",
+                BasisPrimaryForwardOffset: $"0x{basisOffset:X}",
+                Score: ScorePointerHopCandidate(basis, estimate, parentScore),
+                Basis: basis,
+                PreferredEstimate: estimate);
+
+            if (best is null || candidate.Score > best.Score)
+            {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool LooksLikeUserPointer(ulong value) =>
+        value >= 0x0000000000010000UL &&
+        value <= 0x00007FFFFFFFFFFFUL &&
+        (value % sizeof(ulong)) == 0;
+
+    private static bool TryParseHexAddress(string value, out long address)
+    {
+        address = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? value[2..]
+            : value;
+
+        return long.TryParse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out address) && address > 0;
+    }
+
+    private static bool IsMeaningfulPointerHopBasisCandidate(PlayerOrientationBasisCandidate basis)
+    {
+        if (!basis.IsOrthonormal)
+        {
+            return false;
+        }
+
+        if (basis.Forward.X is not double x || basis.Forward.Y is not double y || basis.Forward.Z is not double z)
+        {
+            return false;
+        }
+
+        var components = new[]
+        {
+            Math.Abs(x),
+            Math.Abs(y),
+            Math.Abs(z)
+        };
+
+        var nonTrivialComponents = components.Count(component => component >= PointerHopForwardComponentFloor);
+        var horizontalMagnitude = Math.Sqrt((x * x) + (z * z));
+
+        return nonTrivialComponents >= 2 && horizontalMagnitude >= PointerHopHorizontalMagnitudeFloor;
+    }
+
+    private static int ScorePointerHopCandidate(
+        PlayerOrientationBasisCandidate basis,
+        PlayerOrientationVectorEstimate estimate,
+        int parentScore)
+    {
+        var score = Math.Max(0, parentScore);
+
+        if (basis.IsOrthonormal)
+        {
+            score += 80;
+        }
+
+        score += DeterminantBonus(basis.Determinant);
+
+        if (estimate.Magnitude is >= 0.85d and <= 1.15d)
+        {
+            score += 40;
+        }
+
+        return score;
+    }
 }
 
 public sealed record PlayerOrientationCandidateSearchResult(
@@ -408,6 +631,9 @@ public sealed record PlayerOrientationCandidateSearchResult(
     int CandidateCount,
     PlayerOrientationCandidate? BestCandidate,
     IReadOnlyList<PlayerOrientationCandidate> Candidates,
+    int PointerHopCandidateCount,
+    PlayerOrientationPointerHopCandidate? BestPointerHopCandidate,
+    IReadOnlyList<PlayerOrientationPointerHopCandidate> PointerHopCandidates,
     IReadOnlyList<string> Notes);
 
 public sealed record PlayerOrientationCandidate(
@@ -447,3 +673,14 @@ public sealed record PlayerOrientationBasisDuplicateAgreement(
     double MaxRowDeltaMagnitude,
     bool Strong,
     bool Usable);
+
+public sealed record PlayerOrientationPointerHopCandidate(
+    string Address,
+    string ParentAddress,
+    string ParentFamilyId,
+    int ParentScore,
+    string DiscoveryMode,
+    string BasisPrimaryForwardOffset,
+    int Score,
+    PlayerOrientationBasisCandidate Basis,
+    PlayerOrientationVectorEstimate PreferredEstimate);

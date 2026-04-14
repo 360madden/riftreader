@@ -52,4 +52,6 @@ public sealed record ReaderOptions(
     string? AddonSnapshotFile,
     bool ReadReaderBridgeSnapshot,
     string? ReaderBridgeSnapshotFile,
-    bool JsonOutput);
+    bool JsonOutput,
+    bool PostUpdateTriage = false,
+    string? RecoveryBundleFile = null);

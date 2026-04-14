@@ -5,7 +5,9 @@ param(
     [int]$HoldMilliseconds = 250,
     [string]$TargetProcessName = "rift_x64",
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
-    [int]$InterKeyDelayMilliseconds = 20,
+    [int]$InterKeyDelayMilliseconds = 60,
+    [int]$FocusSettleMilliseconds = 500,
+    [int]$PostKeySettleMilliseconds = 150,
     [switch]$SkipBackgroundFocus
 )
 
@@ -152,7 +154,7 @@ function Focus-Window {
     [void][RiftKeyNative]::SetForegroundWindow($Process.MainWindowHandle)
     [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
     [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $false)
-    Start-Sleep -Milliseconds 250
+    Start-Sleep -Milliseconds $FocusSettleMilliseconds
 }
 
 function Get-EffectiveTargetHandle {
@@ -340,6 +342,7 @@ else {
     $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
     Write-Host ("[RiftKey] Foreground    : 0x{0:X}" -f $foregroundHandle.ToInt64())
     Send-BindingInput -Binding $binding
+    Start-Sleep -Milliseconds $PostKeySettleMilliseconds
     Write-Host "[RiftKey] SUCCESS"
     exit 0
 }
@@ -370,5 +373,6 @@ for ($i = $modifiersDown.Count - 1; $i -ge 0; $i--) {
     Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $modifiersDown[$i]
 }
 
+Start-Sleep -Milliseconds $PostKeySettleMilliseconds
 Write-Host "[RiftKey] SUCCESS"
 exit 0

@@ -5,10 +5,14 @@ param(
     [switch]$Json,
     [string]$Label,
     [int]$HoldMilliseconds = 700,
-    [int]$WaitMilliseconds = 250,
+    [int]$WaitMilliseconds = 700,
+    [int]$InterKeyDelayMilliseconds = 60,
+    [int]$FocusSettleMilliseconds = 500,
+    [int]$PostKeySettleMilliseconds = 150,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [switch]$SkipUiClearCheck
 )
 
 Set-StrictMode -Version Latest
@@ -16,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 
 $captureScript = Join-Path $PSScriptRoot 'capture-actor-orientation.ps1'
 $keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$uiClearCheckScript = Join-Path $PSScriptRoot 'assert-rift-gameplay-ui-clear.ps1'
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-actor-orientation-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
@@ -70,6 +75,27 @@ function Invoke-Capture {
     }
 
     return $json | ConvertFrom-Json -Depth 30
+}
+
+function Assert-UiClear {
+    if ($SkipUiClearCheck) {
+        return $null
+    }
+
+    $uiCheckOutput = '{0}.ui-check.json' -f $tempPrefix
+    $json = & $uiClearCheckScript -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Gameplay UI clear-check failed before sending input.'
+    }
+
+    [System.IO.File]::WriteAllText($uiCheckOutput, [string]$json)
+    $document = $json | ConvertFrom-Json -Depth 20
+    if (-not $document.SafeForGameplayInput) {
+        $screenshot = if ($document.ScreenshotPath) { [string]$document.ScreenshotPath } else { 'n/a' }
+        throw "Blocking gameplay UI detected before stimulus. Screenshot: $screenshot"
+    }
+
+    return $document
 }
 
 function Get-CoordDeltaMagnitude {
@@ -135,10 +161,14 @@ function Format-Nullable {
 
 $effectiveLabel = if ([string]::IsNullOrWhiteSpace($Label)) { $Key.ToLowerInvariant() } else { $Label }
 $before = Invoke-Capture -CaptureLabel ("before-{0}" -f $effectiveLabel)
+$uiClear = Assert-UiClear
 
 $keyArguments = @{
     Key = $Key
     HoldMilliseconds = $HoldMilliseconds
+    InterKeyDelayMilliseconds = $InterKeyDelayMilliseconds
+    FocusSettleMilliseconds = $FocusSettleMilliseconds
+    PostKeySettleMilliseconds = $PostKeySettleMilliseconds
 }
 
 if (-not $backgroundProcessAvailable) {
@@ -177,6 +207,10 @@ $result = [pscustomobject]@{
     Key = $Key
     HoldMilliseconds = $HoldMilliseconds
     WaitMilliseconds = $WaitMilliseconds
+    InterKeyDelayMilliseconds = $InterKeyDelayMilliseconds
+    FocusSettleMilliseconds = $FocusSettleMilliseconds
+    PostKeySettleMilliseconds = $PostKeySettleMilliseconds
+    UiClearCheck = $uiClear
     Before = $before
     After = $after
     Comparison = [pscustomobject]@{

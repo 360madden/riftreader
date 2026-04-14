@@ -348,6 +348,149 @@ function Get-CandidateScore {
     return $score
 }
 
+function Test-HeapPointer {
+    param(
+        [UInt64]$Value
+    )
+
+    return ($Value -ge 0x000002BC00000000) -and ($Value -lt 0x000002BD00000000)
+}
+
+function Test-MeaningfulBasisCandidate {
+    param($Basis)
+
+    if ($null -eq $Basis -or -not $Basis.IsOrthonormal) {
+        return $false
+    }
+
+    $forward = $Basis.Forward
+    if (-not (Test-TripletValid -Triplet $forward)) {
+        return $false
+    }
+
+    $components = @(
+        [Math]::Abs([double]$forward.X),
+        [Math]::Abs([double]$forward.Y),
+        [Math]::Abs([double]$forward.Z))
+
+    $nonTrivialComponents = @($components | Where-Object { $_ -ge 0.05 }).Count
+    $maxComponent = ($components | Measure-Object -Maximum).Maximum
+
+    return ($nonTrivialComponents -ge 2) -and ([double]$maxComponent -lt 0.999)
+}
+
+function Get-PointerHopCandidateScore {
+    param(
+        $Basis,
+        $Estimate,
+        [int]$ParentScore
+    )
+
+    $score = [Math]::Max(0, $ParentScore)
+    if ($Basis.IsOrthonormal) {
+        $score += 80
+    }
+
+    $score += Get-DeterminantBonus -Determinant $Basis.Determinant
+
+    if ($null -ne $Estimate -and $null -ne $Estimate.Magnitude) {
+        if ([double]$Estimate.Magnitude -ge 0.85 -and [double]$Estimate.Magnitude -le 1.15) {
+            $score += 40
+        }
+    }
+
+    return $score
+}
+
+function Get-PointerHopOrientationCandidates {
+    param(
+        [Parameter(Mandatory = $true)]
+        $SignatureScan,
+
+        [Parameter(Mandatory = $true)]
+        [int]$MaxCandidates
+    )
+
+    $candidatesByAddress = @{}
+
+    foreach ($hit in @($SignatureScan.Hits)) {
+        if ($null -eq $hit) {
+            continue
+        }
+
+        $rootAddressHex = [string]$hit.AddressHex
+        if ([string]::IsNullOrWhiteSpace($rootAddressHex)) {
+            continue
+        }
+
+        try {
+            $rootBytes = Read-Bytes -Address (Parse-HexUInt64 -Value $rootAddressHex) -Length 256
+        }
+        catch {
+            continue
+        }
+
+        $childPointers = New-Object System.Collections.Generic.HashSet[string]
+        for ($offset = 0; ($offset + 8) -le [Math]::Min($rootBytes.Length, 256); $offset += 8) {
+            $pointerValue = [BitConverter]::ToUInt64($rootBytes, $offset)
+            if (-not (Test-HeapPointer -Value $pointerValue)) {
+                continue
+            }
+
+            $null = $childPointers.Add(('0x{0:X}' -f $pointerValue))
+        }
+
+        foreach ($childAddressHex in @($childPointers)) {
+            try {
+                $childBytes = Read-Bytes -Address (Parse-HexUInt64 -Value $childAddressHex) -Length 512
+            }
+            catch {
+                continue
+            }
+
+            $bestForChild = $null
+
+            foreach ($basisOffset in @(0..0x160 | Where-Object { ($_ % 4) -eq 0 })) {
+                $basis = New-BasisMatrixEstimate -Name ('Basis{0}' -f ('0x{0:X}' -f $basisOffset)) `
+                    -Forward (Read-TripletAt -Bytes $childBytes -Offset $basisOffset) `
+                    -Up (Read-TripletAt -Bytes $childBytes -Offset ($basisOffset + 0x0C)) `
+                    -Right (Read-TripletAt -Bytes $childBytes -Offset ($basisOffset + 0x18))
+
+                if (-not (Test-MeaningfulBasisCandidate -Basis $basis)) {
+                    continue
+                }
+
+                $estimate = New-VectorEstimate -Name ('Basis{0}' -f ('0x{0:X}' -f $basisOffset)) -Vector $basis.Forward
+                $candidate = [pscustomobject]@{
+                    AddressHex = $childAddressHex
+                    ParentAddressHex = $rootAddressHex
+                    ParentFamilyId = [string]$hit.FamilyId
+                    ParentScore = [int]$hit.Score
+                    DiscoveryMode = 'pointer-hop-from-player-signature-family'
+                    BasisPrimaryForwardOffset = ('0x{0:X}' -f $basisOffset)
+                    Score = Get-PointerHopCandidateScore -Basis $basis -Estimate $estimate -ParentScore ([int]$hit.Score)
+                    Basis = $basis
+                    PreferredEstimate = $estimate
+                }
+
+                if ($null -eq $bestForChild -or [int]$candidate.Score -gt [int]$bestForChild.Score) {
+                    $bestForChild = $candidate
+                }
+            }
+
+            if ($null -ne $bestForChild) {
+                if (-not $candidatesByAddress.ContainsKey($bestForChild.AddressHex) -or [int]$bestForChild.Score -gt [int]$candidatesByAddress[$bestForChild.AddressHex].Score) {
+                    $candidatesByAddress[$bestForChild.AddressHex] = $bestForChild
+                }
+            }
+        }
+    }
+
+    return @($candidatesByAddress.Values | Sort-Object `
+        @{ Expression = { [int]$_.Score }; Descending = $true }, `
+        @{ Expression = { if ($null -ne $_.PreferredEstimate.YawDegrees) { [Math]::Abs([double]$_.PreferredEstimate.YawDegrees) } else { 999999 } }; Descending = $false } | Select-Object -First $MaxCandidates)
+}
+
 $playerCurrent = Invoke-ReaderJson -Arguments @(
     '--process-name', $ProcessName,
     '--read-player-current',
@@ -433,6 +576,15 @@ $rankedCandidates = @($candidatesByBase.Values | Sort-Object `
     @{ Expression = { [int]$_.Score }; Descending = $true }, `
     @{ Expression = { if ($null -ne $_.BasisDuplicateAgreement.MaxRowDeltaMagnitude) { [double]$_.BasisDuplicateAgreement.MaxRowDeltaMagnitude } else { 1e9 } }; Descending = $false })
 
+$signatureScan = Invoke-ReaderJson -Arguments @(
+    '--process-name', $ProcessName,
+    '--scan-readerbridge-player-signature',
+    '--scan-context', '96',
+    '--max-hits', [Math]::Max($MaxHits, 12).ToString([System.Globalization.CultureInfo]::InvariantCulture),
+    '--json')
+
+$pointerHopCandidates = @(Get-PointerHopOrientationCandidates -SignatureScan $signatureScan -MaxCandidates $MaxCandidates)
+
 $document = [pscustomobject]@{
     Mode = 'player-orientation-candidate-search'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
@@ -441,9 +593,13 @@ $document = [pscustomobject]@{
     CandidateCount = @($rankedCandidates).Count
     BestCandidate = $rankedCandidates | Select-Object -First 1
     Candidates = @($rankedCandidates | Select-Object -First $MaxCandidates)
+    PointerHopCandidateCount = @($pointerHopCandidates).Count
+    BestPointerHopCandidate = $pointerHopCandidates | Select-Object -First 1
+    PointerHopCandidates = $pointerHopCandidates
     Notes = @(
         'This is a read-only search over live coord hits and nearby basis-shaped candidate objects.',
         'Candidates are scored by duplicated coord matches, orthonormal basis quality, and duplicate-basis agreement.',
+        'When local coord-window candidates fail, the helper also follows first-hop heap pointers from grouped player-signature families and surfaces meaningful orthonormal child-basis candidates.',
         'No CE debugger, breakpoints, or game-window input are used by this search.')
 }
 
@@ -460,4 +616,15 @@ if ($null -ne $document.BestCandidate) {
     Write-Host ("Coord matches:              +0x48={0} +0x88={1}" -f $document.BestCandidate.Coord48MatchesPlayer, $document.BestCandidate.Coord88MatchesPlayer)
     Write-Host ("Duplicate basis delta:      {0}" -f $document.BestCandidate.BasisDuplicateAgreement.MaxRowDeltaMagnitude)
     Write-Host ("Yaw/Pitch (deg):            {0:N3} / {1:N3}" -f [double]$document.BestCandidate.PreferredEstimate.YawDegrees, [double]$document.BestCandidate.PreferredEstimate.PitchDegrees)
+}
+Write-Host ("Pointer-hop candidates:     {0}" -f $document.PointerHopCandidateCount)
+if ($null -ne $document.BestPointerHopCandidate) {
+    Write-Host ("Best pointer-hop:           {0} via {1} @ {2} (score {3})" -f `
+        $document.BestPointerHopCandidate.AddressHex, `
+        $document.BestPointerHopCandidate.ParentAddressHex, `
+        $document.BestPointerHopCandidate.BasisPrimaryForwardOffset, `
+        $document.BestPointerHopCandidate.Score)
+    Write-Host ("Pointer-hop yaw/pitch:      {0:N3} / {1:N3}" -f `
+        [double]$document.BestPointerHopCandidate.PreferredEstimate.YawDegrees, `
+        [double]$document.BestPointerHopCandidate.PreferredEstimate.PitchDegrees)
 }
