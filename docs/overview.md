@@ -38,6 +38,14 @@ That means:
 - no offset or workflow claims that silently generalize across installs
 - no compatibility claims beyond the environment actually tested
 
+## Recovery / Rebuild
+
+If current artifacts or notes are corrupted, use the repo recovery docs first:
+
+- C:\RIFT MODDING\RiftReader\docs\recovery\README.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\artifact-tiers.md
 ## Immediate Milestones
 
 1. confirm reliable process targeting

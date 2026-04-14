@@ -84,6 +84,18 @@ See saved trace artifacts in `scripts/captures/` for the last verified anchors (
 
 ---
 
+## 3A. Recovery Documentation System
+
+When rebuilding after drift, stale artifacts, or partial corruption, start with:
+
+- C:\RIFT MODDING\RiftReader\docs\recovery\README.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\artifact-tiers.md
+
+These are the repo-owned rebuild documents. Historical handoff docs are background context only unless the recovery docs explicitly send you there.
+
+---
 ## 4. Verified RIFT API Facts (Addon Layer)
 
 **ALWAYS search before using any RIFT API.** These facts were verified against `seebs.net` and `rift.mestoph.net` as of 2026-04-09. Re-verify if you have any doubt.
