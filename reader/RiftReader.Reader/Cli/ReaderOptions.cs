@@ -5,6 +5,8 @@ namespace RiftReader.Reader.Cli;
 public sealed record ReaderOptions(
     int? ProcessId,
     string? ProcessName,
+    bool InspectSession,
+    string? SessionInputPath,
     nint? Address,
     int? Length,
     bool ListModules,

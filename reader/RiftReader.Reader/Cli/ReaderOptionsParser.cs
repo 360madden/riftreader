@@ -9,6 +9,7 @@ public static class ReaderOptionsParser
 Usage:
   RiftReader.Reader --pid <processId>
   RiftReader.Reader --process-name <name>
+  RiftReader.Reader --inspect-session <directoryOrManifestPath> [--json]
   RiftReader.Reader --process-name <name> --list-modules [--json]
   RiftReader.Reader --process-name <name> --scan-module-pattern "<aa bb ?? cc>" [--scan-module-name <module>] [--scan-context <bytes>] [--json]
   RiftReader.Reader --pid <processId> --address <hexOrDecimal> --length <byteCount>
@@ -34,6 +35,7 @@ Usage:
 
 Notes:
   - Use this reader only against Rift client processes you explicitly intend to inspect.
+  - Use --inspect-session to summarize an existing offline session package without attaching to a live process.
   - Provide either --pid or --process-name, but not both.
   - Provide --address and --length together when you want a raw memory read.
   - Use --list-modules to inspect the module list for the attached process.
@@ -61,6 +63,7 @@ Notes:
 
 Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --inspect-session .\scripts\sessions\20260413-140416-ce-pass-slow-01 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --list-modules
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-module-pattern "48 8B ?? ?? ?? ?? ?? 48 85 C0" --scan-module-name rift_x64.exe --scan-context 32
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pid 1234 --address 0x7FF600001000 --length 64
@@ -91,6 +94,8 @@ Examples:
 
         int? processId = null;
         string? processName = null;
+        var inspectSession = false;
+        string? sessionInputPath = null;
         nint? address = null;
         int? length = null;
         var listModules = false;
@@ -164,6 +169,21 @@ Examples:
                     }
 
                     processName = processNameValue;
+                    break;
+
+                case "--inspect-session":
+                    if (!TryReadNext(args, ref index, out var sessionInputPathValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --inspect-session.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(sessionInputPathValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Session input path must not be blank.", UsageText);
+                    }
+
+                    inspectSession = true;
+                    sessionInputPath = sessionInputPathValue;
                     break;
 
                 case "--address":
@@ -600,6 +620,70 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with scan switches.", UsageText);
         }
 
+        if (inspectSession)
+        {
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--inspect-session cannot be combined with process attach or raw memory-read switches.", UsageText);
+            }
+
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || readPlayerOrientation || rankStatHubs || cheatEngineStatHubs)
+            {
+                return ReaderOptionsParseResult.Fail("--inspect-session cannot be combined with live scan, capture, snapshot, ranking, or recording modes.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    InspectSession: true,
+                    SessionInputPath: sessionInputPath,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput),
+                UsageText);
+        }
+
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && writeCheatEngineProbe)
         {
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --cheatengine-probe.", UsageText);
@@ -671,6 +755,8 @@ Examples:
                 new ReaderOptions(
                     ProcessId: null,
                     ProcessName: null,
+                    InspectSession: false,
+                    SessionInputPath: null,
                     Address: null,
                     Length: null,
                     ListModules: false,
@@ -743,6 +829,8 @@ Examples:
                 new ReaderOptions(
                     ProcessId: null,
                     ProcessName: null,
+                    InspectSession: false,
+                    SessionInputPath: null,
                     Address: null,
                     Length: null,
                     ListModules: false,
@@ -800,6 +888,8 @@ Examples:
                 new ReaderOptions(
                     ProcessId: null,
                     ProcessName: null,
+                    InspectSession: false,
+                    SessionInputPath: null,
                     Address: null,
                     Length: null,
                     ListModules: false,
@@ -857,6 +947,8 @@ Examples:
                 new ReaderOptions(
                     ProcessId: null,
                     ProcessName: null,
+                    InspectSession: false,
+                    SessionInputPath: null,
                     Address: null,
                     Length: null,
                     ListModules: false,
@@ -1087,6 +1179,8 @@ Examples:
                 new ReaderOptions(
                     ProcessId: processId,
                     ProcessName: processName,
+                    InspectSession: false,
+                    SessionInputPath: null,
                     Address: address,
                     Length: length,
                     ListModules: listModules,

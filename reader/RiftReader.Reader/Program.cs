@@ -51,6 +51,16 @@ internal static class Program
             return RunReaderBridgeSnapshotMode(options);
         }
 
+        if (options.InspectSession)
+        {
+            return RunInspectSessionMode(options);
+        }
+
+        if (options.InspectSession)
+        {
+            return RunInspectSessionMode(options);
+        }
+
         if (options.ReadPlayerOrientation)
         {
             return RunReadPlayerOrientationMode(options);
@@ -1209,6 +1219,24 @@ internal static class Program
         Console.WriteLine("Use this tool only against Rift client artifacts and processes you explicitly intend to inspect.");
         Console.WriteLine();
         Console.WriteLine(PlayerStatHubRankTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunInspectSessionMode(ReaderOptions options)
+    {
+        var result = SessionInspector.TryInspect(options.SessionInputPath, out var error);
+        if (result is null)
+        {
+            Console.Error.WriteLine(error ?? "Unable to inspect the offline session.");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+        Console.WriteLine(SessionInspectTextFormatter.Format(result));
         return 0;
     }
 
