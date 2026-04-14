@@ -19,6 +19,7 @@ public sealed record ReaderOptions(
     bool ReadPlayerOrientation,
     bool CaptureReaderBridgeBestFamily,
     bool ReadPlayerCurrent,
+    bool FindPlayerOrientationCandidate,
     bool ReadPlayerCoordAnchor,
     bool ReadTargetCurrent,
     bool SessionSummary,

@@ -1,3 +1,4 @@
+using System.Globalization;
 using RiftReader.Reader.Lua;
 
 namespace RiftReader.Reader.AddonSnapshots;
@@ -74,6 +75,7 @@ public static class ReaderBridgeSnapshotLoader
             Hud: MapHud(table.GetTable("hud")),
             Player: MapUnit(table.GetTable("player")),
             Target: MapUnit(table.GetTable("target")),
+            OrientationProbe: MapOrientationProbe(table.GetTable("orientationProbe")),
             PlayerBuffLines: MapStringList(table.GetTable("playerBuffLines")),
             PlayerDebuffLines: MapStringList(table.GetTable("playerDebuffLines")),
             TargetBuffLines: MapStringList(table.GetTable("targetBuffLines")),
@@ -158,6 +160,69 @@ public static class ReaderBridgeSnapshotLoader
             Text: table.GetString("text"));
     }
 
+    private static ReaderBridgeOrientationProbeSnapshot? MapOrientationProbe(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeOrientationProbeSnapshot(
+            Player: MapOrientationProbeUnit(table.GetTable("player")),
+            Target: MapOrientationProbeUnit(table.GetTable("target")),
+            StatCandidates: MapOrientationProbeFields(GetTableAny(table, "statCandidates", "sharedStatCandidates", "stats")));
+    }
+
+    private static ReaderBridgeOrientationProbeUnitSnapshot? MapOrientationProbeUnit(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeOrientationProbeUnitSnapshot(
+            DirectHeading: GetDoubleAny(table, "directHeading", "heading"),
+            DirectPitch: GetDoubleAny(table, "directPitch", "pitch"),
+            Yaw: GetDoubleAny(table, "yaw", "directYaw"),
+            Facing: GetStringAny(table, "facing", "directFacing"),
+            DetailCandidates: MapOrientationProbeFields(GetTableAny(table, "detailCandidates", "detailFields", "detail", "candidates")),
+            StateCandidates: MapOrientationProbeFields(GetTableAny(table, "stateCandidates", "stateFields", "state")));
+    }
+
+    private static IReadOnlyList<ReaderBridgeOrientationProbeFieldSnapshot> MapOrientationProbeFields(LuaTable? table)
+    {
+        if (table is null || table.Items.Count == 0)
+        {
+            return Array.Empty<ReaderBridgeOrientationProbeFieldSnapshot>();
+        }
+
+        var values = new List<ReaderBridgeOrientationProbeFieldSnapshot>(table.Items.Count);
+
+        foreach (var item in table.Items)
+        {
+            if (item is LuaTable candidateTable)
+            {
+                values.Add(new ReaderBridgeOrientationProbeFieldSnapshot(
+                    Key: GetStringAny(candidateTable, "key", "name", "field", "label"),
+                    Value: GetValueTextAny(candidateTable, "value", "text", "result"),
+                    Kind: GetStringAny(candidateTable, "kind", "source", "type", "valueType")));
+                continue;
+            }
+
+            if (item is null)
+            {
+                continue;
+            }
+
+            values.Add(new ReaderBridgeOrientationProbeFieldSnapshot(
+                Key: null,
+                Value: item.ToString(),
+                Kind: null));
+        }
+
+        return values;
+    }
+
     private static ValidatorCoordinateSnapshot? MapCoordinate(LuaTable? table)
     {
         if (table is null)
@@ -197,5 +262,70 @@ public static class ReaderBridgeSnapshotLoader
         }
 
         return values;
+    }
+
+    private static LuaTable? GetTableAny(LuaTable table, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = table.GetTable(key);
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static double? GetDoubleAny(LuaTable table, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = table.GetDouble(key);
+            if (value.HasValue)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetStringAny(LuaTable table, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = table.GetString(key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetValueTextAny(LuaTable table, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (!table.Fields.TryGetValue(key, out var value) || value is null)
+            {
+                continue;
+            }
+
+            return value switch
+            {
+                string text => text,
+                bool boolean => boolean ? "true" : "false",
+                long number => number.ToString(CultureInfo.InvariantCulture),
+                int number => number.ToString(CultureInfo.InvariantCulture),
+                double number => number.ToString(CultureInfo.InvariantCulture),
+                _ => value.ToString()
+            };
+        }
+
+        return null;
     }
 }

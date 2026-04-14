@@ -12,7 +12,7 @@ _Last updated: April 14, 2026 (post-update triage)_
 | Coord-anchor module pattern | working |
 | Source-chain refresh | broken after the update |
 | Selector-owner trace | broken after the update |
-| Player orientation read | stale until the owner/source chain is rebuilt |
+| Player orientation read | stale; resume actor yaw/pitch recovery via addon-first orientation probing before rebuilding the old owner/source chain |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 
@@ -22,6 +22,8 @@ Use this report before trusting older actor/camera captures:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-live-camera-script-behavior-and-offset-drift.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
 - `C:\RIFT MODDING\RiftReader\docs\input-safety.md`
 
 ## Surviving baselines
@@ -49,6 +51,19 @@ Still working as a module-local pattern:
 - `player-owner-components.json` is stale until regenerated
 - `player-actor-orientation.json` is stale until regenerated
 
+## Actor yaw / pitch recovery direction
+
+The current recommended recovery path is:
+
+1. addon-first orientation probing
+2. export any API-visible heading / pitch / facing candidates
+3. only then fall back to raw-memory rediscovery if the addon layer yields nothing useful
+
+Do **not** treat the old debugger-driven owner/source chain as the default first
+step for actor yaw / pitch recovery on the updated client. Use:
+
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+
 ## Canonical scripts on `main`
 
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1`
@@ -75,6 +90,32 @@ Relevant scripts there:
 
 Do not treat camera outputs as current truth on `main` until the actor/source
 chain is rebuilt and the camera path is revalidated on the updated client.
+
+## Camera offset drift snapshot
+
+As of `2026-04-14`, these old camera references are **historical only**:
+
+- yaw basis on selected-source:
+  - `+0x60/+0x68/+0x78`
+  - duplicate `+0x94/+0x9C/+0xAC`
+- pitch / distance via `entry15` orbit coordinates:
+  - `+0xA8/+0xAC/+0xB0`
+  - duplicate `+0xB4/+0xB8/+0xBC`
+
+The last-known pre-update object addresses used for that model are now stale:
+
+- selected-source base: `0x1FDA0D13170`
+- `entry15` base: `0x1FD9FA6F190`
+
+Direct raw reads against those addresses failed during the live drift check, so
+they should not be reused as current offsets without a fresh object recovery.
+
+Preferred live camera probe for post-update work:
+
+- `C:\RIFT MODDING\RiftReader\scripts\probe-live-camera-offset-diff.ps1`
+
+Do **not** use the legacy angle-candidate script as the default live camera
+probe path.
 
 ## Tier-1 artifacts
 

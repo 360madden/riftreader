@@ -79,6 +79,11 @@ internal static class Program
             return RunStatHubRankingMode(options);
         }
 
+        if (options.FindPlayerOrientationCandidate)
+        {
+            // handled after process attach
+        }
+
         if (!options.JsonOutput)
         {
             Console.WriteLine("RiftReader.Reader");
@@ -158,7 +163,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -204,6 +209,11 @@ internal static class Program
         if (options.ReadPlayerCurrent)
         {
             return RunReadPlayerCurrentMode(options, target, reader);
+        }
+
+        if (options.FindPlayerOrientationCandidate)
+        {
+            return RunFindPlayerOrientationCandidateMode(options, target, reader);
         }
 
         if (options.ReadTargetCurrent)
@@ -384,6 +394,41 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerSignatureProbeCaptureTextFormatter.Format(capture));
+        return 0;
+    }
+
+    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (snapshotDocument?.Current?.Player?.Coord is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player orientation candidate search.");
+            return 1;
+        }
+
+        PlayerOrientationCandidateSearchResult result;
+        try
+        {
+            result = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                options.MaxHits);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to find a live player orientation candidate: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine($"Best live orientation candidate: {result.BestCandidate?.Address ?? "n/a"} (score {result.BestCandidate?.Score ?? 0})");
         return 0;
     }
 

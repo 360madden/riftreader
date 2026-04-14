@@ -26,7 +26,32 @@ owner/source/camera artifact.
 dotnet build C:\RIFT MODDING\RiftReader\RiftReader.slnx
 ```
 
-## 2. Attempt to rebuild the owner/source chain
+## 2. For actor yaw / pitch recovery, probe the addon/API layer first
+
+Use the addon path before returning to the old owner/source recovery chain:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd
+C:\RIFT MODDING\RiftReader\scripts\sync-addon.cmd
+```
+
+Then, in-game:
+
+- `/rap orientation`
+- optionally `/rbx export`, then inspect `ReaderBridgeExport.lua`
+
+Resume criteria:
+
+- if the addon/API layer exposes a usable heading / pitch / facing signal, keep
+  the actor-orientation recovery focused there first
+- only if the addon layer yields no strong orientation candidate should the
+  workflow drop back to external rediscovery
+
+Reference:
+
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+
+## 3. Attempt to rebuild the owner/source chain
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
@@ -48,7 +73,7 @@ Current post-update warning:
 
 Do not promote stale owner/source artifacts as current truth.
 
-## 3. Refresh the core graph artifacts
+## 4. Refresh the core graph artifacts
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1 -Json -RefreshSelectorTrace
@@ -56,9 +81,9 @@ C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1 -Json -Refr
 C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1 -Json
 ```
 
-Run this step only after step 2 succeeds on the current game build.
+Run this step only after step 3 succeeds on the current game build.
 
-## 4. Verify the live camera read path
+## 5. Verify the live camera read path
 
 ```powershell
 C:\RIFT MODDING\RiftReader_camera_feature\scripts\read-live-camera-yaw-pitch.ps1 -Json
@@ -76,7 +101,7 @@ Current post-update note:
 - do not treat older camera outputs as current until this step succeeds on the
   updated client
 
-## 5. Rebuild controller-search helpers if needed
+## 6. Rebuild controller-search helpers if needed
 
 ```powershell
 C:\RIFT MODDING\RiftReader_camera_feature\scripts\search-camera-global.ps1 -Json -RefreshOwnerGraph -RefreshHubGraph -RefreshOwnerComponents
@@ -86,9 +111,10 @@ C:\RIFT MODDING\RiftReader_camera_feature\scripts\capture-camera-memory-dump.ps1
 
 ## Missing-file shortcuts
 
-- missing `player-owner-components.json` -> do step 2
-- missing `player-owner-graph.json` or `player-stat-hub-graph.json` -> do step 3
-- missing camera helper outputs -> do steps 4 and 5
+- missing actor yaw / pitch direction after an update -> do step 2
+- missing `player-owner-components.json` -> do step 3
+- missing `player-owner-graph.json` or `player-stat-hub-graph.json` -> do step 4
+- missing camera helper outputs -> do steps 5 and 6
 - missing old notes -> rebuild the current state first, then compare history later
 
 ## Operator note

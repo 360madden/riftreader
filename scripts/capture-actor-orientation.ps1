@@ -521,12 +521,63 @@ function Resolve-LiveOrientation {
         throw 'The player-orientation reader did not resolve a selected source address.'
     }
 
-    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
     $playerCoord = $metadata.PlayerCoord
-    $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
-    $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+    $liveSample = $null
+    $coord48Matches = $false
+    $coord88Matches = $false
+    $resolutionMode = 'artifact-selected-source'
+    $resolutionNotes = New-Object System.Collections.Generic.List[string]
+
+    try {
+        $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+        $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
+        $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+    }
+    catch {
+        $resolutionNotes.Add("Artifact-selected source live read failed: $($_.Exception.Message)")
+    }
+
+    if ($null -eq $liveSample -or (-not $coord48Matches -and -not $coord88Matches)) {
+        try {
+            $candidateSearch = Invoke-ReaderJson -Arguments @(
+                '--process-name', $ProcessName,
+                '--find-player-orientation-candidate',
+                '--max-hits', '8',
+                '--json')
+            if ($candidateSearch.BestCandidate -and -not [string]::IsNullOrWhiteSpace([string]$candidateSearch.BestCandidate.Address)) {
+                $liveSample = [pscustomobject]@{
+                    AddressHex = [string]$candidateSearch.BestCandidate.Address
+                    Coord48 = $candidateSearch.BestCandidate.Coord48
+                    Orientation60 = $candidateSearch.BestCandidate.Basis60.Forward
+                    Basis60 = $candidateSearch.BestCandidate.Basis60
+                    Coord88 = $candidateSearch.BestCandidate.Coord88
+                    Orientation94 = $candidateSearch.BestCandidate.Basis94.Forward
+                    Basis94 = $candidateSearch.BestCandidate.Basis94
+                    BasisDuplicateAgreement = $candidateSearch.BestCandidate.BasisDuplicateAgreement
+                }
+
+                $coord48Matches = [bool]$candidateSearch.BestCandidate.Coord48MatchesPlayer
+                $coord88Matches = [bool]$candidateSearch.BestCandidate.Coord88MatchesPlayer
+                $resolutionMode = 'read-only-candidate-search'
+                $resolutionNotes.Add("Resolved live source via read-only candidate search: $($candidateSearch.BestCandidate.Address)")
+            }
+            else {
+                $resolutionNotes.Add('Read-only candidate search returned no viable source-object candidate.')
+            }
+        }
+        catch {
+            $resolutionNotes.Add("Read-only candidate search failed: $($_.Exception.Message)")
+        }
+    }
+
+    if ($null -eq $liveSample) {
+        throw 'Unable to resolve a live source object for actor orientation.'
+    }
 
     $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue ([bool]$AllowOwnerRefresh) -Force
+    $metadata | Add-Member -NotePropertyName ResolvedSourceAddress -NotePropertyValue ([string]$liveSample.AddressHex) -Force
+    $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
+    $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue ($resolutionNotes.ToArray()) -Force
 
     return [pscustomobject]@{
         Metadata = $metadata
@@ -580,6 +631,14 @@ if ($orientationMetadata.Notes) {
 $orientationNotes.Add('Preferred estimate in this capture was recomputed from a fresh live memory read of the selected source object.')
 $orientationNotes.Add('Coord48/Coord88 and Orientation60/Orientation94 were read directly from source offsets +0x48/+0x88 and +0x60/+0x94.')
 $orientationNotes.Add('The source object also exposes duplicated 3x3 basis blocks at +0x60/+0x6C/+0x78 and +0x94/+0xA0/+0xAC; yaw/pitch are derived from the forward row.')
+if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionMode') {
+    $orientationNotes.Add("Live source resolution mode: $($orientationMetadata.ResolutionMode)")
+}
+if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionNotes' -and $orientationMetadata.ResolutionNotes) {
+    foreach ($resolutionNote in $orientationMetadata.ResolutionNotes) {
+        $orientationNotes.Add([string]$resolutionNote)
+    }
+}
 if ($liveResolution.Coord48Matches -or $liveResolution.Coord88Matches) {
     $orientationNotes.Add('Live source coords matched the current ReaderBridge player coords during capture.')
 }
@@ -605,7 +664,7 @@ $orientation = [pscustomobject]@{
     PlayerGuild = $orientationMetadata.PlayerGuild
     PlayerLocation = $orientationMetadata.PlayerLocation
     PlayerCoord = $orientationMetadata.PlayerCoord
-    SelectedSourceAddress = $orientationMetadata.SelectedSourceAddress
+    SelectedSourceAddress = if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolvedSourceAddress' -and -not [string]::IsNullOrWhiteSpace([string]$orientationMetadata.ResolvedSourceAddress)) { $orientationMetadata.ResolvedSourceAddress } else { $orientationMetadata.SelectedSourceAddress }
     SelectedEntryAddress = $orientationMetadata.SelectedEntryAddress
     SelectedEntryIndex = $orientationMetadata.SelectedEntryIndex
     SelectedEntryMatchesSelectedSource = $orientationMetadata.SelectedEntryMatchesSelectedSource

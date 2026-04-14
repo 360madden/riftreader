@@ -18,6 +18,7 @@ Usage:
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
@@ -46,6 +47,7 @@ Notes:
   - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
+  - Use --find-player-orientation-candidate to do a single-process read-only search for the live actor/source object near current player coordinate hits.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
@@ -73,6 +75,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
@@ -109,6 +112,7 @@ Examples:
         var readPlayerOrientation = false;
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
+        var findPlayerOrientationCandidate = false;
         var readPlayerCoordAnchor = false;
         var recordSession = false;
         var sessionSummary = false;
@@ -364,6 +368,10 @@ Examples:
 
                 case "--read-player-current":
                     readPlayerCurrent = true;
+                    break;
+
+                case "--find-player-orientation-candidate":
+                    findPlayerOrientationCandidate = true;
                     break;
 
                 case "--read-player-coord-anchor":
@@ -726,6 +734,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: true,
@@ -802,6 +811,7 @@ Examples:
                     ReadPlayerOrientation: true,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -878,6 +888,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -939,6 +950,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -1000,6 +1012,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -1111,6 +1124,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with scan switches.", UsageText);
         }
 
+        if (findPlayerOrientationCandidate && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with scan switches.", UsageText);
+        }
+
         if (readPlayerCurrent && scanRequested)
         {
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with scan switches.", UsageText);
@@ -1139,6 +1157,11 @@ Examples:
         if (captureReaderBridgeBestFamily && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with raw memory-read switches.", UsageText);
         }
 
         if (readPlayerCurrent && address.HasValue)
@@ -1176,6 +1199,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor.", UsageText);
         }
 
+        if (listModules && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (listModules && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-current.", UsageText);
@@ -1196,6 +1224,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --record-session.", UsageText);
         }
 
+        if (writeCheatEngineProbe && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (writeCheatEngineProbe && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-current.", UsageText);
@@ -1209,6 +1242,11 @@ Examples:
         if (writeCheatEngineProbe && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --find-player-orientation-candidate.", UsageText);
         }
 
         if (captureReaderBridgeBestFamily && readPlayerCurrent)
@@ -1226,9 +1264,19 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (findPlayerOrientationCandidate && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
         if (readPlayerCurrent && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readTargetCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-target-current.", UsageText);
         }
 
         if (readPlayerCurrent && readTargetCurrent)
@@ -1249,6 +1297,11 @@ Examples:
         if (captureReaderBridgeBestFamily && recordSession)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --record-session.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --record-session.", UsageText);
         }
 
         if (readPlayerCurrent && recordSession)
@@ -1289,6 +1342,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
                     ReadPlayerCurrent: readPlayerCurrent,
+                    FindPlayerOrientationCandidate: findPlayerOrientationCandidate,
                     ReadPlayerCoordAnchor: readPlayerCoordAnchor,
                     ReadTargetCurrent: readTargetCurrent,
                     SessionSummary: false,

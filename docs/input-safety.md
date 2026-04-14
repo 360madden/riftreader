@@ -40,9 +40,11 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` | Hybrid | may refresh export / reacquire | `main` | Mostly reader-driven, but can invoke helper flows |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` | Hybrid | may rely on live trace/input path | `main` | Analysis-first, but not purely passive |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` | Hybrid | may refresh selector trace | `main` | Downstream of trace workflow |
+| `C:\RIFT MODDING\RiftReader\scripts\probe-live-camera-offset-diff.ps1` | Direct mouse/camera input | direct raw readback only | `codex/camera-yaw-pitch` | Preferred live camera drift probe; avoids reload/chat helpers |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-camera-stimulus.ps1` | Direct mouse/camera input | can combine RMB + readback | `feature/camera-orientation-discovery` | Camera stimulus harness |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-rmb-camera.ps1` | Direct mouse/camera input | manual stepping | `feature/camera-orientation-discovery` | Very focus/UI sensitive |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\zoom-camera.ps1` | Direct mouse/camera input | wheel input | `feature/camera-orientation-discovery` | Zoom-only camera input |
+| `C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1` | Chat/reload UI-intrusive | falls into legacy refresh/reload chain | `feature/camera-orientation-discovery` | Confirmed to open Quest Log / Looking For Group during live test |
 
 ## High-risk helpers
 
@@ -53,12 +55,15 @@ These should be treated as **not safe for unattended runs**:
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\send-rift-command.ps1`
 - `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-rmb-camera.ps1`
+- `C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1`
 
 Why:
 
 - chat state may not be what you expect
 - `/reloadui` is deliberately disruptive
 - focus-sensitive mouse/RMB paths can open menus or hit UI unexpectedly
+- the legacy camera angle-candidate script was observed to open Quest Log and
+  Looking For Group during a live verification pass
 
 ## Branch scope note
 

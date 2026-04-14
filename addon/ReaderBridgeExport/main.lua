@@ -200,6 +200,22 @@ local function safeUnitDetail(unit)
   return safeCall(Inspect.Unit.Detail, unit)
 end
 
+local function safeUnitHeading(unit)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Heading, unit)
+end
+
+local function safeUnitPitch(unit)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Pitch, unit)
+end
+
 local function safeUnitCastbar(unit)
   return safeCall(Inspect.Unit.Castbar, unit)
 end
@@ -391,6 +407,148 @@ local function buildStatSnapshot()
   return result
 end
 
+local function isOrientationKey(key)
+  if type(key) ~= "string" then
+    return false
+  end
+
+  local lower = string.lower(key)
+  return lower == "heading"
+    or lower == "pitch"
+    or lower == "yaw"
+    or lower == "face"
+    or lower == "facing"
+    or lower == "orient"
+    or lower == "orientation"
+    or lower == "rotation"
+    or string.find(lower, "heading", 1, true) ~= nil
+    or string.find(lower, "pitch", 1, true) ~= nil
+    or string.find(lower, "yaw", 1, true) ~= nil
+    or string.find(lower, "face", 1, true) ~= nil
+    or string.find(lower, "orient", 1, true) ~= nil
+    or string.find(lower, "rotation", 1, true) ~= nil
+end
+
+local function copyOrientationValue(value)
+  local valueType = type(value)
+  if valueType == "number" or valueType == "string" or valueType == "boolean" then
+    return value
+  end
+
+  if value == nil then
+    return nil
+  end
+
+  return tostring(value)
+end
+
+local function buildOrientationCandidates(source)
+  if type(source) ~= "table" then
+    return nil
+  end
+
+  local candidates = {}
+  for key, value in pairs(source) do
+    if isOrientationKey(key) then
+      table.insert(candidates, {
+        key = tostring(key),
+        value = copyOrientationValue(value),
+        valueType = type(value),
+      })
+    end
+  end
+
+  table.sort(candidates, function(a, b)
+    return a.key < b.key
+  end)
+
+  return #candidates > 0 and candidates or nil
+end
+
+local function buildOrientationUnitProbe(source, label, sharedStatCandidates)
+  local probe = {
+    source = tostring(label or "unit"),
+    directHeading = nil,
+    directPitch = nil,
+  }
+
+  if type(source) == "table" then
+    probe.detailCandidates = buildOrientationCandidates(source)
+  end
+
+  if type(sharedStatCandidates) == "table" and #sharedStatCandidates > 0 then
+    probe.statCandidates = sharedStatCandidates
+  end
+
+  return probe
+end
+
+local function hasOrientationUnitProbeData(probe)
+  if type(probe) ~= "table" then
+    return false
+  end
+
+  if probe.directHeading ~= nil or probe.directPitch ~= nil then
+    return true
+  end
+
+  if type(probe.detailCandidates) == "table" and #probe.detailCandidates > 0 then
+    return true
+  end
+
+  if type(probe.stateCandidates) == "table" and #probe.stateCandidates > 0 then
+    return true
+  end
+
+  if type(probe.statCandidates) == "table" and #probe.statCandidates > 0 then
+    return true
+  end
+
+  if probe.yaw ~= nil or probe.facing ~= nil then
+    return true
+  end
+
+  return false
+end
+
+local function pruneOrientationUnitProbe(probe)
+  if not hasOrientationUnitProbeData(probe) then
+    return nil
+  end
+
+  return probe
+end
+
+local function buildOrientationProbe(playerDetail, targetDetail, statSource, playerState, targetState, playerId, targetId)
+  local sharedStatCandidates = buildOrientationCandidates(statSource)
+  local probe = {
+    player = buildOrientationUnitProbe(playerDetail, "player", sharedStatCandidates),
+    target = buildOrientationUnitProbe(targetDetail, "target", sharedStatCandidates),
+    statCandidates = sharedStatCandidates,
+  }
+
+  if probe.player then
+    probe.player.directHeading = toNumber(safeUnitHeading(playerId)) or (type(playerDetail) == "table" and toNumber(playerDetail.heading) or nil)
+    probe.player.directPitch = toNumber(safeUnitPitch(playerId)) or (type(playerDetail) == "table" and toNumber(playerDetail.pitch) or nil)
+    probe.player.stateCandidates = buildOrientationCandidates(playerState)
+  end
+
+  if probe.target then
+    probe.target.directHeading = toNumber(safeUnitHeading(targetId)) or (type(targetDetail) == "table" and toNumber(targetDetail.heading) or nil)
+    probe.target.directPitch = toNumber(safeUnitPitch(targetId)) or (type(targetDetail) == "table" and toNumber(targetDetail.pitch) or nil)
+    probe.target.stateCandidates = buildOrientationCandidates(targetState)
+  end
+
+  probe.player = pruneOrientationUnitProbe(probe.player)
+  probe.target = pruneOrientationUnitProbe(probe.target)
+
+  if not probe.player and not probe.target and not probe.statCandidates then
+    return nil
+  end
+
+  return probe
+end
+
 local function buildCoordDelta(coord, currentTime)
   if type(coord) ~= "table" then
     runtime.lastPlayerCoord = nil
@@ -571,8 +729,11 @@ local function buildDirectSnapshot(reason)
   local currentTime = now()
   local playerId = safeUnitLookup("player")
   local targetId = safeUnitLookup("player.target")
+  local playerDetail = safeUnitDetail("player")
+  local targetDetail = targetId and safeUnitDetail(targetId) or nil
   local player = readUnit("player")
   local target = targetId and readUnit(targetId) or nil
+  local playerStats = buildStatSnapshot()
 
   if target and player and player.coord and target.coord then
     target.distance = distance3d(
@@ -604,11 +765,12 @@ local function buildDirectSnapshot(reason)
     hud = nil,
     player = player,
     target = target,
+    orientationProbe = buildOrientationProbe(playerDetail, targetDetail, playerStats, nil, nil, playerId, targetId),
     playerBuffLines = buildBuffLines("player", false),
     playerDebuffLines = buildBuffLines("player", true),
     targetBuffLines = targetId and buildBuffLines(targetId, false) or {},
     targetDebuffLines = targetId and buildBuffLines(targetId, true) or {},
-    playerStats = buildStatSnapshot(),
+    playerStats = playerStats,
     playerCoordDelta = coordDelta,
     nearbyUnits = readNearbyUnits(playerId, targetId),
     partyUnits = readPartyMembers(),
@@ -714,6 +876,7 @@ local function buildSnapshot(reason)
 
   -- NilRisk: bridgeState.player may be nil if bridge state not yet populated
   local player = copyUnit(bridgeState.player)
+  local playerStats = buildStatSnapshot()
   local coordDelta = buildCoordDelta(player and player.coord, generatedAt)
 
   return {
@@ -729,11 +892,12 @@ local function buildSnapshot(reason)
     hud = copyHud(bridgeState.hud),
     player = player,
     target = copyUnit(bridgeState.target),
+    orientationProbe = buildOrientationProbe(bridgeState.player, bridgeState.target, playerStats, bridgeState.player, bridgeState.target, player and player.id or safeUnitLookup("player"), bridgeState.target and bridgeState.target.id or safeUnitLookup("player.target")),
     playerBuffLines = copyList(bridgeState.playerBuffLines),
     playerDebuffLines = copyList(bridgeState.playerDebuffLines),
     targetBuffLines = copyList(bridgeState.targetBuffLines),
     targetDebuffLines = copyList(bridgeState.targetDebuffLines),
-    playerStats = buildStatSnapshot(),
+    playerStats = playerStats,
     playerCoordDelta = coordDelta,
     nearbyUnits = nil,
     partyUnits = readPartyMembers(),
