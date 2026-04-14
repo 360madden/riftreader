@@ -24,9 +24,16 @@ A healthy package normally includes:
 
 1. Confirm the command completed without interruption.
 2. Open the session folder and verify the expected files exist.
-3. Check whether `package-manifest.json` is present and complete.
+3. Check whether `package-manifest.json` is present and whether `Status` /
+   `IntegrityStatus` report `complete` / `ok` or `warning`.
 4. Check `capture-consistency.json` for stale or cross-run warnings.
 5. Confirm the selected process was actually `rift_x64`.
+
+Quick summary command:
+
+```powershell
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory C:\RIFT MODDING\RiftReader\scripts\sessions\<session-id>
+```
 
 ## Common failure modes
 
@@ -35,14 +42,19 @@ A healthy package normally includes:
 Likely cause:
 
 - the run was interrupted
-- the recorder stopped before final package writeout
+- the recorder or package-integrity check failed before final success
 - the source watchset was incomplete
 
 What to do:
 
-- treat the package as failed/incomplete
+- treat the package as failed/incomplete if `package-manifest.json` reports
+  `Status = failed` or `IntegrityStatus = failed`
 - re-run the full capture with a fresh session ID
 - regenerate the watchset first if the source chain changed
+
+If the session folder exists but `package-manifest.json` is missing entirely,
+assume the run predates the hardened package flow or died before the manifest
+could be written. Do not trust it as a valid offline package.
 
 ### 2) `capture-consistency.json` reports stale or mismatched artifacts
 
@@ -142,4 +154,6 @@ Discard the session and start over if:
 
 - Offline session packages are meant to be diffable and easy to inspect by hand.
 - A partial session should be treated as evidence of a failed run, not a valid package.
+- `package-manifest.json` is the authoritative top-level summary for session
+  status and integrity.
 - If the recorder keeps failing, investigate the current artifact chain before changing sample settings.

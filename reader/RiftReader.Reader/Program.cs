@@ -53,6 +53,11 @@ internal static class Program
             return RunReaderBridgeSnapshotMode(options);
         }
 
+        if (options.SessionSummary)
+        {
+            return RunSessionSummaryMode(options);
+        }
+
         if (options.ReadPlayerOrientation)
         {
             return RunReadPlayerOrientationMode(options);
@@ -239,6 +244,28 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(HexDumpFormatter.Format(bytes, address));
 
+        return 0;
+    }
+
+    private static int RunSessionSummaryMode(ReaderOptions options)
+    {
+        var package = SessionPackageManifestLoader.TryLoad(options.SessionDirectory, out var loadError);
+        if (package is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the session package manifest.");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(package));
+            return 0;
+        }
+
+        Console.WriteLine("RiftReader.Reader");
+        Console.WriteLine("Use this tool only against Rift client artifacts and processes you explicitly intend to inspect.");
+        Console.WriteLine();
+        Console.WriteLine(SessionSummaryTextFormatter.Format(package));
         return 0;
     }
 
@@ -1106,7 +1133,7 @@ internal static class Program
                     SamplesFile: samplesFile,
                     MarkersFile: markersFile,
                     ModulesFile: modulesFile,
-                    IntegrityStatus: missingFiles.Count == 0 && requiredReadFailures.Count == 0 ? "ok" : "warning",
+                    IntegrityStatus: missingFiles.Count > 0 ? "failed" : (requiredReadFailures.Count == 0 ? "ok" : "warning"),
                     MissingFiles: missingFiles,
                     Modules: modules,
                     WatchsetWarnings: watchsetWarnings,

@@ -23,9 +23,9 @@ the capture chain aligned while the typed reader work advances:
 - `scripts\refresh-discovery-chain.ps1`
   - refreshes the current source-chain -> owner -> stat-hub discovery sequence using existing repo scripts
 - `scripts\export-discovery-watchset.ps1`
-  - derives an owned session watchset from the current discovery artifacts
+  - derives a schema-versioned owned session watchset from the current discovery artifacts
 - `scripts\record-discovery-session.ps1`
-  - packages the current artifacts + truth snapshot + sampled watchset bytes for offline decode work
+  - packages the current artifacts + truth snapshot + sampled watchset bytes for offline decode work, with explicit package integrity/failure reporting
 
 ## Recovery / Rebuild Docs
 
@@ -363,6 +363,12 @@ Offline session workflow:
 C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd -Label baseline -SampleCount 20 -IntervalMilliseconds 500
 ```
 
+Inspect a recorded package without attaching to the game:
+
+```powershell
+dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
+```
+
 Export only the current watchset:
 
 ```powershell
@@ -378,6 +384,7 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 See:
 
 - `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
+- `C:\RIFT MODDING\RiftReader\docs\offline-session-troubleshooting.md`
 
 Capture the first live coord-triplet access and validate the instruction as a
 module-local pattern candidate:

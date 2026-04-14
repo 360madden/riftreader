@@ -278,15 +278,22 @@ try {
         $packageWarnings += "Package is missing required outputs: $($missingFiles -join ', ')"
     }
 
+    $status = 'complete'
     $integrityStatus = 'ok'
-    if ($missingFiles.Count -gt 0 -or [string]$recordDocument.IntegrityStatus -eq 'warning') {
+    $failureMessage = $null
+    if ($missingFiles.Count -gt 0 -or [string]$recordDocument.IntegrityStatus -eq 'failed') {
+        $status = 'failed'
+        $integrityStatus = 'failed'
+        $failureMessage = 'Package is missing one or more required outputs.'
+    }
+    elseif ([string]$recordDocument.IntegrityStatus -eq 'warning') {
         $integrityStatus = 'warning'
     }
 
     $packageManifest = [ordered]@{
         SchemaVersion = $packageSchemaVersion
         Mode = 'discovery-session-package'
-        Status = 'complete'
+        Status = $status
         IntegrityStatus = $integrityStatus
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         SessionId = $sessionId
@@ -306,7 +313,7 @@ try {
         SampleCount = $recordDocument.RecordedSampleCount
         IntervalMilliseconds = $recordDocument.IntervalMilliseconds
         MissingFiles = $missingFiles
-        FailureMessage = $null
+        FailureMessage = $failureMessage
         CopiedArtifacts = $copiedArtifacts.ToArray()
         Warnings = @($packageWarnings | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
     }
@@ -316,6 +323,10 @@ try {
 
     if ($Json) {
         $packageManifest | ConvertTo-Json -Depth 16
+        if ($status -eq 'failed') {
+            exit 1
+        }
+
         exit 0
     }
 
@@ -335,6 +346,11 @@ try {
         foreach ($warning in $packageWarningsList) {
             Write-Host ("- {0}" -f $warning)
         }
+    }
+
+    if ($status -eq 'failed') {
+        Write-Error "Package integrity check failed: $failureMessage"
+        exit 1
     }
 }
 catch {

@@ -38,11 +38,11 @@ The first owned session workflow writes a folder under:
 Current package contents:
 
 - `package-manifest.json`
-  - top-level package summary
+  - top-level package summary, status, integrity result, and missing-file report
 - `recording-manifest.json`
-  - process/module/sample metadata from the reader recorder
+  - schema-versioned process/module/sample metadata from the reader recorder
 - `watchset.json`
-  - named memory regions derived from the current artifact chain
+  - schema-versioned named memory regions derived from the current artifact chain
 - `samples.ndjson`
   - one sampled timeline row per interval
 - `markers.ndjson`
@@ -50,7 +50,7 @@ Current package contents:
 - `modules.json`
   - current module list for the attached process
 - `capture-consistency.json`
-  - provenance / freshness warnings from the live capture set
+  - schema-versioned provenance / freshness warnings from the live capture set
 - `readerbridge-snapshot.json`
   - frozen ReaderBridge truth when available
 - `artifacts\`
@@ -58,6 +58,13 @@ Current package contents:
 
 This is intentionally a folder, not one binary blob, so it stays diffable and
 easy to inspect by hand.
+
+Integrity rule:
+
+- a session folder is only a valid package when `package-manifest.json` is present
+  and its `Status` / `IntegrityStatus` do not report failure
+- incomplete or failed runs should be treated as invalid evidence, even if some
+  component files were written
 
 ## Watchset design
 
@@ -112,13 +119,23 @@ Optional live-truth refresh before packaging:
 C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd -Label moved -SampleCount 20 -IntervalMilliseconds 250 -RefreshReaderBridge
 ```
 
+Offline package summary:
+
+```powershell
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline --json
+```
+
 ## What is implemented now
 
 This change implements the first owned session slice:
 
 - reader CLI support for `--record-session`
+- reader CLI support for `--session-summary`
 - artifact-driven watchset export
 - package orchestration script that freezes artifacts + truth + sampled bytes
+- schema-versioned `watchset.json`, `recording-manifest.json`, `package-manifest.json`, and `capture-consistency.json`
+- explicit package integrity checks and missing-file reporting before success is reported
+- explicit failed-package manifests when the owned package flow aborts after the session folder is created
 
 It does **not** yet implement:
 
@@ -133,3 +150,10 @@ It does **not** yet implement:
 2. add offline reader modes that inspect/diff saved sessions
 3. add targeted stat-diff helpers for hub decoding
 4. drop CE only after session-driven decoding and reader parity are proven
+
+## Operator notes
+
+- use `C:\RIFT MODDING\RiftReader\docs\offline-session-troubleshooting.md`
+  when a session folder exists but the package is failed or incomplete
+- use `C:\RIFT MODDING\RiftReader\docs\offline-session-implementation-checklist.md`
+  for the current foundation-slice backlog

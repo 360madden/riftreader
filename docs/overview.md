@@ -94,11 +94,13 @@ Current discovery refinement:
 - keep the selected source / owner graph path as the main discovery path; treat the older cache-blob family as a bootstrap, not the final anchor
 - keep CE and other mature reverse-engineering tools as the live acquisition workbench, but freeze each useful run into a repo-owned session package so decoding work can continue offline:
   - `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1`
-    derives the current named watchset from owner/source/stat artifacts
+    derives the current schema-versioned named watchset from owner/source/stat artifacts
   - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1`
-    packages the current artifacts, consistency report, ReaderBridge snapshot, and sampled watchset bytes into `scripts\sessions\...`
+    packages the current artifacts, consistency report, ReaderBridge snapshot, and sampled watchset bytes into `scripts\sessions\...`, and marks failed/incomplete packages explicitly
   - `dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session ...`
     performs the actual one-attach sampling pass
+  - `dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory ...`
+    inspects a recorded package without attaching to a live process
   - see `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
 
 ## Addon Boundary

@@ -23,18 +23,18 @@ This checklist is intentionally narrow:
   - `capture-consistency.json`
   - `readerbridge-snapshot.json` when truth is available
   - `artifacts\`
-- [ ] Add a final package-integrity check before the command reports success.
-- [ ] Treat missing or partial artifacts as a failed package, not a warning-only run.
+- [x] Add a final package-integrity check before the command reports success.
+- [x] Treat missing or partial artifacts as a failed package, not a warning-only run.
 - [ ] Define what happens when recording is interrupted or aborted mid-run.
-- [ ] Ensure failed runs either:
+- [x] Ensure failed runs either:
   - clean up partial output, or
   - mark the package explicitly as failed/incomplete.
-- [ ] Surface integrity failures clearly in console output and generated JSON.
+- [x] Surface integrity failures clearly in console output and generated JSON.
 - [ ] Keep the package folder diffable and inspectable by hand.
 
 ## Phase 2 — Schema/versioning and watchset hardening
 
-- [ ] Add an explicit schema/version field to all session artifacts that matter.
+- [x] Add an explicit schema/version field to all session artifacts that matter.
 - [ ] Keep `package-manifest` the top-level summary for the session folder.
 - [ ] Keep `recording-manifest` as the recorder-owned metadata source.
 - [ ] Keep `watchset.json` as the single exported region list for sampling.
@@ -68,8 +68,8 @@ This checklist is intentionally narrow:
 ## Completion criteria for this foundation slice
 
 - [ ] One command can create a complete, valid package from a current watchset.
-- [ ] Partial or failed runs are unambiguous.
-- [ ] Package schema/versioning is stable enough for offline tools to consume safely.
+- [x] Partial or failed runs are unambiguous.
+- [x] Package schema/versioning is stable enough for offline tools to consume safely.
 - [ ] Watchset export is deterministic, provenance-aware, and guarded against stale inputs.
 - [ ] Recorder behavior is stable under normal and burst sampling modes.
 
@@ -78,3 +78,5 @@ This checklist is intentionally narrow:
 - This checklist covers the package foundation only.
 - Offline inspect, diff, and decode tooling belong to later phases.
 - Reader CLI and addon validation remain supporting workflows, not the package contract itself.
+- `--session-summary` now provides the first offline reader-side entry point for
+  inspecting package status and integrity without attaching to a live process.
