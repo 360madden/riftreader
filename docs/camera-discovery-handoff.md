@@ -1,5 +1,7 @@
 # Camera Discovery Handoff - April 11, 2026
 
+> **Superseded historical handoff:** keep this file for background only. The selected-source `+0xB8..+0x150` window and the old entry15 `+0x338/+0x094` lead are no longer the active workflow. Use `C:\RIFT MODDING\RiftReader\docs\camera-orientation-discovery.md` and `C:\RIFT MODDING\RiftReader\scripts\read-live-camera-yaw-pitch.ps1` for the current live path.
+
 ## STATUS: IN PROGRESS - Blocked
 
 **Objective**: Find camera yaw/pitch/distance in RIFT memory.

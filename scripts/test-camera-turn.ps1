@@ -1,4 +1,5 @@
 [CmdletBinding()]
+# OBSOLETE: legacy turn test built around capture-camera-snapshot.ps1 and the rejected +0x7D0 basis hypothesis. Use the safe stimulus harnesses and read-live-camera-yaw-pitch.ps1 instead.
 param()
 
 Set-StrictMode -Version Latest

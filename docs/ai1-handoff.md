@@ -1,5 +1,7 @@
 # AI Session Handoff - April 11, 2026
 
+> **Superseded historical handoff:** this file predates the current live owner/source recovery and still points toward now-obsolete discovery paths. Use `C:\RIFT MODDING\RiftReader\docs\camera-orientation-discovery.md` for the active workflow.
+
 ## What I Did (Session Summary)
 
 ### Accomplishments

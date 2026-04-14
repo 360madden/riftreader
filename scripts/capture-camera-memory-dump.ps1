@@ -1,152 +1,162 @@
 [CmdletBinding()]
 param(
-    [string]$SelectedSourceAddress = '0x1577AC2FB60',
-    [string]$Label = '',
-    [switch]$Json
+    [switch]$Json,
+    [switch]$RefreshOwnerComponents,
+    [switch]$IncludeOrbitSiblings,
+    [string]$ProcessName = 'rift_x64',
+    [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
+    [string]$OutputFile
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Parse address
-$address = if ($SelectedSourceAddress -match '^0x([0-9A-Fa-f]+)$') {
-    [UInt64]::Parse($Matches[1], [System.Globalization.NumberStyles]::HexNumber)
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+$ownerComponentsScript = Join-Path $PSScriptRoot 'capture-player-owner-components.ps1'
+$liveReaderScript = Join-Path $PSScriptRoot 'read-live-camera-yaw-pitch.ps1'
+
+function Convert-CommandOutputToJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$OutputLines,
+        [string]$CommandName = 'command'
+    )
+
+    $text = ($OutputLines |
+        ForEach-Object { $_.ToString() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine
+
+    $startIndex = $text.IndexOf('{')
+    if ($startIndex -lt 0) {
+        throw "$CommandName did not return JSON. Raw output: $text"
+    }
+
+    return ($text.Substring($startIndex) | ConvertFrom-Json -Depth 60)
+}
+
+function Get-EntryByIndex {
+    param(
+        [Parameter(Mandatory = $true)]$OwnerComponents,
+        [Parameter(Mandatory = $true)][int]$Index
+    )
+
+    return $OwnerComponents.Entries | Where-Object { [int]$_.Index -eq $Index } | Select-Object -First 1
+}
+
+function Invoke-ReaderMemoryBlock {
+    param(
+        [Parameter(Mandatory = $true)][string]$Address,
+        [Parameter(Mandatory = $true)][int]$Length
+    )
+
+    $output = & dotnet run --project $readerProject --configuration Release -- `
+        --process-name $ProcessName --address $Address --length $Length --json 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Reader memory read failed for ${Address}: $($output -join [Environment]::NewLine)"
+    }
+
+    return Convert-CommandOutputToJson -OutputLines $output -CommandName "memory read $Address"
+}
+
+if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $OwnerComponentsFile)) {
+    $ownerOutput = & $ownerComponentsScript -Json -RefreshSelectorTrace 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "capture-player-owner-components failed: $($ownerOutput -join [Environment]::NewLine)"
+    }
+    $ownerComponents = Convert-CommandOutputToJson -OutputLines $ownerOutput -CommandName 'capture-player-owner-components'
 }
 else {
-    [UInt64]::Parse($SelectedSourceAddress, [System.Globalization.NumberStyles]::HexNumber)
+    $ownerComponents = Get-Content -LiteralPath $OwnerComponentsFile -Raw | ConvertFrom-Json -Depth 60
 }
 
-$cameraStart = $address + 0xB8
+$liveOutput = & $liveReaderScript -Json 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "read-live-camera-yaw-pitch failed: $($liveOutput -join [Environment]::NewLine)"
+}
+$liveCamera = Convert-CommandOutputToJson -OutputLines $liveOutput -CommandName 'read-live-camera-yaw-pitch'
 
-# C# code for memory reading
-Add-Type @"
-using System;
-using System.Collections.Generic;
+$selectedSource = [string]$ownerComponents.Owner.SelectedSourceAddress
+$entry5 = Get-EntryByIndex -OwnerComponents $ownerComponents -Index 5
+$entry15 = Get-EntryByIndex -OwnerComponents $ownerComponents -Index 15
 
-public class MemoryDump {
-    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
-    private static extern bool ReadProcessMemory(
-        IntPtr hProcess,
-        IntPtr lpBaseAddress,
-        byte[] lpBuffer,
-        int nSize,
-        out IntPtr lpNumberOfBytesRead);
+if ($null -eq $entry15) {
+    throw 'Entry 15 is not present in the current owner-components capture.'
+}
 
-    public static byte[] ReadMemory(IntPtr processHandle, IntPtr address, int size) {
-        byte[] buffer = new byte[size];
-        if (ReadProcessMemory(processHandle, address, buffer, size, out _)) {
-            return buffer;
+$selectedSourceDump = Invoke-ReaderMemoryBlock -Address $selectedSource -Length 0xC0
+$entry15Dump = Invoke-ReaderMemoryBlock -Address ([string]$entry15.Address) -Length 0x100
+$entry5Dump = if ($null -ne $entry5) { Invoke-ReaderMemoryBlock -Address ([string]$entry5.Address) -Length 0x220 } else { $null }
+
+$orbitSiblingDumps = @()
+if ($IncludeOrbitSiblings) {
+    foreach ($index in @(0, 12, 13, 14, 15)) {
+        $entry = Get-EntryByIndex -OwnerComponents $ownerComponents -Index $index
+        if ($null -eq $entry) {
+            continue
         }
-        return null;
-    }
 
-    public static float ReadFloat32(IntPtr processHandle, IntPtr address) {
-        byte[] buffer = ReadMemory(processHandle, address, 4);
-        if (buffer != null && buffer.Length >= 4) {
-            return BitConverter.ToSingle(buffer, 0);
+        $orbitSiblingDumps += [ordered]@{
+            Index = $index
+            Address = [string]$entry.Address
+            Memory = Invoke-ReaderMemoryBlock -Address ([string]$entry.Address) -Length 0x100
         }
-        return float.NaN;
     }
+}
 
-    public static List<float> ReadFloatArray(IntPtr processHandle, IntPtr address, int count) {
-        var result = new List<float>();
-        byte[] buffer = ReadMemory(processHandle, address, count * 4);
-        if (buffer != null) {
-            for (int i = 0; i < count; i++) {
-                result.Add(BitConverter.ToSingle(buffer, i * 4));
+$document = [ordered]@{
+    Mode = 'camera-memory-dump'
+    GeneratedAtUtc = [DateTime]::UtcNow.ToString('o')
+    ProcessName = $ProcessName
+    OwnerComponentsFile = $OwnerComponentsFile
+    CurrentLiveCamera = $liveCamera
+    Dumps = [ordered]@{
+        SelectedSource = [ordered]@{
+            Address = $selectedSource
+            Length = 0xC0
+            Memory = $selectedSourceDump
+        }
+        Entry15 = [ordered]@{
+            Address = [string]$entry15.Address
+            Length = 0x100
+            Memory = $entry15Dump
+        }
+        Entry5YawMirror = if ($null -ne $entry5) {
+            [ordered]@{
+                Address = [string]$entry5.Address
+                Length = 0x220
+                Memory = $entry5Dump
             }
-        }
-        return result;
+        } else { $null }
+        OrbitSiblingEntries = $orbitSiblingDumps
     }
+    Notes = @(
+        'This dump now targets verified live anchors instead of the dead selected-source +0xB8..+0x150 window.',
+        'SelectedSource covers the live yaw basis rows at +0x60/+0x68/+0x78 and +0x94/+0x9C/+0xAC.',
+        'Entry15 covers the verified orbit-coordinate family at +0xA8..+0xBC used for derived pitch and distance.'
+    )
 }
-"@
 
-try {
-    $riftProcess = Get-Process -Name "rift_x64" -ErrorAction Stop | Select-Object -First 1
-
-    Write-Host "=== Camera Memory Dump ===" -ForegroundColor Cyan
-    Write-Host "Component: $SelectedSourceAddress" -ForegroundColor Green
-    Write-Host "Camera range: $('{0:X}' -f $cameraStart) (22 float32s = 88 bytes)" -ForegroundColor Green
-    Write-Host ""
-
-    # Read 22 float32s from camera range
-    $floats = [MemoryDump]::ReadFloatArray($riftProcess.Handle, [IntPtr]$cameraStart, 22)
-
-    if ($floats.Count -eq 0) {
-        Write-Error "Failed to read memory"
-        exit 1
+$jsonText = $document | ConvertTo-Json -Depth 40
+if ($OutputFile) {
+    $outputDirectory = Split-Path -Parent $OutputFile
+    if ($outputDirectory) {
+        New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
     }
-
-    Write-Host "Raw float values (offsets from +0xB8):" -ForegroundColor Yellow
-    for ($i = 0; $i -lt $floats.Count; $i++) {
-        $offset = $i * 4
-        $offsetHex = [string]::Format('0x{0:X}', $offset)
-        $value = $floats[$i]
-        $hex = [System.BitConverter]::DoubleToInt64Bits($value)
-
-        # Highlight interesting values
-        $highlight = ""
-        if ($value -gt 0.9 -and $value -lt 1.1) {
-            $highlight = " ← normalized (likely vector component)"
-        }
-        elseif ($value -gt 5 -and $value -lt 100) {
-            $highlight = " ← distance scalar"
-        }
-        elseif ($value -gt -360 -and $value -lt 360 -and [Math]::Abs($value) -gt 0.1) {
-            $highlight = " ← angle"
-        }
-
-        Write-Host "[+$offsetHex] $([string]::Format('{0,12:F6}', $value))$highlight" -ForegroundColor White
-    }
-
-    # Check for triplet patterns
-    Write-Host ""
-    Write-Host "Potential vector triplets (normalized):" -ForegroundColor Yellow
-
-    for ($i = 0; $i -le 19; $i += 3) {
-        $x = $floats[$i]
-        $y = $floats[$i + 1]
-        $z = $floats[$i + 2]
-        $mag = [Math]::Sqrt($x * $x + $y * $y + $z * $z)
-
-        if ($mag -gt 0.8 -and $mag -lt 1.2) {
-            $offset = $i * 4
-            $offsetHex = [string]::Format('0x{0:X}', $offset)
-            Write-Host "  [$offsetHex] Vector: ($([string]::Format('{0:F3}', $x)), $([string]::Format('{0:F3}', $y)), $([string]::Format('{0:F3}', $z))) Magnitude: $([string]::Format('{0:F3}', $mag))" -ForegroundColor Cyan
-        }
-    }
-
-    # JSON output
-    if ($Json) {
-        $vectors = @()
-        for ($i = 0; $i -le 19; $i += 3) {
-            $x = $floats[$i]
-            $y = $floats[$i + 1]
-            $z = $floats[$i + 2]
-            $mag = [Math]::Sqrt($x * $x + $y * $y + $z * $z)
-
-            $vectors += [PSCustomObject]@{
-                Offset = [string]::Format('0x{0:X}', $i * 4)
-                X = $x
-                Y = $y
-                Z = $z
-                Magnitude = $mag
-            }
-        }
-
-        $output = [ordered]@{
-            Mode = 'camera-memory-dump'
-            GeneratedAtUtc = [System.DateTime]::UtcNow.ToString('o')
-            Label = $Label
-            SelectedSourceAddress = $SelectedSourceAddress
-            CameraRangeStart = [string]::Format('0x{0:X}', $cameraStart)
-            FloatValues = $floats
-            VectorTriplets = $vectors
-        }
-        $output | ConvertTo-Json -Depth 20
-    }
+    Set-Content -LiteralPath $OutputFile -Value $jsonText -Encoding UTF8
 }
-catch {
-    Write-Error "Failed to dump camera memory: $_"
-    exit 1
+
+if ($Json) {
+    Write-Output $jsonText
+}
+else {
+    Write-Host 'Current camera memory dump targets' -ForegroundColor Cyan
+    Write-Host "  Selected source: $selectedSource"
+    Write-Host "  Entry 15:        $($entry15.Address)"
+    if ($null -ne $entry5) {
+        Write-Host "  Entry 5 mirror:  $($entry5.Address)"
+    }
+    if ($OutputFile) {
+        Write-Host "Saved dump: $OutputFile" -ForegroundColor Green
+    }
 }

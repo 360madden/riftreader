@@ -1,5 +1,7 @@
 # Camera Discovery — Findings & Revised Approach
 
+> **Superseded as active guidance:** this file correctly ruled out selected-source `+0xB8..+0x150`, but it predates the current verified live yaw/orbit workflow. Keep it as historical evidence, not the current procedure. See `C:\RIFT MODDING\RiftReader\docs\camera-orientation-discovery.md`.
+
 **Date**: April 10, 2026  
 **Status**: Camera location identified as outside selected-source component  
 **Branch**: `feature/camera-orientation-discovery`

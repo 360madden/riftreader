@@ -1,174 +1,113 @@
 # Camera Yaw/Pitch Discovery via Cheat Engine
 
-## Problem
-- Camera data is **NOT** in the selected-source component
-- Static offsets at +0x7D0/+0x7DC/+0x7E8 don't update on camera rotation
-- Camera must be in a separate memory location or separate object
+> **Updated April 14, 2026:** the old selected-source `+0xB8..+0x150` exact-value scan workflow is obsolete. Use the verified live anchors below.
 
-## Solution: Manual Cheat Engine Pointer Search
+## Best answer first
 
-### Phase 1: Find Camera Yaw Address
+Cheat Engine is now most useful for **targeted watch / break-on-write / break-on-access tracing**, not for blind scanning inside the dead selected-source camera window.
 
-**Objective**: Locate the float32 that stores current camera yaw angle
+Current verified live anchors:
 
-**Steps**:
+| Anchor | What it gives | Offsets |
+|---|---|---|
+| selected-source basis | live yaw | `+0x60/+0x68/+0x78`, duplicate `+0x94/+0x9C/+0xAC` |
+| entry15 orbit coords | derived pitch + derived distance | `+0xA8/+0xAC/+0xB0`, duplicate `+0xB4/+0xB8/+0xBC` |
+| entry5 mirror | mirrored yaw-family basis | `+0x1A0/+0x1A8/+0x1B8`, duplicate `+0x1D4/+0x1DC/+0x1EC` |
+| orbit siblings | mirrored/cached orbit family | `entry0/12/13/14/15` |
 
-1. **Start fresh Cheat Engine session**
-   - Attach to `rift_x64`
-   - Clear any prior searches
+## Before opening CE
 
-2. **Get baseline camera yaw**
-   ```powershell
-   cd C:\RIFT MODDING\RiftReader
-   .\scripts\capture-camera-snapshot.ps1
-   ```
-   - Note the `CameraYaw.Degrees` value (e.g., `27.5468°`)
-   - This is what we're looking for
+Refresh the live chain first:
 
-3. **CE: First exact-value scan**
-   - Value type: **Float**
-   - Search value: **27.5468** (from above)
-   - Scan scope: **All memory** (or narrow to rift_x64 module if slow)
-   - Click **First Scan** → Hits will be 100+ (camera yaw stored in multiple places)
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
+```
 
-4. **Narrow candidates: Rotation test**
-   - Rotate camera in-game (move mouse left/right, ~90°)
-   - Note new camera yaw angle (e.g., `117.5468°`)
-   - CE: **Next Scan** → type new yaw value, scan type **Exact Value**
-   - This eliminates static addresses
-   - Should now have <10 candidates
+Optional current-state summary:
 
-5. **Validate remaining candidates**
-   - For each candidate address in the list:
-     - Add to address list (right-click → "Add address manually to the address list")
-     - Click **"Pointer"** to expand the address in the data view
-     - Watch the value while rotating camera
-     - **Valid address**: Value changes smoothly as you rotate (e.g., 0° → 45° → 90°)
-     - **Invalid address**: Value stays static or jumps erratically
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\read-live-camera-yaw-pitch.ps1 -Json
+```
 
-6. **Confirm camera yaw address**
-   - You've found it when:
-     - Value changes by approximately same amount as your mouse movement
-     - Value is continuous (not jumping in large steps)
-     - Value repeats if you rotate back
+Optional CE watch/probe document:
 
-### Phase 2: Find Camera Pitch Address
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\generate-camera-probe.ps1 -Json
+```
 
-**Objective**: Locate the float32 that stores camera pitch (vertical angle)
+## Recommended CE workflow
 
-**Steps**:
+### 1) Watch the verified live anchors
 
-1. **Get baseline pitch**
-   ```powershell
-   .\scripts\capture-camera-snapshot.ps1
-   ```
-   - Note `CameraPitch.Degrees` (e.g., `0.0000°`)
+Add the current session addresses to the CE table:
 
-2. **CE: Exact-value scan for pitch**
-   - Value: **0.0000** (or actual baseline)
-   - Value type: **Float**
-   - Scan → Hits will be many
+- selected-source basis rows
+- entry15 orbit primary + duplicate coords
+- entry5 yaw mirror if present
 
-3. **Tilt camera up in-game**
-   - Move mouse up (vertical movement)
-   - Note new pitch angle (e.g., `-30.0°`)
-   - CE: **Next Scan** → new value → should eliminate candidates significantly
+These are the addresses worth watching live.
 
-4. **Validate candidate**
-   - Watch for smooth changes as you tilt camera
-   - Confirm it increases when tilting up, decreases when tilting down
+### 2) Use stimulus that cleanly separates behaviors
 
-### Phase 3: Find Camera Distance Address
+- **Yaw**: RMB hold + horizontal mouse move
+- **Pitch**: RMB hold + vertical mouse move
+- **Zoom**: mouse wheel
 
-**Objective**: Locate float32 for camera distance if it's adjustable
+Do not use the old selected-source `+0xB8..+0x150` window as the first search area.
 
-**Steps**:
+### 3) Break on write / access
 
-1. **Get baseline distance**
-   ```powershell
-   .\scripts\capture-camera-snapshot.ps1
-   ```
-   - Note `CameraDistance` (e.g., `10.5` units)
+Best current CE move:
 
-2. **Adjust camera distance in-game**
-   - Mouse wheel or similar (depends on Rift keybinds)
-   - Note new distance
+- break on **write** for entry15 orbit coords during pitch / zoom
+- break on **write** for selected-source basis rows during yaw
+- if write is too noisy, break on **access** and follow the common writer / caller
 
-3. **CE: Exact-value scan**
-   - Follow same pattern as yaw/pitch
-   - Validate by watching distance value change
+The target is no longer “find a random angle float.” The target is:
 
-### Phase 4: Extract Offsets
+> find the object or code path that updates yaw + pitch + distance together.
 
-Once you've identified the addresses:
+### 4) Climb outward using repo-native graph helpers
 
-1. **Analyze offset patterns**
-   - Note all three addresses (yaw, pitch, distance)
-   - Look for patterns:
-     - Are they sequential? (Yaw at X, Pitch at X+4, Distance at X+8)
-     - Do they share a base address?
-     - Are they in different objects?
+Use these between CE passes:
 
-2. **Find the base address**
-   - If sequential, they're in a struct: Find the base address
-   - If scattered, they might be in different objects: Find each base
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1 -Json -RefreshSelectorTrace
+C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1 -Json -RefreshOwnerComponents
+C:\RIFT MODDING\RiftReader\scripts\search-camera-global.ps1 -Json -RefreshOwnerGraph -RefreshHubGraph
+```
 
-3. **Calculate relative offsets**
-   - Example:
-     - Base address: `0x12345678`
-     - Yaw found at: `0x123456B0` → Offset = `+0x38`
-     - Pitch found at: `0x123456B4` → Offset = `+0x3C`
-     - Distance found at: `0x123456B8` → Offset = `+0x40`
+These scripts surface:
 
-4. **Pointer walk (optional)**
-   - Right-click address → **Pointer** → See what points to it
-   - Example:
-     - Address `0x123456B0` is pointed to by `0xABCDEF00`
-     - That address might be the camera object pointer
-     - You can then walk from player object to camera object
+- owner wrapper / backref / state links
+- orbit-family sibling relationships
+- shared hub candidates across entries `12/13/14/15`
 
-### Phase 5: Validate & Document
+## What to look for
 
-1. **Create validation snapshot**
-   ```powershell
-   .\scripts\capture-camera-snapshot.ps1 -OutputFile camera-discovery-$(Get-Date -Format 'yyyyMMdd-HHmmss').json
-   ```
+### High-value signs of a real controller object
 
-2. **Document findings**
-   - Camera base address / pointer source
-   - Camera yaw offset
-   - Camera pitch offset
-   - Camera distance offset (if found)
-   - Session metadata (date, game client version, region if known)
+- responds to **yaw**, **pitch**, and **zoom**
+- is referenced by multiple mirrored sibling components
+- exposes stable parent/backref structure
+- survives repeated paired live tests better than the current derived-pitch path
 
-3. **Test stability**
-   - Zone transition → addresses should refresh (they'll change)
-   - Relog → addresses will definitely change
-   - **Conclusion**: Offsets are stable within a session; addresses are session-specific
+### Low-value signs
 
-## Implementation After Discovery
+- single noisy scalar in one sibling entry
+- values that only move on one trial and vanish on repeat
+- anything in the dead selected-source `+0xB8..+0x150` range
 
-Once offsets are confirmed:
+## What not to do
 
-1. **Create `CameraOrientationReader.cs`**
-   - Pattern: Mirror `PlayerOrientationReader.cs`
-   - Read camera yaw/pitch/distance from discovered offsets
-   - Validate basis orthonormality if basis matrix is found
+- Do not begin with an exact-value float scan in selected-source `+0xB8..+0x150`
+- Do not treat `entry4 +0x1D0` as a proven pitch scalar
+- Do not assume the mirrored orbit family is the final authoritative controller
 
-2. **Add CLI option**
-   - `--read-camera-orientation` → outputs camera yaw/pitch/distance
+## Practical outcome expected from CE now
 
-3. **Update CLAUDE.md Section 3**
-   - Document discovered offsets
-   - Include validation notes
+The next strong win is not just “another float that moved.” It is one of:
 
-4. **Write integration tests**
-   - Stimulus test: Verify camera angle matches input
-   - Decoupling test: Camera yaw ≠ actor yaw (they can differ)
-
-## Notes
-
-- **Why manual**: Camera might be in UI system, rendering system, or separate controller object — all difficult to automate without game knowledge
-- **Why CE pointer search works**: Following chains from known addresses finds the camera structure
-- **Session-specific addresses**: Game memory relocates on startup; offsets are stable, addresses are not
-- **Typical camera distance**: ~5-30 units from player; stored as float if adjustable
+1. a parent/controller object above the mirrored orbit family
+2. a direct pitch/distance source on the same authoritative object
+3. a common write path that explains the selected-source yaw basis and entry15 orbit coords together

@@ -1,4 +1,5 @@
 [CmdletBinding()]
+# OBSOLETE: legacy selected-source +0x7D0/+0x7A0 camera-basis probe. Use C:\RIFT MODDING\RiftReader\scripts\read-live-camera-yaw-pitch.ps1 for the current live path.
 param(
     [string]$Label = '',
     [string]$OutputFile,
