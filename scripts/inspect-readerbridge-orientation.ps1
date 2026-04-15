@@ -2,7 +2,7 @@
 param(
     [switch]$Json,
     [string]$ReaderBridgeSnapshotFile,
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\readerbridge-orientation-probe.json')
+    [string]$OutputFile
 )
 
 Set-StrictMode -Version Latest
@@ -10,6 +10,11 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+
+if ([string]::IsNullOrWhiteSpace($OutputFile)) {
+    $OutputFile = Join-Path $PSScriptRoot 'captures\readerbridge-orientation-probe.json'
+}
+
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
 function Invoke-ReaderJson {
@@ -24,7 +29,12 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+    $jsonText = $output -join [Environment]::NewLine
+    if ((Get-Command Microsoft.PowerShell.Utility\ConvertFrom-Json).Parameters.ContainsKey('Depth')) {
+        return ($jsonText | Microsoft.PowerShell.Utility\ConvertFrom-Json -Depth 80)
+    }
+
+    return ($jsonText | Microsoft.PowerShell.Utility\ConvertFrom-Json)
 }
 
 function Format-Nullable {
@@ -99,6 +109,11 @@ function Get-ProbeSummary {
 
     return [pscustomobject]@{
         Label = $Label
+        Source = [string](Get-ObjectValue -Object $Probe -Name 'Source')
+        UnitId = [string](Get-ObjectValue -Object $Probe -Name 'UnitId')
+        UnitAvailable = Get-ObjectValue -Object $Probe -Name 'UnitAvailable'
+        DirectHeadingApiAvailable = Get-ObjectValue -Object $Probe -Name 'DirectHeadingApiAvailable'
+        DirectPitchApiAvailable = Get-ObjectValue -Object $Probe -Name 'DirectPitchApiAvailable'
         DirectHeading = Get-ObjectValue -Object $Probe -Name 'DirectHeading'
         DirectPitch = Get-ObjectValue -Object $Probe -Name 'DirectPitch'
         Yaw = Get-ObjectValue -Object $Probe -Name 'Yaw'
@@ -154,10 +169,20 @@ else {
     }
     else {
         $notes.Add('Player orientation probe did not expose any direct or candidate signal.') | Out-Null
+        if ($playerProbe.UnitAvailable -eq $true -and
+            $playerProbe.DirectHeadingApiAvailable -eq $false -and
+            $playerProbe.DirectPitchApiAvailable -eq $false) {
+            $notes.Add('Player unit exists, but Inspect.Unit.Heading/Pitch are unavailable in this client.') | Out-Null
+        }
     }
 
     if ($targetProbe.HasAnySignal) {
         $notes.Add('Target orientation probe contains at least one direct or candidate signal.') | Out-Null
+    }
+    elseif ($targetProbe.UnitAvailable -eq $true -and
+        $targetProbe.DirectHeadingApiAvailable -eq $false -and
+        $targetProbe.DirectPitchApiAvailable -eq $false) {
+        $notes.Add('Target unit exists, but Inspect.Unit.Heading/Pitch are unavailable in this client.') | Out-Null
     }
 
     if ($statCandidates.Count -gt 0) {
@@ -206,8 +231,14 @@ Write-Host ("Export count:                {0}" -f $(if ($null -ne $report.Export
 Write-Host ("Player:                      {0}" -f $(if ($report.PlayerName) { $report.PlayerName } else { 'n/a' }))
 Write-Host ("Target:                      {0}" -f $(if ($report.TargetName) { $report.TargetName } else { 'n/a' }))
 Write-Host ("Orientation probe present:   {0}" -f $report.OrientationProbePresent)
+Write-Host ("Player source / unit:        {0} / {1}" -f $(if ($playerProbe.Source) { $playerProbe.Source } else { 'n/a' }), $(if ($playerProbe.UnitId) { $playerProbe.UnitId } else { 'n/a' }))
+Write-Host ("Player unit available:       {0}" -f $(if ($null -ne $playerProbe.UnitAvailable) { $playerProbe.UnitAvailable } else { 'n/a' }))
+Write-Host ("Player heading/pitch APIs:   {0} / {1}" -f $(if ($null -ne $playerProbe.DirectHeadingApiAvailable) { $playerProbe.DirectHeadingApiAvailable } else { 'n/a' }), $(if ($null -ne $playerProbe.DirectPitchApiAvailable) { $playerProbe.DirectPitchApiAvailable } else { 'n/a' }))
 Write-Host ("Player heading/pitch/yaw:    {0} / {1} / {2}" -f (Format-Nullable $playerProbe.DirectHeading), (Format-Nullable $playerProbe.DirectPitch), (Format-Nullable $playerProbe.Yaw))
 Write-Host ("Player facing:               {0}" -f $(if ($playerProbe.Facing) { $playerProbe.Facing } else { 'n/a' }))
+Write-Host ("Target source / unit:        {0} / {1}" -f $(if ($targetProbe.Source) { $targetProbe.Source } else { 'n/a' }), $(if ($targetProbe.UnitId) { $targetProbe.UnitId } else { 'n/a' }))
+Write-Host ("Target unit available:       {0}" -f $(if ($null -ne $targetProbe.UnitAvailable) { $targetProbe.UnitAvailable } else { 'n/a' }))
+Write-Host ("Target heading/pitch APIs:   {0} / {1}" -f $(if ($null -ne $targetProbe.DirectHeadingApiAvailable) { $targetProbe.DirectHeadingApiAvailable } else { 'n/a' }), $(if ($null -ne $targetProbe.DirectPitchApiAvailable) { $targetProbe.DirectPitchApiAvailable } else { 'n/a' }))
 Write-Host ("Target heading/pitch/yaw:    {0} / {1} / {2}" -f (Format-Nullable $targetProbe.DirectHeading), (Format-Nullable $targetProbe.DirectPitch), (Format-Nullable $targetProbe.Yaw))
 Write-Host ("Target facing:               {0}" -f $(if ($targetProbe.Facing) { $targetProbe.Facing } else { 'n/a' }))
 Write-CandidateBlock -Title 'Player detail candidates' -Candidates $playerProbe.DetailCandidates

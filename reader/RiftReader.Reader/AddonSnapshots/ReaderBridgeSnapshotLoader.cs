@@ -181,6 +181,11 @@ public static class ReaderBridgeSnapshotLoader
         }
 
         return new ReaderBridgeOrientationProbeUnitSnapshot(
+            Source: GetStringAny(table, "source", "label"),
+            UnitId: GetStringAny(table, "unitId", "id"),
+            UnitAvailable: GetBooleanAny(table, "unitAvailable"),
+            DirectHeadingApiAvailable: GetBooleanAny(table, "directHeadingApiAvailable"),
+            DirectPitchApiAvailable: GetBooleanAny(table, "directPitchApiAvailable"),
             DirectHeading: GetDoubleAny(table, "directHeading", "heading"),
             DirectPitch: GetDoubleAny(table, "directPitch", "pitch"),
             Yaw: GetDoubleAny(table, "yaw", "directYaw"),
@@ -300,6 +305,20 @@ public static class ReaderBridgeSnapshotLoader
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool? GetBooleanAny(LuaTable table, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = table.GetBoolean(key);
+            if (value.HasValue)
+            {
+                return value.Value;
             }
         }
 

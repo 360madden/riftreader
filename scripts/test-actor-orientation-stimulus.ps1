@@ -26,14 +26,22 @@ $uiClearCheckScript = Join-Path $PSScriptRoot 'assert-rift-gameplay-ui-clear.ps1
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-actor-orientation-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
+$backgroundProcessName = $null
 $backgroundProcessAvailable = $SkipBackgroundFocus.IsPresent
 
 if (-not $backgroundProcessAvailable) {
-    try {
-        $null = Get-Process -Name 'cheatengine-x86_64-SSE4-AVX2' -ErrorAction Stop | Select-Object -First 1
-        $backgroundProcessAvailable = $true
+    foreach ($candidateProcessName in @('cheatengine-x86_64-SSE4-AVX2', 'Codex')) {
+        try {
+            $null = Get-Process -Name $candidateProcessName -ErrorAction Stop | Select-Object -First 1
+            $backgroundProcessName = $candidateProcessName
+            $backgroundProcessAvailable = $true
+            break
+        }
+        catch {
+        }
     }
-    catch {
+
+    if (-not $backgroundProcessAvailable) {
         $backgroundProcessAvailable = $false
     }
 }
@@ -214,6 +222,9 @@ $keyArguments = @{
 if (-not $backgroundProcessAvailable) {
     $keyArguments['SkipBackgroundFocus'] = $true
 }
+elseif (-not [string]::IsNullOrWhiteSpace($backgroundProcessName)) {
+    $keyArguments['BackgroundProcessName'] = $backgroundProcessName
+}
 
 & $keyScript @keyArguments *> $null
 if ($LASTEXITCODE -ne 0) {
@@ -261,6 +272,8 @@ $result = [pscustomobject]@{
         CoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
         VectorDeltaMagnitude = Get-VectorDeltaMagnitude -BeforeVector $beforeEstimate.Vector -AfterVector $afterEstimate.Vector
     }
+    KeyDeliveryBackgroundProcess = $backgroundProcessName
+    UsedForegroundSendInput = -not $backgroundProcessAvailable
 }
 
 try {

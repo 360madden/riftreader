@@ -6,6 +6,11 @@ public sealed record ReaderBridgeOrientationProbeSnapshot(
     IReadOnlyList<ReaderBridgeOrientationProbeFieldSnapshot> StatCandidates);
 
 public sealed record ReaderBridgeOrientationProbeUnitSnapshot(
+    string? Source,
+    string? UnitId,
+    bool? UnitAvailable,
+    bool? DirectHeadingApiAvailable,
+    bool? DirectPitchApiAvailable,
     double? DirectHeading,
     double? DirectPitch,
     double? Yaw,
