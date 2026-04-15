@@ -39,6 +39,9 @@ public static class RiftKeyNative
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -148,7 +151,9 @@ function Focus-Window {
     $foregroundProcessId = 0
     $foregroundThreadId = [RiftKeyNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
 
-    [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    if ([RiftKeyNative]::IsIconic($targetHandle)) {
+        [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    }
     [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
     [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $true)
     [void][RiftKeyNative]::SetForegroundWindow($Process.MainWindowHandle)
