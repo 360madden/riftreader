@@ -6,6 +6,9 @@ param(
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
+    [string]$PinnedSourceAddress,
+    [string]$PinnedBasisForwardOffset,
+    [string]$OrientationCandidateLedgerFile,
     [string]$OwnerComponentsFile,
     [string]$OutputFile,
     [string]$PreviousFile
@@ -30,6 +33,10 @@ if ([string]::IsNullOrWhiteSpace($OutputFile)) {
 
 if ([string]::IsNullOrWhiteSpace($PreviousFile)) {
     $PreviousFile = Join-Path $PSScriptRoot 'captures\player-actor-orientation.previous.json'
+}
+
+if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
+    $OrientationCandidateLedgerFile = Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-ledger.ndjson'
 }
 
 function Invoke-ReaderJson {
@@ -271,6 +278,17 @@ function Parse-HexUInt64 {
     return [UInt64]::Parse($normalized, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Parse-HexInt32 {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $normalized = $Value.Trim()
+    if ($normalized.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $normalized = $normalized.Substring(2)
+    }
+
+    return [int]::Parse($normalized, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
 function Convert-HexToByteArray {
     param([Parameter(Mandatory = $true)][string]$Hex)
 
@@ -468,6 +486,20 @@ function New-BasisMatrixEstimate {
     }
 }
 
+function Read-BasisAt {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][int]$ForwardOffset,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    return New-BasisMatrixEstimate `
+        -Name $Name `
+        -Forward (Read-TripletAt -Bytes $Bytes -Offset $ForwardOffset) `
+        -Up (Read-TripletAt -Bytes $Bytes -Offset ($ForwardOffset + 0x0C)) `
+        -Right (Read-TripletAt -Bytes $Bytes -Offset ($ForwardOffset + 0x18))
+}
+
 function Get-BasisDuplicateAgreement {
     param(
         $PrimaryBasis,
@@ -499,23 +531,51 @@ function Get-BasisDuplicateAgreement {
 function Get-LiveSourceSample {
     param(
         [Parameter(Mandatory = $true)][string]$SelectedSourceAddress,
-        [Parameter(Mandatory = $true)][string]$ProcessName
+        [Parameter(Mandatory = $true)][string]$ProcessName,
+        [string]$BasisForwardOffset
     )
 
     $address = Parse-HexUInt64 -Value $SelectedSourceAddress
+    $basisForwardOffsetValue = $null
+    if (-not [string]::IsNullOrWhiteSpace($BasisForwardOffset)) {
+        $basisForwardOffsetValue = Parse-HexInt32 -Value $BasisForwardOffset
+    }
+
+    $readLength = 192
+    if ($null -ne $basisForwardOffsetValue) {
+        $readLength = [Math]::Max($readLength, $basisForwardOffsetValue + 0x24)
+    }
+
     $memoryRead = Invoke-ReaderJson -Arguments @(
         '--process-name', $ProcessName,
         '--address', ('0x{0:X}' -f $address),
-        '--length', '192',
+        '--length', ([string]$readLength),
         '--json')
 
     $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
+
+    if ($null -ne $basisForwardOffsetValue) {
+        $basis = Read-BasisAt -Bytes $bytes -ForwardOffset $basisForwardOffsetValue -Name ('Basis@0x{0:X}' -f $basisForwardOffsetValue)
+
+        return [pscustomobject]@{
+            AddressHex = ('0x{0:X}' -f $address)
+            Coord48 = $null
+            Orientation60 = $basis.Forward
+            Basis60 = $basis
+            Coord88 = $null
+            Orientation94 = $null
+            Basis94 = $null
+            BasisDuplicateAgreement = $null
+            BasisPrimaryForwardOffset = ('0x{0:X}' -f $basisForwardOffsetValue)
+        }
+    }
+
     $coord48 = Read-TripletAt -Bytes $bytes -Offset 0x48
     $orientation60 = Read-TripletAt -Bytes $bytes -Offset 0x60
     $coord88 = Read-TripletAt -Bytes $bytes -Offset 0x88
     $orientation94 = Read-TripletAt -Bytes $bytes -Offset 0x94
-    $basis60 = New-BasisMatrixEstimate -Name 'Basis60' -Forward $orientation60 -Up (Read-TripletAt -Bytes $bytes -Offset 0x6C) -Right (Read-TripletAt -Bytes $bytes -Offset 0x78)
-    $basis94 = New-BasisMatrixEstimate -Name 'Basis94' -Forward $orientation94 -Up (Read-TripletAt -Bytes $bytes -Offset 0xA0) -Right (Read-TripletAt -Bytes $bytes -Offset 0xAC)
+    $basis60 = Read-BasisAt -Bytes $bytes -ForwardOffset 0x60 -Name 'Basis60'
+    $basis94 = Read-BasisAt -Bytes $bytes -ForwardOffset 0x94 -Name 'Basis94'
 
     return [pscustomobject]@{
         AddressHex = ('0x{0:X}' -f $address)
@@ -575,75 +635,96 @@ function Resolve-LiveOrientation {
     $resolutionMode = 'artifact-selected-source'
     $resolutionNotes = New-Object System.Collections.Generic.List[string]
 
-    try {
-        $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
-        $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
-        $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
-    }
-    catch {
-        $resolutionNotes.Add("Artifact-selected source live read failed: $($_.Exception.Message)")
-    }
-
-    if ($null -eq $liveSample -or (-not $coord48Matches -and -not $coord88Matches)) {
+    if (-not [string]::IsNullOrWhiteSpace($PinnedSourceAddress)) {
         try {
-            $candidateSearch = Invoke-ReaderJson -Arguments @(
-                '--process-name', $ProcessName,
-                '--find-player-orientation-candidate',
-                '--max-hits', '8',
-                '--json')
-            $bestCandidate = Get-OptionalPropertyValue -Object $candidateSearch -Name 'BestCandidate'
-            $bestPointerHopCandidate = Get-OptionalPropertyValue -Object $candidateSearch -Name 'BestPointerHopCandidate'
+            $liveSample = Get-LiveSourceSample `
+                -SelectedSourceAddress $PinnedSourceAddress `
+                -ProcessName $ProcessName `
+                -BasisForwardOffset $PinnedBasisForwardOffset
 
-            if ($bestCandidate -and -not [string]::IsNullOrWhiteSpace([string]$bestCandidate.Address)) {
-                $liveSample = [pscustomobject]@{
-                    AddressHex = [string]$bestCandidate.Address
-                    Coord48 = $bestCandidate.Coord48
-                    Orientation60 = $bestCandidate.Basis60.Forward
-                    Basis60 = $bestCandidate.Basis60
-                    Coord88 = $bestCandidate.Coord88
-                    Orientation94 = $bestCandidate.Basis94.Forward
-                    Basis94 = $bestCandidate.Basis94
-                    BasisDuplicateAgreement = $bestCandidate.BasisDuplicateAgreement
-                }
-
-                $coord48Matches = [bool]$bestCandidate.Coord48MatchesPlayer
-                $coord88Matches = [bool]$bestCandidate.Coord88MatchesPlayer
-                $resolutionMode = 'read-only-candidate-search'
-                $resolutionNotes.Add("Resolved live source via read-only candidate search: $($bestCandidate.Address)")
-            }
-            elseif ($bestPointerHopCandidate -and -not [string]::IsNullOrWhiteSpace([string]$bestPointerHopCandidate.Address)) {
-                $liveSample = [pscustomobject]@{
-                    AddressHex = [string]$bestPointerHopCandidate.Address
-                    Coord48 = $null
-                    Orientation60 = $bestPointerHopCandidate.Basis.Forward
-                    Basis60 = $bestPointerHopCandidate.Basis
-                    Coord88 = $null
-                    Orientation94 = $null
-                    Basis94 = $null
-                    BasisDuplicateAgreement = $null
-                    PreferredEstimate = $bestPointerHopCandidate.PreferredEstimate
-                    BasisPrimaryForwardOffset = [string]$bestPointerHopCandidate.BasisPrimaryForwardOffset
-                    ParentAddress = [string]$bestPointerHopCandidate.ParentAddress
-                    DiscoveryMode = [string]$bestPointerHopCandidate.DiscoveryMode
-                    RootAddress = [string]$bestPointerHopCandidate.RootAddress
-                    RootSource = [string]$bestPointerHopCandidate.RootSource
-                    HopDepth = $bestPointerHopCandidate.HopDepth
-                    PointerOffset = [string]$bestPointerHopCandidate.PointerOffset
-                }
-
-                $coord48Matches = $false
-                $coord88Matches = $false
-                $resolutionMode = 'read-only-pointer-hop-candidate-search'
-                $resolutionNotes.Add(
-                    "Resolved live source via pointer-hop candidate search: $($bestPointerHopCandidate.Address) " +
-                    "(basis $($bestPointerHopCandidate.BasisPrimaryForwardOffset), parent $($bestPointerHopCandidate.ParentAddress), hopDepth $($bestPointerHopCandidate.HopDepth))")
-            }
-            else {
-                $resolutionNotes.Add('Read-only candidate search returned no viable source-object candidate.')
-            }
+            $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
+            $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+            $resolutionMode = if (-not [string]::IsNullOrWhiteSpace($PinnedBasisForwardOffset)) { 'pinned-pointer-hop-source' } else { 'pinned-source' }
+            $resolutionNotes.Add(
+                "Resolved live source from pinned address: $PinnedSourceAddress" +
+                $(if (-not [string]::IsNullOrWhiteSpace($PinnedBasisForwardOffset)) { " (basis $PinnedBasisForwardOffset)" } else { '' }))
         }
         catch {
-            $resolutionNotes.Add("Read-only candidate search failed: $($_.Exception.Message)")
+            $resolutionNotes.Add("Pinned source live read failed: $($_.Exception.Message)")
+        }
+    }
+    else {
+        try {
+            $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+            $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
+            $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+        }
+        catch {
+            $resolutionNotes.Add("Artifact-selected source live read failed: $($_.Exception.Message)")
+        }
+
+        if ($null -eq $liveSample -or (-not $coord48Matches -and -not $coord88Matches)) {
+            try {
+                $candidateSearch = Invoke-ReaderJson -Arguments @(
+                    '--process-name', $ProcessName,
+                    '--find-player-orientation-candidate',
+                    '--orientation-candidate-ledger-file', $resolvedOrientationCandidateLedgerFile,
+                    '--max-hits', '8',
+                    '--json')
+                $bestCandidate = Get-OptionalPropertyValue -Object $candidateSearch -Name 'BestCandidate'
+                $bestPointerHopCandidate = Get-OptionalPropertyValue -Object $candidateSearch -Name 'BestPointerHopCandidate'
+
+                if ($bestCandidate -and -not [string]::IsNullOrWhiteSpace([string]$bestCandidate.Address)) {
+                    $liveSample = [pscustomobject]@{
+                        AddressHex = [string]$bestCandidate.Address
+                        Coord48 = $bestCandidate.Coord48
+                        Orientation60 = $bestCandidate.Basis60.Forward
+                        Basis60 = $bestCandidate.Basis60
+                        Coord88 = $bestCandidate.Coord88
+                        Orientation94 = $bestCandidate.Basis94.Forward
+                        Basis94 = $bestCandidate.Basis94
+                        BasisDuplicateAgreement = $bestCandidate.BasisDuplicateAgreement
+                    }
+
+                    $coord48Matches = [bool]$bestCandidate.Coord48MatchesPlayer
+                    $coord88Matches = [bool]$bestCandidate.Coord88MatchesPlayer
+                    $resolutionMode = 'read-only-candidate-search'
+                    $resolutionNotes.Add("Resolved live source via read-only candidate search: $($bestCandidate.Address)")
+                }
+                elseif ($bestPointerHopCandidate -and -not [string]::IsNullOrWhiteSpace([string]$bestPointerHopCandidate.Address)) {
+                    $liveSample = [pscustomobject]@{
+                        AddressHex = [string]$bestPointerHopCandidate.Address
+                        Coord48 = $null
+                        Orientation60 = $bestPointerHopCandidate.Basis.Forward
+                        Basis60 = $bestPointerHopCandidate.Basis
+                        Coord88 = $null
+                        Orientation94 = $null
+                        Basis94 = $null
+                        BasisDuplicateAgreement = $null
+                        PreferredEstimate = $bestPointerHopCandidate.PreferredEstimate
+                        BasisPrimaryForwardOffset = [string]$bestPointerHopCandidate.BasisPrimaryForwardOffset
+                        ParentAddress = [string]$bestPointerHopCandidate.ParentAddress
+                        DiscoveryMode = [string]$bestPointerHopCandidate.DiscoveryMode
+                        RootAddress = [string]$bestPointerHopCandidate.RootAddress
+                        RootSource = [string]$bestPointerHopCandidate.RootSource
+                        HopDepth = $bestPointerHopCandidate.HopDepth
+                        PointerOffset = [string]$bestPointerHopCandidate.PointerOffset
+                    }
+
+                    $coord48Matches = $false
+                    $coord88Matches = $false
+                    $resolutionMode = 'read-only-pointer-hop-candidate-search'
+                    $resolutionNotes.Add(
+                        "Resolved live source via pointer-hop candidate search: $($bestPointerHopCandidate.Address) " +
+                        "(basis $($bestPointerHopCandidate.BasisPrimaryForwardOffset), parent $($bestPointerHopCandidate.ParentAddress), hopDepth $($bestPointerHopCandidate.HopDepth))")
+                }
+                else {
+                    $resolutionNotes.Add('Read-only candidate search returned no viable source-object candidate.')
+                }
+            }
+            catch {
+                $resolutionNotes.Add("Read-only candidate search failed: $($_.Exception.Message)")
+            }
         }
     }
 
@@ -662,6 +743,8 @@ function Resolve-LiveOrientation {
     $metadata | Add-Member -NotePropertyName ResolvedSourceAddress -NotePropertyValue ([string]$liveSample.AddressHex) -Force
     $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
     $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue ($resolutionNotes.ToArray()) -Force
+    $metadata | Add-Member -NotePropertyName PinnedSourceAddress -NotePropertyValue $PinnedSourceAddress -Force
+    $metadata | Add-Member -NotePropertyName PinnedBasisForwardOffset -NotePropertyValue $PinnedBasisForwardOffset -Force
 
     return [pscustomobject]@{
         Metadata = $metadata
@@ -674,6 +757,7 @@ function Resolve-LiveOrientation {
 $resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
+$resolvedOrientationCandidateLedgerFile = [System.IO.Path]::GetFullPath($OrientationCandidateLedgerFile)
 
 if ($RefreshReaderBridge) {
     $refreshArguments = @{ 'NoReader' = $true }
@@ -772,6 +856,9 @@ $orientation = [pscustomobject]@{
     RefreshedOwnerComponents = $orientationMetadata.RefreshedOwnerComponents
     ResolutionMode = if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionMode') { $orientationMetadata.ResolutionMode } else { $null }
     ResolutionNotes = if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionNotes') { $orientationMetadata.ResolutionNotes } else { $null }
+    PinnedSourceAddress = if ($orientationMetadata.PSObject.Properties.Name -contains 'PinnedSourceAddress') { $orientationMetadata.PinnedSourceAddress } else { $null }
+    PinnedBasisForwardOffset = if ($orientationMetadata.PSObject.Properties.Name -contains 'PinnedBasisForwardOffset') { $orientationMetadata.PinnedBasisForwardOffset } else { $null }
+    OrientationCandidateLedgerFile = $resolvedOrientationCandidateLedgerFile
     LiveSourceSample = $liveSourceSample
     PreferredBasis = $liveSourceSample.Basis60
     DuplicateBasisAgreement = $liveSourceSample.BasisDuplicateAgreement

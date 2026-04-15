@@ -35,7 +35,8 @@ public static class PlayerOrientationCandidateFinder
         string processName,
         ReaderBridgeSnapshotDocument snapshotDocument,
         int maxHits,
-        IReadOnlyList<PlayerOrientationProbeSeed>? probeSeeds = null)
+        IReadOnlyList<PlayerOrientationProbeSeed>? probeSeeds = null,
+        string? orientationCandidateLedgerFile = null)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
         var coord = player.Coord ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain current player coordinates.");
@@ -56,6 +57,7 @@ public static class PlayerOrientationCandidateFinder
             maxHits: Math.Max(maxHits, 4));
 
         var normalizedProbeSeeds = NormalizeProbeSeeds(probeSeeds);
+        var ledger = OrientationCandidateLedgerLoader.Load(orientationCandidateLedgerFile);
         var diagnostics = new OrientationProbeDiagnosticsAccumulator
         {
             CoordHitCount = scan.Hits.Count,
@@ -110,9 +112,12 @@ public static class PlayerOrientationCandidateFinder
                 snapshotDocument,
                 normalizedProbeSeeds,
                 diagnostics,
+                ledger.EvidenceByCandidate,
                 Math.Max(maxHits, 12))
             .Take(maxHits)
             .ToArray();
+
+        var diagnosticsRecord = diagnostics.ToRecord();
 
         return new PlayerOrientationCandidateSearchResult(
             Mode: "player-orientation-candidate-search",
@@ -126,13 +131,15 @@ public static class PlayerOrientationCandidateFinder
             PointerHopCandidateCount: pointerHopCandidates.Length,
             BestPointerHopCandidate: pointerHopCandidates.FirstOrDefault(),
             PointerHopCandidates: pointerHopCandidates,
-            Diagnostics: diagnostics.ToRecord(),
-            Notes: BuildSearchNotes(normalizedProbeSeeds, diagnostics.ToRecord()));
+            Diagnostics: diagnosticsRecord,
+            Notes: BuildSearchNotes(normalizedProbeSeeds, diagnosticsRecord, ledger, pointerHopCandidates));
     }
 
     private static IReadOnlyList<string> BuildSearchNotes(
         IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
-        PlayerOrientationProbeDiagnostics diagnostics)
+        PlayerOrientationProbeDiagnostics diagnostics,
+        OrientationCandidateLedger ledger,
+        IReadOnlyList<PlayerOrientationPointerHopCandidate> pointerHopCandidates)
     {
         var notes = new List<string>
         {
@@ -154,6 +161,16 @@ public static class PlayerOrientationCandidateFinder
             diagnostics.RejectedLowHorizontalMagnitudeCount > 0)
         {
             notes.Add($"Rejected pointer-hop bases: nonOrthonormal={diagnostics.RejectedNonOrthonormalBasisCount}, lowComponentDiversity={diagnostics.RejectedLowComponentDiversityCount}, lowHorizontalMagnitude={diagnostics.RejectedLowHorizontalMagnitudeCount}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(ledger.LoadError))
+        {
+            notes.Add(ledger.LoadError);
+        }
+        else if (ledger.Entries.Count > 0)
+        {
+            var penalizedCount = pointerHopCandidates.Count(static candidate => candidate.LedgerPenalty > 0);
+            notes.Add($"Orientation candidate ledger evidence loaded from '{ledger.FilePath}': entries={ledger.Entries.Count}, uniqueCandidates={ledger.EvidenceByCandidate.Count}, penalizedPointerHopCandidates={penalizedCount}.");
         }
 
         return notes;
@@ -611,6 +628,7 @@ public static class PlayerOrientationCandidateFinder
         ReaderBridgeSnapshotDocument snapshotDocument,
         IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
         OrientationProbeDiagnosticsAccumulator diagnostics,
+        IReadOnlyDictionary<string, OrientationCandidateLedgerEvidence> ledgerEvidenceByCandidate,
         int maxHits)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
@@ -738,10 +756,36 @@ public static class PlayerOrientationCandidateFinder
         }
 
         return bestByChildAddress.Values
+            .Select(candidate => ApplyLedgerEvidence(candidate, ledgerEvidenceByCandidate))
             .OrderByDescending(static candidate => candidate.Score)
             .ThenBy(static candidate => candidate.HopDepth)
             .ThenBy(static candidate => Math.Abs(candidate.PreferredEstimate.YawDegrees ?? double.MaxValue))
             .ToArray();
+    }
+
+    private static PlayerOrientationPointerHopCandidate ApplyLedgerEvidence(
+        PlayerOrientationPointerHopCandidate candidate,
+        IReadOnlyDictionary<string, OrientationCandidateLedgerEvidence> ledgerEvidenceByCandidate)
+    {
+        var rawScore = candidate.Score;
+        var key = OrientationCandidateLedgerLoader.BuildCandidateKey(candidate.Address, candidate.BasisPrimaryForwardOffset);
+        if (string.IsNullOrWhiteSpace(key) ||
+            !ledgerEvidenceByCandidate.TryGetValue(key, out var evidence))
+        {
+            return candidate with { RawScore = rawScore };
+        }
+
+        var penalty = evidence.ScorePenalty;
+        return candidate with
+        {
+            Score = Math.Max(0, rawScore - penalty),
+            RawScore = rawScore,
+            LedgerPenalty = penalty,
+            LedgerRejectionReason = evidence.LatestCandidateRejectedReason,
+            LedgerStableNonresponsiveCount = evidence.StableNonresponsiveCount,
+            LedgerResponsiveCount = evidence.ResponsiveCount,
+            LedgerLatestGeneratedAtUtc = evidence.LatestGeneratedAtUtc
+        };
     }
 
     private static IReadOnlyList<PointerProbeNode> BuildPointerProbeRoots(
@@ -1122,7 +1166,13 @@ public sealed record PlayerOrientationPointerHopCandidate(
     string RootAddress,
     string RootSource,
     int HopDepth,
-    string PointerOffset);
+    string PointerOffset,
+    int? RawScore = null,
+    int LedgerPenalty = 0,
+    string? LedgerRejectionReason = null,
+    int LedgerStableNonresponsiveCount = 0,
+    int LedgerResponsiveCount = 0,
+    string? LedgerLatestGeneratedAtUtc = null);
 
 public sealed record PlayerOrientationProbeSeed(
     string Address,

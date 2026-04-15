@@ -4,12 +4,17 @@ param(
     [string]$Key,
     [switch]$Json,
     [string]$Label,
+    [string]$PinnedSourceAddress,
+    [string]$PinnedBasisForwardOffset,
+    [string]$OrientationCandidateLedgerFile,
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 700,
     [int]$InterKeyDelayMilliseconds = 60,
     [int]$FocusSettleMilliseconds = 500,
     [int]$PostKeySettleMilliseconds = 150,
     [int]$WarningCountdownSeconds = 3,
+    [double]$MinimumYawResponseDegrees = 1.0,
+    [double]$MaxCoordDrift = 0.25,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus,
@@ -41,9 +46,13 @@ if (-not $backgroundProcessAvailable) {
         }
     }
 
-    if (-not $backgroundProcessAvailable) {
-        $backgroundProcessAvailable = $false
-    }
+if (-not $backgroundProcessAvailable) {
+    $backgroundProcessAvailable = $false
+}
+
+if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
+    $OrientationCandidateLedgerFile = Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-ledger.ndjson'
+}
 }
 
 function Normalize-AngleRadians {
@@ -80,20 +89,57 @@ function ConvertFrom-JsonCompat {
     return $JsonText | ConvertFrom-Json
 }
 
+function Get-OptionalPropertyValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Object,
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
 function Invoke-Capture {
     param([Parameter(Mandatory = $true)][string]$CaptureLabel)
 
+    $captureArguments = @{
+        Json = $true
+        Label = $CaptureLabel
+        OutputFile = $tempOutputFile
+        PreviousFile = $tempPreviousFile
+    }
+
     if ($RefreshReaderBridge) {
-        if ($NoAhkFallback) {
-            $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge -NoAhkFallback
-        }
-        else {
-            $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge
-        }
+        $captureArguments['RefreshReaderBridge'] = $true
     }
-    else {
-        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile
+
+    if ($NoAhkFallback) {
+        $captureArguments['NoAhkFallback'] = $true
     }
+
+    if (-not [string]::IsNullOrWhiteSpace($PinnedSourceAddress)) {
+        $captureArguments['PinnedSourceAddress'] = $PinnedSourceAddress
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($PinnedBasisForwardOffset)) {
+        $captureArguments['PinnedBasisForwardOffset'] = $PinnedBasisForwardOffset
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
+        $captureArguments['OrientationCandidateLedgerFile'] = $OrientationCandidateLedgerFile
+    }
+
+    $json = & $captureScript @captureArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Actor orientation capture failed for '$CaptureLabel'."
     }
@@ -236,19 +282,66 @@ $after = Invoke-Capture -CaptureLabel ("after-{0}" -f $effectiveLabel)
 
 $beforeEstimate = $before.ReaderOrientation.PreferredEstimate
 $afterEstimate = $after.ReaderOrientation.PreferredEstimate
+$beforeSourceAddress = [string](Get-OptionalPropertyValue -Object $before.ReaderOrientation -Name 'SelectedSourceAddress')
+$afterSourceAddress = [string](Get-OptionalPropertyValue -Object $after.ReaderOrientation -Name 'SelectedSourceAddress')
+$beforeBasisOffset = [string](Get-OptionalPropertyValue -Object $before.ReaderOrientation -Name 'PinnedBasisForwardOffset')
+$afterBasisOffset = [string](Get-OptionalPropertyValue -Object $after.ReaderOrientation -Name 'PinnedBasisForwardOffset')
+$sourceStable =
+    (-not [string]::IsNullOrWhiteSpace($beforeSourceAddress)) -and
+    (-not [string]::IsNullOrWhiteSpace($afterSourceAddress)) -and
+    [string]::Equals($beforeSourceAddress, $afterSourceAddress, [System.StringComparison]::OrdinalIgnoreCase)
 
-$yawDeltaRadians = $null
-$yawDeltaDegrees = $null
+$rawYawDeltaRadians = $null
+$rawYawDeltaDegrees = $null
 if ($null -ne $beforeEstimate.YawRadians -and $null -ne $afterEstimate.YawRadians) {
-    $yawDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.YawRadians - [double]$beforeEstimate.YawRadians)
-    $yawDeltaDegrees = Convert-RadiansToDegrees -Radians $yawDeltaRadians
+    $rawYawDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.YawRadians - [double]$beforeEstimate.YawRadians)
+    $rawYawDeltaDegrees = Convert-RadiansToDegrees -Radians $rawYawDeltaRadians
 }
 
-$pitchDeltaRadians = $null
-$pitchDeltaDegrees = $null
+$rawPitchDeltaRadians = $null
+$rawPitchDeltaDegrees = $null
 if ($null -ne $beforeEstimate.PitchRadians -and $null -ne $afterEstimate.PitchRadians) {
-    $pitchDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.PitchRadians - [double]$beforeEstimate.PitchRadians)
-    $pitchDeltaDegrees = Convert-RadiansToDegrees -Radians $pitchDeltaRadians
+    $rawPitchDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.PitchRadians - [double]$beforeEstimate.PitchRadians)
+    $rawPitchDeltaDegrees = Convert-RadiansToDegrees -Radians $rawPitchDeltaRadians
+}
+
+$yawDeltaRadians = if ($sourceStable) { $rawYawDeltaRadians } else { $null }
+$yawDeltaDegrees = if ($sourceStable) { $rawYawDeltaDegrees } else { $null }
+$pitchDeltaRadians = if ($sourceStable) { $rawPitchDeltaRadians } else { $null }
+$pitchDeltaDegrees = if ($sourceStable) { $rawPitchDeltaDegrees } else { $null }
+$coordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
+$vectorDeltaMagnitude = Get-VectorDeltaMagnitude -BeforeVector $beforeEstimate.Vector -AfterVector $afterEstimate.Vector
+$candidateResponsive = $false
+$candidateRejectedReason = $null
+$comparisonNotes = New-Object System.Collections.Generic.List[string]
+if (-not $sourceStable) {
+    $comparisonNotes.Add("Source changed across stimulus capture: before=$beforeSourceAddress after=$afterSourceAddress")
+    $candidateRejectedReason = 'source_drift'
+}
+elseif (-not [string]::IsNullOrWhiteSpace($PinnedSourceAddress)) {
+    $comparisonNotes.Add("Pinned live source remained stable across stimulus: $beforeSourceAddress")
+}
+
+if ($null -eq $candidateRejectedReason) {
+    if ($null -eq $yawDeltaDegrees) {
+        $candidateRejectedReason = 'no_yaw_measurement'
+    }
+    elseif ($null -ne $coordDeltaMagnitude -and [double]$coordDeltaMagnitude -gt $MaxCoordDrift) {
+        $candidateRejectedReason = 'coord_drift'
+    }
+    elseif ([Math]::Abs([double]$yawDeltaDegrees) -lt $MinimumYawResponseDegrees) {
+        $candidateRejectedReason = 'stable_but_nonresponsive'
+    }
+    else {
+        $candidateResponsive = $true
+    }
+}
+
+if ($candidateResponsive) {
+    $comparisonNotes.Add(("Stimulus produced a stable yaw response of {0} deg." -f (Format-Nullable $yawDeltaDegrees '0.000')))
+}
+elseif (-not [string]::IsNullOrWhiteSpace($candidateRejectedReason)) {
+    $comparisonNotes.Add("Candidate rejected after single-stimulus probe: $candidateRejectedReason")
 }
 
 $result = [pscustomobject]@{
@@ -261,17 +354,36 @@ $result = [pscustomobject]@{
     InterKeyDelayMilliseconds = $InterKeyDelayMilliseconds
     FocusSettleMilliseconds = $FocusSettleMilliseconds
     PostKeySettleMilliseconds = $PostKeySettleMilliseconds
+    MinimumYawResponseDegrees = $MinimumYawResponseDegrees
+    MaxCoordDrift = $MaxCoordDrift
+    OrientationCandidateLedgerFile = [System.IO.Path]::GetFullPath($OrientationCandidateLedgerFile)
     UiClearCheck = $uiClear
     Before = $before
     After = $after
     Comparison = [pscustomobject]@{
+        SourceStable = $sourceStable
+        BeforeSourceAddress = $beforeSourceAddress
+        AfterSourceAddress = $afterSourceAddress
+        BeforeBasisForwardOffset = $beforeBasisOffset
+        AfterBasisForwardOffset = $afterBasisOffset
+        RawYawDeltaRadians = $rawYawDeltaRadians
+        RawYawDeltaDegrees = $rawYawDeltaDegrees
         YawDeltaRadians = $yawDeltaRadians
         YawDeltaDegrees = $yawDeltaDegrees
+        RawPitchDeltaRadians = $rawPitchDeltaRadians
+        RawPitchDeltaDegrees = $rawPitchDeltaDegrees
         PitchDeltaRadians = $pitchDeltaRadians
         PitchDeltaDegrees = $pitchDeltaDegrees
-        CoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
-        VectorDeltaMagnitude = Get-VectorDeltaMagnitude -BeforeVector $beforeEstimate.Vector -AfterVector $afterEstimate.Vector
+        CoordDeltaMagnitude = $coordDeltaMagnitude
+        VectorDeltaMagnitude = $vectorDeltaMagnitude
+        Notes = @($comparisonNotes.ToArray())
     }
+    CandidateEvaluation = [pscustomobject]@{
+        Responsive = $candidateResponsive
+        CandidateRejectedReason = $candidateRejectedReason
+    }
+    PinnedSourceAddress = $PinnedSourceAddress
+    PinnedBasisForwardOffset = $PinnedBasisForwardOffset
     KeyDeliveryBackgroundProcess = $backgroundProcessName
     UsedForegroundSendInput = -not $backgroundProcessAvailable
 }

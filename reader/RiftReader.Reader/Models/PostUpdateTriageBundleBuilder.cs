@@ -78,7 +78,8 @@ public static class PostUpdateTriageBundleBuilder
                 target.ProcessName,
                 snapshotDocument,
                 maxHits,
-                probeSeeds));
+                probeSeeds,
+                options.OrientationCandidateLedgerFile));
 
         var savedSessionEvidence = LoadSavedSessionEvidence(options.SessionWatchsetFile);
         var previousBundleContext = LoadPreviousBundleContext(options.RecoveryBundleFile);

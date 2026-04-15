@@ -55,4 +55,5 @@ public sealed record ReaderOptions(
     bool JsonOutput,
     bool PostUpdateTriage = false,
     string? RecoveryBundleFile = null,
-    bool SampleTriageWatchRegions = false);
+    bool SampleTriageWatchRegions = false,
+    string? OrientationCandidateLedgerFile = null);

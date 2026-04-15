@@ -424,7 +424,8 @@ internal static class Program
                 target.ProcessId,
                 target.ProcessName,
                 snapshotDocument,
-                options.MaxHits);
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
         }
         catch (Exception ex)
         {

@@ -18,7 +18,7 @@ Usage:
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --post-update-triage [--player-coord-trace-file <path>] [--session-watchset-file <path>] [--recovery-bundle-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
@@ -50,6 +50,7 @@ Notes:
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --find-player-orientation-candidate to do a single-process read-only search for the live actor/source object near current player coordinate hits.
+  - Use --orientation-candidate-ledger-file to downrank pointer-hop bases that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --post-update-triage to run a single-attach recovery pass that validates surviving anchors, clusters current structure families, scores live yaw candidates against saved session evidence, and emits a recovery bundle.
@@ -80,7 +81,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --orientation-candidate-ledger-file .\scripts\captures\actor-orientation-candidate-ledger.ndjson --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --post-update-triage --recovery-bundle-file .\scripts\captures\post-update-triage-bundle.json --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --sample-triage-watch-regions --max-hits 6 --json
@@ -134,6 +135,7 @@ Examples:
         string? sessionLabel = null;
         string? playerCoordTraceFile = null;
         string? recoveryBundleFile = null;
+        string? orientationCandidateLedgerFile = null;
         string? captureLabel = null;
         string? captureFile = null;
         string? scanString = null;
@@ -382,6 +384,15 @@ Examples:
 
                 case "--find-player-orientation-candidate":
                     findPlayerOrientationCandidate = true;
+                    break;
+
+                case "--orientation-candidate-ledger-file":
+                    if (!TryReadNext(args, ref index, out var orientationCandidateLedgerFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --orientation-candidate-ledger-file.", UsageText);
+                    }
+
+                    orientationCandidateLedgerFile = orientationCandidateLedgerFileValue;
                     break;
 
                 case "--read-player-coord-anchor":
@@ -1434,6 +1445,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--sample-triage-watch-regions cannot be combined with scan, raw memory-read, snapshot, ranking, or record-session modes.", UsageText);
         }
 
+        if (orientationCandidateLedgerFile is not null && !findPlayerOrientationCandidate && !postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--orientation-candidate-ledger-file can only be used with --find-player-orientation-candidate or --post-update-triage.", UsageText);
+        }
+
         if (address.HasValue != length.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Specify --address and --length together.", UsageText);
@@ -1493,7 +1509,8 @@ Examples:
                     JsonOutput: jsonOutput,
                     PostUpdateTriage: postUpdateTriage,
                     RecoveryBundleFile: recoveryBundleFile,
-                    SampleTriageWatchRegions: sampleTriageWatchRegions),
+                    SampleTriageWatchRegions: sampleTriageWatchRegions,
+                    OrientationCandidateLedgerFile: orientationCandidateLedgerFile),
             UsageText);
     }
 
