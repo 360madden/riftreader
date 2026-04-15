@@ -8,6 +8,7 @@ param(
     [int]$InterKeyDelayMilliseconds = 60,
     [int]$FocusSettleMilliseconds = 500,
     [int]$PostKeySettleMilliseconds = 150,
+    [switch]$RequireTargetFocus,
     [switch]$SkipBackgroundFocus
 )
 
@@ -160,6 +161,40 @@ function Focus-Window {
     [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
     [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $false)
     Start-Sleep -Milliseconds $FocusSettleMilliseconds
+}
+
+function Get-ForegroundWindowInfo {
+    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    [void][RiftKeyNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    $foregroundProcess = $null
+    if ($foregroundProcessId -ne 0) {
+        try {
+            $foregroundProcess = Get-Process -Id $foregroundProcessId -ErrorAction Stop
+        }
+        catch {
+            $foregroundProcess = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        Handle = $foregroundHandle
+        ProcessId = [int]$foregroundProcessId
+        ProcessName = if ($null -ne $foregroundProcess) { [string]$foregroundProcess.ProcessName } else { $null }
+    }
+}
+
+function Assert-TargetFocus {
+    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -ne $Process.Id) {
+        $foregroundName = if (-not [string]::IsNullOrWhiteSpace($foreground.ProcessName)) { $foreground.ProcessName } else { 'unknown' }
+        throw ("RequireTargetFocus failed: expected Rift foreground process {0} [{1}], got {2} [{3}] handle 0x{4:X}. Activate the Rift window on the selected desktop and retry." -f $Process.ProcessName, $Process.Id, $foregroundName, $foreground.ProcessId, $foreground.Handle.ToInt64())
+    }
+
+    return $foreground
 }
 
 function Get-EffectiveTargetHandle {
@@ -324,17 +359,27 @@ if ($targetOwnerProcessId -ne $targetProcess.Id) {
     throw "Main window handle 0x{0:X} does not belong to process {1}." -f $targetProcess.MainWindowHandle, $targetProcess.Id
 }
 
-$effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
 $binding = Resolve-KeyBinding -KeyText $Key
 
 Write-Host "[RiftKey] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
 Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
 Write-Host "[RiftKey] Target thread : $targetThreadId"
-Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 Write-Host "[RiftKey] Key           : $Key"
 Write-Host "[RiftKey] Hold ms       : $HoldMilliseconds"
 
-if (-not $SkipBackgroundFocus) {
+$effectiveTargetHandle = [IntPtr]::Zero
+
+if ($RequireTargetFocus) {
+    Write-Host "[RiftKey] Strategy      : Focused PostMessage delivery"
+    Focus-Window -Process $targetProcess
+    $foreground = Assert-TargetFocus -Process $targetProcess
+    $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+    Write-Host ("[RiftKey] Foreground    : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
+    Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
+}
+elseif (-not $SkipBackgroundFocus) {
+    $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+    Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
     $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
     Write-Host "[RiftKey] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
     Focus-Window -Process $backgroundProcess
@@ -344,8 +389,8 @@ if (-not $SkipBackgroundFocus) {
 else {
     Write-Host "[RiftKey] Strategy      : SendInput foreground delivery"
     Focus-Window -Process $targetProcess
-    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
-    Write-Host ("[RiftKey] Foreground    : 0x{0:X}" -f $foregroundHandle.ToInt64())
+    $foreground = Get-ForegroundWindowInfo
+    Write-Host ("[RiftKey] Foreground    : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
     Send-BindingInput -Binding $binding
     Start-Sleep -Milliseconds $PostKeySettleMilliseconds
     Write-Host "[RiftKey] SUCCESS"

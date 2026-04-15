@@ -2,6 +2,19 @@
 
 Use this order when you need to reconstruct the active state.
 
+If you need the **detailed fast live-discovery method** that recovered actor yaw
+quickly, use:
+
+- `C:\RIFT MODDING\RiftReader\docs\recovery\focused-postmessage-discovery-workflow.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\focused-postmessage-discovery-prompt.json`
+
+This file is the reusable backup workflow for future live recovery/discovery of
+other features that depend on focus-enforced input plus live memory readback.
+
+The JSON packet is the machine-readable companion for the same workflow and is
+the preferred starting packet when an AI needs to rerun or adapt the method
+without re-deriving the full recovery ladder from scratch.
+
 ## 0. After a game update, triage the surviving baselines first
 
 ```powershell

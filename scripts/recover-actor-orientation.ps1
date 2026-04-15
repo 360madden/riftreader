@@ -8,8 +8,15 @@ param(
     [switch]$NoAhkFallback,
     [string]$PinnedSourceAddress,
     [string]$PinnedBasisForwardOffset,
+    [ValidateSet('A', 'D', 'Left', 'Right')]
+    [string]$LeftTurnKey = 'A',
+    [ValidateSet('A', 'D', 'Left', 'Right')]
+    [string]$RightTurnKey = 'D',
     [string]$OrientationCandidateLedgerFile,
     [switch]$SkipCandidateLedgerWrite,
+    [switch]$SkipUiClearCheck,
+    [switch]$RequireTargetFocus,
+    [switch]$SkipLiveInputWarning,
     [string]$OutputFile
 )
 
@@ -31,6 +38,10 @@ if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
 
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedOrientationCandidateLedgerFile = [System.IO.Path]::GetFullPath($OrientationCandidateLedgerFile)
+
+if ([string]::Equals($LeftTurnKey, $RightTurnKey, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "LeftTurnKey and RightTurnKey must be different opposite-direction turn inputs."
+}
 
 function Invoke-ReaderJson {
     param(
@@ -147,9 +158,27 @@ function Invoke-Stimulus {
         $arguments['OrientationCandidateLedgerFile'] = $resolvedOrientationCandidateLedgerFile
     }
 
-    $jsonText = & $stimulusScript @arguments
+    if ($SkipUiClearCheck) {
+        $arguments['SkipUiClearCheck'] = $true
+    }
+
+    if ($RequireTargetFocus) {
+        $arguments['RequireTargetFocus'] = $true
+    }
+
+    if ($SkipLiveInputWarning) {
+        $arguments['SkipLiveInputWarning'] = $true
+    }
+
+    try {
+        $jsonText = & $stimulusScript @arguments
+    }
+    catch {
+        throw "Stimulus helper failed for key '$Key'. Original error: $($_.Exception.Message)"
+    }
+
     if ($LASTEXITCODE -ne 0) {
-        throw "Stimulus helper failed for key '$Key'."
+        throw "Stimulus helper failed for key '$Key' (`$LASTEXITCODE=$LASTEXITCODE)."
     }
 
     if ((Get-Command Microsoft.PowerShell.Utility\ConvertFrom-Json).Parameters.ContainsKey('Depth')) {
@@ -400,8 +429,8 @@ $baseline = Invoke-Capture -Label 'recovery-baseline'
 $baselinePinnedSourceAddress = if (-not [string]::IsNullOrWhiteSpace($PinnedSourceAddress)) { $PinnedSourceAddress } else { [string](Get-OptionalPropertyValue -Object $baseline.ReaderOrientation -Name 'SelectedSourceAddress') }
 $baselineLiveSourceSample = Get-OptionalPropertyValue -Object $baseline.ReaderOrientation -Name 'LiveSourceSample'
 $baselinePinnedBasisForwardOffset = if (-not [string]::IsNullOrWhiteSpace($PinnedBasisForwardOffset)) { $PinnedBasisForwardOffset } else { [string](Get-OptionalPropertyValue -Object $baselineLiveSourceSample -Name 'BasisPrimaryForwardOffset') }
-$leftStimulus = Invoke-Stimulus -Key 'Left' -PinnedSourceAddress $baselinePinnedSourceAddress -PinnedBasisForwardOffset $baselinePinnedBasisForwardOffset
-$rightStimulus = Invoke-Stimulus -Key 'Right' -PinnedSourceAddress $baselinePinnedSourceAddress -PinnedBasisForwardOffset $baselinePinnedBasisForwardOffset
+$leftStimulus = Invoke-Stimulus -Key $LeftTurnKey -PinnedSourceAddress $baselinePinnedSourceAddress -PinnedBasisForwardOffset $baselinePinnedBasisForwardOffset
+$rightStimulus = Invoke-Stimulus -Key $RightTurnKey -PinnedSourceAddress $baselinePinnedSourceAddress -PinnedBasisForwardOffset $baselinePinnedBasisForwardOffset
 $orientationProbe = Get-OrientationProbeSnapshot
 
 $preferredBasis = $baseline.ReaderOrientation.PreferredBasis
@@ -520,10 +549,10 @@ if (-not $rightSourceStable) {
     $notes.Add("Right stimulus source was not stable: before=$($rightStimulus.Comparison.BeforeSourceAddress) after=$($rightStimulus.Comparison.AfterSourceAddress)")
 }
 if ($yawRecovered) {
-    $notes.Add('Yaw recovery passed the Left/Right stimulus gate.')
+    $notes.Add("Yaw recovery passed the opposite-direction turn gate ($LeftTurnKey/$RightTurnKey).")
 }
 else {
-    $notes.Add('Yaw recovery did not pass the Left/Right stimulus gate yet.')
+    $notes.Add("Yaw recovery did not pass the opposite-direction turn gate yet ($LeftTurnKey/$RightTurnKey).")
     if (-not [string]::IsNullOrWhiteSpace($candidateRejectedReason)) {
         $notes.Add("Candidate rejected reason: $candidateRejectedReason")
     }
@@ -532,7 +561,7 @@ if ($pitchRecovered) {
     $notes.Add('Pitch is available from the recovered orientation basis.')
 }
 if ($candidateResponsive -and -not $yawRecovered) {
-    $notes.Add('Candidate showed some stable turn response but did not satisfy the full Left/Right yaw-recovery gate.')
+    $notes.Add("Candidate showed some stable turn response but did not satisfy the full opposite-direction turn gate ($LeftTurnKey/$RightTurnKey).")
 }
 if ($orientationProbe) {
     $orientationProbePlayer = Get-OptionalPropertyValue -Object $orientationProbe -Name 'Player'
@@ -553,6 +582,11 @@ $document = [pscustomobject]@{
     OutputFile = $resolvedOutputFile
     OrientationCandidateLedgerFile = $resolvedOrientationCandidateLedgerFile
     ProcessName = $ProcessName
+    LeftTurnKey = $LeftTurnKey
+    RightTurnKey = $RightTurnKey
+    SkipUiClearCheck = [bool]$SkipUiClearCheck
+    RequireTargetFocus = [bool]$RequireTargetFocus
+    SkipLiveInputWarning = [bool]$SkipLiveInputWarning
     Recovery = [pscustomobject]@{
         BasisRecovered = $basisRecovered
         CandidateResponsive = $candidateResponsive
@@ -574,7 +608,7 @@ Write-CandidateLedgerEntry `
     -BaselineCapture $baseline `
     -CandidateResponsive $candidateResponsive `
     -EvaluationMode 'full-recovery' `
-    -StimulusKey 'Left+Right' `
+    -StimulusKey "$LeftTurnKey+$RightTurnKey" `
     -SourceStable ($baselineToLeftBeforeSourceStable -and $leftAfterToRightBeforeSourceStable -and $leftSourceStable -and $rightSourceStable) `
     -CoordDriftMagnitude ([Math]::Max($leftCoord, $rightCoord)) `
     -YawDeltaDegrees $(if ($null -ne $leftYaw -and $null -ne $rightYaw) { [Math]::Max([Math]::Abs([double]$leftYaw), [Math]::Abs([double]$rightYaw)) } else { $null }) `
@@ -598,6 +632,9 @@ if ($Json) {
 Write-Host "Actor orientation recovery"
 Write-Host ("Process:                     {0}" -f $ProcessName)
 Write-Host ("Resolution mode:             {0}" -f $(if (-not [string]::IsNullOrWhiteSpace($resolutionMode)) { $resolutionMode } else { 'n/a' }))
+Write-Host ("Require target focus:        {0}" -f $document.RequireTargetFocus)
+Write-Host ("Skip UI clear-check:         {0}" -f $document.SkipUiClearCheck)
+Write-Host ("Skip live warning:           {0}" -f $document.SkipLiveInputWarning)
 Write-Host ("Basis recovered:             {0}" -f $document.Recovery.BasisRecovered)
 Write-Host ("Candidate responsive:        {0}" -f $document.Recovery.CandidateResponsive)
 Write-Host ("Yaw recovered:               {0}" -f $document.Recovery.YawRecovered)
@@ -606,8 +643,8 @@ Write-Host ("Idle consistency pass:       {0}" -f $document.Recovery.IdleConsist
 Write-Host ("Rejected reason:             {0}" -f $(if (-not [string]::IsNullOrWhiteSpace($document.Recovery.CandidateRejectedReason)) { $document.Recovery.CandidateRejectedReason } else { 'n/a' }))
 Write-Host ("Baseline yaw/pitch (deg):    {0} / {1}" -f (Format-Nullable $preferredEstimate.YawDegrees '0.000'), (Format-Nullable $preferredEstimate.PitchDegrees '0.000'))
 Write-Host ("Idle yaw drift (deg):        {0} / {1}" -f (Format-Nullable $document.Recovery.BaselineIdleYawDeltaDegrees '0.000'), (Format-Nullable $document.Recovery.InterStimulusYawDeltaDegrees '0.000'))
-Write-Host ("Left yaw delta / coord:      {0} / {1}" -f (Format-Nullable $leftYaw '0.000'), (Format-Nullable $leftCoord '0.000000'))
-Write-Host ("Right yaw delta / coord:     {0} / {1}" -f (Format-Nullable $rightYaw '0.000'), (Format-Nullable $rightCoord '0.000000'))
+Write-Host ("{0} yaw delta / coord:       {1} / {2}" -f $LeftTurnKey, (Format-Nullable $leftYaw '0.000'), (Format-Nullable $leftCoord '0.000000'))
+Write-Host ("{0} yaw delta / coord:       {1} / {2}" -f $RightTurnKey, (Format-Nullable $rightYaw '0.000'), (Format-Nullable $rightCoord '0.000000'))
 if ($orientationProbe) {
     $orientationProbePlayer = Get-OptionalPropertyValue -Object $orientationProbe -Name 'Player'
     $playerDirectHeading = Get-OptionalPropertyValue -Object $orientationProbePlayer -Name 'DirectHeading'

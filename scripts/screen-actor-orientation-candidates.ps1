@@ -3,10 +3,10 @@ param(
     [switch]$Json,
     [string]$ProcessName = 'rift_x64',
     [int]$MaxHits = 8,
-    [ValidateSet('Left', 'Right')]
-    [string]$PreflightKey = 'Right',
+    [ValidateSet('A', 'D', 'Left', 'Right')]
+    [string]$PreflightKey = 'D',
     [switch]$DualKeyPreflight,
-    [ValidateSet('Left', 'Right')]
+    [ValidateSet('A', 'D', 'Left', 'Right')]
     [string]$SecondaryPreflightKey,
     [double]$MinimumYawResponseDegrees = 1.0,
     [double]$MaxCoordDrift = 0.25,
@@ -16,9 +16,14 @@ param(
     [switch]$RetestLedgerRejected,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [switch]$SkipUiClearCheck,
+    [switch]$RequireTargetFocus,
+    [switch]$SkipLiveInputWarning,
+    [switch]$StopOnFirstRecoveredYaw,
     [string]$LedgerFile,
     [string]$HistoryFile,
     [switch]$SkipHistoryWrite,
+    [string]$RecoveryOutputDirectory,
     [string]$OutputFile
 )
 
@@ -42,13 +47,59 @@ if ([string]::IsNullOrWhiteSpace($HistoryFile)) {
     $HistoryFile = Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-screen-history.ndjson'
 }
 
+if ([string]::IsNullOrWhiteSpace($RecoveryOutputDirectory)) {
+    $RecoveryOutputDirectory = Join-Path $PSScriptRoot 'captures\screening'
+}
+
+function Get-OppositeTurnKey {
+    param([Parameter(Mandatory = $true)][string]$Key)
+
+    switch ($Key.ToUpperInvariant()) {
+        'RIGHT' { return 'Left' }
+        'LEFT' { return 'Right' }
+        'D' { return 'A' }
+        'A' { return 'D' }
+        default { throw "Unsupported turn key '$Key'." }
+    }
+}
+
+function Get-RecoveryTurnKeyPair {
+    param(
+        [Parameter(Mandatory = $true)][string]$PrimaryKey,
+        [Parameter(Mandatory = $true)][string]$SecondaryKey
+    )
+
+    $leftTurnKeys = @('A', 'LEFT')
+    $rightTurnKeys = @('D', 'RIGHT')
+    $primaryNormalized = $PrimaryKey.ToUpperInvariant()
+    $secondaryNormalized = $SecondaryKey.ToUpperInvariant()
+
+    if ($leftTurnKeys -contains $primaryNormalized -and $rightTurnKeys -contains $secondaryNormalized) {
+        return [pscustomobject]@{
+            LeftTurnKey = $PrimaryKey
+            RightTurnKey = $SecondaryKey
+        }
+    }
+
+    if ($rightTurnKeys -contains $primaryNormalized -and $leftTurnKeys -contains $secondaryNormalized) {
+        return [pscustomobject]@{
+            LeftTurnKey = $SecondaryKey
+            RightTurnKey = $PrimaryKey
+        }
+    }
+
+    throw "Preflight keys '$PrimaryKey' and '$SecondaryKey' must be opposite-direction turn inputs."
+}
+
 if ([string]::IsNullOrWhiteSpace($SecondaryPreflightKey)) {
-    $SecondaryPreflightKey = if ($PreflightKey -eq 'Right') { 'Left' } else { 'Right' }
+    $SecondaryPreflightKey = Get-OppositeTurnKey -Key $PreflightKey
 }
 
 $resolvedLedgerFile = [System.IO.Path]::GetFullPath($LedgerFile)
 $resolvedHistoryFile = [System.IO.Path]::GetFullPath($HistoryFile)
+$resolvedRecoveryOutputDirectory = [System.IO.Path]::GetFullPath($RecoveryOutputDirectory)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+$recoveryTurnKeyPair = Get-RecoveryTurnKeyPair -PrimaryKey $PreflightKey -SecondaryKey $SecondaryPreflightKey
 
 function ConvertFrom-JsonCompat {
     param(
@@ -158,7 +209,7 @@ function Normalize-HexString {
         $trimmed = $trimmed.Substring(2)
     }
 
-    $parsedValue = 0UL
+    [UInt64]$parsedValue = 0
     if ([UInt64]::TryParse($trimmed, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$parsedValue)) {
         return ('0x{0:X}' -f $parsedValue)
     }
@@ -396,7 +447,13 @@ function Write-ScreenHistoryEntry {
         MaxInterPreflightIdleDriftDegrees = $Document.MaxInterPreflightIdleDriftDegrees
         FullRecoveryLimit = $Document.FullRecoveryLimit
         LedgerFile = $Document.LedgerFile
+        RecoveryOutputDirectory = $Document.RecoveryOutputDirectory
         OutputFile = $Document.OutputFile
+        SkipUiClearCheck = [bool]$Document.SkipUiClearCheck
+        RequireTargetFocus = [bool]$Document.RequireTargetFocus
+        SkipLiveInputWarning = [bool]$Document.SkipLiveInputWarning
+        StopOnFirstRecoveredYaw = [bool]$Document.StopOnFirstRecoveredYaw
+        StoppedAfterRecoveredYaw = [bool]$Document.StoppedAfterRecoveredYaw
         CandidateSearchSummary = [pscustomobject]@{
             CandidateCount = Get-OptionalPropertyValue -Object $Document.CandidateSearch -Name 'CandidateCount'
             PointerHopCandidateCount = Get-OptionalPropertyValue -Object $Document.CandidateSearch -Name 'PointerHopCandidateCount'
@@ -505,9 +562,27 @@ function Invoke-StimulusCandidate {
         $arguments['NoAhkFallback'] = $true
     }
 
-    $jsonText = & $stimulusScript @arguments
+    if ($SkipUiClearCheck) {
+        $arguments['SkipUiClearCheck'] = $true
+    }
+
+    if ($RequireTargetFocus) {
+        $arguments['RequireTargetFocus'] = $true
+    }
+
+    if ($SkipLiveInputWarning) {
+        $arguments['SkipLiveInputWarning'] = $true
+    }
+
+    try {
+        $jsonText = & $stimulusScript @arguments
+    }
+    catch {
+        throw "Single-stimulus screening failed for $SourceAddress @ $BasisForwardOffset. Original error: $($_.Exception.Message)"
+    }
+
     if ($LASTEXITCODE -ne 0) {
-        throw "Single-stimulus screening failed for $SourceAddress @ $BasisForwardOffset."
+        throw "Single-stimulus screening failed for $SourceAddress @ $BasisForwardOffset (`$LASTEXITCODE=$LASTEXITCODE)."
     }
 
     return ConvertFrom-JsonCompat -JsonText ([string]$jsonText) -Depth 80
@@ -554,6 +629,8 @@ function Invoke-RecoveryCandidate {
         Json = $true
         PinnedSourceAddress = $SourceAddress
         PinnedBasisForwardOffset = $BasisForwardOffset
+        LeftTurnKey = $recoveryTurnKeyPair.LeftTurnKey
+        RightTurnKey = $recoveryTurnKeyPair.RightTurnKey
         OrientationCandidateLedgerFile = $resolvedLedgerFile
         OutputFile = $OutputPath
     }
@@ -566,9 +643,27 @@ function Invoke-RecoveryCandidate {
         $arguments['NoAhkFallback'] = $true
     }
 
-    $jsonText = & $recoveryScript @arguments
+    if ($SkipUiClearCheck) {
+        $arguments['SkipUiClearCheck'] = $true
+    }
+
+    if ($RequireTargetFocus) {
+        $arguments['RequireTargetFocus'] = $true
+    }
+
+    if ($SkipLiveInputWarning) {
+        $arguments['SkipLiveInputWarning'] = $true
+    }
+
+    try {
+        $jsonText = & $recoveryScript @arguments
+    }
+    catch {
+        throw "Full recovery failed for $SourceAddress @ $BasisForwardOffset. Original error: $($_.Exception.Message)"
+    }
+
     if ($LASTEXITCODE -ne 0) {
-        throw "Full recovery failed for $SourceAddress @ $BasisForwardOffset."
+        throw "Full recovery failed for $SourceAddress @ $BasisForwardOffset (`$LASTEXITCODE=$LASTEXITCODE)."
     }
 
     return ConvertFrom-JsonCompat -JsonText ([string]$jsonText) -Depth 80
@@ -654,6 +749,8 @@ $candidateSearch = Invoke-ReaderJson -Arguments @(
 $ledgerEvidence = Get-LedgerEvidenceIndex
 $screenResults = New-Object System.Collections.Generic.List[object]
 $recoveryRunCount = 0
+$stoppedAfterRecoveredYaw = $false
+$winningRecoveryResult = $null
 
 foreach ($candidate in @(Get-SearchCandidates -CandidateSearch $candidateSearch)) {
     $candidateKey = New-LedgerKey -SourceAddress $candidate.SourceAddress -BasisForwardOffset $candidate.BasisForwardOffset
@@ -768,9 +865,9 @@ foreach ($candidate in @(Get-SearchCandidates -CandidateSearch $candidateSearch)
             $preflightRejectedReason = $null
         }
 
-        $preflightCoordMax = [Math]::Max(
-            [double](if ($null -ne $stimulusSummary.CoordDeltaMagnitude) { $stimulusSummary.CoordDeltaMagnitude } else { 0.0 }),
-            [double](if ($null -ne $secondaryStimulusSummary.CoordDeltaMagnitude) { $secondaryStimulusSummary.CoordDeltaMagnitude } else { 0.0 }))
+        $primaryCoordMagnitude = if ($null -ne $stimulusSummary.CoordDeltaMagnitude) { [double]$stimulusSummary.CoordDeltaMagnitude } else { 0.0 }
+        $secondaryCoordMagnitude = if ($null -ne $secondaryStimulusSummary.CoordDeltaMagnitude) { [double]$secondaryStimulusSummary.CoordDeltaMagnitude } else { 0.0 }
+        $preflightCoordMax = [Math]::Max($primaryCoordMagnitude, $secondaryCoordMagnitude)
 
         $candidateRecord['SecondaryStimulus'] = $secondaryStimulusSummary
         $candidateRecord['InterPreflightSourceStable'] = $interPreflightSourceStable
@@ -806,7 +903,7 @@ foreach ($candidate in @(Get-SearchCandidates -CandidateSearch $candidateSearch)
 
     if ($preflightPassed -and -not $SkipFullRecovery -and $recoveryRunCount -lt $FullRecoveryLimit) {
         $candidateToken = Get-CandidateToken -SourceAddress $candidate.SourceAddress -BasisForwardOffset $candidate.BasisForwardOffset
-        $recoveryOutputPath = Join-Path $PSScriptRoot ("captures\screening\recovery-{0}.json" -f $candidateToken)
+        $recoveryOutputPath = Join-Path $resolvedRecoveryOutputDirectory ("recovery-{0}.json" -f $candidateToken)
         $recoveryResult = Invoke-RecoveryCandidate -SourceAddress $candidate.SourceAddress -BasisForwardOffset $candidate.BasisForwardOffset -OutputPath $recoveryOutputPath
         $recoveryRunCount++
         $candidateRecord['Recovery'] = [pscustomobject]@{
@@ -820,6 +917,16 @@ foreach ($candidate in @(Get-SearchCandidates -CandidateSearch $candidateSearch)
             BaselineIdleYawDeltaDegrees = Get-OptionalPropertyValue -Object $recoveryResult.Recovery -Name 'BaselineIdleYawDeltaDegrees'
             InterStimulusYawDeltaDegrees = Get-OptionalPropertyValue -Object $recoveryResult.Recovery -Name 'InterStimulusYawDeltaDegrees'
             Notes = @((Get-OptionalPropertyValue -Object $recoveryResult -Name 'Notes'))
+        }
+
+        if ($StopOnFirstRecoveredYaw -and [bool](Get-OptionalPropertyValue -Object $recoveryResult.Recovery -Name 'YawRecovered')) {
+            $winningRecoveryResult = $candidateRecord['Recovery']
+            $stoppedAfterRecoveredYaw = $true
+            $candidateRecord['Notes'] = @(
+                'Screen stopped after this candidate because full recovery produced a validated yaw winner.'
+            )
+            $screenResults.Add([pscustomobject]$candidateRecord)
+            break
         }
     }
 
@@ -841,6 +948,7 @@ $document = [pscustomobject]@{
     OutputFile = $resolvedOutputFile
     LedgerFile = $resolvedLedgerFile
     HistoryFile = $resolvedHistoryFile
+    RecoveryOutputDirectory = $resolvedRecoveryOutputDirectory
     ProcessName = $ProcessName
     PreflightKey = $PreflightKey
     DualKeyPreflight = [bool]$DualKeyPreflight
@@ -849,6 +957,12 @@ $document = [pscustomobject]@{
     MaxCoordDrift = $MaxCoordDrift
     MaxInterPreflightIdleDriftDegrees = $MaxInterPreflightIdleDriftDegrees
     FullRecoveryLimit = $FullRecoveryLimit
+    SkipUiClearCheck = [bool]$SkipUiClearCheck
+    RequireTargetFocus = [bool]$RequireTargetFocus
+    SkipLiveInputWarning = [bool]$SkipLiveInputWarning
+    StopOnFirstRecoveredYaw = [bool]$StopOnFirstRecoveredYaw
+    StoppedAfterRecoveredYaw = $stoppedAfterRecoveredYaw
+    WinningRecovery = $winningRecoveryResult
     CandidateSearch = $candidateSearch
     ScreenedCandidateCount = $screenResults.Count
     SkippedCandidateCount = @($skippedCandidates).Count
@@ -857,9 +971,10 @@ $document = [pscustomobject]@{
     RecoveryRunCount = $recoveryRunCount
     Results = $screenResults.ToArray()
     Notes = @(
-        $(if ($DualKeyPreflight) { 'Candidates are screened with paired trusted turn stimuli before any full Left/Right recovery run.' } else { 'Candidates are screened with a single trusted turn stimulus before any full Left/Right recovery run.' }),
+        $(if ($DualKeyPreflight) { 'Candidates are screened with paired trusted opposite-direction turn stimuli before any full recovery run.' } else { 'Candidates are screened with a single trusted turn stimulus before any full recovery run.' }),
         'Known stable-but-nonresponsive candidates are skipped by default using the dead-candidate ledger.',
-        $(if ($DualKeyPreflight) { 'Full recovery is only attempted for candidates that react to both preflight directions, keep opposite-sign deltas, and stay stable between the two preflights.' } else { 'Full recovery is only attempted for candidates that remain stable and show a nontrivial preflight yaw delta.' })
+        $(if ($DualKeyPreflight) { 'Full recovery is only attempted for candidates that react to both preflight directions, keep opposite-sign deltas, and stay stable between the two preflights.' } else { 'Full recovery is only attempted for candidates that remain stable and show a nontrivial preflight yaw delta.' }),
+        $(if ($StopOnFirstRecoveredYaw) { 'Screen exits immediately after the first full recovery that proves yaw.' } else { 'Screen continues through the candidate set even after a successful recovery.' })
     )
 }
 
@@ -881,6 +996,11 @@ Write-Host 'Actor orientation candidate screen'
 Write-Host ("Process:                     {0}" -f $ProcessName)
 Write-Host ("Ledger file:                 {0}" -f $resolvedLedgerFile)
 Write-Host ("History file:                {0}" -f $resolvedHistoryFile)
+Write-Host ("Recovery output dir:         {0}" -f $resolvedRecoveryOutputDirectory)
+Write-Host ("Require target focus:        {0}" -f $document.RequireTargetFocus)
+Write-Host ("Skip UI clear-check:         {0}" -f $document.SkipUiClearCheck)
+Write-Host ("Skip live warning:           {0}" -f $document.SkipLiveInputWarning)
+Write-Host ("Stop on yaw winner:          {0}" -f $document.StopOnFirstRecoveredYaw)
 Write-Host ("Preflight key:               {0}" -f $PreflightKey)
 if ($DualKeyPreflight) {
     Write-Host ("Secondary preflight key:     {0}" -f $SecondaryPreflightKey)
@@ -891,6 +1011,7 @@ Write-Host ("Skipped by ledger:           {0}" -f $document.SkippedCandidateCoun
 Write-Host ("Responsive candidates:       {0}" -f $document.ResponsiveCandidateCount)
 Write-Host ("Dead candidates:             {0}" -f $document.DeadCandidateCount)
 Write-Host ("Recovery runs:               {0}" -f $document.RecoveryRunCount)
+Write-Host ("Stopped after yaw winner:    {0}" -f $document.StoppedAfterRecoveredYaw)
 
 foreach ($result in @($document.Results)) {
     $stimulus = Get-OptionalPropertyValue -Object $result -Name 'Stimulus'

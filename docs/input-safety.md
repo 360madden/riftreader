@@ -30,8 +30,11 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.ps1` | Read-only | none | `main` | Watches saved-variable output only |
 | `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1` | Read-only | none | `main` | Capture provenance / freshness only |
 | `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1` | Read-only | none | `main` | Derived watchset output only |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper; prefer the default background `PostMessage` path |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper; for Desktop-2 actor-yaw work prefer `-RequireTargetFocus` so Rift is foreground-verified before `PostMessage` delivery |
 | `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` | Direct key input | readback before/after | `main` | Measures actor-orientation deltas around a key stimulus |
+| `C:\RIFT MODDING\RiftReader\scripts\recover-actor-orientation.ps1` | Direct key input | readback + candidate ledger writes | `codex/actor-yaw-pitch` | Full opposite-direction actor-yaw recovery pass; can skip the screenshot gate for Desktop-2 isolation |
+| `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1` | Hybrid | live key stimulus + full recovery | `codex/actor-yaw-pitch` | Candidate screen / recovery orchestrator; supports focus-enforced Desktop-2 runs |
+| `C:\RIFT MODDING\RiftReader\scripts\run-aggressive-actor-yaw-discovery.ps1` | Hybrid | aggressive live key stimulus + triage escalation | `codex/actor-yaw-pitch` | AI-driven Desktop-2 actor-yaw workflow; stops on focus failure and writes aggressive-only artifacts |
 | `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` | Direct key input | readback profiling | `main` | Repeats multiple key stimuli |
 | `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` | Chat/reload UI-intrusive | may fallback to AHK | `main` | Uses `/reloadui`; not safe for unattended probing |
 | `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` | Chat/reload UI-intrusive | none | `main` | Command/chat injection helper |
@@ -48,14 +51,23 @@ This page exists because post-update triage surfaced two separate concerns:
 
 ## Latest live delivery note
 
-As of `2026-04-15`, the preferred gameplay-key stimulus on `main` is the
-default background `PostMessage` path in
-`C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`.
+As of `2026-04-15`, the trusted gameplay-key stimulus for the
+`codex/actor-yaw-pitch` Desktop-2 workflow is **focused `PostMessage`** via
+`C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -RequireTargetFocus`.
 
-A live `A` recheck turned the player while `Codex` stayed foreground. In the
-same testing window, operator feedback reported that the foreground
-`SendInput` lane did **not** produce the desired result. Keep `SendInput` as
-untrusted for this workflow until it is revalidated in its own dated report.
+Earlier same-day live rechecks showed that a background `PostMessage` turn
+could still land while `Codex` stayed foreground, but the aggressive
+AI-driven branch workflow must **not** rely on that assumption. Rift may still
+ignore or inconsistently accept live input unless its own window is foreground.
+
+Treat the focused-then-`PostMessage` lane as the current branch default, and
+keep the foreground `SendInput` path untrusted until it is revalidated in its
+own dated report.
+
+When Rift is isolated on Desktop 2, screenshot-based gameplay UI checks are
+not authoritative unless that desktop is actually visible. Memory/input
+workflows may proceed, but pixel-based safety checks should be treated
+cautiously.
 
 See:
 

@@ -1,4 +1,12 @@
 {
+  "meta": {
+    "status": "historical_branch_specific_reference",
+    "superseded_by": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\focused-postmessage-discovery-prompt.json",
+    "notes": [
+      "This packet reflects the pre-win actor-yaw restart strategy from April 14, 2026.",
+      "Use the focused-PostMessage discovery prompt for current and future live feature recovery unless you specifically need to compare the pre-win and post-win actor-yaw approaches."
+    ]
+  },
   "task": {
     "goal": "recover actor yaw first, pitch second",
     "priority": "speed",

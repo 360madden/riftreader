@@ -17,6 +17,7 @@ param(
     [double]$MaxCoordDrift = 0.25,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [switch]$RequireTargetFocus,
     [switch]$SkipBackgroundFocus,
     [switch]$SkipUiClearCheck,
     [switch]$SkipLiveInputWarning
@@ -32,9 +33,10 @@ $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
 $backgroundProcessName = $null
-$backgroundProcessAvailable = $SkipBackgroundFocus.IsPresent
+$useBackgroundFocus = (-not $SkipBackgroundFocus.IsPresent) -and (-not $RequireTargetFocus.IsPresent)
+$backgroundProcessAvailable = $false
 
-if (-not $backgroundProcessAvailable) {
+if ($useBackgroundFocus) {
     foreach ($candidateProcessName in @('cheatengine-x86_64-SSE4-AVX2', 'Codex')) {
         try {
             $null = Get-Process -Name $candidateProcessName -ErrorAction Stop | Select-Object -First 1
@@ -45,14 +47,10 @@ if (-not $backgroundProcessAvailable) {
         catch {
         }
     }
-
-if (-not $backgroundProcessAvailable) {
-    $backgroundProcessAvailable = $false
 }
 
 if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
     $OrientationCandidateLedgerFile = Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-ledger.ndjson'
-}
 }
 
 function Normalize-AngleRadians {
@@ -265,16 +263,27 @@ $keyArguments = @{
     PostKeySettleMilliseconds = $PostKeySettleMilliseconds
 }
 
-if (-not $backgroundProcessAvailable) {
-    $keyArguments['SkipBackgroundFocus'] = $true
+if (-not $useBackgroundFocus -or -not $backgroundProcessAvailable) {
+    if ($RequireTargetFocus) {
+        $keyArguments['RequireTargetFocus'] = $true
+    }
+    else {
+        $keyArguments['SkipBackgroundFocus'] = $true
+    }
 }
 elseif (-not [string]::IsNullOrWhiteSpace($backgroundProcessName)) {
     $keyArguments['BackgroundProcessName'] = $backgroundProcessName
 }
 
-& $keyScript @keyArguments *> $null
+try {
+    & $keyScript @keyArguments *> $null
+}
+catch {
+    throw "Stimulus key '$Key' failed. Original error: $($_.Exception.Message)"
+}
+
 if ($LASTEXITCODE -ne 0) {
-    throw "Stimulus key '$Key' failed."
+    throw "Stimulus key '$Key' failed (`$LASTEXITCODE=$LASTEXITCODE)."
 }
 
 Start-Sleep -Milliseconds $WaitMilliseconds
@@ -384,8 +393,11 @@ $result = [pscustomobject]@{
     }
     PinnedSourceAddress = $PinnedSourceAddress
     PinnedBasisForwardOffset = $PinnedBasisForwardOffset
-    KeyDeliveryBackgroundProcess = $backgroundProcessName
-    UsedForegroundSendInput = -not $backgroundProcessAvailable
+    RequireTargetFocus = [bool]$RequireTargetFocus
+    SkipUiClearCheck = [bool]$SkipUiClearCheck
+    KeyDeliveryMode = if ($RequireTargetFocus) { 'focused-postmessage' } elseif ($useBackgroundFocus -and $backgroundProcessAvailable) { 'background-postmessage' } else { 'foreground-sendinput' }
+    KeyDeliveryBackgroundProcess = if ($useBackgroundFocus -and $backgroundProcessAvailable) { $backgroundProcessName } else { $null }
+    UsedForegroundSendInput = (-not $RequireTargetFocus) -and ((-not $useBackgroundFocus) -or (-not $backgroundProcessAvailable))
 }
 
 try {
