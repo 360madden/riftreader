@@ -47,6 +47,29 @@ function Try-GetFileLastWrite {
     return ([DateTimeOffset](Get-Item -LiteralPath $Path).LastWriteTime).ToString('o')
 }
 
+function New-SourceReference {
+    param(
+        [string]$Label,
+        [string]$Path,
+        [string]$Note = ''
+    )
+
+    $present = $false
+    $updatedAt = $null
+    if (-not [string]::IsNullOrWhiteSpace($Path) -and (Test-Path -LiteralPath $Path)) {
+        $present = $true
+        $updatedAt = Try-GetFileLastWrite -Path $Path
+    }
+
+    return [pscustomobject]@{
+        label     = $Label
+        path      = (Convert-ToDashboardPath $Path)
+        note      = $Note
+        present   = $present
+        updatedAt = $updatedAt
+    }
+}
+
 function Read-JsonFile {
     param([string]$Path)
 
@@ -65,6 +88,23 @@ function Read-TextLines {
     }
 
     return @(Get-Content -LiteralPath $Path)
+}
+
+function Read-KeyValueFile {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $map = [ordered]@{}
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -match '^(?<key>[^=]+)=(?<value>.*)$') {
+            $map[$matches.key.Trim()] = $matches.value.Trim()
+        }
+    }
+
+    return [pscustomobject]$map
 }
 
 function Split-MarkdownRow {
@@ -247,6 +287,55 @@ function Get-GitBranches {
     return $branches.ToArray()
 }
 
+function Get-GitStatusSummary {
+    param([string]$RepoRoot)
+
+    $lines = @((Invoke-GitLines -RepoRoot $RepoRoot -Arguments @('status', '--short')) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $modified = 0
+    $added = 0
+    $deleted = 0
+    $renamed = 0
+    $untracked = 0
+
+    foreach ($line in $lines) {
+        if ($line.StartsWith('??')) {
+            $untracked += 1
+            continue
+        }
+
+        $x = if ($line.Length -ge 1) { $line.Substring(0, 1) } else { ' ' }
+        $y = if ($line.Length -ge 2) { $line.Substring(1, 1) } else { ' ' }
+        $statusCode = "$x$y"
+
+        if ($statusCode -match 'M') { $modified += 1 }
+        if ($statusCode -match 'A') { $added += 1 }
+        if ($statusCode -match 'D') { $deleted += 1 }
+        if ($statusCode -match 'R') { $renamed += 1 }
+    }
+
+    return [pscustomobject]@{
+        lines      = $lines
+        modified   = $modified
+        added      = $added
+        deleted    = $deleted
+        renamed    = $renamed
+        untracked  = $untracked
+        total      = $lines.Count
+        observedAt = ([DateTimeOffset]::Now).ToString('o')
+    }
+}
+
+function Get-GitHeadCommitInfo {
+    param([string]$RepoRoot)
+
+    $lines = Invoke-GitLines -RepoRoot $RepoRoot -Arguments @('log', '-1', '--format=%H%n%s%n%cI')
+    return [pscustomobject]@{
+        sha         = if ($lines.Count -ge 1) { $lines[0].Trim() } else { '' }
+        subject     = if ($lines.Count -ge 2) { $lines[1].Trim() } else { '' }
+        committedAt = if ($lines.Count -ge 3) { $lines[2].Trim() } else { $null }
+    }
+}
+
 function Get-BranchRole {
     param([string]$BranchName)
 
@@ -334,6 +423,46 @@ function Convert-ClassificationsToMap {
         $map[$row.Name] = $row.Count
     }
     return [pscustomobject]$map
+}
+
+function Convert-ListToWorkboardRows {
+    param(
+        [string[]]$Items,
+        [string]$Lane = '',
+        [string]$Note = ''
+    )
+
+    return @(
+        foreach ($item in $Items) {
+            if ([string]::IsNullOrWhiteSpace($item)) {
+                continue
+            }
+
+            [pscustomobject]@{
+                item = $item.Trim()
+                lane = $Lane
+                note = $Note
+            }
+        }
+    )
+}
+
+function Convert-CameraActionRows {
+    param([object[]]$Rows)
+
+    return @(
+        foreach ($row in $Rows) {
+            $preferredEntrypoint = if ($row.PSObject.Properties.Name -contains 'Preferred entrypoint') { $row.'Preferred entrypoint' } else { '' }
+            $why = if ($row.PSObject.Properties.Name -contains 'Why') { $row.Why } else { '' }
+            $noteParts = @($preferredEntrypoint, $why) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+            [pscustomobject]@{
+                item = if ($row.PSObject.Properties.Name -contains 'Action') { $row.Action } else { '' }
+                lane = if ($row.PSObject.Properties.Name -contains 'Priority') { "P$($row.Priority)" } else { 'camera' }
+                note = ($noteParts -join ' — ')
+            }
+        }
+    )
 }
 
 function Format-CandidateLabel {
@@ -464,9 +593,9 @@ function New-EmptyBranchData {
         bottleneck = $Bottleneck
         truth      = @()
         latestRuns = [ordered]@{
-            screen   = [ordered]@{ at = $null; summary = 'No structured screen run data configured.' }
-            recovery = [ordered]@{ at = $null; summary = 'No structured recovery data configured.' }
-            probe    = [ordered]@{ at = $null; summary = 'No structured probe data configured.' }
+            screen   = [ordered]@{ label = 'Latest screen run'; at = $null; summary = 'No structured screen run data configured.' }
+            recovery = [ordered]@{ label = 'Latest recovery run'; at = $null; summary = 'No structured recovery data configured.' }
+            probe    = [ordered]@{ label = 'Latest addon probe'; at = $null; summary = 'No structured probe data configured.' }
         }
         workboard  = [ordered]@{
             now         = @()
@@ -489,6 +618,7 @@ function New-EmptyBranchData {
             workboardUpdatedAt  = $null
             handoffUpdatedAt    = $null
         }
+        sources    = @()
         warnings   = @()
     }
 }
@@ -508,6 +638,11 @@ function Build-RichActorBranch {
     $probePath = Join-Path $RepoRoot 'scripts\captures\readerbridge-orientation-probe.json'
 
     $warnings = New-Object System.Collections.Generic.List[string]
+    foreach ($warning in @($BaseData.warnings)) {
+        if (-not [string]::IsNullOrWhiteSpace($warning)) {
+            $warnings.Add($warning)
+        }
+    }
     $branchData = [ordered]@{} + $BaseData
 
     $truthLines = Read-TextLines -Path $truthPath
@@ -571,9 +706,9 @@ function Build-RichActorBranch {
     $branchData.bottleneck = if ($nowRows.Count) { $nowRows[0].item } else { $branchData.bottleneck }
     $branchData.truth = $truthRows
     $branchData.latestRuns = [ordered]@{
-        screen   = [ordered]@{ at = $(if ($screen) { $screen.GeneratedAtUtc } else { $null }); summary = $screenSummary }
-        recovery = [ordered]@{ at = $(if ($recovery) { $recovery.GeneratedAtUtc } else { $null }); summary = $recoverySummary }
-        probe    = [ordered]@{ at = $(if ($probe) { $probe.GeneratedAtUtc } else { $null }); summary = $probeSummary }
+        screen   = [ordered]@{ label = 'Latest screen run'; at = $(if ($screen) { $screen.GeneratedAtUtc } else { $null }); summary = $screenSummary }
+        recovery = [ordered]@{ label = 'Latest recovery run'; at = $(if ($recovery) { $recovery.GeneratedAtUtc } else { $null }); summary = $recoverySummary }
+        probe    = [ordered]@{ label = 'Latest addon probe'; at = $(if ($probe) { $probe.GeneratedAtUtc } else { $null }); summary = $probeSummary }
     }
     $branchData.workboard = [ordered]@{
         now         = $nowRows
@@ -596,6 +731,293 @@ function Build-RichActorBranch {
         workboardUpdatedAt = (Try-GetFileLastWrite -Path $workboardPath)
         handoffUpdatedAt   = (Try-GetFileLastWrite -Path $handoffPath)
     }
+    $branchData.sources = @(
+        (New-SourceReference -Label 'Current truth doc' -Path $truthPath -Note 'Parsed for the truth rows shown in the branch overview.'),
+        (New-SourceReference -Label 'Branch workboard' -Path $workboardPath -Note 'Parsed for Now / Parallel now / Next sections.'),
+        (New-SourceReference -Label 'Branch handoff' -Path $handoffPath -Note 'Used for handoff readiness and next-conversation summary.'),
+        (New-SourceReference -Label 'Offline analysis JSON' -Path $offlinePath -Note 'Drives candidate counts, ranking, and the detailed table.'),
+        (New-SourceReference -Label 'Candidate screen JSON' -Path $screenPath -Note 'Feeds the latest screen-run summary.'),
+        (New-SourceReference -Label 'Recovery JSON' -Path $recoveryPath -Note 'Feeds the latest recovery summary.'),
+        (New-SourceReference -Label 'ReaderBridge probe JSON' -Path $probePath -Note 'Feeds the latest addon-probe summary.')
+    )
+    $branchData.warnings = @($warnings)
+
+    return [pscustomobject]$branchData
+}
+
+function Build-RichDashboardBranch {
+    param(
+        [string]$RepoRoot,
+        [hashtable]$BaseData,
+        [object[]]$AllBranches,
+        [object[]]$Worktrees,
+        [string]$GeneratedAt
+    )
+
+    $workboardPath = Join-Path $RepoRoot 'docs\branch-workboard-codex-dashboard-hud.md'
+    $handoffPath = Join-Path $RepoRoot 'docs\handoffs\2026-04-15-codex-dashboard-hud.md'
+    $dashboardReadmePath = Join-Path $RepoRoot 'tools\dashboard\README.md'
+    $dashboardHtmlPath = Join-Path $RepoRoot 'tools\dashboard\index.html'
+    $dashboardAppPath = Join-Path $RepoRoot 'tools\dashboard\app.js'
+    $dashboardStylesPath = Join-Path $RepoRoot 'tools\dashboard\styles.css'
+    $dashboardDataPath = Join-Path $RepoRoot 'tools\dashboard\dashboard-data.js'
+    $buildScriptPath = Join-Path $RepoRoot 'scripts\build-dashboard-summary.ps1'
+    $openDashboardScriptPath = Join-Path $RepoRoot 'scripts\open-dashboard.ps1'
+    $openDashboardCmdPath = Join-Path $RepoRoot 'scripts\open-dashboard.cmd'
+
+    $warnings = New-Object System.Collections.Generic.List[string]
+    foreach ($warning in @($BaseData.warnings)) {
+        if (-not [string]::IsNullOrWhiteSpace($warning)) {
+            $warnings.Add($warning)
+        }
+    }
+
+    $branchData = [ordered]@{} + $BaseData
+    $workboardLines = Read-TextLines -Path $workboardPath
+    $handoffLines = Read-TextLines -Path $handoffPath
+    $gitStatus = Get-GitStatusSummary -RepoRoot $RepoRoot
+    $headCommit = Get-GitHeadCommitInfo -RepoRoot $RepoRoot
+
+    $nowRows = Convert-WorkboardRows (Get-MarkdownTableAfterHeading -Lines $workboardLines -Heading 'Now')
+    $parallelRows = Convert-WorkboardRows (Get-MarkdownTableAfterHeading -Lines $workboardLines -Heading 'Parallel now')
+    $nextRows = Convert-WorkboardRows (Get-MarkdownTableAfterHeading -Lines $workboardLines -Heading 'Next')
+    $parkedRows = Convert-WorkboardRows (Get-MarkdownTableAfterHeading -Lines $workboardLines -Heading 'Parked')
+    $recommendedActions = Get-MarkdownListAfterHeading -Lines $handoffLines -Heading 'Recommended first action in the next conversation'
+
+    if (-not $workboardLines.Count) { $warnings.Add('Dashboard branch workboard doc is missing.') }
+    if (-not $handoffLines.Count) { $warnings.Add('Dashboard branch handoff doc is missing.') }
+    if (-not $nowRows.Count) { $warnings.Add('Dashboard workboard Now section could not be parsed.') }
+    if (-not (Test-Path -LiteralPath $dashboardReadmePath)) { $warnings.Add('Dashboard README is missing.') }
+    if (-not (Test-Path -LiteralPath $openDashboardScriptPath)) { $warnings.Add('Dashboard launcher PowerShell script is missing.') }
+    if (-not (Test-Path -LiteralPath $openDashboardCmdPath)) { $warnings.Add('Dashboard launcher CMD wrapper is missing.') }
+
+    if ($gitStatus.total -gt 0) {
+        $warnings.Add("Current worktree has $($gitStatus.total) pending change(s).")
+    }
+
+    $richBranchNames = @('codex/dashboard-hud', 'codex/actor-yaw-pitch', 'feature/camera-orientation-discovery')
+    $richBranchCount = @($AllBranches | Where-Object { $_.name -in $richBranchNames }).Count
+
+    $sourceReferences = @(
+        (New-SourceReference -Label 'Dashboard app shell' -Path $dashboardHtmlPath -Note 'Static HTML entrypoint that loads the generated dashboard data and UI bundle.'),
+        (New-SourceReference -Label 'Dashboard UI bundle' -Path $dashboardAppPath -Note 'Vanilla JS renderer for the branch list, overview cards, metrics, and details.'),
+        (New-SourceReference -Label 'Dashboard stylesheet' -Path $dashboardStylesPath -Note 'Dark responsive layout and component styling for the dashboard shell.'),
+        (New-SourceReference -Label 'Compiled dashboard data' -Path $dashboardDataPath -Note 'Generated snapshot consumed directly by the browser.'),
+        (New-SourceReference -Label 'Dashboard generator' -Path $buildScriptPath -Note 'Compiles git, docs, and capture artifacts into dashboard-data.js.'),
+        (New-SourceReference -Label 'Dashboard README' -Path $dashboardReadmePath -Note 'Usage and maintenance notes for the dashboard workflow.'),
+        (New-SourceReference -Label 'Launcher script' -Path $openDashboardScriptPath -Note 'Rebuilds and opens the dashboard in the default browser.'),
+        (New-SourceReference -Label 'Launcher CMD wrapper' -Path $openDashboardCmdPath -Note 'Convenience entrypoint for cmd.exe users.'),
+        (New-SourceReference -Label 'Branch workboard' -Path $workboardPath -Note 'Parsed for the dashboard branch Now / Parallel now / Next sections.'),
+        (New-SourceReference -Label 'Branch handoff' -Path $handoffPath -Note 'Used for handoff readiness and next-conversation summary.')
+    )
+    $presentSourceCount = @($sourceReferences | Where-Object { $_.present }).Count
+
+    $truthRows = @(
+        [pscustomobject]@{ label = 'Dashboard shell'; status = $(if ((Test-Path -LiteralPath $dashboardHtmlPath) -and (Test-Path -LiteralPath $dashboardAppPath) -and (Test-Path -LiteralPath $dashboardStylesPath)) { 'working' } else { 'missing pieces' }) },
+        [pscustomobject]@{ label = 'Snapshot generator'; status = $(if (Test-Path -LiteralPath $buildScriptPath) { 'working' } else { 'missing' }) },
+        [pscustomobject]@{ label = 'Open-in-browser launcher'; status = $(if ((Test-Path -LiteralPath $openDashboardScriptPath) -and (Test-Path -LiteralPath $openDashboardCmdPath)) { 'working' } else { 'missing pieces' }) },
+        [pscustomobject]@{ label = 'Rich branch coverage'; status = "$richBranchCount configured" },
+        [pscustomobject]@{ label = 'Refresh model'; status = 'manual snapshot' },
+        [pscustomobject]@{ label = 'Current worktree'; status = $(if ($gitStatus.total -gt 0) { 'dirty' } else { 'clean' }) }
+    )
+
+    $buildSummary = "Compiled $($AllBranches.Count) branches across $($Worktrees.Count) worktree(s) into dashboard-data.js."
+    $commitSummary = if ($headCommit.subject) {
+        $shortSha = if ($headCommit.sha.Length -ge 7) { $headCommit.sha.Substring(0, 7) } else { $headCommit.sha }
+        "$($headCommit.subject) ($shortSha)"
+    } else {
+        'No commit summary available.'
+    }
+    $worktreeSummary = "dirty=$($gitStatus.total); modified=$($gitStatus.modified); added=$($gitStatus.added); deleted=$($gitStatus.deleted); renamed=$($gitStatus.renamed); untracked=$($gitStatus.untracked)."
+    $handoffSummary = if ($recommendedActions.Count) { $recommendedActions[0] } else { 'Keep the dashboard branch aligned with real source files, rich branch inputs, and the launcher flow.' }
+
+    $branchData.status = if ($gitStatus.total -gt 0) { 'partial' } else { 'active' }
+    $branchData.bottleneck = if ($nowRows.Count) { $nowRows[0].item } else { $branchData.bottleneck }
+    $branchData.truth = $truthRows
+    $branchData.latestRuns = [ordered]@{
+        screen   = [ordered]@{ label = 'Latest dashboard build'; at = $GeneratedAt; summary = $buildSummary }
+        recovery = [ordered]@{ label = 'Latest branch commit'; at = $headCommit.committedAt; summary = $commitSummary }
+        probe    = [ordered]@{ label = 'Working tree state'; at = $gitStatus.observedAt; summary = $worktreeSummary }
+    }
+    $branchData.workboard = [ordered]@{
+        now         = $nowRows
+        parallelNow = $parallelRows
+        next        = $nextRows
+        parked      = $parkedRows
+    }
+    $branchData.candidates = [ordered]@{
+        counts = [ordered]@{
+            branches    = $AllBranches.Count
+            richBranches = $richBranchCount
+            worktrees   = $Worktrees.Count
+            sources     = $presentSourceCount
+            dirtyFiles  = $gitStatus.total
+        }
+        top    = @(
+            [pscustomobject]@{
+                label          = 'Dashboard toolchain'
+                classification = 'active'
+                reason         = "$presentSourceCount dashboard source file(s) are present, including the generator and launcher."
+                discoveryMode  = 'codex/dashboard-hud'
+                searchScore    = $presentSourceCount
+            },
+            [pscustomobject]@{
+                label          = 'Cross-branch coverage'
+                classification = $(if ($richBranchCount -ge 3) { 'active' } else { 'partial' })
+                reason         = "$richBranchCount rich branch view(s) are configured in the current snapshot."
+                discoveryMode  = 'branch coverage'
+                searchScore    = $richBranchCount
+            },
+            [pscustomobject]@{
+                label          = 'Worktree visibility'
+                classification = $(if ($Worktrees.Count -gt 0) { 'active' } else { 'partial' })
+                reason         = "$($Worktrees.Count) checked-out worktree(s) are visible to the dashboard generator."
+                discoveryMode  = 'git worktree'
+                searchScore    = $Worktrees.Count
+            },
+            [pscustomobject]@{
+                label          = 'Current worktree state'
+                classification = $(if ($gitStatus.total -gt 0) { 'dirty' } else { 'clean' })
+                reason         = $worktreeSummary
+                discoveryMode  = 'git status'
+                searchScore    = $gitStatus.total
+            }
+        )
+        rows   = @()
+    }
+    $branchData.handoff = [ordered]@{
+        ready   = ((Test-Path -LiteralPath $handoffPath) -and (Test-Path -LiteralPath $workboardPath))
+        path    = (Convert-ToDashboardPath $handoffPath)
+        summary = $handoffSummary
+    }
+    $branchData.docs = [ordered]@{
+        truthUpdatedAt     = (Try-GetFileLastWrite -Path $buildScriptPath)
+        workboardUpdatedAt = (Try-GetFileLastWrite -Path $workboardPath)
+        handoffUpdatedAt   = (Try-GetFileLastWrite -Path $handoffPath)
+    }
+    $branchData.sources = $sourceReferences
+    $branchData.warnings = @($warnings)
+
+    return [pscustomobject]$branchData
+}
+
+function Build-RichCameraBranch {
+    param(
+        [string]$BranchRoot,
+        [hashtable]$BaseData
+    )
+
+    $workflowPath = Join-Path $BranchRoot 'docs\camera-orientation-discovery.md'
+    $inputWorkflowPath = Join-Path $BranchRoot 'docs\input-control-workflow.md'
+    $historicalHandoffPath = Join-Path $BranchRoot 'docs\camera-discovery-handoff.md'
+    $anchorPath = Join-Path $BranchRoot 'scripts\captures\player-current-anchor.json'
+    $coordWriteTraceStatusPath = Join-Path $BranchRoot 'scripts\captures\player-coord-write-trace.status.txt'
+
+    $warnings = New-Object System.Collections.Generic.List[string]
+    foreach ($warning in @($BaseData.warnings)) {
+        if (-not [string]::IsNullOrWhiteSpace($warning)) {
+            $warnings.Add($warning)
+        }
+    }
+
+    $branchData = [ordered]@{} + $BaseData
+    $workflowLines = Read-TextLines -Path $workflowPath
+    $inputWorkflowLines = Read-TextLines -Path $inputWorkflowPath
+    $workflowDoc = Read-TextLines -Path $historicalHandoffPath
+    $anchor = Read-JsonFile -Path $anchorPath
+    $coordWriteTraceStatus = Read-KeyValueFile -Path $coordWriteTraceStatusPath
+
+    $recommendedActions = Convert-CameraActionRows (Get-MarkdownTableAfterHeading -Lines $inputWorkflowLines -Heading 'Recommended action order')
+    $engineeringTargets = Get-MarkdownListAfterHeading -Lines $workflowLines -Heading 'Engineering target from here'
+
+    if (-not $workflowLines.Count) { $warnings.Add('Camera workflow doc is missing from the camera worktree.') }
+    if (-not $inputWorkflowLines.Count) { $warnings.Add('Input-control workflow doc is missing from the camera worktree.') }
+    if (-not $anchor) { $warnings.Add('Player current anchor capture is missing for the camera branch.') }
+    if (-not $coordWriteTraceStatus) { $warnings.Add('Coord write-trace status capture is missing for the camera branch.') }
+
+    if ($coordWriteTraceStatus -and $coordWriteTraceStatus.status -and $coordWriteTraceStatus.status -ne 'ok') {
+        $traceError = if ($coordWriteTraceStatus.error) { $coordWriteTraceStatus.error } else { 'non-ok status recorded' }
+        $warnings.Add("Latest coord write trace recorded $($coordWriteTraceStatus.status): $traceError")
+    }
+
+    $truthRows = @(
+        [pscustomobject]@{ label = 'Live yaw path'; status = 'verified' },
+        [pscustomobject]@{ label = 'Derived pitch path'; status = 'usable' },
+        [pscustomobject]@{ label = 'Direct standalone pitch scalar'; status = 'unresolved' },
+        [pscustomobject]@{ label = 'Controller object'; status = 'unresolved' },
+        [pscustomobject]@{ label = 'Input/control workflow'; status = 'canonical' }
+    )
+
+    $anchorSummary = 'No structured anchor capture is configured.'
+    if ($anchor) {
+        $selectionSource = if ($anchor.SelectionSource) { $anchor.SelectionSource } else { 'unknown source' }
+        $anchorSummary = "Anchor $($anchor.AddressHex); family=$($anchor.FamilyId); selection=$selectionSource; coords=[$($anchor.CoordXOffset), $($anchor.CoordYOffset), $($anchor.CoordZOffset)]."
+    }
+
+    $traceSummary = 'No coord write-trace status is configured.'
+    $traceSavedAt = $null
+    if ($coordWriteTraceStatus) {
+        $traceSavedAt = if ($coordWriteTraceStatus.savedAtUtc) { $coordWriteTraceStatus.savedAtUtc } else { Try-GetFileLastWrite -Path $coordWriteTraceStatusPath }
+        $statusParts = @(
+            $(if ($coordWriteTraceStatus.status) { "status=$($coordWriteTraceStatus.status)" }),
+            $(if ($coordWriteTraceStatus.stage) { "stage=$($coordWriteTraceStatus.stage)" }),
+            $(if ($coordWriteTraceStatus.error) { "error=$($coordWriteTraceStatus.error)" })
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        $traceSummary = ($statusParts -join '; ')
+    }
+
+    $workflowSummary = 'Workflow doc is missing.'
+    if ($workflowLines.Count) {
+        $workflowSummary = 'Live yaw verified; derived pitch usable via orbit derivation; direct pitch scalar unresolved.'
+    }
+
+    $handoffSummary = if ($engineeringTargets.Count -ge 2) {
+        $engineeringTargets[1]
+    } elseif ($engineeringTargets.Count -ge 1) {
+        $engineeringTargets[0]
+    } else {
+        'Preserve the working live read path and trace toward the authoritative controller object.'
+    }
+
+    $branchData.status = 'partial'
+    $branchData.bottleneck = $handoffSummary
+    $branchData.truth = $truthRows
+    $branchData.latestRuns = [ordered]@{
+        screen   = [ordered]@{ label = 'Latest anchor capture'; at = $(if ($anchor) { $anchor.SavedAtUtc } else { $null }); summary = $anchorSummary }
+        recovery = [ordered]@{ label = 'Latest coord write trace'; at = $traceSavedAt; summary = $traceSummary }
+        probe    = [ordered]@{ label = 'Workflow freshness'; at = (Try-GetFileLastWrite -Path $workflowPath); summary = $workflowSummary }
+    }
+    $branchData.workboard = [ordered]@{
+        now         = @($recommendedActions | Select-Object -First 3)
+        parallelNow = (Convert-ListToWorkboardRows -Items $engineeringTargets -Lane 'workflow')
+        next        = @($recommendedActions | Select-Object -Skip 3 -First 3)
+        parked      = @()
+    }
+    $branchData.candidates = [ordered]@{
+        counts = [ordered]@{
+            workflowDocs = $(if ($workflowLines.Count) { 2 } else { 0 })
+            captures     = $(if ($anchor) { 1 } else { 0 }) + $(if ($coordWriteTraceStatus) { 1 } else { 0 })
+        }
+        top    = @()
+        rows   = @()
+    }
+    $branchData.handoff = [ordered]@{
+        ready   = ((Test-Path -LiteralPath $workflowPath) -and (Test-Path -LiteralPath $inputWorkflowPath))
+        path    = (Convert-ToDashboardPath $workflowPath)
+        summary = $handoffSummary
+    }
+    $branchData.docs = [ordered]@{
+        truthUpdatedAt     = (Try-GetFileLastWrite -Path $workflowPath)
+        workboardUpdatedAt = (Try-GetFileLastWrite -Path $inputWorkflowPath)
+        handoffUpdatedAt   = (Try-GetFileLastWrite -Path $workflowPath)
+    }
+    $branchData.sources = @(
+        (New-SourceReference -Label 'Active camera workflow doc' -Path $workflowPath -Note 'Primary source for the current camera-branch truth and bottleneck.'),
+        (New-SourceReference -Label 'Input/control workflow doc' -Path $inputWorkflowPath -Note 'Parsed for the recommended action order shown in the workboard.'),
+        (New-SourceReference -Label 'Historical handoff doc' -Path $historicalHandoffPath -Note 'Background-only handoff retained for context; not the active workflow.'),
+        (New-SourceReference -Label 'Current anchor capture' -Path $anchorPath -Note 'Feeds the latest anchor-capture summary.'),
+        (New-SourceReference -Label 'Coord write-trace status' -Path $coordWriteTraceStatusPath -Note 'Feeds the latest coord write-trace summary and warnings.')
+    )
     $branchData.warnings = @($warnings)
 
     return [pscustomobject]$branchData
@@ -622,6 +1044,7 @@ foreach ($worktree in $worktrees) {
 
 $currentBranchLines = @(Invoke-GitLines -RepoRoot $repoRoot -Arguments @('branch', '--show-current'))
 $currentBranch = ([string]($currentBranchLines | Select-Object -First 1)).Trim()
+$dashboardGeneratedAt = ([DateTimeOffset]::Now).ToString('o')
 $knownBranchWeights = @{
     'codex/dashboard-hud' = 20
     'codex/actor-yaw-pitch' = 10
@@ -652,12 +1075,22 @@ foreach ($branch in $branches | Sort-Object @{ Expression = { if ($_.name -eq $c
         $base.warnings = @('No dedicated worktree is currently checked out for this branch.')
     }
 
-    if ($branch.name -ne 'codex/actor-yaw-pitch') {
+    if ($branch.name -notin @('codex/dashboard-hud', 'codex/actor-yaw-pitch', 'feature/camera-orientation-discovery')) {
         $base.warnings += 'No rich branch-local dashboard data is configured for this branch in v1.'
+    }
+
+    if ($branch.name -eq 'codex/dashboard-hud') {
+        $branchObjects.Add((Build-RichDashboardBranch -RepoRoot $repoRoot -BaseData $base -AllBranches $branches -Worktrees $worktrees -GeneratedAt $dashboardGeneratedAt))
+        continue
     }
 
     if ($branch.name -eq 'codex/actor-yaw-pitch') {
         $branchObjects.Add((Build-RichActorBranch -RepoRoot $repoRoot -BaseData $base))
+        continue
+    }
+
+    if ($branch.name -eq 'feature/camera-orientation-discovery') {
+        $branchObjects.Add((Build-RichCameraBranch -BranchRoot $path -BaseData $base))
         continue
     }
 
@@ -667,7 +1100,7 @@ foreach ($branch in $branches | Sort-Object @{ Expression = { if ($_.name -eq $c
 $worktreeArray = [object[]]$worktrees
 $branchArray = $branchObjects.ToArray()
 $meta = [ordered]@{
-    generatedAt   = ([DateTimeOffset]::Now).ToString('o')
+    generatedAt   = $dashboardGeneratedAt
     repoPath      = (Convert-ToDashboardPath $repoRoot)
     currentBranch = $currentBranch
     worktrees     = $worktreeArray

@@ -32,6 +32,19 @@ public static class TargetCurrentReader
         }
 
         var expected = BuildExpected(target);
+        var selfTargetFallback = TryBuildSelfTargetFallback(
+            reader,
+            processId,
+            processName,
+            snapshotDocument,
+            target,
+            expected,
+            inspectionRadius,
+            maxHits);
+        if (selfTargetFallback is not null && IsAcceptableCurrentRead(selfTargetFallback.Match, expected))
+        {
+            return selfTargetFallback;
+        }
 
         var anchorCandidates = TargetCurrentAnchorCacheStore.LoadCandidates(null, out var cacheFile, out _);
 
@@ -152,6 +165,95 @@ public static class TargetCurrentReader
         }
 
         return result;
+    }
+
+    private static TargetCurrentReadResult? TryBuildSelfTargetFallback(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        ReaderBridgeUnitSnapshot target,
+        TargetCurrentReadExpected expected,
+        int inspectionRadius,
+        int maxHits)
+    {
+        if (!LooksLikeSelfTarget(snapshotDocument, target))
+        {
+            return null;
+        }
+
+        try
+        {
+            var playerResult = PlayerCurrentReader.ReadCurrent(
+                reader,
+                processId,
+                processName,
+                snapshotDocument,
+                inspectionRadius,
+                maxHits);
+
+            var distance = expected.Distance.HasValue ? (float)expected.Distance.Value : 0f;
+
+            return BuildResult(
+                processId,
+                processName,
+                snapshotDocument,
+                familyId: playerResult.FamilyId,
+                familyNotes: $"{playerResult.FamilyNotes} (self-target fallback)",
+                signature: playerResult.Signature,
+                selectionSource: "self-target-player-current",
+                anchorProvenance: $"self-target -> {playerResult.AnchorProvenance}",
+                anchorCacheFile: playerResult.AnchorCacheFile,
+                anchorCacheUsed: playerResult.AnchorCacheUsed,
+                anchorCacheUpdated: playerResult.AnchorCacheUpdated,
+                confirmationFile: playerResult.ConfirmationFile,
+                ceConfirmedSampleCount: playerResult.CeConfirmedSampleCount,
+                memory: new TargetCurrentReadSample(
+                    AddressHex: playerResult.Memory.AddressHex,
+                    Level: playerResult.Memory.Level,
+                    Health: playerResult.Memory.Health,
+                    Name: target.Name ?? playerResult.Expected.Name,
+                    CoordX: playerResult.Memory.CoordX,
+                    CoordY: playerResult.Memory.CoordY,
+                    CoordZ: playerResult.Memory.CoordZ,
+                    Distance: distance),
+                expected: expected);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool LooksLikeSelfTarget(
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        ReaderBridgeUnitSnapshot target)
+    {
+        var player = snapshotDocument.Current?.Player;
+        if (player is null)
+        {
+            return false;
+        }
+
+        if (target.Player == true)
+        {
+            if (!string.IsNullOrWhiteSpace(target.Id) &&
+                !string.IsNullOrWhiteSpace(player.Id) &&
+                string.Equals(target.Id, player.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(target.Name) &&
+                !string.IsNullOrWhiteSpace(player.Name) &&
+                string.Equals(target.Name, player.Name, StringComparison.OrdinalIgnoreCase) &&
+                (!target.Distance.HasValue || Math.Abs(target.Distance.Value) <= DistanceTolerance))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static TargetCurrentReadExpected BuildExpected(ReaderBridgeUnitSnapshot target) =>

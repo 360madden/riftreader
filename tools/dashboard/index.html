@@ -19,6 +19,10 @@
     </div>
 
     <script src="./dashboard-data.js"></script>
+    <script>
+        window.DASHBOARD_LIVE_DATA = null;
+        document.write('<script src="./dashboard-live-data.js?ts=' + Date.now() + '" onerror="window.DASHBOARD_LIVE_DATA = window.DASHBOARD_LIVE_DATA || null;"><\/script>');
+    </script>
     <script src="./app.js"></script>
 </body>
 </html>
