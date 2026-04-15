@@ -36,3 +36,4 @@ scripts/sessions/
 tools/reverse-engineering/downloads/
 tools/reverse-engineering/ReClass.NET/
 tools/reverse-engineering/x64dbg/
+tools/dashboard/dashboard-data.js

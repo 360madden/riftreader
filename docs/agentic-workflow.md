@@ -179,3 +179,13 @@ Only the top-level integrator:
 - chooses commit boundaries
 - rebases the rolling queue after breakthroughs
 
+
+## Current branch overlay — `codex/actor-yaw-pitch`
+
+When the active branch is `codex/actor-yaw-pitch`, use these docs as the lane authority:
+
+- `C:\RIFT MODDING\RiftReader\docs\branch-workboard-codex-actor-yaw-pitch.md`
+- `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-04-15-codex-actor-yaw-pitch.md`
+
+The older lane examples in this file remain useful as a pattern, but the branch
+workboard is the live queue and should win if there is any conflict.

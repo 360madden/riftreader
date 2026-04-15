@@ -1,0 +1,3 @@
+Archived visual artifacts were moved out of the repo during cleanup.
+External archive path: C:\RIFT MODDING\RiftReader_local_archive\2026-04-cleanup
+Reason: screenshots/logs were high-volume, low-value working clutter but preserved for later reference.
