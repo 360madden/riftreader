@@ -6,7 +6,8 @@ param(
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
     [int]$AttemptTimeoutSeconds = 10,
     [int]$InterKeyDelayMilliseconds = 20,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [switch]$SkipVerify
 )
 
 Set-StrictMode -Version Latest
@@ -342,9 +343,15 @@ if (-not $SkipBackgroundFocus) {
     }
 }
 
-$baselineUtc = Get-FileTimestampUtc -Path $VerifyFilePath
-Write-Host "[RiftPost] Verify file  : $VerifyFilePath"
-Write-Host "[RiftPost] Baseline UTC : $($baselineUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
+$baselineUtc = $null
+if (-not $SkipVerify) {
+    $baselineUtc = Get-FileTimestampUtc -Path $VerifyFilePath
+    Write-Host "[RiftPost] Verify file  : $VerifyFilePath"
+    Write-Host "[RiftPost] Baseline UTC : $($baselineUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
+}
+else {
+    Write-Host "[RiftPost] Verify mode  : skipped"
+}
 Write-Host "[RiftPost] Command      : $Command"
 
 $strategies = @(
@@ -355,6 +362,13 @@ $strategies = @(
 foreach ($strategy in $strategies) {
     Write-Host "[RiftPost] Attempting strategy: $($strategy.Name)"
     & $strategy.Action $effectiveTargetHandle $Command
+
+    if ($SkipVerify) {
+        Write-Host "[RiftPost] SUCCESS"
+        Write-Host "[RiftPost] Strategy used: $($strategy.Name)"
+        Write-Host "[RiftPost] Verification : skipped by request"
+        exit 0
+    }
 
     $updatedUtc = Wait-ForTimestampAdvance -Path $VerifyFilePath -BaselineUtc $baselineUtc -TimeoutSeconds $AttemptTimeoutSeconds
     if ($updatedUtc) {

@@ -7,6 +7,8 @@ local UPDATE_INTERVAL = 0.5
 local MAX_BUFF_ROWS = 5
 local MAX_NEARBY_UNITS = 10
 local MAX_PARTY_SLOTS = 5
+local ORIENTATION_MATCH_MAX_DEPTH = 3
+local ORIENTATION_MATCH_MAX_COUNT = 24
 
 local Exporter = {}
 privateVars.Exporter = Exporter
@@ -429,6 +431,19 @@ local function isOrientationKey(key)
     or string.find(lower, "rotation", 1, true) ~= nil
 end
 
+local function tableKeyCount(value)
+  if type(value) ~= "table" then
+    return 0
+  end
+
+  local count = 0
+  for _ in pairs(value) do
+    count = count + 1
+  end
+
+  return count
+end
+
 local function copyOrientationValue(value)
   local valueType = type(value)
   if valueType == "number" or valueType == "string" or valueType == "boolean" then
@@ -439,114 +454,113 @@ local function copyOrientationValue(value)
     return nil
   end
 
+  if valueType == "table" then
+    return string.format("(table, %d keys)", tableKeyCount(value))
+  end
+
   return tostring(value)
 end
 
-local function buildOrientationCandidates(source)
-  if type(source) ~= "table" then
-    return nil
+local function sortedKeys(tbl)
+  local keys = {}
+  if type(tbl) ~= "table" then
+    return keys
   end
 
-  local candidates = {}
-  for key, value in pairs(source) do
-    if isOrientationKey(key) then
-      table.insert(candidates, {
-        key = tostring(key),
-        value = copyOrientationValue(value),
-        valueType = type(value),
-      })
-    end
+  for key in pairs(tbl) do
+    table.insert(keys, key)
   end
 
-  table.sort(candidates, function(a, b)
-    return a.key < b.key
+  table.sort(keys, function(a, b)
+    return tostring(a) < tostring(b)
   end)
 
-  return #candidates > 0 and candidates or nil
+  return keys
 end
 
-local function buildOrientationUnitProbe(source, label, sharedStatCandidates)
-  local probe = {
-    source = tostring(label or "unit"),
-    directHeading = nil,
-    directPitch = nil,
-  }
-
-  if type(source) == "table" then
-    probe.detailCandidates = buildOrientationCandidates(source)
-  end
-
-  if type(sharedStatCandidates) == "table" and #sharedStatCandidates > 0 then
-    probe.statCandidates = sharedStatCandidates
-  end
-
-  return probe
-end
-
-local function hasOrientationUnitProbeData(probe)
-  if type(probe) ~= "table" then
+local function collectOrientationCandidates(source, basePath, depthRemaining, visited, candidates, maxMatches)
+  if type(source) ~= "table" or depthRemaining < 0 then
     return false
   end
 
-  if probe.directHeading ~= nil or probe.directPitch ~= nil then
-    return true
+  if visited[source] then
+    return false
   end
 
-  if type(probe.detailCandidates) == "table" and #probe.detailCandidates > 0 then
-    return true
-  end
+  visited[source] = true
 
-  if type(probe.stateCandidates) == "table" and #probe.stateCandidates > 0 then
-    return true
-  end
+  for _, key in ipairs(sortedKeys(source)) do
+    local keyText = tostring(key)
+    local value = source[key]
+    local path = basePath and (basePath .. "." .. keyText) or keyText
 
-  if type(probe.statCandidates) == "table" and #probe.statCandidates > 0 then
-    return true
-  end
+    if isOrientationKey(keyText) then
+      table.insert(candidates, {
+        key = path,
+        value = copyOrientationValue(value),
+        valueType = type(value),
+      })
 
-  if probe.yaw ~= nil or probe.facing ~= nil then
-    return true
+      if #candidates >= maxMatches then
+        return true
+      end
+    end
+
+    if type(value) == "table" and depthRemaining > 0 then
+      local reachedLimit = collectOrientationCandidates(
+        value,
+        path,
+        depthRemaining - 1,
+        visited,
+        candidates,
+        maxMatches)
+
+      if reachedLimit then
+        return true
+      end
+    end
   end
 
   return false
 end
 
-local function pruneOrientationUnitProbe(probe)
-  if not hasOrientationUnitProbeData(probe) then
-    return nil
+local function buildOrientationCandidates(source)
+  if type(source) ~= "table" then
+    return {}
   end
 
-  return probe
+  local candidates = {}
+  collectOrientationCandidates(
+    source,
+    nil,
+    ORIENTATION_MATCH_MAX_DEPTH,
+    {},
+    candidates,
+    ORIENTATION_MATCH_MAX_COUNT)
+
+  return candidates
+end
+
+local function buildOrientationUnitProbe(detailSource, stateSource, label, unitId)
+  return {
+    source = tostring(label or "unit"),
+    unitId = copyString(unitId),
+    unitAvailable = unitId ~= nil,
+    directHeadingApiAvailable = Inspect and Inspect.Unit and type(Inspect.Unit.Heading) == "function" or false,
+    directPitchApiAvailable = Inspect and Inspect.Unit and type(Inspect.Unit.Pitch) == "function" or false,
+    directHeading = unitId and toNumber(safeUnitHeading(unitId)) or (type(detailSource) == "table" and toNumber(detailSource.heading) or nil),
+    directPitch = unitId and toNumber(safeUnitPitch(unitId)) or (type(detailSource) == "table" and toNumber(detailSource.pitch) or nil),
+    detailCandidates = buildOrientationCandidates(detailSource),
+    stateCandidates = buildOrientationCandidates(stateSource),
+  }
 end
 
 local function buildOrientationProbe(playerDetail, targetDetail, statSource, playerState, targetState, playerId, targetId)
-  local sharedStatCandidates = buildOrientationCandidates(statSource)
-  local probe = {
-    player = buildOrientationUnitProbe(playerDetail, "player", sharedStatCandidates),
-    target = buildOrientationUnitProbe(targetDetail, "target", sharedStatCandidates),
-    statCandidates = sharedStatCandidates,
+  return {
+    player = buildOrientationUnitProbe(playerDetail, playerState, "player", playerId),
+    target = buildOrientationUnitProbe(targetDetail, targetState, "target", targetId),
+    statCandidates = buildOrientationCandidates(statSource),
   }
-
-  if probe.player then
-    probe.player.directHeading = toNumber(safeUnitHeading(playerId)) or (type(playerDetail) == "table" and toNumber(playerDetail.heading) or nil)
-    probe.player.directPitch = toNumber(safeUnitPitch(playerId)) or (type(playerDetail) == "table" and toNumber(playerDetail.pitch) or nil)
-    probe.player.stateCandidates = buildOrientationCandidates(playerState)
-  end
-
-  if probe.target then
-    probe.target.directHeading = toNumber(safeUnitHeading(targetId)) or (type(targetDetail) == "table" and toNumber(targetDetail.heading) or nil)
-    probe.target.directPitch = toNumber(safeUnitPitch(targetId)) or (type(targetDetail) == "table" and toNumber(targetDetail.pitch) or nil)
-    probe.target.stateCandidates = buildOrientationCandidates(targetState)
-  end
-
-  probe.player = pruneOrientationUnitProbe(probe.player)
-  probe.target = pruneOrientationUnitProbe(probe.target)
-
-  if not probe.player and not probe.target and not probe.statCandidates then
-    return nil
-  end
-
-  return probe
 end
 
 local function buildCoordDelta(coord, currentTime)

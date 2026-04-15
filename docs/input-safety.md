@@ -30,7 +30,7 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.ps1` | Read-only | none | `main` | Watches saved-variable output only |
 | `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1` | Read-only | none | `main` | Capture provenance / freshness only |
 | `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1` | Read-only | none | `main` | Derived watchset output only |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper; prefer the default background `PostMessage` path |
 | `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` | Direct key input | readback before/after | `main` | Measures actor-orientation deltas around a key stimulus |
 | `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` | Direct key input | readback profiling | `main` | Repeats multiple key stimuli |
 | `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` | Chat/reload UI-intrusive | may fallback to AHK | `main` | Uses `/reloadui`; not safe for unattended probing |
@@ -45,6 +45,21 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-rmb-camera.ps1` | Direct mouse/camera input | manual stepping | `feature/camera-orientation-discovery` | Very focus/UI sensitive |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\zoom-camera.ps1` | Direct mouse/camera input | wheel input | `feature/camera-orientation-discovery` | Zoom-only camera input |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1` | Chat/reload UI-intrusive | falls into legacy refresh/reload chain | `feature/camera-orientation-discovery` | Confirmed to open Quest Log / Looking For Group during live test |
+
+## Latest live delivery note
+
+As of `2026-04-15`, the preferred gameplay-key stimulus on `main` is the
+default background `PostMessage` path in
+`C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`.
+
+A live `A` recheck turned the player while `Codex` stayed foreground. In the
+same testing window, operator feedback reported that the foreground
+`SendInput` lane did **not** produce the desired result. Keep `SendInput` as
+untrusted for this workflow until it is revalidated in its own dated report.
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-live-key-delivery-recheck.md`
 
 ## High-risk helpers
 

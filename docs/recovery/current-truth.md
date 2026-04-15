@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 14, 2026 (post-update triage)_
+_Last updated: April 15, 2026 (post-update triage + live input recheck)_
 
 ## Current status
 
@@ -17,6 +17,7 @@ _Last updated: April 14, 2026 (post-update triage)_
 | Player orientation read | stale; resume actor yaw/pitch recovery via addon-first orientation probing before rebuilding the old owner/source chain |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
+| Direct gameplay key stimulus on `main` | background `PostMessage` via `post-rift-key.ps1` revalidated; foreground `SendInput` remains untrusted |
 
 ## Post-update note
 
@@ -27,6 +28,7 @@ Use this report before trusting older actor/camera captures:
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-live-camera-script-behavior-and-offset-drift.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-live-key-delivery-recheck.md`
 - `C:\RIFT MODDING\RiftReader\docs\input-safety.md`
 
 ## Surviving baselines
@@ -84,6 +86,7 @@ multiple fresh runs.
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1`
 
 ## Camera script location note
