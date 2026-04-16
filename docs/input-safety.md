@@ -13,6 +13,13 @@ This page exists because post-update triage surfaced two separate concerns:
 2. some helper paths are still **UI-intrusive** because they rely on chat,
    `Enter`, `/reloadui`, or focus-sensitive mouse behavior
 
+Mouse-input rule as of `2026-04-15`:
+
+> If a workflow needs direct mouse/camera input, only run it when Rift can be
+> found cleanly, focused cleanly, and foreground-verified cleanly. Mouse input
+> is **not** a case where we try to salvage the run with background
+> `PostMessage`.
+
 ## Primary classes
 
 | Class | Meaning |
@@ -43,7 +50,7 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` | Hybrid | may refresh export / reacquire | `main` | Mostly reader-driven, but can invoke helper flows |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` | Hybrid | may rely on live trace/input path | `main` | Analysis-first, but not purely passive |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` | Hybrid | may refresh selector trace | `main` | Downstream of trace workflow |
-| `C:\RIFT MODDING\RiftReader\scripts\probe-live-camera-offset-diff.ps1` | Direct mouse/camera input | direct raw readback only | `codex/camera-yaw-pitch` | Preferred live camera drift probe; avoids reload/chat helpers |
+| `C:\RIFT MODDING\RiftReader\scripts\probe-live-camera-offset-diff.ps1` | Direct mouse/camera input | direct raw readback only | `codex/camera-yaw-pitch` | Preferred live camera drift probe; avoids reload/chat helpers and now stops unless the Rift window can be foreground-verified before RMB/mouse motion |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-camera-stimulus.ps1` | Direct mouse/camera input | can combine RMB + readback | `feature/camera-orientation-discovery` | Camera stimulus harness |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-rmb-camera.ps1` | Direct mouse/camera input | manual stepping | `feature/camera-orientation-discovery` | Very focus/UI sensitive |
 | `C:\RIFT MODDING\RiftReader_camera_feature\scripts\zoom-camera.ps1` | Direct mouse/camera input | wheel input | `feature/camera-orientation-discovery` | Zoom-only camera input |
@@ -54,6 +61,17 @@ This page exists because post-update triage surfaced two separate concerns:
 As of `2026-04-15`, the trusted gameplay-key stimulus for the
 `codex/actor-yaw-pitch` Desktop-2 workflow is **focused `PostMessage`** via
 `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -RequireTargetFocus`.
+
+Mouse/camera input remains a separate lane. For RMB / drag / wheel style
+helpers, the repo policy is now:
+
+1. find the Rift process and a real main window handle
+2. focus Rift
+3. verify Rift is actually foreground
+4. only then send mouse input
+
+If any of those fail, stop. Do **not** try to rescue mouse input with a
+background `PostMessage` fallback.
 
 Earlier same-day live rechecks showed that a background `PostMessage` turn
 could still land while `Codex` stayed foreground, but the aggressive
@@ -94,6 +112,8 @@ Why:
 - chat state may not be what you expect
 - `/reloadui` is deliberately disruptive
 - focus-sensitive mouse/RMB paths can open menus or hit UI unexpectedly
+- mouse/camera helpers should fail fast on focus/bind problems instead of
+  continuing with uncertain input delivery
 - the legacy camera angle-candidate script was observed to open Quest Log and
   Looking For Group during a live verification pass
 

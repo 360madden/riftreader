@@ -5,7 +5,8 @@ param(
     [int]$MaxHits = 6,
     [int]$RegionLength = 512,
     [int]$MousePixels = 90,
-    [string[]]$BaseAddresses = @()
+    [string[]]$BaseAddresses = @(),
+    [switch]$SkipTargetFocusCheck
 )
 
 Set-StrictMode -Version Latest
@@ -22,7 +23,13 @@ function Invoke-ReaderJson {
         throw "Reader command failed: $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 60
+    $jsonText = $output -join [Environment]::NewLine
+    $convertParams = @{}
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('Depth')) {
+        $convertParams.Depth = 60
+    }
+
+    return $jsonText | ConvertFrom-Json @convertParams
 }
 
 if (-not ('RiftCameraDiffNative' -as [type])) {
@@ -56,10 +63,25 @@ public static class RiftCameraDiffNative
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetCursorPos(int x, int y);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, UIntPtr dwExtraInfo);
@@ -162,9 +184,10 @@ function Invoke-RmbMove {
         [Parameter(Mandatory = $true)][int]$Dy
     )
 
-    [void][RiftCameraDiffNative]::ShowWindow($Process.MainWindowHandle, [RiftCameraDiffNative]::SW_RESTORE)
-    [void][RiftCameraDiffNative]::SetForegroundWindow($Process.MainWindowHandle)
-    Start-Sleep -Milliseconds 200
+    Focus-Window -Process $Process
+    if (-not $SkipTargetFocusCheck) {
+        [void](Assert-TargetFocus -Process $Process)
+    }
 
     $rect = New-Object RiftCameraDiffNative+RECT
     if (-not [RiftCameraDiffNative]::GetWindowRect($Process.MainWindowHandle, [ref]$rect)) {
@@ -182,6 +205,73 @@ function Invoke-RmbMove {
     Start-Sleep -Milliseconds 120
     [RiftCameraDiffNative]::mouse_event([RiftCameraDiffNative]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 200
+}
+
+function Get-ForegroundWindowInfo {
+    $foregroundHandle = [RiftCameraDiffNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    [void][RiftCameraDiffNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    $foregroundProcess = $null
+    if ($foregroundProcessId -ne 0) {
+        try {
+            $foregroundProcess = Get-Process -Id $foregroundProcessId -ErrorAction Stop
+        }
+        catch {
+            $foregroundProcess = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        Handle = $foregroundHandle
+        ProcessId = [int]$foregroundProcessId
+        ProcessName = if ($null -ne $foregroundProcess) { [string]$foregroundProcess.ProcessName } else { $null }
+    }
+}
+
+function Focus-Window {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    $targetHandle = [IntPtr]$Process.MainWindowHandle
+    if ($targetHandle -eq [IntPtr]::Zero) {
+        throw "Mouse input requires a target process with a main window handle. '$($Process.ProcessName)' does not currently expose one."
+    }
+
+    $dummyProcessId = 0
+    $targetThreadId = [RiftCameraDiffNative]::GetWindowThreadProcessId($targetHandle, [ref]$dummyProcessId)
+    $currentThreadId = [RiftCameraDiffNative]::GetCurrentThreadId()
+    $foregroundHandle = [RiftCameraDiffNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    $foregroundThreadId = [RiftCameraDiffNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    if ([RiftCameraDiffNative]::IsIconic($targetHandle)) {
+        [void][RiftCameraDiffNative]::ShowWindow($targetHandle, [RiftCameraDiffNative]::SW_RESTORE)
+    }
+
+    [void][RiftCameraDiffNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
+    [void][RiftCameraDiffNative]::AttachThreadInput($currentThreadId, $targetThreadId, $true)
+    [void][RiftCameraDiffNative]::SetForegroundWindow($targetHandle)
+    [void][RiftCameraDiffNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
+    [void][RiftCameraDiffNative]::AttachThreadInput($currentThreadId, $targetThreadId, $false)
+    Start-Sleep -Milliseconds 200
+}
+
+function Assert-TargetFocus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -ne $Process.Id) {
+        $foregroundName = if (-not [string]::IsNullOrWhiteSpace($foreground.ProcessName)) { $foreground.ProcessName } else { 'unknown' }
+        throw ("Mouse input requires a clean focused Rift window. Expected {0} [{1}] in foreground, got {2} [{3}] handle 0x{4:X}. Activate the Rift window on the selected desktop and retry." -f $Process.ProcessName, $Process.Id, $foregroundName, $foreground.ProcessId, $foreground.Handle.ToInt64())
+    }
+
+    return $foreground
 }
 
 function Get-DiffCandidates {
@@ -303,6 +393,7 @@ $document = [pscustomobject]@{
     ProcessId = $process.Id
     ProcessName = $process.ProcessName
     MousePixels = $MousePixels
+    TargetFocusRequired = (-not $SkipTargetFocusCheck)
     RegionLength = $RegionLength
     CandidateSource = $(if ($BaseAddresses.Count -gt 0) { 'curated-base-addresses' } else { 'coord-hit-derived-bases' })
     RegionCount = $regions.Count
@@ -311,6 +402,8 @@ $document = [pscustomobject]@{
     TopPitchCandidates = $topPitch
     Notes = @(
         'This probe uses direct raw reads plus RMB camera motion only.',
+        'Mouse input is treated as a focus-verified lane: by default the script stops unless the Rift window can be foreground-verified before each mouse action.',
+        'Mouse/camera input does not rely on PostMessage. If clean window acquisition or focus verification fails, stop instead of trying a background-delivery workaround.',
         'It does not call refresh-readerbridge-export, reloadui, or the legacy camera recovery chain.',
         'Reversible deltas suggest a candidate field changed under camera motion and returned when the motion was reversed.'
     )
@@ -323,6 +416,7 @@ if ($Json) {
 
 Write-Host "Live camera offset diff"
 Write-Host ("Process:                 {0} [{1}]" -f $process.ProcessName, $process.Id)
+Write-Host ("Target focus required:   {0}" -f (-not $SkipTargetFocusCheck))
 Write-Host ("Candidate source:        {0}" -f $(if ($BaseAddresses.Count -gt 0) { 'curated-base-addresses' } else { 'coord-hit-derived-bases' }))
 Write-Host ("Regions tested:          {0}" -f $regions.Count)
 Write-Host ""

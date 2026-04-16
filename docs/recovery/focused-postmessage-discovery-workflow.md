@@ -53,6 +53,27 @@ Do **not** treat these as equivalent:
 
 Only the third path is the trusted branch default for this workflow.
 
+### 1b. Mouse input is a separate lane
+
+Do not overgeneralize the focused-`PostMessage` keyboard win to RMB / drag /
+wheel style input.
+
+For mouse/camera work:
+
+1. bind the Rift process and a real main window handle
+2. focus Rift
+3. verify Rift is actually foreground
+4. only then send mouse input
+
+If any of those fail:
+
+- stop
+- require operator intervention
+- do not try to salvage the pass with a background `PostMessage` fallback
+
+The focused-`PostMessage` rule is for keyboard/chat delivery. Mouse delivery is
+only trusted when window acquisition and focus are already clean.
+
 ### 2. Desktop-2 screen pixels are not authority
 
 If Rift is isolated on Desktop 2:
@@ -109,6 +130,41 @@ discovery pass.
 Likewise, once a full recovery proves a winner, the unattended workflow should
 stop immediately instead of continuing to spray more live inputs across lower
 value candidates.
+
+### 7. Frame results by purpose, harness, and signal
+
+When documenting a live pass, always state the purpose of the run before the
+raw result.
+
+Use this reporting structure:
+
+1. `Purpose`
+   - procedure validation
+   - discovery pass
+   - pinned proof pass
+   - regression retest
+2. `Harness status`
+   - whether the mechanism itself worked
+3. `Signal status`
+   - whether the target regions/candidates produced useful evidence
+4. `Safe interpretation`
+   - what the result means
+   - what it does **not** mean
+5. `Next decision`
+   - what should happen next
+
+Example:
+
+- purpose: procedure validation pass
+- harness status: success
+- signal status: empty
+- safe interpretation: the RMB test procedure worked, but the sampled regions
+  did not surface a camera-bearing signal; do not classify that as a mouse
+  harness failure
+- next decision: keep the harness and revisit the candidate regions later
+
+This matters because vague wording like "the pass did not surface candidates"
+can be misread as a harness failure and drive the wrong follow-up repair.
 
 ## Required preconditions
 

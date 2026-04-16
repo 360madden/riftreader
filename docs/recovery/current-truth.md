@@ -18,6 +18,7 @@ _Last updated: April 15, 2026 (post-update triage + Desktop-2 focus-enforced act
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 | Direct gameplay key stimulus on `main` | focused `PostMessage` via `post-rift-key.ps1 -RequireTargetFocus` is the trusted Desktop-2 default; foreground `SendInput` remains untrusted |
+| Direct mouse/camera stimulus on `main` | only use when Rift window acquisition and foreground verification are clean; do not treat background `PostMessage` as a mouse fallback |
 
 ## Post-update note
 
@@ -32,6 +33,7 @@ Use this report before trusting older actor/camera captures:
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-actor-yaw-focused-postmessage-recovery.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-aggressive-wrapper-unattended-validation.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-focused-postmessage-refresh-retest.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-rmb-procedure-validation-pass.md`
 - `C:\RIFT MODDING\RiftReader\docs\input-safety.md`
 
 ## Surviving baselines
@@ -184,6 +186,14 @@ they should not be reused as current offsets without a fresh object recovery.
 Preferred live camera probe for post-update work:
 
 - `C:\RIFT MODDING\RiftReader\scripts\probe-live-camera-offset-diff.ps1`
+
+Mouse-policy note for future camera recovery/discovery:
+
+- mouse input is a separate lane from focused keyboard/chat `PostMessage`
+- if a mouse helper cannot find Rift cleanly and verify foreground focus
+  cleanly, stop and require operator intervention
+- do **not** add background `PostMessage` workarounds for RMB / drag / wheel
+  paths just because the keyboard/chat lane uses them successfully
 
 Do **not** use the legacy angle-candidate script as the default live camera
 probe path.
