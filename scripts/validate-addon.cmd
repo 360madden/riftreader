@@ -23,14 +23,27 @@ set /a ADDON_COUNT=0
 for /d %%D in ("%ADDON_ROOT%\*") do (
   if exist "%%~fD\main.lua" (
     set /a ADDON_COUNT+=1
-    echo [CHECK] "%%~fD\main.lua"
-    "%LUAC_EXE%" -p "%%~fD\main.lua"
-    if errorlevel 1 exit /b !errorlevel!
+    for %%F in ("%%~fD\*.lua") do (
+      if exist "%%~fF" (
+        echo [CHECK] "%%~fF"
+        "%LUAC_EXE%" -p "%%~fF"
+        if errorlevel 1 exit /b !errorlevel!
+      )
+    )
+  ) else if exist "%%~fD\RiftAddon.toc" (
+    set /a ADDON_COUNT+=1
+    for %%F in ("%%~fD\*.lua") do (
+      if exist "%%~fF" (
+        echo [CHECK] "%%~fF"
+        "%LUAC_EXE%" -p "%%~fF"
+        if errorlevel 1 exit /b !errorlevel!
+      )
+    )
   )
 )
 
 if !ADDON_COUNT! EQU 0 (
-  echo [ERROR] No addon directories with main.lua were found under "%ADDON_ROOT%".
+  echo [ERROR] No addon directories with main.lua or RiftAddon.toc were found under "%ADDON_ROOT%".
   exit /b 1
 )
 

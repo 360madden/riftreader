@@ -77,6 +77,12 @@ Repo-level assistant workflow rules live in:
 ```text
 RiftReader/
 ├── addon/
+│   ├── ReaderBridge/
+│   │   ├── README.md
+│   │   ├── ReaderBridge_Logic.lua
+│   │   ├── ReaderBridge_UI.lua
+│   │   ├── ReaderBridge.lua
+│   │   └── RiftAddon.toc
 │   ├── ReaderBridgeExport/
 │   │   ├── README.md
 │   │   ├── RiftAddon.toc
@@ -477,7 +483,7 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 > `C:\RIFT MODDING\RiftReader_camera_feature`, not this `main` worktree.
 
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check all project Lua addons with `luac`
-- `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy all project addons into the Rift `Interface\AddOns` folder
+- `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy all project addons into every detected Rift `Interface\AddOns` folder (supports addons driven by either `main.lua` or `RiftAddon.toc`)
 - `C:\RIFT MODDING\RiftReader\scripts\sync-addon.cmd` - validate and deploy all project addons in one step
 - `C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.cmd` - wait for `ReaderBridgeExport.lua` to appear or change, then run the reader automatically
 - `C:\RIFT MODDING\RiftReader\scripts\generate-cheatengine-probe.cmd` - generate the current CE Lua helper from the live ReaderBridge export and the top grouped signature families

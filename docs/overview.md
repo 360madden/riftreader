@@ -140,6 +140,11 @@ The helper addon exists to reduce blind memory hunting, not replace the reader.
 
 ### Addon Capabilities
 
+**ReaderBridge**:
+- Publishes the fixed-size in-memory `ReaderBridge_v3` payload for direct process scanning
+- Tracks player, target, zone, buff/debuff, and combat-ring state on a fast update cadence
+- Provides the live addon-side state that `ReaderBridgeExport` mirrors into saved variables
+
 **RiftReaderValidator** (`/rrv` commands):
 - Manual snapshot capture via `/rrv snapshot`
 - Rolling history (default 64 samples)
