@@ -51,4 +51,12 @@ public sealed record ReaderOptions(
     string? AddonSnapshotFile,
     bool ReadReaderBridgeSnapshot,
     string? ReaderBridgeSnapshotFile,
-    bool JsonOutput);
+    bool JsonOutput,
+    bool ReadNavigationCurrent = false,
+    bool NavigateWaypoints = false,
+    string? NavigationWaypointFile = null,
+    string? StartWaypointId = null,
+    string? DestinationWaypointId = null,
+    string? Pace = null,
+    double? ArrivalRadius = null,
+    int? MaxTravelSeconds = null);

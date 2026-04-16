@@ -9,6 +9,7 @@ using RiftReader.Reader.Cli;
 using RiftReader.Reader.Formatting;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Models;
+using RiftReader.Reader.Navigation;
 using RiftReader.Reader.Processes;
 using RiftReader.Reader.Scanning;
 using RiftReader.Reader.Sessions;
@@ -158,7 +159,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -209,6 +210,16 @@ internal static class Program
         if (options.ReadTargetCurrent)
         {
             return RunReadTargetCurrentMode(options, target, reader);
+        }
+
+        if (options.ReadNavigationCurrent)
+        {
+            return RunReadNavigationCurrentMode(options, target, reader);
+        }
+
+        if (options.NavigateWaypoints)
+        {
+            return RunNavigateWaypointsMode(options, target, reader);
         }
 
         if (options.ReadPlayerCoordAnchor)
@@ -465,6 +476,150 @@ internal static class Program
         return 0;
     }
 
+    private static int RunReadNavigationCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        if (!TryResolveWaypoint(configuration!, options.DestinationWaypointId, "destination", out var destinationWaypoint, out var waypointError))
+        {
+            Console.Error.WriteLine(waypointError ?? "Unable to resolve the destination waypoint.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        var resolvedDestinationWaypoint = destinationWaypoint!;
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+            return 1;
+        }
+
+        var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var result = NavigationMath.BuildSummary(
+            target.ProcessId,
+            target.ProcessName,
+            resolvedConfiguration.SourceFile,
+            resolvedDestinationWaypoint,
+            poseSource.InitialSample,
+            poseSource.Source.AnchorSource,
+            arrivalRadius);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(NavigationVectorSummaryTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunNavigateWaypointsMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        if (!TryResolveWaypoint(configuration!, options.StartWaypointId, "start", out var startWaypoint, out var startError))
+        {
+            Console.Error.WriteLine(startError ?? "Unable to resolve the start waypoint.");
+            return 1;
+        }
+
+        if (!TryResolveWaypoint(configuration!, options.DestinationWaypointId, "destination", out var destinationWaypoint, out var destinationError))
+        {
+            Console.Error.WriteLine(destinationError ?? "Unable to resolve the destination waypoint.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        var resolvedStartWaypoint = startWaypoint!;
+        var resolvedDestinationWaypoint = destinationWaypoint!;
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            var anchorFailure = BuildNavigationAnchorUnavailableResult(
+                target,
+                resolvedConfiguration.SourceFile,
+                resolvedStartWaypoint,
+                resolvedDestinationWaypoint,
+                ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement),
+                ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement),
+                resolvedConfiguration.Movement.StartRadius,
+                "anchor-unavailable");
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+                Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        var effectivePace = ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var maxTravelSeconds = options.MaxTravelSeconds ?? resolvedConfiguration.Movement.MaxTravelSeconds;
+        var movementBackend = new PowerShellMovementBackend(
+            NavigationPathResolver.ResolveMovementScriptFile(),
+            target.ProcessName);
+
+        var result = WaypointNavigator.Run(
+            target.ProcessId,
+            target.ProcessName,
+            resolvedConfiguration.SourceFile,
+            resolvedConfiguration.Movement,
+            resolvedStartWaypoint,
+            resolvedDestinationWaypoint,
+            poseSource.Source,
+            movementBackend,
+            effectivePace,
+            arrivalRadius,
+            maxTravelSeconds);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        }
+
+        Console.WriteLine(NavigationRunResultTextFormatter.Format(result));
+        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
     private static int RunReadPlayerCoordAnchorMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
         var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(options.PlayerCoordTraceFile, out var loadError);
@@ -569,6 +724,85 @@ internal static class Program
         Console.WriteLine(PlayerOrientationReadTextFormatter.Format(result));
         return 0;
     }
+
+    private static bool TryLoadWaypointNavigationConfiguration(
+        ReaderOptions options,
+        out WaypointNavigationConfiguration? configuration,
+        out string? error)
+    {
+        configuration = WaypointNavigationConfigurationLoader.TryLoad(options.NavigationWaypointFile, out error);
+        return configuration is not null;
+    }
+
+    private static bool TryResolveWaypoint(
+        WaypointNavigationConfiguration configuration,
+        string? waypointId,
+        string role,
+        out WaypointDefinition? waypoint,
+        out string? error)
+    {
+        if (string.IsNullOrWhiteSpace(waypointId))
+        {
+            waypoint = null;
+            error = $"The {role} waypoint id was not provided.";
+            return false;
+        }
+
+        if (!configuration.Waypoints.TryGetValue(waypointId.Trim(), out waypoint))
+        {
+            error = $"The {role} waypoint '{waypointId}' was not found in '{configuration.SourceFile}'.";
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static string ResolveEffectivePace(
+        string? paceOverride,
+        WaypointDefinition destinationWaypoint,
+        WaypointMovementSettings movement) =>
+        paceOverride ??
+        destinationWaypoint.Pace ??
+        movement.DefaultPace;
+
+    private static double ResolveArrivalRadius(
+        double? arrivalRadiusOverride,
+        WaypointDefinition destinationWaypoint,
+        WaypointMovementSettings movement) =>
+        arrivalRadiusOverride ??
+        destinationWaypoint.ArrivalRadius ??
+        movement.DefaultArrivalRadius;
+
+    private static NavigationRunResult BuildNavigationAnchorUnavailableResult(
+        ProcessTarget target,
+        string waypointFile,
+        WaypointDefinition startWaypoint,
+        WaypointDefinition destinationWaypoint,
+        string pace,
+        double arrivalRadius,
+        double startRadius,
+        string stopReason) =>
+        new(
+            Mode: "navigate-waypoints",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            WaypointFile: waypointFile,
+            Status: "failure",
+            StartWaypointId: startWaypoint.Id,
+            DestinationWaypointId: destinationWaypoint.Id,
+            Pace: pace,
+            AnchorSource: "none",
+            StartRadius: startRadius,
+            ArrivalRadius: arrivalRadius,
+            InitialPlanarDistance: 0d,
+            FinalPlanarDistance: 0d,
+            PulseCount: 0,
+            StopReason: stopReason,
+            InitialPosition: startWaypoint.Coordinate,
+            FinalPosition: startWaypoint.Coordinate,
+            DestinationPosition: destinationWaypoint.Coordinate,
+            ElapsedMilliseconds: 0);
 
     private static void WriteUsage(ReaderOptionsParseResult parseResult)
     {

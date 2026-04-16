@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "movement": {
+    "forwardKey": "w",
+    "runKey": null,
+    "walkKey": null,
+    "defaultPace": "keep",
+    "forwardPulseMilliseconds": 250,
+    "postPulseSampleDelayMilliseconds": 150,
+    "startRadius": 2.0,
+    "defaultArrivalRadius": 1.5,
+    "noProgressWindowMilliseconds": 1500,
+    "minimumProgressDistance": 0.35,
+    "wrongWayToleranceDistance": 0.75,
+    "maxTravelSeconds": 30
+  },
+  "waypoints": [
+    {
+      "id": "example_start",
+      "label": "Example Start",
+      "zone": "example_zone",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "arrivalRadius": 2.0,
+      "pace": "keep"
+    },
+    {
+      "id": "example_destination",
+      "label": "Example Destination",
+      "zone": "example_zone",
+      "x": 10.0,
+      "y": 0.0,
+      "z": 0.0,
+      "arrivalRadius": 1.5,
+      "pace": "keep"
+    }
+  ]
+}

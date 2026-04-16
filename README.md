@@ -9,6 +9,29 @@ Hybrid Rift tooling project:
 
 Current work is scoped primarily to the **memory reader**.
 
+## Waypoint Navigation V1 (April 16, 2026)
+
+Waypoint navigation v1 now exists in the reader as a **manual-facing assist**
+layer.
+
+| Area | Current v1 behavior |
+|---|---|
+| Control model | Manual-align first, then pulse forward movement |
+| Waypoints | External JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
+| Telemetry | Verified coord anchor once, then direct memory coord reads during travel |
+| Movement | Forward key pulses plus optional run / walk toggle |
+| Safety | Fail closed on anchor loss, no progress, moving away, input failure, or timeout |
+| Non-goals | No auto-turn, no obstacle avoidance, no route graph, no addon waypoint UI |
+
+Use these waypoint modes:
+
+- `--read-navigation-current` for a read-only destination vector preflight
+- `--navigate-waypoints` for single-segment forward travel
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
+
 ## Shell Requirements
 
 RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
@@ -94,17 +117,22 @@ RiftReader/
 ├── docs/
 │   ├── addon-validation-spec.md
 │   ├── cheat-engine-workflow.md
+│   ├── navigation-waypoint-v1.md
 │   ├── offline-session-workflow.md
 │   ├── reader-cli-ux.md
 │   └── overview.md
 ├── reader/
-│   └── RiftReader.Reader/
-│       ├── Cli/
-│       ├── Formatting/
-│       ├── Memory/
-│       ├── Processes/
-│       ├── Program.cs
-│       └── RiftReader.Reader.csproj
+│   ├── RiftReader.Reader/
+│   │   ├── Cli/
+│   │   ├── Formatting/
+│   │   ├── Memory/
+│   │   ├── Navigation/
+│   │   ├── Processes/
+│   │   ├── Program.cs
+│   │   └── RiftReader.Reader.csproj
+│   └── RiftReader.Reader.Tests/
+│       ├── Navigation/
+│       └── RiftReader.Reader.Tests.csproj
 ├── scripts/
 │   ├── build-reader.cmd
 │   ├── deploy-addon.cmd
@@ -121,7 +149,9 @@ RiftReader/
 │   ├── sync-cheatengine.cmd
 │   ├── sync-addon.cmd
 │   ├── validate-addon.cmd
-│   └── watch-readerbridge-export.cmd
+│   ├── watch-readerbridge-export.cmd
+│   └── navigation/
+│       └── waypoints.json
 ├── tools/
 │   └── reverse-engineering/
 │       ├── README.md
