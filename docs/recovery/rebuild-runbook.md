@@ -58,16 +58,24 @@ C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1 -Json
 
 Run this step only after step 2 succeeds on the current game build.
 
-## 4. Verify the live camera read path
+## 4. Run the camera procedure-validation pass first
 
 ```powershell
+C:\RIFT MODDING\RiftReader_camera_feature\scripts\validate-camera-angle-candidate.ps1 -Json -RefreshOwnerComponents
 C:\RIFT MODDING\RiftReader_camera_feature\scripts\read-live-camera-yaw-pitch.ps1 -Json
 ```
 
 Expected:
-- yaw = direct
-- pitch = derived
-- distance = derived
+
+- the validator should treat this as a **procedure-validation pass**, not a
+  wide discovery pass
+- the validator should start with
+  `find-live-camera-angle-candidates.ps1 -RefreshOwnerComponents -Json`
+- **Alt+Z** should provide a strong early distance-family separation signal
+- **RMB hold + mouse move** should be the preferred orientation stimulus
+  because **Alt+S** resets on release
+- `read-live-camera-yaw-pitch.ps1` should still report yaw = direct,
+  pitch = derived, distance = derived
 
 Current post-update note:
 
@@ -76,7 +84,25 @@ Current post-update note:
 - do not treat older camera outputs as current until this step succeeds on the
   updated client
 
-## 5. Rebuild controller-search helpers if needed
+If this step is weak or fails, stop and repair the harness/procedure first.
+Do **not** widen the search yet.
+
+## 5. Start resumed discovery with the narrow live candidate scan
+
+```powershell
+C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1 -Json -RefreshOwnerComponents
+```
+
+Use this before any broader brute-force pass. Only widen after reviewing the
+result from this narrow pass.
+
+Optional wider follow-up, only if step 5 still leaves ambiguity:
+
+```powershell
+C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1 -Json -RefreshOwnerComponents -ScanAllEntries
+```
+
+## 6. Rebuild controller-search helpers if needed
 
 ```powershell
 C:\RIFT MODDING\RiftReader_camera_feature\scripts\search-camera-global.ps1 -Json -RefreshOwnerGraph -RefreshHubGraph -RefreshOwnerComponents

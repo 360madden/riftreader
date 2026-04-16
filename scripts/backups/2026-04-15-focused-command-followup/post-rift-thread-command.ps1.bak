@@ -37,9 +37,6 @@ public static class RiftPostThreadNative
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool IsIconic(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 }
 "@
@@ -80,9 +77,7 @@ function Focus-Window {
         [System.Diagnostics.Process]$Process
     )
 
-    if ([RiftPostThreadNative]::IsIconic($Process.MainWindowHandle)) {
-        [void][RiftPostThreadNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
-    }
+    [void][RiftPostThreadNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
     [void][RiftPostThreadNative]::SetForegroundWindow($Process.MainWindowHandle)
     Start-Sleep -Milliseconds 250
 }

@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 14, 2026 (post-update triage)_
+_Last updated: April 15, 2026 (post-update triage + camera restart procedure)_
 
 ## Current status
 
@@ -70,8 +70,22 @@ The active camera workflow currently lives on:
 Relevant scripts there:
 
 - `C:\RIFT MODDING\RiftReader_camera_feature\scripts\read-live-camera-yaw-pitch.ps1`
+- `C:\RIFT MODDING\RiftReader_camera_feature\scripts\validate-camera-angle-candidate.ps1`
 - `C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1`
 - `C:\RIFT MODDING\RiftReader_camera_feature\scripts\test-camera-stimulus.ps1`
+
+Resume camera work on that feature worktree in this order:
+
+1. run `C:\RIFT MODDING\RiftReader_camera_feature\scripts\validate-camera-angle-candidate.ps1 -RefreshOwnerComponents -Json`
+   as a **procedure-validation pass**
+2. if discovery is still needed, start with
+   `C:\RIFT MODDING\RiftReader_camera_feature\scripts\find-live-camera-angle-candidates.ps1 -RefreshOwnerComponents -Json`
+3. treat **Alt+Z** as the early high-value control for separating
+   distance-sensitive families, and use **RMB hold + mouse move** for
+   orientation-sensitive families; do not rely on **Alt+S** because the view
+   resets on release
+4. only then widen to `-ScanAllEntries`, `search-camera-global.ps1`, or other
+   brute-force probing
 
 Do not treat camera outputs as current truth on `main` until the actor/source
 chain is rebuilt and the camera path is revalidated on the updated client.

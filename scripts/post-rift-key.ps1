@@ -37,6 +37,9 @@ public static class RiftKeyNative
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -103,7 +106,9 @@ function Get-MainWindowProcess {
 
 function Focus-Window {
     param([System.Diagnostics.Process]$Process)
-    [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    if ([RiftKeyNative]::IsIconic($Process.MainWindowHandle)) {
+        [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    }
     [void][RiftKeyNative]::SetForegroundWindow($Process.MainWindowHandle)
     Start-Sleep -Milliseconds 250
 }

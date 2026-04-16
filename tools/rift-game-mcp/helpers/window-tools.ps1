@@ -952,10 +952,13 @@ try {
         }
         "focus" {
             $window = Resolve-WindowSnapshot
-            [void][RiftGameWindowNative]::ShowWindow((ConvertTo-IntPtr -HandleText $window.windowHandle), $SW_RESTORE)
-            [void][RiftGameWindowNative]::SetForegroundWindow((ConvertTo-IntPtr -HandleText $window.windowHandle))
+            $handle = ConvertTo-IntPtr -HandleText $window.windowHandle
+            if ($window.isMinimized) {
+                [void][RiftGameWindowNative]::ShowWindow($handle, $SW_RESTORE)
+            }
+            [void][RiftGameWindowNative]::SetForegroundWindow($handle)
             Start-Sleep -Milliseconds 250
-            Get-WindowSnapshot -Handle (ConvertTo-IntPtr -HandleText $window.windowHandle)
+            Get-WindowSnapshot -Handle $handle
             break
         }
         "capture" {

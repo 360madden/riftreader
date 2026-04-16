@@ -76,9 +76,6 @@ public static class RiftSendCommand
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool IsIconic(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -200,10 +197,9 @@ try {
     $hwnd = [IntPtr]$proc.MainWindowHandle
     Write-Host "Found $ProcessName (PID $($proc.Id)) HWND 0x$($hwnd.ToString('X'))"
 
-    if ([RiftSendCommand]::IsIconic($hwnd)) {
-        [void][RiftSendCommand]::ShowWindow($hwnd, $SW_RESTORE)
-        Start-Sleep -Milliseconds 80
-    }
+    # Restore if minimised
+    [void][RiftSendCommand]::ShowWindow($hwnd, $SW_RESTORE)
+    Start-Sleep -Milliseconds 80
 
     # Use AttachThreadInput to bypass Windows foreground-lock restriction
     $fgHwnd     = [RiftSendCommand]::GetForegroundWindow()

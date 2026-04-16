@@ -937,21 +937,16 @@
                          "role":  "camera-discovery",
                          "workboard":  {
                                            "now":  [
-                                                       {
-                                                           "item":  "Alt+S look-behind toggle",
-                                                           "lane":  "P1",
-                                                           "note":  "`C:\\RIFT MODDING\\RiftReader\\Run-CameraDiscoveryStable.ps1` or `C:\\RIFT MODDING\\RiftReader\\scripts\\test-camera-alts-stimulus-safe.ps1` â€” Large, discrete camera-orientation change; easiest to diff and verify visually."
-                                                       },
-                                                       {
-                                                           "item":  "Alt+Z alternate zoom toggle",
-                                                           "lane":  "P2",
-                                                           "note":  "`C:\\RIFT MODDING\\RiftReader\\Run-AltZRetry.ps1` or `C:\\RIFT MODDING\\RiftReader\\scripts\\test-camera-altz-stimulus-safe.ps1` â€” Strong zoom/distance cross-check; helps separate distance fields from orientation fields."
-                                                       },
-                                                       {
-                                                           "item":  "RMB hold + mouse move",
-                                                           "lane":  "P3",
-                                                           "note":  "`C:\\RIFT MODDING\\RiftReader\\scripts\\test-rmb-camera.ps1` â€” Closest to real camera yaw/pitch behavior when toggles are not enough."
-                                                       }
+                                                        {
+                                                            "item":  "Alt+Z alternate zoom toggle",
+                                                            "lane":  "P1",
+                                                            "note":  "`C:\\RIFT MODDING\\RiftReader\\Run-AltZRetry.ps1` or `C:\\RIFT MODDING\\RiftReader\\scripts\\test-camera-altz-stimulus-safe.ps1` â€” Strong zoom/distance cross-check; helps separate distance fields from orientation fields."
+                                                        },
+                                                        {
+                                                            "item":  "RMB hold + mouse move",
+                                                            "lane":  "P2",
+                                                            "note":  "`C:\\RIFT MODDING\\RiftReader\\scripts\\test-rmb-camera.ps1` â€” Closest to real camera yaw/pitch behavior; preferred orientation stimulus because Alt+S resets on release."
+                                                        }
                                                    ],
                                            "parallelNow":  [
                                                                {
