@@ -1,0 +1,288 @@
+using RiftReader.Reader.AddonSnapshots;
+using RiftReader.Reader.Memory;
+using RiftReader.Reader.Models;
+
+namespace RiftReader.Reader.Navigation;
+
+public interface INavigationPoseSource
+{
+    string AnchorSource { get; }
+
+    string AddressHex { get; }
+
+    bool TryReadCurrent(out NavigationPoseSample sample, out string? error);
+}
+
+public sealed record NavigationPoseSample(
+    string AddressHex,
+    double X,
+    double Y,
+    double Z);
+
+public sealed record NavigationPoseSourceCreationResult(
+    INavigationPoseSource Source,
+    NavigationPoseSample InitialSample);
+
+public static class NavigationPoseSourceFactory
+{
+    private const float VerificationTolerance = 0.25f;
+    private const int DefaultCoordXOffset = 0;
+    private const int DefaultCoordYOffset = 4;
+    private const int DefaultCoordZOffset = 8;
+
+    public static NavigationPoseSourceCreationResult? TryCreate(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        int inspectionRadius,
+        int maxHits,
+        out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        error = null;
+        string? lastReacquireError = null;
+
+        if (TryResolveTraceAnchor(reader, processId, processName, snapshotDocument, out var traceResult))
+        {
+            return traceResult;
+        }
+
+        if (TryResolveCachedAnchor(reader, processName, snapshotDocument, out var cachedResult))
+        {
+            return cachedResult;
+        }
+
+        if (snapshotDocument?.Current?.Player is not null &&
+            TryResolveReacquiredAnchor(reader, processId, processName, snapshotDocument, inspectionRadius, maxHits, out var reacquiredResult, out lastReacquireError))
+        {
+            return reacquiredResult;
+        }
+
+        error = string.IsNullOrWhiteSpace(lastReacquireError)
+            ? "Unable to resolve a verified navigation pose anchor from the coord trace, player anchor cache, or player-current reacquisition."
+            : lastReacquireError;
+        return null;
+    }
+
+    private static bool TryResolveTraceAnchor(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        out NavigationPoseSourceCreationResult? result)
+    {
+        result = null;
+
+        var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(null, out _);
+        if (traceDocument?.Reader?.ProcessId != processId ||
+            !string.Equals(traceDocument.Reader.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var resolvedAnchor = PlayerCoordAnchorReader.TryResolveObjectAnchor(traceDocument);
+        if (resolvedAnchor is null)
+        {
+            return false;
+        }
+
+        var source = new DirectMemoryNavigationPoseSource(
+            source: "coord-trace-anchor",
+            addressHex: $"0x{resolvedAnchor.ObjectBaseAddress:X}",
+            reader: reader,
+            baseAddress: resolvedAnchor.ObjectBaseAddress,
+            coordXOffset: resolvedAnchor.CoordXOffset,
+            coordYOffset: resolvedAnchor.CoordYOffset,
+            coordZOffset: resolvedAnchor.CoordZOffset);
+
+        if (!source.TryReadCurrent(out var sample, out _) || !IsTrustedSample(sample, snapshotDocument))
+        {
+            return false;
+        }
+
+        result = new NavigationPoseSourceCreationResult(source, sample);
+        return true;
+    }
+
+    private static bool TryResolveCachedAnchor(
+        ProcessMemoryReader reader,
+        string processName,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        out NavigationPoseSourceCreationResult? result)
+    {
+        result = null;
+
+        var anchorCandidates = PlayerCurrentAnchorCacheStore.LoadCandidates(null, out _, out _);
+        foreach (var anchorCandidate in anchorCandidates)
+        {
+            var cachedAnchor = anchorCandidate.Document;
+            if (!string.Equals(cachedAnchor.ProcessName, processName, StringComparison.OrdinalIgnoreCase) ||
+                !PlayerCurrentAnchorCacheStore.TryParseAddress(cachedAnchor.AddressHex, out var cachedAddress))
+            {
+                continue;
+            }
+
+            var source = new DirectMemoryNavigationPoseSource(
+                source: "player-current-cache",
+                addressHex: cachedAnchor.AddressHex,
+                reader: reader,
+                baseAddress: cachedAddress,
+                coordXOffset: cachedAnchor.CoordXOffset,
+                coordYOffset: cachedAnchor.CoordYOffset,
+                coordZOffset: cachedAnchor.CoordZOffset);
+
+            if (!source.TryReadCurrent(out var sample, out _) || !IsTrustedSample(sample, snapshotDocument))
+            {
+                continue;
+            }
+
+            result = new NavigationPoseSourceCreationResult(source, sample);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryResolveReacquiredAnchor(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        int inspectionRadius,
+        int maxHits,
+        out NavigationPoseSourceCreationResult? result,
+        out string? error)
+    {
+        result = null;
+        error = null;
+
+        PlayerCurrentReadResult currentRead;
+        try
+        {
+            currentRead = PlayerCurrentReader.ReadCurrent(
+                reader,
+                processId,
+                processName,
+                snapshotDocument,
+                inspectionRadius,
+                maxHits);
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to reacquire a player-current anchor for navigation: {ex.Message}";
+            return false;
+        }
+
+        var sourceName = "player-current-reacquire";
+        long baseAddress;
+        var coordXOffset = DefaultCoordXOffset;
+        var coordYOffset = DefaultCoordYOffset;
+        var coordZOffset = DefaultCoordZOffset;
+
+        if (string.Equals(currentRead.FamilyId, "coord-trace-anchor", StringComparison.OrdinalIgnoreCase))
+        {
+            var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(null, out _);
+            var resolvedAnchor =
+                traceDocument?.Reader?.ProcessId == processId &&
+                string.Equals(traceDocument.Reader.ProcessName, processName, StringComparison.OrdinalIgnoreCase)
+                    ? PlayerCoordAnchorReader.TryResolveObjectAnchor(traceDocument)
+                    : null;
+            if (resolvedAnchor is null)
+            {
+                error = "Player-current reacquisition selected the coord-trace anchor, but the live trace offsets could not be reloaded.";
+                return false;
+            }
+
+            baseAddress = resolvedAnchor.ObjectBaseAddress;
+            coordXOffset = resolvedAnchor.CoordXOffset;
+            coordYOffset = resolvedAnchor.CoordYOffset;
+            coordZOffset = resolvedAnchor.CoordZOffset;
+            sourceName = "coord-trace-anchor";
+        }
+        else if (!PlayerCurrentAnchorCacheStore.TryParseAddress(currentRead.Memory.AddressHex, out baseAddress))
+        {
+            error = $"Player-current reacquisition did not return a readable base address: '{currentRead.Memory.AddressHex}'.";
+            return false;
+        }
+
+        var source = new DirectMemoryNavigationPoseSource(
+            source: sourceName,
+            addressHex: $"0x{baseAddress:X}",
+            reader: reader,
+            baseAddress: baseAddress,
+            coordXOffset: coordXOffset,
+            coordYOffset: coordYOffset,
+            coordZOffset: coordZOffset);
+
+        if (!source.TryReadCurrent(out var sample, out error) || !IsTrustedSample(sample, snapshotDocument))
+        {
+            error ??= "Player-current reacquisition did not produce a trusted coordinate sample for navigation.";
+            return false;
+        }
+
+        result = new NavigationPoseSourceCreationResult(source, sample);
+        return true;
+    }
+
+    private static bool IsTrustedSample(NavigationPoseSample sample, ReaderBridgeSnapshotDocument? snapshotDocument)
+    {
+        if (snapshotDocument?.Current?.Player?.Coord is not { } coord ||
+            !coord.X.HasValue ||
+            !coord.Y.HasValue ||
+            !coord.Z.HasValue)
+        {
+            return IsFinite(sample.X) && IsFinite(sample.Y) && IsFinite(sample.Z);
+        }
+
+        return Math.Abs(sample.X - coord.X.Value) <= VerificationTolerance &&
+               Math.Abs(sample.Y - coord.Y.Value) <= VerificationTolerance &&
+               Math.Abs(sample.Z - coord.Z.Value) <= VerificationTolerance;
+    }
+
+    private static bool IsFinite(double value) =>
+        !double.IsNaN(value) && !double.IsInfinity(value);
+
+    private sealed class DirectMemoryNavigationPoseSource(
+        string source,
+        string addressHex,
+        ProcessMemoryReader reader,
+        long baseAddress,
+        int coordXOffset,
+        int coordYOffset,
+        int coordZOffset) : INavigationPoseSource
+    {
+        public string AnchorSource => source;
+
+        public string AddressHex => addressHex;
+
+        public bool TryReadCurrent(out NavigationPoseSample sample, out string? error)
+        {
+            sample = default!;
+
+            var x = TryReadFloat(baseAddress + coordXOffset);
+            var y = TryReadFloat(baseAddress + coordYOffset);
+            var z = TryReadFloat(baseAddress + coordZOffset);
+            if (!x.HasValue || !y.HasValue || !z.HasValue)
+            {
+                error = $"Unable to read a full coordinate triplet from navigation anchor '{source}' at {addressHex}.";
+                return false;
+            }
+
+            sample = new NavigationPoseSample(addressHex, x.Value, y.Value, z.Value);
+            error = null;
+            return true;
+        }
+
+        private float? TryReadFloat(long address)
+        {
+            if (!reader.TryReadBytes(new nint(address), sizeof(float), out var bytes, out _) || bytes.Length != sizeof(float))
+            {
+                return null;
+            }
+
+            return BitConverter.ToSingle(bytes, 0);
+        }
+    }
+}

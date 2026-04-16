@@ -11,6 +11,35 @@ RiftReader is a hybrid project with two planned components:
 
 The **memory reader** remains the primary implementation target right now.
 
+## Waypoint Navigation V1 (April 16, 2026)
+
+Waypoint navigation v1 is now available as a narrow reader-owned slice.
+
+| Area | Current status |
+|---|---|
+| Movement model | Manual-facing only |
+| Route model | Single-segment start -> destination |
+| Waypoint source | `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
+| Telemetry source | Verified live coord anchor plus direct memory reads |
+| Recovery behavior | Fail closed, not self-correcting |
+
+Use:
+
+- `--read-navigation-current` for a read-only vector summary to a destination waypoint
+- `--navigate-waypoints` for straight-line forward travel after manual alignment
+
+Constraints:
+
+- no auto-turn
+- no strafe correction
+- no obstacle avoidance
+- no multi-waypoint chaining
+- no addon waypoint authoring in v1
+
+Full doc:
+
+- `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
+
 The current prototype should stay focused on:
 
 - explicit process targeting

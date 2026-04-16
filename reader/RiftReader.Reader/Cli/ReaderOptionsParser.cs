@@ -1,4 +1,5 @@
 using System.Globalization;
+using RiftReader.Reader.Navigation;
 using RiftReader.Reader.Scanning;
 
 namespace RiftReader.Reader.Cli;
@@ -20,6 +21,8 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
@@ -47,6 +50,8 @@ Notes:
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
+  - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint.
+  - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the manual-facing waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
@@ -73,6 +78,8 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
@@ -110,8 +117,16 @@ Examples:
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
         var readPlayerCoordAnchor = false;
+        var readNavigationCurrent = false;
+        var navigateWaypoints = false;
         var recordSession = false;
         var sessionSummary = false;
+        string? navigationWaypointFile = null;
+        string? startWaypointId = null;
+        string? destinationWaypointId = null;
+        string? pace = null;
+        double? arrivalRadius = null;
+        int? maxTravelSeconds = null;
         string? sessionDirectory = null;
         string? sessionWatchsetFile = null;
         string? sessionOutputDirectory = null;
@@ -372,6 +387,98 @@ Examples:
 
                 case "--read-target-current":
                     readTargetCurrent = true;
+                    break;
+
+                case "--read-navigation-current":
+                    readNavigationCurrent = true;
+                    break;
+
+                case "--navigate-waypoints":
+                    navigateWaypoints = true;
+                    break;
+
+                case "--navigation-waypoint-file":
+                    if (!TryReadNext(args, ref index, out var navigationWaypointFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --navigation-waypoint-file.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(navigationWaypointFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Navigation waypoint file must not be blank.", UsageText);
+                    }
+
+                    navigationWaypointFile = navigationWaypointFileValue;
+                    break;
+
+                case "--start-waypoint":
+                    if (!TryReadNext(args, ref index, out var startWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --start-waypoint.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(startWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Start waypoint id must not be blank.", UsageText);
+                    }
+
+                    startWaypointId = startWaypointValue.Trim();
+                    break;
+
+                case "--destination-waypoint":
+                    if (!TryReadNext(args, ref index, out var destinationWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --destination-waypoint.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(destinationWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Destination waypoint id must not be blank.", UsageText);
+                    }
+
+                    destinationWaypointId = destinationWaypointValue.Trim();
+                    break;
+
+                case "--pace":
+                    if (!TryReadNext(args, ref index, out var paceValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --pace.", UsageText);
+                    }
+
+                    if (!NavigationPace.TryNormalize(paceValue, out var normalizedPace))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Unsupported pace '{paceValue}'. Use run, walk, or keep.", UsageText);
+                    }
+
+                    pace = normalizedPace;
+                    break;
+
+                case "--arrival-radius":
+                    if (!TryReadNext(args, ref index, out var arrivalRadiusValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --arrival-radius.", UsageText);
+                    }
+
+                    if (!double.TryParse(arrivalRadiusValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedArrivalRadius) || parsedArrivalRadius <= 0d)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid arrival radius '{arrivalRadiusValue}'.", UsageText);
+                    }
+
+                    arrivalRadius = parsedArrivalRadius;
+                    break;
+
+                case "--max-travel-seconds":
+                    if (!TryReadNext(args, ref index, out var maxTravelSecondsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --max-travel-seconds.", UsageText);
+                    }
+
+                    if (!int.TryParse(maxTravelSecondsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedMaxTravelSeconds) || parsedMaxTravelSeconds <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid max travel seconds '{maxTravelSecondsValue}'.", UsageText);
+                    }
+
+                    maxTravelSeconds = parsedMaxTravelSeconds;
                     break;
 
                 case "--session-summary":
@@ -666,6 +773,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-target-current.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-coord-anchor.", UsageText);
@@ -703,7 +820,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
             {
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with scan, snapshot, live reader, or record-session modes.", UsageText);
             }
@@ -779,7 +896,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
             }
@@ -858,6 +975,11 @@ Examples:
             if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
             {
                 return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with process attach or memory-read switches.", UsageText);
+            }
+
+            if (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || readPlayerOrientation)
+            {
+                return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with scan, probe, capture, snapshot, navigation, or other reader modes.", UsageText);
             }
 
             return ReaderOptionsParseResult.Success(
@@ -1061,6 +1183,36 @@ Examples:
             return ReaderOptionsParseResult.Fail("--session-directory can only be used with --session-summary.", UsageText);
         }
 
+        if (navigationWaypointFile is not null && !readNavigationCurrent && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--navigation-waypoint-file can only be used with --read-navigation-current or --navigate-waypoints.", UsageText);
+        }
+
+        if (startWaypointId is not null && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--start-waypoint can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (destinationWaypointId is not null && !readNavigationCurrent && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--destination-waypoint can only be used with --read-navigation-current or --navigate-waypoints.", UsageText);
+        }
+
+        if (pace is not null && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--pace can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (arrivalRadius.HasValue && !readNavigationCurrent && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--arrival-radius can only be used with --read-navigation-current or --navigate-waypoints.", UsageText);
+        }
+
+        if (maxTravelSeconds.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--max-travel-seconds can only be used with --navigate-waypoints.", UsageText);
+        }
+
         if (sessionLabel is not null && !recordSession)
         {
             return ReaderOptionsParseResult.Fail("--session-label can only be used with --record-session.", UsageText);
@@ -1086,14 +1238,29 @@ Examples:
             return ReaderOptionsParseResult.Fail("--session-summary requires --session-directory.", UsageText);
         }
 
+        if (readNavigationCurrent && string.IsNullOrWhiteSpace(destinationWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--read-navigation-current requires --destination-waypoint.", UsageText);
+        }
+
+        if (navigateWaypoints && string.IsNullOrWhiteSpace(startWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoints requires --start-waypoint.", UsageText);
+        }
+
+        if (navigateWaypoints && string.IsNullOrWhiteSpace(destinationWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoints requires --destination-waypoint.", UsageText);
+        }
+
         if (scanRequested && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || recordSession || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || readNavigationCurrent || navigateWaypoints || recordSession || address.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, record-session, or raw memory-read switches.", UsageText);
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, navigation, coord-anchor, record-session, or raw memory-read switches.", UsageText);
         }
 
         if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
@@ -1119,6 +1286,16 @@ Examples:
         if (readTargetCurrent && scanRequested)
         {
             return ReaderOptionsParseResult.Fail("--read-target-current cannot be combined with scan switches.", UsageText);
+        }
+
+        if (readNavigationCurrent && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--read-navigation-current cannot be combined with scan switches.", UsageText);
+        }
+
+        if (navigateWaypoints && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoints cannot be combined with scan switches.", UsageText);
         }
 
         if (readPlayerCoordAnchor && scanRequested)
@@ -1149,6 +1326,16 @@ Examples:
         if (readTargetCurrent && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--read-target-current cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (readNavigationCurrent && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--read-navigation-current cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (navigateWaypoints && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoints cannot be combined with raw memory-read switches.", UsageText);
         }
 
         if (readPlayerCoordAnchor && address.HasValue)
@@ -1186,6 +1373,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-target-current.", UsageText);
         }
 
+        if (listModules && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if (listModules && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
         if (listModules && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-coord-anchor.", UsageText);
@@ -1206,6 +1403,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-target-current.", UsageText);
         }
 
+        if (writeCheatEngineProbe && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if (writeCheatEngineProbe && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
         if (writeCheatEngineProbe && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-coord-anchor.", UsageText);
@@ -1219,6 +1426,16 @@ Examples:
         if (captureReaderBridgeBestFamily && readTargetCurrent)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-target-current.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --navigate-waypoints.", UsageText);
         }
 
         if (captureReaderBridgeBestFamily && readPlayerCoordAnchor)
@@ -1236,9 +1453,44 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-target-current.", UsageText);
         }
 
+        if (readPlayerCurrent && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if (readPlayerCurrent && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
         if (readPlayerCoordAnchor && readTargetCurrent)
         {
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --read-target-current.", UsageText);
+        }
+
+        if (readTargetCurrent && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--read-target-current cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if (readTargetCurrent && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--read-target-current cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
+        if (readNavigationCurrent && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--read-navigation-current cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
+        if (readPlayerCoordAnchor && readNavigationCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --read-navigation-current.", UsageText);
+        }
+
+        if (readPlayerCoordAnchor && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --navigate-waypoints.", UsageText);
         }
 
         if (writeCheatEngineProbe && recordSession)
@@ -1259,6 +1511,16 @@ Examples:
         if (readTargetCurrent && recordSession)
         {
             return ReaderOptionsParseResult.Fail("--read-target-current cannot be combined with --record-session.", UsageText);
+        }
+
+        if (readNavigationCurrent && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--read-navigation-current cannot be combined with --record-session.", UsageText);
+        }
+
+        if (navigateWaypoints && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoints cannot be combined with --record-session.", UsageText);
         }
 
         if (readPlayerCoordAnchor && recordSession)
@@ -1321,7 +1583,15 @@ Examples:
                     AddonSnapshotFile: null,
                     ReadReaderBridgeSnapshot: false,
                     ReaderBridgeSnapshotFile: null,
-                    JsonOutput: jsonOutput),
+                    JsonOutput: jsonOutput,
+                    ReadNavigationCurrent: readNavigationCurrent,
+                    NavigateWaypoints: navigateWaypoints,
+                    NavigationWaypointFile: navigationWaypointFile,
+                    StartWaypointId: startWaypointId,
+                    DestinationWaypointId: destinationWaypointId,
+                    Pace: pace,
+                    ArrivalRadius: arrivalRadius,
+                    MaxTravelSeconds: maxTravelSeconds),
             UsageText);
     }
 
