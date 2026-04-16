@@ -23,10 +23,11 @@
 - Camera movement changes ONLY a few bytes
 - Hard to distinguish camera changes from other changes
 
-### 4. Input Methods (Now Solved)
-- ❌ PostMessage mouse - doesn't work
+### 4. Input Methods (Partially Solved)
+- ❌ PostMessage mouse - not a trusted normal path
 - ❌ MCP mouse - doesn't work  
-- ✅ mouse_event (Win32) - WORKS for RMB+move
+- ✅ direct mouse_event / focused mouse input - works for RMB+move **when Rift
+  can be found cleanly and foreground focus can be verified**
 
 ## What's Needed
 
@@ -63,7 +64,7 @@
 ## Recommendations for Future AI
 
 1. **Start with Lead A** - most promising based on prior findings
-2. **Use mouse_event**, NOT PostMessage or MCP
+2. **Use focused mouse_event / direct mouse input**, NOT PostMessage or MCP
 3. **Get fresh owner trace** before starting - addresses may have shifted
 4. **Test one offset at a time**, not bulk scanning
 5. **Document every test** - even failures are data
@@ -73,7 +74,7 @@
 **Difficulty: MEDIUM-HIGH**
 - Solvable if camera data accessible from player owner chain
 - Requires systematic testing of candidates
-- Input method now works (mouse_event)
+- Input method now works when focus is clean (mouse_event / direct mouse input)
 - Main risk: camera data in unexpected location
 
 This is why the branch is called "camera-orientation-discovery" - it's an exploration, not a guarantee.

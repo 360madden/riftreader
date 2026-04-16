@@ -1,5 +1,7 @@
 # EXPERIMENTAL PROBE: alternate PostMessage mouse injection test.
-# Prefer test-rmb-camera.ps1 or test-camera-stimulus.ps1 for normal camera-input work.
+# Historical experiment only. Canonical mouse-input work now requires clean
+# Rift window acquisition plus verified focus; do not treat background
+# PostMessage as a normal mouse fallback.
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;

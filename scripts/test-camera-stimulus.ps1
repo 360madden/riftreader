@@ -18,6 +18,7 @@ $ErrorActionPreference = 'Stop'
 
 $captureScript = Join-Path $PSScriptRoot 'capture-actor-orientation.ps1'
 $keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$mouseFocusHelpers = Join-Path $PSScriptRoot 'mouse-focus-helpers.ps1'
 $windowToolsScript = Join-Path (Join-Path $PSScriptRoot '..\tools\rift-game-mcp\helpers') 'window-tools.ps1'
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-camera-stimulus-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
@@ -146,23 +147,10 @@ public static class RiftCameraStimulusNative
 "@
     }
 
-    $riftProcess = Get-Process -Name 'rift_x64' -ErrorAction Stop |
-        Where-Object { $_.MainWindowHandle -ne 0 } |
-        Select-Object -First 1
-    if (-not $riftProcess) {
-        throw 'No foreground-capable RIFT window was found.'
-    }
-
-    $rect = New-Object RiftCameraStimulusNative+RECT
-    if (-not [RiftCameraStimulusNative]::GetWindowRect($riftProcess.MainWindowHandle, [ref]$rect)) {
-        throw 'GetWindowRect failed for the RIFT window.'
-    }
-
-    $centerX = [int](($rect.Left + $rect.Right) / 2)
-    $centerY = [int](($rect.Top + $rect.Bottom) / 2)
-    if (-not [RiftCameraStimulusNative]::SetCursorPos($centerX, $centerY)) {
-        throw 'SetCursorPos failed while centering the cursor over RIFT.'
-    }
+    $riftProcess = Get-RiftMainWindowProcess -ProcessName 'rift_x64'
+    Focus-RiftWindow -Process $riftProcess
+    [void](Assert-RiftWindowFocus -Process $riftProcess)
+    [void](Move-CursorToRiftWindowCenter -Process $riftProcess)
 
     Start-Sleep -Milliseconds 40
 
@@ -201,6 +189,8 @@ public static class RiftCameraStimulusNative
         Start-Sleep -Milliseconds 30
     }
 }
+
+. $mouseFocusHelpers
 
 function Invoke-WindowToolsJson {
     param(
@@ -327,6 +317,7 @@ $output = [ordered]@{
         'Camera stimulus test compares actor orientation deltas in response to mouse input'
         'Expected: mouse-yaw-right should show positive yaw delta; mouse-pitch-up should show negative pitch delta'
         'Actor coordinate delta should remain ~0 (camera-only movement)'
+        'Mouse input is only trusted when Rift window acquisition and focus verification are clean; this script now enforces that gate before each mouse stimulus.'
     )
 }
 

@@ -14,6 +14,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ownerComponentsScript = Join-Path $PSScriptRoot 'capture-player-owner-components.ps1'
+$mouseFocusHelpers = Join-Path $PSScriptRoot 'mouse-focus-helpers.ps1'
+. $mouseFocusHelpers
 
 function Convert-CommandOutputToJson {
     param(
@@ -214,20 +216,9 @@ function Invoke-RmbMove {
         [Parameter(Mandatory = $true)][int]$Dy
     )
 
-    [void][RiftAngleProbeNative]::ShowWindow($Process.MainWindowHandle, [RiftAngleProbeNative]::SW_RESTORE)
-    [void][RiftAngleProbeNative]::SetForegroundWindow($Process.MainWindowHandle)
-    Start-Sleep -Milliseconds 250
-
-    $rect = New-Object RiftAngleProbeNative+RECT
-    if (-not [RiftAngleProbeNative]::GetWindowRect($Process.MainWindowHandle, [ref]$rect)) {
-        throw 'GetWindowRect failed for the RIFT window.'
-    }
-
-    $centerX = [int](($rect.Left + $rect.Right) / 2)
-    $centerY = [int](($rect.Top + $rect.Bottom) / 2)
-    if (-not [RiftAngleProbeNative]::SetCursorPos($centerX, $centerY)) {
-        throw 'SetCursorPos failed while centering the cursor over RIFT.'
-    }
+    Focus-RiftWindow -Process $Process
+    [void](Assert-RiftWindowFocus -Process $Process)
+    [void](Move-CursorToRiftWindowCenter -Process $Process)
 
     Start-Sleep -Milliseconds 60
     [RiftAngleProbeNative]::mouse_event([RiftAngleProbeNative]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [UIntPtr]::Zero)

@@ -1,5 +1,7 @@
 # EXPERIMENTAL PROBE: PostMessage right-button hold test.
-# Prefer test-rmb-camera.ps1 for canonical RMB-plus-mouse camera rotation checks.
+# Historical experiment only. Canonical mouse-input work now requires clean
+# Rift window acquisition plus verified focus; do not treat PostMessage RMB as
+# the primary mouse-input path.
 Add-Type @"
 using System; using System.Runtime.InteropServices;
 public class Win32 {

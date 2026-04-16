@@ -11,6 +11,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$mouseFocusHelpers = Join-Path $PSScriptRoot 'mouse-focus-helpers.ps1'
+. $mouseFocusHelpers
 
 # Parse address
 $address = if ($SelectedSourceAddress -match '^0x([0-9A-Fa-f]+)$') {
@@ -61,20 +63,21 @@ function Send-MouseInput {
     param(
         [ValidateSet('right', 'up', 'wheel-up')]
         [string]$Direction,
-        [int]$Magnitude = 50
+        [int]$Magnitude = 50,
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
     )
 
-    Add-Type -AssemblyName System.Windows.Forms
-    $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-    $centerX = $screen.Bounds.Width / 2
-    $centerY = $screen.Bounds.Height / 2
+    Focus-RiftWindow -Process $Process
+    [void](Assert-RiftWindowFocus -Process $Process)
+    $center = Move-CursorToRiftWindowCenter -Process $Process
 
     switch ($Direction) {
         'right' {
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($centerX + $Magnitude, $centerY)
+            [void][RiftMouseFocusSharedNative]::SetCursorPos($center.X + $Magnitude, $center.Y)
         }
         'up' {
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($centerX, $centerY - $Magnitude)
+            [void][RiftMouseFocusSharedNative]::SetCursorPos($center.X, $center.Y - $Magnitude)
         }
         'wheel-up' {
             Add-Type @"
@@ -121,7 +124,7 @@ try {
         'mouse-wheel' { 'wheel-up' }
     }
 
-    Send-MouseInput -Direction $inputDirection -Magnitude 50
+    Send-MouseInput -Direction $inputDirection -Magnitude 50 -Process $riftProcess
     Start-Sleep -Milliseconds $HoldMilliseconds
 
     # Capture after

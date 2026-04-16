@@ -12,6 +12,18 @@ Use the smallest reliable layer that matches the task:
 4. **manual fallback**
 5. **experimental probes only when the preferred path has already failed**
 
+## Mouse focus rule
+
+For RMB / drag / wheel style input:
+
+1. find a real Rift main window
+2. focus Rift
+3. verify Rift is actually foreground
+4. only then send mouse input
+
+If any of those fail, stop. Do **not** treat background `PostMessage` as the
+normal rescue path for mouse/camera work.
+
 ## Recommended action order
 
 | Priority | Action | Preferred entrypoint | Why |
@@ -68,6 +80,26 @@ Use the smallest reliable layer that matches the task:
 - `C:\RIFT MODDING\RiftReader\scripts\auto-discover-camera-yaw.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\find-camera-by-yaw-scan.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\quick-camera-alts-test.ps1`
+
+## Live-result framing rule
+
+For future live camera notes and summaries, explicitly separate:
+
+1. `Purpose`
+2. `Harness status`
+3. `Signal status`
+4. `Safe interpretation`
+5. `Next decision`
+
+Example:
+
+- harness status: success
+- signal status: empty
+- safe interpretation: the mouse procedure worked, but the sampled candidate
+  regions did not surface a usable camera signal
+
+Do not use vague wording that could blur procedure failure and discovery miss
+into the same conclusion.
 
 ## Archived runners
 

@@ -1,25 +1,18 @@
 # RIFT Camera Control - Step by step with pauses
 
 $ErrorActionPreference = 'Stop'
+$mouseFocusHelpers = Join-Path $PSScriptRoot 'mouse-focus-helpers.ps1'
+. $mouseFocusHelpers
 
 # Get RIFT process and window
-$rift = Get-Process -Name rift_x64 -ErrorAction SilentlyContinue
-if (-not $rift) { Write-Host "RIFT not running" -ForegroundColor Red; exit }
+$rift = Get-RiftMainWindowProcess -ProcessName 'rift_x64'
+Focus-RiftWindow -Process $rift
+[void](Assert-RiftWindowFocus -Process $rift)
 
 $hwnd = $rift.MainWindowHandle
 Write-Host "=== Step 1: Found RIFT ===" -ForegroundColor Cyan
 Write-Host "  PID: $($rift.Id), HWND: $hwnd"
-
-# Get window rectangle
-Add-Type @"
-using System; using System.Runtime.InteropServices;
-public class Win32 {
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
-}
-"@
-$rect = New-Object Win32+RECT
-[Win32]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+Write-Host "  Focus verified on Rift foreground window" -ForegroundColor Green
 
 Add-Type @"
 using System; using System.Runtime.InteropServices;
@@ -34,9 +27,9 @@ public class Mouse {
 
 # Move cursor to window
 Write-Host "`n=== Step 2: Move cursor to window center ===" -ForegroundColor Cyan
-$centerX = $rect.Left + 300
-$centerY = $rect.Top + 300
-[Mouse]::SetCursorPos($centerX, $centerY)
+$center = Move-CursorToRiftWindowCenter -Process $rift
+$centerX = $center.X
+$centerY = $center.Y
 Write-Host "  Cursor at ($centerX, $centerY)"
 Write-Host "  LOOK AT SCREEN NOW - cursor should be in game" -ForegroundColor Yellow
 
@@ -44,6 +37,8 @@ Read-Host "Press Enter to hold RMB..."
 
 # Hold RMB
 Write-Host "`n=== Step 3: Holding RMB (right mouse button) ===" -ForegroundColor Cyan
+Focus-RiftWindow -Process $rift
+[void](Assert-RiftWindowFocus -Process $rift)
 [Mouse]::mouse_event([Mouse]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
 Write-Host "  RMB held down"
 
@@ -51,6 +46,8 @@ Read-Host "Press Enter to move mouse..."
 
 # Move while holding
 Write-Host "`n=== Step 4: Moving mouse while holding RMB ===" -ForegroundColor Cyan
+Focus-RiftWindow -Process $rift
+[void](Assert-RiftWindowFocus -Process $rift)
 for ($i = 0; $i -lt 5; $i++) {
     [Mouse]::mouse_event([Mouse]::MOUSEEVENTF_MOVE, 50, 0, 0, 0)
     Write-Host "  Move $i : 50 pixels right"
@@ -61,6 +58,8 @@ Read-Host "Press Enter to release RMB..."
 
 # Release RMB
 Write-Host "`n=== Step 5: Releasing RMB ===" -ForegroundColor Cyan
+Focus-RiftWindow -Process $rift
+[void](Assert-RiftWindowFocus -Process $rift)
 [Mouse]::mouse_event([Mouse]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
 Write-Host "  RMB released"
 
