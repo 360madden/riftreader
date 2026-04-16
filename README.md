@@ -9,6 +9,12 @@ Hybrid Rift tooling project:
 
 Current work is scoped primarily to the **memory reader**.
 
+## Assistant Policy
+
+Repo-level assistant workflow guidance for this branch lives in:
+
+- `C:\RIFT MODDING\RiftReader_camera_feature\docs\assistant-operating-policy.md`
+
 Constraints:
 
 - target explicitly selected Rift client processes and installs
