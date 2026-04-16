@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RiftReader Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+    <noscript>
+        <div class="noscript-banner">This dashboard needs JavaScript enabled.</div>
+    </noscript>
+
+    <div id="app" class="app-shell">
+        <div class="loading-state">
+            <h1>RiftReader Dashboard</h1>
+            <p>Loading dashboard data…</p>
+        </div>
+    </div>
+
+    <script src="./dashboard-data.js"></script>
+    <script>
+        window.DASHBOARD_LIVE_DATA = null;
+        document.write('<script src="./dashboard-live-data.js?ts=' + Date.now() + '" onerror="window.DASHBOARD_LIVE_DATA = window.DASHBOARD_LIVE_DATA || null;"><\/script>');
+    </script>
+    <script src="./app.js"></script>
+</body>
+</html>
