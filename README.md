@@ -55,6 +55,13 @@ Start here if state drifts or gets corrupted:
 
 - C:\RIFT MODDING\RiftReader\docs\recovery\README.md
 
+## Assistant Policy
+
+Repo-level assistant workflow rules live in:
+
+- `C:\RIFT MODDING\RiftReader\agents.md`
+- `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md`
+
 ## Repository Layout
 
 ```text
