@@ -1,5 +1,5 @@
 @echo off
 setlocal EnableExtensions
-
-powershell -ExecutionPolicy Bypass -File "%~dp0post-rift-key.ps1" %*
+set "RIFTREADER_PS1=%~dp0post-rift-key.ps1"
+call "%~dp0_run-pwsh.cmd" %*
 exit /b %errorlevel%

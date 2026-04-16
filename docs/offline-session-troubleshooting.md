@@ -151,7 +151,7 @@ What to do:
 - append a marker with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1 -File <marker-input.ndjson> -Kind note -Message "smoke"
+pwsh -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1 -File <marker-input.ndjson> -Kind note -Message "smoke"
 ```
 
 - inspect `Warnings` from `--session-summary --json` for marker-input parse errors

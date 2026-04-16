@@ -1,9 +1,5 @@
 @echo off
-setlocal
-
-set "SCRIPT_DIR=%~dp0"
-set "POWERSHELL_EXE=pwsh"
-where /q "%POWERSHELL_EXE%" || set "POWERSHELL_EXE=powershell"
-
-"%POWERSHELL_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%narrow-player-stat-components.ps1" %*
-exit /b %ERRORLEVEL%
+setlocal EnableExtensions
+set "RIFTREADER_PS1=%~dp0narrow-player-stat-components.ps1"
+call "%~dp0_run-pwsh.cmd" %*
+exit /b %errorlevel%

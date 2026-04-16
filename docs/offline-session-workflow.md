@@ -134,7 +134,7 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
 Append a manual/scripted stimulus marker during a recording window:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1 -File C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline\marker-input.ndjson -Kind combat-start -Label baseline -Message "entered combat" -Source manual
+pwsh -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1 -File C:\RIFT MODDING\RiftReader\scripts\sessions\20260409-baseline\marker-input.ndjson -Kind combat-start -Label baseline -Message "entered combat" -Source manual
 ```
 
 ## What is implemented now

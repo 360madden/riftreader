@@ -9,6 +9,16 @@ Hybrid Rift tooling project:
 
 Current work is scoped primarily to the **memory reader**.
 
+## Shell Requirements
+
+RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
+
+- use `pwsh` for scripted workflows and examples
+- the PowerShell `.cmd` launchers under `scripts\` now resolve `pwsh` and fail
+  fast if it is unavailable
+- Windows PowerShell 5.1 (`powershell.exe`) is transitional only and should be
+  used only when a script explicitly requires it
+
 ## Post-Update Status (April 14, 2026)
 
 The April 14, 2026 Rift update did **not** break the low-level reader, but it
@@ -401,7 +411,7 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --se
 Append a manual/scripted session marker during a live recording:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\append-session-marker.ps1 -File .\scripts\sessions\20260409-baseline\marker-input.ndjson -Kind combat-start -Label baseline -Message "entered combat"
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\append-session-marker.ps1 -File .\scripts\sessions\20260409-baseline\marker-input.ndjson -Kind combat-start -Label baseline -Message "entered combat"
 ```
 
 Export only the current watchset:
