@@ -960,6 +960,20 @@ local function slashStat()
         false)
 end
 
+local function slashGuiHelp()
+    local lines = {
+        "<font color='#00CCFF'>[RB]</font> /readergui commands:",
+        "  /readergui           - toggle compact status panel",
+        "  /readergui show      - show panel",
+        "  /readergui hide      - hide panel",
+        "  /readergui reset     - move panel back to top-right and show it",
+        "  /readergui help      - show this help",
+    }
+    for _, line in ipairs(lines) do
+        Command.Console.Display("general", false, line, false)
+    end
+end
+
 local function slashGui(args)
     local arg = string.match(args or "", "^(%S+)")
     if arg then
@@ -967,14 +981,22 @@ local function slashGui(args)
     else
         arg = ""
     end
-    if arg == "hide" then
+    if arg == "" then
+        guiFrame:SetVisible(not guiFrame:GetVisible())
+    elseif arg == "hide" then
         guiFrame:SetVisible(false)
     elseif arg == "show" then
         guiFrame:SetVisible(true)
     elseif arg == "reset" then
         setGuiFrameAnchor("TOPRIGHT", "TOPRIGHT", -20, 20)
+        guiFrame:SetVisible(true)
+    elseif arg == "help" or arg == "?" then
+        slashGuiHelp()
     else
-        guiFrame:SetVisible(not guiFrame:GetVisible())
+        Command.Console.Display("general", false,
+            "<font color='#FFAA44'>[RB]</font> Unknown /readergui command: " .. tostring(arg),
+            false)
+        slashGuiHelp()
     end
 end
 
