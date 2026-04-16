@@ -6,6 +6,8 @@ param(
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
     [int]$AttemptTimeoutSeconds = 10,
     [int]$InterKeyDelayMilliseconds = 20,
+    [int]$FocusSettleMilliseconds = 500,
+    [switch]$RequireTargetFocus,
     [switch]$SkipBackgroundFocus
 )
 
@@ -37,7 +39,16 @@ public static class RiftPostThreadNative
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 }
 "@
 
@@ -77,9 +88,61 @@ function Focus-Window {
         [System.Diagnostics.Process]$Process
     )
 
-    [void][RiftPostThreadNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    $targetHandle = [IntPtr]$Process.MainWindowHandle
+    $dummyProcessId = 0
+    $targetThreadId = [RiftPostThreadNative]::GetWindowThreadProcessId($targetHandle, [ref]$dummyProcessId)
+    $currentThreadId = [RiftPostThreadNative]::GetCurrentThreadId()
+    $foregroundHandle = [RiftPostThreadNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    $foregroundThreadId = [RiftPostThreadNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    if ([RiftPostThreadNative]::IsIconic($targetHandle)) {
+        [void][RiftPostThreadNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    }
+
+    [void][RiftPostThreadNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
+    [void][RiftPostThreadNative]::AttachThreadInput($currentThreadId, $targetThreadId, $true)
     [void][RiftPostThreadNative]::SetForegroundWindow($Process.MainWindowHandle)
-    Start-Sleep -Milliseconds 250
+    [void][RiftPostThreadNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
+    [void][RiftPostThreadNative]::AttachThreadInput($currentThreadId, $targetThreadId, $false)
+    Start-Sleep -Milliseconds $FocusSettleMilliseconds
+}
+
+function Get-ForegroundWindowInfo {
+    $foregroundHandle = [RiftPostThreadNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    [void][RiftPostThreadNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    $foregroundProcess = $null
+    if ($foregroundProcessId -ne 0) {
+        try {
+            $foregroundProcess = Get-Process -Id $foregroundProcessId -ErrorAction Stop
+        }
+        catch {
+            $foregroundProcess = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        Handle = $foregroundHandle
+        ProcessId = [int]$foregroundProcessId
+        ProcessName = if ($null -ne $foregroundProcess) { [string]$foregroundProcess.ProcessName } else { $null }
+    }
+}
+
+function Assert-TargetFocus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -ne $Process.Id) {
+        $foregroundName = if (-not [string]::IsNullOrWhiteSpace($foreground.ProcessName)) { $foreground.ProcessName } else { 'unknown' }
+        throw ("RequireTargetFocus failed: expected Rift foreground process {0} [{1}], got {2} [{3}] handle 0x{4:X}. Activate the Rift window on the selected desktop and retry." -f $Process.ProcessName, $Process.Id, $foregroundName, $foreground.ProcessId, $foreground.Handle.ToInt64())
+    }
+
+    return $foreground
 }
 
 function Get-FileTimestampUtc {
@@ -324,7 +387,17 @@ Write-Host "[RiftThreadPost] Target process: $($targetProcess.ProcessName) [$($t
 Write-Host ("[RiftThreadPost] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
 Write-Host "[RiftThreadPost] Target thread : $targetThreadId"
 
-if (-not $SkipBackgroundFocus) {
+if ($RequireTargetFocus) {
+    Write-Host "[RiftThreadPost] Strategy     : Focused PostThreadMessage delivery"
+    Focus-Window -Process $targetProcess
+    $foreground = Assert-TargetFocus -Process $targetProcess
+    Write-Host ("[RiftThreadPost] Foreground   : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
+}
+else {
+    Write-Host "[RiftThreadPost] Strategy     : No-focus PostThreadMessage delivery"
+}
+
+if ((-not $RequireTargetFocus) -and (-not $SkipBackgroundFocus)) {
     $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
     Write-Host "[RiftThreadPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
     Focus-Window -Process $backgroundProcess
@@ -364,5 +437,10 @@ foreach ($strategy in $strategies) {
     }
 }
 
-Write-Error "No verification file update was observed after posting '$Command' to Rift thread $targetThreadId without focusing the game window."
+if ($RequireTargetFocus) {
+    Write-Error "No verification file update was observed after posting '$Command' to focused Rift thread $targetThreadId."
+}
+else {
+    Write-Error "No verification file update was observed after posting '$Command' to Rift thread $targetThreadId without focusing the game window."
+}
 exit 1

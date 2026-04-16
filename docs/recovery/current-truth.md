@@ -31,6 +31,7 @@ Use this report before trusting older actor/camera captures:
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-live-key-delivery-recheck.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-actor-yaw-focused-postmessage-recovery.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-aggressive-wrapper-unattended-validation.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-focused-postmessage-refresh-retest.md`
 - `C:\RIFT MODDING\RiftReader\docs\input-safety.md`
 
 ## Surviving baselines
@@ -107,7 +108,8 @@ Shared recovery properties:
 Operational truth:
 
 - the unattended aggressive wrapper is now live-validated
-- if forced ReaderBridge refresh fails, the wrapper can retry without refresh and still recover yaw
+- the native `refresh-readerbridge-export.ps1` path was revalidated later the same day with focused `PostMessage` and no AHK backup
+- if forced ReaderBridge refresh still fails in some future run, the wrapper can retry without refresh and still recover yaw
 - the wrapper can stop immediately after the first validated yaw winner
 
 Important nuance:
@@ -116,6 +118,7 @@ Important nuance:
 - that was workflow-induced by repeated live-warning countdown delays, not by the candidate itself
 - the successful path suppressed those warning delays during AI-driven recovery
 - the later unattended wrapper validation also confirmed that refresh-lane failure is no longer a hard blocker if the no-refresh path remains viable
+- the later focused refresh retest showed the primary native `/reloadui` path can work again when it uses the same process/HWND/focus model as the trusted gameplay-key helper
 
 Do **not** treat the old debugger-driven owner/source chain as the default first
 step for actor yaw / pitch recovery on the updated client. Use:

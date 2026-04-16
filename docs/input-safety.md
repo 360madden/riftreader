@@ -36,10 +36,10 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1` | Hybrid | live key stimulus + full recovery | `codex/actor-yaw-pitch` | Candidate screen / recovery orchestrator; supports focus-enforced Desktop-2 runs |
 | `C:\RIFT MODDING\RiftReader\scripts\run-aggressive-actor-yaw-discovery.ps1` | Hybrid | aggressive live key stimulus + triage escalation | `codex/actor-yaw-pitch` | AI-driven Desktop-2 actor-yaw workflow; stops on focus failure and writes aggressive-only artifacts |
 | `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` | Direct key input | readback profiling | `main` | Repeats multiple key stimuli |
-| `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` | Chat/reload UI-intrusive | may fallback to AHK | `main` | Uses `/reloadui`; not safe for unattended probing |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` | Chat/reload UI-intrusive | none | `main` | Command/chat injection helper |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` | Chat/reload UI-intrusive | none | `main` | Thread-message variant of command injection |
-| `C:\RIFT MODDING\RiftReader\scripts\send-rift-command.ps1` | Chat/reload UI-intrusive | focus-sensitive | `main` | Uses `Enter` + typed command flow |
+| `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` | Chat/reload UI-intrusive | legacy AHK backup only | `main` | Uses `/reloadui`; primary path is now focused native `PostMessage`, but the helper is still disruptive and not safe for unattended probing |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` | Chat/reload UI-intrusive | focus-enforced native `PostMessage` available | `main` | Command/chat injection helper; current refresh path should prefer `-RequireTargetFocus` |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` | Chat/reload UI-intrusive | focus-enforced experimental path available | `main` | Thread-message variant of command injection; still secondary to the main focused `PostMessage` helper |
+| `C:\RIFT MODDING\RiftReader\scripts\send-rift-command.ps1` | Chat/reload UI-intrusive | delegates to focused native `PostMessage` helper | `main` | Compatibility wrapper for ad hoc chat commands |
 | `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` | Hybrid | may refresh export / reacquire | `main` | Mostly reader-driven, but can invoke helper flows |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` | Hybrid | may rely on live trace/input path | `main` | Analysis-first, but not purely passive |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` | Hybrid | may refresh selector trace | `main` | Downstream of trace workflow |
@@ -64,6 +64,10 @@ Treat the focused-then-`PostMessage` lane as the current branch default, and
 keep the foreground `SendInput` path untrusted until it is revalidated in its
 own dated report.
 
+As of the later `2026-04-15` refresh retest, the native `/reloadui` refresh
+path also works with the same focus-enforced process/HWND strategy and no
+longer requires the AutoHotkey backup for the validated path.
+
 When Rift is isolated on Desktop 2, screenshot-based gameplay UI checks are
 not authoritative unless that desktop is actually visible. Memory/input
 workflows may proceed, but pixel-based safety checks should be treated
@@ -72,6 +76,7 @@ cautiously.
 See:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-live-key-delivery-recheck.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-focused-postmessage-refresh-retest.md`
 
 ## High-risk helpers
 
