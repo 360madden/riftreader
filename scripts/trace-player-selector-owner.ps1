@@ -125,16 +125,103 @@ function Try-ParseDouble {
     return $null
 }
 
-function Get-CoordTripletSample {
+function Normalize-RegisterName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $null
+    }
+
+    return $Name.Trim().ToUpperInvariant()
+}
+
+function ConvertTo-LuaLiteral {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return 'nil'
+    }
+
+    if ($Value -is [bool]) {
+        return $Value.ToString().ToLowerInvariant()
+    }
+
+    if ($Value -is [byte] -or $Value -is [sbyte] -or $Value -is [short] -or $Value -is [ushort] -or
+        $Value -is [int] -or $Value -is [uint32] -or $Value -is [long] -or $Value -is [uint64]) {
+        return ([System.Convert]::ToString($Value, [System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    if ($Value -is [float] -or $Value -is [double] -or $Value -is [decimal]) {
+        return ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0}', $Value))
+    }
+
+    $text = [string]$Value
+    $text = $text.Replace('\', '\\').Replace("'", "\'")
+    return "'" + $text + "'"
+}
+
+function ConvertTo-LuaTable {
     param(
-        [string]$Prefix
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Table
     )
 
-    [ordered]@{
-        X = Try-ParseDouble ([string]$status."${Prefix}X")
-        Y = Try-ParseDouble ([string]$status."${Prefix}Y")
-        Z = Try-ParseDouble ([string]$status."${Prefix}Z")
+    $pairs = foreach ($property in $Table.GetEnumerator()) {
+        "{0} = {1}" -f $property.Key, (ConvertTo-LuaLiteral -Value $property.Value)
     }
+
+    return '{ ' + ($pairs -join ', ') + ' }'
+}
+
+function Get-ConfigurationValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Configuration,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $Configuration -or -not $Configuration.PSObject.Properties[$Name]) {
+        return $null
+    }
+
+    return $Configuration.$Name
+}
+
+function Get-CoordTraceSelectedSourceAddress {
+    param(
+        $CoordTrace,
+        [string]$PreferredRegister
+    )
+
+    if ($null -eq $CoordTrace) {
+        return $null
+    }
+
+    if ($CoordTrace.PSObject.Properties['SourceObjectRegisterValue'] -and -not [string]::IsNullOrWhiteSpace([string]$CoordTrace.SourceObjectRegisterValue)) {
+        return [string]$CoordTrace.SourceObjectRegisterValue
+    }
+
+    if ($CoordTrace.PSObject.Properties['Trace'] -and $CoordTrace.Trace -and $CoordTrace.Trace.PSObject.Properties['Registers']) {
+        $registers = $CoordTrace.Trace.Registers
+        $normalizedPreferredRegister = Normalize-RegisterName -Name $PreferredRegister
+        if (-not [string]::IsNullOrWhiteSpace($normalizedPreferredRegister) -and $registers.PSObject.Properties[$normalizedPreferredRegister]) {
+            $value = [string]$registers.$normalizedPreferredRegister
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return $value
+            }
+        }
+
+        if ($registers.PSObject.Properties['RDI']) {
+            $value = [string]$registers.RDI
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return $value
+            }
+        }
+    }
+
+    return $null
 }
 
 if ($RefreshSourceChain -or -not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
@@ -146,18 +233,61 @@ if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
 }
 
 $sourceChain = Get-Content -LiteralPath $resolvedSourceChainFile -Raw | ConvertFrom-Json -Depth 30
-$triggerInstruction = $sourceChain.SourceChain.SourceObjectLoad
+$traceConfiguration = $sourceChain.TraceConfiguration
+$triggerInstruction = if ($sourceChain.TriggerInstruction) { $sourceChain.TriggerInstruction } else { $sourceChain.SourceChain.SourceObjectLoad }
 if ($null -eq $triggerInstruction -or [string]::IsNullOrWhiteSpace([string]$triggerInstruction.Address)) {
-    throw 'Source-chain file did not contain the source-object load instruction.'
+    throw 'Source-chain file did not contain a valid trigger instruction.'
 }
 
-$selectorPattern = '0F B6 54 01 18 80 FA FF 0F 84 ?? ?? ?? ?? 48 8B 48 78 48 8B 3C D1 48 85 FF'
-$selectorPatternScan = Invoke-ReaderJson -Arguments @(
-    '--process-name', 'rift_x64',
-    '--scan-module-pattern', $selectorPattern,
-    '--scan-module-name', 'rift_x64.exe',
-    '--json')
+$selectorPattern = [string]$sourceChain.SuggestedSelectorPattern
+$selectorPatternScan = $null
+if (-not [string]::IsNullOrWhiteSpace($selectorPattern)) {
+    try {
+        $selectorPatternScan = Invoke-ReaderJson -Arguments @(
+            '--process-name', 'rift_x64',
+            '--scan-module-pattern', $selectorPattern,
+            '--scan-module-name', 'rift_x64.exe',
+            '--json')
+    }
+    catch {
+        $selectorPatternScan = [pscustomobject]@{
+            Mode = 'module-pattern-scan'
+            Error = $_.Exception.Message
+        }
+    }
+}
 
+$luaConfiguration = [ordered]@{
+    ownerObjectRegister = Normalize-RegisterName -Name ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'OwnerObjectRegister'))
+    ownerContainerRegister = Normalize-RegisterName -Name ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'OwnerContainerRegister'))
+    selectorIndexRegister = Normalize-RegisterName -Name ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'SelectorIndexRegister'))
+    selectedSourceRegister = Normalize-RegisterName -Name ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'SelectedSourceRegister'))
+    selectorScale = Try-ParseInt32 ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'SelectorScale'))
+    selectorDisplacement = Try-ParseInt32 ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'SelectorDisplacement'))
+    ownerContainerDisplacement = Try-ParseInt32 ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'OwnerContainerDisplacement'))
+    ownerSlotBaseRegister = Normalize-RegisterName -Name ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'OwnerSlotBaseRegister'))
+    ownerSlotDisplacement = Try-ParseInt32 ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'OwnerSlotDisplacement'))
+    sourceCoord48Offset = Try-ParseInt32 ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'SourceCoord48Offset'))
+    sourceCoord88Offset = Try-ParseInt32 ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'SourceCoord88Offset'))
+}
+
+if ($null -eq $luaConfiguration.selectorScale) {
+    $luaConfiguration.selectorScale = 8
+}
+
+if ($null -eq $luaConfiguration.selectorDisplacement) {
+    $luaConfiguration.selectorDisplacement = 0
+}
+
+if ($null -eq $luaConfiguration.sourceCoord48Offset) {
+    $luaConfiguration.sourceCoord48Offset = 0x48
+}
+
+if ($null -eq $luaConfiguration.sourceCoord88Offset) {
+    $luaConfiguration.sourceCoord88Offset = 0x88
+}
+
+$luaConfigurationLiteral = ConvertTo-LuaTable -Table $luaConfiguration
 $triggerAddress = Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
 $status = $null
 $producedStatusFile = $false
@@ -171,7 +301,7 @@ for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
     & $ceExecScript -LuaFile $selectorLuaFile | Out-Null
 
     $luaCode = @"
-return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], 0x70)
+return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], $luaConfigurationLiteral)
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
@@ -253,7 +383,7 @@ if (Test-Path -LiteralPath $resolvedCoordTraceFile) {
 }
 
 $selectedSourceAddress = [string]$status.selectedSourceAddress
-$coordTraceSourceAddress = [string]$coordTrace.Trace.Registers.RDI
+$coordTraceSourceAddress = Get-CoordTraceSelectedSourceAddress -CoordTrace $coordTrace -PreferredRegister ([string]$status.selectedSourceRegister)
 $selectedSourceMatchesCoordTrace = -not [string]::IsNullOrWhiteSpace($selectedSourceAddress) -and
     -not [string]::IsNullOrWhiteSpace($coordTraceSourceAddress) -and
     ($selectedSourceAddress -eq $coordTraceSourceAddress)
@@ -280,8 +410,23 @@ $result = [ordered]@{
     SourceChainFile = $resolvedSourceChainFile
     CoordTraceFile = if (Test-Path -LiteralPath $resolvedCoordTraceFile) { $resolvedCoordTraceFile } else { $null }
     TriggerInstruction = $triggerInstruction
+    TraceConfiguration = [ordered]@{
+        OwnerObjectRegister = [string]$status.ownerObjectRegister
+        OwnerContainerRegister = [string]$status.ownerContainerRegister
+        SelectorIndexRegister = [string]$status.selectorIndexRegister
+        SelectedSourceRegister = [string]$status.selectedSourceRegister
+        SelectorScale = Try-ParseInt32 ([string]$status.selectorScale)
+        SelectorDisplacement = Try-ParseInt32 ([string]$status.selectorDisplacement)
+        OwnerContainerDisplacement = Try-ParseInt32 ([string]$status.ownerContainerDisplacement)
+        OwnerSlotBaseRegister = [string]$status.ownerSlotBaseRegister
+        OwnerSlotDisplacement = Try-ParseInt32 ([string]$status.ownerSlotDisplacement)
+        SourceCoord48Offset = Try-ParseInt32 ([string]$status.sourceCoord48Offset)
+        SourceCoord88Offset = Try-ParseInt32 ([string]$status.sourceCoord88Offset)
+        SelectedSourceComputation = [string]$status.selectedSourceComputation
+    }
     Trace = [ordered]@{
         Status = [string]$status.status
+        Stage = [string]$status.stage
         HitCount = Try-ParseInt32 ([string]$status.hitCount)
         InstructionAddress = [string]$status.rip
         InstructionSymbol = [string]$status.instructionSymbol
@@ -313,6 +458,7 @@ $result = [ordered]@{
     Owner = [ordered]@{
         SlotAddress = [string]$status.ownerSlotAddress
         ObjectAddress = [string]$status.ownerObjectAddress
+        ObjectAddressSource = [string]$status.ownerObjectSource
         ContainerAddress = [string]$status.ownerContainerAddress
         ContainerFromObject = [string]$status.ownerContainerFromObject
         ContainerMatchesObject78 = ([string]$status.ownerContainerMatchesObject78) -eq 'true'
@@ -321,6 +467,7 @@ $result = [ordered]@{
     }
     SelectedSource = [ordered]@{
         Address = $selectedSourceAddress
+        AddressSource = [string]$status.selectedSourceComputation
         MatchesCoordTraceSource = $selectedSourceMatchesCoordTrace
         Coord48 = $selectedSourceCoord48
         Coord88 = $selectedSourceCoord88
@@ -351,7 +498,7 @@ else {
     Write-Host "Selected = coord trace: $($result.SelectedSource.MatchesCoordTraceSource)"
     Write-Host ("Selected +0x48:        {0}, {1}, {2}" -f $selectedSourceCoord48.X, $selectedSourceCoord48.Y, $selectedSourceCoord48.Z)
     Write-Host ("Selected +0x88:        {0}, {1}, {2}" -f $selectedSourceCoord88.X, $selectedSourceCoord88.Y, $selectedSourceCoord88.Z)
-    if ($selectorPatternScan.Found -eq $true) {
+    if ($selectorPatternScan -and $selectorPatternScan.Found -eq $true) {
         Write-Host "Selector pattern:      $($selectorPatternScan.Address) [$($selectorPatternScan.RelativeOffsetHex)]"
     }
 }
