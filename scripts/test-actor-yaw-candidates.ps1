@@ -6,6 +6,8 @@ param(
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-yaw-candidate-test.json'),
     [int]$TopCount = 4,
     [string]$StimulusKey = 'Right',
+    [ValidateSet('PostMessage', 'SendInput', 'AutoHotkey', 'Manual')]
+    [string]$StimulusMode = 'PostMessage',
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
     [switch]$SkipStimulus,
@@ -20,6 +22,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
+$sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
 $resolvedCandidateScreenFile = [System.IO.Path]::GetFullPath($CandidateScreenFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
@@ -338,7 +342,7 @@ foreach ($row in $candidateRows) {
     $beforeSnapshots[$row.SourceAddress] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
 }
 
-if ($SkipStimulus) {
+if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
     if ($ManualWindowMilliseconds -gt 0) {
         Write-Host ("Manual turn window:         {0} ms" -f $ManualWindowMilliseconds)
         Write-Host 'Turn the player manually now.' -ForegroundColor Yellow
@@ -346,9 +350,23 @@ if ($SkipStimulus) {
     }
 }
 else {
-    & $postKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds *> $null
+    switch ($StimulusMode) {
+        'PostMessage' {
+            & $postKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds *> $null
+        }
+        'SendInput' {
+            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
+        }
+        'AutoHotkey' {
+            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
+        }
+        default {
+            throw "Unsupported stimulus mode '$StimulusMode'."
+        }
+    }
+
     if ($LASTEXITCODE -ne 0) {
-        throw "Stimulus key '$StimulusKey' failed."
+        throw "Stimulus key '$StimulusKey' failed via mode '$StimulusMode'."
     }
 }
 
@@ -416,7 +434,8 @@ $document.GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Global
 $document.CandidateScreenFile = $resolvedCandidateScreenFile
 $document.ProcessName = $ProcessName
 $document.StimulusKey = $StimulusKey
-$document.SkipStimulus = $SkipStimulus
+$document.StimulusMode = $StimulusMode
+$document.SkipStimulus = ($SkipStimulus -or $StimulusMode -eq 'Manual')
 $document.ManualWindowMilliseconds = $ManualWindowMilliseconds
 $document.HoldMilliseconds = $HoldMilliseconds
 $document.WaitMilliseconds = $WaitMilliseconds
@@ -429,7 +448,7 @@ $document.TruthLikeCandidateCount = $truthLikeResults.Count
 $document.BestTruthLikeCandidate = $bestTruthLike
 $document.Results = $results.ToArray()
 $document.Notes = @(
-    $(if ($SkipStimulus) { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { 'Read-only candidate validation using direct memory reads plus a controlled turn key stimulus.' }),
+    $(if ($SkipStimulus -or $StimulusMode -eq 'Manual') { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { "Read-only candidate validation using direct memory reads plus a controlled $StimulusMode turn key stimulus." }),
     'No debugger attach, breakpoint tracing, or debug scanning was used.',
     'A candidate is marked truth-like when its yaw changes beyond the configured threshold while player coordinate drift stays under the configured limit.')
 
@@ -448,12 +467,13 @@ if ($Json) {
 
 Write-Host "Actor yaw candidate test"
 Write-Host "Output file:              $resolvedOutputFile"
-if ($SkipStimulus) {
+if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
     Write-Host "Stimulus mode:            manual"
     Write-Host "Manual window (ms):       $ManualWindowMilliseconds"
 }
 else {
     Write-Host "Stimulus key:             $StimulusKey"
+    Write-Host "Stimulus mode:            $StimulusMode"
 }
 Write-Host "Candidates tested:        $($results.Count)"
 Write-Host "Truth-like candidates:    $(@($results | Where-Object { $_.TruthLike }).Count)"
