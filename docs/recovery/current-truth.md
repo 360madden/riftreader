@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 15, 2026 (post-update triage + Desktop-2 focus-enforced actor-yaw recovery)_
+_Last updated: April 17, 2026 (post-update triage + focus-enforced actor-yaw rediscovery on `main`)_
 
 ## Current status
 
@@ -14,10 +14,10 @@ _Last updated: April 15, 2026 (post-update triage + Desktop-2 focus-enforced act
 | Selector-owner trace | broken after the update |
 | CE scan / inspection lane | usable for bounded reintegration |
 | CE debugger-trace lane | suspected Windows debugger attach instability; keep opt-in and log repeated failures before patching guards |
-| Player orientation read | recovered on `codex/actor-yaw-pitch` via focused-PostMessage live actor-yaw recovery; old owner/source-chain artifacts on `main` remain stale |
+| Player orientation read | revalidated on `main` via focused-PostMessage pinned pointer-hop recovery; current validated winner is `0x1EC9B977D20 @ 0xD4` |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
-| Direct gameplay key stimulus on `main` | focused `PostMessage` via `post-rift-key.ps1 -RequireTargetFocus` is the trusted Desktop-2 default; foreground `SendInput` remains untrusted |
+| Direct gameplay key stimulus on `main` | focused `PostMessage` via `post-rift-key.ps1 -RequireTargetFocus` is the trusted default; foreground `SendInput` remains untrusted |
 | Direct mouse/camera stimulus on `main` | only use when Rift window acquisition and foreground verification are clean; do not treat background `PostMessage` as a mouse fallback |
 
 ## Post-update note
@@ -59,7 +59,7 @@ Still working as a module-local pattern:
 - `trace-player-selector-owner.ps1` can remain `armed` without a hit
 - `player-selector-owner-trace.json` is stale until regenerated
 - `player-owner-components.json` is stale until regenerated
-- `player-actor-orientation.json` is stale until regenerated
+- unpinned owner/source-chain actor-orientation selection remains stale until regenerated
 
 ## Actor yaw / pitch recovery direction
 
@@ -71,7 +71,7 @@ The current recommended recovery path is:
 4. use CE scan / inspection only as a secondary discovery lane when it helps
 5. only then fall back to raw-memory rediscovery or CE debugger-trace if the addon layer yields nothing useful
 
-For live actor-yaw screening on `codex/actor-yaw-pitch`:
+For live actor-yaw screening on `main`:
 
 - do **not** assume `Codex` staying foreground is enough
 - Rift may still reject most live input unless the game window itself takes focus
@@ -79,13 +79,35 @@ For live actor-yaw screening on `codex/actor-yaw-pitch`:
   - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -RequireTargetFocus`
   - `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1 -RequireTargetFocus`
   - `C:\RIFT MODDING\RiftReader\scripts\run-aggressive-actor-yaw-discovery.ps1`
+- do **not** treat a one-time focus attempt at the start of the run as enough; active live helpers now re-verify or re-establish Rift foreground immediately before each live input event
 - if focus cannot be verified, stop and require operator intervention instead of falling through to `SendInput`
-- when Rift is isolated on Desktop 2, screenshot-based UI clear checks are not authoritative unless that desktop is visible; the aggressive wrapper skips that gate by default
+- when Rift is isolated on another or non-visible desktop, screenshot-based UI clear checks are not authoritative unless that desktop is visible; the aggressive wrapper skips that gate by default
 - the reusable workflow backups for future live feature recovery/discovery now live here:
   - `C:\RIFT MODDING\RiftReader\docs\recovery\focused-postmessage-discovery-workflow.md`
   - `C:\RIFT MODDING\RiftReader\docs\recovery\focused-postmessage-discovery-prompt.json`
 
-Validated actor-yaw winners on `codex/actor-yaw-pitch`:
+Latest validated actor-yaw winner on `main`:
+
+1. pinned pointer-hop revalidation after live source drift:
+   - source address: `0x1EC9B977D20`
+   - basis forward offset: `0xD4`
+   - timeline-backed `A` proof:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\stimulus-timelines\20260417-054603-a.ndjson`
+   - timeline-backed `D` proof:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\stimulus-timelines\20260417-054903-d.ndjson`
+   - full opposite-direction recovery artifact:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\screening\aggressive\recovery-1ec9b977d20-basis-d4.20260417.json`
+
+Current rediscovery truth:
+
+- the current client no longer behaved reliably with unpinned live candidate selection alone
+- an unpinned `A` proof showed real yaw response but source drift across captures
+- the unattended `D`-first aggressive ledger and a focused `A`-first screen both produced only stable-but-nonresponsive candidates
+- pinning the drifted-but-responsive `A` candidate restored stable opposite-direction proof on the same live source
+- basis family `0xD4` remains the validated actor-yaw basis family on the current client
+- the current trusted recovery path is: detect the responsive family, pin the live source/basis, then validate with opposite-direction `A`/`D` proof
+
+Historical validated actor-yaw winners on `codex/actor-yaw-pitch`:
 
 1. first manual pinned validation:
    - source address: `0x245D78DCB50`

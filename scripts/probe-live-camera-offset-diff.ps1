@@ -186,7 +186,7 @@ function Invoke-RmbMove {
 
     Focus-Window -Process $Process
     if (-not $SkipTargetFocusCheck) {
-        [void](Assert-TargetFocus -Process $Process)
+        [void](Ensure-TargetFocus -Process $Process)
     }
 
     $rect = New-Object RiftCameraDiffNative+RECT
@@ -199,11 +199,11 @@ function Invoke-RmbMove {
     [void][RiftCameraDiffNative]::SetCursorPos($centerX, $centerY)
     Start-Sleep -Milliseconds 50
 
-    [RiftCameraDiffNative]::mouse_event([RiftCameraDiffNative]::MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+    Invoke-MouseEventChecked -Process $Process -Flags ([RiftCameraDiffNative]::MOUSEEVENTF_RIGHTDOWN) -Dx 0 -Dy 0
     Start-Sleep -Milliseconds 60
-    [RiftCameraDiffNative]::mouse_event([RiftCameraDiffNative]::MOUSEEVENTF_MOVE, $Dx, $Dy, 0, [UIntPtr]::Zero)
+    Invoke-MouseEventChecked -Process $Process -Flags ([RiftCameraDiffNative]::MOUSEEVENTF_MOVE) -Dx $Dx -Dy $Dy
     Start-Sleep -Milliseconds 120
-    [RiftCameraDiffNative]::mouse_event([RiftCameraDiffNative]::MOUSEEVENTF_RIGHTUP, 0, 0, 0, [UIntPtr]::Zero)
+    Invoke-MouseEventChecked -Process $Process -Flags ([RiftCameraDiffNative]::MOUSEEVENTF_RIGHTUP) -Dx 0 -Dy 0
     Start-Sleep -Milliseconds 200
 }
 
@@ -272,6 +272,34 @@ function Assert-TargetFocus {
     }
 
     return $foreground
+}
+
+function Ensure-TargetFocus {
+    param([Parameter(Mandatory = $true)]$Process)
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -eq $Process.Id) {
+        return $foreground
+    }
+
+    Focus-Window -Process $Process
+    return Assert-TargetFocus -Process $Process
+}
+
+function Invoke-MouseEventChecked {
+    param(
+        [Parameter(Mandatory = $true)]$Process,
+        [Parameter(Mandatory = $true)][uint32]$Flags,
+        [int]$Dx = 0,
+        [int]$Dy = 0,
+        [uint32]$Data = 0
+    )
+
+    if (-not $SkipTargetFocusCheck) {
+        [void](Ensure-TargetFocus -Process $Process)
+    }
+
+    [RiftCameraDiffNative]::mouse_event($Flags, $Dx, $Dy, $Data, [UIntPtr]::Zero)
 }
 
 function Get-DiffCandidates {

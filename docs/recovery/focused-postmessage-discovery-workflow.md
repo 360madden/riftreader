@@ -24,7 +24,7 @@ Use this workflow when all of the following are true:
 
 1. the target feature needs live in-game input to reveal a memory signal
 2. the feature can be measured by before/after memory captures
-3. the game may be running on Desktop 2 or another isolated desktop
+3. the game may be running on another isolated or non-visible desktop
 4. screenshot-based UI checks are weak or non-authoritative for that topology
 5. you need a results-first discovery ladder, not a slow manual probe loop
 
@@ -43,7 +43,8 @@ For this workflow, the trusted live-input path is:
 
 1. focus Rift
 2. verify Rift actually became foreground
-3. send gameplay input via `PostMessage`
+3. re-verify or re-enforce Rift foreground before each live input send
+4. send gameplay input via `PostMessage`
 
 Do **not** treat these as equivalent:
 
@@ -63,7 +64,8 @@ For mouse/camera work:
 1. bind the Rift process and a real main window handle
 2. focus Rift
 3. verify Rift is actually foreground
-4. only then send mouse input
+4. re-verify or re-enforce Rift foreground before each mouse event
+5. only then send mouse input
 
 If any of those fail:
 
@@ -74,9 +76,9 @@ If any of those fail:
 The focused-`PostMessage` rule is for keyboard/chat delivery. Mouse delivery is
 only trusted when window acquisition and focus are already clean.
 
-### 2. Desktop-2 screen pixels are not authority
+### 2. Hidden-desktop screen pixels are not authority
 
-If Rift is isolated on Desktop 2:
+If Rift is isolated on another or non-visible desktop:
 
 - memory reads may still be good
 - focused key delivery may still be good
@@ -172,7 +174,7 @@ Before any live discovery run:
 
 1. Rift is running
 2. the correct Rift window is available
-3. if Rift is on Desktop 2, it can still be manually activated there
+3. if Rift is on another desktop, it can still be manually activated there
 4. the reader baseline is healthy enough to read:
    - player current
    - coord anchor
@@ -248,7 +250,7 @@ Preferred orchestrator:
 
 - `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1`
 
-Desktop-2 aggressive pattern:
+Aggressive pattern for focus-enforced runs:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1" `

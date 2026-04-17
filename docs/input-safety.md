@@ -37,11 +37,11 @@ Mouse-input rule as of `2026-04-15`:
 | `C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.ps1` | Read-only | none | `main` | Watches saved-variable output only |
 | `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1` | Read-only | none | `main` | Capture provenance / freshness only |
 | `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1` | Read-only | none | `main` | Derived watchset output only |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper; for Desktop-2 actor-yaw work prefer `-RequireTargetFocus` so Rift is foreground-verified before `PostMessage` delivery |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper; for actor-yaw work prefer `-RequireTargetFocus` so Rift is foreground-verified before `PostMessage` delivery |
 | `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` | Direct key input | readback before/after | `main` | Measures actor-orientation deltas around a key stimulus |
-| `C:\RIFT MODDING\RiftReader\scripts\recover-actor-orientation.ps1` | Direct key input | readback + candidate ledger writes | `codex/actor-yaw-pitch` | Full opposite-direction actor-yaw recovery pass; can skip the screenshot gate for Desktop-2 isolation |
-| `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1` | Hybrid | live key stimulus + full recovery | `codex/actor-yaw-pitch` | Candidate screen / recovery orchestrator; supports focus-enforced Desktop-2 runs |
-| `C:\RIFT MODDING\RiftReader\scripts\run-aggressive-actor-yaw-discovery.ps1` | Hybrid | aggressive live key stimulus + triage escalation | `codex/actor-yaw-pitch` | AI-driven Desktop-2 actor-yaw workflow; stops on focus failure and writes aggressive-only artifacts |
+| `C:\RIFT MODDING\RiftReader\scripts\recover-actor-orientation.ps1` | Direct key input | readback + candidate ledger writes | `codex/actor-yaw-pitch` | Full opposite-direction actor-yaw recovery pass; can skip the screenshot gate when the Rift desktop is hidden or non-visible |
+| `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1` | Hybrid | live key stimulus + full recovery | `codex/actor-yaw-pitch` | Candidate screen / recovery orchestrator; supports focus-enforced live runs |
+| `C:\RIFT MODDING\RiftReader\scripts\run-aggressive-actor-yaw-discovery.ps1` | Hybrid | aggressive live key stimulus + triage escalation | `codex/actor-yaw-pitch` | AI-driven actor-yaw workflow; stops on focus failure and writes aggressive-only artifacts |
 | `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` | Direct key input | readback profiling | `main` | Repeats multiple key stimuli |
 | `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` | Chat/reload UI-intrusive | legacy AHK backup only | `main` | Uses `/reloadui`; primary path is now focused native `PostMessage`, but the helper is still disruptive and not safe for unattended probing |
 | `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` | Chat/reload UI-intrusive | focus-enforced native `PostMessage` available | `main` | Command/chat injection helper; current refresh path should prefer `-RequireTargetFocus` |
@@ -59,7 +59,7 @@ Mouse-input rule as of `2026-04-15`:
 ## Latest live delivery note
 
 As of `2026-04-15`, the trusted gameplay-key stimulus for the
-`codex/actor-yaw-pitch` Desktop-2 workflow is **focused `PostMessage`** via
+`codex/actor-yaw-pitch` workflow is **focused `PostMessage`** via
 `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -RequireTargetFocus`.
 
 Mouse/camera input remains a separate lane. For RMB / drag / wheel style
@@ -68,7 +68,8 @@ helpers, the repo policy is now:
 1. find the Rift process and a real main window handle
 2. focus Rift
 3. verify Rift is actually foreground
-4. only then send mouse input
+4. re-verify or re-enforce focus before each live input send
+5. only then send mouse input
 
 If any of those fail, stop. Do **not** try to rescue mouse input with a
 background `PostMessage` fallback.
@@ -78,6 +79,11 @@ could still land while `Codex` stayed foreground, but the aggressive
 AI-driven branch workflow must **not** rely on that assumption. Rift may still
 ignore or inconsistently accept live input unless its own window is foreground.
 
+For the active live-testing helpers, a one-time focus attempt at the start of a
+run is not enough. Focus is now treated as an enforced per-input requirement:
+the helper must verify or re-establish Rift foreground immediately before each
+live key or mouse event it sends.
+
 Treat the focused-then-`PostMessage` lane as the current branch default, and
 keep the foreground `SendInput` path untrusted until it is revalidated in its
 own dated report.
@@ -86,8 +92,9 @@ As of the later `2026-04-15` refresh retest, the native `/reloadui` refresh
 path also works with the same focus-enforced process/HWND strategy and no
 longer requires the AutoHotkey backup for the validated path.
 
-When Rift is isolated on Desktop 2, screenshot-based gameplay UI checks are
-not authoritative unless that desktop is actually visible. Memory/input
+When Rift is isolated on another or non-visible desktop, screenshot-based
+gameplay UI checks are not authoritative unless that desktop is actually
+visible. Memory/input
 workflows may proceed, but pixel-based safety checks should be treated
 cautiously.
 

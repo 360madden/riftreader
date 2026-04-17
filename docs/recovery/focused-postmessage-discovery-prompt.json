@@ -17,24 +17,24 @@
     "forbidden_actions": [
       "Do not treat old owner-source lineage artifacts as current truth without current-process validation.",
       "Do not silently fall back to SendInput when focused PostMessage is required.",
-      "Do not treat Desktop-2 screenshot heuristics as authoritative when that desktop is not visible.",
+      "Do not treat hidden-desktop screenshot heuristics as authoritative when that desktop is not visible.",
       "Do not continue broad candidate spraying after a validated winner is already proven.",
       "Do not let ReaderBridge refresh failure abort the whole unattended workflow when the no-refresh path is still viable."
     ]
   },
   "context": {
-    "schema_version": "2026-04-15.focused-postmessage-discovery.v1",
+    "schema_version": "2026-04-17.focused-postmessage-discovery.v3",
     "repo_root": "C:\\RIFT MODDING\\RiftReader",
     "branch": "codex/actor-yaw-pitch",
     "process_name": "rift_x64",
-    "date": "2026-04-15",
+    "date": "2026-04-17",
     "timezone": "America/New_York",
     "workflow_type": "focused_postmessage_live_feature_discovery",
-    "desktop_topology": "Rift may run on Desktop 2 while Codex remains elsewhere",
+    "desktop_topology": "Rift may run on another isolated or non-visible desktop while Codex remains elsewhere",
     "current_branch_truth": {
-      "trusted_live_input_lane": "focused PostMessage after verified Rift foreground",
+      "trusted_live_input_lane": "focused PostMessage with Rift foreground verified or re-established before each live input send",
       "untrusted_live_input_lane": "foreground SendInput",
-      "screen_gate_truth": "Desktop-2 screenshot UI checks are non-authoritative unless the Rift desktop is visible",
+      "screen_gate_truth": "Hidden-desktop screenshot UI checks are non-authoritative unless the Rift desktop is visible",
       "reader_refresh_behavior": "unattended wrappers should retry without forced ReaderBridge refresh if refresh is the only failing layer"
     },
     "actor_yaw_reference_example": {
@@ -71,7 +71,8 @@
     "live_input_allowed": true,
     "artifact_grounding_required": true,
     "require_target_focus_for_live_input": true,
-    "skip_ui_clear_check_by_default_for_desktop_2": true,
+    "reverify_focus_before_each_live_input_send": true,
+    "skip_ui_clear_check_by_default_for_hidden_desktop": true,
     "skip_script_side_live_warning_delays_for_ai_driven_sequences": true,
     "stop_on_first_validated_winner": true,
     "retry_without_refresh_on_refresh_lane_failure": true,
@@ -170,6 +171,7 @@
         "rules": [
           "Focus Rift first",
           "Verify Rift foreground belongs to the target process",
+          "Re-verify or re-establish Rift foreground before each live input send",
           "If focus verification fails, stop for operator intervention",
           "Never silently downgrade to SendInput"
         ]

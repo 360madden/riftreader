@@ -14,6 +14,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:TargetFocusProcess = $null
 
 Add-Type -TypeDefinition @"
 using System;
@@ -183,6 +184,43 @@ function Assert-TargetFocus {
     return $foreground
 }
 
+function Ensure-TargetFocus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -eq $Process.Id) {
+        return $foreground
+    }
+
+    Focus-Window -Process $Process
+    return Assert-TargetFocus -Process $Process
+}
+
+function Post-WindowMessageChecked {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WindowHandle,
+
+        [Parameter(Mandatory = $true)]
+        [uint32]$Message,
+
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WParam,
+
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$LParam
+    )
+
+    if ($null -ne $script:TargetFocusProcess) {
+        [void](Ensure-TargetFocus -Process $script:TargetFocusProcess)
+    }
+
+    [void][RiftPostMessageNative]::PostMessage($WindowHandle, $Message, $WParam, $LParam)
+}
+
 function Get-FileTimestampUtc {
     param(
         [Parameter(Mandatory = $true)]
@@ -209,9 +247,9 @@ function Post-Key {
     $keyDownLParam = [IntPtr](1 -bor ($scanCode -shl 16))
     $keyUpLParam = [IntPtr]((1 -bor ($scanCode -shl 16)) -bor 0xC0000000)
 
-    [void][RiftPostMessageNative]::PostMessage($WindowHandle, $WM_KEYDOWN, [IntPtr]$VirtualKey, $keyDownLParam)
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYDOWN -WParam ([IntPtr]$VirtualKey) -LParam $keyDownLParam
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
-    [void][RiftPostMessageNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, $keyUpLParam)
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYUP -WParam ([IntPtr]$VirtualKey) -LParam $keyUpLParam
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
 }
 
@@ -226,7 +264,7 @@ function Post-KeyDown {
 
     $scanCode = [RiftPostMessageNative]::MapVirtualKey([uint32]$VirtualKey, $MAPVK_VK_TO_VSC)
     $keyDownLParam = [IntPtr](1 -bor ($scanCode -shl 16))
-    [void][RiftPostMessageNative]::PostMessage($WindowHandle, $WM_KEYDOWN, [IntPtr]$VirtualKey, $keyDownLParam)
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYDOWN -WParam ([IntPtr]$VirtualKey) -LParam $keyDownLParam
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
 }
 
@@ -241,7 +279,7 @@ function Post-KeyUp {
 
     $scanCode = [RiftPostMessageNative]::MapVirtualKey([uint32]$VirtualKey, $MAPVK_VK_TO_VSC)
     $keyUpLParam = [IntPtr]((1 -bor ($scanCode -shl 16)) -bor 0xC0000000)
-    [void][RiftPostMessageNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, $keyUpLParam)
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYUP -WParam ([IntPtr]$VirtualKey) -LParam $keyUpLParam
     Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
 }
 
@@ -379,6 +417,7 @@ function Wait-ForTimestampAdvance {
 
 $targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
 $targetHandle = [IntPtr]$targetProcess.MainWindowHandle
+$script:TargetFocusProcess = if ($RequireTargetFocus) { $targetProcess } else { $null }
 
 $targetOwnerProcessId = 0
 $targetThreadId = [RiftPostMessageNative]::GetWindowThreadProcessId($targetHandle, [ref]$targetOwnerProcessId)
@@ -395,7 +434,7 @@ $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandl
 if ($RequireTargetFocus) {
     Write-Host "[RiftPost] Strategy     : Focused PostMessage delivery"
     Focus-Window -Process $targetProcess
-    $foreground = Assert-TargetFocus -Process $targetProcess
+    $foreground = Ensure-TargetFocus -Process $targetProcess
     $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
     Write-Host ("[RiftPost] Foreground   : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
     Write-Host ("[RiftPost] Input target : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())

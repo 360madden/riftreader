@@ -5,6 +5,8 @@ param(
     [int]$MaxHits = 16,
     [int]$FullRecoveryLimit = 4,
     [int]$TriageMaxHits = 24,
+    [int]$PostStimulusSampleCount = 0,
+    [int]$TimelineIntervalMilliseconds = 250,
     [bool]$RetestLedgerRejected = $true,
     [bool]$SkipUiClearCheck = $true,
     [bool]$RequireTargetFocus = $true,
@@ -23,6 +25,10 @@ $screenScript = Join-Path $PSScriptRoot 'screen-actor-orientation-candidates.ps1
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $PSScriptRoot 'captures'
+}
+
+if (-not $PSBoundParameters.ContainsKey('RequireTargetFocus')) {
+    $RequireTargetFocus = $true
 }
 
 $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
@@ -49,7 +55,7 @@ function ConvertFrom-JsonCompat {
 
 function Get-OptionalPropertyValue {
     param(
-        [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $Object,
 
         [Parameter(Mandatory = $true)]
@@ -123,7 +129,7 @@ function Invoke-ScriptJson {
     catch {
         $message = $_.Exception.Message
         if ($message -match 'RequireTargetFocus failed') {
-            throw "Focused PostMessage stage could not verify Rift foreground on the selected desktop. Operator action needed: activate the Rift window on Desktop 2 so it can become foreground, then rerun. Original error: $message"
+            throw "Focused PostMessage stage could not verify Rift foreground on the selected desktop. Operator action needed: activate the Rift window on the desktop where it is running so it can become foreground, then rerun. Original error: $message"
         }
 
         throw
@@ -169,6 +175,11 @@ function Invoke-AggressiveScreen {
 
     if ($SkipLiveInputWarning) {
         $screenArguments['SkipLiveInputWarning'] = $true
+    }
+
+    if ($PostStimulusSampleCount -gt 0) {
+        $screenArguments['PostStimulusSampleCount'] = $PostStimulusSampleCount
+        $screenArguments['TimelineIntervalMilliseconds'] = $TimelineIntervalMilliseconds
     }
 
     try {
@@ -416,7 +427,7 @@ try {
             BlockerReason = $null
             OperatorActionNeeded = $null
             Notes = @(
-                'Focused PostMessage is the trusted live-input path for this aggressive Desktop-2 workflow.',
+                'Focused PostMessage is the trusted live-input path for this aggressive focus-enforced workflow.',
                 $(if ($StopOnFirstRecoveredYaw) { 'The wrapper stops after the first validated yaw recovery winner.' } else { 'The wrapper may continue through additional candidates after a validated yaw recovery winner.' }),
                 $(if ($refreshFallbackUsed) { 'ReaderBridge refresh failed, so the wrapper retried the screen without refresh and continued unattended.' } else { 'ReaderBridge refresh did not require fallback for this run.' })
             )
@@ -481,7 +492,7 @@ catch {
     $blockerReason = 'execution_failed'
     if ($message -match 'Focused PostMessage stage could not verify Rift foreground') {
         $blockerReason = 'focus_verification_failed'
-        $operatorAction = 'Activate the Rift window on Desktop 2 so it can become foreground, then rerun the wrapper.'
+        $operatorAction = 'Activate the Rift window on the desktop where it is running so it can become foreground, then rerun the wrapper.'
     }
 
     $errorDocument = [pscustomobject]@{

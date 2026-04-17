@@ -6,6 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Read this file at the start of every session. It is the single authoritative reference for design decisions, verified reverse-engineering facts, anti-patterns, and coding rules. When this file conflicts with README.md or other docs, **this file wins** — those docs describe intent; this file describes what the code actually does.
 
+Repo-scoped agent policy also exists in:
+
+- `C:\RIFT MODDING\RiftReader\AGENTS.md`
+- `C:\RIFT MODDING\RiftReader\.codex\reasoning-policy.md`
+
+For agent reasoning depth in this repo:
+
+- default to **extra high reasoning**
+- allow **low reasoning** only for very basic, clearly safe tasks
+- when in doubt, stay at **extra high**
+
 > **Post-update warning (April 14, 2026):** parts of this file are a
 > pre-update historical snapshot. The low-level reader baseline still works, but
 > the source-chain / selector-owner / owner-components path drifted after the

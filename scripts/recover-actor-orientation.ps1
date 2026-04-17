@@ -4,6 +4,8 @@ param(
     [string]$ProcessName = 'rift_x64',
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
+    [int]$PostStimulusSampleCount = 0,
+    [int]$TimelineIntervalMilliseconds = 250,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$PinnedSourceAddress,
@@ -39,6 +41,10 @@ if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedOrientationCandidateLedgerFile = [System.IO.Path]::GetFullPath($OrientationCandidateLedgerFile)
 
+if (-not $PSBoundParameters.ContainsKey('RequireTargetFocus')) {
+    $RequireTargetFocus = $true
+}
+
 if ([string]::Equals($LeftTurnKey, $RightTurnKey, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "LeftTurnKey and RightTurnKey must be different opposite-direction turn inputs."
 }
@@ -65,7 +71,7 @@ function Invoke-ReaderJson {
 
 function Get-OptionalPropertyValue {
     param(
-        [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $Object,
 
         [Parameter(Mandatory = $true)]
@@ -168,6 +174,11 @@ function Invoke-Stimulus {
 
     if ($SkipLiveInputWarning) {
         $arguments['SkipLiveInputWarning'] = $true
+    }
+
+    if ($PostStimulusSampleCount -gt 0) {
+        $arguments['PostStimulusSampleCount'] = $PostStimulusSampleCount
+        $arguments['TimelineIntervalMilliseconds'] = $TimelineIntervalMilliseconds
     }
 
     try {

@@ -90,7 +90,7 @@ function ConvertFrom-JsonCompat {
 
 function Get-OptionalPropertyValue {
     param(
-        [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $Object,
 
         [Parameter(Mandatory = $true)]

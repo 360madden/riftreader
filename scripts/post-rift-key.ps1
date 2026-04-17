@@ -14,6 +14,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:TargetFocusProcess = $null
 
 Add-Type -TypeDefinition @"
 using System;
@@ -197,6 +198,37 @@ function Assert-TargetFocus {
     return $foreground
 }
 
+function Ensure-TargetFocus {
+    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -eq $Process.Id) {
+        return $foreground
+    }
+
+    Focus-Window -Process $Process
+    return Assert-TargetFocus -Process $Process
+}
+
+function Post-WindowMessageChecked {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WindowHandle,
+        [Parameter(Mandatory = $true)]
+        [uint32]$Message,
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WParam,
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$LParam
+    )
+
+    if ($null -ne $script:TargetFocusProcess) {
+        [void](Ensure-TargetFocus -Process $script:TargetFocusProcess)
+    }
+
+    [void][RiftKeyNative]::PostMessage($WindowHandle, $Message, $WParam, $LParam)
+}
+
 function Get-EffectiveTargetHandle {
     param(
         [IntPtr]$TopWindowHandle,
@@ -277,12 +309,12 @@ function New-KeyLParam {
 
 function Post-KeyDown {
     param([IntPtr]$WindowHandle, [int]$VirtualKey)
-    [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYDOWN, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey))
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYDOWN -WParam ([IntPtr]$VirtualKey) -LParam (New-KeyLParam -VirtualKey $VirtualKey)
 }
 
 function Post-KeyUp {
     param([IntPtr]$WindowHandle, [int]$VirtualKey)
-    [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -KeyUp))
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYUP -WParam ([IntPtr]$VirtualKey) -LParam (New-KeyLParam -VirtualKey $VirtualKey -KeyUp)
 }
 
 function New-KeyboardInput {
@@ -360,6 +392,7 @@ if ($targetOwnerProcessId -ne $targetProcess.Id) {
 }
 
 $binding = Resolve-KeyBinding -KeyText $Key
+$script:TargetFocusProcess = if ($RequireTargetFocus) { $targetProcess } else { $null }
 
 Write-Host "[RiftKey] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
 Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
@@ -372,8 +405,9 @@ $effectiveTargetHandle = [IntPtr]::Zero
 if ($RequireTargetFocus) {
     Write-Host "[RiftKey] Strategy      : Focused PostMessage delivery"
     Focus-Window -Process $targetProcess
-    $foreground = Assert-TargetFocus -Process $targetProcess
+    $foreground = Ensure-TargetFocus -Process $targetProcess
     $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+    $foreground = Ensure-TargetFocus -Process $targetProcess
     Write-Host ("[RiftKey] Foreground    : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
     Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 }
@@ -389,7 +423,7 @@ elseif (-not $SkipBackgroundFocus) {
 else {
     Write-Host "[RiftKey] Strategy      : SendInput foreground delivery"
     Focus-Window -Process $targetProcess
-    $foreground = Get-ForegroundWindowInfo
+    $foreground = Assert-TargetFocus -Process $targetProcess
     Write-Host ("[RiftKey] Foreground    : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
     Send-BindingInput -Binding $binding
     Start-Sleep -Milliseconds $PostKeySettleMilliseconds

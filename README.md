@@ -5,6 +5,23 @@ Hybrid Rift tooling project:
 - a **Lua addon** in the Rift client for in-game validation
 - a **.NET 10 C# memory reader** for external data collection
 
+## Repository agent policy
+
+This repo now carries a repo-scoped agent reasoning policy for Codex-style
+tools:
+
+- default to **extra high reasoning**
+- allow **low** reasoning only for very basic, clearly safe tasks
+- if uncertain, remain at **extra high**
+
+Primary instruction file:
+
+- `C:\RIFT MODDING\RiftReader\AGENTS.md`
+
+Dedicated reference copy:
+
+- `C:\RIFT MODDING\RiftReader\.codex\reasoning-policy.md`
+
 ## Current Focus
 
 Current work is scoped primarily to the **memory reader**.

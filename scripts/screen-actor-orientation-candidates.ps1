@@ -11,6 +11,8 @@ param(
     [double]$MinimumYawResponseDegrees = 1.0,
     [double]$MaxCoordDrift = 0.25,
     [double]$MaxInterPreflightIdleDriftDegrees = 5.0,
+    [int]$PostStimulusSampleCount = 0,
+    [int]$TimelineIntervalMilliseconds = 250,
     [int]$FullRecoveryLimit = 2,
     [switch]$SkipFullRecovery,
     [switch]$RetestLedgerRejected,
@@ -95,6 +97,10 @@ if ([string]::IsNullOrWhiteSpace($SecondaryPreflightKey)) {
     $SecondaryPreflightKey = Get-OppositeTurnKey -Key $PreflightKey
 }
 
+if (-not $PSBoundParameters.ContainsKey('RequireTargetFocus')) {
+    $RequireTargetFocus = $true
+}
+
 $resolvedLedgerFile = [System.IO.Path]::GetFullPath($LedgerFile)
 $resolvedHistoryFile = [System.IO.Path]::GetFullPath($HistoryFile)
 $resolvedRecoveryOutputDirectory = [System.IO.Path]::GetFullPath($RecoveryOutputDirectory)
@@ -132,7 +138,7 @@ function Invoke-ReaderJson {
 
 function Get-OptionalPropertyValue {
     param(
-        [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $Object,
 
         [Parameter(Mandatory = $true)]
@@ -572,6 +578,11 @@ function Invoke-StimulusCandidate {
 
     if ($SkipLiveInputWarning) {
         $arguments['SkipLiveInputWarning'] = $true
+    }
+
+    if ($PostStimulusSampleCount -gt 0) {
+        $arguments['PostStimulusSampleCount'] = $PostStimulusSampleCount
+        $arguments['TimelineIntervalMilliseconds'] = $TimelineIntervalMilliseconds
     }
 
     try {

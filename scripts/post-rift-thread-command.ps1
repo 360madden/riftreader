@@ -13,6 +13,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:TargetFocusProcess = $null
 
 Add-Type -TypeDefinition @"
 using System;
@@ -145,6 +146,21 @@ function Assert-TargetFocus {
     return $foreground
 }
 
+function Ensure-TargetFocus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -eq $Process.Id) {
+        return $foreground
+    }
+
+    Focus-Window -Process $Process
+    return Assert-TargetFocus -Process $Process
+}
+
 function Get-FileTimestampUtc {
     param(
         [Parameter(Mandatory = $true)]
@@ -190,6 +206,10 @@ function Post-ThreadMessageChecked {
         [Parameter(Mandatory = $true)]
         [IntPtr]$LParam
     )
+
+    if ($null -ne $script:TargetFocusProcess) {
+        [void](Ensure-TargetFocus -Process $script:TargetFocusProcess)
+    }
 
     $ok = [RiftPostThreadNative]::PostThreadMessage($ThreadId, $Message, $WParam, $LParam)
     if (-not $ok) {
@@ -371,6 +391,7 @@ function Wait-ForTimestampAdvance {
 
 $targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
 $targetHandle = [IntPtr]$targetProcess.MainWindowHandle
+$script:TargetFocusProcess = if ($RequireTargetFocus) { $targetProcess } else { $null }
 
 $targetOwnerProcessId = 0
 $targetThreadId = [RiftPostThreadNative]::GetWindowThreadProcessId($targetHandle, [ref]$targetOwnerProcessId)
@@ -390,7 +411,7 @@ Write-Host "[RiftThreadPost] Target thread : $targetThreadId"
 if ($RequireTargetFocus) {
     Write-Host "[RiftThreadPost] Strategy     : Focused PostThreadMessage delivery"
     Focus-Window -Process $targetProcess
-    $foreground = Assert-TargetFocus -Process $targetProcess
+    $foreground = Ensure-TargetFocus -Process $targetProcess
     Write-Host ("[RiftThreadPost] Foreground   : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
 }
 else {
