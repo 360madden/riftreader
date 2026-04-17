@@ -111,10 +111,14 @@ Healthy result:
 
 Current post-update warning:
 
-- if `capture-player-source-chain.ps1` cannot locate the required
-  source-container load, stop and mark the actor/camera chain stale
+- `capture-player-source-chain.ps1 -Json -RefreshCluster` is working again on
+  `main` as of April 17, 2026 and should be treated as the first rebuild check
 - if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
   mark the actor/camera chain stale
+- if selector-owner trace is still blocked but actor-yaw proof is urgent, do
+  not fall back to debugger patching first; use the focused PostMessage
+  workflow with `A` primary, `D` secondary, and pin the first
+  drifted-but-responsive `A` candidate for opposite-direction proof
 - if CE throws `Error attaching the windows debugger: 87`, stop the
   debugger-trace attempt, log the run, and do **not** patch the Lua attach
   guards until that failure is repeated across multiple fresh runs

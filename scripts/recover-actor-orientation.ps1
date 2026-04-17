@@ -27,6 +27,10 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+$readerAssemblyName = [System.IO.Path]::GetFileNameWithoutExtension($readerProject)
+$readerOutputDirectory = Join-Path (Split-Path -Parent $readerProject) 'bin'
+$readerBuildAvailable = (Test-Path -LiteralPath $readerOutputDirectory -PathType Container) -and
+    ($null -ne (Get-ChildItem -LiteralPath $readerOutputDirectory -Recurse -Filter ('{0}.dll' -f $readerAssemblyName) -File -ErrorAction SilentlyContinue | Select-Object -First 1))
 $captureScript = Join-Path $PSScriptRoot 'capture-actor-orientation.ps1'
 $stimulusScript = Join-Path $PSScriptRoot 'test-actor-orientation-stimulus.ps1'
 
@@ -55,7 +59,13 @@ function Invoke-ReaderJson {
         [string[]]$Arguments
     )
 
-    $output = & dotnet run --project $readerProject -- @Arguments 2>&1
+    $dotnetArguments = @('run')
+    if ($readerBuildAvailable) {
+        $dotnetArguments += '--no-build'
+    }
+
+    $dotnetArguments += @('--project', $readerProject, '--')
+    $output = & dotnet @dotnetArguments @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"

@@ -231,10 +231,19 @@ For any rotational feature, use a paired preflight:
 - one direction
 - then the opposite direction
 
-For actor yaw on this branch, the working pair was:
+For the current actor-yaw rediscovery on `main`, the working pair is:
 
-- `D`
 - `A`
+- `D`
+
+Current nuance:
+
+- broad `A`-first screening can still return only stable-but-nonresponsive
+  candidates
+- the decisive signal was an `A` proof that produced a real yaw delta while the
+  source drifted
+- the correct next move was to pin that drifted-but-responsive source and prove
+  it with opposite-direction `A`/`D`, not to keep broad-screening indefinitely
 
 Why:
 
@@ -257,8 +266,8 @@ powershell -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\scr
   -ProcessName "rift_x64" `
   -MaxHits 16 `
   -DualKeyPreflight `
-  -PreflightKey "D" `
-  -SecondaryPreflightKey "A" `
+  -PreflightKey "A" `
+  -SecondaryPreflightKey "D" `
   -RetestLedgerRejected `
   -FullRecoveryLimit 4 `
   -MinimumYawResponseDegrees 0.5 `
@@ -384,20 +393,23 @@ Once a candidate is proven:
 
 ## The actor-yaw example this workflow recovered
 
-Proven winning actor-yaw source:
+Latest proven actor-yaw source on `main`:
 
-- source address: `0x245D78DCB50`
+- source address: `0x1EC9B977D20`
 - basis forward offset: `0xD4`
 
-Successful proof artifact:
+Successful proof artifacts:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\screening\aggressive\recovery-245d78dcb50-basis-d4.manual.nowarning.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\stimulus-timelines\20260417-054603-a.ndjson`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\stimulus-timelines\20260417-054903-d.ndjson`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\screening\aggressive\recovery-1ec9b977d20-basis-d4.20260417.json`
 
-Important lesson from that recovery:
+Important lessons from the current rediscovery:
 
-- the correct candidate was found early
-- it initially failed because of workflow timing
-- it passed once the repeated warning delay was removed
+- the source-chain artifact came back before the selector-owner debugger lane
+- the correct family still used basis `0xD4`
+- the key recovery move was not a larger scan; it was pinning the
+  drifted-but-responsive `A` candidate and then running full `A`/`D` proof
 
 ## Reusable checklist for future feature discovery
 

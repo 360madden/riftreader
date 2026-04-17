@@ -21,6 +21,10 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+$readerAssemblyName = [System.IO.Path]::GetFileNameWithoutExtension($readerProject)
+$readerOutputDirectory = Join-Path (Split-Path -Parent $readerProject) 'bin'
+$readerBuildAvailable = (Test-Path -LiteralPath $readerOutputDirectory -PathType Container) -and
+    ($null -ne (Get-ChildItem -LiteralPath $readerOutputDirectory -Recurse -Filter ('{0}.dll' -f $readerAssemblyName) -File -ErrorAction SilentlyContinue | Select-Object -First 1))
 $screenScript = Join-Path $PSScriptRoot 'screen-actor-orientation-candidates.ps1'
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
@@ -143,9 +147,9 @@ function Invoke-AggressiveScreen {
         Json = $true
         ProcessName = $ProcessName
         MaxHits = $MaxHits
-        PreflightKey = 'D'
+        PreflightKey = 'A'
         DualKeyPreflight = $true
-        SecondaryPreflightKey = 'A'
+        SecondaryPreflightKey = 'D'
         FullRecoveryLimit = $FullRecoveryLimit
         MinimumYawResponseDegrees = 0.5
         MaxCoordDrift = 0.35
@@ -215,7 +219,13 @@ function Invoke-ReaderJson {
         [string]$FailureContext
     )
 
-    $output = & dotnet run --project $readerProject -- @Arguments 2>&1
+    $dotnetArguments = @('run')
+    if ($readerBuildAvailable) {
+        $dotnetArguments += '--no-build'
+    }
+
+    $dotnetArguments += @('--project', $readerProject, '--')
+    $output = & dotnet @dotnetArguments @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         throw "$FailureContext failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"

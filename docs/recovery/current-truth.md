@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 17, 2026 (post-update triage + focus-enforced actor-yaw rediscovery on `main`)_
+_Last updated: April 17, 2026 (post-update triage + focus-enforced actor-yaw rediscovery on `main` + dynamic second-hop follow-up on the fresh post-crash session)_
 
 ## Current status
 
@@ -10,11 +10,11 @@ _Last updated: April 17, 2026 (post-update triage + focus-enforced actor-yaw red
 | ReaderBridge snapshot load | working |
 | Player current read | working |
 | Coord-anchor module pattern | working |
-| Source-chain refresh | broken after the update |
+| Source-chain refresh | working again via `capture-player-source-chain.ps1` on `main` |
 | Selector-owner trace | broken after the update |
 | CE scan / inspection lane | usable for bounded reintegration |
 | CE debugger-trace lane | suspected Windows debugger attach instability; keep opt-in and log repeated failures before patching guards |
-| Player orientation read | revalidated on `main` via focused-PostMessage pinned pointer-hop recovery; current validated winner is `0x1EC9B977D20 @ 0xD4` |
+| Player orientation read | historical pinned winner on `main` remains `0x1EC9B977D20 @ 0xD4`, but the fresh post-crash session is currently behaving like a dynamic second-hop family rather than a single reusable pinned source |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 | Direct gameplay key stimulus on `main` | focused `PostMessage` via `post-rift-key.ps1 -RequireTargetFocus` is the trusted default; foreground `SendInput` remains untrusted |
@@ -55,11 +55,12 @@ Still working as a module-local pattern:
 
 ## Broken or stale right now
 
-- `capture-player-source-chain.ps1` no longer locates the expected source-container load
 - `trace-player-selector-owner.ps1` can remain `armed` without a hit
 - `player-selector-owner-trace.json` is stale until regenerated
 - `player-owner-components.json` is stale until regenerated
 - unpinned owner/source-chain actor-orientation selection remains stale until regenerated
+- the fresh post-crash actor-yaw rediscovery lane is no longer stable enough to trust as a single pinned source on the first pass
+- current right-turn proof on the fresh session is unresolved; do not assume `D` is the still-trusted opposite-direction stimulus until it is re-verified
 
 ## Actor yaw / pitch recovery direction
 
@@ -100,12 +101,24 @@ Latest validated actor-yaw winner on `main`:
 
 Current rediscovery truth:
 
+- `capture-player-source-chain.ps1 -Json -RefreshCluster` is working again on `main`
+- `trace-player-selector-owner.ps1` still fails at debugger readiness on the current client, so the selector-owner rebuild lane remains blocked
 - the current client no longer behaved reliably with unpinned live candidate selection alone
 - an unpinned `A` proof showed real yaw response but source drift across captures
 - the unattended `D`-first aggressive ledger and a focused `A`-first screen both produced only stable-but-nonresponsive candidates
 - pinning the drifted-but-responsive `A` candidate restored stable opposite-direction proof on the same live source
 - basis family `0xD4` remains the validated actor-yaw basis family on the current client
-- the current trusted recovery path is: detect the responsive family, pin the live source/basis, then validate with opposite-direction `A`/`D` proof
+- the current trusted recovery path is: regenerate the source-chain artifact, screen with `A` primary and `D` secondary, pin the first drifted-but-responsive `A` family candidate, then validate with opposite-direction `A`/`D` proof
+
+Fresh-session follow-up on April 17, 2026:
+
+- use `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-17-actor-yaw-dynamic-second-hop-follow-up.md` before trusting any new post-crash pinned winner on PID `9260`
+- the live focused `PostMessage` lane was re-qualified again, but the fresh-session actor-yaw family no longer behaved like one stable pinned source
+- direct `dotnet` search on the fresh session produced pointer-hop candidates but no coord-hit winners
+- during this follow-up, a transient second-hop family under root `0x1B2CB0D0030` showed real `A`-side yaw motion on a live candidate (`0x1B2F0B9CC60 @ 0xA0`) in immediate direct `ReadProcessMemory` sampling
+- that same family did **not** yield a trustworthy reusable opposite-direction `D` proof on the same pinned source; `D` could invalidate the sampled source or force it onto a different live child
+- later same-session rechecks showed that minute-to-minute raw `A`/`D` search diffs on PID `9260` were unstable enough that a single pinned-source promotion would have been premature
+- current practical truth for `main`: the old validated `0xD4` winner remains historically valid, but the fresh post-crash session is presently a dynamic second-hop rediscovery problem, not a solved single-source reuse
 
 Historical validated actor-yaw winners on `codex/actor-yaw-pitch`:
 

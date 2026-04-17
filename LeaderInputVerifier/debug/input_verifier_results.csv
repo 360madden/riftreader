@@ -1,0 +1,2 @@
+Timestamp,Window,Action,Key,BeforeValid,AfterValid,BeforeX,BeforeY,BeforeZ,AfterX,AfterY,AfterZ,DistanceDelta,BeforeMoving,AfterMoving,BeforeMounted,AfterMounted,BeforeHasTarget,AfterHasTarget,Result,Notes
+2026-04-17 10:19:38.121,PID 9260 | HWND 0x7001AA | rift_x64 | RIFT,left,0x10,false,false,0.00,0.00,0.00,0.00,0.00,0.00,0.00,false,false,false,false,false,false,invalid_strip,telemetry strip was invalid before or after the action
