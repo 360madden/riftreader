@@ -3,6 +3,8 @@ privateVars = privateVars or {}
 
 local addonIdentifier = (addonInfo and addonInfo.identifier) or "RiftReaderApiProbe"
 local addonVersion = "0.1.0"
+local ORIENTATION_MATCH_MAX_DEPTH = 3
+local ORIENTATION_MATCH_MAX_COUNT = 24
 
 local Probe = {}
 privateVars.Probe = Probe
@@ -22,6 +24,30 @@ local function safeCall(fn, ...)
     return nil
   end
   return a, b, c, d
+end
+
+local function safeUnitHeading(unit)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Heading, unit)
+end
+
+local function safeUnitPitch(unit)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Pitch, unit)
+end
+
+local function safeUnitLookup(unitSpec)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Lookup, unitSpec)
 end
 
 local function inspectTable(tbl, indent, maxDepth)
@@ -52,6 +78,225 @@ local function inspectTable(tbl, indent, maxDepth)
     return "{}"
   end
   return "{\n" .. table.concat(lines, "\n") .. "\n" .. indent .. "}"
+end
+
+local function formatScalar(value)
+  local valueType = type(value)
+  if valueType == "string" then
+    return '"' .. value .. '"'
+  end
+  if valueType == "boolean" then
+    return value and "true" or "false"
+  end
+  if valueType == "number" then
+    return string.format("%.4f", value)
+  end
+  return tostring(value)
+end
+
+local function tableKeyCount(value)
+  if type(value) ~= "table" then
+    return 0
+  end
+
+  local count = 0
+  for _ in pairs(value) do
+    count = count + 1
+  end
+
+  return count
+end
+
+local function formatProbeValue(value)
+  if type(value) == "table" then
+    return string.format("(table, %d keys)", tableKeyCount(value))
+  end
+
+  return formatScalar(value)
+end
+
+local function sortedKeys(tbl)
+  local keys = {}
+  if type(tbl) ~= "table" then
+    return keys
+  end
+
+  for key in pairs(tbl) do
+    table.insert(keys, key)
+  end
+
+  table.sort(keys, function(a, b)
+    return tostring(a) < tostring(b)
+  end)
+
+  return keys
+end
+
+local function isOrientationKey(key)
+  if type(key) ~= "string" then
+    return false
+  end
+
+  local lower = string.lower(key)
+  return lower == "heading"
+    or lower == "pitch"
+    or lower == "yaw"
+    or lower == "face"
+    or lower == "facing"
+    or lower == "orient"
+    or lower == "orientation"
+    or lower == "rotation"
+    or string.find(lower, "heading", 1, true) ~= nil
+    or string.find(lower, "pitch", 1, true) ~= nil
+    or string.find(lower, "yaw", 1, true) ~= nil
+    or string.find(lower, "face", 1, true) ~= nil
+    or string.find(lower, "orient", 1, true) ~= nil
+    or string.find(lower, "rotation", 1, true) ~= nil
+end
+
+local function collectOrientationMatches(tbl, basePath, depthRemaining, visited, matches, maxMatches)
+  if type(tbl) ~= "table" or depthRemaining < 0 then
+    return false
+  end
+
+  if visited[tbl] then
+    return false
+  end
+
+  visited[tbl] = true
+
+  for _, key in ipairs(sortedKeys(tbl)) do
+    local keyText = tostring(key)
+    local value = tbl[key]
+    local path = basePath and (basePath .. "." .. keyText) or keyText
+
+    if isOrientationKey(keyText) then
+      table.insert(matches, {
+        path = path,
+        value = value,
+        valueType = type(value),
+      })
+
+      if #matches >= maxMatches then
+        return true
+      end
+    end
+
+    if type(value) == "table" and depthRemaining > 0 then
+      local reachedLimit = collectOrientationMatches(
+        value,
+        path,
+        depthRemaining - 1,
+        visited,
+        matches,
+        maxMatches)
+
+      if reachedLimit then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+local function probeOrientationTable(label, tbl, maxDepth, maxMatches)
+  console("=== Probing " .. tostring(label) .. " ===", "#FFFF00")
+
+  if type(tbl) ~= "table" then
+    console(tostring(label) .. " returned: " .. type(tbl), "#FF4444")
+    return
+  end
+
+  local heading = tbl.heading
+  local pitch = tbl.pitch
+  if heading ~= nil or pitch ~= nil then
+    console(
+      string.format("  direct heading=%s pitch=%s", formatScalar(heading), formatScalar(pitch)),
+      "#00FF88")
+  end
+
+  local matches = {}
+  local reachedLimit = collectOrientationMatches(
+    tbl,
+    tostring(label),
+    maxDepth or ORIENTATION_MATCH_MAX_DEPTH,
+    {},
+    matches,
+    maxMatches or ORIENTATION_MATCH_MAX_COUNT)
+
+  if #matches == 0 then
+    console("  no orientation-like keys found", "#FFAA00")
+    return
+  end
+
+  console(string.format("  orientation-like matches: %d", #matches), "#00FF88")
+  for _, item in ipairs(matches) do
+    console(
+      string.format("  %s [%s] = %s", item.path, item.valueType, formatProbeValue(item.value)),
+      "#CCCCCC")
+  end
+
+  if reachedLimit then
+    console(
+      string.format(
+        "  match output truncated at %d entries (increase ORIENTATION_MATCH_MAX_COUNT if needed)",
+        maxMatches or ORIENTATION_MATCH_MAX_COUNT),
+      "#FFAA00")
+  end
+end
+
+local function probeReaderBridgeOrientation()
+  if type(ReaderBridge) ~= "table" then
+    console("ReaderBridge unavailable", "#FFAA00")
+    return
+  end
+
+  local bridgeState = ReaderBridge.State
+  if type(bridgeState) ~= "table" then
+    console("ReaderBridge.State unavailable", "#FFAA00")
+    return
+  end
+
+  probeOrientationTable("ReaderBridge.State.player", bridgeState.player)
+  probeOrientationTable("ReaderBridge.State.target", bridgeState.target)
+end
+
+local function probeUnitOrientation(unitLabel, unitSpec)
+  console("=== Probing unit orientation: " .. tostring(unitLabel) .. " ===", "#FFFF00")
+
+  local unitId = safeUnitLookup(unitSpec)
+  if not unitId then
+    console(
+      string.format("  Inspect.Unit.Lookup(%s) returned nil", formatScalar(unitSpec)),
+      "#FFAA00")
+    return
+  end
+
+  console(
+    string.format("  unit spec=%s unitId=%s", formatScalar(unitSpec), tostring(unitId)),
+    "#00FF88")
+
+  local headingAvailable = Inspect and Inspect.Unit and type(Inspect.Unit.Heading) == "function"
+  local pitchAvailable = Inspect and Inspect.Unit and type(Inspect.Unit.Pitch) == "function"
+
+  console(
+    string.format(
+      "  direct APIs available: heading=%s pitch=%s",
+      tostring(headingAvailable),
+      tostring(pitchAvailable)),
+    "#CCCCCC")
+
+  console(
+    string.format(
+      "  direct values: heading=%s pitch=%s",
+      formatScalar(safeUnitHeading(unitId)),
+      formatScalar(safeUnitPitch(unitId))),
+    "#00FF88")
+
+  probeOrientationTable(
+    "Inspect.Unit.Detail(" .. tostring(unitLabel) .. ")",
+    safeCall(Inspect.Unit.Detail, unitId))
 end
 
 local function probeInspectUnitDetail()
@@ -123,6 +368,16 @@ local function probeInspectStat()
     end
     console(string.format("  .%s [%s] = %s", tostring(k), typeStr, valStr), "#CCCCCC")
   end
+end
+
+local function probeOrientation()
+  console("=== Probing orientation ===", "#FFFF00")
+
+  probeUnitOrientation("player", "player")
+  probeUnitOrientation("target", "player.target")
+
+  probeOrientationTable("Inspect.Stat", safeCall(Inspect.Stat))
+  probeReaderBridgeOrientation()
 end
 
 local function probeInspectUnitCastbar()
@@ -284,6 +539,7 @@ function Probe.OnSlashCommand(args)
     console("Commands:", "#FFFF00")
     console("  /rap detail     - Probe Inspect.Unit.Detail", "#CCCCCC")
     console("  /rap stat       - Probe Inspect.Stat", "#CCCCCC")
+    console("  /rap orientation - Probe heading/pitch and orientation-like keys", "#CCCCCC")
     console("  /rap castbar    - Probe Inspect.Unit.Castbar", "#CCCCCC")
     console("  /rap buff       - Probe Inspect.Buff.List", "#CCCCCC")
     console("  /rap unitlist   - Probe Inspect.Unit.List", "#CCCCCC")
@@ -301,6 +557,11 @@ function Probe.OnSlashCommand(args)
   
   if command == "stat" then
     probeInspectStat()
+    return
+  end
+
+  if command == "orientation" then
+    probeOrientation()
     return
   end
   
@@ -339,6 +600,7 @@ function Probe.OnSlashCommand(args)
     probeInspectSystemSecure()
     probeInspectUnitDetail()
     probeInspectStat()
+    probeOrientation()
     probeInspectUnitCastbar()
     probeInspectBuffList()
     probeInspectUnitList()

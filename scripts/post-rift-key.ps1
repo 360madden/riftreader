@@ -5,12 +5,16 @@ param(
     [int]$HoldMilliseconds = 250,
     [string]$TargetProcessName = "rift_x64",
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
-    [int]$InterKeyDelayMilliseconds = 20,
+    [int]$InterKeyDelayMilliseconds = 60,
+    [int]$FocusSettleMilliseconds = 500,
+    [int]$PostKeySettleMilliseconds = 150,
+    [switch]$RequireTargetFocus,
     [switch]$SkipBackgroundFocus
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:TargetFocusProcess = $null
 
 Add-Type -TypeDefinition @"
 using System;
@@ -37,7 +41,19 @@ public static class RiftKeyNative
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
@@ -64,6 +80,29 @@ public static class RiftKeyNative
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public uint type;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct InputUnion
+    {
+        [FieldOffset(0)] public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
 }
 "@
 
@@ -71,6 +110,8 @@ $WM_KEYDOWN = 0x0100
 $WM_KEYUP = 0x0101
 $MAPVK_VK_TO_VSC = 0
 $SW_RESTORE = 9
+$INPUT_KEYBOARD = 1
+$KEYEVENTF_KEYUP = 0x0002
 $VK_SHIFT = 0x10
 $VK_CONTROL = 0x11
 $VK_MENU = 0x12
@@ -103,9 +144,89 @@ function Get-MainWindowProcess {
 
 function Focus-Window {
     param([System.Diagnostics.Process]$Process)
-    [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+
+    $targetHandle = [IntPtr]$Process.MainWindowHandle
+    $dummyProcessId = 0
+    $targetThreadId = [RiftKeyNative]::GetWindowThreadProcessId($targetHandle, [ref]$dummyProcessId)
+    $currentThreadId = [RiftKeyNative]::GetCurrentThreadId()
+    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    $foregroundThreadId = [RiftKeyNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    if ([RiftKeyNative]::IsIconic($targetHandle)) {
+        [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
+    }
+    [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
+    [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $true)
     [void][RiftKeyNative]::SetForegroundWindow($Process.MainWindowHandle)
-    Start-Sleep -Milliseconds 250
+    [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
+    [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $false)
+    Start-Sleep -Milliseconds $FocusSettleMilliseconds
+}
+
+function Get-ForegroundWindowInfo {
+    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    [void][RiftKeyNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+
+    $foregroundProcess = $null
+    if ($foregroundProcessId -ne 0) {
+        try {
+            $foregroundProcess = Get-Process -Id $foregroundProcessId -ErrorAction Stop
+        }
+        catch {
+            $foregroundProcess = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        Handle = $foregroundHandle
+        ProcessId = [int]$foregroundProcessId
+        ProcessName = if ($null -ne $foregroundProcess) { [string]$foregroundProcess.ProcessName } else { $null }
+    }
+}
+
+function Assert-TargetFocus {
+    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -ne $Process.Id) {
+        $foregroundName = if (-not [string]::IsNullOrWhiteSpace($foreground.ProcessName)) { $foreground.ProcessName } else { 'unknown' }
+        throw ("RequireTargetFocus failed: expected Rift foreground process {0} [{1}], got {2} [{3}] handle 0x{4:X}. Activate the Rift window on the selected desktop and retry." -f $Process.ProcessName, $Process.Id, $foregroundName, $foreground.ProcessId, $foreground.Handle.ToInt64())
+    }
+
+    return $foreground
+}
+
+function Ensure-TargetFocus {
+    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
+
+    $foreground = Get-ForegroundWindowInfo
+    if ($foreground.ProcessId -eq $Process.Id) {
+        return $foreground
+    }
+
+    Focus-Window -Process $Process
+    return Assert-TargetFocus -Process $Process
+}
+
+function Post-WindowMessageChecked {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WindowHandle,
+        [Parameter(Mandatory = $true)]
+        [uint32]$Message,
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WParam,
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$LParam
+    )
+
+    if ($null -ne $script:TargetFocusProcess) {
+        [void](Ensure-TargetFocus -Process $script:TargetFocusProcess)
+    }
+
+    [void][RiftKeyNative]::PostMessage($WindowHandle, $Message, $WParam, $LParam)
 }
 
 function Get-EffectiveTargetHandle {
@@ -188,12 +309,78 @@ function New-KeyLParam {
 
 function Post-KeyDown {
     param([IntPtr]$WindowHandle, [int]$VirtualKey)
-    [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYDOWN, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey))
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYDOWN -WParam ([IntPtr]$VirtualKey) -LParam (New-KeyLParam -VirtualKey $VirtualKey)
 }
 
 function Post-KeyUp {
     param([IntPtr]$WindowHandle, [int]$VirtualKey)
-    [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -KeyUp))
+    Post-WindowMessageChecked -WindowHandle $WindowHandle -Message $WM_KEYUP -WParam ([IntPtr]$VirtualKey) -LParam (New-KeyLParam -VirtualKey $VirtualKey -KeyUp)
+}
+
+function New-KeyboardInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$VirtualKey,
+        [switch]$KeyUp
+    )
+
+    $input = New-Object RiftKeyNative+INPUT
+    $input.type = $INPUT_KEYBOARD
+    $input.U.ki.wVk = [uint16]$VirtualKey
+    $input.U.ki.wScan = 0
+    $input.U.ki.dwFlags = if ($KeyUp) { $KEYEVENTF_KEYUP } else { 0 }
+    $input.U.ki.time = 0
+    $input.U.ki.dwExtraInfo = [IntPtr]::Zero
+    return $input
+}
+
+function Invoke-SendInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [RiftKeyNative+INPUT[]]$Inputs
+    )
+
+    $size = [Runtime.InteropServices.Marshal]::SizeOf([type][RiftKeyNative+INPUT])
+    $sent = [RiftKeyNative]::SendInput([uint32]$Inputs.Length, $Inputs, $size)
+    if ($sent -ne $Inputs.Length) {
+        throw "SendInput sent $sent of $($Inputs.Length) inputs."
+    }
+}
+
+function Send-BindingInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Binding
+    )
+
+    $modifiersDown = New-Object System.Collections.Generic.List[int]
+
+    if (($Binding.ShiftState -band 1) -ne 0) {
+        Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_SHIFT))
+        $modifiersDown.Add($VK_SHIFT)
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+    }
+
+    if (($Binding.ShiftState -band 2) -ne 0) {
+        Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_CONTROL))
+        $modifiersDown.Add($VK_CONTROL)
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+    }
+
+    if (($Binding.ShiftState -band 4) -ne 0) {
+        Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_MENU))
+        $modifiersDown.Add($VK_MENU)
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+    }
+
+    Invoke-SendInput @((New-KeyboardInput -VirtualKey $Binding.VirtualKey))
+    Start-Sleep -Milliseconds $HoldMilliseconds
+    Invoke-SendInput @((New-KeyboardInput -VirtualKey $Binding.VirtualKey -KeyUp))
+
+    for ($i = $modifiersDown.Count - 1; $i -ge 0; $i--) {
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+        Invoke-SendInput @((New-KeyboardInput -VirtualKey $modifiersDown[$i] -KeyUp))
+    }
 }
 
 $targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
@@ -204,22 +391,44 @@ if ($targetOwnerProcessId -ne $targetProcess.Id) {
     throw "Main window handle 0x{0:X} does not belong to process {1}." -f $targetProcess.MainWindowHandle, $targetProcess.Id
 }
 
-$effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
 $binding = Resolve-KeyBinding -KeyText $Key
+$script:TargetFocusProcess = if ($RequireTargetFocus) { $targetProcess } else { $null }
 
 Write-Host "[RiftKey] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
 Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
 Write-Host "[RiftKey] Target thread : $targetThreadId"
-Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 Write-Host "[RiftKey] Key           : $Key"
 Write-Host "[RiftKey] Hold ms       : $HoldMilliseconds"
 
-if (-not $SkipBackgroundFocus) {
+$effectiveTargetHandle = [IntPtr]::Zero
+
+if ($RequireTargetFocus) {
+    Write-Host "[RiftKey] Strategy      : Focused PostMessage delivery"
+    Focus-Window -Process $targetProcess
+    $foreground = Ensure-TargetFocus -Process $targetProcess
+    $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+    $foreground = Ensure-TargetFocus -Process $targetProcess
+    Write-Host ("[RiftKey] Foreground    : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
+    Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
+}
+elseif (-not $SkipBackgroundFocus) {
+    $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+    Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
     $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
     Write-Host "[RiftKey] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
     Focus-Window -Process $backgroundProcess
     $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
     Write-Host ("[RiftKey] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+}
+else {
+    Write-Host "[RiftKey] Strategy      : SendInput foreground delivery"
+    Focus-Window -Process $targetProcess
+    $foreground = Assert-TargetFocus -Process $targetProcess
+    Write-Host ("[RiftKey] Foreground    : 0x{0:X} ({1} [{2}])" -f $foreground.Handle.ToInt64(), $foreground.ProcessName, $foreground.ProcessId)
+    Send-BindingInput -Binding $binding
+    Start-Sleep -Milliseconds $PostKeySettleMilliseconds
+    Write-Host "[RiftKey] SUCCESS"
+    exit 0
 }
 
 $modifiersDown = New-Object System.Collections.Generic.List[int]
@@ -248,5 +457,6 @@ for ($i = $modifiersDown.Count - 1; $i -ge 0; $i--) {
     Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $modifiersDown[$i]
 }
 
+Start-Sleep -Milliseconds $PostKeySettleMilliseconds
 Write-Host "[RiftKey] SUCCESS"
 exit 0

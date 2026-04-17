@@ -154,6 +154,17 @@ function normalizeFindResult(raw, titleContains) {
   };
 }
 
+function buildServerStatusResource() {
+  return {
+    name: 'rift_game',
+    runtimeDir,
+    helperScriptPath,
+    bindingsFilePath,
+    boundWindow: state.boundWindow,
+    lastCapturePath: state.lastCapturePath,
+  };
+}
+
 function updateBoundWindow(window) {
   state.boundWindow = {
     ...(state.boundWindow ?? {}),
@@ -965,6 +976,44 @@ const server = new McpServer(
       logging: {},
     },
   },
+);
+
+server.registerResource(
+  'rift-game-status',
+  'rift://server/status',
+  {
+    title: 'Rift game MCP status',
+    description:
+      'Read-only status for the local Rift game MCP server, including the current bound window and last capture path.',
+    mimeType: 'application/json',
+  },
+  async () => ({
+    contents: [
+      {
+        uri: 'rift://server/status',
+        text: JSON.stringify(buildServerStatusResource(), null, 2),
+      },
+    ],
+  }),
+);
+
+server.registerResource(
+  'rift-game-bindings',
+  'rift://config/bindings',
+  {
+    title: 'Rift game bindings',
+    description:
+      'Read-only bindings document used by the local Rift game MCP server.',
+    mimeType: 'application/json',
+  },
+  async () => ({
+    contents: [
+      {
+        uri: 'rift://config/bindings',
+        text: JSON.stringify(await loadBindingsDocument(), null, 2),
+      },
+    ],
+  }),
 );
 
 server.registerTool(

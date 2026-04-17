@@ -9,8 +9,13 @@ param(
     [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
     [string]$CoordTraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
-    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.status.txt')
+    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.status.txt'),
+    [switch]$SkipAttachFailureLedger,
+    [string]$AttachFailureLedgerFile = (Join-Path $PSScriptRoot 'captures\ce-debugger-attach-failures.csv'),
+    [string]$AttachFailureNotes
 )
+
+. (Join-Path $PSScriptRoot 'ce-debugger-attach-helpers.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -25,6 +30,7 @@ $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedCoordTraceFile = [System.IO.Path]::GetFullPath($CoordTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($StatusFile)
+$resolvedAttachFailureLedgerFile = [System.IO.Path]::GetFullPath($AttachFailureLedgerFile)
 
 function Invoke-ReaderJson {
     param(
@@ -173,7 +179,23 @@ for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
     $luaCode = @"
 return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], 0x70)
 "@
-    & $ceExecScript -Code $luaCode | Out-Null
+    $armResult = [string]((@(& $ceExecScript -Code $luaCode) | Select-Object -Last 1))
+    if (Test-Path -LiteralPath $resolvedStatusFile) {
+        $producedStatusFile = $true
+        $status = Read-KeyValueFile -Path $resolvedStatusFile
+        if ($status.status -eq 'hit' -or $status.status -eq 'error') {
+            break
+        }
+    }
+
+    if ($armResult -eq '0') {
+        $status = [pscustomobject]@{
+            status = 'error'
+            stage = 'debug-attach'
+            error = 'Selector-owner trace failed to arm before movement stimulus.'
+        }
+        break
+    }
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $status = $null
@@ -240,11 +262,28 @@ if ($null -eq $status) {
 }
 
 if ($status.status -ne 'hit') {
-    if ($producedStatusFile) {
-        throw "Selector-owner trace failed with status '$($status.status)' after $MaxArmAttempts arm attempt(s)."
+    if (-not $SkipAttachFailureLedger -and (Test-CeDebuggerAttachFailureStatus -Status $status)) {
+        Write-CeDebuggerAttachLedgerEntry `
+            -ScriptPath $PSCommandPath `
+            -Status $status `
+            -StatusFile $resolvedStatusFile `
+            -LedgerFile $resolvedAttachFailureLedgerFile `
+            -Notes (Join-TraceNotes -Parts @(
+                "maxArmAttempts=$MaxArmAttempts",
+                "movementKeys=$(@($movementSequence) -join ',')",
+                $AttachFailureNotes
+            )) | Out-Null
     }
 
-    throw "Selector-owner trace did not produce a hit after $MaxArmAttempts arm attempt(s)."
+    if ($producedStatusFile) {
+        $stageSuffix = if (-not [string]::IsNullOrWhiteSpace([string]$status.stage)) { " Stage: $($status.stage)." } else { '' }
+        $errorSuffix = if (-not [string]::IsNullOrWhiteSpace([string]$status.error)) { " Error: $($status.error)" } else { '' }
+        throw "Selector-owner trace failed with status '$($status.status)' after $MaxArmAttempts arm attempt(s).$stageSuffix$errorSuffix"
+    }
+
+    $stageSuffix = if ($null -ne $status -and -not [string]::IsNullOrWhiteSpace([string]$status.stage)) { " Stage: $($status.stage)." } else { '' }
+    $errorSuffix = if ($null -ne $status -and -not [string]::IsNullOrWhiteSpace([string]$status.error)) { " Error: $($status.error)" } else { '' }
+    throw "Selector-owner trace did not produce a hit after $MaxArmAttempts arm attempt(s).$stageSuffix$errorSuffix"
 }
 
 $coordTrace = $null
@@ -282,6 +321,8 @@ $result = [ordered]@{
     TriggerInstruction = $triggerInstruction
     Trace = [ordered]@{
         Status = [string]$status.status
+        Stage = [string]$status.stage
+        Error = [string]$status.error
         HitCount = Try-ParseInt32 ([string]$status.hitCount)
         InstructionAddress = [string]$status.rip
         InstructionSymbol = [string]$status.instructionSymbol

@@ -4,6 +4,8 @@ param(
     [switch]$Json,
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
+    [int]$PostStimulusSampleCount = 0,
+    [int]$TimelineIntervalMilliseconds = 250,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-orientation-key-profile.json')
@@ -84,20 +86,27 @@ $results = New-Object System.Collections.Generic.List[object]
 
 foreach ($key in $Keys) {
     try {
+        $stimulusArguments = @{
+            Key = $key
+            HoldMilliseconds = $HoldMilliseconds
+            WaitMilliseconds = $WaitMilliseconds
+            Json = $true
+        }
+
         if ($RefreshReaderBridge) {
-            if ($NoAhkFallback) {
-                $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -RefreshReaderBridge -NoAhkFallback
-            }
-            else {
-                $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -RefreshReaderBridge
-            }
+            $stimulusArguments['RefreshReaderBridge'] = $true
         }
-        elseif ($NoAhkFallback) {
-            $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -NoAhkFallback
+
+        if ($NoAhkFallback) {
+            $stimulusArguments['NoAhkFallback'] = $true
         }
-        else {
-            $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json
+
+        if ($PostStimulusSampleCount -gt 0) {
+            $stimulusArguments['PostStimulusSampleCount'] = $PostStimulusSampleCount
+            $stimulusArguments['TimelineIntervalMilliseconds'] = $TimelineIntervalMilliseconds
         }
+
+        $jsonText = & $stimulusScript @stimulusArguments
         if ($LASTEXITCODE -ne 0) {
             throw "Stimulus helper failed for key '$key'."
         }
@@ -151,6 +160,8 @@ $document = [pscustomobject]@{
     Keys = $Keys
     HoldMilliseconds = $HoldMilliseconds
     WaitMilliseconds = $WaitMilliseconds
+    PostStimulusSampleCount = $PostStimulusSampleCount
+    TimelineIntervalMilliseconds = $TimelineIntervalMilliseconds
     RefreshReaderBridge = [bool]$RefreshReaderBridge
     Results = $results
 }

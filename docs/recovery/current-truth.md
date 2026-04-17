@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 14, 2026 (post-update triage)_
+_Last updated: April 17, 2026 (post-update triage + focus-enforced actor-yaw rediscovery on `main`)_
 
 ## Current status
 
@@ -12,9 +12,13 @@ _Last updated: April 14, 2026 (post-update triage)_
 | Coord-anchor module pattern | working |
 | Source-chain refresh | broken after the update |
 | Selector-owner trace | broken after the update |
-| Player orientation read | stale until the owner/source chain is rebuilt |
+| CE scan / inspection lane | usable for bounded reintegration |
+| CE debugger-trace lane | suspected Windows debugger attach instability; keep opt-in and log repeated failures before patching guards |
+| Player orientation read | revalidated on `main` via focused-PostMessage pinned pointer-hop recovery; current validated winner is `0x1EC9B977D20 @ 0xD4` |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
+| Direct gameplay key stimulus on `main` | focused `PostMessage` via `post-rift-key.ps1 -RequireTargetFocus` is the trusted default; foreground `SendInput` remains untrusted |
+| Direct mouse/camera stimulus on `main` | only use when Rift window acquisition and foreground verification are clean; do not treat background `PostMessage` as a mouse fallback |
 
 ## Post-update note
 
@@ -22,6 +26,14 @@ Use this report before trusting older actor/camera captures:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-live-camera-script-behavior-and-offset-drift.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-live-key-delivery-recheck.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-actor-yaw-focused-postmessage-recovery.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-aggressive-wrapper-unattended-validation.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-focused-postmessage-refresh-retest.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-15-rmb-procedure-validation-pass.md`
 - `C:\RIFT MODDING\RiftReader\docs\input-safety.md`
 
 ## Surviving baselines
@@ -47,7 +59,104 @@ Still working as a module-local pattern:
 - `trace-player-selector-owner.ps1` can remain `armed` without a hit
 - `player-selector-owner-trace.json` is stale until regenerated
 - `player-owner-components.json` is stale until regenerated
-- `player-actor-orientation.json` is stale until regenerated
+- unpinned owner/source-chain actor-orientation selection remains stale until regenerated
+
+## Actor yaw / pitch recovery direction
+
+The current recommended recovery path is:
+
+1. addon-first orientation probing
+2. export any API-visible heading / pitch / facing candidates
+3. inspect the latest exported probe with `C:\RIFT MODDING\RiftReader\scripts\inspect-readerbridge-orientation.ps1`
+4. use CE scan / inspection only as a secondary discovery lane when it helps
+5. only then fall back to raw-memory rediscovery or CE debugger-trace if the addon layer yields nothing useful
+
+For live actor-yaw screening on `main`:
+
+- do **not** assume `Codex` staying foreground is enough
+- Rift may still reject most live input unless the game window itself takes focus
+- use focused `PostMessage` as the trusted live-input lane:
+  - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -RequireTargetFocus`
+  - `C:\RIFT MODDING\RiftReader\scripts\screen-actor-orientation-candidates.ps1 -RequireTargetFocus`
+  - `C:\RIFT MODDING\RiftReader\scripts\run-aggressive-actor-yaw-discovery.ps1`
+- do **not** treat a one-time focus attempt at the start of the run as enough; active live helpers now re-verify or re-establish Rift foreground immediately before each live input event
+- if focus cannot be verified, stop and require operator intervention instead of falling through to `SendInput`
+- when Rift is isolated on another or non-visible desktop, screenshot-based UI clear checks are not authoritative unless that desktop is visible; the aggressive wrapper skips that gate by default
+- the reusable workflow backups for future live feature recovery/discovery now live here:
+  - `C:\RIFT MODDING\RiftReader\docs\recovery\focused-postmessage-discovery-workflow.md`
+  - `C:\RIFT MODDING\RiftReader\docs\recovery\focused-postmessage-discovery-prompt.json`
+
+Latest validated actor-yaw winner on `main`:
+
+1. pinned pointer-hop revalidation after live source drift:
+   - source address: `0x1EC9B977D20`
+   - basis forward offset: `0xD4`
+   - timeline-backed `A` proof:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\stimulus-timelines\20260417-054603-a.ndjson`
+   - timeline-backed `D` proof:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\stimulus-timelines\20260417-054903-d.ndjson`
+   - full opposite-direction recovery artifact:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\screening\aggressive\recovery-1ec9b977d20-basis-d4.20260417.json`
+
+Current rediscovery truth:
+
+- the current client no longer behaved reliably with unpinned live candidate selection alone
+- an unpinned `A` proof showed real yaw response but source drift across captures
+- the unattended `D`-first aggressive ledger and a focused `A`-first screen both produced only stable-but-nonresponsive candidates
+- pinning the drifted-but-responsive `A` candidate restored stable opposite-direction proof on the same live source
+- basis family `0xD4` remains the validated actor-yaw basis family on the current client
+- the current trusted recovery path is: detect the responsive family, pin the live source/basis, then validate with opposite-direction `A`/`D` proof
+
+Historical validated actor-yaw winners on `codex/actor-yaw-pitch`:
+
+1. first manual pinned validation:
+   - source address: `0x245D78DCB50`
+   - basis forward offset: `0xD4`
+   - artifact:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\screening\aggressive\recovery-245d78dcb50-basis-d4.manual.nowarning.json`
+2. later unattended wrapper validation:
+   - source address: `0x245B92311D0`
+   - basis forward offset: `0xD4`
+   - artifact:
+     - `C:\RIFT MODDING\RiftReader\scripts\captures\screening\aggressive\recovery-245b92311d0-basis-d4.json`
+
+Shared recovery properties:
+
+- focused `PostMessage`
+- opposite-direction A/D gate passed
+- `YawRecovered = true`
+- `PitchRecovered = true`
+- zero coord drift on the winning pass(es)
+- basis family remains validated at `0xD4`
+
+Operational truth:
+
+- the unattended aggressive wrapper is now live-validated
+- the native `refresh-readerbridge-export.ps1` path was revalidated later the same day with focused `PostMessage` and no AHK backup
+- if forced ReaderBridge refresh still fails in some future run, the wrapper can retry without refresh and still recover yaw
+- the wrapper can stop immediately after the first validated yaw winner
+
+Important nuance:
+
+- the first pinned recovery against this same source failed as `idle_drift`
+- that was workflow-induced by repeated live-warning countdown delays, not by the candidate itself
+- the successful path suppressed those warning delays during AI-driven recovery
+- the later unattended wrapper validation also confirmed that refresh-lane failure is no longer a hard blocker if the no-refresh path remains viable
+- the later focused refresh retest showed the primary native `/reloadui` path can work again when it uses the same process/HWND/focus model as the trusted gameplay-key helper
+
+Do **not** treat the old debugger-driven owner/source chain as the default first
+step for actor yaw / pitch recovery on the updated client. Use:
+
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-actor-orientation-stop-point-and-resume-plan.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-cheat-engine-reintegration-and-attach-failure-plan.md`
+
+If CE shows:
+
+- `Error attaching the windows debugger: 87`
+
+log the run and stop the debugger-trace attempt for that pass. Do **not** patch
+the Lua attach guards until that failure is repeated and documented across
+multiple fresh runs.
 
 ## Canonical scripts on `main`
 
@@ -55,6 +164,7 @@ Still working as a module-local pattern:
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1`
 
 ## Camera script location note
@@ -75,6 +185,40 @@ Relevant scripts there:
 
 Do not treat camera outputs as current truth on `main` until the actor/source
 chain is rebuilt and the camera path is revalidated on the updated client.
+
+## Camera offset drift snapshot
+
+As of `2026-04-14`, these old camera references are **historical only**:
+
+- yaw basis on selected-source:
+  - `+0x60/+0x68/+0x78`
+  - duplicate `+0x94/+0x9C/+0xAC`
+- pitch / distance via `entry15` orbit coordinates:
+  - `+0xA8/+0xAC/+0xB0`
+  - duplicate `+0xB4/+0xB8/+0xBC`
+
+The last-known pre-update object addresses used for that model are now stale:
+
+- selected-source base: `0x1FDA0D13170`
+- `entry15` base: `0x1FD9FA6F190`
+
+Direct raw reads against those addresses failed during the live drift check, so
+they should not be reused as current offsets without a fresh object recovery.
+
+Preferred live camera probe for post-update work:
+
+- `C:\RIFT MODDING\RiftReader\scripts\probe-live-camera-offset-diff.ps1`
+
+Mouse-policy note for future camera recovery/discovery:
+
+- mouse input is a separate lane from focused keyboard/chat `PostMessage`
+- if a mouse helper cannot find Rift cleanly and verify foreground focus
+  cleanly, stop and require operator intervention
+- do **not** add background `PostMessage` workarounds for RMB / drag / wheel
+  paths just because the keyboard/chat lane uses them successfully
+
+Do **not** use the legacy angle-candidate script as the default live camera
+probe path.
 
 ## Tier-1 artifacts
 

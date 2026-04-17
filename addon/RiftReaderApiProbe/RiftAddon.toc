@@ -1,0 +1,13 @@
+Identifier = "RiftReaderApiProbe"
+Name = "RiftReader API Probe"
+NameShort = "RAP"
+Description = "Helper addon for probing Rift API surfaces such as unit orientation fields."
+Author = "OpenAI Codex"
+Website = ""
+Version = "0.1.0"
+Email = "noreply@example.com"
+Environment = "4.4"
+
+RunOnStartup = {
+  "main.lua",
+}

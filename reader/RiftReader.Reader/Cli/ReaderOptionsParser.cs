@@ -18,8 +18,11 @@ Usage:
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --post-update-triage [--player-coord-trace-file <path>] [--session-watchset-file <path>] [--recovery-bundle-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --sample-triage-watch-regions [--recovery-bundle-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
@@ -46,8 +49,13 @@ Notes:
   - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
+  - Use --find-player-orientation-candidate to do a single-process read-only search for the live actor/source object near current player coordinate hits.
+  - Use --orientation-candidate-ledger-file to downrank pointer-hop bases that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
+  - Use --post-update-triage to run a single-attach recovery pass that validates surviving anchors, clusters current structure families, scores live yaw candidates against saved session evidence, and emits a recovery bundle.
+  - --post-update-triage writes the bundle to .\scripts\captures\post-update-triage-bundle.json by default; use --recovery-bundle-file to override the path.
+  - Use --sample-triage-watch-regions to read only the suggested watch regions from the latest triage bundle so the top stable yaw candidates can be sampled without rerunning broader discovery.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
   - Use --session-marker-input-file with --record-session when you want manual or script-driven markers appended during the live recording window.
@@ -73,7 +81,10 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --orientation-candidate-ledger-file .\scripts\captures\actor-orientation-candidate-ledger.ndjson --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --post-update-triage --recovery-bundle-file .\scripts\captures\post-update-triage-bundle.json --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --sample-triage-watch-regions --max-hits 6 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
@@ -109,7 +120,10 @@ Examples:
         var readPlayerOrientation = false;
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
+        var findPlayerOrientationCandidate = false;
         var readPlayerCoordAnchor = false;
+        var postUpdateTriage = false;
+        var sampleTriageWatchRegions = false;
         var recordSession = false;
         var sessionSummary = false;
         string? sessionDirectory = null;
@@ -120,6 +134,8 @@ Examples:
         var sessionIntervalMilliseconds = 500;
         string? sessionLabel = null;
         string? playerCoordTraceFile = null;
+        string? recoveryBundleFile = null;
+        string? orientationCandidateLedgerFile = null;
         string? captureLabel = null;
         string? captureFile = null;
         string? scanString = null;
@@ -366,12 +382,33 @@ Examples:
                     readPlayerCurrent = true;
                     break;
 
+                case "--find-player-orientation-candidate":
+                    findPlayerOrientationCandidate = true;
+                    break;
+
+                case "--orientation-candidate-ledger-file":
+                    if (!TryReadNext(args, ref index, out var orientationCandidateLedgerFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --orientation-candidate-ledger-file.", UsageText);
+                    }
+
+                    orientationCandidateLedgerFile = orientationCandidateLedgerFileValue;
+                    break;
+
                 case "--read-player-coord-anchor":
                     readPlayerCoordAnchor = true;
                     break;
 
                 case "--read-target-current":
                     readTargetCurrent = true;
+                    break;
+
+                case "--post-update-triage":
+                    postUpdateTriage = true;
+                    break;
+
+                case "--sample-triage-watch-regions":
+                    sampleTriageWatchRegions = true;
                     break;
 
                 case "--session-summary":
@@ -399,7 +436,24 @@ Examples:
                     }
 
                     playerCoordTraceFile = playerCoordTraceFileValue;
-                    readPlayerCoordAnchor = true;
+                    if (!postUpdateTriage)
+                    {
+                        readPlayerCoordAnchor = true;
+                    }
+                    break;
+
+                case "--recovery-bundle-file":
+                    if (!TryReadNext(args, ref index, out var recoveryBundleFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --recovery-bundle-file.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(recoveryBundleFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Recovery bundle file must not be blank.", UsageText);
+                    }
+
+                    recoveryBundleFile = recoveryBundleFileValue;
                     break;
 
                 case "--capture-label":
@@ -671,6 +725,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --post-update-triage.", UsageText);
+        }
+
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && sampleTriageWatchRegions)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --sample-triage-watch-regions.", UsageText);
+        }
+
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && rankOwnerComponents)
         {
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --rank-owner-components.", UsageText);
@@ -703,7 +767,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || postUpdateTriage || sampleTriageWatchRegions || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
             {
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with scan, snapshot, live reader, or record-session modes.", UsageText);
             }
@@ -726,6 +790,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: true,
@@ -772,6 +837,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with --rank-stat-hubs.", UsageText);
         }
 
+        if (rankOwnerComponents && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with --post-update-triage.", UsageText);
+        }
+
+        if (rankStatHubs && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--rank-stat-hubs cannot be combined with --post-update-triage.", UsageText);
+        }
+
         if (readPlayerOrientation)
         {
             if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
@@ -779,7 +854,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || postUpdateTriage || sampleTriageWatchRegions || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
             }
@@ -802,6 +877,7 @@ Examples:
                     ReadPlayerOrientation: true,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -878,6 +954,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -939,6 +1016,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -1000,6 +1078,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: false,
                     ReadPlayerCurrent: false,
+                    FindPlayerOrientationCandidate: false,
                     ReadPlayerCoordAnchor: false,
                     ReadTargetCurrent: false,
                     SessionSummary: false,
@@ -1041,9 +1120,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name.", UsageText);
         }
 
-        if (sessionWatchsetFile is not null && !recordSession)
+        if (sessionWatchsetFile is not null && !recordSession && !postUpdateTriage)
         {
-            return ReaderOptionsParseResult.Fail("--session-watchset-file can only be used with --record-session.", UsageText);
+            return ReaderOptionsParseResult.Fail("--session-watchset-file can only be used with --record-session or --post-update-triage.", UsageText);
         }
 
         if (sessionOutputDirectory is not null && !recordSession)
@@ -1064,6 +1143,11 @@ Examples:
         if (sessionLabel is not null && !recordSession)
         {
             return ReaderOptionsParseResult.Fail("--session-label can only be used with --record-session.", UsageText);
+        }
+
+        if (recoveryBundleFile is not null && !postUpdateTriage && !sampleTriageWatchRegions)
+        {
+            return ReaderOptionsParseResult.Fail("--recovery-bundle-file can only be used with --post-update-triage or --sample-triage-watch-regions.", UsageText);
         }
 
         if ((sessionSampleCount != 1 || sessionIntervalMilliseconds != 500) && !recordSession)
@@ -1091,9 +1175,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || recordSession || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || postUpdateTriage || sampleTriageWatchRegions || recordSession || address.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, record-session, or raw memory-read switches.", UsageText);
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, coord-anchor, post-update-triage, sample-triage-watch-regions, record-session, or raw memory-read switches.", UsageText);
         }
 
         if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
@@ -1111,6 +1195,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with scan switches.", UsageText);
         }
 
+        if (findPlayerOrientationCandidate && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with scan switches.", UsageText);
+        }
+
         if (readPlayerCurrent && scanRequested)
         {
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with scan switches.", UsageText);
@@ -1124,6 +1213,11 @@ Examples:
         if (readPlayerCoordAnchor && scanRequested)
         {
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with scan switches.", UsageText);
+        }
+
+        if (postUpdateTriage && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with scan switches.", UsageText);
         }
 
         if (recordSession && scanRequested)
@@ -1141,6 +1235,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with raw memory-read switches.", UsageText);
         }
 
+        if (findPlayerOrientationCandidate && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (readPlayerCurrent && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with raw memory-read switches.", UsageText);
@@ -1156,9 +1255,24 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with raw memory-read switches.", UsageText);
         }
 
+        if (postUpdateTriage && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (recordSession && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--record-session cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (postUpdateTriage && (writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent))
+        {
+            return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with other live reader modes.", UsageText);
+        }
+
+        if (sampleTriageWatchRegions && (writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || postUpdateTriage || readTargetCurrent))
+        {
+            return ReaderOptionsParseResult.Fail("--sample-triage-watch-regions cannot be combined with other live reader modes.", UsageText);
         }
 
         if (captureLabel is not null && !captureReaderBridgeBestFamily)
@@ -1171,9 +1285,14 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-file can only be used with --capture-readerbridge-best-family.", UsageText);
         }
 
-        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor)
+        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor && !postUpdateTriage)
         {
-            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor.", UsageText);
+            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor or --post-update-triage.", UsageText);
+        }
+
+        if (listModules && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --find-player-orientation-candidate.", UsageText);
         }
 
         if (listModules && readPlayerCurrent)
@@ -1191,9 +1310,19 @@ Examples:
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (listModules && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --post-update-triage.", UsageText);
+        }
+
         if (listModules && recordSession)
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --record-session.", UsageText);
+        }
+
+        if (writeCheatEngineProbe && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --find-player-orientation-candidate.", UsageText);
         }
 
         if (writeCheatEngineProbe && readPlayerCurrent)
@@ -1211,6 +1340,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (captureReaderBridgeBestFamily && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (captureReaderBridgeBestFamily && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-current.", UsageText);
@@ -1226,9 +1360,34 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (captureReaderBridgeBestFamily && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --post-update-triage.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --post-update-triage.", UsageText);
+        }
+
         if (readPlayerCurrent && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (readPlayerCurrent && postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --post-update-triage.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readTargetCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-target-current.", UsageText);
         }
 
         if (readPlayerCurrent && readTargetCurrent)
@@ -1241,6 +1400,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --read-target-current.", UsageText);
         }
 
+        if (postUpdateTriage && readTargetCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with --read-target-current.", UsageText);
+        }
+
         if (writeCheatEngineProbe && recordSession)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --record-session.", UsageText);
@@ -1249,6 +1413,11 @@ Examples:
         if (captureReaderBridgeBestFamily && recordSession)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --record-session.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --record-session.", UsageText);
         }
 
         if (readPlayerCurrent && recordSession)
@@ -1264,6 +1433,21 @@ Examples:
         if (readPlayerCoordAnchor && recordSession)
         {
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --record-session.", UsageText);
+        }
+
+        if (postUpdateTriage && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--post-update-triage cannot be combined with --record-session.", UsageText);
+        }
+
+        if (sampleTriageWatchRegions && (listModules || scanRequested || address.HasValue || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation))
+        {
+            return ReaderOptionsParseResult.Fail("--sample-triage-watch-regions cannot be combined with scan, raw memory-read, snapshot, ranking, or record-session modes.", UsageText);
+        }
+
+        if (orientationCandidateLedgerFile is not null && !findPlayerOrientationCandidate && !postUpdateTriage)
+        {
+            return ReaderOptionsParseResult.Fail("--orientation-candidate-ledger-file can only be used with --find-player-orientation-candidate or --post-update-triage.", UsageText);
         }
 
         if (address.HasValue != length.HasValue)
@@ -1289,6 +1473,7 @@ Examples:
                     ReadPlayerOrientation: false,
                     CaptureReaderBridgeBestFamily: captureReaderBridgeBestFamily,
                     ReadPlayerCurrent: readPlayerCurrent,
+                    FindPlayerOrientationCandidate: findPlayerOrientationCandidate,
                     ReadPlayerCoordAnchor: readPlayerCoordAnchor,
                     ReadTargetCurrent: readTargetCurrent,
                     SessionSummary: false,
@@ -1321,7 +1506,11 @@ Examples:
                     AddonSnapshotFile: null,
                     ReadReaderBridgeSnapshot: false,
                     ReaderBridgeSnapshotFile: null,
-                    JsonOutput: jsonOutput),
+                    JsonOutput: jsonOutput,
+                    PostUpdateTriage: postUpdateTriage,
+                    RecoveryBundleFile: recoveryBundleFile,
+                    SampleTriageWatchRegions: sampleTriageWatchRegions,
+                    OrientationCandidateLedgerFile: orientationCandidateLedgerFile),
             UsageText);
     }
 

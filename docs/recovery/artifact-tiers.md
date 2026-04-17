@@ -23,6 +23,7 @@ Use this file to decide what must survive, what can be regenerated, and what can
 - old session packages under `C:\RIFT MODDING\RiftReader\scripts\sessions\...`
 - old camera candidate scans such as `camera-yaw-candidates.json` and `deep-scan-entry15.json`
 - older `tmp-*`, `region-*`, and handoff-specific captures
+- `C:\RIFT MODDING\RiftReader\scripts\captures\ce-debugger-attach-failures.csv`
 
 ## Tier 4 - disposable debug output
 

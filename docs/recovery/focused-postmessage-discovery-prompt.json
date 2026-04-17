@@ -1,0 +1,253 @@
+{
+  "task": {
+    "goal": "recover or rediscover a live input-correlated Rift feature quickly using the focused-PostMessage workflow",
+    "priority": "results_first",
+    "strategy": "baseline_first_then_focused_postmessage_screen_then_pin_then_triage",
+    "definition_of_done": [
+      "Identify a current-process feature source that reacts under a controlled focused-PostMessage stimulus and survives current-client validation.",
+      "Use paired opposite-direction preflight stimuli when the feature is rotational so a candidate must show opposite-sign responses, bounded idle drift, and bounded coordinate drift before full recovery.",
+      "Pin the best candidate early and prove it with a full recovery pass instead of continuing broad noisy screening once a credible winner appears.",
+      "Capture machine-readable evidence, commands, thresholds, artifact paths, blocker classification, and any operator action needed."
+    ],
+    "adaptation_rules": [
+      "Reuse the same workflow shape for future features even when the feature is not actor yaw: verify surviving baselines, isolate aggressive artifacts, focus Rift, use PostMessage, broad screen, pin the best candidate, then escalate to triage only if no winner exists.",
+      "Replace only the feature-specific measurement commands, threshold names, and artifact filenames; keep the focus-first and evidence-first workflow intact.",
+      "If the feature does not depend on rotational movement, replace the opposite-direction preflight requirement with the smallest feature-specific dual-stimulus gate that can reject noise."
+    ],
+    "forbidden_actions": [
+      "Do not treat old owner-source lineage artifacts as current truth without current-process validation.",
+      "Do not silently fall back to SendInput when focused PostMessage is required.",
+      "Do not treat hidden-desktop screenshot heuristics as authoritative when that desktop is not visible.",
+      "Do not continue broad candidate spraying after a validated winner is already proven.",
+      "Do not let ReaderBridge refresh failure abort the whole unattended workflow when the no-refresh path is still viable."
+    ]
+  },
+  "context": {
+    "schema_version": "2026-04-17.focused-postmessage-discovery.v3",
+    "repo_root": "C:\\RIFT MODDING\\RiftReader",
+    "branch": "codex/actor-yaw-pitch",
+    "process_name": "rift_x64",
+    "date": "2026-04-17",
+    "timezone": "America/New_York",
+    "workflow_type": "focused_postmessage_live_feature_discovery",
+    "desktop_topology": "Rift may run on another isolated or non-visible desktop while Codex remains elsewhere",
+    "current_branch_truth": {
+      "trusted_live_input_lane": "focused PostMessage with Rift foreground verified or re-established before each live input send",
+      "untrusted_live_input_lane": "foreground SendInput",
+      "screen_gate_truth": "Hidden-desktop screenshot UI checks are non-authoritative unless the Rift desktop is visible",
+      "reader_refresh_behavior": "unattended wrappers should retry without forced ReaderBridge refresh if refresh is the only failing layer"
+    },
+    "actor_yaw_reference_example": {
+      "feature": "actor_yaw_pitch",
+      "winning_source_address": "0x245D78DCB50",
+      "winning_basis_forward_offset": "0xD4",
+      "winning_artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\screening\\aggressive\\recovery-245d78dcb50-basis-d4.manual.nowarning.json",
+      "notes": [
+        "The real candidate was found early but initially failed only because repeated warning delays created false idle drift.",
+        "Focused PostMessage plus suppressed script-side warning delays produced the validated win."
+      ]
+    }
+  },
+  "operator_protocol": {
+    "before_any_live_game_interaction": {
+      "required": true,
+      "message_style": "BIG_BOLD",
+      "countdown_seconds": 5
+    },
+    "when_window_missing_crashed_or_focus_fails": {
+      "required": true,
+      "message_style": "BIG_BOLD_BLOCKER",
+      "action": "stop_and_wait_for_operator"
+    },
+    "virtual_desktop_policy": {
+      "automatic_desktop_switching_allowed": false,
+      "manual_focus_activation_allowed": true
+    }
+  },
+  "operating_envelope": {
+    "repo_edits_allowed": true,
+    "validation_allowed": true,
+    "build_allowed": true,
+    "live_input_allowed": true,
+    "artifact_grounding_required": true,
+    "require_target_focus_for_live_input": true,
+    "reverify_focus_before_each_live_input_send": true,
+    "skip_ui_clear_check_by_default_for_hidden_desktop": true,
+    "skip_script_side_live_warning_delays_for_ai_driven_sequences": true,
+    "stop_on_first_validated_winner": true,
+    "retry_without_refresh_on_refresh_lane_failure": true,
+    "automatic_ce_debugger_trace": false
+  },
+  "authoritative_inputs": [
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-truth.md",
+      "state": "current",
+      "role": "living truth for what is valid right now",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\rebuild-runbook.md",
+      "state": "current",
+      "role": "canonical rebuild and escalation order",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\focused-postmessage-discovery-workflow.md",
+      "state": "current",
+      "role": "human-readable detailed workflow backup",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-15-actor-yaw-focused-postmessage-recovery.md",
+      "state": "current_branch_reference",
+      "role": "dated proof that the workflow succeeded on actor yaw and why it succeeded",
+      "must_read_before_execution": true
+    },
+    {
+      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\input-safety.md",
+      "state": "current",
+      "role": "live-input safety and trust model",
+      "must_read_before_execution": true
+    }
+  ],
+  "surviving_baselines": {
+    "readerbridge_snapshot": {
+      "command": "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --readerbridge-snapshot --json",
+      "expected": [
+        "snapshot loads successfully",
+        "current player snapshot exists"
+      ]
+    },
+    "player_current": {
+      "command": "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json",
+      "expected": [
+        "matches ReaderBridge player identity and current values closely enough for live work"
+      ]
+    },
+    "coord_anchor": {
+      "command": "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json",
+      "expected": [
+        "module-local pattern still resolves",
+        "coordinate offsets remain usable for drift checks"
+      ]
+    }
+  },
+  "artifact_policy": {
+    "use_separate_aggressive_outputs": true,
+    "aggressive_artifacts": [
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-orientation-candidate-ledger.aggressive.ndjson",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-orientation-candidate-screen.aggressive.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-orientation-candidate-screen-history.aggressive.ndjson",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\post-update-triage-bundle.aggressive.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\post-update-triage-watch-sample.aggressive.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\screening\\aggressive"
+    ],
+    "preserve_clean_historical_outputs": true
+  },
+  "workflow": {
+    "preferred_wrapper": {
+      "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\run-aggressive-actor-yaw-discovery.ps1",
+      "default_behavior": [
+        "RequireTargetFocus = true",
+        "SkipUiClearCheck = true",
+        "SkipLiveInputWarning = true",
+        "StopOnFirstRecoveredYaw = true",
+        "RefreshReaderBridge = true with no-refresh fallback"
+      ]
+    },
+    "phases": [
+      {
+        "name": "verify_baselines",
+        "goal": "confirm the reader baseline still supports live before-and-after comparisons",
+        "stop_if": [
+          "readerbridge snapshot fails",
+          "player current read fails",
+          "coord anchor read fails"
+        ]
+      },
+      {
+        "name": "focus_and_input_policy",
+        "goal": "use only focused PostMessage for live gameplay stimuli",
+        "rules": [
+          "Focus Rift first",
+          "Verify Rift foreground belongs to the target process",
+          "Re-verify or re-establish Rift foreground before each live input send",
+          "If focus verification fails, stop for operator intervention",
+          "Never silently downgrade to SendInput"
+        ]
+      },
+      {
+        "name": "broad_screen",
+        "goal": "screen a bounded candidate set aggressively with separate artifacts",
+        "preferred_command": "powershell -ExecutionPolicy Bypass -File \"C:\\RIFT MODDING\\RiftReader\\scripts\\run-aggressive-actor-yaw-discovery.ps1\"",
+        "fallback_command": "powershell -ExecutionPolicy Bypass -File \"C:\\RIFT MODDING\\RiftReader\\scripts\\screen-actor-orientation-candidates.ps1\" -ProcessName \"rift_x64\" -MaxHits 16 -DualKeyPreflight -PreflightKey \"D\" -SecondaryPreflightKey \"A\" -RetestLedgerRejected -FullRecoveryLimit 4 -MinimumYawResponseDegrees 0.5 -MaxCoordDrift 0.35 -MaxInterPreflightIdleDriftDegrees 8 -RequireTargetFocus -SkipUiClearCheck -SkipLiveInputWarning -RefreshReaderBridge -StopOnFirstRecoveredYaw"
+      },
+      {
+        "name": "pin_best_candidate",
+        "goal": "run a full pinned recovery immediately after a candidate shows strong preflight behavior",
+        "rules": [
+          "Prefer the first candidate that survives paired opposite-direction preflight with bounded drift",
+          "Stop immediately when full recovery proves the feature",
+          "Record the exact winning source, basis offset, keys, and output artifact"
+        ]
+      },
+      {
+        "name": "triage_if_no_winner",
+        "goal": "narrow the next search space only after aggressive screening fails",
+        "commands": [
+          "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --post-update-triage --recovery-bundle-file C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\post-update-triage-bundle.aggressive.json --max-hits 24 --json",
+          "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --sample-triage-watch-regions --recovery-bundle-file C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\post-update-triage-bundle.aggressive.json --max-hits 24 --json"
+        ]
+      },
+      {
+        "name": "promote_truth",
+        "goal": "promote the winner into living truth and dated proof once validated",
+        "required_outputs": [
+          "update current-truth.md",
+          "write a dated analysis report",
+          "preserve or update the machine-readable workflow packet if the live method changed materially"
+        ]
+      }
+    ]
+  },
+  "validation_rules": {
+    "rotational_feature_defaults": {
+      "minimum_response_degrees": 0.5,
+      "max_coord_drift": 0.35,
+      "max_inter_preflight_idle_drift_degrees": 8.0
+    },
+    "winner_expectations": [
+      "opposite-direction paired responses for rotational features",
+      "bounded idle drift",
+      "bounded coordinate drift",
+      "stable source identity across the relevant captures",
+      "machine-readable winning artifact"
+    ],
+    "blocker_classifications": [
+      "focus_verification_failed",
+      "stable_but_nonresponsive",
+      "source_drift",
+      "idle_drift",
+      "coord_drift",
+      "insufficient_turn_response",
+      "same_direction_response",
+      "refresh_lane_failed",
+      "no_validated_winner"
+    ]
+  },
+  "handoff_requirements": {
+    "always_record": [
+      "exact command used",
+      "artifact paths",
+      "candidate source and basis offsets",
+      "thresholds used",
+      "delivery mode",
+      "blocker reason or winner classification"
+    ],
+    "if_workflow_changes": [
+      "update the human-readable workflow backup",
+      "update this machine-readable packet",
+      "update current truth if branch defaults changed"
+    ]
+  }
+}
