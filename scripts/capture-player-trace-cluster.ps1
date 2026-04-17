@@ -135,19 +135,35 @@ if ($RefreshTrace -or -not (Test-Path -LiteralPath $resolvedTraceFile)) {
 
 $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
 if (-not $anchor.TraceMatchesProcess) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
-    $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
+    try {
+        & $traceScript -Json -MaxCandidates 1 | Out-Null
+        $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
+    }
+    catch {
+        Write-Warning ("Unable to refresh the coord write trace for a live-matching anchor; falling back to the current module pattern. {0}" -f $_.Exception.Message)
+    }
 }
 
-if (-not $anchor.TraceMatchesProcess) {
-    throw "The saved coord trace still does not match the current Rift process."
+$instructionAddressText = $null
+$instructionAddressSource = $null
+if (-not [string]::IsNullOrWhiteSpace([string]$anchor.InstructionAddress) -and $anchor.TraceMatchesProcess) {
+    $instructionAddressText = [string]$anchor.InstructionAddress
+    $instructionAddressSource = 'coord-trace'
+}
+elseif ($anchor.ModulePattern -and $anchor.ModulePattern.Found -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$anchor.ModulePattern.Address)) {
+    $instructionAddressText = [string]$anchor.ModulePattern.Address
+    $instructionAddressSource = 'module-pattern'
 }
 
-if (-not $anchor.InstructionAddress) {
+if ([string]::IsNullOrWhiteSpace($instructionAddressText)) {
+    if (-not $anchor.TraceMatchesProcess) {
+        throw "The saved coord trace still does not match the current Rift process, and no current module-pattern anchor was available."
+    }
+
     throw "The coord-trace anchor did not contain an instruction address."
 }
 
-$instructionAddress = Parse-HexUInt64 -Value ([string]$anchor.InstructionAddress)
+$instructionAddress = Parse-HexUInt64 -Value $instructionAddressText
 $rawDirectory = Split-Path -Parent $rawClusterFile
 if (-not [string]::IsNullOrWhiteSpace($rawDirectory)) {
     New-Item -ItemType Directory -Path $rawDirectory -Force | Out-Null
@@ -233,8 +249,10 @@ $result = [ordered]@{
     Mode = 'player-coord-trace-cluster'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     TraceFile = $resolvedTraceFile
-    SourceObjectAddress = [string]$anchor.SourceObjectAddress
-    SelectedSourceAddress = [string]$anchor.SourceObjectAddress
+    InstructionAddress = $instructionAddressText
+    InstructionAddressSource = $instructionAddressSource
+    SourceObjectAddress = if ($anchor.TraceMatchesProcess) { [string]$anchor.SourceObjectAddress } else { $null }
+    SelectedSourceAddress = if ($anchor.TraceMatchesProcess) { [string]$anchor.SourceObjectAddress } else { $null }
     Anchor = $anchor
     RawClusterFile = $rawClusterFile
     InstructionsBefore = $InstructionsBefore

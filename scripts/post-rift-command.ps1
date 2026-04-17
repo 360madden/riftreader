@@ -330,15 +330,24 @@ $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandl
 Write-Host ("[RiftPost] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 
 if (-not $SkipBackgroundFocus) {
-    $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
-    Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
-    Focus-Window -Process $backgroundProcess
+    $backgroundProcess = $null
+    try {
+        $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
+    }
+    catch {
+        Write-Warning ("Background focus target '{0}' was not available; continuing without background focus. {1}" -f $BackgroundProcessName, $_.Exception.Message)
+    }
 
-    $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
-    Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+    if ($backgroundProcess) {
+        Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
+        Focus-Window -Process $backgroundProcess
 
-    if ($foregroundHandle -eq $targetHandle) {
-        throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+        Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+
+        if ($foregroundHandle -eq $targetHandle) {
+            throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        }
     }
 }
 

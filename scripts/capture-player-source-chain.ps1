@@ -454,9 +454,9 @@ if ($instructions.Count -eq 0) {
     throw "Owner/source lineage not reconstructed: trace cluster '$resolvedClusterFile' did not contain instructions."
 }
 
-$clusterSourceObjectAddress = [string]$cluster.Anchor.SourceObjectAddress
+$clusterSourceObjectAddress = if ($cluster.Anchor.TraceMatchesProcess) { [string]$cluster.Anchor.SourceObjectAddress } else { $null }
 $clusterSourceObjectRegister = Normalize-RegisterName -Name ([string]$cluster.Anchor.SourceObjectRegister)
-$clusterSourceObjectRegisterValue = [string]$cluster.Anchor.SourceObjectRegisterValue
+$clusterSourceObjectRegisterValue = if ($cluster.Anchor.TraceMatchesProcess) { [string]$cluster.Anchor.SourceObjectRegisterValue } else { $null }
 
 if ([string]::IsNullOrWhiteSpace($clusterSourceObjectRegister)) {
     throw "Owner/source lineage not reconstructed: trace cluster did not expose a source object register."

@@ -3,6 +3,7 @@ param(
     [switch]$Json,
     [string]$Label,
     [switch]$RefreshOwnerComponents,
+    [switch]$RequireLiveChain,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
@@ -555,7 +556,18 @@ if ($RefreshReaderBridge) {
 }
 
 if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
-    & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
+    $ownerComponentArguments = @{
+        RefreshSelectorTrace = $true
+        OutputFile = $resolvedOwnerComponentsFile
+        Json = $true
+    }
+    if ($RequireLiveChain) {
+        $ownerComponentArguments['ForceLiveRead'] = $true
+        $ownerComponentArguments['ForceDebuggerTrace'] = $true
+        $ownerComponentArguments['NoFallback'] = $true
+    }
+
+    & $ownerComponentScript @ownerComponentArguments | Out-Null
 }
 
 $liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents
@@ -592,6 +604,9 @@ if ($orientationMetadata.RefreshedOwnerComponents -eq $true) {
 elseif ($orientationMetadata.PSObject.Properties.Name -contains 'OwnerRefreshError' -and -not [string]::IsNullOrWhiteSpace([string]$orientationMetadata.OwnerRefreshError)) {
     $orientationNotes.Add("Owner-component refresh failed; using the last known selected source. $($orientationMetadata.OwnerRefreshError)")
 }
+if ($RequireLiveChain) {
+    $orientationNotes.Add('Strict live-chain mode was requested: owner components were refreshed through a live selector trace with cached fallback disabled.')
+}
 
 $orientation = [pscustomobject]@{
     Mode = 'player-orientation-live'
@@ -624,6 +639,7 @@ $orientation = [pscustomobject]@{
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add('This helper is actor-oriented: it reads the selected owner/source component and derives yaw/pitch from the live source basis matrix.')
 $notes.Add('Use -RefreshOwnerComponents when you want to recapture the owner/source component live before computing yaw/pitch.')
+$notes.Add('Add -RequireLiveChain when you need truth-oriented refresh behavior and want the selector-owner path to fail instead of silently reusing cached fallback artifacts.')
 $notes.Add('Use -RefreshReaderBridge when you want the coord-match checks to compare against a freshly exported player snapshot.')
 $notes.Add('For cleaner live tests, keep movement minimal and compare labeled captures before/after controlled facing changes.')
 

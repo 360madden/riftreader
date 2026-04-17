@@ -2,6 +2,8 @@
 param(
     [switch]$Json,
     [switch]$RefreshSourceChain,
+    [switch]$ForceDebuggerTrace,
+    [switch]$NoFallback,
     [int]$TimeoutSeconds = 8,
     [int]$MaxArmAttempts = 2,
     [int]$MovementHoldMilliseconds = 750,
@@ -9,7 +11,8 @@ param(
     [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
     [string]$CoordTraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
-    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.status.txt')
+    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.status.txt'),
+    [string]$FallbackTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.synthetic.json')
 )
 
 Set-StrictMode -Version Latest
@@ -25,6 +28,7 @@ $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedCoordTraceFile = [System.IO.Path]::GetFullPath($CoordTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($StatusFile)
+$resolvedFallbackTraceFile = [System.IO.Path]::GetFullPath($FallbackTraceFile)
 
 function Invoke-ReaderJson {
     param(
@@ -224,6 +228,99 @@ function Get-CoordTraceSelectedSourceAddress {
     return $null
 }
 
+function Save-JsonResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Result
+    )
+
+    $outputDirectory = Split-Path -Parent $resolvedOutputFile
+    if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
+        New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+    }
+
+    $jsonText = $Result | ConvertTo-Json -Depth 20
+    Set-Content -LiteralPath $resolvedOutputFile -Value $jsonText -Encoding UTF8
+
+    if ($Json) {
+        Write-Output $jsonText
+    }
+    else {
+        Write-Host "Selector-owner trace:  $resolvedOutputFile"
+        if ($Result.Contains('RecoveryMode')) {
+            Write-Host "Recovery mode:         $($Result.RecoveryMode)"
+        }
+        if ($Result.Contains('FallbackSourceFile')) {
+            Write-Host "Fallback source:       $($Result.FallbackSourceFile)"
+        }
+        Write-Host "Trigger instruction:   $($Result.TriggerInstruction.Address) | $($Result.TriggerInstruction.Full)"
+        Write-Host "Owner object:          $($Result.Owner.ObjectAddress)"
+        Write-Host "Owner container:       $($Result.Owner.ContainerAddress)"
+        Write-Host "Selector index:        $($Result.Owner.SelectorIndex)"
+        Write-Host "Selected source:       $($Result.SelectedSource.Address)"
+    }
+}
+
+function Get-FallbackTraceResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        $SourceChain,
+
+        [Parameter(Mandatory = $true)]
+        $TriggerInstruction,
+
+        [string]$Reason
+    )
+
+    $candidateFiles = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @($resolvedOutputFile, $resolvedFallbackTraceFile)) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
+            if (-not $candidateFiles.Contains($candidate)) {
+                $candidateFiles.Add($candidate) | Out-Null
+            }
+        }
+    }
+
+    if ($candidateFiles.Count -le 0) {
+        return $null
+    }
+
+    $fallbackSourceFile = $candidateFiles |
+        Sort-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc } -Descending |
+        Select-Object -First 1
+
+    $fallbackTrace = Get-Content -LiteralPath $fallbackSourceFile -Raw | ConvertFrom-Json -Depth 30
+    $fallbackTraceHash = [ordered]@{} 
+    foreach ($property in $fallbackTrace.PSObject.Properties) {
+        $fallbackTraceHash[$property.Name] = $property.Value
+    }
+
+    $fallbackTraceHash.GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    $fallbackTraceHash.SourceChainFile = $resolvedSourceChainFile
+    $fallbackTraceHash.CoordTraceFile = if (Test-Path -LiteralPath $resolvedCoordTraceFile) { $resolvedCoordTraceFile } else { $null }
+    $fallbackTraceHash.TriggerInstruction = $TriggerInstruction
+    $fallbackTraceHash.RecoveryMode = 'cached-fallback'
+    $fallbackTraceHash.FallbackSourceFile = $fallbackSourceFile
+    $fallbackTraceHash.FallbackReason = $Reason
+    if ($SourceChain.PSObject.Properties['TraceConfiguration']) {
+        $fallbackTraceHash.TraceConfiguration = $SourceChain.TraceConfiguration
+    }
+
+    if ($fallbackTraceHash.Contains('Trace') -and $null -ne $fallbackTraceHash.Trace) {
+        $traceHash = [ordered]@{}
+        foreach ($property in $fallbackTraceHash.Trace.PSObject.Properties) {
+            $traceHash[$property.Name] = $property.Value
+        }
+
+        $traceHash.Status = 'fallback'
+        $traceHash.Stage = 'cached-fallback'
+        $traceHash.Error = $Reason
+        $fallbackTraceHash.Trace = $traceHash
+    }
+
+    return $fallbackTraceHash
+}
+
 if ($RefreshSourceChain -or -not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
     & $sourceChainScript -Json | Out-Null
 }
@@ -292,6 +389,14 @@ $triggerAddress = Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
 $status = $null
 $producedStatusFile = $false
 $movementSequence = @($MovementKeys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+
+if (-not $ForceDebuggerTrace) {
+    $fallbackResult = Get-FallbackTraceResult -SourceChain $sourceChain -TriggerInstruction $triggerInstruction -Reason 'Cheat Engine debugger tracing disabled by default; using cached selector-owner fallback.'
+    if ($null -ne $fallbackResult) {
+        Save-JsonResult -Result $fallbackResult
+        return
+    }
+}
 
 for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
     if (Test-Path -LiteralPath $resolvedStatusFile) {
@@ -362,6 +467,13 @@ return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatu
 }
 
 if ($null -eq $status) {
+    $fallbackResult = if (-not $NoFallback) { Get-FallbackTraceResult -SourceChain $sourceChain -TriggerInstruction $triggerInstruction -Reason "Selector-owner trace did not produce a terminal status after $MaxArmAttempts arm attempt(s)." } else { $null }
+    if ($null -ne $fallbackResult) {
+        Write-Warning $fallbackResult.FallbackReason
+        Save-JsonResult -Result $fallbackResult
+        return
+    }
+
     if ($producedStatusFile) {
         throw "Selector-owner trace did not produce a terminal hit/error status after $MaxArmAttempts arm attempt(s)."
     }
@@ -370,6 +482,13 @@ if ($null -eq $status) {
 }
 
 if ($status.status -ne 'hit') {
+    $fallbackResult = if (-not $NoFallback) { Get-FallbackTraceResult -SourceChain $sourceChain -TriggerInstruction $triggerInstruction -Reason "Selector-owner trace failed with status '$($status.status)' after $MaxArmAttempts arm attempt(s)." } else { $null }
+    if ($null -ne $fallbackResult) {
+        Write-Warning $fallbackResult.FallbackReason
+        Save-JsonResult -Result $fallbackResult
+        return
+    }
+
     if ($producedStatusFile) {
         throw "Selector-owner trace failed with status '$($status.status)' after $MaxArmAttempts arm attempt(s)."
     }
@@ -477,28 +596,4 @@ $result = [ordered]@{
     SuggestedSelectorPatternScan = $selectorPatternScan
 }
 
-$outputDirectory = Split-Path -Parent $resolvedOutputFile
-if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
-    New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-}
-
-$jsonText = $result | ConvertTo-Json -Depth 20
-Set-Content -LiteralPath $resolvedOutputFile -Value $jsonText -Encoding UTF8
-
-if ($Json) {
-    Write-Output $jsonText
-}
-else {
-    Write-Host "Selector-owner trace:  $resolvedOutputFile"
-    Write-Host "Trigger instruction:   $($triggerInstruction.Address) | $($triggerInstruction.Full)"
-    Write-Host "Owner object:          $($result.Owner.ObjectAddress)"
-    Write-Host "Owner container:       $($result.Owner.ContainerAddress)"
-    Write-Host "Selector index:        $($result.Owner.SelectorIndex)"
-    Write-Host "Selected source:       $($result.SelectedSource.Address)"
-    Write-Host "Selected = coord trace: $($result.SelectedSource.MatchesCoordTraceSource)"
-    Write-Host ("Selected +0x48:        {0}, {1}, {2}" -f $selectedSourceCoord48.X, $selectedSourceCoord48.Y, $selectedSourceCoord48.Z)
-    Write-Host ("Selected +0x88:        {0}, {1}, {2}" -f $selectedSourceCoord88.X, $selectedSourceCoord88.Y, $selectedSourceCoord88.Z)
-    if ($selectorPatternScan -and $selectorPatternScan.Found -eq $true) {
-        Write-Host "Selector pattern:      $($selectorPatternScan.Address) [$($selectorPatternScan.RelativeOffsetHex)]"
-    }
-}
+Save-JsonResult -Result $result

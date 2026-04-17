@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshSelectorTrace,
+    [switch]$ForceLiveRead,
+    [switch]$ForceDebuggerTrace,
+    [switch]$NoFallback,
     [int]$MaxEntries = 16,
     [string]$SelectorTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json')
@@ -157,8 +160,36 @@ function Test-TripletMatch {
     return $true
 }
 
+function Write-JsonResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$JsonText
+    )
+
+    $outputDirectory = Split-Path -Parent $resolvedOutputFile
+    if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
+        New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+    }
+
+    Set-Content -LiteralPath $resolvedOutputFile -Value $JsonText -Encoding UTF8
+
+    if ($Json) {
+        Write-Output $JsonText
+    }
+}
+
 if ($RefreshSelectorTrace -or -not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
-    & $selectorTraceScript -Json | Out-Null
+    $selectorTraceArguments = @{
+        Json = $true
+    }
+    if ($ForceDebuggerTrace) {
+        $selectorTraceArguments['ForceDebuggerTrace'] = $true
+    }
+    if ($NoFallback) {
+        $selectorTraceArguments['NoFallback'] = $true
+    }
+
+    & $selectorTraceScript @selectorTraceArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
@@ -166,6 +197,20 @@ if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
 }
 
 $selectorTrace = Get-Content -LiteralPath $resolvedSelectorTraceFile -Raw | ConvertFrom-Json -Depth 30
+$selectorTraceRecoveryMode = if ($selectorTrace.PSObject.Properties['RecoveryMode']) { [string]$selectorTrace.RecoveryMode } else { $null }
+if (-not $ForceLiveRead -and -not [string]::IsNullOrWhiteSpace($selectorTraceRecoveryMode) -and $selectorTraceRecoveryMode -eq 'cached-fallback') {
+    if (Test-Path -LiteralPath $resolvedOutputFile) {
+        Write-Warning ("Selector-owner trace is in cached fallback mode; reusing cached owner-components artifact '{0}'." -f $resolvedOutputFile)
+        $cachedOwnerComponentsJson = Get-Content -LiteralPath $resolvedOutputFile -Raw
+        if ($Json) {
+            Write-Output $cachedOwnerComponentsJson
+        }
+        return
+    }
+
+    throw "Selector-owner trace is in cached fallback mode and no cached owner-components artifact was available."
+}
+
 $ownerAddress = Parse-HexUInt64 -Value ([string]$selectorTrace.Owner.ObjectAddress)
 $containerAddress = Parse-HexUInt64 -Value ([string]$selectorTrace.Owner.ContainerAddress)
 $selectedSourceAddress = Parse-HexUInt64 -Value ([string]$selectorTrace.SelectedSource.Address)
@@ -293,18 +338,9 @@ $result = [ordered]@{
     Entries = $entries.ToArray()
 }
 
-$outputDirectory = Split-Path -Parent $resolvedOutputFile
-if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
-    New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-}
-
 $jsonText = $result | ConvertTo-Json -Depth 20
-Set-Content -LiteralPath $resolvedOutputFile -Value $jsonText -Encoding UTF8
-
-if ($Json) {
-    Write-Output $jsonText
-}
-else {
+Write-JsonResult -JsonText $jsonText
+if (-not $Json) {
     Write-Host "Owner component file:  $resolvedOutputFile"
     Write-Host "Owner object:          0x$('{0:X}' -f $ownerAddress)"
     Write-Host "Component container:   0x$('{0:X}' -f $containerAddress)"

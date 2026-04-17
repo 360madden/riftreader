@@ -81,14 +81,38 @@ function Wait-ForTimestampAdvance {
     return $null
 }
 
+function Resolve-BackgroundExeArgument {
+    param(
+        [string]$ExecutableName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ExecutableName)) {
+        return ""
+    }
+
+    $processName = [System.IO.Path]::GetFileNameWithoutExtension($ExecutableName)
+    if ([string]::IsNullOrWhiteSpace($processName)) {
+        return ""
+    }
+
+    $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+    if ($running.Count -gt 0) {
+        return $ExecutableName
+    }
+
+    Write-Warning ("Background EXE '{0}' was not available; continuing without background focus." -f $ExecutableName)
+    return ""
+}
+
 $scriptPath = "C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ahk"
 $autoHotkeyExe = Find-AutoHotkeyExe
 $baselineUtc = Get-FileTimestampUtc -Path $VerifyFilePath
+$effectiveBackgroundExe = Resolve-BackgroundExeArgument -ExecutableName $BackgroundExe
 
 Write-Host "[RiftAhkPost] AutoHotkey    : $autoHotkeyExe"
 Write-Host "[RiftAhkPost] Script        : $scriptPath"
 Write-Host "[RiftAhkPost] Target EXE    : $TargetExe"
-Write-Host "[RiftAhkPost] Background EXE: $BackgroundExe"
+Write-Host "[RiftAhkPost] Background EXE: $effectiveBackgroundExe"
 Write-Host "[RiftAhkPost] Command       : $Command"
 Write-Host "[RiftAhkPost] Baseline UTC  : $($baselineUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
 
@@ -96,7 +120,7 @@ $argumentList = @(
     Quote-ProcessArgument -Value $scriptPath
     Quote-ProcessArgument -Value $Command
     Quote-ProcessArgument -Value $TargetExe
-    Quote-ProcessArgument -Value $BackgroundExe
+    Quote-ProcessArgument -Value $effectiveBackgroundExe
 ) -join ' '
 
 $process = Start-Process -FilePath $autoHotkeyExe -ArgumentList $argumentList -PassThru
