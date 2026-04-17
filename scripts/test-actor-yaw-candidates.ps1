@@ -8,6 +8,8 @@ param(
     [string]$StimulusKey = 'Right',
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
+    [switch]$SkipStimulus,
+    [int]$ManualWindowMilliseconds = 0,
     [double]$MinYawResponseDegrees = 1.0,
     [double]$MaxCoordDrift = 0.35
 )
@@ -268,9 +270,64 @@ if (-not (Test-Path -LiteralPath $resolvedCandidateScreenFile)) {
 }
 
 $screen = Get-Content -LiteralPath $resolvedCandidateScreenFile -Raw | ConvertFrom-Json -Depth 40
-$candidateRows = @($screen.Results | Select-Object -First $TopCount)
+$candidateRows = @()
+if ($screen.PSObject.Properties['Mode'] -and [string]$screen.Mode -eq 'actor-orientation-candidate-screen') {
+    $candidateRows = @(
+        $screen.Results |
+            Select-Object -First $TopCount |
+            ForEach-Object {
+                [pscustomobject]@{
+                    Rank = $_.Rank
+                    SourceAddress = [string]$_.SourceAddress
+                    BasisForwardOffset = [string]$_.BasisForwardOffset
+                    DiscoveryMode = [string]$_.DiscoveryMode
+                    ParentAddress = [string]$_.ParentAddress
+                    RootAddress = [string]$_.RootAddress
+                    SearchScore = $_.SearchScore
+                }
+            })
+}
+elseif ($screen.PSObject.Properties['Mode'] -and [string]$screen.Mode -eq 'player-orientation-candidate-search') {
+    $rank = 0
+    $pointerHopCandidates = @($screen.PointerHopCandidates)
+    $localCandidates = @($screen.Candidates)
+    $normalizedCandidates = New-Object System.Collections.Generic.List[object]
+
+    foreach ($candidate in $pointerHopCandidates) {
+        $rank++
+        $normalizedCandidates.Add([pscustomobject]@{
+            Rank = $rank
+            SourceAddress = [string]$candidate.Address
+            BasisForwardOffset = [string]$candidate.BasisPrimaryForwardOffset
+            DiscoveryMode = [string]$candidate.DiscoveryMode
+            ParentAddress = [string]$candidate.ParentAddress
+            RootAddress = [string]$candidate.RootAddress
+            SearchScore = $candidate.Score
+        }) | Out-Null
+    }
+
+    foreach ($candidate in $localCandidates) {
+        if ($normalizedCandidates.Count -ge $TopCount) {
+            break
+        }
+
+        $rank++
+        $normalizedCandidates.Add([pscustomobject]@{
+            Rank = $rank
+            SourceAddress = [string]$candidate.Address
+            BasisForwardOffset = [string]$candidate.BasisPrimaryForwardOffset
+            DiscoveryMode = [string]$candidate.DiscoveryMode
+            ParentAddress = [string]$candidate.ProbeRootAddress
+            RootAddress = [string]$candidate.ProbeRootAddress
+            SearchScore = $candidate.Score
+        }) | Out-Null
+    }
+
+    $candidateRows = @($normalizedCandidates.ToArray() | Select-Object -First $TopCount)
+}
+
 if ($candidateRows.Count -le 0) {
-    throw "Candidate screen file did not contain any candidate rows."
+    throw "Candidate input file did not contain any candidate rows."
 }
 
 $beforePlayer = Get-PlayerCurrent
@@ -281,9 +338,18 @@ foreach ($row in $candidateRows) {
     $beforeSnapshots[$row.SourceAddress] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
 }
 
-& $postKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds *> $null
-if ($LASTEXITCODE -ne 0) {
-    throw "Stimulus key '$StimulusKey' failed."
+if ($SkipStimulus) {
+    if ($ManualWindowMilliseconds -gt 0) {
+        Write-Host ("Manual turn window:         {0} ms" -f $ManualWindowMilliseconds)
+        Write-Host 'Turn the player manually now.' -ForegroundColor Yellow
+        Start-Sleep -Milliseconds $ManualWindowMilliseconds
+    }
+}
+else {
+    & $postKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Stimulus key '$StimulusKey' failed."
+    }
 }
 
 Start-Sleep -Milliseconds $WaitMilliseconds
@@ -350,6 +416,8 @@ $document.GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Global
 $document.CandidateScreenFile = $resolvedCandidateScreenFile
 $document.ProcessName = $ProcessName
 $document.StimulusKey = $StimulusKey
+$document.SkipStimulus = $SkipStimulus
+$document.ManualWindowMilliseconds = $ManualWindowMilliseconds
 $document.HoldMilliseconds = $HoldMilliseconds
 $document.WaitMilliseconds = $WaitMilliseconds
 $document.MinYawResponseDegrees = $MinYawResponseDegrees
@@ -361,7 +429,7 @@ $document.TruthLikeCandidateCount = $truthLikeResults.Count
 $document.BestTruthLikeCandidate = $bestTruthLike
 $document.Results = $results.ToArray()
 $document.Notes = @(
-    'Read-only candidate validation using direct memory reads plus a controlled turn key stimulus.',
+    $(if ($SkipStimulus) { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { 'Read-only candidate validation using direct memory reads plus a controlled turn key stimulus.' }),
     'No debugger attach, breakpoint tracing, or debug scanning was used.',
     'A candidate is marked truth-like when its yaw changes beyond the configured threshold while player coordinate drift stays under the configured limit.')
 
@@ -380,7 +448,13 @@ if ($Json) {
 
 Write-Host "Actor yaw candidate test"
 Write-Host "Output file:              $resolvedOutputFile"
-Write-Host "Stimulus key:             $StimulusKey"
+if ($SkipStimulus) {
+    Write-Host "Stimulus mode:            manual"
+    Write-Host "Manual window (ms):       $ManualWindowMilliseconds"
+}
+else {
+    Write-Host "Stimulus key:             $StimulusKey"
+}
 Write-Host "Candidates tested:        $($results.Count)"
 Write-Host "Truth-like candidates:    $(@($results | Where-Object { $_.TruthLike }).Count)"
 foreach ($result in $results) {

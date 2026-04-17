@@ -18,6 +18,7 @@ Usage:
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
@@ -46,6 +47,8 @@ Notes:
   - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
+  - Use --find-player-orientation-candidate to do a single-process read-only search for live actor/source candidates near current player coordinate hits.
+  - Use --orientation-candidate-ledger-file to downrank candidates that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
@@ -73,6 +76,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
@@ -109,6 +113,7 @@ Examples:
         var readPlayerOrientation = false;
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
+        var findPlayerOrientationCandidate = false;
         var readPlayerCoordAnchor = false;
         var recordSession = false;
         var sessionSummary = false;
@@ -140,6 +145,7 @@ Examples:
         string? addonSnapshotFile = null;
         var readReaderBridgeSnapshot = false;
         string? readerBridgeSnapshotFile = null;
+        string? orientationCandidateLedgerFile = null;
         var rankStatHubs = false;
         var cheatEngineStatHubs = false;
         var readTargetCurrent = false;
@@ -364,6 +370,19 @@ Examples:
 
                 case "--read-player-current":
                     readPlayerCurrent = true;
+                    break;
+
+                case "--find-player-orientation-candidate":
+                    findPlayerOrientationCandidate = true;
+                    break;
+
+                case "--orientation-candidate-ledger-file":
+                    if (!TryReadNext(args, ref index, out var orientationCandidateLedgerFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --orientation-candidate-ledger-file.", UsageText);
+                    }
+
+                    orientationCandidateLedgerFile = orientationCandidateLedgerFileValue;
                     break;
 
                 case "--read-player-coord-anchor":
@@ -703,7 +722,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
             {
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with scan, snapshot, live reader, or record-session modes.", UsageText);
             }
@@ -779,7 +798,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
             }
@@ -1036,6 +1055,21 @@ Examples:
                 UsageText);
         }
 
+        if (findPlayerOrientationCandidate && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with scan switches.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (orientationCandidateLedgerFile is not null && !findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--orientation-candidate-ledger-file can only be used with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (processId.HasValue == !string.IsNullOrWhiteSpace(processName))
         {
             return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name.", UsageText);
@@ -1176,6 +1210,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor.", UsageText);
         }
 
+        if (listModules && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (listModules && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-current.", UsageText);
@@ -1196,6 +1235,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --record-session.", UsageText);
         }
 
+        if (writeCheatEngineProbe && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (writeCheatEngineProbe && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-current.", UsageText);
@@ -1211,6 +1255,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-coord-anchor.", UsageText);
         }
 
+        if (captureReaderBridgeBestFamily && findPlayerOrientationCandidate)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --find-player-orientation-candidate.", UsageText);
+        }
+
         if (captureReaderBridgeBestFamily && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-current.", UsageText);
@@ -1224,6 +1273,26 @@ Examples:
         if (captureReaderBridgeBestFamily && readPlayerCoordAnchor)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readPlayerCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-current.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readPlayerCoordAnchor)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-coord-anchor.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readTargetCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-target-current.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --record-session.", UsageText);
         }
 
         if (readPlayerCurrent && readPlayerCoordAnchor)
@@ -1321,7 +1390,9 @@ Examples:
                     AddonSnapshotFile: null,
                     ReadReaderBridgeSnapshot: false,
                     ReaderBridgeSnapshotFile: null,
-                    JsonOutput: jsonOutput),
+                    JsonOutput: jsonOutput,
+                    FindPlayerOrientationCandidate: findPlayerOrientationCandidate,
+                    OrientationCandidateLedgerFile: orientationCandidateLedgerFile),
             UsageText);
     }
 

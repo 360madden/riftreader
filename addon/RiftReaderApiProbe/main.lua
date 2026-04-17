@@ -24,6 +24,22 @@ local function safeCall(fn, ...)
   return a, b, c, d
 end
 
+local function safeUnitHeading(unit)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Heading, unit)
+end
+
+local function safeUnitPitch(unit)
+  if not Inspect or not Inspect.Unit then
+    return nil
+  end
+
+  return safeCall(Inspect.Unit.Pitch, unit)
+end
+
 local function inspectTable(tbl, indent, maxDepth)
   if type(tbl) ~= "table" then
     return tostring(tbl)
@@ -52,6 +68,99 @@ local function inspectTable(tbl, indent, maxDepth)
     return "{}"
   end
   return "{\n" .. table.concat(lines, "\n") .. "\n" .. indent .. "}"
+end
+
+local function formatScalar(value)
+  local valueType = type(value)
+  if valueType == "string" then
+    return '"' .. value .. '"'
+  end
+  if valueType == "boolean" then
+    return value and "true" or "false"
+  end
+  if valueType == "number" then
+    return string.format("%.4f", value)
+  end
+  return tostring(value)
+end
+
+local function isOrientationKey(key)
+  if type(key) ~= "string" then
+    return false
+  end
+
+  local lower = string.lower(key)
+  return lower == "heading"
+    or lower == "pitch"
+    or lower == "yaw"
+    or lower == "face"
+    or lower == "facing"
+    or lower == "orient"
+    or lower == "orientation"
+    or lower == "rotation"
+    or string.find(lower, "heading", 1, true) ~= nil
+    or string.find(lower, "pitch", 1, true) ~= nil
+    or string.find(lower, "yaw", 1, true) ~= nil
+    or string.find(lower, "face", 1, true) ~= nil
+    or string.find(lower, "orient", 1, true) ~= nil
+    or string.find(lower, "rotation", 1, true) ~= nil
+end
+
+local function probeOrientationTable(label, tbl)
+  console("=== Probing " .. tostring(label) .. " ===", "#FFFF00")
+
+  if type(tbl) ~= "table" then
+    console(tostring(label) .. " returned: " .. type(tbl), "#FF4444")
+    return
+  end
+
+  local heading = tbl.heading
+  local pitch = tbl.pitch
+  if heading ~= nil or pitch ~= nil then
+    console(
+      string.format("  direct heading=%s pitch=%s", formatScalar(heading), formatScalar(pitch)),
+      "#00FF88")
+  end
+
+  local matches = {}
+  for key, value in pairs(tbl) do
+    if isOrientationKey(key) then
+      table.insert(matches, {
+        key = tostring(key),
+        value = value,
+        valueType = type(value),
+      })
+    end
+  end
+
+  table.sort(matches, function(a, b) return a.key < b.key end)
+
+  if #matches == 0 then
+    console("  no orientation-like keys found", "#FFAA00")
+    return
+  end
+
+  for _, item in ipairs(matches) do
+    console(
+      string.format("  .%s [%s] = %s", item.key, item.valueType, formatScalar(item.value)),
+      "#CCCCCC")
+  end
+end
+
+local function probeReaderBridgeOrientation()
+  if type(ReaderBridge) ~= "table" then
+    console("ReaderBridge unavailable", "#FFAA00")
+    return
+  end
+
+  local bridgeState = ReaderBridge.State
+  if type(bridgeState) ~= "table" then
+    console("ReaderBridge.State unavailable", "#FFAA00")
+    return
+  end
+
+  probeOrientationTable("ReaderBridge.State.player", bridgeState.player)
+  probeOrientationTable("ReaderBridge.State.target", bridgeState.target)
 end
 
 local function probeInspectUnitDetail()
@@ -123,6 +232,37 @@ local function probeInspectStat()
     end
     console(string.format("  .%s [%s] = %s", tostring(k), typeStr, valStr), "#CCCCCC")
   end
+end
+
+local function probeOrientation()
+  console("=== Probing orientation ===", "#FFFF00")
+
+  local playerId = safeCall(Inspect.Unit.Lookup, "player")
+  if playerId then
+    console(
+      string.format(
+        "Inspect.Unit.Heading/Pitch(player) = %s / %s",
+        formatScalar(safeUnitHeading(playerId)),
+        formatScalar(safeUnitPitch(playerId))),
+      "#00FF88")
+    probeOrientationTable("Inspect.Unit.Detail(player)", safeCall(Inspect.Unit.Detail, playerId))
+  else
+    console("Player unit ID unavailable", "#FFAA00")
+  end
+
+  local targetId = safeCall(Inspect.Unit.Lookup, "player.target")
+  if targetId then
+    console(
+      string.format(
+        "Inspect.Unit.Heading/Pitch(target) = %s / %s",
+        formatScalar(safeUnitHeading(targetId)),
+        formatScalar(safeUnitPitch(targetId))),
+      "#00FF88")
+    probeOrientationTable("Inspect.Unit.Detail(target)", safeCall(Inspect.Unit.Detail, targetId))
+  end
+
+  probeOrientationTable("Inspect.Stat", safeCall(Inspect.Stat))
+  probeReaderBridgeOrientation()
 end
 
 local function probeInspectUnitCastbar()
@@ -284,6 +424,7 @@ function Probe.OnSlashCommand(args)
     console("Commands:", "#FFFF00")
     console("  /rap detail     - Probe Inspect.Unit.Detail", "#CCCCCC")
     console("  /rap stat       - Probe Inspect.Stat", "#CCCCCC")
+    console("  /rap orientation - Probe heading/pitch and orientation-like keys", "#CCCCCC")
     console("  /rap castbar    - Probe Inspect.Unit.Castbar", "#CCCCCC")
     console("  /rap buff       - Probe Inspect.Buff.List", "#CCCCCC")
     console("  /rap unitlist   - Probe Inspect.Unit.List", "#CCCCCC")
@@ -301,6 +442,11 @@ function Probe.OnSlashCommand(args)
   
   if command == "stat" then
     probeInspectStat()
+    return
+  end
+
+  if command == "orientation" then
+    probeOrientation()
     return
   end
   
@@ -339,6 +485,7 @@ function Probe.OnSlashCommand(args)
     probeInspectSystemSecure()
     probeInspectUnitDetail()
     probeInspectStat()
+    probeOrientation()
     probeInspectUnitCastbar()
     probeInspectBuffList()
     probeInspectUnitList()

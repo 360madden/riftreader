@@ -158,7 +158,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -204,6 +204,11 @@ internal static class Program
         if (options.ReadPlayerCurrent)
         {
             return RunReadPlayerCurrentMode(options, target, reader);
+        }
+
+        if (options.FindPlayerOrientationCandidate)
+        {
+            return RunFindPlayerOrientationCandidateMode(options, target, reader);
         }
 
         if (options.ReadTargetCurrent)
@@ -423,6 +428,62 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (snapshotDocument?.Current?.Player?.Coord is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player orientation candidate search.");
+            return 1;
+        }
+
+        PlayerOrientationCandidateSearchResult result;
+        try
+        {
+            result = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to find a live player orientation candidate: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("Player orientation candidate search");
+        Console.WriteLine($"Player:                      {result.PlayerName ?? "n/a"}");
+        Console.WriteLine($"Candidate count:             {result.CandidateCount}");
+        Console.WriteLine($"Pointer-hop candidate count: {result.PointerHopCandidateCount}");
+
+        if (result.BestPointerHopCandidate is not null)
+        {
+            Console.WriteLine($"Best pointer-hop candidate:  {result.BestPointerHopCandidate.Address} @ {result.BestPointerHopCandidate.BasisPrimaryForwardOffset}");
+            Console.WriteLine($"Pointer-hop yaw/pitch (deg): {result.BestPointerHopCandidate.PreferredEstimate.YawDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"} / {result.BestPointerHopCandidate.PreferredEstimate.PitchDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"}");
+        }
+        else if (result.BestCandidate is not null)
+        {
+            Console.WriteLine($"Best local candidate:        {result.BestCandidate.Address} @ {result.BestCandidate.BasisPrimaryForwardOffset}");
+            Console.WriteLine($"Local yaw/pitch (deg):       {result.BestCandidate.PreferredEstimate.YawDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"} / {result.BestCandidate.PreferredEstimate.PitchDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"}");
+        }
+
+        foreach (var note in result.Notes)
+        {
+            Console.WriteLine($"- {note}");
+        }
+
         return 0;
     }
 

@@ -51,4 +51,6 @@ public sealed record ReaderOptions(
     string? AddonSnapshotFile,
     bool ReadReaderBridgeSnapshot,
     string? ReaderBridgeSnapshotFile,
-    bool JsonOutput);
+    bool JsonOutput,
+    bool FindPlayerOrientationCandidate = false,
+    string? OrientationCandidateLedgerFile = null);
