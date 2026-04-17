@@ -40,6 +40,30 @@ Full doc:
 
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
 
+## Actor-Facing Discovery Workflow (April 16, 2026)
+
+Actor-facing discovery now has a dedicated revalidation path aimed at later
+navigation-facing turn logic.
+
+| Area | Current status |
+|---|---|
+| Primary candidate | selected-source basis forward row |
+| Movement truth | addon-exported coords captured at explicit `/rbx export` boundaries |
+| Offline support | math, basis-integrity thresholds, and failure-shape classification are implemented and tested |
+| Live authority | still **candidate-only** until the contract is confirmed |
+| Main outputs | actor-facing sample, validation history, navigation-facing contract |
+
+Use:
+
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd`
+
+Full doc:
+
+- `C:\RIFT MODDING\RiftReader\docs\actor-facing-discovery.md`
+
 The current prototype should stay focused on:
 
 - explicit process targeting
@@ -254,3 +278,8 @@ Desired traits:
 - graceful fallback to plain text when color support is unavailable
 
 See `C:\RIFT MODDING\RiftReader\docs\reader-cli-ux.md` for the full UX note.
+
+
+
+
+

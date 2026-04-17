@@ -32,6 +32,31 @@ See:
 
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
 
+## Actor-Facing Discovery Workflow (April 16, 2026)
+
+Actor-facing discovery now has a dedicated **navigation-ready revalidation**
+workflow.
+
+| Area | Current workflow status |
+|---|---|
+| Primary candidate | selected-source basis forward row |
+| Movement truth | addon-exported coords captured at explicit `/rbx export` boundaries |
+| Math / thresholds | fixed and offline-tested |
+| Live authority | still **candidate-only** until the contract passes live validation |
+| Output artifacts | actor-facing sample, validation history, navigation-facing contract |
+| Non-goals | no camera discovery, no auto-turn implementation in this pass |
+
+Use these helpers:
+
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd`
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\docs\actor-facing-discovery.md`
+
 ## Shell Requirements
 
 RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
@@ -115,6 +140,7 @@ RiftReader/
 │       ├── RiftAddon.toc
 │       └── main.lua
 ├── docs/
+│   ├── actor-facing-discovery.md
 │   ├── addon-validation-spec.md
 │   ├── cheat-engine-workflow.md
 │   ├── navigation-waypoint-v1.md
@@ -124,6 +150,7 @@ RiftReader/
 ├── reader/
 │   ├── RiftReader.Reader/
 │   │   ├── Cli/
+│   │   ├── Facing/
 │   │   ├── Formatting/
 │   │   ├── Memory/
 │   │   ├── Navigation/
@@ -131,10 +158,18 @@ RiftReader/
 │   │   ├── Program.cs
 │   │   └── RiftReader.Reader.csproj
 │   └── RiftReader.Reader.Tests/
+│       ├── Facing/
 │       ├── Navigation/
 │       └── RiftReader.Reader.Tests.csproj
 ├── scripts/
+│   ├── actor-facing-common.ps1
+│   ├── build-navigation-facing-contract.cmd
+│   ├── build-navigation-facing-contract.ps1
 │   ├── build-reader.cmd
+│   ├── capture-actor-facing.cmd
+│   ├── capture-actor-facing.ps1
+│   ├── capture-readerbridge-boundary.cmd
+│   ├── capture-readerbridge-boundary.ps1
 │   ├── deploy-addon.cmd
 │   ├── generate-cheatengine-probe.cmd
 │   ├── cheatengine-attach-probe.cmd
@@ -148,6 +183,8 @@ RiftReader/
 │   ├── run-reader.cmd
 │   ├── sync-cheatengine.cmd
 │   ├── sync-addon.cmd
+│   ├── test-actor-facing-validation.cmd
+│   ├── test-actor-facing-validation.ps1
 │   ├── validate-addon.cmd
 │   ├── watch-readerbridge-export.cmd
 │   └── navigation/
@@ -525,6 +562,10 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd` - remotely append the current best-family sample set to `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\probe-samples.tsv`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.cmd` - normalize the incumbent selected-source basis into a navigation-ready actor-facing sample with fixed yaw / pitch / planar-forward math and basis integrity gates
+- `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.cmd` - trigger `/rbx export`, reload the latest ReaderBridge snapshot, and freeze addon coords at a stimulus boundary
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd` - run `idle`, `turn-left`, `turn-right`, or `move-forward` validation loops and append per-run evidence to the actor-facing validation history
+- `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.ps1` / `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd` - evaluate the latest matching facing sample plus validation history and emit the current navigation-facing contract as `candidate`, `confirmed`, or `rejected`
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review
 - `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1` - append a normalized NDJSON marker record to a watched marker-input file during a live session recording
@@ -647,3 +688,7 @@ better anchors:
 - today: grouped family selection plus direct field reads
 - next: ReClass/x64dbg-backed structure refinement
 - later: module signatures, pointer paths, and broader entity coverage
+
+
+
+
