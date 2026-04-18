@@ -45,6 +45,19 @@ public sealed class ReaderBridgeExportTextGoldenTests
     }
 
     [Fact]
+    public void CurrentNullFormatterOutput_MatchesGoldenText()
+    {
+        var document = ReaderBridgeSnapshotLoaderTestSupport.NormalizeForGolden(
+            ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.current-null.lua"),
+            "ReaderBridgeExport.current-null.lua");
+
+        var text = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(ReaderBridgeSnapshotTextFormatter.Format(document));
+        var expected = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.current-null.expected.txt");
+
+        Assert.Equal(expected, text);
+    }
+
+    [Fact]
     public void WaitingForPlayerCliTextOutput_MatchesGoldenText()
     {
         var result = ReaderBridgeSnapshotLoaderTestSupport.RunReader(
@@ -137,6 +150,33 @@ public sealed class ReaderBridgeExportTextGoldenTests
         Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
 
         var expectedFormatterText = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.frozen.expected.txt");
+        var expectedCliText = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(
+            $"RiftReader.Reader{Environment.NewLine}" +
+            "Use this tool only against Rift client processes you explicitly intend to inspect." +
+            $"{Environment.NewLine}{Environment.NewLine}{expectedFormatterText}");
+
+        Assert.Equal(
+            expectedCliText,
+            ReaderBridgeSnapshotLoaderTestSupport.NormalizeCliText(
+                result.StandardOutput,
+                ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName),
+                fixtureName));
+    }
+
+    [Fact]
+    public void CurrentNullCliTextOutput_MatchesGoldenText()
+    {
+        const string fixtureName = "ReaderBridgeExport.current-null.lua";
+        var result = ReaderBridgeSnapshotLoaderTestSupport.RunReader(
+            [
+                "--readerbridge-snapshot",
+                "--readerbridge-snapshot-file", ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName)
+            ]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
+
+        var expectedFormatterText = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.current-null.expected.txt");
         var expectedCliText = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(
             $"RiftReader.Reader{Environment.NewLine}" +
             "Use this tool only against Rift client processes you explicitly intend to inspect." +

@@ -177,4 +177,191 @@ ReaderBridgeExport_State = {
 
         Assert.Contains("Export addon:            ReaderBridgeExport v?", text, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void MissingLocationName_FallsBackToZone()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 36, lastReason = "zone-fallback", exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "zone-fallback",
+    generatedAtRealtime = 36,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = { id = "p", name = "Player", level = 1, zone = "Zone Only" },
+    playerStats = {},
+    nearbyUnits = {},
+    partyUnits = {},
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(MissingLocationName_FallsBackToZone), fixtureText);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
+
+        Assert.Contains("Player location:         Zone Only", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IncompleteCoords_AreHiddenFromFormatter()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 37, lastReason = "partial-coords", exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "partial-coords",
+    generatedAtRealtime = 37,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = {
+      id = "p",
+      name = "Player",
+      level = 1,
+      coord = { x = 10, y = 20 },
+    },
+    playerStats = {},
+    nearbyUnits = {},
+    partyUnits = {},
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(IncompleteCoords_AreHiddenFromFormatter), fixtureText);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
+
+        Assert.DoesNotContain("Player coords:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TargetTtdWithoutSummary_StillFormatsTargetSection()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 38, lastReason = "target-ttd", exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "target-ttd",
+    generatedAtRealtime = 38,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = { id = "p", name = "Player", level = 1 },
+    target = {
+      id = "t",
+      name = "Boss",
+      level = 2,
+      hp = 100,
+      hpMax = 200,
+      resourceKind = "Mana",
+      resource = 25,
+      resourceMax = 50,
+      ttdText = "18s",
+    },
+    playerStats = {},
+    nearbyUnits = {},
+    partyUnits = {},
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(TargetTtdWithoutSummary_StillFormatsTargetSection), fixtureText);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
+
+        Assert.Contains("Target:                  Boss (Lv2)", text, StringComparison.Ordinal);
+        Assert.Contains("Target TTD:              18s", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MissingLastReason_FormatsAsNa()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 39, exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "missing-last-reason",
+    generatedAtRealtime = 39,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = { id = "p", name = "Player", level = 1 },
+    playerStats = {},
+    nearbyUnits = {},
+    partyUnits = {},
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(MissingLastReason_FormatsAsNa), fixtureText);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
+
+        Assert.Contains("Last reason:             n/a", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MissingExportCount_FormatsAsNa()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 40, lastReason = "missing-export-count" },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "missing-export-count",
+    generatedAtRealtime = 40,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = { id = "p", name = "Player", level = 1 },
+    playerStats = {},
+    nearbyUnits = {},
+    partyUnits = {},
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(MissingExportCount_FormatsAsNa), fixtureText);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
+
+        Assert.Contains("Export count:            n/a", text, StringComparison.Ordinal);
+    }
 }

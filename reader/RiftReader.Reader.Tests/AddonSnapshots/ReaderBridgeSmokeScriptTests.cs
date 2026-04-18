@@ -54,6 +54,17 @@ public sealed class ReaderBridgeSmokeScriptTests
         Assert.Equal(expected, result.StandardError.Trim());
     }
 
+    [Fact]
+    public void CorruptedFixtureFile_FailsWithParseError()
+    {
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(CorruptedFixtureFile_FailsWithParseError), "ReaderBridgeExport_State = {");
+        var result = RunSmokeScript(["-SnapshotFile", fixture.Path, "-Json", "-NoBuild"]);
+        var combined = $"{result.StandardOutput}{Environment.NewLine}{result.StandardError}";
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("Unexpected end of input while parsing a Lua value.", combined, StringComparison.Ordinal);
+    }
+
     private static CommandResult RunSmokeScript(IReadOnlyList<string> args)
     {
         var repoRoot = ReaderBridgeSnapshotLoaderTestSupport.FindRepoRoot();
