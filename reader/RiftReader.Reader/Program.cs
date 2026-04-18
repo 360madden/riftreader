@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.CheatEngine;
 using RiftReader.Reader.Cli;
+using RiftReader.Reader.Debugging;
 using RiftReader.Reader.Formatting;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Models;
@@ -57,6 +58,16 @@ internal static class Program
         if (options.ReadReaderBridgeSnapshot)
         {
             return RunReaderBridgeSnapshotMode(options);
+        }
+
+        if (options.DebugWorker)
+        {
+            return RunDebugWorkerMode(options);
+        }
+
+        if (options.DebugTraceSummary)
+        {
+            return RunDebugTraceSummaryMode(options);
         }
 
         if (options.SessionSummary)
@@ -156,6 +167,11 @@ internal static class Program
                 Console.Error.WriteLine($"Unable to enumerate process modules: {ex.Message}");
                 return 1;
             }
+        }
+
+        if (DebugTraceRequestBuilder.IsDebugTraceMode(options))
+        {
+            return RunDebugTraceMode(options, process, target);
         }
 
         if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
@@ -278,6 +294,93 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(SessionSummaryTextFormatter.Format(inspection));
         return 0;
+    }
+
+    private static int RunDebugTraceSummaryMode(ReaderOptions options)
+    {
+        var inspection = DebugTracePackageLoader.TryInspect(options.DebugTraceDirectory, out var loadError);
+        if (inspection is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the debug trace package.");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(inspection));
+            return 0;
+        }
+
+        Console.WriteLine("RiftReader.Reader");
+        Console.WriteLine("Use this tool only against Rift client artifacts and processes you explicitly intend to inspect.");
+        Console.WriteLine();
+        Console.WriteLine(DebugTraceSummaryTextFormatter.Format(inspection));
+        return 0;
+    }
+
+    private static int RunDebugWorkerMode(ReaderOptions options)
+    {
+        var request = DebugTraceRequestBuilder.TryLoadRequest(options.DebugRequestFile, out var loadError);
+        if (request is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the debug trace request.");
+            return 1;
+        }
+
+        return DebugTraceWorker.Execute(request);
+    }
+
+    private static int RunDebugTraceMode(ReaderOptions options, Process process, ProcessTarget target)
+    {
+        var request = DebugTraceRequestBuilder.TryBuild(options, process, target, out var requestError);
+        if (request is null)
+        {
+            Console.Error.WriteLine(requestError ?? "Unable to build the debug trace request.");
+            return 1;
+        }
+
+        var requestFile = DebugTraceRequestBuilder.WriteRequestFile(request);
+        var startInfo = BuildDebugWorkerStartInfo(requestFile);
+
+        using var worker = Process.Start(startInfo);
+        if (worker is null)
+        {
+            Console.Error.WriteLine("Unable to start the internal debug worker.");
+            return 1;
+        }
+
+        var workerStdout = worker.StandardOutput.ReadToEnd();
+        var workerStderr = worker.StandardError.ReadToEnd();
+        worker.WaitForExit();
+
+        var inspection = DebugTracePackageLoader.TryInspect(request.OutputDirectory, out var inspectError);
+        if (inspection is not null)
+        {
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(inspection));
+            }
+            else
+            {
+                Console.WriteLine(DebugTraceSummaryTextFormatter.Format(inspection));
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(inspectError))
+        {
+            Console.Error.WriteLine(inspectError);
+        }
+
+        if (!string.IsNullOrWhiteSpace(workerStdout) && !options.JsonOutput)
+        {
+            Console.WriteLine(workerStdout.TrimEnd());
+        }
+
+        if (!string.IsNullOrWhiteSpace(workerStderr))
+        {
+            Console.Error.WriteLine(workerStderr.TrimEnd());
+        }
+
+        return worker.ExitCode;
     }
 
     private static int RunCheatEngineProbeMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
@@ -1526,6 +1629,34 @@ internal static class Program
 
         var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
         return Path.Combine(repoRoot, "scripts", "cheat-engine", "RiftReaderProbe.lua");
+    }
+
+    private static ProcessStartInfo BuildDebugWorkerStartInfo(string requestFile)
+    {
+        var hostPath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+        var assemblyPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        if (string.IsNullOrWhiteSpace(hostPath))
+        {
+            throw new InvalidOperationException("Unable to resolve the current reader host path for debug worker startup.");
+        }
+
+        var isDotnetHost = string.Equals(Path.GetFileName(hostPath), "dotnet", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Path.GetFileName(hostPath), "dotnet.exe", StringComparison.OrdinalIgnoreCase);
+
+        var arguments = isDotnetHost
+            ? $"\"{assemblyPath}\" --debug-worker --debug-request-file \"{requestFile}\""
+            : $"--debug-worker --debug-request-file \"{requestFile}\"";
+
+        return new ProcessStartInfo
+        {
+            FileName = hostPath,
+            Arguments = arguments,
+            WorkingDirectory = Directory.GetCurrentDirectory(),
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
     }
 
     private static string? TryFindRepoRoot(string startDirectory)

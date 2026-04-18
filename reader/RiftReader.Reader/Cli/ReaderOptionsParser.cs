@@ -21,6 +21,11 @@ Usage:
   RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --debug-trace-instruction (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
+  RiftReader.Reader --process-name <name> --debug-trace-memory-write (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) --debug-width <1|2|4|8> [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
+  RiftReader.Reader --process-name <name> --debug-trace-memory-access (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) --debug-width <1|2|4|8> [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
+  RiftReader.Reader --process-name <name> --debug-trace-player-coord-write [--player-coord-trace-file <path>] [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
+  RiftReader.Reader --debug-trace-summary --trace-directory <path> [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
@@ -51,6 +56,11 @@ Notes:
   - Use --orientation-candidate-ledger-file to downrank candidates that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
+  - Use --debug-trace-instruction to run the bounded native x64 debug worker against a known code address or module-relative offset.
+  - Use --debug-trace-memory-write or --debug-trace-memory-access to arm a bounded hardware watchpoint against a narrowed address.
+  - Use --debug-trace-player-coord-write to validate the current coord-trace lineage and execute-trace the current player coord write instruction.
+  - Use --debug-trace-summary to inspect a recorded debug-trace package without attaching to a live process.
+  - Use --debug-disable-* switches to trim capture/analyzer modules without changing the worker core.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
   - Use --session-marker-input-file with --record-session when you want manual or script-driven markers appended during the live recording window.
@@ -78,6 +88,10 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-instruction --debug-module-name rift_x64.exe --debug-module-offset 0x123456 --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-memory-write --debug-address 0x2039DD70 --debug-width 4 --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-player-coord-write --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --debug-trace-summary --trace-directory .\scripts\captures\debug-traces\20260417-coord --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
@@ -150,6 +164,33 @@ Examples:
         var cheatEngineStatHubs = false;
         var readTargetCurrent = false;
         var jsonOutput = false;
+        var debugTraceInstruction = false;
+        var debugTraceMemoryWrite = false;
+        var debugTraceMemoryAccess = false;
+        var debugTracePlayerCoordWrite = false;
+        var debugTraceSummary = false;
+        string? debugTraceDirectory = null;
+        nint? debugAddress = null;
+        string? debugModuleName = null;
+        nint? debugModuleOffset = null;
+        int? debugWidth = null;
+        var debugTimeoutMilliseconds = 8000;
+        var debugMaxHits = 8;
+        var debugMaxEvents = 5000;
+        string? debugOutputDirectory = null;
+        var debugCaptureStackBytes = 256;
+        var debugCaptureMemoryWindowBytes = 128;
+        string? debugMarkerInputFile = null;
+        string? debugLabel = null;
+        var debugDisableRegisterCapture = false;
+        var debugDisableStackCapture = false;
+        var debugDisableMemoryWindows = false;
+        var debugDisableInstructionDecode = false;
+        var debugDisableInstructionFingerprint = false;
+        var debugDisableHitClustering = false;
+        var debugDisableFollowUpSuggestions = false;
+        var debugWorker = false;
+        string? debugRequestFile = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -393,6 +434,231 @@ Examples:
                     readTargetCurrent = true;
                     break;
 
+                case "--debug-trace-instruction":
+                    debugTraceInstruction = true;
+                    break;
+
+                case "--debug-trace-memory-write":
+                    debugTraceMemoryWrite = true;
+                    break;
+
+                case "--debug-trace-memory-access":
+                    debugTraceMemoryAccess = true;
+                    break;
+
+                case "--debug-trace-player-coord-write":
+                    debugTracePlayerCoordWrite = true;
+                    break;
+
+                case "--debug-trace-summary":
+                    debugTraceSummary = true;
+                    break;
+
+                case "--trace-directory":
+                    if (!TryReadNext(args, ref index, out var debugTraceDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --trace-directory.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(debugTraceDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Trace directory must not be blank.", UsageText);
+                    }
+
+                    debugTraceDirectory = debugTraceDirectoryValue;
+                    debugTraceSummary = true;
+                    break;
+
+                case "--debug-address":
+                    if (!TryReadNext(args, ref index, out var debugAddressValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-address.", UsageText);
+                    }
+
+                    if (!TryParseAddress(debugAddressValue, out var parsedDebugAddress))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug address '{debugAddressValue}'.", UsageText);
+                    }
+
+                    debugAddress = parsedDebugAddress;
+                    break;
+
+                case "--debug-module-name":
+                    if (!TryReadNext(args, ref index, out var debugModuleNameValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-module-name.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(debugModuleNameValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Debug module name must not be blank.", UsageText);
+                    }
+
+                    debugModuleName = debugModuleNameValue;
+                    break;
+
+                case "--debug-module-offset":
+                    if (!TryReadNext(args, ref index, out var debugModuleOffsetValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-module-offset.", UsageText);
+                    }
+
+                    if (!TryParseAddress(debugModuleOffsetValue, out var parsedDebugModuleOffset))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug module offset '{debugModuleOffsetValue}'.", UsageText);
+                    }
+
+                    debugModuleOffset = parsedDebugModuleOffset;
+                    break;
+
+                case "--debug-width":
+                    if (!TryReadNext(args, ref index, out var debugWidthValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-width.", UsageText);
+                    }
+
+                    if (!int.TryParse(debugWidthValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedDebugWidth) ||
+                        (parsedDebugWidth != 1 && parsedDebugWidth != 2 && parsedDebugWidth != 4 && parsedDebugWidth != 8))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug-width value '{debugWidthValue}'. Use 1, 2, 4, or 8.", UsageText);
+                    }
+
+                    debugWidth = parsedDebugWidth;
+                    break;
+
+                case "--debug-timeout-ms":
+                    if (!TryReadNext(args, ref index, out var debugTimeoutValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-timeout-ms.", UsageText);
+                    }
+
+                    if (!int.TryParse(debugTimeoutValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out debugTimeoutMilliseconds) || debugTimeoutMilliseconds <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug-timeout-ms value '{debugTimeoutValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--debug-max-hits":
+                    if (!TryReadNext(args, ref index, out var debugMaxHitsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-max-hits.", UsageText);
+                    }
+
+                    if (!int.TryParse(debugMaxHitsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out debugMaxHits) || debugMaxHits <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug-max-hits value '{debugMaxHitsValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--debug-max-events":
+                    if (!TryReadNext(args, ref index, out var debugMaxEventsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-max-events.", UsageText);
+                    }
+
+                    if (!int.TryParse(debugMaxEventsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out debugMaxEvents) || debugMaxEvents <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug-max-events value '{debugMaxEventsValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--debug-output-directory":
+                    if (!TryReadNext(args, ref index, out var debugOutputDirectoryValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-output-directory.", UsageText);
+                    }
+
+                    debugOutputDirectory = debugOutputDirectoryValue;
+                    break;
+
+                case "--debug-capture-stack-bytes":
+                    if (!TryReadNext(args, ref index, out var debugCaptureStackBytesValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-capture-stack-bytes.", UsageText);
+                    }
+
+                    if (!int.TryParse(debugCaptureStackBytesValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out debugCaptureStackBytes) || debugCaptureStackBytes < 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug-capture-stack-bytes value '{debugCaptureStackBytesValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--debug-capture-memory-window-bytes":
+                    if (!TryReadNext(args, ref index, out var debugCaptureMemoryWindowBytesValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-capture-memory-window-bytes.", UsageText);
+                    }
+
+                    if (!int.TryParse(debugCaptureMemoryWindowBytesValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out debugCaptureMemoryWindowBytes) || debugCaptureMemoryWindowBytes < 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid debug-capture-memory-window-bytes value '{debugCaptureMemoryWindowBytesValue}'.", UsageText);
+                    }
+
+                    break;
+
+                case "--debug-marker-input-file":
+                    if (!TryReadNext(args, ref index, out var debugMarkerInputFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-marker-input-file.", UsageText);
+                    }
+
+                    debugMarkerInputFile = debugMarkerInputFileValue;
+                    break;
+
+                case "--debug-label":
+                    if (!TryReadNext(args, ref index, out var debugLabelValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-label.", UsageText);
+                    }
+
+                    debugLabel = debugLabelValue;
+                    break;
+
+                case "--debug-disable-register-capture":
+                    debugDisableRegisterCapture = true;
+                    break;
+
+                case "--debug-disable-stack-capture":
+                    debugDisableStackCapture = true;
+                    break;
+
+                case "--debug-disable-memory-windows":
+                    debugDisableMemoryWindows = true;
+                    break;
+
+                case "--debug-disable-instruction-decode":
+                    debugDisableInstructionDecode = true;
+                    break;
+
+                case "--debug-disable-instruction-fingerprint":
+                    debugDisableInstructionFingerprint = true;
+                    break;
+
+                case "--debug-disable-hit-clustering":
+                    debugDisableHitClustering = true;
+                    break;
+
+                case "--debug-disable-follow-up-suggestions":
+                    debugDisableFollowUpSuggestions = true;
+                    break;
+
+                case "--debug-worker":
+                    debugWorker = true;
+                    break;
+
+                case "--debug-request-file":
+                    if (!TryReadNext(args, ref index, out var debugRequestFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --debug-request-file.", UsageText);
+                    }
+
+                    debugRequestFile = debugRequestFileValue;
+                    break;
+
                 case "--session-summary":
                     sessionSummary = true;
                     break;
@@ -418,7 +684,6 @@ Examples:
                     }
 
                     playerCoordTraceFile = playerCoordTraceFileValue;
-                    readPlayerCoordAnchor = true;
                     break;
 
                 case "--capture-label":
@@ -660,6 +925,308 @@ Examples:
             return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float or --scan-double.", UsageText);
         }
 
+        var debugModeCount = 0;
+        if (debugTraceInstruction) debugModeCount++;
+        if (debugTraceMemoryWrite) debugModeCount++;
+        if (debugTraceMemoryAccess) debugModeCount++;
+        if (debugTracePlayerCoordWrite) debugModeCount++;
+        if (debugTraceSummary) debugModeCount++;
+        if (debugWorker) debugModeCount++;
+
+        if (debugModeCount > 1)
+        {
+            return ReaderOptionsParseResult.Fail("Choose only one debug mode: --debug-trace-instruction, --debug-trace-memory-write, --debug-trace-memory-access, --debug-trace-player-coord-write, --debug-trace-summary, or the internal --debug-worker mode.", UsageText);
+        }
+
+        if (debugWorker)
+        {
+            if (string.IsNullOrWhiteSpace(debugRequestFile))
+            {
+                return ReaderOptionsParseResult.Fail("--debug-worker requires --debug-request-file.", UsageText);
+            }
+
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue || listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent || recordSession || sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            {
+                return ReaderOptionsParseResult.Fail("--debug-worker cannot be combined with public reader modes.", UsageText);
+            }
+
+            if (!string.IsNullOrWhiteSpace(debugTraceDirectory) || debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue || debugWidth.HasValue || !string.IsNullOrWhiteSpace(debugOutputDirectory) || !string.IsNullOrWhiteSpace(debugMarkerInputFile) || !string.IsNullOrWhiteSpace(debugLabel) || debugTimeoutMilliseconds != 8000 || debugMaxHits != 8 || debugMaxEvents != 5000 || debugCaptureStackBytes != 256 || debugCaptureMemoryWindowBytes != 128 || debugDisableRegisterCapture || debugDisableStackCapture || debugDisableMemoryWindows || debugDisableInstructionDecode || debugDisableInstructionFingerprint || debugDisableHitClustering || debugDisableFollowUpSuggestions || !string.IsNullOrWhiteSpace(playerCoordTraceFile))
+            {
+                return ReaderOptionsParseResult.Fail("--debug-worker only accepts --debug-request-file and --json.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput,
+                    DebugWorker: true,
+                    DebugRequestFile: debugRequestFile),
+                UsageText);
+        }
+
+        if (debugTraceSummary)
+        {
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue || listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent || recordSession || sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            {
+                return ReaderOptionsParseResult.Fail("--debug-trace-summary cannot be combined with attach, scan, snapshot, or live reader modes.", UsageText);
+            }
+
+            if (string.IsNullOrWhiteSpace(debugTraceDirectory))
+            {
+                return ReaderOptionsParseResult.Fail("--debug-trace-summary requires --trace-directory.", UsageText);
+            }
+
+            if (!string.IsNullOrWhiteSpace(debugRequestFile) || debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue || debugWidth.HasValue || !string.IsNullOrWhiteSpace(debugOutputDirectory) || !string.IsNullOrWhiteSpace(debugMarkerInputFile) || !string.IsNullOrWhiteSpace(debugLabel) || debugTimeoutMilliseconds != 8000 || debugMaxHits != 8 || debugMaxEvents != 5000 || debugCaptureStackBytes != 256 || debugCaptureMemoryWindowBytes != 128 || debugDisableRegisterCapture || debugDisableStackCapture || debugDisableMemoryWindows || debugDisableInstructionDecode || debugDisableInstructionFingerprint || debugDisableHitClustering || debugDisableFollowUpSuggestions || !string.IsNullOrWhiteSpace(playerCoordTraceFile))
+            {
+                return ReaderOptionsParseResult.Fail("--debug-trace-summary only accepts --trace-directory and --json.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput,
+                    DebugTraceSummary: true,
+                    DebugTraceDirectory: debugTraceDirectory),
+                UsageText);
+        }
+
+        var publicDebugTraceMode = debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite;
+        if (publicDebugTraceMode)
+        {
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("Debug trace modes cannot be combined with scan, snapshot, summary, record-session, or other live reader modes.", UsageText);
+            }
+
+            if (processId.HasValue == !string.IsNullOrWhiteSpace(processName))
+            {
+                return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name for debug trace modes.", UsageText);
+            }
+
+            if (!debugTracePlayerCoordWrite)
+            {
+                var hasAbsoluteAddress = debugAddress.HasValue;
+                var hasModuleRelativeAddress = !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue;
+
+                if (hasAbsoluteAddress && hasModuleRelativeAddress)
+                {
+                    return ReaderOptionsParseResult.Fail("Choose either --debug-address or --debug-module-name with --debug-module-offset, not both.", UsageText);
+                }
+
+                if (!hasAbsoluteAddress && !(debugModuleOffset.HasValue && !string.IsNullOrWhiteSpace(debugModuleName)))
+                {
+                    return ReaderOptionsParseResult.Fail("Debug trace modes require either --debug-address or --debug-module-name with --debug-module-offset.", UsageText);
+                }
+
+                if (debugModuleOffset.HasValue && string.IsNullOrWhiteSpace(debugModuleName))
+                {
+                    return ReaderOptionsParseResult.Fail("--debug-module-offset requires --debug-module-name.", UsageText);
+                }
+
+                if (!debugModuleOffset.HasValue && !string.IsNullOrWhiteSpace(debugModuleName))
+                {
+                    return ReaderOptionsParseResult.Fail("--debug-module-name requires --debug-module-offset.", UsageText);
+                }
+            }
+            else if (debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--debug-trace-player-coord-write resolves its own traced instruction and cannot be combined with --debug-address or --debug-module-* switches.", UsageText);
+            }
+
+            if ((debugTraceMemoryWrite || debugTraceMemoryAccess) && !debugWidth.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("Memory watch debug trace modes require --debug-width.", UsageText);
+            }
+
+            if (debugTraceInstruction && debugWidth.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--debug-width can only be used with --debug-trace-memory-write or --debug-trace-memory-access.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: processId,
+                    ProcessName: processName,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: playerCoordTraceFile,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: readerBridgeSnapshotFile,
+                    JsonOutput: jsonOutput,
+                    DebugTraceInstruction: debugTraceInstruction,
+                    DebugTraceMemoryWrite: debugTraceMemoryWrite,
+                    DebugTraceMemoryAccess: debugTraceMemoryAccess,
+                    DebugTracePlayerCoordWrite: debugTracePlayerCoordWrite,
+                    DebugAddress: debugAddress,
+                    DebugModuleName: debugModuleName,
+                    DebugModuleOffset: debugModuleOffset,
+                    DebugWidth: debugWidth,
+                    DebugTimeoutMilliseconds: debugTimeoutMilliseconds,
+                    DebugMaxHits: debugMaxHits,
+                    DebugMaxEvents: debugMaxEvents,
+                    DebugOutputDirectory: debugOutputDirectory,
+                    DebugCaptureStackBytes: debugCaptureStackBytes,
+                    DebugCaptureMemoryWindowBytes: debugCaptureMemoryWindowBytes,
+                    DebugMarkerInputFile: debugMarkerInputFile,
+                    DebugLabel: debugLabel,
+                    DebugDisableRegisterCapture: debugDisableRegisterCapture,
+                    DebugDisableStackCapture: debugDisableStackCapture,
+                    DebugDisableMemoryWindows: debugDisableMemoryWindows,
+                    DebugDisableInstructionDecode: debugDisableInstructionDecode,
+                    DebugDisableInstructionFingerprint: debugDisableInstructionFingerprint,
+                    DebugDisableHitClustering: debugDisableHitClustering,
+                    DebugDisableFollowUpSuggestions: debugDisableFollowUpSuggestions),
+                UsageText);
+        }
+
+        if (debugTraceDirectory is not null)
+        {
+            return ReaderOptionsParseResult.Fail("--trace-directory can only be used with --debug-trace-summary.", UsageText);
+        }
+
+        if (debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue || debugWidth.HasValue || debugOutputDirectory is not null || debugMarkerInputFile is not null || debugLabel is not null || debugRequestFile is not null || debugTimeoutMilliseconds != 8000 || debugMaxHits != 8 || debugMaxEvents != 5000 || debugCaptureStackBytes != 256 || debugCaptureMemoryWindowBytes != 128 || debugDisableRegisterCapture || debugDisableStackCapture || debugDisableMemoryWindows || debugDisableInstructionDecode || debugDisableInstructionFingerprint || debugDisableHitClustering || debugDisableFollowUpSuggestions)
+        {
+            return ReaderOptionsParseResult.Fail("Debug trace switches can only be used with a debug trace mode.", UsageText);
+        }
+
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && scanRequested)
         {
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with scan switches.", UsageText);
@@ -772,6 +1339,7 @@ Examples:
                     ScanReaderBridgePlayerName: false,
                     ScanReaderBridgePlayerCoords: false,
                     ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
                     ScanReaderBridgeIdentity: false,
                     ReadAddonSnapshot: false,
                     AddonSnapshotFile: null,
@@ -848,6 +1416,7 @@ Examples:
                     ScanReaderBridgePlayerName: false,
                     ScanReaderBridgePlayerCoords: false,
                     ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
                     ScanReaderBridgeIdentity: false,
                     ReadAddonSnapshot: false,
                     AddonSnapshotFile: null,
@@ -924,6 +1493,7 @@ Examples:
                     ScanReaderBridgePlayerName: false,
                     ScanReaderBridgePlayerCoords: false,
                     ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
                     ScanReaderBridgeIdentity: false,
                     ReadAddonSnapshot: false,
                     AddonSnapshotFile: null,
@@ -985,6 +1555,7 @@ Examples:
                     ScanReaderBridgePlayerName: false,
                     ScanReaderBridgePlayerCoords: false,
                     ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
                     ScanReaderBridgeIdentity: false,
                     ReadAddonSnapshot: true,
                     AddonSnapshotFile: addonSnapshotFile,
@@ -1046,6 +1617,7 @@ Examples:
                     ScanReaderBridgePlayerName: false,
                     ScanReaderBridgePlayerCoords: false,
                     ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgePlayerSourceChain: false,
                     ScanReaderBridgeIdentity: false,
                     ReadAddonSnapshot: false,
                     AddonSnapshotFile: null,
@@ -1205,9 +1777,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-file can only be used with --capture-readerbridge-best-family.", UsageText);
         }
 
-        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor)
+        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor && !debugTracePlayerCoordWrite)
         {
-            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor.", UsageText);
+            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor or --debug-trace-player-coord-write.", UsageText);
         }
 
         if (listModules && findPlayerOrientationCandidate)
@@ -1385,6 +1957,7 @@ Examples:
                     ScanReaderBridgePlayerName: scanReaderBridgePlayerName,
                     ScanReaderBridgePlayerCoords: scanReaderBridgePlayerCoords,
                     ScanReaderBridgePlayerSignature: scanReaderBridgePlayerSignature,
+                    ScanReaderBridgePlayerSourceChain: false,
                     ScanReaderBridgeIdentity: scanReaderBridgeIdentity,
                     ReadAddonSnapshot: false,
                     AddonSnapshotFile: null,
@@ -1497,3 +2070,5 @@ public sealed record ReaderOptionsParseResult(
     public static ReaderOptionsParseResult DisplayUsage(string usageText) =>
         new(true, true, 0, usageText, null, null);
 }
+
+

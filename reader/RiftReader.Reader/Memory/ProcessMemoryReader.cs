@@ -16,6 +16,8 @@ public sealed class ProcessMemoryReader : IDisposable
         _processHandle = processHandle;
     }
 
+    internal nint ProcessHandle => _processHandle;
+
     public static ProcessMemoryReader? TryOpen(ProcessTarget target, out string? error)
     {
         ArgumentNullException.ThrowIfNull(target);
