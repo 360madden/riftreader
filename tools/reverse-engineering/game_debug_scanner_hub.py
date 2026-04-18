@@ -2458,10 +2458,10 @@ class ScannerHubGUI:
             return results
 
         def on_success(result: object) -> None:
-            assert isinstance(result, list)
+            typed_result = self._require_result_type(result, list, "CT resolve")
             resolved = 0
             failed = 0
-            for entry_id, payload in result:
+            for entry_id, payload in typed_result:
                 existing = self.discovery_store.get_import_entry(entry_id)
                 if existing is None:
                     continue
@@ -2672,6 +2672,10 @@ class ScannerHubGUI:
             )
         )
         notes = self.discovery_store.get_session_notes()
+        current_notes = self.session_notes_text.get("1.0", tk.END).rstrip()
+        if current_notes != notes:
+            self.discovery_store.set_session_notes(current_notes)
+            notes = current_notes
         self._set_text_widget_content(self.session_notes_text, notes)
         preview = {
             "session_id": session.session_id if session else None,
@@ -2823,10 +2827,10 @@ class ScannerHubGUI:
         self.status_var.set(success_status)
 
         def on_success(result: object) -> None:
-            assert isinstance(result, str)
+            typed_result = str(self._require_result_type(result, str, title))
             self._record_store_event(event_kind, title, {"status": "ok"})
             self._refresh_recovery_view()
-            self._append_recovery_output(title, result)
+            self._append_recovery_output(title, typed_result)
             self.status_var.set(success_status)
 
         def on_error(exc: Exception) -> None:
@@ -2894,7 +2898,14 @@ class ScannerHubGUI:
             return combined_output, player_snapshot, player_output, coord_anchor_output
 
         def on_success(result: object) -> None:
-            combined_output, snapshot, player_output, coord_anchor_output = result  # type: ignore[misc]
+            typed_result = self._require_tuple_result(result, 4, "Recovery baseline")
+            combined_output, snapshot, player_output, coord_anchor_output = typed_result
+            if not isinstance(snapshot, RiftPlayerSnapshot):
+                raise TypeError(
+                    f"Recovery baseline expected RiftPlayerSnapshot, got {type(snapshot).__name__}."
+                )
+            if not isinstance(combined_output, str) or not isinstance(player_output, str) or not isinstance(coord_anchor_output, str):
+                raise TypeError("Recovery baseline expected string output segments.")
             self.last_rift_snapshot = snapshot
             self._seed_generic_fields_from_rift(snapshot)
             self.rift_player_summary_var.set(self._format_rift_snapshot(snapshot))
@@ -3301,10 +3312,37 @@ class ScannerHubGUI:
         if self._is_closing:
             return
 
+        def safe_callback() -> None:
+            try:
+                callback()
+            except tk.TclError:
+                pass
+            except Exception as exc:
+                self.logger.exception("Scheduled UI callback failed: %s", exc)
+                if not self._is_closing:
+                    try:
+                        self.status_var.set(f"UI callback failed: {exc}")
+                    except tk.TclError:
+                        pass
+
         try:
-            self.root.after(0, callback)
+            self.root.after(0, safe_callback)
         except tk.TclError:
             pass
+
+    def _require_result_type(self, value: object, expected_type: type, context: str) -> object:
+        if not isinstance(value, expected_type):
+            raise TypeError(
+                f"{context} expected {expected_type.__name__}, got {type(value).__name__}."
+            )
+        return value
+
+    def _require_tuple_result(self, value: object, length: int, context: str) -> tuple[object, ...]:
+        if not isinstance(value, tuple):
+            raise TypeError(f"{context} expected tuple result, got {type(value).__name__}.")
+        if len(value) != length:
+            raise TypeError(f"{context} expected tuple length {length}, got {len(value)}.")
+        return value
 
     def _run_in_background(
         self,
@@ -3522,40 +3560,40 @@ class ScannerHubGUI:
             return self.generic_scanner.aob_scan(pattern_text, module_name)
 
         def on_success(result: object) -> None:
-            assert isinstance(result, AobScanResult)
+            typed_result = self._require_result_type(result, AobScanResult, "AOB scan")
             self.aob_results.insert(
                 tk.END,
-                f"Pattern: {result.pattern_text}\n"
-                f"Scope:   {result.module_name or 'full process'}\n"
-                f"Time:    {result.duration_seconds:.2f}s\n"
-                f"Hits:    {len(result.addresses)}\n\n",
+                f"Pattern: {typed_result.pattern_text}\n"
+                f"Scope:   {typed_result.module_name or 'full process'}\n"
+                f"Time:    {typed_result.duration_seconds:.2f}s\n"
+                f"Hits:    {len(typed_result.addresses)}\n\n",
             )
-            preview = result.addresses[:200]
+            preview = typed_result.addresses[:200]
             for address in preview:
                 self.aob_results.insert(tk.END, f"0x{address:X}\n")
-            if len(result.addresses) > len(preview):
-                self.aob_results.insert(tk.END, f"\n... and {len(result.addresses) - len(preview)} more\n")
-            self.aob_status_var.set(f"Completed: {len(result.addresses)} hit(s)")
+            if len(typed_result.addresses) > len(preview):
+                self.aob_results.insert(tk.END, f"\n... and {len(typed_result.addresses) - len(preview)} more\n")
+            self.aob_status_var.set(f"Completed: {len(typed_result.addresses)} hit(s)")
             self.status_var.set("AOB scan completed")
             self._record_store_event(
                 "aob-scan",
-                f"AOB scan completed for {result.module_name or 'full process'}",
+                f"AOB scan completed for {typed_result.module_name or 'full process'}",
                 {
-                    "pattern_text": result.pattern_text,
-                    "module_name": result.module_name,
-                    "hit_count": len(result.addresses),
-                    "duration_seconds": round(result.duration_seconds, 6),
-                    "persisted_hit_count": min(len(result.addresses), AOB_CANDIDATE_PERSIST_LIMIT),
+                    "pattern_text": typed_result.pattern_text,
+                    "module_name": typed_result.module_name,
+                    "hit_count": len(typed_result.addresses),
+                    "duration_seconds": round(typed_result.duration_seconds, 6),
+                    "persisted_hit_count": min(len(typed_result.addresses), AOB_CANDIDATE_PERSIST_LIMIT),
                     "scan_scope": scan_scope,
                 },
             )
 
-            persisted_hits = result.addresses[:AOB_CANDIDATE_PERSIST_LIMIT]
+            persisted_hits = typed_result.addresses[:AOB_CANDIDATE_PERSIST_LIMIT]
             for index, address in enumerate(persisted_hits, start=1):
                 module_rva = None
-                if result.module_name:
+                if typed_result.module_name:
                     try:
-                        module_base = self.generic_scanner.get_module_base(result.module_name)
+                        module_base = self.generic_scanner.get_module_base(typed_result.module_name)
                         module_rva = address - module_base
                     except Exception:
                         module_rva = None
@@ -3563,30 +3601,30 @@ class ScannerHubGUI:
                     refresh_view=False,
                     canonical_key=(
                         f"aob::{self.generic_scanner.process_name or 'unknown'}::"
-                        f"{result.module_name or '*'}::{result.pattern_text}::{address:X}"
+                        f"{typed_result.module_name or '*'}::{typed_result.pattern_text}::{address:X}"
                     ),
                     kind="aob",
-                    label=f"AOB hit {index}: {result.pattern_text}",
-                    status="confirmed" if len(result.addresses) == 1 else "candidate",
-                    confidence=0.8 if len(result.addresses) == 1 else 0.6,
-                    module_name=result.module_name,
+                    label=f"AOB hit {index}: {typed_result.pattern_text}",
+                    status="confirmed" if len(typed_result.addresses) == 1 else "candidate",
+                    confidence=0.8 if len(typed_result.addresses) == 1 else 0.6,
+                    module_name=typed_result.module_name,
                     module_rva=module_rva,
                     absolute_address=address,
                     source_kind="aob-scan",
                     metadata={
-                        "pattern_text": result.pattern_text,
-                        "module_name": result.module_name,
+                        "pattern_text": typed_result.pattern_text,
+                        "module_name": typed_result.module_name,
                         "module_rva": module_rva,
                         "hit_index": index,
-                        "total_hits": len(result.addresses),
-                        "duration_seconds": result.duration_seconds,
+                        "total_hits": len(typed_result.addresses),
+                        "duration_seconds": typed_result.duration_seconds,
                         "scan_scope": scan_scope,
                     },
                     evidence_kind="aob-scan",
                     evidence_summary=f"AOB scan located 0x{address:X}",
                     evidence_metadata={
-                        "pattern_text": result.pattern_text,
-                        "module_name": result.module_name,
+                        "pattern_text": typed_result.pattern_text,
+                        "module_name": typed_result.module_name,
                         "address": f"0x{address:X}",
                         "scan_scope": scan_scope,
                     },
@@ -3804,7 +3842,10 @@ class ScannerHubGUI:
             return address, self.generic_scanner.read_bytes(address, length)
 
         def on_success(result: object) -> None:
-            dump_address, data = result  # type: ignore[misc]
+            typed_result = self._require_tuple_result(result, 2, "Hex dump")
+            dump_address, data = typed_result
+            if not isinstance(dump_address, int) or not isinstance(data, bytes):
+                raise TypeError("Hex dump expected (int, bytes) result.")
             self.hex_output.delete("1.0", tk.END)
             self.hex_output.insert(tk.END, self._format_hex_dump(dump_address, data) + "\n")
             self.hex_status_var.set(f"Read {len(data)} byte(s)")
@@ -3870,7 +3911,10 @@ class ScannerHubGUI:
             return self.rift_bridge.read_current_player()
 
         def on_success(result: object) -> None:
-            snapshot, raw_output = result  # type: ignore[misc]
+            typed_result = self._require_tuple_result(result, 2, "Rift current player")
+            snapshot, raw_output = typed_result
+            if not isinstance(snapshot, RiftPlayerSnapshot) or not isinstance(raw_output, str):
+                raise TypeError("Rift current player expected (RiftPlayerSnapshot, str) result.")
             self.last_rift_snapshot = snapshot
             self._seed_generic_fields_from_rift(snapshot)
             self.rift_player_summary_var.set(self._format_rift_snapshot(snapshot))
@@ -3960,9 +4004,9 @@ class ScannerHubGUI:
             return self.rift_bridge.inspect_debug_state()
 
         def on_success(result: object) -> None:
-            assert isinstance(result, str)
+            typed_result = str(self._require_result_type(result, str, "Rift debug-state probe"))
             self.rift_output.delete("1.0", tk.END)
-            self.rift_output.insert(tk.END, result + "\n")
+            self.rift_output.insert(tk.END, typed_result + "\n")
             self.status_var.set("Rift debug-state probe completed")
 
         def on_error(exc: Exception) -> None:
@@ -3996,10 +4040,10 @@ class ScannerHubGUI:
             return self.rift_bridge.open_dashboard(live=False)
 
         def on_success(result: object) -> None:
-            assert isinstance(result, str)
+            typed_result = str(self._require_result_type(result, str, "Open dashboard"))
             self.rift_output.delete("1.0", tk.END)
-            if result:
-                self.rift_output.insert(tk.END, result + "\n\n")
+            if typed_result:
+                self.rift_output.insert(tk.END, typed_result + "\n\n")
             self.rift_output.insert(tk.END, "Dashboard preflight succeeded. Launch requested.\n")
             self.status_var.set("Opening Rift dashboard")
 
@@ -4034,10 +4078,10 @@ class ScannerHubGUI:
             return self.rift_bridge.open_dashboard(live=True)
 
         def on_success(result: object) -> None:
-            assert isinstance(result, str)
+            typed_result = str(self._require_result_type(result, str, "Open live dashboard"))
             self.rift_output.delete("1.0", tk.END)
-            if result:
-                self.rift_output.insert(tk.END, result + "\n\n")
+            if typed_result:
+                self.rift_output.insert(tk.END, typed_result + "\n\n")
             self.rift_output.insert(tk.END, "Live dashboard preflight succeeded. Launch requested.\n")
             self.status_var.set("Opening Rift live dashboard")
 
