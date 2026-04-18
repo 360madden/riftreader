@@ -3,8 +3,11 @@ privateVars = privateVars or {}
 
 local addonIdentifier = (addonInfo and addonInfo.identifier) or "ReaderBridgeExport"
 local addonVersion = (addonInfo and addonInfo.version) or "0.1.0"
+-- Frozen export contract version. Update only together with fixture and loader regression tests.
+local SNAPSHOT_SCHEMA_VERSION = 1
 local UPDATE_INTERVAL = 0.5
 local MAX_BUFF_ROWS = 5
+local MAX_BUFF_DETAIL_ROWS = 24
 local MAX_NEARBY_UNITS = 10
 local MAX_PARTY_SLOTS = 5
 local ORIENTATION_MATCH_MAX_DEPTH = 3
@@ -88,6 +91,21 @@ local function copyCoord(unit)
     x = x,
     y = y,
     z = z,
+  }
+end
+
+local function copyCoordDelta(delta)
+  if type(delta) ~= "table" then
+    return nil
+  end
+
+  return {
+    dx = toNumber(delta.dx),
+    dy = toNumber(delta.dy),
+    dz = toNumber(delta.dz),
+    distance = toNumber(delta.distance),
+    dt = toNumber(delta.dt),
+    speed = toNumber(delta.speed),
   }
 end
 
@@ -363,7 +381,28 @@ local function compareBuffLines(left, right)
   return tostring(left and left.name or "") < tostring(right and right.name or "")
 end
 
-local function buildBuffLines(unitSpecOrId, wantDebuffs)
+local function normalizeBuffEntry(buffId, detail)
+  if type(detail) ~= "table" then
+    return nil
+  end
+
+  local entry = normalizeBuffLine(detail)
+  if entry == nil then
+    return nil
+  end
+
+  entry.id = copyString(detail.id or buffId)
+  entry.duration = toNumber(detail.duration)
+  entry.stack = toNumber(detail.stack)
+  entry.curse = detail.curse and true or false
+  entry.disease = detail.disease and true or false
+  entry.poison = detail.poison and true or false
+  entry.caster = copyString(detail.caster)
+
+  return entry
+end
+
+local function collectBuffEntries(unitSpecOrId)
   local buffIds = safeBuffList(unitSpecOrId)
   if type(buffIds) ~= "table" then
     return {}
@@ -376,27 +415,81 @@ local function buildBuffLines(unitSpecOrId, wantDebuffs)
 
   local entries = {}
 
-  for _, detail in pairs(details) do
-    local entry = normalizeBuffLine(detail)
-    if entry and ((wantDebuffs and entry.debuff) or ((not wantDebuffs) and (not entry.debuff))) then
+  for buffId, detail in pairs(details) do
+    local entry = normalizeBuffEntry(buffId, detail)
+    if entry then
       table.insert(entries, entry)
     end
   end
 
   table.sort(entries, compareBuffLines)
+  return entries
+end
 
+local function selectBuffEntries(entries, wantDebuffs, maxRows)
   local result = {}
-  for index = 1, math.min(#entries, MAX_BUFF_ROWS) do
-    result[index] = entries[index].text
+  if type(entries) ~= "table" then
+    return result
+  end
+
+  local maxCount = maxRows or MAX_BUFF_DETAIL_ROWS
+  for _, entry in ipairs(entries) do
+    if ((wantDebuffs and entry.debuff) or ((not wantDebuffs) and (not entry.debuff))) then
+      result[#result + 1] = {
+        id = copyString(entry.id),
+        name = copyString(entry.name),
+        remaining = toNumber(entry.remaining),
+        duration = toNumber(entry.duration),
+        stack = toNumber(entry.stack),
+        debuff = copyBoolean(entry.debuff),
+        curse = copyBoolean(entry.curse),
+        disease = copyBoolean(entry.disease),
+        poison = copyBoolean(entry.poison),
+        caster = copyString(entry.caster),
+        text = copyString(entry.text),
+      }
+
+      if #result >= maxCount then
+        break
+      end
+    end
   end
 
   return result
 end
 
+local function renderBuffLines(entries, wantDebuffs)
+  local result = {}
+  if type(entries) ~= "table" then
+    return result
+  end
+
+  for _, entry in ipairs(entries) do
+    if ((wantDebuffs and entry.debuff) or ((not wantDebuffs) and (not entry.debuff))) then
+      result[#result + 1] = tostring(entry.text or "-")
+      if #result >= MAX_BUFF_ROWS then
+        break
+      end
+    end
+  end
+
+  return result
+end
+
+local function buildBuffSnapshot(unitSpecOrId)
+  local entries = collectBuffEntries(unitSpecOrId)
+  return {
+    buffLines = renderBuffLines(entries, false),
+    debuffLines = renderBuffLines(entries, true),
+    buffs = selectBuffEntries(entries, false, MAX_BUFF_DETAIL_ROWS),
+    debuffs = selectBuffEntries(entries, true, MAX_BUFF_DETAIL_ROWS),
+  }
+end
+
 local function buildStatSnapshot()
   local stats = safeStatRead()
   if type(stats) ~= "table" then
-    return nil
+    return {}
   end
 
   local result = {}
@@ -596,7 +689,12 @@ local function buildCoordDelta(coord, currentTime)
         dz = dz,
         distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz)),
         dt = dt,
+        speed = nil,
       }
+
+      if delta.dt and delta.dt > 0 then
+        delta.speed = delta.distance / delta.dt
+      end
     end
   end
 
@@ -630,9 +728,14 @@ local function readUnit(unitSpecOrId)
     role = copyString(detail.role),
     player = copyBoolean(detail.player),
     combat = copyBoolean(detail.combat),
+    aggro = copyBoolean(detail.aggro),
+    blocked = copyBoolean(detail.blocked),
+    tagged = copyBoolean(detail.tagged),
+    mounted = copyBoolean(detail.mount),
     pvp = copyBoolean(detail.pvp),
     hp = hp,
     hpMax = hpMax,
+    hpCap = toNumber(detail.healthCap),
     hpPct = percent(hp, hpMax),
     absorb = toNumber(detail.absorb),
     vitality = toNumber(detail.vitality),
@@ -652,6 +755,8 @@ local function readUnit(unitSpecOrId)
     planarMax = planarMax,
     planarPct = percent(planar, planarMax),
     combo = toNumber(detail.combo),
+    comboUnit = copyString(detail.comboUnit),
+    mark = copyString(detail.mark),
     zone = copyString(detail.zone),
     locationName = copyString(detail.locationName),
     coord = buildCoord(detail),
@@ -659,13 +764,88 @@ local function readUnit(unitSpecOrId)
   }
 end
 
-local function readNearbyUnits(excludePlayerId, excludeTargetId)
+local function compareUnitsByDistance(left, right)
+  local leftDistance = toNumber(left and left.distance)
+  local rightDistance = toNumber(right and right.distance)
+
+  if leftDistance and rightDistance and leftDistance ~= rightDistance then
+    return leftDistance < rightDistance
+  end
+
+  if leftDistance ~= nil and rightDistance == nil then
+    return true
+  end
+
+  if leftDistance == nil and rightDistance ~= nil then
+    return false
+  end
+
+  return tostring(left and left.name or left and left.id or "") < tostring(right and right.name or right and right.id or "")
+end
+
+local function buildUnitCollectionSummary(units, scannedCount)
+  local result = {
+    scannedCount = scannedCount or 0,
+    exportedCount = 0,
+    playerCount = 0,
+    combatCount = 0,
+    pvpCount = 0,
+    relationCounts = {},
+    nearestDistance = nil,
+    nearestName = nil,
+    farthestDistance = nil,
+    farthestName = nil,
+  }
+
+  if type(units) ~= "table" then
+    return result
+  end
+
+  result.exportedCount = #units
+
+  for _, unit in ipairs(units) do
+    if unit.player then
+      result.playerCount = result.playerCount + 1
+    end
+
+    if unit.combat then
+      result.combatCount = result.combatCount + 1
+    end
+
+    if unit.pvp then
+      result.pvpCount = result.pvpCount + 1
+    end
+
+    local relation = copyString(unit.relation)
+    if relation and relation ~= "" then
+      result.relationCounts[relation] = (result.relationCounts[relation] or 0) + 1
+    end
+
+    local distance = toNumber(unit.distance)
+    if distance ~= nil then
+      if result.nearestDistance == nil or distance < result.nearestDistance then
+        result.nearestDistance = distance
+        result.nearestName = copyString(unit.name) or copyString(unit.id)
+      end
+
+      if result.farthestDistance == nil or distance > result.farthestDistance then
+        result.farthestDistance = distance
+        result.farthestName = copyString(unit.name) or copyString(unit.id)
+      end
+    end
+  end
+
+  return result
+end
+
+local function readNearbyUnits(playerCoord, excludePlayerId, excludeTargetId)
   local list = safeUnitList()
   if type(list) ~= "table" then
-    return nil
+    return {}, 0
   end
 
   local result = {}
+  local readableCount = 0
   for unitId, _ in pairs(list) do
     if type(unitId) == "string"
         and unitId ~= "player"
@@ -673,18 +853,27 @@ local function readNearbyUnits(excludePlayerId, excludeTargetId)
         and unitId ~= excludeTargetId then
       local unit = readUnit(unitId)
       if unit then
+        readableCount = readableCount + 1
+        if playerCoord and unit.coord then
+          unit.distance = distance3d(
+            playerCoord.x, playerCoord.y, playerCoord.z,
+            unit.coord.x, unit.coord.y, unit.coord.z)
+        end
         table.insert(result, unit)
-      end
-      if #result >= MAX_NEARBY_UNITS then
-        break
       end
     end
   end
 
-  return #result > 0 and result or nil
+  table.sort(result, compareUnitsByDistance)
+
+  while #result > MAX_NEARBY_UNITS do
+    table.remove(result)
+  end
+
+  return result, readableCount
 end
 
-local function readPartyMembers()
+local function readPartyMembers(playerCoord)
   local result = {}
   for i = 1, MAX_PARTY_SLOTS do
     local spec = "group0" .. i
@@ -693,12 +882,17 @@ local function readPartyMembers()
     if id then
       local unit = readUnit(id)
       if unit then
+        if playerCoord and unit.coord then
+          unit.distance = distance3d(
+            playerCoord.x, playerCoord.y, playerCoord.z,
+            unit.coord.x, unit.coord.y, unit.coord.z)
+        end
         table.insert(result, unit)
       end
     end
   end
 
-  return #result > 0 and result or nil
+  return result
 end
 
 local function updateTargetTtd(target)
@@ -748,6 +942,8 @@ local function buildDirectSnapshot(reason)
   local player = readUnit("player")
   local target = targetId and readUnit(targetId) or nil
   local playerStats = buildStatSnapshot()
+  local playerBuffSnapshot = buildBuffSnapshot("player")
+  local targetBuffSnapshot = targetId and buildBuffSnapshot(targetId) or nil
 
   if target and player and player.coord and target.coord then
     target.distance = distance3d(
@@ -763,9 +959,11 @@ local function buildDirectSnapshot(reason)
 
   -- NilRisk: player may be nil before player unit is available
   local coordDelta = buildCoordDelta(player and player.coord, currentTime)
+  local nearbyUnits, nearbyScannedCount = readNearbyUnits(player and player.coord, playerId, targetId)
+  local partyUnits = readPartyMembers(player and player.coord)
 
   return {
-    schemaVersion = 1,
+    schemaVersion = SNAPSHOT_SCHEMA_VERSION,
     status = player and "ready" or "waiting-for-player",
     exportReason = tostring(reason or "unspecified"),
     generatedAtRealtime = currentTime,
@@ -780,14 +978,20 @@ local function buildDirectSnapshot(reason)
     player = player,
     target = target,
     orientationProbe = buildOrientationProbe(playerDetail, targetDetail, playerStats, nil, nil, playerId, targetId),
-    playerBuffLines = buildBuffLines("player", false),
-    playerDebuffLines = buildBuffLines("player", true),
-    targetBuffLines = targetId and buildBuffLines(targetId, false) or {},
-    targetDebuffLines = targetId and buildBuffLines(targetId, true) or {},
+    playerBuffLines = playerBuffSnapshot.buffLines,
+    playerDebuffLines = playerBuffSnapshot.debuffLines,
+    targetBuffLines = targetBuffSnapshot and targetBuffSnapshot.buffLines or {},
+    targetDebuffLines = targetBuffSnapshot and targetBuffSnapshot.debuffLines or {},
+    playerBuffs = playerBuffSnapshot.buffs,
+    playerDebuffs = playerBuffSnapshot.debuffs,
+    targetBuffs = targetBuffSnapshot and targetBuffSnapshot.buffs or {},
+    targetDebuffs = targetBuffSnapshot and targetBuffSnapshot.debuffs or {},
     playerStats = playerStats,
-    playerCoordDelta = coordDelta,
-    nearbyUnits = readNearbyUnits(playerId, targetId),
-    partyUnits = readPartyMembers(),
+    playerCoordDelta = copyCoordDelta(coordDelta),
+    nearbyUnits = nearbyUnits,
+    nearbySummary = buildUnitCollectionSummary(nearbyUnits, nearbyScannedCount),
+    partyUnits = partyUnits,
+    partySummary = buildUnitCollectionSummary(partyUnits, partyUnits and #partyUnits or 0),
   }
 end
 
@@ -806,9 +1010,14 @@ local function copyUnit(unit)
     role = copyString(unit.role),
     player = copyBoolean(unit.player),
     combat = copyBoolean(unit.combat),
+    aggro = copyBoolean(unit.aggro),
+    blocked = copyBoolean(unit.blocked),
+    tagged = copyBoolean(unit.tagged),
+    mounted = copyBoolean(unit.mounted or unit.mount),
     pvp = copyBoolean(unit.pvp),
     hp = toNumber(unit.hp),
     hpMax = toNumber(unit.hpMax),
+    hpCap = toNumber(unit.hpCap),
     hpPct = toNumber(unit.hpPct),
     absorb = toNumber(unit.absorb),
     vitality = toNumber(unit.vitality),
@@ -828,6 +1037,8 @@ local function copyUnit(unit)
     planarMax = toNumber(unit.planarMax),
     planarPct = toNumber(unit.planarPct),
     combo = toNumber(unit.combo),
+    comboUnit = copyString(unit.comboUnit),
+    mark = copyString(unit.mark or unit.marked),
     zone = copyString(unit.zone),
     locationName = copyString(unit.locationName),
     coord = copyCoord(unit),
@@ -836,6 +1047,65 @@ local function copyUnit(unit)
     ttdText = copyString(unit.ttdText),
     cast = copyCast(unit.cast),
   }
+end
+
+local function copyBuffEntry(entry)
+  if type(entry) ~= "table" then
+    return nil
+  end
+
+  local flags = {}
+  if type(entry.flags) == "table" then
+    for index, value in ipairs(entry.flags) do
+      flags[index] = tostring(value or "")
+    end
+  else
+    if entry.curse then
+      flags[#flags + 1] = "Curse"
+    end
+    if entry.disease then
+      flags[#flags + 1] = "Disease"
+    end
+    if entry.poison then
+      flags[#flags + 1] = "Poison"
+    end
+  end
+
+  return {
+    id = copyString(entry.id),
+    name = copyString(entry.name),
+    remaining = toNumber(entry.remaining),
+    duration = toNumber(entry.duration),
+    stack = toNumber(entry.stack),
+    debuff = copyBoolean(entry.debuff),
+    curse = copyBoolean(entry.curse),
+    disease = copyBoolean(entry.disease),
+    poison = copyBoolean(entry.poison),
+    caster = copyString(entry.caster),
+    text = copyString(entry.text),
+    flags = flags,
+  }
+end
+
+local function copyBuffList(entries, maxEntries)
+  local result = {}
+  if type(entries) ~= "table" then
+    return result
+  end
+
+  local cap = maxEntries or MAX_BUFF_DETAIL_ROWS
+  for _, entry in ipairs(entries) do
+    local copied = copyBuffEntry(entry)
+    if copied then
+      result[#result + 1] = copied
+    end
+
+    if #result >= cap then
+      break
+    end
+  end
+
+  return result
 end
 
 local function copyHud(hud)
@@ -869,7 +1139,7 @@ local function ensureState()
   end
 
   state = ReaderBridgeExport_State
-  state.schemaVersion = 1
+  state.schemaVersion = SNAPSHOT_SCHEMA_VERSION
   state.session = type(state.session) == "table" and state.session or {}
   state.current = type(state.current) == "table" and state.current or {}
   state.session.exportCount = toNumber(state.session.exportCount) or 0
@@ -892,9 +1162,13 @@ local function buildSnapshot(reason)
   local player = copyUnit(bridgeState.player)
   local playerStats = buildStatSnapshot()
   local coordDelta = buildCoordDelta(player and player.coord, generatedAt)
+  local playerId = player and player.id or safeUnitLookup("player")
+  local targetId = bridgeState.target and bridgeState.target.id or safeUnitLookup("player.target")
+  local nearbyUnits, nearbyScannedCount = readNearbyUnits(player and player.coord, playerId, targetId)
+  local partyUnits = readPartyMembers(player and player.coord)
 
   return {
-    schemaVersion = 1,
+    schemaVersion = SNAPSHOT_SCHEMA_VERSION,
     status = "ready",
     exportReason = tostring(reason or "unspecified"),
     generatedAtRealtime = generatedAt,
@@ -903,18 +1177,26 @@ local function buildSnapshot(reason)
     sourceVersion = bridge and bridge.Const and bridge.Const.VERSION or nil,
     exportAddon = addonIdentifier,
     exportVersion = addonVersion,
+    playerId = copyString(playerId),
+    targetId = copyString(targetId),
     hud = copyHud(bridgeState.hud),
     player = player,
     target = copyUnit(bridgeState.target),
-    orientationProbe = buildOrientationProbe(bridgeState.player, bridgeState.target, playerStats, bridgeState.player, bridgeState.target, player and player.id or safeUnitLookup("player"), bridgeState.target and bridgeState.target.id or safeUnitLookup("player.target")),
+    orientationProbe = buildOrientationProbe(bridgeState.player, bridgeState.target, playerStats, bridgeState.player, bridgeState.target, playerId, targetId),
     playerBuffLines = copyList(bridgeState.playerBuffLines),
     playerDebuffLines = copyList(bridgeState.playerDebuffLines),
     targetBuffLines = copyList(bridgeState.targetBuffLines),
     targetDebuffLines = copyList(bridgeState.targetDebuffLines),
+    playerBuffs = copyBuffList(bridgeState.buffs and bridgeState.buffs.player and bridgeState.buffs.player.buffs),
+    playerDebuffs = copyBuffList(bridgeState.buffs and bridgeState.buffs.player and bridgeState.buffs.player.debuffs),
+    targetBuffs = copyBuffList(bridgeState.buffs and bridgeState.buffs.target and bridgeState.buffs.target.buffs),
+    targetDebuffs = copyBuffList(bridgeState.buffs and bridgeState.buffs.target and bridgeState.buffs.target.debuffs),
     playerStats = playerStats,
-    playerCoordDelta = coordDelta,
-    nearbyUnits = nil,
-    partyUnits = readPartyMembers(),
+    playerCoordDelta = copyCoordDelta(coordDelta),
+    nearbyUnits = nearbyUnits,
+    nearbySummary = buildUnitCollectionSummary(nearbyUnits, nearbyScannedCount),
+    partyUnits = partyUnits,
+    partySummary = buildUnitCollectionSummary(partyUnits, partyUnits and #partyUnits or 0),
   }
 end
 

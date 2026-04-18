@@ -25,6 +25,7 @@ public static class ReaderBridgeSnapshotTextFormatter
         lines.Add($"Status:                  {snapshot.Status ?? "n/a"}");
         lines.Add($"Source mode:             {snapshot.SourceMode ?? "n/a"}");
         lines.Add($"Source addon:            {snapshot.SourceAddon ?? "n/a"} v{snapshot.SourceVersion ?? "?"}");
+        lines.Add($"Export addon:            {snapshot.ExportAddon ?? "n/a"} v{snapshot.ExportVersion ?? "?"}");
         lines.Add($"Reason:                  {snapshot.ExportReason ?? "n/a"}");
 
         if (snapshot.Player is not null)
@@ -32,6 +33,7 @@ public static class ReaderBridgeSnapshotTextFormatter
             lines.Add($"Player:                  {snapshot.Player.Name ?? "n/a"} (Lv{snapshot.Player.Level?.ToString() ?? "?"})");
             lines.Add($"Player health:           {FormatPair(snapshot.Player.Hp, snapshot.Player.HpMax)}");
             lines.Add($"Player resource:         {FormatResource(snapshot.Player)}");
+            lines.Add($"Player flags:            {FormatPlayerFlags(snapshot.Player)}");
 
             var playerLocation = snapshot.Player.LocationName ?? snapshot.Player.Zone;
             if (!string.IsNullOrWhiteSpace(playerLocation))
@@ -44,6 +46,13 @@ public static class ReaderBridgeSnapshotTextFormatter
             {
                 lines.Add($"Player coords:           {coord}");
             }
+        }
+
+        if (snapshot.PlayerCoordDelta is not null && snapshot.PlayerCoordDelta.Distance.HasValue)
+        {
+            lines.Add(
+                $"Player motion:           {snapshot.PlayerCoordDelta.Distance.Value:0.000} over {snapshot.PlayerCoordDelta.Dt?.ToString("0.000") ?? "?"}s"
+                + (snapshot.PlayerCoordDelta.Speed.HasValue ? $" ({snapshot.PlayerCoordDelta.Speed.Value:0.000}/s)" : string.Empty));
         }
 
         if (snapshot.Target is not null && !string.IsNullOrWhiteSpace(snapshot.Target.Name))
@@ -79,6 +88,28 @@ public static class ReaderBridgeSnapshotTextFormatter
             lines.Add($"Target buffs:            {string.Join(" | ", snapshot.TargetBuffLines)}");
         }
 
+        if (snapshot.NearbySummary is not null)
+        {
+            lines.Add(
+                $"Nearby units:            scanned {snapshot.NearbySummary.ScannedCount?.ToString() ?? "0"}, exported {snapshot.NearbySummary.ExportedCount?.ToString() ?? "0"}, players {snapshot.NearbySummary.PlayerCount?.ToString() ?? "0"}, combat {snapshot.NearbySummary.CombatCount?.ToString() ?? "0"}");
+        }
+
+        if (snapshot.PartySummary is not null)
+        {
+            lines.Add(
+                $"Party units:             exported {snapshot.PartySummary.ExportedCount?.ToString() ?? "0"}, combat {snapshot.PartySummary.CombatCount?.ToString() ?? "0"}, pvp {snapshot.PartySummary.PvpCount?.ToString() ?? "0"}");
+        }
+
+        if (snapshot.PlayerBuffs.Count > 0 || snapshot.PlayerDebuffs.Count > 0)
+        {
+            lines.Add($"Player aura detail:      buffs {snapshot.PlayerBuffs.Count}, debuffs {snapshot.PlayerDebuffs.Count}");
+        }
+
+        if (snapshot.TargetBuffs.Count > 0 || snapshot.TargetDebuffs.Count > 0)
+        {
+            lines.Add($"Target aura detail:      buffs {snapshot.TargetBuffs.Count}, debuffs {snapshot.TargetDebuffs.Count}");
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -100,6 +131,38 @@ public static class ReaderBridgeSnapshotTextFormatter
         }
 
         return "n/a";
+    }
+
+    private static string FormatPlayerFlags(ReaderBridgeUnitSnapshot snapshot)
+    {
+        var flags = new List<string>();
+
+        if (snapshot.Combat == true)
+        {
+            flags.Add("combat");
+        }
+
+        if (snapshot.Pvp == true)
+        {
+            flags.Add("pvp");
+        }
+
+        if (snapshot.Mounted == true)
+        {
+            flags.Add("mounted");
+        }
+
+        if (snapshot.Aggro == true)
+        {
+            flags.Add("aggro");
+        }
+
+        if (snapshot.Tagged == true)
+        {
+            flags.Add("tagged");
+        }
+
+        return flags.Count == 0 ? "none" : string.Join(", ", flags);
     }
 
     private static string? FormatCoord(ValidatorCoordinateSnapshot? coord)

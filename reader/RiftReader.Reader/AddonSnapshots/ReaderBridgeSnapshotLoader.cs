@@ -72,14 +72,28 @@ public static class ReaderBridgeSnapshotLoader
             SourceMode: table.GetString("sourceMode"),
             SourceAddon: table.GetString("sourceAddon"),
             SourceVersion: table.GetString("sourceVersion"),
+            ExportAddon: table.GetString("exportAddon"),
+            ExportVersion: table.GetString("exportVersion"),
+            PlayerId: table.GetString("playerId"),
+            TargetId: table.GetString("targetId"),
             Hud: MapHud(table.GetTable("hud")),
             Player: MapUnit(table.GetTable("player")),
             Target: MapUnit(table.GetTable("target")),
             OrientationProbe: MapOrientationProbe(table.GetTable("orientationProbe")),
+            PlayerStats: MapDoubleDictionary(table.GetTable("playerStats")),
+            PlayerCoordDelta: MapCoordinateDelta(table.GetTable("playerCoordDelta")),
+            NearbySummary: MapUnitCollectionSummary(table.GetTable("nearbySummary")),
+            PartySummary: MapUnitCollectionSummary(table.GetTable("partySummary")),
+            NearbyUnits: MapUnitList(table.GetTable("nearbyUnits")),
+            PartyUnits: MapUnitList(table.GetTable("partyUnits")),
             PlayerBuffLines: MapStringList(table.GetTable("playerBuffLines")),
             PlayerDebuffLines: MapStringList(table.GetTable("playerDebuffLines")),
             TargetBuffLines: MapStringList(table.GetTable("targetBuffLines")),
-            TargetDebuffLines: MapStringList(table.GetTable("targetDebuffLines")));
+            TargetDebuffLines: MapStringList(table.GetTable("targetDebuffLines")),
+            PlayerBuffs: MapBuffList(table.GetTable("playerBuffs")),
+            PlayerDebuffs: MapBuffList(table.GetTable("playerDebuffs")),
+            TargetBuffs: MapBuffList(table.GetTable("targetBuffs")),
+            TargetDebuffs: MapBuffList(table.GetTable("targetDebuffs")));
 
     private static ReaderBridgeHudSnapshot? MapHud(LuaTable? table)
     {
@@ -111,9 +125,14 @@ public static class ReaderBridgeSnapshotLoader
             Role: table.GetString("role"),
             Player: table.GetBoolean("player"),
             Combat: table.GetBoolean("combat"),
+            Aggro: table.GetBoolean("aggro"),
+            Blocked: table.GetBoolean("blocked"),
+            Tagged: table.GetBoolean("tagged"),
+            Mounted: GetBooleanAny(table, "mounted", "mount"),
             Pvp: table.GetBoolean("pvp"),
             Hp: table.GetInt64("hp"),
             HpMax: table.GetInt64("hpMax"),
+            HpCap: table.GetInt64("hpCap"),
             HpPct: table.GetInt64("hpPct"),
             Absorb: table.GetInt64("absorb"),
             Vitality: table.GetInt64("vitality"),
@@ -133,6 +152,8 @@ public static class ReaderBridgeSnapshotLoader
             PlanarMax: table.GetInt64("planarMax"),
             PlanarPct: table.GetInt64("planarPct"),
             Combo: table.GetInt64("combo"),
+            ComboUnit: table.GetString("comboUnit"),
+            Mark: GetValueTextAny(table, "mark", "marked"),
             Zone: table.GetString("zone"),
             LocationName: table.GetString("locationName"),
             Coord: MapCoordinate(table.GetTable("coord")),
@@ -140,6 +161,32 @@ public static class ReaderBridgeSnapshotLoader
             Ttd: table.GetDouble("ttd"),
             TtdText: table.GetString("ttdText"),
             Cast: MapCast(table.GetTable("cast")));
+    }
+
+    private static IReadOnlyList<ReaderBridgeUnitSnapshot> MapUnitList(LuaTable? table)
+    {
+        if (table is null || table.Items.Count == 0)
+        {
+            return Array.Empty<ReaderBridgeUnitSnapshot>();
+        }
+
+        var values = new List<ReaderBridgeUnitSnapshot>(table.Items.Count);
+
+        foreach (var item in table.Items)
+        {
+            if (item is not LuaTable entry)
+            {
+                continue;
+            }
+
+            var mapped = MapUnit(entry);
+            if (mapped is not null)
+            {
+                values.Add(mapped);
+            }
+        }
+
+        return values;
     }
 
     private static ReaderBridgeCastSnapshot? MapCast(LuaTable? table)
@@ -223,6 +270,128 @@ public static class ReaderBridgeSnapshotLoader
                 Key: null,
                 Value: item.ToString(),
                 Kind: null));
+        }
+
+        return values;
+    }
+
+    private static ReaderBridgeCoordinateDeltaSnapshot? MapCoordinateDelta(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        var dx = table.GetDouble("dx");
+        var dy = table.GetDouble("dy");
+        var dz = table.GetDouble("dz");
+        var distance = table.GetDouble("distance");
+        var dt = table.GetDouble("dt");
+        var speed = table.GetDouble("speed");
+
+        if (dx is null && dy is null && dz is null && distance is null && dt is null && speed is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeCoordinateDeltaSnapshot(
+            Dx: dx,
+            Dy: dy,
+            Dz: dz,
+            Distance: distance,
+            Dt: dt,
+            Speed: speed);
+    }
+
+    private static IReadOnlyDictionary<string, double> MapDoubleDictionary(LuaTable? table)
+    {
+        if (table is null || table.Fields.Count == 0)
+        {
+            return new Dictionary<string, double>(StringComparer.Ordinal);
+        }
+
+        var result = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (var (key, value) in table.Fields)
+        {
+            var numeric = LuaScalarConversions.ToDouble(value);
+            if (numeric.HasValue)
+            {
+                result[key] = numeric.Value;
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, int> MapIntDictionary(LuaTable? table)
+    {
+        if (table is null || table.Fields.Count == 0)
+        {
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+        }
+
+        var result = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (key, value) in table.Fields)
+        {
+            var numeric = LuaScalarConversions.ToInt64(value);
+            if (numeric.HasValue && numeric.Value is >= int.MinValue and <= int.MaxValue)
+            {
+                result[key] = (int)numeric.Value;
+            }
+        }
+
+        return result;
+    }
+
+    private static ReaderBridgeUnitCollectionSummarySnapshot? MapUnitCollectionSummary(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeUnitCollectionSummarySnapshot(
+            ScannedCount: table.GetInt32("scannedCount"),
+            ExportedCount: table.GetInt32("exportedCount"),
+            PlayerCount: table.GetInt32("playerCount"),
+            CombatCount: table.GetInt32("combatCount"),
+            PvpCount: table.GetInt32("pvpCount"),
+            NearestDistance: table.GetDouble("nearestDistance"),
+            NearestName: table.GetString("nearestName"),
+            FarthestDistance: table.GetDouble("farthestDistance"),
+            FarthestName: table.GetString("farthestName"),
+            RelationCounts: MapIntDictionary(table.GetTable("relationCounts")));
+    }
+
+    private static IReadOnlyList<ReaderBridgeBuffSnapshot> MapBuffList(LuaTable? table)
+    {
+        if (table is null || table.Items.Count == 0)
+        {
+            return Array.Empty<ReaderBridgeBuffSnapshot>();
+        }
+
+        var values = new List<ReaderBridgeBuffSnapshot>(table.Items.Count);
+
+        foreach (var item in table.Items)
+        {
+            if (item is not LuaTable entry)
+            {
+                continue;
+            }
+
+            values.Add(new ReaderBridgeBuffSnapshot(
+                Id: GetValueTextAny(entry, "id"),
+                Name: entry.GetString("name"),
+                Remaining: entry.GetDouble("remaining"),
+                Duration: entry.GetDouble("duration"),
+                Stack: entry.GetInt64("stack"),
+                Debuff: entry.GetBoolean("debuff"),
+                Curse: entry.GetBoolean("curse"),
+                Disease: entry.GetBoolean("disease"),
+                Poison: entry.GetBoolean("poison"),
+                Caster: entry.GetString("caster"),
+                Text: entry.GetString("text"),
+                Flags: MapStringList(entry.GetTable("flags"))));
         }
 
         return values;
