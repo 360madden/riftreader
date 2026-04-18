@@ -1,0 +1,50 @@
+{
+  "SchemaVersion": 1,
+  "Mode": "debug-trace-instruction",
+  "Target": {
+    "ProcessId": 16732,
+    "ProcessName": "rift_x64",
+    "ModuleName": "rift_x64.exe",
+    "MainWindowTitle": "RIFT",
+    "ProcessStartTimeUtc": "2026-04-17T16:28:17.7108035Z"
+  },
+  "Breakpoint": {
+    "Kind": "instruction",
+    "ResolutionMode": "module-relative",
+    "Address": null,
+    "ModuleName": "rift_x64.exe",
+    "ModuleOffset": "0x932B3E",
+    "Width": null,
+    "Pattern": null,
+    "SourceFile": null,
+    "AccessType": "instruction",
+    "Metadata": null
+  },
+  "Capture": {
+    "StackBytes": 256,
+    "MemoryWindowBytes": 128
+  },
+  "Limits": {
+    "TimeoutMilliseconds": 2000,
+    "MaxHits": 1,
+    "MaxEvents": 5000
+  },
+  "Capabilities": {
+    "PreflightValidation": true,
+    "RegisterCapture": false,
+    "StackCapture": false,
+    "MemoryWindows": false,
+    "InstructionDecode": false,
+    "InstructionFingerprint": false,
+    "HitClustering": false,
+    "FollowUpSuggestions": false,
+    "Artifacts": true
+  },
+  "OutputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\live-attach-smoke\\20260417-214113",
+  "Label": null,
+  "MarkerInputFile": null,
+  "PresetName": null,
+  "PlayerCoordTraceFile": null,
+  "ReaderBridgeSnapshotFile": null,
+  "JsonOutput": true
+}

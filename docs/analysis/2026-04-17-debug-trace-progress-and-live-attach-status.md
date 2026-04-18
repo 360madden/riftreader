@@ -179,23 +179,39 @@ Observed status fields:
 
 ### Current interpretation
 
-This pass does **not** prove a specific named anti-cheat or protection product.
+This pass still does **not** prove a specific named anti-cheat or protection
+product.
 
-What it **does** show:
+What it **does** show now:
 
 - the custom debugger worker is capable of end-to-end attach/trace on a benign target
 - the same worker can enumerate and resolve the live game process normally
-- the live process rejects debugger attach before any debug events are observed
+- the live `rift_x64.exe` client is already marked as debugged before our attach attempt
+- a child process, `rifterrorhandler_x64.exe`, is launched with `-attach -pid <rift pid>`
+
+Concrete evidence captured after the original smoke test:
+
+| Field | Value |
+|---|---|
+| Live target PID | `10828` |
+| `CheckRemoteDebuggerPresent` | `true` |
+| Attached child helper | `rifterrorhandler_x64.exe` |
+| Helper PID | `21688` |
+| Helper command line | `-attach -pid 10828 -section Trion.Rift.DebugSection-10828 ...` |
 
 Safest current wording:
 
-- **normal Win32 native debugger attach is being rejected for `rift_x64` in the current environment**
+- **normal Win32 native debugger attach is being rejected because the live `rift_x64` process is already under a debugger relationship in the current environment**
 
-Likely explanations still pending discrimination:
+The most likely live-attach blocker is now:
 
-1. target-specific anti-debug / hardening gate
-2. privilege / integrity mismatch because the worker is running non-elevated
-3. environment/security-product interference
+1. Rift's own crash/error handler already owns the debug relationship for the live client
+
+Questions that remain open:
+
+1. whether launching the client directly under our debugger cleanly displaces the crash handler path
+2. whether elevation changes any part of that ownership race
+3. whether the game's startup flow later reasserts its own debugger relationship even when launched under x64dbg
 
 ## Files added or materially changed in this pass
 
@@ -234,4 +250,3 @@ That is the cleanest remaining way to distinguish:
 - privilege/integrity mismatch
 vs.
 - target-specific anti-debug behavior
-

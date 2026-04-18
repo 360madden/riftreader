@@ -1,19 +1,31 @@
 ﻿window.DASHBOARD_DATA = {
     "meta":  {
-                 "generatedAt":  "2026-04-16T09:59:33.0518404-04:00",
+                 "generatedAt":  "2026-04-18T00:42:45.3082518-04:00",
                  "repoPath":  "C:/RIFT MODDING/RiftReader",
-                 "currentBranch":  "main",
+                 "currentBranch":  "scanner-with-debug",
                  "worktrees":  [
                                    {
                                        "path":  "C:/RIFT MODDING/RiftReader",
-                                       "head":  "30df10093dd87d59c904827708257151bd737830",
-                                       "branch":  "main",
+                                       "head":  "20563abe73064d1c74f6273e2afd3bc53ca884f8",
+                                       "branch":  "scanner-with-debug",
                                        "isCurrent":  true
                                    },
                                    {
+                                       "path":  "C:/RIFT MODDING/RiftReader_apr15_replay",
+                                       "head":  "73e7e6e3d29955526171f73b31e597a468b1e3ec",
+                                       "branch":  null,
+                                       "isCurrent":  false
+                                   },
+                                   {
                                        "path":  "C:/RIFT MODDING/RiftReader_camera_feature",
-                                       "head":  "7756ed919431a5d8390b567311d13174fbb4f32f",
+                                       "head":  "885a2c251ad41f02dd5a93341ee10813805117f6",
                                        "branch":  "feature/camera-orientation-discovery",
+                                       "isCurrent":  false
+                                   },
+                                   {
+                                       "path":  "C:/RIFT MODDING/RiftReader_facing",
+                                       "head":  "85291c81babd7c45f984eab2714a8c27aa48e2dc",
+                                       "branch":  "facing",
                                        "isCurrent":  false
                                    },
                                    {
@@ -26,13 +38,13 @@
              },
     "branches":  [
                      {
-                         "id":  "main",
-                         "name":  "main",
+                         "id":  "scanner-with-debug",
+                         "name":  "scanner-with-debug",
                          "path":  "C:/RIFT MODDING/RiftReader",
                          "isCurrent":  true,
-                         "role":  "baseline",
+                         "role":  "branch",
                          "status":  "partial",
-                         "bottleneck":  "Reference baseline only; not the active recovery branch.",
+                         "bottleneck":  "Current working branch with no branch-specific dashboard summary yet.",
                          "truth":  [
 
                                    ],
@@ -109,7 +121,7 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/docs/recovery/current-truth.md",
                                              "note":  "Parsed for the truth rows shown in the branch overview.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:50:58.0189417-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.8283407-04:00"
                                          },
                                          {
                                              "label":  "Branch workboard",
@@ -137,21 +149,21 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/captures/actor-orientation-candidate-screen.json",
                                              "note":  "Feeds the latest screen-run summary.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-15T07:34:07.8788217-04:00"
+                                             "updatedAt":  "2026-04-17T04:08:43.3059036-04:00"
                                          },
                                          {
                                              "label":  "Recovery JSON",
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/captures/actor-orientation-recovery.json",
                                              "note":  "Feeds the latest recovery summary.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-15T02:36:56.9616116-04:00"
+                                             "updatedAt":  "2026-04-17T03:48:46.8076402-04:00"
                                          },
                                          {
                                              "label":  "ReaderBridge probe JSON",
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/captures/readerbridge-orientation-probe.json",
                                              "note":  "Feeds the latest addon-probe summary.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-15T01:32:54.2849529-04:00"
+                                             "updatedAt":  "2026-04-17T03:14:01.0629784-04:00"
                                          }
                                      ],
                          "candidates":  {
@@ -466,22 +478,22 @@
                          "latestRuns":  {
                                             "screen":  {
                                                            "label":  "Latest screen run",
-                                                           "at":  "2026-04-15T11:34:07.8719328+00:00",
-                                                           "summary":  "Screened 2 candidates; responsive=0; dead=2; recoveryRuns=0."
+                                                           "at":  "2026-04-17T08:08:43.2793169+00:00",
+                                                           "summary":  "Screened 32 candidates; responsive=0; dead=32; recoveryRuns=0."
                                                        },
                                             "recovery":  {
                                                              "label":  "Latest recovery run",
-                                                             "at":  "2026-04-15T06:36:56.9524867+00:00",
+                                                             "at":  "2026-04-17T07:48:46.7478199+00:00",
                                                              "summary":  "BasisRecovered=False; YawRecovered=False; PitchRecovered=False; IdleConsistencyPass=True."
                                                          },
                                             "probe":  {
                                                           "label":  "Latest addon probe",
-                                                          "at":  "2026-04-15T05:32:54.2047319+00:00",
+                                                          "at":  "2026-04-17T07:14:00.9992576+00:00",
                                                           "summary":  "PlayerSignal=False; directHeadingApiAvailable=False; detailCandidates=0; stateCandidates=0."
                                                       }
                                         },
                          "docs":  {
-                                      "truthUpdatedAt":  "2026-04-16T09:50:58.0189417-04:00",
+                                      "truthUpdatedAt":  "2026-04-17T11:15:59.8283407-04:00",
                                       "workboardUpdatedAt":  null,
                                       "handoffUpdatedAt":  null
                                   },
@@ -549,56 +561,56 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/index.html",
                                              "note":  "Static HTML entrypoint that loads the generated dashboard data and UI bundle.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:51:13.0120472-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.9570956-04:00"
                                          },
                                          {
                                              "label":  "Dashboard UI bundle",
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/app.js",
                                              "note":  "Vanilla JS renderer for the branch list, overview cards, metrics, and details.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:51:12.9081740-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.9507930-04:00"
                                          },
                                          {
                                              "label":  "Dashboard stylesheet",
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/styles.css",
                                              "note":  "Dark responsive layout and component styling for the dashboard shell.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:51:13.1297715-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.9590983-04:00"
                                          },
                                          {
                                              "label":  "Compiled dashboard data",
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/dashboard-data.js",
                                              "note":  "Generated snapshot consumed directly by the browser.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:58:51.6252172-04:00"
+                                             "updatedAt":  "2026-04-18T00:41:16.9185778-04:00"
                                          },
                                          {
                                              "label":  "Dashboard generator",
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/build-dashboard-summary.ps1",
                                              "note":  "Compiles git, docs, and capture artifacts into dashboard-data.js.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:55:57.6367753-04:00"
+                                             "updatedAt":  "2026-04-18T00:30:12.0421272-04:00"
                                          },
                                          {
                                              "label":  "Dashboard README",
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/README.md",
                                              "note":  "Usage and maintenance notes for the dashboard workflow.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:51:12.7961728-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.9472957-04:00"
                                          },
                                          {
                                              "label":  "Launcher script",
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/open-dashboard.ps1",
                                              "note":  "Rebuilds and opens the dashboard in the default browser.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:51:12.4050851-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.8848574-04:00"
                                          },
                                          {
                                              "label":  "Launcher CMD wrapper",
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/open-dashboard.cmd",
                                              "note":  "Convenience entrypoint for cmd.exe users.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T09:51:12.1210303-04:00"
+                                             "updatedAt":  "2026-04-17T11:15:59.8833576-04:00"
                                          },
                                          {
                                              "label":  "Branch workboard",
@@ -617,11 +629,11 @@
                                      ],
                          "candidates":  {
                                             "counts":  {
-                                                           "branches":  7,
+                                                           "branches":  10,
                                                            "richBranches":  3,
-                                                           "worktrees":  3,
+                                                           "worktrees":  5,
                                                            "sources":  8,
-                                                           "dirtyFiles":  6
+                                                           "dirtyFiles":  17
                                                        },
                                             "top":  [
                                                         {
@@ -641,16 +653,16 @@
                                                         {
                                                             "label":  "Worktree visibility",
                                                             "classification":  "active",
-                                                            "reason":  "3 checked-out worktree(s) are visible to the dashboard generator.",
+                                                            "reason":  "5 checked-out worktree(s) are visible to the dashboard generator.",
                                                             "discoveryMode":  "git worktree",
-                                                            "searchScore":  3
+                                                            "searchScore":  5
                                                         },
                                                         {
                                                             "label":  "Current worktree state",
                                                             "classification":  "dirty",
-                                                            "reason":  "dirty=6; modified=0; added=0; deleted=0; renamed=0; untracked=6.",
+                                                            "reason":  "dirty=17; modified=9; added=0; deleted=0; renamed=0; untracked=8.",
                                                             "discoveryMode":  "git status",
-                                                            "searchScore":  6
+                                                            "searchScore":  17
                                                         }
                                                     ],
                                             "rows":  [
@@ -675,22 +687,22 @@
                          "latestRuns":  {
                                             "screen":  {
                                                            "label":  "Latest dashboard build",
-                                                           "at":  "2026-04-16T09:59:33.0518404-04:00",
-                                                           "summary":  "Compiled 7 branches across 3 worktree(s) into dashboard-data.js."
+                                                           "at":  "2026-04-18T00:42:45.3082518-04:00",
+                                                           "summary":  "Compiled 10 branches across 5 worktree(s) into dashboard-data.js."
                                                        },
                                             "recovery":  {
                                                              "label":  "Latest branch commit",
-                                                             "at":  "2026-04-14T09:20:57-04:00",
-                                                             "summary":  "Document post-update drift and add input safety guidance (30df100)"
+                                                             "at":  "2026-04-17T21:54:24-04:00",
+                                                             "summary":  "Add native debug trace worker fixture coverage (20563ab)"
                                                          },
                                             "probe":  {
                                                           "label":  "Working tree state",
-                                                          "at":  "2026-04-16T09:59:33.9141468-04:00",
-                                                          "summary":  "dirty=6; modified=0; added=0; deleted=0; renamed=0; untracked=6."
+                                                          "at":  "2026-04-18T00:42:46.1472307-04:00",
+                                                          "summary":  "dirty=17; modified=9; added=0; deleted=0; renamed=0; untracked=8."
                                                       }
                                         },
                          "docs":  {
-                                      "truthUpdatedAt":  "2026-04-16T09:55:57.6367753-04:00",
+                                      "truthUpdatedAt":  "2026-04-18T00:30:12.0421272-04:00",
                                       "workboardUpdatedAt":  null,
                                       "handoffUpdatedAt":  null
                                   },
@@ -729,7 +741,78 @@
                                           "Dashboard branch workboard doc is missing.",
                                           "Dashboard branch handoff doc is missing.",
                                           "Dashboard workboard Now section could not be parsed.",
-                                          "Current worktree has 6 pending change(s)."
+                                          "Current worktree has 17 pending change(s)."
+                                      ]
+                     },
+                     {
+                         "id":  "main",
+                         "name":  "main",
+                         "path":  "C:/RIFT MODDING/RiftReader",
+                         "isCurrent":  false,
+                         "role":  "baseline",
+                         "status":  "minimal",
+                         "bottleneck":  "Reference baseline only; not the active recovery branch.",
+                         "truth":  [
+
+                                   ],
+                         "latestRuns":  {
+                                            "screen":  {
+                                                           "label":  "Latest screen run",
+                                                           "at":  null,
+                                                           "summary":  "No structured screen run data configured."
+                                                       },
+                                            "recovery":  {
+                                                             "label":  "Latest recovery run",
+                                                             "at":  null,
+                                                             "summary":  "No structured recovery data configured."
+                                                         },
+                                            "probe":  {
+                                                          "label":  "Latest addon probe",
+                                                          "at":  null,
+                                                          "summary":  "No structured probe data configured."
+                                                      }
+                                        },
+                         "workboard":  {
+                                           "now":  [
+
+                                                   ],
+                                           "parallelNow":  [
+
+                                                           ],
+                                           "next":  [
+
+                                                    ],
+                                           "parked":  [
+
+                                                      ]
+                                       },
+                         "candidates":  {
+                                            "counts":  {
+
+                                                       },
+                                            "top":  [
+
+                                                    ],
+                                            "rows":  [
+
+                                                     ]
+                                        },
+                         "handoff":  {
+                                         "ready":  false,
+                                         "path":  "",
+                                         "summary":  "No branch handoff doc configured in v1."
+                                     },
+                         "docs":  {
+                                      "truthUpdatedAt":  null,
+                                      "workboardUpdatedAt":  null,
+                                      "handoffUpdatedAt":  null
+                                  },
+                         "sources":  [
+
+                                     ],
+                         "warnings":  [
+                                          "No dedicated worktree is currently checked out for this branch.",
+                                          "No rich branch-local dashboard data is configured for this branch in v1."
                                       ]
                      },
                      {
@@ -767,7 +850,7 @@
                                              "path":  "C:/RIFT MODDING/RiftReader_camera_feature/scripts/captures/player-current-anchor.json",
                                              "note":  "Feeds the latest anchor-capture summary.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-16T07:38:17.4220108-04:00"
+                                             "updatedAt":  "2026-04-16T10:00:42.1277425-04:00"
                                          },
                                          {
                                              "label":  "Coord write-trace status",
@@ -839,8 +922,8 @@
                          "latestRuns":  {
                                             "screen":  {
                                                            "label":  "Latest anchor capture",
-                                                           "at":  "2026-04-16T11:38:17.3988429+00:00",
-                                                           "summary":  "Anchor 0x245A340BDE0; family=fam-6F81F26E; selection=ce-guided-family; coords=[0, 4, 8]."
+                                                           "at":  "2026-04-16T14:00:42.1158569+00:00",
+                                                           "summary":  "Anchor 0x245A3DB7070; family=fam-6F81F26E; selection=ce-guided-family; coords=[0, 4, 8]."
                                                        },
                                             "recovery":  {
                                                              "label":  "Latest coord write trace",
@@ -1032,6 +1115,148 @@
                                       ]
                      },
                      {
+                         "id":  "facing",
+                         "name":  "facing",
+                         "path":  "C:/RIFT MODDING/RiftReader_facing",
+                         "isCurrent":  false,
+                         "role":  "branch",
+                         "status":  "partial",
+                         "bottleneck":  "Document actor-facing discovery workflow",
+                         "truth":  [
+
+                                   ],
+                         "latestRuns":  {
+                                            "screen":  {
+                                                           "label":  "Latest screen run",
+                                                           "at":  null,
+                                                           "summary":  "No structured screen run data configured."
+                                                       },
+                                            "recovery":  {
+                                                             "label":  "Latest recovery run",
+                                                             "at":  null,
+                                                             "summary":  "No structured recovery data configured."
+                                                         },
+                                            "probe":  {
+                                                          "label":  "Latest addon probe",
+                                                          "at":  null,
+                                                          "summary":  "No structured probe data configured."
+                                                      }
+                                        },
+                         "workboard":  {
+                                           "now":  [
+
+                                                   ],
+                                           "parallelNow":  [
+
+                                                           ],
+                                           "next":  [
+
+                                                    ],
+                                           "parked":  [
+
+                                                      ]
+                                       },
+                         "candidates":  {
+                                            "counts":  {
+
+                                                       },
+                                            "top":  [
+
+                                                    ],
+                                            "rows":  [
+
+                                                     ]
+                                        },
+                         "handoff":  {
+                                         "ready":  false,
+                                         "path":  "",
+                                         "summary":  "No branch handoff doc configured in v1."
+                                     },
+                         "docs":  {
+                                      "truthUpdatedAt":  null,
+                                      "workboardUpdatedAt":  null,
+                                      "handoffUpdatedAt":  null
+                                  },
+                         "sources":  [
+
+                                     ],
+                         "warnings":  [
+                                          "Checked out in a separate worktree: C:/RIFT MODDING/RiftReader_facing",
+                                          "No rich branch-local dashboard data is configured for this branch in v1."
+                                      ]
+                     },
+                     {
+                         "id":  "navigation",
+                         "name":  "navigation",
+                         "path":  "C:/RIFT MODDING/RiftReader",
+                         "isCurrent":  false,
+                         "role":  "branch",
+                         "status":  "minimal",
+                         "bottleneck":  "docs: add ReaderBridge compact GUI handoff",
+                         "truth":  [
+
+                                   ],
+                         "latestRuns":  {
+                                            "screen":  {
+                                                           "label":  "Latest screen run",
+                                                           "at":  null,
+                                                           "summary":  "No structured screen run data configured."
+                                                       },
+                                            "recovery":  {
+                                                             "label":  "Latest recovery run",
+                                                             "at":  null,
+                                                             "summary":  "No structured recovery data configured."
+                                                         },
+                                            "probe":  {
+                                                          "label":  "Latest addon probe",
+                                                          "at":  null,
+                                                          "summary":  "No structured probe data configured."
+                                                      }
+                                        },
+                         "workboard":  {
+                                           "now":  [
+
+                                                   ],
+                                           "parallelNow":  [
+
+                                                           ],
+                                           "next":  [
+
+                                                    ],
+                                           "parked":  [
+
+                                                      ]
+                                       },
+                         "candidates":  {
+                                            "counts":  {
+
+                                                       },
+                                            "top":  [
+
+                                                    ],
+                                            "rows":  [
+
+                                                     ]
+                                        },
+                         "handoff":  {
+                                         "ready":  false,
+                                         "path":  "",
+                                         "summary":  "No branch handoff doc configured in v1."
+                                     },
+                         "docs":  {
+                                      "truthUpdatedAt":  null,
+                                      "workboardUpdatedAt":  null,
+                                      "handoffUpdatedAt":  null
+                                  },
+                         "sources":  [
+
+                                     ],
+                         "warnings":  [
+                                          "No dedicated worktree is currently checked out for this branch.",
+                                          "No rich branch-local dashboard data is configured for this branch in v1."
+                                      ]
+                     },
+                     {
                          "id":  "opencode/hidden-tiger",
                          "name":  "opencode/hidden-tiger",
                          "path":  "C:/Users/mrkoo/.local/share/opencode/worktree/a5bb6559dabaa305972a37e45ae4b9b01c63b7bd/hidden-tiger",
@@ -1103,6 +1328,6 @@
                                       ]
                      }
                  ],
-    "defaultBranchId":  "main"
+    "defaultBranchId":  "scanner-with-debug"
 };
 

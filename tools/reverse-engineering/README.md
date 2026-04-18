@@ -23,6 +23,29 @@ C:\RIFT MODDING\RiftReader\scripts\open-reclass.cmd
 C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd
 ```
 
+Check whether the live Rift client is already owned by another debugger before
+trying to attach x64dbg:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\inspect-rift-debug-state.cmd
+```
+
+If the output shows `rifterrorhandler_x64.exe` attached to `rift_x64.exe`, the
+client is already under a debugger and x64dbg live attach will fail until that
+relationship changes.
+
+When you still want x64dbg to own a Rift client session, launch a **fresh**
+client under x64dbg using the most recently captured Glyph command line:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\open-rift-in-x64dbg.cmd -PreviewOnly
+C:\RIFT MODDING\RiftReader\scripts\open-rift-in-x64dbg.cmd
+```
+
+That workflow does **not** attach to the already-running client. It captures the
+current `rift_x64.exe` path/arguments (or reuses the last saved state) and asks
+x64dbg to start a new debuggee process directly.
+
 ## Current useful starting point
 
 Latest CE-confirmed player sample base:

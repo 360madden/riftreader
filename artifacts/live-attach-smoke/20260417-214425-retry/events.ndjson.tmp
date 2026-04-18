@@ -1,0 +1,1 @@
+{"EventIndex":0,"TraceId":"20260417-214425-retry","RecordedAtUtc":"2026-04-18T01:44:27.9753607\u002B00:00","ElapsedMilliseconds":137,"Phase":"preflight","EventKind":"preflight-complete","BreakpointId":"primary","RawRip":"0x7FF6491C2B3E","ModuleName":"rift_x64.exe","ModuleOffset":"0x932B3E","StatusCode":"preflight-ok","Message":"Resolved instruction breakpoint at 0x7FF6491C2B3E."}

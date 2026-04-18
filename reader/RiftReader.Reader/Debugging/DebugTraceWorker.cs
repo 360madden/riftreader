@@ -140,308 +140,333 @@ public static class DebugTraceWorker
                 ValidateResolvedBreakpoint(request, currentResolvedBreakpoint, memoryRegions);
                 WriteJsonArray(tempModulesFile, modules);
 
-            RecordEvent(
-                eventWriter,
-                traceId,
-                stopwatch.ElapsedMilliseconds,
-                ref eventCount,
-                "preflight",
-                "preflight-complete",
-                threadId: null,
-                debugEventCode: null,
-                exceptionCode: null,
-                firstChance: null,
-                breakpointId: "primary",
-                hitIndex: null,
-                moduleRelativeRip: null,
-                rawRip: currentResolvedBreakpoint.AddressHex,
-                moduleName: currentResolvedBreakpoint.ModuleName,
-                moduleOffset: currentResolvedBreakpoint.ModuleOffsetHex,
-                statusCode: "preflight-ok",
-                message: $"Resolved {currentResolvedBreakpoint.Kind} breakpoint at {currentResolvedBreakpoint.AddressHex}.");
+                RecordEvent(
+                    eventWriter,
+                    traceId,
+                    stopwatch.ElapsedMilliseconds,
+                    ref eventCount,
+                    "preflight",
+                    "preflight-complete",
+                    threadId: null,
+                    debugEventCode: null,
+                    exceptionCode: null,
+                    firstChance: null,
+                    breakpointId: "primary",
+                    hitIndex: null,
+                    moduleRelativeRip: null,
+                    rawRip: currentResolvedBreakpoint.AddressHex,
+                    moduleName: currentResolvedBreakpoint.ModuleName,
+                    moduleOffset: currentResolvedBreakpoint.ModuleOffsetHex,
+                    statusCode: "preflight-ok",
+                    message: $"Resolved {currentResolvedBreakpoint.Kind} breakpoint at {currentResolvedBreakpoint.AddressHex}.");
 
-            var cleanupSweepPerformed = TryCleanupFromPriorFailure(process.Id, warnings);
-            cleanupOutcome = cleanupSweepPerformed ? "pre-attach-sweep-ok" : "pre-attach-sweep-skipped";
+                var cleanupSweepPerformed = TryCleanupFromPriorFailure(process.Id, warnings);
+                cleanupOutcome = cleanupSweepPerformed ? "pre-attach-sweep-ok" : "pre-attach-sweep-skipped";
 
-            if (!DebugWindowsNativeMethods.DebugActiveProcess(process.Id))
-            {
-                throw new InvalidOperationException($"DebugActiveProcess failed: {FormatWin32Error()}");
-            }
-
-            attachActive = true;
-            attachOutcome = "attached";
-
-            if (!DebugWindowsNativeMethods.DebugSetProcessKillOnExit(false))
-            {
-                warnings.Add($"DebugSetProcessKillOnExit(false) failed: {FormatWin32Error()}");
-            }
-
-            foreach (var threadId in EnumerateThreadIds(process.Id))
-            {
-                ArmThreadBreakpoint(threadId, currentResolvedBreakpoint, warnings);
-                armedThreads.Add(threadId);
-            }
-
-            RecordMarker(
-                markerWriter,
-                traceId,
-                "breakpoints-armed",
-                DateTimeOffset.UtcNow,
-                stopwatch.ElapsedMilliseconds,
-                eventIndex: eventCount,
-                hitIndex: null,
-                request.Label,
-                $"Armed {armedThreads.Count} thread(s) for {currentResolvedBreakpoint.Kind} tracing.",
-                "system",
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                if (!DebugWindowsNativeMethods.DebugActiveProcess(process.Id))
                 {
-                    ["address"] = currentResolvedBreakpoint.AddressHex,
-                    ["module"] = currentResolvedBreakpoint.ModuleName ?? "<absolute>"
-                });
+                    throw new InvalidOperationException($"DebugActiveProcess failed: {FormatWin32Error()}");
+                }
 
-            var done = false;
-            while (!done)
-            {
-                DrainMarkerInputFile(
+                attachActive = true;
+                attachOutcome = "attached";
+
+                if (!DebugWindowsNativeMethods.DebugSetProcessKillOnExit(false))
+                {
+                    warnings.Add($"DebugSetProcessKillOnExit(false) failed: {FormatWin32Error()}");
+                }
+
+                foreach (var threadId in EnumerateThreadIds(process.Id))
+                {
+                    ArmThreadBreakpoint(threadId, currentResolvedBreakpoint, warnings);
+                    armedThreads.Add(threadId);
+                }
+
+                RecordMarker(
                     markerWriter,
-                    request.MarkerInputFile,
-                    ref markerInputProcessedLineCount,
+                    traceId,
+                    "breakpoints-armed",
+                    DateTimeOffset.UtcNow,
+                    stopwatch.ElapsedMilliseconds,
+                    eventIndex: eventCount,
+                    hitIndex: null,
                     request.Label,
-                    eventCount,
-                    hitCount,
-                    stopwatch,
-                    traceId);
-
-                if (cancellationRequested)
-                {
-                    interrupted = true;
-                    stopReason = "operator-cancelled";
-                    break;
-                }
-
-                if (stopwatch.ElapsedMilliseconds >= request.Limits.TimeoutMilliseconds)
-                {
-                    stopReason = "timeout";
-                    break;
-                }
-
-                if (!DebugWindowsNativeMethods.WaitForDebugEvent(out var debugEvent, MarkerPollSliceMilliseconds))
-                {
-                    var lastError = (uint)Marshal.GetLastWin32Error();
-                    if (lastError == DebugWindowsNativeMethods.ErrorSemTimeout)
+                    $"Armed {armedThreads.Count} thread(s) for {currentResolvedBreakpoint.Kind} tracing.",
+                    "system",
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
-                        continue;
+                        ["address"] = currentResolvedBreakpoint.AddressHex,
+                        ["module"] = currentResolvedBreakpoint.ModuleName ?? "<absolute>"
+                    });
+
+                var done = false;
+                while (!done)
+                {
+                    DrainMarkerInputFile(
+                        markerWriter,
+                        request.MarkerInputFile,
+                        ref markerInputProcessedLineCount,
+                        request.Label,
+                        eventCount,
+                        hitCount,
+                        stopwatch,
+                        traceId);
+
+                    if (cancellationRequested)
+                    {
+                        interrupted = true;
+                        stopReason = "operator-cancelled";
+                        break;
                     }
 
-                    throw new InvalidOperationException($"WaitForDebugEvent failed: {FormatWin32Error((int)lastError)}");
-                }
-
-                var shouldStopAfterContinue = false;
-                var continueStatus = DebugWindowsNativeMethods.DebugContinue;
-                eventCount++;
-
-                var eventTimestamp = DateTimeOffset.UtcNow;
-                switch (debugEvent.dwDebugEventCode)
-                {
-                    case DebugWindowsNativeMethods.DebugEventType.CreateThread:
-                        ArmThreadBreakpoint(debugEvent.dwThreadId, currentResolvedBreakpoint, warnings);
-                        armedThreads.Add(debugEvent.dwThreadId);
-                        RecordEvent(
-                            eventWriter,
-                            traceId,
-                            stopwatch.ElapsedMilliseconds,
-                            ref eventCount,
-                            "runtime",
-                            "thread-create",
-                            debugEvent.dwThreadId,
-                            (uint)debugEvent.dwDebugEventCode,
-                            null,
-                            null,
-                            "primary",
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "thread-armed",
-                            $"Armed debug registers on thread {debugEvent.dwThreadId}.");
-                        SafeCloseHandle(debugEvent.u.CreateThread.hThread);
-                        break;
-
-                    case DebugWindowsNativeMethods.DebugEventType.CreateProcess:
-                        SafeCloseHandle(debugEvent.u.CreateProcessInfo.hFile);
-                        SafeCloseHandle(debugEvent.u.CreateProcessInfo.hProcess);
-                        SafeCloseHandle(debugEvent.u.CreateProcessInfo.hThread);
-                        RecordEvent(
-                            eventWriter,
-                            traceId,
-                            stopwatch.ElapsedMilliseconds,
-                            ref eventCount,
-                            "runtime",
-                            "process-create",
-                            debugEvent.dwThreadId,
-                            (uint)debugEvent.dwDebugEventCode,
-                            null,
-                            null,
-                            "primary",
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "debug-attach-bootstrap",
-                            "Observed create-process bootstrap event during attach.");
-                        break;
-
-                    case DebugWindowsNativeMethods.DebugEventType.LoadDll:
-                        SafeCloseHandle(debugEvent.u.LoadDll.hFile);
-                        RecordEvent(
-                            eventWriter,
-                            traceId,
-                            stopwatch.ElapsedMilliseconds,
-                            ref eventCount,
-                            "runtime",
-                            "load-dll",
-                            debugEvent.dwThreadId,
-                            (uint)debugEvent.dwDebugEventCode,
-                            null,
-                            null,
-                            "primary",
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "dll-load",
-                            null);
-                        break;
-
-                    case DebugWindowsNativeMethods.DebugEventType.ExitProcess:
-                        RecordEvent(
-                            eventWriter,
-                            traceId,
-                            stopwatch.ElapsedMilliseconds,
-                            ref eventCount,
-                            "runtime",
-                            "exit-process",
-                            debugEvent.dwThreadId,
-                            (uint)debugEvent.dwDebugEventCode,
-                            null,
-                            null,
-                            "primary",
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "target-exit",
-                            $"Target process exited with code {debugEvent.u.ExitProcess.dwExitCode}.");
-                        stopReason = "target-exit";
-                        shouldStopAfterContinue = true;
-                        break;
-
-                    case DebugWindowsNativeMethods.DebugEventType.Exception:
+                    if (stopwatch.ElapsedMilliseconds >= request.Limits.TimeoutMilliseconds)
                     {
-                        var exceptionCode = debugEvent.u.Exception.ExceptionRecord.ExceptionCode;
-                        var firstChance = debugEvent.u.Exception.dwFirstChance != 0;
+                        stopReason = "timeout";
+                        break;
+                    }
 
-                        if (exceptionCode == DebugWindowsNativeMethods.ExceptionBreakpoint)
+                    if (!DebugWindowsNativeMethods.WaitForDebugEvent(out var debugEvent, MarkerPollSliceMilliseconds))
+                    {
+                        var lastError = (uint)Marshal.GetLastWin32Error();
+                        if (lastError == DebugWindowsNativeMethods.ErrorSemTimeout)
                         {
+                            continue;
+                        }
+
+                        throw new InvalidOperationException($"WaitForDebugEvent failed: {FormatWin32Error((int)lastError)}");
+                    }
+
+                    var shouldStopAfterContinue = false;
+                    var continueStatus = DebugWindowsNativeMethods.DebugContinue;
+                    eventCount++;
+
+                    var eventTimestamp = DateTimeOffset.UtcNow;
+                    switch (debugEvent.dwDebugEventCode)
+                    {
+                        case DebugWindowsNativeMethods.DebugEventType.CreateThread:
+                            ArmThreadBreakpoint(debugEvent.dwThreadId, currentResolvedBreakpoint, warnings);
+                            armedThreads.Add(debugEvent.dwThreadId);
                             RecordEvent(
                                 eventWriter,
                                 traceId,
                                 stopwatch.ElapsedMilliseconds,
                                 ref eventCount,
                                 "runtime",
-                                "breakpoint-bootstrap",
+                                "thread-create",
                                 debugEvent.dwThreadId,
                                 (uint)debugEvent.dwDebugEventCode,
-                                exceptionCode,
-                                firstChance,
+                                null,
+                                null,
                                 "primary",
                                 null,
                                 null,
-                                FormatAddress(debugEvent.u.Exception.ExceptionRecord.ExceptionAddress),
                                 null,
                                 null,
-                                "attach-breakpoint",
-                                "Observed debugger attach breakpoint.");
-                            continueStatus = DebugWindowsNativeMethods.DebugContinue;
+                                null,
+                                "thread-armed",
+                                $"Armed debug registers on thread {debugEvent.dwThreadId}.");
+                            SafeCloseHandle(debugEvent.u.CreateThread.hThread);
                             break;
-                        }
 
-                        if (exceptionCode == DebugWindowsNativeMethods.ExceptionSingleStep)
-                        {
-                            var hit = CaptureSingleStepHit(
-                                reader,
-                                modules,
-                                memoryRegions,
-                                request,
+                        case DebugWindowsNativeMethods.DebugEventType.CreateProcess:
+                            SafeCloseHandle(debugEvent.u.CreateProcessInfo.hFile);
+                            SafeCloseHandle(debugEvent.u.CreateProcessInfo.hProcess);
+                            SafeCloseHandle(debugEvent.u.CreateProcessInfo.hThread);
+                            RecordEvent(
+                                eventWriter,
                                 traceId,
+                                stopwatch.ElapsedMilliseconds,
+                                ref eventCount,
+                                "runtime",
+                                "process-create",
                                 debugEvent.dwThreadId,
-                                currentResolvedBreakpoint,
-                                stopwatch,
-                                warnings);
+                                (uint)debugEvent.dwDebugEventCode,
+                                null,
+                                null,
+                                "primary",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                "debug-attach-bootstrap",
+                                "Observed create-process bootstrap event during attach.");
+                            break;
 
-                            if (hit is not null)
+                        case DebugWindowsNativeMethods.DebugEventType.LoadDll:
+                            SafeCloseHandle(debugEvent.u.LoadDll.hFile);
+                            RecordEvent(
+                                eventWriter,
+                                traceId,
+                                stopwatch.ElapsedMilliseconds,
+                                ref eventCount,
+                                "runtime",
+                                "load-dll",
+                                debugEvent.dwThreadId,
+                                (uint)debugEvent.dwDebugEventCode,
+                                null,
+                                null,
+                                "primary",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                "dll-load",
+                                null);
+                            break;
+
+                        case DebugWindowsNativeMethods.DebugEventType.ExitProcess:
+                            RecordEvent(
+                                eventWriter,
+                                traceId,
+                                stopwatch.ElapsedMilliseconds,
+                                ref eventCount,
+                                "runtime",
+                                "exit-process",
+                                debugEvent.dwThreadId,
+                                (uint)debugEvent.dwDebugEventCode,
+                                null,
+                                null,
+                                "primary",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                "target-exit",
+                                $"Target process exited with code {debugEvent.u.ExitProcess.dwExitCode}.");
+                            stopReason = "target-exit";
+                            shouldStopAfterContinue = true;
+                            break;
+
+                        case DebugWindowsNativeMethods.DebugEventType.Exception:
                             {
-                                hitCount++;
-                                hit = hit with { HitIndex = hitCount };
-                                hitRecords.Add(hit);
-                                WriteNdjson(hitWriter, hit);
+                                var exceptionCode = debugEvent.u.Exception.ExceptionRecord.ExceptionCode;
+                                var firstChance = debugEvent.u.Exception.dwFirstChance != 0;
 
-                                RecordMarker(
-                                    markerWriter,
-                                    traceId,
-                                    "trace-hit",
-                                    eventTimestamp,
-                                    stopwatch.ElapsedMilliseconds,
-                                    eventIndex: eventCount,
-                                    hitIndex: hitCount,
-                                    request.Label,
-                                    $"Recorded {currentResolvedBreakpoint.Kind} hit #{hitCount}.",
-                                    "system",
-                                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                    {
-                                        ["threadId"] = debugEvent.dwThreadId.ToString(CultureInfo.InvariantCulture),
-                                        ["rip"] = hit.RawRip ?? "<unknown>"
-                                    });
-
-                                RecordEvent(
-                                    eventWriter,
-                                    traceId,
-                                    stopwatch.ElapsedMilliseconds,
-                                    ref eventCount,
-                                    "runtime",
-                                    "single-step-hit",
-                                    debugEvent.dwThreadId,
-                                    (uint)debugEvent.dwDebugEventCode,
-                                    exceptionCode,
-                                    firstChance,
-                                    "primary",
-                                    hitCount,
-                                    hit.ModuleRelativeRip,
-                                    hit.RawRip,
-                                    ExtractModuleName(hit.ModuleRelativeRip),
-                                    ExtractModuleOffset(hit.ModuleRelativeRip),
-                                    "hit-recorded",
-                                    hit.InstructionText);
-
-                                if (hitCount >= request.Limits.MaxHits)
+                                if (exceptionCode == DebugWindowsNativeMethods.ExceptionBreakpoint)
                                 {
-                                    stopReason = "max-hits";
-                                    shouldStopAfterContinue = true;
+                                    RecordEvent(
+                                        eventWriter,
+                                        traceId,
+                                        stopwatch.ElapsedMilliseconds,
+                                        ref eventCount,
+                                        "runtime",
+                                        "breakpoint-bootstrap",
+                                        debugEvent.dwThreadId,
+                                        (uint)debugEvent.dwDebugEventCode,
+                                        exceptionCode,
+                                        firstChance,
+                                        "primary",
+                                        null,
+                                        null,
+                                        FormatAddress(debugEvent.u.Exception.ExceptionRecord.ExceptionAddress),
+                                        null,
+                                        null,
+                                        "attach-breakpoint",
+                                        "Observed debugger attach breakpoint.");
+                                    continueStatus = DebugWindowsNativeMethods.DebugContinue;
+                                    break;
                                 }
-                            }
-                            else
-                            {
+
+                                if (exceptionCode == DebugWindowsNativeMethods.ExceptionSingleStep)
+                                {
+                                    var hit = CaptureSingleStepHit(
+                                        reader,
+                                        modules,
+                                        memoryRegions,
+                                        request,
+                                        traceId,
+                                        debugEvent.dwThreadId,
+                                        currentResolvedBreakpoint,
+                                        stopwatch,
+                                        warnings);
+
+                                    if (hit is not null)
+                                    {
+                                        hitCount++;
+                                        hit = hit with { HitIndex = hitCount };
+                                        hitRecords.Add(hit);
+                                        WriteNdjson(hitWriter, hit);
+
+                                        RecordMarker(
+                                            markerWriter,
+                                            traceId,
+                                            "trace-hit",
+                                            eventTimestamp,
+                                            stopwatch.ElapsedMilliseconds,
+                                            eventIndex: eventCount,
+                                            hitIndex: hitCount,
+                                            request.Label,
+                                            $"Recorded {currentResolvedBreakpoint.Kind} hit #{hitCount}.",
+                                            "system",
+                                            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                                            {
+                                                ["threadId"] = debugEvent.dwThreadId.ToString(CultureInfo.InvariantCulture),
+                                                ["rip"] = hit.RawRip ?? "<unknown>"
+                                            });
+
+                                        RecordEvent(
+                                            eventWriter,
+                                            traceId,
+                                            stopwatch.ElapsedMilliseconds,
+                                            ref eventCount,
+                                            "runtime",
+                                            "single-step-hit",
+                                            debugEvent.dwThreadId,
+                                            (uint)debugEvent.dwDebugEventCode,
+                                            exceptionCode,
+                                            firstChance,
+                                            "primary",
+                                            hitCount,
+                                            hit.ModuleRelativeRip,
+                                            hit.RawRip,
+                                            ExtractModuleName(hit.ModuleRelativeRip),
+                                            ExtractModuleOffset(hit.ModuleRelativeRip),
+                                            "hit-recorded",
+                                            hit.InstructionText);
+
+                                        if (hitCount >= request.Limits.MaxHits)
+                                        {
+                                            stopReason = "max-hits";
+                                            shouldStopAfterContinue = true;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        RecordEvent(
+                                            eventWriter,
+                                            traceId,
+                                            stopwatch.ElapsedMilliseconds,
+                                            ref eventCount,
+                                            "runtime",
+                                            "single-step-nonmatch",
+                                            debugEvent.dwThreadId,
+                                            (uint)debugEvent.dwDebugEventCode,
+                                            exceptionCode,
+                                            firstChance,
+                                            "primary",
+                                            null,
+                                            null,
+                                            FormatAddress(debugEvent.u.Exception.ExceptionRecord.ExceptionAddress),
+                                            null,
+                                            null,
+                                            "single-step-ignored",
+                                            "Single-step event did not match the active hardware breakpoint.");
+                                    }
+
+                                    continueStatus = DebugWindowsNativeMethods.DebugContinue;
+                                    break;
+                                }
+
                                 RecordEvent(
                                     eventWriter,
                                     traceId,
                                     stopwatch.ElapsedMilliseconds,
                                     ref eventCount,
                                     "runtime",
-                                    "single-step-nonmatch",
+                                    "exception",
                                     debugEvent.dwThreadId,
                                     (uint)debugEvent.dwDebugEventCode,
                                     exceptionCode,
@@ -452,96 +477,71 @@ public static class DebugTraceWorker
                                     FormatAddress(debugEvent.u.Exception.ExceptionRecord.ExceptionAddress),
                                     null,
                                     null,
-                                    "single-step-ignored",
-                                    "Single-step event did not match the active hardware breakpoint.");
+                                    "exception-not-handled",
+                                    null);
+                                continueStatus = DebugWindowsNativeMethods.DebugExceptionNotHandled;
+                                break;
                             }
 
-                            continueStatus = DebugWindowsNativeMethods.DebugContinue;
+                        default:
+                            RecordEvent(
+                                eventWriter,
+                                traceId,
+                                stopwatch.ElapsedMilliseconds,
+                                ref eventCount,
+                                "runtime",
+                                debugEvent.dwDebugEventCode.ToString(),
+                                debugEvent.dwThreadId,
+                                (uint)debugEvent.dwDebugEventCode,
+                                null,
+                                null,
+                                "primary",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                "event-observed",
+                                null);
                             break;
-                        }
-
-                        RecordEvent(
-                            eventWriter,
-                            traceId,
-                            stopwatch.ElapsedMilliseconds,
-                            ref eventCount,
-                            "runtime",
-                            "exception",
-                            debugEvent.dwThreadId,
-                            (uint)debugEvent.dwDebugEventCode,
-                            exceptionCode,
-                            firstChance,
-                            "primary",
-                            null,
-                            null,
-                            FormatAddress(debugEvent.u.Exception.ExceptionRecord.ExceptionAddress),
-                            null,
-                            null,
-                            "exception-not-handled",
-                            null);
-                        continueStatus = DebugWindowsNativeMethods.DebugExceptionNotHandled;
-                        break;
                     }
 
-                    default:
-                        RecordEvent(
-                            eventWriter,
-                            traceId,
-                            stopwatch.ElapsedMilliseconds,
-                            ref eventCount,
-                            "runtime",
-                            debugEvent.dwDebugEventCode.ToString(),
-                            debugEvent.dwThreadId,
-                            (uint)debugEvent.dwDebugEventCode,
-                            null,
-                            null,
-                            "primary",
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            "event-observed",
-                            null);
-                        break;
+                    if (!DebugWindowsNativeMethods.ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus))
+                    {
+                        warnings.Add($"ContinueDebugEvent failed for thread {debugEvent.dwThreadId}: {FormatWin32Error()}");
+                    }
+
+                    if (eventCount >= request.Limits.MaxEvents)
+                    {
+                        stopReason = "max-events";
+                        shouldStopAfterContinue = true;
+                    }
+
+                    if (shouldStopAfterContinue)
+                    {
+                        done = true;
+                    }
                 }
 
-                if (!DebugWindowsNativeMethods.ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus))
-                {
-                    warnings.Add($"ContinueDebugEvent failed for thread {debugEvent.dwThreadId}: {FormatWin32Error()}");
-                }
-
-                if (eventCount >= request.Limits.MaxEvents)
-                {
-                    stopReason = "max-events";
-                    shouldStopAfterContinue = true;
-                }
-
-                if (shouldStopAfterContinue)
-                {
-                    done = true;
-                }
-            }
-
-            RecordMarker(
-                markerWriter,
-                traceId,
-                interrupted ? "trace-interrupted" : "trace-stop",
-                DateTimeOffset.UtcNow,
-                stopwatch.ElapsedMilliseconds,
-                eventIndex: eventCount,
-                hitIndex: hitCount == 0 ? null : hitCount,
-                request.Label,
-                interrupted
-                    ? "Debug trace interrupted by the operator."
-                    : $"Debug trace stopped ({stopReason ?? "completed"}).",
-                "system",
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["stopReason"] = stopReason ?? "completed",
-                    ["hitCount"] = hitCount.ToString(CultureInfo.InvariantCulture),
-                    ["eventCount"] = eventCount.ToString(CultureInfo.InvariantCulture)
-                });
+                RecordMarker(
+                    markerWriter,
+                    traceId,
+                    interrupted ? "trace-interrupted" : "trace-stop",
+                    DateTimeOffset.UtcNow,
+                    stopwatch.ElapsedMilliseconds,
+                    eventIndex: eventCount,
+                    hitIndex: hitCount == 0 ? null : hitCount,
+                    request.Label,
+                    interrupted
+                        ? "Debug trace interrupted by the operator."
+                        : $"Debug trace stopped ({stopReason ?? "completed"}).",
+                    "system",
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["stopReason"] = stopReason ?? "completed",
+                        ["hitCount"] = hitCount.ToString(CultureInfo.InvariantCulture),
+                        ["eventCount"] = eventCount.ToString(CultureInfo.InvariantCulture)
+                    });
 
                 var instructionFingerprints = request.Capabilities.InstructionFingerprint
                     ? BuildInstructionFingerprints(traceId, hitRecords)
