@@ -1,0 +1,30 @@
+{
+  "SourceFile": "ReaderBridgeExport.waiting-for-player.lua",
+  "LoadedAtUtc": "2026-04-18T00:00:00.0000000\u002B00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 5.25,
+  "LastReason": "startup",
+  "ExportCount": 1,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "waiting-for-player",
+    "ExportReason": "startup",
+    "ExportCount": 1,
+    "GeneratedAtRealtime": 5.25,
+    "SourceMode": "DirectAPI",
+    "SourceAddon": "RiftAPI",
+    "ExportAddon": "ReaderBridgeExport",
+    "ExportVersion": "0.1.0-test",
+    "PlayerStats": {},
+    "NearbyUnits": [],
+    "PartyUnits": [],
+    "PlayerBuffLines": [],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": [],
+    "PlayerBuffs": [],
+    "PlayerDebuffs": [],
+    "TargetBuffs": [],
+    "TargetDebuffs": []
+  }
+}

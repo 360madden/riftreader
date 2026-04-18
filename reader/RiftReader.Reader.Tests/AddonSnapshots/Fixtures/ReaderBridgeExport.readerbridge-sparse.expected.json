@@ -1,0 +1,60 @@
+{
+  "SourceFile": "ReaderBridgeExport.readerbridge-sparse.lua",
+  "LoadedAtUtc": "2026-04-18T00:00:00.0000000\u002B00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 77.7,
+  "LastReason": "readerbridge-sparse",
+  "ExportCount": 7,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "readerbridge-sparse",
+    "ExportCount": 7,
+    "GeneratedAtRealtime": 77.7,
+    "SourceMode": "ReaderBridge",
+    "SourceAddon": "ReaderBridge",
+    "SourceVersion": "1.2.3",
+    "ExportAddon": "ReaderBridgeExport",
+    "ExportVersion": "0.1.0-test",
+    "PlayerId": "player.sparse",
+    "Player": {
+      "Id": "player.sparse",
+      "Name": "SparseOne",
+      "Level": 10,
+      "Player": true,
+      "Hp": 100,
+      "HpMax": 100,
+      "ResourceKind": "Mana",
+      "Resource": 40,
+      "ResourceMax": 100,
+      "LocationName": "Sparse Camp"
+    },
+    "OrientationProbe": {
+      "Player": {
+        "Source": "player",
+        "UnitId": "player.sparse",
+        "UnitAvailable": true,
+        "DetailCandidates": [],
+        "StateCandidates": []
+      },
+      "Target": {
+        "Source": "target",
+        "UnitAvailable": false,
+        "DetailCandidates": [],
+        "StateCandidates": []
+      },
+      "StatCandidates": []
+    },
+    "PlayerStats": {},
+    "NearbyUnits": [],
+    "PartyUnits": [],
+    "PlayerBuffLines": [],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": [],
+    "PlayerBuffs": [],
+    "PlayerDebuffs": [],
+    "TargetBuffs": [],
+    "TargetDebuffs": []
+  }
+}

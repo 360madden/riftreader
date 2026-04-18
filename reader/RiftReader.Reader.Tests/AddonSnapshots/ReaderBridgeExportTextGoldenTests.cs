@@ -95,4 +95,58 @@ public sealed class ReaderBridgeExportTextGoldenTests
                 ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath("ReaderBridgeExport.thin-live.lua"),
                 "ReaderBridgeExport.thin-live.lua"));
     }
+
+    [Fact]
+    public void ReaderBridgeSparseCliTextOutput_MatchesGoldenText()
+    {
+        const string fixtureName = "ReaderBridgeExport.readerbridge-sparse.lua";
+        var result = ReaderBridgeSnapshotLoaderTestSupport.RunReader(
+            [
+                "--readerbridge-snapshot",
+                "--readerbridge-snapshot-file", ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName)
+            ]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
+
+        var expectedFormatterText = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.readerbridge-sparse.expected.txt");
+        var expectedCliText = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(
+            $"RiftReader.Reader{Environment.NewLine}" +
+            "Use this tool only against Rift client processes you explicitly intend to inspect." +
+            $"{Environment.NewLine}{Environment.NewLine}{expectedFormatterText}");
+
+        Assert.Equal(
+            expectedCliText,
+            ReaderBridgeSnapshotLoaderTestSupport.NormalizeCliText(
+                result.StandardOutput,
+                ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName),
+                fixtureName));
+    }
+
+    [Fact]
+    public void FrozenCliTextOutput_MatchesGoldenText()
+    {
+        const string fixtureName = "ReaderBridgeExport.frozen.lua";
+        var result = ReaderBridgeSnapshotLoaderTestSupport.RunReader(
+            [
+                "--readerbridge-snapshot",
+                "--readerbridge-snapshot-file", ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName)
+            ]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
+
+        var expectedFormatterText = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.frozen.expected.txt");
+        var expectedCliText = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(
+            $"RiftReader.Reader{Environment.NewLine}" +
+            "Use this tool only against Rift client processes you explicitly intend to inspect." +
+            $"{Environment.NewLine}{Environment.NewLine}{expectedFormatterText}");
+
+        Assert.Equal(
+            expectedCliText,
+            ReaderBridgeSnapshotLoaderTestSupport.NormalizeCliText(
+                result.StandardOutput,
+                ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName),
+                fixtureName));
+    }
 }
