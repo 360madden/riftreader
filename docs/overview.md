@@ -160,6 +160,9 @@ The helper addon exists to reduce blind memory hunting, not replace the reader.
 - Nearby unit enumeration (up to 10)
 - Coord delta tracking for movement detection
 - Raw `Inspect.Stat()` snapshot for class-specific stats
+- Frozen schema + validation workflow:
+  - `C:\RIFT MODDING\RiftReader\docs\readerbridge-schema-freeze.md`
+  - `pwsh -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\smoke-readerbridge-export.ps1 -Json -NoBuild`
 
 ### Addon responsibilities:
 

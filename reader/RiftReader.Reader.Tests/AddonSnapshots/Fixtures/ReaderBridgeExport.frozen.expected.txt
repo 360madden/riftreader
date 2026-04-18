@@ -1,0 +1,26 @@
+ReaderBridge export file: ReaderBridgeExport.frozen.lua
+Loaded at (UTC):         2026-04-18T00:00:00.0000000+00:00
+Last reason:             manual-freeze
+Export count:            17
+Status:                  ready
+Source mode:             ReaderBridge
+Source addon:            ReaderBridge v1.2.3
+Export addon:            ReaderBridgeExport v0.1.0-test
+Reason:                  manual-freeze
+Player:                  Atank (Lv70)
+Player health:           98765/120000
+Player resource:         power 73/100
+Player flags:            combat, mounted, aggro
+Player location:         Training Grounds
+Player coords:           7389.71, 0.00, 4021.55
+Player motion:           0.559 over 0.310s (1.803/s)
+Target:                  Training Dummy (Lv72)
+Target health:           450000/450000
+Target resource:         none n/a
+Target location:         Training Grounds
+Target distance:         4.50
+Player buffs:            Guarded Steel | Battle Surge x2
+Nearby units:            scanned 3, exported 2, players 1, combat 1
+Party units:             exported 1, combat 0, pvp 0
+Player aura detail:      buffs 1, debuffs 0
+Target aura detail:      buffs 0, debuffs 1

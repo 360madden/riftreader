@@ -1,0 +1,28 @@
+ReaderBridge export file: ReaderBridgeExport.directapi-golden.lua
+Loaded at (UTC):         2026-04-18T00:00:00.0000000+00:00
+Last reason:             directapi-golden
+Export count:            44
+Status:                  ready
+Source mode:             DirectAPI
+Source addon:            RiftAPI v?
+Export addon:            ReaderBridgeExport v0.1.0-test
+Reason:                  directapi-golden
+Player:                  DirectHero (Lv60)
+Player health:           45678/50000
+Player resource:         Power 55/100
+Player flags:            combat, pvp, aggro, tagged
+Player location:         Sanctuary
+Player coords:           1.25, 2.50, -3.75
+Player motion:           1.234 over 0.500s (2.468/s)
+Target:                  Bogling (Lv12)
+Target health:           1000/1500
+Target resource:         Mana 30/50
+Target location:         Bog Hollow
+Target distance:         12.34
+Target TTD:              18s
+Player buffs:            Battle Fury | Aegis
+Target buffs:            Enraged
+Nearby units:            scanned 4, exported 2, players 1, combat 1
+Party units:             exported 2, combat 1, pvp 0
+Player aura detail:      buffs 2, debuffs 1
+Target aura detail:      buffs 1, debuffs 1
