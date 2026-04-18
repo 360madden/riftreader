@@ -24,7 +24,13 @@ $dotnetArgs += '--'
 $dotnetArgs += '--readerbridge-snapshot'
 
 if ($SnapshotFile) {
-    $resolvedSnapshotFile = (Resolve-Path -LiteralPath $SnapshotFile).Path
+    try {
+        $resolvedSnapshotFile = (Resolve-Path -LiteralPath $SnapshotFile -ErrorAction Stop).Path
+    }
+    catch {
+        [Console]::Error.WriteLine(("Snapshot file was not found: {0}" -f [System.IO.Path]::GetFullPath($SnapshotFile)))
+        exit 1
+    }
     $dotnetArgs += '--readerbridge-snapshot-file'
     $dotnetArgs += $resolvedSnapshotFile
 }

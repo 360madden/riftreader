@@ -5,6 +5,14 @@
 Move discovery forward with narrow worker scopes, low context drift, and minimal
 idle time between tasks.
 
+## ReaderBridge export validation checkpoint
+
+When a workflow step depends on `ReaderBridgeExport` data staying parseable,
+validate against the frozen schema before moving on:
+
+- `C:\RIFT MODDING\RiftReader\docs\readerbridge-schema-freeze.md`
+- `pwsh -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\smoke-readerbridge-export.ps1 -Json -NoBuild`
+
 ## Recommended architecture
 
 - **Top-level integrator**

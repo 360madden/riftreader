@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Formatting;
 using Xunit;
@@ -10,12 +7,11 @@ namespace RiftReader.Reader.Tests.AddonSnapshots;
 public sealed class ReaderBridgeSnapshotLoaderTests
 {
     private const int FrozenSchemaVersion = 1;
-    private static readonly DateTimeOffset GoldenLoadedAtUtc = new(2026, 4, 18, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public void FrozenFixture_ParsesCurrentSchema()
     {
-        var document = LoadFixture("ReaderBridgeExport.frozen.lua");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.frozen.lua");
         var snapshot = AssertSnapshot(document);
 
         Assert.Equal(FrozenSchemaVersion, document.SchemaVersion);
@@ -83,7 +79,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void DirectApiGoldenFixture_ParsesAndPreservesOrdering()
     {
-        var document = LoadFixture("ReaderBridgeExport.directapi-golden.lua");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.directapi-golden.lua");
         var snapshot = AssertSnapshot(document);
 
         Assert.Equal("DirectAPI", snapshot.SourceMode);
@@ -104,7 +100,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void ThinLiveFixture_ParsesAndKeepsEmptyCollectionsStable()
     {
-        var document = LoadFixture("ReaderBridgeExport.thin-live.lua");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.thin-live.lua");
         var snapshot = AssertSnapshot(document);
 
         Assert.Equal(FrozenSchemaVersion, document.SchemaVersion);
@@ -124,7 +120,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void ZeroValuedFields_ArePreserved()
     {
-        var snapshot = AssertSnapshot(LoadFixture("ReaderBridgeExport.thin-live.lua"));
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.thin-live.lua"));
 
         Assert.Equal(0, snapshot.Player!.Charge);
         Assert.Equal(0, snapshot.Player.ChargeMax);
@@ -137,7 +133,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void WaitingForPlayerFixture_FormatsWithoutPlayerSections()
     {
-        var document = LoadFixture("ReaderBridgeExport.waiting-for-player.lua");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.waiting-for-player.lua");
         var snapshot = AssertSnapshot(document);
         var text = ReaderBridgeSnapshotTextFormatter.Format(document);
 
@@ -150,7 +146,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void ReaderBridgeSparseFixture_ParsesPartialProbe()
     {
-        var document = LoadFixture("ReaderBridgeExport.readerbridge-sparse.lua");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.readerbridge-sparse.lua");
         var snapshot = AssertSnapshot(document);
 
         Assert.Equal("ReaderBridge", snapshot.SourceMode);
@@ -168,7 +164,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [InlineData("ReaderBridgeExport.readerbridge-sparse.lua")]
     public void SparseFixtures_FormatWithoutEmptySectionNoise(string fixtureName)
     {
-        var document = LoadFixture(fixtureName);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixtureName);
         var text = ReaderBridgeSnapshotTextFormatter.Format(document);
 
         Assert.DoesNotContain("Nearby units:", text, StringComparison.Ordinal);
@@ -178,11 +174,168 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     }
 
     [Fact]
+    public void InvalidScalarTypes_AreIgnoredInsteadOfCoerced()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 18, lastReason = "bad-scalars", exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "bad-scalars",
+    generatedAtRealtime = 18,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = {
+      id = "p",
+      name = "BadScalars",
+      level = "70",
+      combat = "true",
+      hp = "100",
+      charge = "9",
+    },
+    playerStats = {
+      attackPower = "1234.5",
+      critPower = true,
+    },
+    nearbySummary = {
+      scannedCount = "3",
+      relationCounts = {
+        hostile = "1",
+        friendly = true,
+      },
+    },
+    playerBuffs = {
+      {
+        id = "buff1",
+        name = "Bad Buff",
+        remaining = "12.5",
+        stack = "2",
+      },
+    },
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+    nearbyUnits = {},
+    partyUnits = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(InvalidScalarTypes_AreIgnoredInsteadOfCoerced), fixtureText);
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
+
+        Assert.Equal("BadScalars", snapshot.Player!.Name);
+        Assert.Null(snapshot.Player.Level);
+        Assert.Null(snapshot.Player.Combat);
+        Assert.Null(snapshot.Player.Hp);
+        Assert.Null(snapshot.Player.Charge);
+        Assert.Empty(snapshot.PlayerStats);
+        Assert.NotNull(snapshot.NearbySummary);
+        Assert.Null(snapshot.NearbySummary!.ScannedCount);
+        Assert.Empty(snapshot.NearbySummary.RelationCounts);
+        Assert.Single(snapshot.PlayerBuffs);
+        Assert.Null(snapshot.PlayerBuffs[0].Remaining);
+        Assert.Null(snapshot.PlayerBuffs[0].Stack);
+    }
+
+    [Fact]
+    public void PlayerFlags_FormatInStablePriorityOrder()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 19, lastReason = "flag-order", exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "flag-order",
+    generatedAtRealtime = 19,
+    sourceMode = "DirectAPI",
+    sourceAddon = "RiftAPI",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = {
+      id = "p",
+      name = "Flaggy",
+      level = 70,
+      combat = true,
+      pvp = true,
+      mounted = true,
+      aggro = true,
+      tagged = true,
+      hp = 10,
+      hpMax = 20,
+    },
+    playerStats = {},
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+    nearbyUnits = {},
+    partyUnits = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(PlayerFlags_FormatInStablePriorityOrder), fixtureText);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(document);
+
+        Assert.Contains("Player flags:            combat, pvp, mounted, aggro, tagged", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TargetlessSummaryPresent_FormatsSummaryWithoutTargetSection()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = { lastExportAt = 20, lastReason = "targetless-summary", exportCount = 1 },
+  current = {
+    schemaVersion = 1,
+    status = "ready",
+    exportReason = "targetless-summary",
+    generatedAtRealtime = 20,
+    sourceMode = "ReaderBridge",
+    sourceAddon = "ReaderBridge",
+    exportAddon = "ReaderBridgeExport",
+    exportVersion = "0.1.0-test",
+    player = { id = "p", name = "SummaryOnly", level = 1 },
+    nearbySummary = { scannedCount = 5, exportedCount = 2, playerCount = 1, combatCount = 1, pvpCount = 0, relationCounts = {} },
+    partySummary = { exportedCount = 1, combatCount = 0, pvpCount = 0, relationCounts = {} },
+    playerBuffLines = {},
+    playerDebuffLines = {},
+    targetBuffLines = {},
+    targetDebuffLines = {},
+    playerStats = {},
+    nearbyUnits = {},
+    partyUnits = {},
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(TargetlessSummaryPresent_FormatsSummaryWithoutTargetSection), fixtureText);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path);
+        var text = ReaderBridgeSnapshotTextFormatter.Format(document);
+
+        Assert.DoesNotContain("Target:", text, StringComparison.Ordinal);
+        Assert.Contains("Nearby units:            scanned 5, exported 2, players 1, combat 1", text, StringComparison.Ordinal);
+        Assert.Contains("Party units:             exported 1, combat 0, pvp 0", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FrozenFormatterOutput_MatchesGoldenText()
     {
-        var document = NormalizeForGolden(LoadFixture("ReaderBridgeExport.frozen.lua"), "ReaderBridgeExport.frozen.lua");
-        var text = NormalizeText(ReaderBridgeSnapshotTextFormatter.Format(document));
-        var expected = ReadExpectedText("ReaderBridgeExport.frozen.expected.txt");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.NormalizeForGolden(
+            ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.frozen.lua"),
+            "ReaderBridgeExport.frozen.lua");
+        var text = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(ReaderBridgeSnapshotTextFormatter.Format(document));
+        var expected = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.frozen.expected.txt");
 
         Assert.Equal(expected, text);
     }
@@ -190,9 +343,11 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void DirectApiFormatterOutput_MatchesGoldenText()
     {
-        var document = NormalizeForGolden(LoadFixture("ReaderBridgeExport.directapi-golden.lua"), "ReaderBridgeExport.directapi-golden.lua");
-        var text = NormalizeText(ReaderBridgeSnapshotTextFormatter.Format(document));
-        var expected = ReadExpectedText("ReaderBridgeExport.directapi-golden.expected.txt");
+        var document = ReaderBridgeSnapshotLoaderTestSupport.NormalizeForGolden(
+            ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.directapi-golden.lua"),
+            "ReaderBridgeExport.directapi-golden.lua");
+        var text = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(ReaderBridgeSnapshotTextFormatter.Format(document));
+        var expected = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.directapi-golden.expected.txt");
 
         Assert.Equal(expected, text);
     }
@@ -200,8 +355,8 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     [Fact]
     public void ReaderBridgeSnapshotCli_ParsesFrozenFixture()
     {
-        var fixturePath = GetFixturePath("ReaderBridgeExport.frozen.lua");
-        var result = RunReader(
+        var fixturePath = ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath("ReaderBridgeExport.frozen.lua");
+        var result = ReaderBridgeSnapshotLoaderTestSupport.RunReader(
             [
                 "--readerbridge-snapshot",
                 "--readerbridge-snapshot-file", fixturePath,
@@ -211,7 +366,7 @@ public sealed class ReaderBridgeSnapshotLoaderTests
         Assert.Equal(0, result.ExitCode);
         Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
 
-        using var json = JsonDocument.Parse(result.StandardOutput);
+        using var json = System.Text.Json.JsonDocument.Parse(result.StandardOutput);
         var root = json.RootElement;
         Assert.Equal(FrozenSchemaVersion, root.GetProperty("SchemaVersion").GetInt32());
         Assert.Equal("manual-freeze", root.GetProperty("LastReason").GetString());
@@ -223,8 +378,8 @@ public sealed class ReaderBridgeSnapshotLoaderTests
     public void ReaderBridgeSnapshotCli_TextMode_MatchesGoldenOutput()
     {
         const string fixtureName = "ReaderBridgeExport.directapi-golden.lua";
-        var fixturePath = GetFixturePath(fixtureName);
-        var result = RunReader(
+        var fixturePath = ReaderBridgeSnapshotLoaderTestSupport.GetFixturePath(fixtureName);
+        var result = ReaderBridgeSnapshotLoaderTestSupport.RunReader(
             [
                 "--readerbridge-snapshot",
                 "--readerbridge-snapshot-file", fixturePath
@@ -233,13 +388,37 @@ public sealed class ReaderBridgeSnapshotLoaderTests
         Assert.Equal(0, result.ExitCode);
         Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
 
-        var expectedFormatterText = ReadExpectedText("ReaderBridgeExport.directapi-golden.expected.txt");
-        var expectedCliText = NormalizeText(
+        var expectedFormatterText = ReaderBridgeSnapshotLoaderTestSupport.ReadExpectedText("ReaderBridgeExport.directapi-golden.expected.txt");
+        var expectedCliText = ReaderBridgeSnapshotLoaderTestSupport.NormalizeText(
             $"RiftReader.Reader{Environment.NewLine}" +
             "Use this tool only against Rift client processes you explicitly intend to inspect." +
             $"{Environment.NewLine}{Environment.NewLine}{expectedFormatterText}");
 
-        Assert.Equal(expectedCliText, NormalizeCliText(result.StandardOutput, fixturePath, fixtureName));
+        Assert.Equal(
+            expectedCliText,
+            ReaderBridgeSnapshotLoaderTestSupport.NormalizeCliText(result.StandardOutput, fixturePath, fixtureName));
+    }
+
+    [Fact]
+    public void MissingCurrentSnapshot_DocumentLoadsWithNullCurrent()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = {
+  schemaVersion = 1,
+  session = {
+    lastExportAt = 18,
+    lastReason = "missing-current",
+    exportCount = 3,
+  },
+}
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(MissingCurrentSnapshot_DocumentLoadsWithNullCurrent), fixtureText);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path);
+
+        Assert.Equal(FrozenSchemaVersion, document.SchemaVersion);
+        Assert.Equal("missing-current", document.LastReason);
+        Assert.Null(document.Current);
     }
 
     [Fact]
@@ -251,12 +430,26 @@ WrongRoot = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(WrongRootVariable_IsRejected), fixtureText);
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(WrongRootVariable_IsRejected), fixtureText);
         var document = ReaderBridgeSnapshotLoader.TryLoad(fixture.Path, out var error);
 
         Assert.Null(document);
         Assert.Contains("Unexpected root variable", error, StringComparison.Ordinal);
         Assert.Contains("ReaderBridgeExport_State", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NonTableRootValue_IsRejected()
+    {
+        const string fixtureText = """
+ReaderBridgeExport_State = "bad-root"
+""";
+
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(NonTableRootValue_IsRejected), fixtureText);
+        var document = ReaderBridgeSnapshotLoader.TryLoad(fixture.Path, out var error);
+
+        Assert.Null(document);
+        Assert.Contains("Unexpected root value", error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -305,8 +498,8 @@ ReaderBridgeExport_State = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(ExtraFields_AreIgnoredWithoutBreakingKnownFields), fixtureText);
-        var document = LoadFixture(fixture.Path);
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(ExtraFields_AreIgnoredWithoutBreakingKnownFields), fixtureText);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path);
 
         Assert.Equal("Extra", document.Current!.Player!.Name);
         Assert.Single(document.Current.NearbyUnits);
@@ -340,8 +533,8 @@ ReaderBridgeExport_State = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(MissingPlayerStats_MapsToEmptyDictionary), fixtureText);
-        var snapshot = AssertSnapshot(LoadFixture(fixture.Path));
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(MissingPlayerStats_MapsToEmptyDictionary), fixtureText);
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
 
         Assert.Empty(snapshot.PlayerStats);
     }
@@ -374,8 +567,8 @@ ReaderBridgeExport_State = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(MissingBuffLineArrays_MapsToEmptyLists), fixtureText);
-        var snapshot = AssertSnapshot(LoadFixture(fixture.Path));
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(MissingBuffLineArrays_MapsToEmptyLists), fixtureText);
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
 
         Assert.Empty(snapshot.PlayerBuffLines);
         Assert.Single(snapshot.PlayerBuffs);
@@ -385,33 +578,7 @@ ReaderBridgeExport_State = {
     [Fact]
     public void AuraMissingFixture_BackCompatMapsStructuredAuraCollectionsToEmpty()
     {
-        const string fixtureText = """
-ReaderBridgeExport_State = {
-  schemaVersion = 1,
-  session = { lastExportAt = 13, lastReason = "aura-missing", exportCount = 1 },
-  current = {
-    schemaVersion = 1,
-    status = "ready",
-    exportReason = "aura-missing",
-    generatedAtRealtime = 13,
-    sourceMode = "ReaderBridge",
-    sourceAddon = "ReaderBridge",
-    exportAddon = "ReaderBridgeExport",
-    exportVersion = "0.1.0-test",
-    player = { id = "p", name = "LegacyAura", level = 1 },
-    playerBuffLines = { "Legacy Buff" },
-    playerDebuffLines = {},
-    targetBuffLines = {},
-    targetDebuffLines = {},
-    playerStats = {},
-    nearbyUnits = {},
-    partyUnits = {},
-  },
-}
-""";
-
-        using var fixture = TempFixture.Create(nameof(AuraMissingFixture_BackCompatMapsStructuredAuraCollectionsToEmpty), fixtureText);
-        var document = LoadFixture(fixture.Path);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.legacy-aura-missing.lua");
         var snapshot = AssertSnapshot(document);
         var text = ReaderBridgeSnapshotTextFormatter.Format(document);
 
@@ -423,33 +590,7 @@ ReaderBridgeExport_State = {
     [Fact]
     public void SummaryMissingFixture_BackCompatFormatsWithoutSummarySections()
     {
-        const string fixtureText = """
-ReaderBridgeExport_State = {
-  schemaVersion = 1,
-  session = { lastExportAt = 14, lastReason = "summary-missing", exportCount = 1 },
-  current = {
-    schemaVersion = 1,
-    status = "ready",
-    exportReason = "summary-missing",
-    generatedAtRealtime = 14,
-    sourceMode = "DirectAPI",
-    sourceAddon = "RiftAPI",
-    exportAddon = "ReaderBridgeExport",
-    exportVersion = "0.1.0-test",
-    player = { id = "p", name = "LegacySummary", level = 1 },
-    nearbyUnits = { { id = "u1", name = "Unit One" } },
-    partyUnits = { { id = "g1", name = "Unit Two" } },
-    playerBuffLines = {},
-    playerDebuffLines = {},
-    targetBuffLines = {},
-    targetDebuffLines = {},
-    playerStats = {},
-  },
-}
-""";
-
-        using var fixture = TempFixture.Create(nameof(SummaryMissingFixture_BackCompatFormatsWithoutSummarySections), fixtureText);
-        var document = LoadFixture(fixture.Path);
+        var document = ReaderBridgeSnapshotLoaderTestSupport.LoadFixture("ReaderBridgeExport.legacy-summary-missing.lua");
         var snapshot = AssertSnapshot(document);
         var text = ReaderBridgeSnapshotTextFormatter.Format(document);
 
@@ -495,8 +636,8 @@ ReaderBridgeExport_State = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(EmptyRelationCounts_MapToEmptyDictionary), fixtureText);
-        var snapshot = AssertSnapshot(LoadFixture(fixture.Path));
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(EmptyRelationCounts_MapToEmptyDictionary), fixtureText);
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
 
         Assert.NotNull(snapshot.NearbySummary);
         Assert.Empty(snapshot.NearbySummary!.RelationCounts);
@@ -539,8 +680,8 @@ ReaderBridgeExport_State = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(PartialOrientationProbe_MissingNestedTablesMapsToEmptyCandidateLists), fixtureText);
-        var snapshot = AssertSnapshot(LoadFixture(fixture.Path));
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(PartialOrientationProbe_MissingNestedTablesMapsToEmptyCandidateLists), fixtureText);
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
 
         Assert.NotNull(snapshot.OrientationProbe);
         Assert.Empty(snapshot.OrientationProbe!.Player!.DetailCandidates);
@@ -587,32 +728,13 @@ ReaderBridgeExport_State = {
 }
 """;
 
-        using var fixture = TempFixture.Create(nameof(NestedUnknownAuraFields_AreIgnored), fixtureText);
-        var snapshot = AssertSnapshot(LoadFixture(fixture.Path));
+        using var fixture = ReaderBridgeTempFixture.Create(nameof(NestedUnknownAuraFields_AreIgnored), fixtureText);
+        var snapshot = AssertSnapshot(ReaderBridgeSnapshotLoaderTestSupport.LoadFixture(fixture.Path));
 
         Assert.Single(snapshot.PlayerBuffs);
         Assert.Equal("Future Buff", snapshot.PlayerBuffs[0].Name);
         Assert.Equal(2, snapshot.PlayerBuffs[0].Flags.Count);
     }
-
-    private static ReaderBridgeSnapshotDocument LoadFixture(string fixtureNameOrPath)
-    {
-        var path = fixtureNameOrPath.EndsWith(".lua", StringComparison.OrdinalIgnoreCase) && File.Exists(fixtureNameOrPath)
-            ? fixtureNameOrPath
-            : GetFixturePath(fixtureNameOrPath);
-
-        var document = ReaderBridgeSnapshotLoader.TryLoad(path, out var error);
-        Assert.NotNull(document);
-        Assert.True(string.IsNullOrWhiteSpace(error), error);
-        return document!;
-    }
-
-    private static ReaderBridgeSnapshotDocument NormalizeForGolden(ReaderBridgeSnapshotDocument document, string fixtureName) =>
-        document with
-        {
-            SourceFile = fixtureName,
-            LoadedAtUtc = GoldenLoadedAtUtc
-        };
 
     private static ReaderBridgeSnapshot AssertSnapshot(ReaderBridgeSnapshotDocument document)
     {
@@ -620,149 +742,4 @@ ReaderBridgeExport_State = {
         return document.Current!;
     }
 
-    private static string ReadExpectedText(string fileName) =>
-        NormalizeText(File.ReadAllText(GetFixturePath(fileName)));
-
-    private static string NormalizeCliText(string text, string fixturePath, string fixtureName)
-    {
-        var normalized = NormalizeText(text)
-            .Replace(fixturePath.Replace('\\', '/'), fixtureName, StringComparison.Ordinal)
-            .Replace(fixturePath, fixtureName, StringComparison.Ordinal);
-
-        return Regex.Replace(
-            normalized,
-            @"Loaded at \(UTC\):\s+.+",
-            $"Loaded at (UTC):         {GoldenLoadedAtUtc:O}",
-            RegexOptions.CultureInvariant);
-    }
-
-    private static string NormalizeText(string value) =>
-        value.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
-
-    private static string GetFixturePath(string fileName) =>
-        Path.Combine(
-            FindRepoRoot(),
-            "reader",
-            "RiftReader.Reader.Tests",
-            "AddonSnapshots",
-            "Fixtures",
-            fileName);
-
-    private static CommandResult RunReader(IReadOnlyList<string> args)
-    {
-        var repoRoot = FindRepoRoot();
-        var projectPath = Path.Combine(repoRoot, "reader", "RiftReader.Reader", "RiftReader.Reader.csproj");
-        var command = BuildDotnetRunArguments(projectPath, args);
-        return RunProcess("dotnet", command, repoRoot, timeoutMilliseconds: 20_000);
-    }
-
-    private static string BuildDotnetRunArguments(string projectPath, IReadOnlyList<string> args)
-    {
-        var suffix = string.Join(" ", args.Select(Quote));
-        return $"run --project {Quote(projectPath)} --no-build -- {suffix}";
-    }
-
-    private static CommandResult RunProcess(string fileName, string arguments, string workingDirectory, int timeoutMilliseconds)
-    {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = fileName,
-                Arguments = arguments,
-                WorkingDirectory = workingDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
-
-        if (!process.Start())
-        {
-            throw new InvalidOperationException($"Unable to start '{fileName} {arguments}'.");
-        }
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-
-        if (!process.WaitForExit(timeoutMilliseconds))
-        {
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // Ignore cleanup failures in timeout handling.
-            }
-
-            throw new TimeoutException($"Process '{fileName} {arguments}' timed out after {timeoutMilliseconds}ms.");
-        }
-
-        Task.WaitAll(stdoutTask, stderrTask);
-
-        return new CommandResult(
-            process.ExitCode,
-            stdoutTask.GetAwaiter().GetResult(),
-            stderrTask.GetAwaiter().GetResult());
-    }
-
-    private static string FindRepoRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "RiftReader.slnx")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new InvalidOperationException("Unable to locate the repository root from the test output directory.");
-    }
-
-    private static string Quote(string value) =>
-        $"\"{value.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";
-
-    private readonly record struct CommandResult(int ExitCode, string StandardOutput, string StandardError);
-
-    private sealed class TempFixture : IDisposable
-    {
-        private TempFixture(string path)
-        {
-            Path = path;
-        }
-
-        public string Path { get; }
-
-        public static TempFixture Create(string testName, string content)
-        {
-            var path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "RiftReader",
-                "readerbridge-tests",
-                $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-{testName}-{Guid.NewGuid():N}.lua");
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, content);
-            return new TempFixture(path);
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                if (File.Exists(Path))
-                {
-                    File.Delete(Path);
-                }
-            }
-            catch
-            {
-                // Best-effort cleanup only.
-            }
-        }
-    }
 }

@@ -1,0 +1,177 @@
+{
+  "SourceFile": "ReaderBridgeExport.directapi-golden.lua",
+  "LoadedAtUtc": "2026-04-18T00:00:00.0000000\u002B00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 512.25,
+  "LastReason": "directapi-golden",
+  "ExportCount": 44,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "directapi-golden",
+    "ExportCount": 44,
+    "GeneratedAtRealtime": 512.25,
+    "SourceMode": "DirectAPI",
+    "SourceAddon": "RiftAPI",
+    "ExportAddon": "ReaderBridgeExport",
+    "ExportVersion": "0.1.0-test",
+    "PlayerId": "player.direct",
+    "TargetId": "npc.target",
+    "Player": {
+      "Id": "player.direct",
+      "Name": "DirectHero",
+      "Level": 60,
+      "Relation": "friendly",
+      "Role": "dps",
+      "Player": true,
+      "Combat": true,
+      "Aggro": true,
+      "Tagged": true,
+      "Pvp": true,
+      "Hp": 45678,
+      "HpMax": 50000,
+      "ResourceKind": "Power",
+      "Resource": 55,
+      "ResourceMax": 100,
+      "LocationName": "Sanctuary",
+      "Coord": {
+        "X": 1.25,
+        "Y": 2.5,
+        "Z": -3.75
+      }
+    },
+    "Target": {
+      "Id": "npc.target",
+      "Name": "Bogling",
+      "Level": 12,
+      "Hp": 1000,
+      "HpMax": 1500,
+      "ResourceKind": "Mana",
+      "Resource": 30,
+      "ResourceMax": 50,
+      "LocationName": "Bog Hollow",
+      "Distance": 12.34,
+      "TtdText": "18s"
+    },
+    "PlayerStats": {
+      "attackPower": 999,
+      "critPower": 111
+    },
+    "PlayerCoordDelta": {
+      "Distance": 1.234,
+      "Dt": 0.5,
+      "Speed": 2.468
+    },
+    "NearbySummary": {
+      "ScannedCount": 4,
+      "ExportedCount": 2,
+      "PlayerCount": 1,
+      "CombatCount": 1,
+      "PvpCount": 1,
+      "NearestDistance": 6.5,
+      "NearestName": "Bogling",
+      "FarthestDistance": 14,
+      "FarthestName": "Scout",
+      "RelationCounts": {
+        "hostile": 1,
+        "friendly": 1
+      }
+    },
+    "PartySummary": {
+      "ScannedCount": 2,
+      "ExportedCount": 2,
+      "PlayerCount": 2,
+      "CombatCount": 1,
+      "PvpCount": 0,
+      "NearestDistance": 8,
+      "NearestName": "Healer",
+      "FarthestDistance": 10,
+      "FarthestName": "Tank",
+      "RelationCounts": {
+        "group": 2
+      }
+    },
+    "NearbyUnits": [
+      {
+        "Id": "npc.target",
+        "Name": "Bogling",
+        "Relation": "hostile",
+        "Distance": 6.5
+      },
+      {
+        "Id": "player.scout",
+        "Name": "Scout",
+        "Relation": "friendly",
+        "Player": true,
+        "Combat": true,
+        "Pvp": true,
+        "Distance": 14
+      }
+    ],
+    "PartyUnits": [
+      {
+        "Id": "group01",
+        "Name": "Healer",
+        "Relation": "group",
+        "Player": true,
+        "Distance": 8
+      },
+      {
+        "Id": "group02",
+        "Name": "Tank",
+        "Relation": "group",
+        "Player": true,
+        "Combat": true,
+        "Distance": 10
+      }
+    ],
+    "PlayerBuffLines": [
+      "Battle Fury",
+      "Aegis"
+    ],
+    "PlayerDebuffLines": [
+      "Weakened"
+    ],
+    "TargetBuffLines": [
+      "Enraged"
+    ],
+    "TargetDebuffLines": [
+      "Marked"
+    ],
+    "PlayerBuffs": [
+      {
+        "Id": "3001",
+        "Name": "Battle Fury",
+        "Flags": []
+      },
+      {
+        "Id": "3002",
+        "Name": "Aegis",
+        "Flags": []
+      }
+    ],
+    "PlayerDebuffs": [
+      {
+        "Id": "3003",
+        "Name": "Weakened",
+        "Debuff": true,
+        "Flags": []
+      }
+    ],
+    "TargetBuffs": [
+      {
+        "Id": "3004",
+        "Name": "Enraged",
+        "Flags": []
+      }
+    ],
+    "TargetDebuffs": [
+      {
+        "Id": "3005",
+        "Name": "Marked",
+        "Debuff": true,
+        "Flags": []
+      }
+    ]
+  }
+}

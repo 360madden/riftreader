@@ -1,0 +1,269 @@
+{
+  "SourceFile": "ReaderBridgeExport.frozen.lua",
+  "LoadedAtUtc": "2026-04-18T00:00:00.0000000\u002B00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 1250.5,
+  "LastReason": "manual-freeze",
+  "ExportCount": 17,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "manual-freeze",
+    "ExportCount": 17,
+    "GeneratedAtRealtime": 1250.5,
+    "SourceMode": "ReaderBridge",
+    "SourceAddon": "ReaderBridge",
+    "SourceVersion": "1.2.3",
+    "ExportAddon": "ReaderBridgeExport",
+    "ExportVersion": "0.1.0-test",
+    "PlayerId": "player.alpha",
+    "TargetId": "npc.beta",
+    "Hud": {
+      "Visible": true,
+      "Locked": false,
+      "ShowBuffPanel": true
+    },
+    "Player": {
+      "Id": "player.alpha",
+      "Name": "Atank",
+      "Level": 70,
+      "Calling": "warrior",
+      "Guild": "Codex",
+      "Relation": "self",
+      "Role": "tank",
+      "Player": true,
+      "Combat": true,
+      "Aggro": true,
+      "Blocked": false,
+      "Tagged": false,
+      "Mounted": true,
+      "Pvp": false,
+      "Hp": 98765,
+      "HpMax": 120000,
+      "HpCap": 120000,
+      "HpPct": 82,
+      "Absorb": 1500,
+      "Vitality": 220,
+      "ResourceKind": "power",
+      "Resource": 73,
+      "ResourceMax": 100,
+      "ResourcePct": 73,
+      "Mana": 0,
+      "ManaMax": 0,
+      "Energy": 0,
+      "EnergyMax": 0,
+      "Power": 73,
+      "Charge": 21,
+      "ChargeMax": 100,
+      "ChargePct": 21,
+      "Planar": 0,
+      "PlanarMax": 100,
+      "PlanarPct": 0,
+      "Combo": 2,
+      "ComboUnit": "npc.beta",
+      "Mark": "skull",
+      "Zone": "Sanctum",
+      "LocationName": "Training Grounds",
+      "Coord": {
+        "X": 7389.71,
+        "Y": 0,
+        "Z": 4021.55
+      },
+      "Distance": 0,
+      "Ttd": 150.25,
+      "TtdText": "2m30s",
+      "Cast": {
+        "Active": true,
+        "AbilityName": "Sweeping Strike",
+        "Duration": 2.5,
+        "Remaining": 1.25,
+        "Channeled": false,
+        "Uninterruptible": false,
+        "ProgressPct": 50,
+        "Text": "Sweeping Strike (50%)"
+      }
+    },
+    "Target": {
+      "Id": "npc.beta",
+      "Name": "Training Dummy",
+      "Level": 72,
+      "Relation": "hostile",
+      "Player": false,
+      "Combat": true,
+      "Aggro": false,
+      "Blocked": false,
+      "Tagged": true,
+      "Mounted": false,
+      "Pvp": false,
+      "Hp": 450000,
+      "HpMax": 450000,
+      "HpCap": 450000,
+      "HpPct": 100,
+      "ResourceKind": "none",
+      "Zone": "Sanctum",
+      "LocationName": "Training Grounds",
+      "Coord": {
+        "X": 7392.1,
+        "Y": 0,
+        "Z": 4018.12
+      },
+      "Distance": 4.5
+    },
+    "OrientationProbe": {
+      "Player": {
+        "Source": "player",
+        "UnitId": "player.alpha",
+        "UnitAvailable": true,
+        "DirectHeadingApiAvailable": false,
+        "DirectPitchApiAvailable": false,
+        "DetailCandidates": [
+          {
+            "Key": "detail.rotationYaw",
+            "Value": "1.57",
+            "Kind": "number"
+          }
+        ],
+        "StateCandidates": []
+      },
+      "Target": {
+        "Source": "target",
+        "UnitId": "npc.beta",
+        "UnitAvailable": true,
+        "DirectHeadingApiAvailable": false,
+        "DirectPitchApiAvailable": false,
+        "DetailCandidates": [],
+        "StateCandidates": [
+          {
+            "Key": "state.facing",
+            "Value": "south",
+            "Kind": "string"
+          }
+        ]
+      },
+      "StatCandidates": [
+        {
+          "Key": "headingGuess",
+          "Value": "0.25",
+          "Kind": "number"
+        }
+      ]
+    },
+    "PlayerStats": {
+      "attackPower": 1234.5,
+      "critPower": 678.9
+    },
+    "PlayerCoordDelta": {
+      "Dx": 0.25,
+      "Dy": 0,
+      "Dz": -0.5,
+      "Distance": 0.559016994,
+      "Dt": 0.31,
+      "Speed": 1.8032806258
+    },
+    "NearbySummary": {
+      "ScannedCount": 3,
+      "ExportedCount": 2,
+      "PlayerCount": 1,
+      "CombatCount": 1,
+      "PvpCount": 0,
+      "NearestDistance": 4.5,
+      "NearestName": "Training Dummy",
+      "FarthestDistance": 9,
+      "FarthestName": "Friend",
+      "RelationCounts": {
+        "hostile": 1,
+        "friendly": 1
+      }
+    },
+    "PartySummary": {
+      "ScannedCount": 1,
+      "ExportedCount": 1,
+      "PlayerCount": 1,
+      "CombatCount": 0,
+      "PvpCount": 0,
+      "NearestDistance": 12,
+      "NearestName": "Healz",
+      "FarthestDistance": 12,
+      "FarthestName": "Healz",
+      "RelationCounts": {
+        "group": 1
+      }
+    },
+    "NearbyUnits": [
+      {
+        "Id": "npc.beta",
+        "Name": "Training Dummy",
+        "Relation": "hostile",
+        "Player": false,
+        "Combat": true,
+        "Pvp": false,
+        "Distance": 4.5
+      },
+      {
+        "Id": "player.friend",
+        "Name": "Friend",
+        "Relation": "friendly",
+        "Player": true,
+        "Combat": false,
+        "Pvp": false,
+        "Distance": 9
+      }
+    ],
+    "PartyUnits": [
+      {
+        "Id": "group01",
+        "Name": "Healz",
+        "Relation": "group",
+        "Player": true,
+        "Combat": false,
+        "Pvp": false,
+        "Distance": 12
+      }
+    ],
+    "PlayerBuffLines": [
+      "Guarded Steel",
+      "Battle Surge x2"
+    ],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": [
+      "Sundered (12s)"
+    ],
+    "PlayerBuffs": [
+      {
+        "Id": "1001",
+        "Name": "Guarded Steel",
+        "Remaining": 22.5,
+        "Duration": 30,
+        "Stack": 1,
+        "Debuff": false,
+        "Curse": false,
+        "Disease": false,
+        "Poison": false,
+        "Caster": "Atank",
+        "Text": "Guarded Steel (22.5s)",
+        "Flags": []
+      }
+    ],
+    "PlayerDebuffs": [],
+    "TargetBuffs": [],
+    "TargetDebuffs": [
+      {
+        "Id": "2001",
+        "Name": "Sundered",
+        "Remaining": 12,
+        "Duration": 15,
+        "Stack": 1,
+        "Debuff": true,
+        "Curse": false,
+        "Disease": false,
+        "Poison": false,
+        "Caster": "Atank",
+        "Text": "Sundered (12.0s)",
+        "Flags": [
+          "Armor Break"
+        ]
+      }
+    ]
+  }
+}

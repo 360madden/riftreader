@@ -1,0 +1,14 @@
+ReaderBridge export file: ReaderBridgeExport.readerbridge-sparse.lua
+Loaded at (UTC):         2026-04-18T00:00:00.0000000+00:00
+Last reason:             readerbridge-sparse
+Export count:            7
+Status:                  ready
+Source mode:             ReaderBridge
+Source addon:            ReaderBridge v1.2.3
+Export addon:            ReaderBridgeExport v0.1.0-test
+Reason:                  readerbridge-sparse
+Player:                  SparseOne (Lv10)
+Player health:           100/100
+Player resource:         Mana 40/100
+Player flags:            none
+Player location:         Sparse Camp

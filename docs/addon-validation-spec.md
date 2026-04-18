@@ -64,6 +64,11 @@ Each snapshot captures the following **player-visible** state:
 
 Extended schema with additional telemetry:
 
+Freeze + validation workflow:
+
+- `C:\RIFT MODDING\RiftReader\docs\readerbridge-schema-freeze.md`
+- `pwsh -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\smoke-readerbridge-export.ps1 -Json -NoBuild`
+
 | Field | Type | Source |
 |-------|------|--------|
 | `schemaVersion` | number | Export format version |

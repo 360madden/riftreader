@@ -1,0 +1,16 @@
+ReaderBridge export file: ReaderBridgeExport.thin-live.lua
+Loaded at (UTC):         2026-04-18T00:00:00.0000000+00:00
+Last reason:             save-begin
+Export count:            931
+Status:                  ready
+Source mode:             DirectAPI
+Source addon:            RiftAPI v?
+Export addon:            ReaderBridgeExport v0.1.0
+Reason:                  save-begin
+Player:                  Atank (Lv45)
+Player health:           18148/18148
+Player resource:         Power 100/100
+Player flags:            none
+Player location:         Thedeor's Circle
+Player coords:           7419.49, 863.59, 2945.41
+Player buffs:            Rested | Track Fish

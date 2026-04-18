@@ -1,0 +1,9 @@
+ReaderBridge export file: ReaderBridgeExport.waiting-for-player.lua
+Loaded at (UTC):         2026-04-18T00:00:00.0000000+00:00
+Last reason:             startup
+Export count:            1
+Status:                  waiting-for-player
+Source mode:             DirectAPI
+Source addon:            RiftAPI v?
+Export addon:            ReaderBridgeExport v0.1.0-test
+Reason:                  startup
