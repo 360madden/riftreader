@@ -1353,6 +1353,16 @@ class ScannerHubGUI:
             self.logger.info("Generic monitor stopped")
         return True
 
+    def _on_monitor_worker_finished(self) -> None:
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            return
+
+        self.monitor_thread = None
+        if self.monitor_stop_event.is_set():
+            self.monitor_stop_event.clear()
+        self.monitor_status_var.set("Monitor idle")
+        self._refresh_generic_control_states()
+
     @staticmethod
     def _format_hex_dump(address: int, data: bytes) -> str:
         lines: list[str] = []
@@ -1423,21 +1433,24 @@ class ScannerHubGUI:
 
     def _monitor_loop(self, config: MonitorConfig) -> None:
         error_logged = False
-        while not self.monitor_stop_event.is_set():
-            try:
-                value = self.generic_scanner.read_value(config.address, config.value_type)
-            except Exception as exc:
-                if not error_logged:
-                    self.logger.error("Monitor read failed: %s", exc)
-                    error_logged = True
+        try:
+            while not self.monitor_stop_event.is_set():
+                try:
+                    value = self.generic_scanner.read_value(config.address, config.value_type)
+                except Exception as exc:
+                    if not error_logged:
+                        self.logger.error("Monitor read failed: %s", exc)
+                        error_logged = True
+                    if self.monitor_stop_event.wait(config.interval_seconds):
+                        break
+                    continue
+
+                error_logged = False
+                self.logger.info("0x%X = %s (%s)", config.address, value, config.value_type)
                 if self.monitor_stop_event.wait(config.interval_seconds):
                     break
-                continue
-
-            error_logged = False
-            self.logger.info("0x%X = %s (%s)", config.address, value, config.value_type)
-            if self.monitor_stop_event.wait(config.interval_seconds):
-                break
+        finally:
+            self._schedule_ui(self._on_monitor_worker_finished)
 
     def validate_repo_path(self) -> None:
         self._sync_repo_status()

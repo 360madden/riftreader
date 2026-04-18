@@ -1,12 +1,12 @@
 ﻿window.DASHBOARD_DATA = {
     "meta":  {
-                 "generatedAt":  "2026-04-18T00:42:45.3082518-04:00",
+                 "generatedAt":  "2026-04-18T01:04:05.5683563-04:00",
                  "repoPath":  "C:/RIFT MODDING/RiftReader",
                  "currentBranch":  "scanner-with-debug",
                  "worktrees":  [
                                    {
                                        "path":  "C:/RIFT MODDING/RiftReader",
-                                       "head":  "20563abe73064d1c74f6273e2afd3bc53ca884f8",
+                                       "head":  "8c44093dcda950b20e68a413d21927d116f6dc68",
                                        "branch":  "scanner-with-debug",
                                        "isCurrent":  true
                                    },
@@ -582,7 +582,7 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/dashboard-data.js",
                                              "note":  "Generated snapshot consumed directly by the browser.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-18T00:41:16.9185778-04:00"
+                                             "updatedAt":  "2026-04-18T01:03:23.9860933-04:00"
                                          },
                                          {
                                              "label":  "Dashboard generator",
@@ -633,7 +633,7 @@
                                                            "richBranches":  3,
                                                            "worktrees":  5,
                                                            "sources":  8,
-                                                           "dirtyFiles":  17
+                                                           "dirtyFiles":  3
                                                        },
                                             "top":  [
                                                         {
@@ -660,9 +660,9 @@
                                                         {
                                                             "label":  "Current worktree state",
                                                             "classification":  "dirty",
-                                                            "reason":  "dirty=17; modified=9; added=0; deleted=0; renamed=0; untracked=8.",
+                                                            "reason":  "dirty=3; modified=3; added=0; deleted=0; renamed=0; untracked=0.",
                                                             "discoveryMode":  "git status",
-                                                            "searchScore":  17
+                                                            "searchScore":  3
                                                         }
                                                     ],
                                             "rows":  [
@@ -687,18 +687,18 @@
                          "latestRuns":  {
                                             "screen":  {
                                                            "label":  "Latest dashboard build",
-                                                           "at":  "2026-04-18T00:42:45.3082518-04:00",
+                                                           "at":  "2026-04-18T01:04:05.5683563-04:00",
                                                            "summary":  "Compiled 10 branches across 5 worktree(s) into dashboard-data.js."
                                                        },
                                             "recovery":  {
                                                              "label":  "Latest branch commit",
-                                                             "at":  "2026-04-17T21:54:24-04:00",
-                                                             "summary":  "Add native debug trace worker fixture coverage (20563ab)"
+                                                             "at":  "2026-04-18T01:03:06-04:00",
+                                                             "summary":  "Fix hub attach, monitor, and dashboard validation bugs (8c44093)"
                                                          },
                                             "probe":  {
                                                           "label":  "Working tree state",
-                                                          "at":  "2026-04-18T00:42:46.1472307-04:00",
-                                                          "summary":  "dirty=17; modified=9; added=0; deleted=0; renamed=0; untracked=8."
+                                                          "at":  "2026-04-18T01:04:06.3730460-04:00",
+                                                          "summary":  "dirty=3; modified=3; added=0; deleted=0; renamed=0; untracked=0."
                                                       }
                                         },
                          "docs":  {
@@ -741,7 +741,7 @@
                                           "Dashboard branch workboard doc is missing.",
                                           "Dashboard branch handoff doc is missing.",
                                           "Dashboard workboard Now section could not be parsed.",
-                                          "Current worktree has 17 pending change(s)."
+                                          "Current worktree has 3 pending change(s)."
                                       ]
                      },
                      {
