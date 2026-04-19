@@ -1,46 +1,20 @@
 ---
 name: rift-window-control
-description: Use when interacting with the live Rift game window through the local rift_game MCP server. This skill is for safe bind/focus/capture/act workflows, semantic actions like inventory and hotbar presses, and visual verification with wait_for_frame_change.
+summary: Deprecated. The repo-local rift_game MCP workflow was removed on 2026-04-18 after it failed to provide reliable live movement control.
 ---
 
-# Rift window control
+# Deprecated
 
-Use this skill when the task involves the live Rift client, not static code only.
+Do not use this skill as an active workflow inside `C:\RIFT MODDING\RiftReader`.
 
-## Required loop
+## Why
 
-1. `find_game_window` first.
-2. Before any input, call `focus_game_window`.
-3. Call `capture_game_window` to establish a visual baseline.
-4. Prefer semantic tools before raw inputs:
-   - `ensure_inventory_open`
-   - `ensure_inventory_closed`
-   - `toggle_inventory`
-   - `open_inventory`
-   - `open_bags`
-   - `press_hotbar_slot`
-   - `send_key` only when no semantic tool fits
-   - `click_client` only when a screenshot shows the exact target
-5. After input, call `wait_for_frame_change`.
-6. Then call `capture_game_window` again if you need to inspect the final state.
+| Reason | Detail |
+|---|---|
+| Removed dependency | The repo-local `rift_game` MCP package under `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp` was removed |
+| Workflow correction | Live movement work was reset back to the existing helper-app/script lane |
+| Current preferred path | `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`, `C:\RIFT MODDING\RiftReader\scripts\send-rift-key.ps1`, and higher-level scripts that already depend on them |
 
-## Safety rules
+## Replacement
 
-- Do not send input until a window is bound and focused.
-- Treat semantic bindings as untrusted until confirmed. If `tools/rift-game-mcp/config/bindings.json` is incomplete or likely wrong, pass `keyChord` explicitly.
-- Use client-area coordinates only.
-- Prefer a narrow `wait_for_frame_change` region when the expected change is localized.
-- Use `suggest_inventory_region` after capturing open/closed bags reference screenshots so inventory verification watches only the bags panel.
-- If `wait_for_frame_change` returns `changed: false`, stop and inspect before sending more input.
-- If the window title/process looks wrong, re-run `find_game_window` instead of forcing input.
-
-## Practical guidance
-
-- Use `capture_game_window` before `click_client` so coordinates are based on the latest screenshot.
-- Use `ensure_inventory_open` or `ensure_inventory_closed` when you need a verified bags state.
-- Use `suggest_inventory_region` before relying on the ensure tools if `inventoryVerification.region` is still null.
-- Use `toggle_inventory` only when the action is intentionally a toggle.
-- Use `open_inventory` or `open_bags` only when you explicitly want the raw key press without state verification.
-- Use `press_hotbar_slot` for hotbar actions rather than raw number keys when possible.
-- If the ensure tools complain about missing verification config, capture new open/closed reference screenshots and update `tools/rift-game-mcp/config/bindings.json`.
-- If a step depends on a visible confirmation, do not chain more actions until the confirmation is observed.
+Prefer the existing helper-app scripts instead of MCP-mediated window tooling for live Rift movement/testing in this repo.

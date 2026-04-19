@@ -49,6 +49,18 @@ public static partial class PlayerCoordAnchorReader
         var sourceObjectAddress = TryResolveSourceObjectAddress(traceDocument);
         var comparison = BuildComparison(reader, snapshotDocument, resolvedAnchor);
         var sourceObjectComparison = BuildSourceObjectComparison(reader, snapshotDocument, sourceObjectAddress);
+        var livePatternMatched = modulePattern?.Found == true;
+        var moduleBase = livePatternMatched && !string.IsNullOrWhiteSpace(modulePattern?.ModuleBaseAddress)
+            ? modulePattern!.ModuleBaseAddress
+            : trace.ModuleBase;
+        var moduleOffset = livePatternMatched && !string.IsNullOrWhiteSpace(modulePattern?.RelativeOffsetHex)
+            ? modulePattern!.RelativeOffsetHex
+            : trace.ModuleOffset;
+        var instructionAddress = livePatternMatched && !string.IsNullOrWhiteSpace(modulePattern?.Address)
+            ? modulePattern!.Address
+            : trace.InstructionAddress;
+        var instructionSymbol = BuildInstructionSymbol(trace.ModuleName, moduleOffset) ?? trace.InstructionSymbol;
+        var instruction = RebaseInstructionAddress(trace.Instruction, trace.InstructionAddress, instructionAddress);
 
         return new PlayerCoordAnchorReadResult(
             Mode: "player-coord-anchor-read",
@@ -69,11 +81,11 @@ public static partial class PlayerCoordAnchorReader
             AccessDisplacement: accessDisplacement,
             InferredCoordBaseRelativeOffset: inferredCoordBaseRelativeOffset,
             ModuleName: trace.ModuleName,
-            ModuleBase: trace.ModuleBase,
-            ModuleOffset: trace.ModuleOffset,
-            InstructionAddress: trace.InstructionAddress,
-            InstructionSymbol: trace.InstructionSymbol,
-            Instruction: trace.Instruction,
+            ModuleBase: moduleBase,
+            ModuleOffset: moduleOffset,
+            InstructionAddress: instructionAddress,
+            InstructionSymbol: instructionSymbol,
+            Instruction: instruction,
             Pattern: trace.NormalizedPattern ?? NormalizePattern(trace.InstructionBytes),
             BaseRegister: resolvedAnchor?.BaseRegister,
             BaseRegisterValue: resolvedAnchor?.BaseRegisterValue,
@@ -159,6 +171,22 @@ public static partial class PlayerCoordAnchorReader
             : null;
     }
 
+    private static string? BuildInstructionSymbol(string? moduleName, string? moduleOffset)
+    {
+        if (string.IsNullOrWhiteSpace(moduleName) || string.IsNullOrWhiteSpace(moduleOffset))
+        {
+            return null;
+        }
+
+        var offsetToken = moduleOffset.Trim();
+        if (offsetToken.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            offsetToken = offsetToken[2..];
+        }
+
+        return $"{moduleName}+{offsetToken.ToUpperInvariant()}";
+    }
+
     private static string? NormalizePattern(string? byteText)
     {
         if (string.IsNullOrWhiteSpace(byteText))
@@ -214,6 +242,31 @@ public static partial class PlayerCoordAnchorReader
         }
 
         return long.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out address);
+    }
+
+    private static string? RebaseInstructionAddress(string? instruction, string? originalAddress, string? rebasedAddress)
+    {
+        if (string.IsNullOrWhiteSpace(instruction) ||
+            string.IsNullOrWhiteSpace(originalAddress) ||
+            string.IsNullOrWhiteSpace(rebasedAddress) ||
+            string.Equals(originalAddress, rebasedAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            return instruction;
+        }
+
+        if (!TryParseAddress(originalAddress, out var original) || !TryParseAddress(rebasedAddress, out var rebased))
+        {
+            return instruction;
+        }
+
+        var originalToken = original.ToString("X", CultureInfo.InvariantCulture);
+        if (!instruction.StartsWith(originalToken, StringComparison.OrdinalIgnoreCase))
+        {
+            return instruction;
+        }
+
+        var rebasedToken = rebased.ToString("X", CultureInfo.InvariantCulture);
+        return rebasedToken + instruction[originalToken.Length..];
     }
 
     private static string? TryParseBaseRegister(string? accessOperand)

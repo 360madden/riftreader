@@ -3,24 +3,31 @@ param(
     [switch]$Json,
     [switch]$SkipRefresh,
     [switch]$SkipCleanup,
+    [ValidateSet('Auto', 'SendInput', 'PostMessage')]
+    [string]$StimulusMode = 'Auto',
+    [string]$StimulusKey = 'w',
     [int]$MovementHoldMilliseconds = 1000,
+    [int]$MovementVerificationDelayMilliseconds = 350,
+    [double]$MinMovementCoordDelta = 0.01,
     [int]$TimeoutSeconds = 8,
     [int]$MaxCandidates = 8,
-    [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
-    [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt')
+    [string]$ConfirmationFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\ce-smart-player-family.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-coord-write-trace.json'),
+    [string]$TraceStatusFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-coord-write-trace.status.txt')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
-$smartCaptureScript = Join-Path $PSScriptRoot 'smart-capture-player-family.ps1'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
-$ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
-$traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
+$refreshScript = Join-Path $scriptRoot 'refresh-readerbridge-export.ps1'
+$smartCaptureScript = Join-Path $scriptRoot 'smart-capture-player-family.ps1'
+$postKeyScript = Join-Path $scriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $scriptRoot 'send-rift-key.ps1'
+$ceExecScript = Join-Path $scriptRoot 'cheatengine-exec.ps1'
+$traceLuaFile = Join-Path $scriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
 $resolvedConfirmationFile = [System.IO.Path]::GetFullPath($ConfirmationFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($TraceStatusFile)
@@ -37,7 +44,53 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+    return ($output -join [Environment]::NewLine) | ConvertFrom-Json
+}
+
+function Invoke-PlayerCurrentJsonWithRetry {
+    param(
+        [int]$MaxAttempts = 8,
+        [int]$RetryDelayMilliseconds = 250
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            return Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+        }
+        catch {
+            $lastError = $_
+            if ($attempt -lt $MaxAttempts) {
+                Start-Sleep -Milliseconds $RetryDelayMilliseconds
+                continue
+            }
+        }
+    }
+
+    throw $lastError
+}
+
+function Invoke-ReaderBridgeSnapshotJsonWithRetry {
+    param(
+        [int]$MaxAttempts = 8,
+        [int]$RetryDelayMilliseconds = 250
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            return Invoke-ReaderJson -Arguments @('--readerbridge-snapshot', '--json')
+        }
+        catch {
+            $lastError = $_
+            if ($attempt -lt $MaxAttempts) {
+                Start-Sleep -Milliseconds $RetryDelayMilliseconds
+                continue
+            }
+        }
+    }
+
+    throw $lastError
 }
 
 function Parse-HexAddress {
@@ -52,6 +105,199 @@ function Parse-HexAddress {
     }
 
     return [UInt64]::Parse($normalized, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-PlayerCoordSnapshot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$PlayerRead
+    )
+
+    return [pscustomobject]@{
+        AddressHex = [string]$PlayerRead.Memory.AddressHex
+        X = [double]$PlayerRead.Memory.CoordX
+        Y = [double]$PlayerRead.Memory.CoordY
+        Z = [double]$PlayerRead.Memory.CoordZ
+    }
+}
+
+function Get-PlayerCoordSnapshotFromReaderBridge {
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$Snapshot
+    )
+
+    $player = $Snapshot.Current.Player
+    return [pscustomobject]@{
+        AddressHex = $null
+        X = [double]$player.Coord.X
+        Y = [double]$player.Coord.Y
+        Z = [double]$player.Coord.Z
+    }
+}
+
+function Get-CoordDeltaSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$Before,
+
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$After
+    )
+
+    $deltaX = [double]$After.X - [double]$Before.X
+    $deltaY = [double]$After.Y - [double]$Before.Y
+    $deltaZ = [double]$After.Z - [double]$Before.Z
+
+    return [pscustomobject]@{
+        DeltaX = $deltaX
+        DeltaY = $deltaY
+        DeltaZ = $deltaZ
+        Magnitude = [Math]::Sqrt(($deltaX * $deltaX) + ($deltaY * $deltaY) + ($deltaZ * $deltaZ))
+    }
+}
+
+function Get-StimulusModeSequence {
+    if ($StimulusMode -ne 'Auto') {
+        return @($StimulusMode)
+    }
+
+    return @('PostMessage', 'SendInput')
+}
+
+function Invoke-StimulusByMode {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Mode
+    )
+
+    switch ($Mode) {
+        'SendInput' {
+            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "SendInput stimulus failed for key '$StimulusKey'."
+            }
+
+            return
+        }
+        'PostMessage' {
+            & $postKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "PostMessage stimulus failed for key '$StimulusKey'."
+            }
+
+            return
+        }
+        default {
+            throw "Unsupported stimulus mode '$Mode'."
+        }
+    }
+}
+
+function Test-StimulusMode {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Mode
+    )
+
+    $beforeSnapshot = $null
+    $afterSnapshot = $null
+    $beforePlayerRead = $null
+    $afterPlayerRead = $null
+
+    try {
+        & $refreshScript -NoReader | Out-Null
+        $beforeSnapshot = Invoke-ReaderBridgeSnapshotJsonWithRetry
+        $beforeCoord = Get-PlayerCoordSnapshotFromReaderBridge -Snapshot $beforeSnapshot
+        try {
+            $beforePlayerRead = Invoke-PlayerCurrentJsonWithRetry
+        }
+        catch {
+            $beforePlayerRead = $null
+        }
+
+        Invoke-StimulusByMode -Mode $Mode
+        Start-Sleep -Milliseconds $MovementVerificationDelayMilliseconds
+        & $refreshScript -NoReader | Out-Null
+
+        $afterSnapshot = Invoke-ReaderBridgeSnapshotJsonWithRetry
+        $afterCoord = Get-PlayerCoordSnapshotFromReaderBridge -Snapshot $afterSnapshot
+        try {
+            $afterPlayerRead = Invoke-PlayerCurrentJsonWithRetry
+        }
+        catch {
+            $afterPlayerRead = $null
+        }
+
+        $snapshotDelta = Get-CoordDeltaSummary -Before $beforeCoord -After $afterCoord
+        $selectedDelta = $snapshotDelta
+        $verificationSource = 'readerbridge-snapshot'
+        $motionObserved = ([double]$snapshotDelta.Magnitude -ge $MinMovementCoordDelta)
+
+        if ($beforePlayerRead -and $afterPlayerRead) {
+            $beforeDirectCoord = Get-PlayerCoordSnapshot -PlayerRead $beforePlayerRead
+            $afterDirectCoord = Get-PlayerCoordSnapshot -PlayerRead $afterPlayerRead
+            $directDelta = Get-CoordDeltaSummary -Before $beforeDirectCoord -After $afterDirectCoord
+            if (-not $motionObserved -and [double]$directDelta.Magnitude -ge $MinMovementCoordDelta) {
+                $selectedDelta = $directDelta
+                $verificationSource = 'player-current'
+                $motionObserved = $true
+            }
+        }
+
+        return [pscustomobject]@{
+            Mode = $Mode
+            Key = $StimulusKey
+            BeforeAddress = $beforeCoord.AddressHex
+            AfterAddress = $afterCoord.AddressHex
+            BeforeCoord = $beforeCoord
+            AfterCoord = $afterCoord
+            DeltaX = $selectedDelta.DeltaX
+            DeltaY = $selectedDelta.DeltaY
+            DeltaZ = $selectedDelta.DeltaZ
+            DeltaMagnitude = $selectedDelta.Magnitude
+            VerificationSource = $verificationSource
+            MotionObserved = $motionObserved
+            Error = $null
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Mode = $Mode
+            Key = $StimulusKey
+            BeforeAddress = $null
+            AfterAddress = $null
+            BeforeCoord = if ($beforeSnapshot) { Get-PlayerCoordSnapshotFromReaderBridge -Snapshot $beforeSnapshot } else { $null }
+            AfterCoord = if ($afterSnapshot) { Get-PlayerCoordSnapshotFromReaderBridge -Snapshot $afterSnapshot } else { $null }
+            DeltaX = $null
+            DeltaY = $null
+            DeltaZ = $null
+            DeltaMagnitude = $null
+            MotionObserved = $false
+            Error = $_.Exception.Message
+        }
+    }
+}
+
+function Resolve-UsableStimulus {
+    $attempts = New-Object System.Collections.Generic.List[object]
+
+    foreach ($mode in @(Get-StimulusModeSequence)) {
+        $attempt = Test-StimulusMode -Mode $mode
+        $attempts.Add($attempt) | Out-Null
+
+        if ($attempt.MotionObserved) {
+            return [pscustomobject]@{
+                SelectedAttempt = $attempt
+                Attempts = @($attempts.ToArray())
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        SelectedAttempt = $null
+        Attempts = @($attempts.ToArray())
+    }
 }
 
 function Convert-ToModulePattern {
@@ -130,7 +376,9 @@ function Convert-StatusToTraceAttempt {
         [string]$Source,
 
         [Parameter(Mandatory = $true)]
-        [bool]$Success
+        [bool]$Success,
+
+        [string]$StimulusExecutionMode = $null
     )
 
     return [pscustomobject]@{
@@ -138,6 +386,8 @@ function Convert-StatusToTraceAttempt {
         Status = [string](Get-ObjectValue -Object $Status -Name 'status')
         CandidateAddress = $AddressHex
         CandidateSource = $Source
+        DebugAttachLabel = Get-ObjectValue -Object $Status -Name 'debugAttachLabel'
+        BreakpointMethod = Get-ObjectValue -Object $Status -Name 'breakpointMethod'
         VerificationMethod = Get-ObjectValue -Object $Status -Name 'verificationMethod'
         TargetAddress = Get-ObjectValue -Object $Status -Name 'targetAddress'
         HitCount = if (Get-ObjectValue -Object $Status -Name 'hitCount') { [int](Get-ObjectValue -Object $Status -Name 'hitCount') } else { 0 }
@@ -157,6 +407,8 @@ function Convert-StatusToTraceAttempt {
         ModuleName = Get-ObjectValue -Object $Status -Name 'moduleName'
         ModuleBase = Get-ObjectValue -Object $Status -Name 'moduleBase'
         ModuleOffset = Get-ObjectValue -Object $Status -Name 'moduleOffset'
+        StimulusKey = $StimulusKey
+        StimulusExecutionMode = $StimulusExecutionMode
         Error = Get-ObjectValue -Object $Status -Name 'error'
         Registers = [ordered]@{
             RAX = Get-ObjectValue -Object $Status -Name 'rax'
@@ -185,72 +437,100 @@ function Get-CoordTraceResult {
         [string]$AddressHex,
 
         [Parameter(Mandatory = $true)]
-        [string]$Source
+        [string]$Source,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StimulusExecutionMode
     )
 
     $coordAddress = Parse-HexAddress -AddressHex $AddressHex
+    $attachPreferences = @('interface-2', 'default', 'interface-1')
+    $breakpointMethods = @('debug-register', 'page-exception')
+    $lastAttempt = $null
 
-    if (Test-Path -LiteralPath $resolvedStatusFile) {
-        Remove-Item -LiteralPath $resolvedStatusFile -Force
-    }
+    foreach ($attachPreference in $attachPreferences) {
+        foreach ($breakpointMethod in $breakpointMethods) {
+            $methodAttempt = $null
 
-    & $ceExecScript -LuaFile $traceLuaFile | Out-Null
-
-    $luaCode = @"
-return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]])
-"@
-    & $ceExecScript -Code $luaCode | Out-Null
-
-    & $postKeyScript -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds
-
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    $lastStatus = $null
-
-    while ([DateTime]::UtcNow -lt $deadline) {
-        if (Test-Path -LiteralPath $resolvedStatusFile) {
-            $status = Read-KeyValueFile -Path $resolvedStatusFile
-            $lastStatus = $status
-
-            if ($status.status -eq 'hit') {
-                return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $true
+            if (Test-Path -LiteralPath $resolvedStatusFile) {
+                Remove-Item -LiteralPath $resolvedStatusFile -Force
             }
 
-            if ($status.status -eq 'error') {
-                return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false
+            & $ceExecScript -LuaFile $traceLuaFile | Out-Null
+
+            $luaCode = @"
+return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]], '$breakpointMethod', '$attachPreference')
+"@
+            & $ceExecScript -Code $luaCode | Out-Null
+
+            Invoke-StimulusByMode -Mode $StimulusExecutionMode
+
+            $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+            $lastStatus = $null
+
+            while ([DateTime]::UtcNow -lt $deadline) {
+                if (Test-Path -LiteralPath $resolvedStatusFile) {
+                    $status = Read-KeyValueFile -Path $resolvedStatusFile
+                    $lastStatus = $status
+
+                    if ($status.status -eq 'hit') {
+                        return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $true -StimulusExecutionMode $StimulusExecutionMode
+                    }
+
+                    if ($status.status -eq 'error') {
+                        $methodAttempt = Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false -StimulusExecutionMode $StimulusExecutionMode
+                        break
+                    }
+                }
+
+                Start-Sleep -Milliseconds 200
+            }
+
+            if ($null -eq $methodAttempt -and $lastStatus) {
+                $methodAttempt = Convert-StatusToTraceAttempt -Status $lastStatus -AddressHex $AddressHex -Source $Source -Success $false -StimulusExecutionMode $StimulusExecutionMode
+            }
+            elseif ($null -eq $methodAttempt) {
+                $methodAttempt = [pscustomobject]@{
+                    Success = $false
+                    Status = 'timeout'
+                    CandidateAddress = $AddressHex
+                    CandidateSource = $Source
+                    DebugAttachLabel = $attachPreference
+                    BreakpointMethod = $breakpointMethod
+                    VerificationMethod = $null
+                    TargetAddress = $AddressHex
+                    HitCount = 0
+                    InstructionAddress = $null
+                    InstructionSymbol = $null
+                    Instruction = $null
+                    InstructionBytes = $null
+                    InstructionOpcode = $null
+                    InstructionExtra = $null
+                    InstructionSize = $null
+                    WriteOperand = $null
+                    AccessOperand = $null
+                    AccessType = $null
+                    EffectiveAddress = $null
+                    AccessMatchesTarget = $null
+                    MatchedOffset = $null
+                    ModuleName = $null
+                    ModuleBase = $null
+                    ModuleOffset = $null
+                    StimulusKey = $StimulusKey
+                    StimulusExecutionMode = $StimulusExecutionMode
+                    Error = $null
+                    Registers = [ordered]@{}
+                }
+            }
+
+            $lastAttempt = $methodAttempt
+            if ($methodAttempt.Status -notin @('armed', 'timeout')) {
+                return $methodAttempt
             }
         }
-
-        Start-Sleep -Milliseconds 200
     }
 
-    if ($lastStatus) {
-        return Convert-StatusToTraceAttempt -Status $lastStatus -AddressHex $AddressHex -Source $Source -Success $false
-    }
-
-    return [pscustomobject]@{
-        Success = $false
-        Status = 'timeout'
-        CandidateAddress = $AddressHex
-        CandidateSource = $Source
-        VerificationMethod = $null
-        TargetAddress = $AddressHex
-        HitCount = 0
-        InstructionAddress = $null
-        InstructionSymbol = $null
-        Instruction = $null
-        InstructionBytes = $null
-        InstructionOpcode = $null
-        InstructionExtra = $null
-        InstructionSize = $null
-        WriteOperand = $null
-        EffectiveAddress = $null
-        AccessMatchesTarget = $null
-        ModuleName = $null
-        ModuleBase = $null
-        ModuleOffset = $null
-        Error = $null
-        Registers = [ordered]@{}
-    }
+    return $lastAttempt
 }
 
 function Get-TraceCandidates {
@@ -274,7 +554,7 @@ function Get-TraceCandidates {
 
     if (Test-Path -LiteralPath $resolvedConfirmationFile) {
         try {
-            $confirmation = Get-Content -Path $resolvedConfirmationFile -Raw | ConvertFrom-Json -Depth 20
+            $confirmation = Get-Content -Path $resolvedConfirmationFile -Raw | ConvertFrom-Json
             $winnerFamilyId = [string]$confirmation.WinnerFamilyId
             $candidateBuckets = @(
                 [pscustomobject]@{
@@ -341,7 +621,7 @@ function Test-HasUsableConfirmation {
     }
 
     try {
-        $confirmation = Get-Content -LiteralPath $resolvedConfirmationFile -Raw | ConvertFrom-Json -Depth 20
+        $confirmation = Get-Content -LiteralPath $resolvedConfirmationFile -Raw | ConvertFrom-Json
         if (@($confirmation.Winner.CeConfirmedSampleAddresses).Count -gt 0) {
             return $true
         }
@@ -400,6 +680,20 @@ try {
         & $refreshScript -NoReader
     }
 
+    $stimulusResolution = Resolve-UsableStimulus
+    $selectedStimulus = $stimulusResolution.SelectedAttempt
+    if ($null -eq $selectedStimulus) {
+        $stimulusSummary = @($stimulusResolution.Attempts) | ForEach-Object {
+            if (-not [string]::IsNullOrWhiteSpace($_.Error)) {
+                return ("{0}:error={1}" -f $_.Mode, $_.Error)
+            }
+
+            return ("{0}:delta={1:N6}" -f $_.Mode, [double]$_.DeltaMagnitude)
+        }
+
+        throw ("No configured stimulus mode produced player coord motion for key '{0}'. {1}" -f $StimulusKey, ($stimulusSummary -join '; '))
+    }
+
     Ensure-CeConfirmation
 
     $playerRead = $null
@@ -428,7 +722,7 @@ try {
         Write-Host ("[CoordTrace] Attempting candidate {0} ({1})..." -f $candidate.AddressHex, $candidate.Source) -ForegroundColor Cyan
         $attempt = $null
         try {
-            $attempt = Get-CoordTraceResult -AddressHex $candidate.AddressHex -Source $candidate.Source
+            $attempt = Get-CoordTraceResult -AddressHex $candidate.AddressHex -Source $candidate.Source -StimulusExecutionMode $selectedStimulus.Mode
             $attempts.Add($attempt) | Out-Null
         }
         finally {
@@ -443,25 +737,39 @@ try {
 
     if ($null -eq $traceStatus) {
         $attemptSummary = $attempts | ForEach-Object {
+            $instruction = Get-ObjectValue -Object $_ -Name 'Instruction'
+            $accessOperand = Get-ObjectValue -Object $_ -Name 'AccessOperand'
+            $accessType = Get-ObjectValue -Object $_ -Name 'AccessType'
+            $effectiveAddress = Get-ObjectValue -Object $_ -Name 'EffectiveAddress'
+            $matchedOffset = Get-ObjectValue -Object $_ -Name 'MatchedOffset'
+            $breakpointMethod = Get-ObjectValue -Object $_ -Name 'BreakpointMethod'
+            $debugAttachLabel = Get-ObjectValue -Object $_ -Name 'DebugAttachLabel'
+
             $summary = "{0}:{1}" -f $_.CandidateAddress, $_.Status
-            if ($_.Instruction) {
-                $summary += " -> $($_.Instruction)"
+            if ($debugAttachLabel) {
+                $summary += " [attach=$debugAttachLabel]"
+            }
+            if ($breakpointMethod) {
+                $summary += " [bp=$breakpointMethod]"
+            }
+            if ($instruction) {
+                $summary += " -> $instruction"
             }
 
-            if ($_.AccessOperand) {
-                $summary += " [operand=$($_.AccessOperand)"
-                if ($_.AccessType) {
-                    $summary += ", type=$($_.AccessType)"
+            if ($accessOperand) {
+                $summary += " [operand=$accessOperand"
+                if ($accessType) {
+                    $summary += ", type=$accessType"
                 }
                 $summary += "]"
             }
 
-            if ($_.EffectiveAddress) {
-                $summary += " [ea=$($_.EffectiveAddress)]"
+            if ($effectiveAddress) {
+                $summary += " [ea=$effectiveAddress]"
             }
 
-            if ($null -ne $_.MatchedOffset -and $_.MatchedOffset -ne '') {
-                $summary += " [offset=$($_.MatchedOffset)]"
+            if ($null -ne $matchedOffset -and $matchedOffset -ne '') {
+                $summary += " [offset=$matchedOffset]"
             }
 
             $summary
@@ -498,6 +806,15 @@ try {
         Mode = 'player-coord-write-trace'
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
         SourceObjectRegisterValue = $(if ($null -ne $traceStatus.Registers) { [string]$traceStatus.Registers.RDI } else { $null })
+        Stimulus = [ordered]@{
+            RequestedMode = $StimulusMode
+            SelectedMode = $selectedStimulus.Mode
+            Key = $StimulusKey
+            MovementHoldMilliseconds = $MovementHoldMilliseconds
+            MovementVerificationDelayMilliseconds = $MovementVerificationDelayMilliseconds
+            MinMovementCoordDelta = $MinMovementCoordDelta
+            Attempts = @($stimulusResolution.Attempts)
+        }
         ReaderError = $playerReadError
         Reader = $playerRead
         Candidates = [ordered]@{
@@ -509,6 +826,8 @@ try {
         }
         Trace = [ordered]@{
             Status = $traceStatus.Status
+            DebugAttachLabel = $traceStatus.DebugAttachLabel
+            BreakpointMethod = $traceStatus.BreakpointMethod
             VerificationMethod = $traceStatus.VerificationMethod
             CandidateAddress = $traceStatus.CandidateAddress
             CandidateSource = $traceStatus.CandidateSource
@@ -531,6 +850,8 @@ try {
             ModuleName = $traceStatus.ModuleName
             ModuleBase = $traceStatus.ModuleBase
             ModuleOffset = $traceStatus.ModuleOffset
+            StimulusKey = $traceStatus.StimulusKey
+            StimulusExecutionMode = $traceStatus.StimulusExecutionMode
             Registers = $traceStatus.Registers
         }
         ModulePattern = $modulePattern
@@ -551,8 +872,16 @@ try {
     else {
         Write-Host "Trace file:           $resolvedOutputFile"
         Write-Host "Player sample:        $($playerRead.Memory.AddressHex)"
+        Write-Host "Stimulus key:         $StimulusKey"
+        Write-Host "Stimulus mode:        $($selectedStimulus.Mode)"
         Write-Host "Trace candidate:      $($traceStatus.CandidateAddress) [$($traceStatus.CandidateSource)]"
         Write-Host "Coord write target:   $($traceStatus.TargetAddress)"
+        if ($traceStatus.DebugAttachLabel) {
+            Write-Host "Debug attach:         $($traceStatus.DebugAttachLabel)"
+        }
+        if ($traceStatus.BreakpointMethod) {
+            Write-Host "Breakpoint method:    $($traceStatus.BreakpointMethod)"
+        }
         if ($traceStatus.VerificationMethod) {
             Write-Host "Verification:         $($traceStatus.VerificationMethod)"
         }
@@ -583,3 +912,4 @@ try {
 finally {
     Cleanup-Trace
 }
+

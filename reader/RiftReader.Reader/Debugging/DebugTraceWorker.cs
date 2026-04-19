@@ -17,6 +17,9 @@ public static class DebugTraceWorker
     private const int SchemaVersion = 1;
     private const int MarkerPollSliceMilliseconds = 50;
     private const int InstructionReadBytes = 16;
+    private const int DetachRetryCount = 5;
+    private const int DetachRetryDelayMilliseconds = 50;
+    private const int DetachPendingDrainLimit = 32;
 
     private static readonly JsonSerializerOptions PrettyJsonOptions = new()
     {
@@ -582,15 +585,12 @@ public static class DebugTraceWorker
                         ClearThreadBreakpoint(threadId, warnings);
                     }
 
-                    if (DebugWindowsNativeMethods.DebugActiveProcessStop(processId))
+                    if (!DebugWindowsNativeMethods.DebugSetProcessKillOnExit(false))
                     {
-                        detachOutcome = "detached";
+                        warnings.Add($"DebugSetProcessKillOnExit(false) retry failed: {FormatWin32Error()}");
                     }
-                    else
-                    {
-                        detachOutcome = $"detach-failed: {FormatWin32Error()}";
-                        warnings.Add(detachOutcome);
-                    }
+
+                    detachOutcome = TryDetachActiveProcess(processId, warnings);
                 }
                 else
                 {
@@ -955,6 +955,19 @@ public static class DebugTraceWorker
                 {
                     throw new InvalidOperationException("The player coord trace pattern did not match the live target module.");
                 }
+
+                if (!string.IsNullOrWhiteSpace(scanResult.RelativeOffsetHex) && !string.IsNullOrWhiteSpace(scanResult.Address))
+                {
+                    var liveModuleOffset = ParseAddress(scanResult.RelativeOffsetHex);
+                    var liveAbsoluteAddress = ParseAddress(scanResult.Address);
+                    if (liveAbsoluteAddress != absoluteAddress)
+                    {
+                        warnings.Add($"Player coord trace anchor rebased from artifact offset {FormatAddress(moduleOffset)} to live pattern offset {FormatAddress(liveModuleOffset)}.");
+                    }
+
+                    moduleOffset = liveModuleOffset;
+                    absoluteAddress = liveAbsoluteAddress;
+                }
             }
 
             return new ResolvedBreakpoint(
@@ -1116,6 +1129,104 @@ public static class DebugTraceWorker
         catch (Exception ex)
         {
             warnings.Add($"Unable to clear thread {threadId}: {ex.Message}");
+        }
+    }
+
+    private static string TryDetachActiveProcess(int processId, List<string> warnings)
+    {
+        string? lastError = null;
+        for (var attempt = 1; attempt <= DetachRetryCount; attempt++)
+        {
+            var drainedEvents = DrainPendingDebugEvents(processId, warnings);
+            if (drainedEvents > 0)
+            {
+                warnings.Add($"Drained {drainedEvents} pending debug event(s) before detach attempt {attempt}.");
+            }
+
+            if (DebugWindowsNativeMethods.DebugActiveProcessStop(processId))
+            {
+                return attempt == 1
+                    ? "detached"
+                    : $"detached-after-retry-{attempt}";
+            }
+
+            lastError = FormatWin32Error();
+            if (!IsProcessRunning(processId))
+            {
+                return $"detach-failed: {lastError} (process-exited)";
+            }
+
+            if (attempt < DetachRetryCount)
+            {
+                Thread.Sleep(DetachRetryDelayMilliseconds);
+            }
+        }
+
+        return $"detach-failed: {lastError ?? "unknown error"}";
+    }
+
+    private static int DrainPendingDebugEvents(int processId, List<string> warnings)
+    {
+        var drained = 0;
+        while (drained < DetachPendingDrainLimit)
+        {
+            if (!DebugWindowsNativeMethods.WaitForDebugEvent(out var debugEvent, 0))
+            {
+                var lastError = (uint)Marshal.GetLastWin32Error();
+                if (lastError == DebugWindowsNativeMethods.ErrorSemTimeout)
+                {
+                    break;
+                }
+
+                warnings.Add($"WaitForDebugEvent(drain) failed: {FormatWin32Error((int)lastError)}");
+                break;
+            }
+
+            drained++;
+            var continueStatus = GetDrainContinueStatus(debugEvent);
+            if (!DebugWindowsNativeMethods.ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus))
+            {
+                warnings.Add($"ContinueDebugEvent(drain) failed for thread {debugEvent.dwThreadId}: {FormatWin32Error()}");
+            }
+
+            if (debugEvent.dwProcessId == processId &&
+                debugEvent.dwDebugEventCode == DebugWindowsNativeMethods.DebugEventType.ExitProcess)
+            {
+                break;
+            }
+        }
+
+        return drained;
+    }
+
+    private static uint GetDrainContinueStatus(DebugWindowsNativeMethods.DEBUG_EVENT debugEvent)
+    {
+        if (debugEvent.dwDebugEventCode != DebugWindowsNativeMethods.DebugEventType.Exception)
+        {
+            return DebugWindowsNativeMethods.DebugContinue;
+        }
+
+        var exceptionCode = debugEvent.u.Exception.ExceptionRecord.ExceptionCode;
+        return exceptionCode == DebugWindowsNativeMethods.ExceptionBreakpoint ||
+               exceptionCode == DebugWindowsNativeMethods.ExceptionSingleStep
+            ? DebugWindowsNativeMethods.DebugContinue
+            : DebugWindowsNativeMethods.DebugExceptionNotHandled;
+    }
+
+    private static bool IsProcessRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
         }
     }
 

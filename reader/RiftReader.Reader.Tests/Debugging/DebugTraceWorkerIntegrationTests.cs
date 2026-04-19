@@ -35,6 +35,7 @@ public sealed class DebugTraceWorkerIntegrationTests
             Assert.NotNull(inspection!.TraceManifest);
             Assert.Equal("memory-write", inspection.TraceManifest!.BreakpointKind);
             Assert.True(inspection.TraceManifest.RecordedHitCount >= 1, result.StandardError + Environment.NewLine + result.StandardOutput);
+            Assert.StartsWith("detached", inspection.TraceManifest.DetachOutcome ?? string.Empty, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(inspection.Hits, hit => string.Equals(hit.WatchedAddress, fixture.Metadata.MemoryAddress, StringComparison.OrdinalIgnoreCase));
         }
         finally
@@ -71,6 +72,7 @@ public sealed class DebugTraceWorkerIntegrationTests
             Assert.NotNull(inspection!.TraceManifest);
             Assert.Equal("memory-access", inspection.TraceManifest!.BreakpointKind);
             Assert.True(inspection.TraceManifest.RecordedHitCount >= 1, result.StandardError + Environment.NewLine + result.StandardOutput);
+            Assert.StartsWith("detached", inspection.TraceManifest.DetachOutcome ?? string.Empty, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(inspection.Hits, hit => string.Equals(hit.WatchedAddress, fixture.Metadata.MemoryAddress, StringComparison.OrdinalIgnoreCase));
         }
         finally

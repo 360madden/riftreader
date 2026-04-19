@@ -1,0 +1,243 @@
+﻿{
+    "Mode":  "ce-smart-player-family",
+    "GeneratedAtUtc":  "2026-04-18T19:25:29.2531649+00:00",
+    "ProcessName":  "rift_x64",
+    "MovementKey":  "w",
+    "FallbackMovementKeys":  [
+                                 "d",
+                                 "a",
+                                 "s"
+                             ],
+    "MovementKeySequence":  [
+                                "w",
+                                "d",
+                                "a",
+                                "s"
+                            ],
+    "MovementHoldMilliseconds":  500,
+    "SelectedAxis":  "X",
+    "SelectedStimulusKey":  null,
+    "AttemptCount":  3,
+    "BaselineCoords":  {
+                           "X":  7408.509765625,
+                           "Y":  863.58996582031,
+                           "Z":  2912.3999023438
+                       },
+    "MovedCoords":  {
+                        "X":  7408.509765625,
+                        "Y":  863.58996582031,
+                        "Z":  2912.3999023438
+                    },
+    "Delta":  {
+                  "X":  0,
+                  "Y":  0,
+                  "Z":  0
+              },
+    "BaselineCeHitCount":  0,
+    "NextScanMode":  "reader-exact-float-fallback",
+    "MovedCeHitCount":  4,
+    "RetrievedCeAddressCount":  4,
+    "TripletConfirmedAddressCount":  2,
+    "TripletConfirmedAddresses":  [
+                                      "0x2538C3275B0",
+                                      "0x2538E36D340"
+                                  ],
+    "Attempts":  [
+                     {
+                         "Axis":  "X",
+                         "StimulusKey":  null,
+                         "MotionObserved":  false,
+                         "BaselineCoords":  {
+                                                "X":  7408.509765625,
+                                                "Y":  863.58996582031,
+                                                "Z":  2912.3999023438
+                                            },
+                         "MovedCoords":  {
+                                             "X":  7408.509765625,
+                                             "Y":  863.58996582031,
+                                             "Z":  2912.3999023438
+                                         },
+                         "Delta":  {
+                                       "X":  0,
+                                       "Y":  0,
+                                       "Z":  0
+                                   },
+                         "BaselineCeHitCount":  0,
+                         "NextScanMode":  "baseline-empty",
+                         "MovedCeHitCount":  0,
+                         "RetrievedCeAddressCount":  0,
+                         "RetrievedCeAddresses":  [
+
+                                                  ],
+                         "TripletConfirmedAddressCount":  0,
+                         "TripletConfirmedAddresses":  [
+
+                                                       ],
+                         "StimulusAttempts":  [
+
+                                              ],
+                         "FailureReason":  "BaselineCeExactFloatScanReturnedZero"
+                     },
+                     {
+                         "Axis":  "Z",
+                         "StimulusKey":  null,
+                         "MotionObserved":  false,
+                         "BaselineCoords":  {
+                                                "X":  7408.509765625,
+                                                "Y":  863.58996582031,
+                                                "Z":  2912.3999023438
+                                            },
+                         "MovedCoords":  {
+                                             "X":  7408.509765625,
+                                             "Y":  863.58996582031,
+                                             "Z":  2912.3999023438
+                                         },
+                         "Delta":  {
+                                       "X":  0,
+                                       "Y":  0,
+                                       "Z":  0
+                                   },
+                         "BaselineCeHitCount":  0,
+                         "NextScanMode":  "baseline-empty",
+                         "MovedCeHitCount":  0,
+                         "RetrievedCeAddressCount":  0,
+                         "RetrievedCeAddresses":  [
+
+                                                  ],
+                         "TripletConfirmedAddressCount":  0,
+                         "TripletConfirmedAddresses":  [
+
+                                                       ],
+                         "StimulusAttempts":  [
+
+                                              ],
+                         "FailureReason":  "BaselineCeExactFloatScanReturnedZero"
+                     },
+                     {
+                         "Axis":  "X",
+                         "StimulusKey":  null,
+                         "MotionObserved":  true,
+                         "BaselineCoords":  {
+                                                "X":  7408.509765625,
+                                                "Y":  863.58996582031,
+                                                "Z":  2912.3999023438
+                                            },
+                         "MovedCoords":  {
+                                             "X":  7408.509765625,
+                                             "Y":  863.58996582031,
+                                             "Z":  2912.3999023438
+                                         },
+                         "Delta":  {
+                                       "X":  0,
+                                       "Y":  0,
+                                       "Z":  0
+                                   },
+                         "BaselineCeHitCount":  0,
+                         "NextScanMode":  "reader-exact-float-fallback",
+                         "MovedCeHitCount":  4,
+                         "RetrievedCeAddressCount":  4,
+                         "RetrievedCeAddresses":  [
+                                                      "0x25382ECF090",
+                                                      "0x2538C3275B0",
+                                                      "0x2538E36D340",
+                                                      "0x253940A45A0"
+                                                  ],
+                         "TripletConfirmedAddressCount":  2,
+                         "TripletConfirmedAddresses":  [
+                                                           "0x2538C3275B0",
+                                                           "0x2538E36D340"
+                                                       ],
+                         "StimulusAttempts":  [
+
+                                              ],
+                         "FailureReason":  null
+                     }
+                 ],
+    "CandidateFamilyCount":  1,
+    "CeConfirmedFamilyCount":  1,
+    "PreCeTopFamilyId":  "fam-CEC3708F",
+    "WinnerFamilyId":  "fam-CEC3708F",
+    "Winner":  {
+                   "FamilyId":  "fam-CEC3708F",
+                   "Signature":  "coords@0",
+                   "Notes":  "unclassified blob",
+                   "BestScore":  1,
+                   "HitCount":  25,
+                   "RepresentativeAddressHex":  "0x2538C3275B0",
+                   "SampleAddresses":  [
+                                           "0x2538C3275B0",
+                                           "0x2538E36D340",
+                                           "0x2539530DF40",
+                                           "0x253A516F8F0",
+                                           "0x253AAF7BDE0",
+                                           "0x253AC4EE200",
+                                           "0x253AC59BC70",
+                                           "0x253ADC66B60",
+                                           "0x253AFCB8B50",
+                                           "0x253CCC88420",
+                                           "0x253DB009F40",
+                                           "0x253EADB0250",
+                                           "0x253EC8262E0",
+                                           "0x253F1BF6630",
+                                           "0x253F2D82B20",
+                                           "0x253F2FB16F0",
+                                           "0x253F2FCBCA0",
+                                           "0x253F310D560",
+                                           "0x253F8E67FE0",
+                                           "0x253FC122A20",
+                                           "0x2540EA64660",
+                                           "0x2540EBDB7B0",
+                                           "0x254138F0DC0",
+                                           "0x254139F1EA0",
+                                           "0x25413B6A270"
+                                       ],
+                   "CeConfirmedSampleCount":  2,
+                   "CeConfirmedSampleAddresses":  [
+                                                      "0x2538C3275B0",
+                                                      "0x2538E36D340"
+                                                  ]
+               },
+    "Families":  [
+                     {
+                         "FamilyId":  "fam-CEC3708F",
+                         "Signature":  "coords@0",
+                         "Notes":  "unclassified blob",
+                         "BestScore":  1,
+                         "HitCount":  25,
+                         "RepresentativeAddressHex":  "0x2538C3275B0",
+                         "SampleAddresses":  [
+                                                 "0x2538C3275B0",
+                                                 "0x2538E36D340",
+                                                 "0x2539530DF40",
+                                                 "0x253A516F8F0",
+                                                 "0x253AAF7BDE0",
+                                                 "0x253AC4EE200",
+                                                 "0x253AC59BC70",
+                                                 "0x253ADC66B60",
+                                                 "0x253AFCB8B50",
+                                                 "0x253CCC88420",
+                                                 "0x253DB009F40",
+                                                 "0x253EADB0250",
+                                                 "0x253EC8262E0",
+                                                 "0x253F1BF6630",
+                                                 "0x253F2D82B20",
+                                                 "0x253F2FB16F0",
+                                                 "0x253F2FCBCA0",
+                                                 "0x253F310D560",
+                                                 "0x253F8E67FE0",
+                                                 "0x253FC122A20",
+                                                 "0x2540EA64660",
+                                                 "0x2540EBDB7B0",
+                                                 "0x254138F0DC0",
+                                                 "0x254139F1EA0",
+                                                 "0x25413B6A270"
+                                             ],
+                         "CeConfirmedSampleCount":  2,
+                         "CeConfirmedSampleAddresses":  [
+                                                            "0x2538C3275B0",
+                                                            "0x2538E36D340"
+                                                        ]
+                     }
+                 ],
+    "ConfirmationFile":  "C:\\RIFT MODDING\\RiftReader\\captures\\ce-smart-player-family.json"
+}

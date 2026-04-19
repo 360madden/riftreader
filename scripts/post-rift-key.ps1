@@ -204,12 +204,14 @@ if ($targetOwnerProcessId -ne $targetProcess.Id) {
     throw "Main window handle 0x{0:X} does not belong to process {1}." -f $targetProcess.MainWindowHandle, $targetProcess.Id
 }
 
-$effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+$focusedTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
+$effectiveTargetHandle = $targetHandle
 $binding = Resolve-KeyBinding -KeyText $Key
 
 Write-Host "[RiftKey] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
 Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
 Write-Host "[RiftKey] Target thread : $targetThreadId"
+Write-Host ("[RiftKey] Focus target  : 0x{0:X}" -f $focusedTargetHandle.ToInt64())
 Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 Write-Host "[RiftKey] Key           : $Key"
 Write-Host "[RiftKey] Hold ms       : $HoldMilliseconds"

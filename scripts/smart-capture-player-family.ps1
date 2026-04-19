@@ -6,7 +6,7 @@ param(
     [int]$MaxScanHits = 12,
     [int]$ScanContextBytes = 192,
     [int]$MaxCeAddresses = 256,
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\ce-smart-player-family.json'),
     [int]$CoordScale = 1000,
     [int]$CoordToleranceUnits = 5,
     [string[]]$AxisPriority = @("X", "Z")
@@ -15,13 +15,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
-$ceFloatScanLua = Join-Path $PSScriptRoot 'ce-float-scan.lua'
-$refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$ceExecScript = Join-Path $scriptRoot 'cheatengine-exec.ps1'
+$ceFloatScanLua = Join-Path $scriptRoot 'ce-float-scan.lua'
+$refreshScript = Join-Path $scriptRoot 'refresh-readerbridge-export.ps1'
+$postKeyScript = Join-Path $scriptRoot 'post-rift-key.ps1'
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+$ceCallTimeoutSeconds = 15
 
 function Invoke-ReaderJson {
     param(
@@ -35,7 +37,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+    return ($output -join [Environment]::NewLine) | ConvertFrom-Json
 }
 
 function Invoke-CeNumeric {
@@ -46,7 +48,26 @@ function Invoke-CeNumeric {
         [switch]$Signed
     )
 
-    $result = & $ceExecScript -Code $Code
+    $job = Start-Job -ScriptBlock {
+        param(
+            [string]$CheatEngineExecScript,
+            [string]$CheatEngineCode
+        )
+
+        & $CheatEngineExecScript -Code $CheatEngineCode
+    } -ArgumentList $ceExecScript, $Code
+
+    try {
+        if (-not (Wait-Job -Job $job -Timeout $ceCallTimeoutSeconds)) {
+            throw "Cheat Engine call timed out after $ceCallTimeoutSeconds seconds."
+        }
+
+        $result = Receive-Job -Job $job
+    }
+    finally {
+        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
+    }
 
     $valueText = [string]($result | Select-Object -Last 1)
     if ($Signed) {
@@ -58,7 +79,26 @@ function Invoke-CeNumeric {
 }
 
 function Load-CeHelper {
-    $result = & $ceExecScript -LuaFile $ceFloatScanLua
+    $job = Start-Job -ScriptBlock {
+        param(
+            [string]$CheatEngineExecScript,
+            [string]$FloatScanLua
+        )
+
+        & $CheatEngineExecScript -LuaFile $FloatScanLua
+    } -ArgumentList $ceExecScript, $ceFloatScanLua
+
+    try {
+        if (-not (Wait-Job -Job $job -Timeout $ceCallTimeoutSeconds)) {
+            throw "Cheat Engine helper load timed out after $ceCallTimeoutSeconds seconds."
+        }
+
+        $result = Receive-Job -Job $job
+    }
+    finally {
+        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
+    }
 
     $loaded = [UInt64]($result | Select-Object -Last 1)
     if ($loaded -ne 1) {
@@ -224,6 +264,129 @@ function Format-HexAddress {
     return ('0x{0:X}' -f $Address)
 }
 
+function Convert-HexBytesToByteArray {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BytesHex
+    )
+
+    $normalized = ($BytesHex -replace '\s+', '').Trim()
+    if ([string]::IsNullOrWhiteSpace($normalized) -or ($normalized.Length % 2) -ne 0) {
+        return $null
+    }
+
+    $buffer = New-Object byte[] ($normalized.Length / 2)
+    for ($index = 0; $index -lt $buffer.Length; $index++) {
+        $buffer[$index] = [Convert]::ToByte($normalized.Substring($index * 2, 2), 16)
+    }
+
+    return $buffer
+}
+
+function Invoke-ReaderFloatScan {
+    param(
+        [Parameter(Mandatory = $true)]
+        [double]$Value
+    )
+
+    return Invoke-ReaderJson -Arguments @(
+        '--process-name', 'rift_x64',
+        '--scan-float', (Format-Float $Value),
+        '--scan-context', $ScanContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '--max-hits', $MaxScanHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '--json'
+    )
+}
+
+function Get-ReaderTripletConfirmedBaseAddresses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Axis,
+
+        [Parameter(Mandatory = $true)]
+        [double]$ExpectedX,
+
+        [Parameter(Mandatory = $true)]
+        [double]$ExpectedY,
+
+        [Parameter(Mandatory = $true)]
+        [double]$ExpectedZ
+    )
+
+    $axisOffset = [UInt64](Get-AxisBaseOffset -Axis $Axis)
+    $scanValue = Get-CoordValue -Coord ([pscustomobject]@{ X = $ExpectedX; Y = $ExpectedY; Z = $ExpectedZ }) -Axis $Axis
+    $scan = Invoke-ReaderFloatScan -Value $scanValue
+
+    $expectedXScaled = [int][Math]::Round($ExpectedX * $CoordScale, [MidpointRounding]::AwayFromZero)
+    $expectedYScaled = [int][Math]::Round($ExpectedY * $CoordScale, [MidpointRounding]::AwayFromZero)
+    $expectedZScaled = [int][Math]::Round($ExpectedZ * $CoordScale, [MidpointRounding]::AwayFromZero)
+
+    $tripletBaseAddresses = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $scanAddresses = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($hit in @($scan.Hits)) {
+        $hitAddress = [UInt64]$hit.Address
+        if ($hitAddress -lt $axisOffset) {
+            continue
+        }
+
+        $baseAddress = $hitAddress - $axisOffset
+        [void]$scanAddresses.Add((Format-HexAddress -Address $baseAddress))
+
+        $windowStart = Parse-HexAddress -AddressHex ([string]$hit.Context.WindowStart)
+        $bytes = Convert-HexBytesToByteArray -BytesHex ([string]$hit.Context.BytesHex)
+        if ($null -eq $bytes) {
+            continue
+        }
+
+        $scaledValues = @()
+        foreach ($coordOffset in 0, 4, 8) {
+            $absoluteAddress = $baseAddress + [UInt64]$coordOffset
+            if ($absoluteAddress -lt $windowStart) {
+                $scaledValues = $null
+                break
+            }
+
+            $relativeOffset = [int]($absoluteAddress - $windowStart)
+            if (($relativeOffset + 4) -gt $bytes.Length) {
+                $scaledValues = $null
+                break
+            }
+
+            $rawValue = [double][BitConverter]::ToSingle($bytes, $relativeOffset)
+            if ([double]::IsNaN($rawValue) -or [double]::IsInfinity($rawValue)) {
+                $scaledValues = $null
+                break
+            }
+
+            $scaledValue = [double][Math]::Round(($rawValue * $CoordScale), [MidpointRounding]::AwayFromZero)
+            if ($scaledValue -lt [int]::MinValue -or $scaledValue -gt [int]::MaxValue) {
+                $scaledValues = $null
+                break
+            }
+
+            $scaledValues += [int]$scaledValue
+        }
+
+        if ($null -eq $scaledValues -or $scaledValues.Count -ne 3) {
+            continue
+        }
+
+        if ([Math]::Abs($scaledValues[0] - $expectedXScaled) -le $CoordToleranceUnits -and
+            [Math]::Abs($scaledValues[1] - $expectedYScaled) -le $CoordToleranceUnits -and
+            [Math]::Abs($scaledValues[2] - $expectedZScaled) -le $CoordToleranceUnits) {
+            [void]$tripletBaseAddresses.Add((Format-HexAddress -Address $baseAddress))
+        }
+    }
+
+    return [pscustomobject]@{
+        Axis = $Axis
+        HitCount = [int]$scan.HitCount
+        ScanAddresses = @($scanAddresses)
+        TripletConfirmedAddresses = @($tripletBaseAddresses)
+    }
+}
+
 function Get-MovementKeySequence {
     param(
         [string]$PrimaryKey,
@@ -306,8 +469,15 @@ function Get-TripletConfirmedBaseAddresses {
     return @($baseAddresses)
 }
 
+$ceFloatScanAvailable = $true
 Write-Host "[SmartFamily] Loading Cheat Engine float scan helper..." -ForegroundColor Cyan
-Load-CeHelper
+try {
+    Load-CeHelper
+}
+catch {
+    $ceFloatScanAvailable = $false
+    Write-Warning ("Cheat Engine float scan helper is unavailable; continuing with reader-only fallback. {0}" -f $_.Exception.Message)
+}
 
 $attemptResults = New-Object System.Collections.Generic.List[object]
 $movementKeySequence = @(Get-MovementKeySequence -PrimaryKey $MovementKey -FallbackKeys $FallbackMovementKeys)
@@ -325,9 +495,51 @@ foreach ($axis in $AxisPriority) {
     $baselineAxisValue = Get-CoordValue -Coord $baselinePlayer.Coord -Axis $normalizedAxis
 
     Write-Host "[SmartFamily] Baseline coords: $(Format-Float $baselineX), $(Format-Float $baselineY), $(Format-Float $baselineZ)" -ForegroundColor DarkGray
-    Write-Host "[SmartFamily] Starting CE exact-float scan for baseline $normalizedAxis..." -ForegroundColor Cyan
-    $baselineCeCount = Start-CeExactFloatScan -Value $baselineAxisValue
+    $baselineCeCount = 0
+    $baselineFailureReason = $null
+    if ($ceFloatScanAvailable) {
+        Write-Host "[SmartFamily] Starting CE exact-float scan for baseline $normalizedAxis..." -ForegroundColor Cyan
+        try {
+            $baselineCeCount = Start-CeExactFloatScan -Value $baselineAxisValue
+        }
+        catch {
+            $ceFloatScanAvailable = $false
+            $baselineFailureReason = 'BaselineCeExactFloatScanUnavailable'
+            Write-Warning ("Baseline CE exact-float scan was unavailable for axis '{0}'; continuing with reader fallback. {1}" -f $normalizedAxis, $_.Exception.Message)
+        }
+    }
+    else {
+        $baselineFailureReason = 'BaselineCeExactFloatScanUnavailable'
+    }
+
     Write-Host "[SmartFamily] Baseline CE hit count for axis $normalizedAxis`: $baselineCeCount" -ForegroundColor DarkGray
+
+    if ([int]$baselineCeCount -le 0) {
+        if ([string]::IsNullOrWhiteSpace($baselineFailureReason)) {
+            $baselineFailureReason = 'BaselineCeExactFloatScanReturnedZero'
+        }
+
+        Write-Warning ("Baseline CE exact-float scan returned zero hits for axis '{0}'; skipping movement narrowing for this axis." -f $normalizedAxis)
+        $attemptResults.Add([pscustomobject]@{
+                Axis = $normalizedAxis
+                StimulusKey = $null
+                MotionObserved = $false
+                BaselineCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
+                MovedCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
+                Delta = [pscustomobject]@{ X = 0.0; Y = 0.0; Z = 0.0 }
+                BaselineCeHitCount = [int]$baselineCeCount
+                NextScanMode = 'baseline-empty'
+                MovedCeHitCount = 0
+                RetrievedCeAddressCount = 0
+                RetrievedCeAddresses = @()
+                TripletConfirmedAddressCount = 0
+                TripletConfirmedAddresses = @()
+                StimulusAttempts = @()
+                FailureReason = $baselineFailureReason
+            }) | Out-Null
+
+        continue
+    }
 
     $stimulusAttempts = New-Object System.Collections.Generic.List[object]
     $movedSnapshot = $null
@@ -455,14 +667,64 @@ $selectedAttempt = $attemptResults |
     Select-Object -First 1
 
 if (-not $selectedAttempt.MotionObserved) {
-    $attemptSummary = $attemptResults | ForEach-Object {
-        $stimulusSummary = @($_.StimulusAttempts | ForEach-Object {
-                "{0}:{1}" -f $_.Key, $(if ($_.MotionObserved) { 'moved' } else { 'static' })
-            }) -join ', '
-        "{0} [{1}]" -f $_.Axis, $stimulusSummary
+    $allBaselineEmpty = @($attemptResults | Where-Object { $_.FailureReason -in @('BaselineCeExactFloatScanReturnedZero', 'BaselineCeExactFloatScanUnavailable') }).Count -eq $attemptResults.Count
+    if ($allBaselineEmpty) {
+        $currentSnapshot = Get-CurrentSnapshot
+        $currentPlayer = $currentSnapshot.Current.Player
+        $currentX = [double]$currentPlayer.Coord.X
+        $currentY = [double]$currentPlayer.Coord.Y
+        $currentZ = [double]$currentPlayer.Coord.Z
+
+        $readerFallbackAttempt = $null
+        foreach ($axis in $AxisPriority) {
+            Write-Host "[SmartFamily] Attempting reader exact-float fallback for axis $axis..." -ForegroundColor Cyan
+            $fallback = Get-ReaderTripletConfirmedBaseAddresses -Axis $axis -ExpectedX $currentX -ExpectedY $currentY -ExpectedZ $currentZ
+            if (@($fallback.TripletConfirmedAddresses).Count -gt 0) {
+                $readerFallbackAttempt = [pscustomobject]@{
+                    Axis = $fallback.Axis
+                    StimulusKey = $null
+                    MotionObserved = $true
+                    BaselineCoords = [pscustomobject]@{ X = $currentX; Y = $currentY; Z = $currentZ }
+                    MovedCoords = [pscustomobject]@{ X = $currentX; Y = $currentY; Z = $currentZ }
+                    Delta = [pscustomobject]@{ X = 0.0; Y = 0.0; Z = 0.0 }
+                    BaselineCeHitCount = 0
+                    NextScanMode = 'reader-exact-float-fallback'
+                    MovedCeHitCount = [int]$fallback.HitCount
+                    RetrievedCeAddressCount = @($fallback.ScanAddresses).Count
+                    RetrievedCeAddresses = @($fallback.ScanAddresses)
+                    TripletConfirmedAddressCount = @($fallback.TripletConfirmedAddresses).Count
+                    TripletConfirmedAddresses = @($fallback.TripletConfirmedAddresses)
+                    StimulusAttempts = @()
+                    FailureReason = $null
+                }
+                break
+            }
+        }
+
+        if ($null -ne $readerFallbackAttempt) {
+            $attemptResults.Add($readerFallbackAttempt) | Out-Null
+            $selectedAttempt = $readerFallbackAttempt
+        }
+        else {
+            $axisSummary = @($attemptResults | ForEach-Object { "{0}:{1}" -f $_.Axis, $_.BaselineCeHitCount }) -join '; '
+            throw ("No CE exact-float baseline hits were found for the configured axes, and reader exact-float fallback found no triplet-confirmed bases. {0}" -f $axisSummary)
+        }
     }
 
-    throw ("No configured movement stimulus produced a coordinate delta across the CE narrowing attempts. {0}" -f ($attemptSummary -join '; '))
+    if (-not $selectedAttempt.MotionObserved) {
+        $attemptSummary = $attemptResults | ForEach-Object {
+            if (@($_.StimulusAttempts).Count -eq 0) {
+                return "{0} [{1}]" -f $_.Axis, $(if ($_.FailureReason) { $_.FailureReason } else { 'no-stimulus-attempts' })
+            }
+
+            $stimulusSummary = @($_.StimulusAttempts | ForEach-Object {
+                    "{0}:{1}" -f $_.Key, $(if ($_.MotionObserved) { 'moved' } else { 'static' })
+                }) -join ', '
+            "{0} [{1}]" -f $_.Axis, $stimulusSummary
+        }
+
+        throw ("No configured movement stimulus produced a coordinate delta across the CE narrowing attempts. {0}" -f ($attemptSummary -join '; '))
+    }
 }
 
 $baselineX = [double]$selectedAttempt.BaselineCoords.X

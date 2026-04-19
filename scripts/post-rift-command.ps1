@@ -213,6 +213,21 @@ function Get-EffectiveTargetHandle {
     return $guiThreadInfo.hwndFocus
 }
 
+function Get-WindowOwnerProcessId {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$WindowHandle
+    )
+
+    if ($WindowHandle -eq [IntPtr]::Zero) {
+        return 0
+    }
+
+    $ownerProcessId = 0
+    [void][RiftPostMessageNative]::GetWindowThreadProcessId($WindowHandle, [ref]$ownerProcessId)
+    return $ownerProcessId
+}
+
 function Post-CharacterAsKey {
     param(
         [Parameter(Mandatory = $true)]
@@ -343,10 +358,16 @@ if (-not $SkipBackgroundFocus) {
         Focus-Window -Process $backgroundProcess
 
         $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+        $foregroundOwnerProcessId = Get-WindowOwnerProcessId -WindowHandle $foregroundHandle
         Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+        if ($foregroundOwnerProcessId -ne 0) {
+            Write-Host "[RiftPost] Foreground owner PID     : $foregroundOwnerProcessId"
+        }
 
-        if ($foregroundHandle -eq $targetHandle) {
-            throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        if ($foregroundHandle -eq $targetHandle -or
+            $foregroundHandle -eq $effectiveTargetHandle -or
+            $foregroundOwnerProcessId -eq $targetProcess.Id) {
+            throw "Foreground window is still owned by Rift; this test would not prove non-focused posting."
         }
     }
 }

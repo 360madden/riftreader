@@ -37,7 +37,7 @@ if ([string]::IsNullOrWhiteSpace($ChatCommand)) {
 
 # ---------------------------------------------------------------------------
 # Win32 P/Invoke — minimal set needed for keyboard input
-# Struct layout and function signatures copied from tools/rift-game-mcp/helpers/window-tools.ps1
+# Struct layout and function signatures kept local to this helper-app workflow
 # ---------------------------------------------------------------------------
 Add-Type -TypeDefinition @"
 using System;
@@ -110,7 +110,7 @@ $namedKeys = @{
 }
 
 # ---------------------------------------------------------------------------
-# Helpers — same logic as window-tools.ps1
+# Helpers — local helper-app logic for native keyboard input
 # ---------------------------------------------------------------------------
 function New-KeyboardInput {
     param([int]$VirtualKey, [switch]$KeyUp)
