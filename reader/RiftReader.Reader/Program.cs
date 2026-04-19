@@ -518,7 +518,13 @@ internal static class Program
             resolvedDestinationWaypoint,
             poseSource.InitialSample,
             poseSource.Source.AnchorSource,
-            arrivalRadius);
+            arrivalRadius,
+            facing: TryBuildNavigationFacingSummary(
+                reader,
+                snapshotDocument,
+                options.OwnerComponentsFile,
+                resolvedDestinationWaypoint.X - poseSource.InitialSample.X,
+                resolvedDestinationWaypoint.Z - poseSource.InitialSample.Z));
 
         if (options.JsonOutput)
         {
@@ -593,6 +599,60 @@ internal static class Program
         var effectivePace = ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
         var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
         var maxTravelSeconds = options.MaxTravelSeconds ?? resolvedConfiguration.Movement.MaxTravelSeconds;
+        var facingSource = TryCreateNavigationFacingSource(reader, snapshotDocument, options.OwnerComponentsFile, out var facingError);
+
+        if (resolvedConfiguration.Movement.HasTurnKeys && facingSource is null)
+        {
+            var facingFailure = BuildNavigationAnchorUnavailableResult(
+                target,
+                resolvedConfiguration.SourceFile,
+                resolvedStartWaypoint,
+                resolvedDestinationWaypoint,
+                effectivePace,
+                arrivalRadius,
+                resolvedConfiguration.Movement.StartRadius,
+                "facing-unavailable");
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(facingFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(facingError ?? "Unable to resolve a navigation-facing source.");
+                Console.WriteLine(NavigationRunResultTextFormatter.Format(facingFailure));
+            }
+
+            return 1;
+        }
+
+        if (resolvedConfiguration.Movement.HasTurnKeys &&
+            facingSource is not null &&
+            (facingSource.InitialSample.CoordValidated == false || !facingSource.InitialSample.IntegrityPass))
+        {
+            var facingFailure = BuildNavigationAnchorUnavailableResult(
+                target,
+                resolvedConfiguration.SourceFile,
+                resolvedStartWaypoint,
+                resolvedDestinationWaypoint,
+                effectivePace,
+                arrivalRadius,
+                resolvedConfiguration.Movement.StartRadius,
+                "facing-unavailable");
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(facingFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine("Navigation-facing candidate failed the initial coord/integrity gate.");
+                Console.WriteLine(NavigationRunResultTextFormatter.Format(facingFailure));
+            }
+
+            return 1;
+        }
+
         var movementBackend = new PowerShellMovementBackend(
             NavigationPathResolver.ResolveMovementScriptFile(),
             target.ProcessName);
@@ -605,6 +665,7 @@ internal static class Program
             resolvedStartWaypoint,
             resolvedDestinationWaypoint,
             poseSource.Source,
+            facingSource?.Source,
             movementBackend,
             effectivePace,
             arrivalRadius,
@@ -766,6 +827,30 @@ internal static class Program
         destinationWaypoint.Pace ??
         movement.DefaultPace;
 
+    private static NavigationFacingSourceCreationResult? TryCreateNavigationFacingSource(
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        string? ownerComponentsFile,
+        out string? error) =>
+        NavigationFacingSourceFactory.TryCreate(
+            reader,
+            snapshotDocument,
+            ownerComponentsFile,
+            out error);
+
+    private static NavigationFacingSummary? TryBuildNavigationFacingSummary(
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        string? ownerComponentsFile,
+        double targetDeltaX,
+        double targetDeltaZ)
+    {
+        var facingSource = TryCreateNavigationFacingSource(reader, snapshotDocument, ownerComponentsFile, out _);
+        return facingSource is null
+            ? null
+            : NavigationMath.BuildFacingSummary(facingSource.InitialSample, targetDeltaX, targetDeltaZ);
+    }
+
     private static double ResolveArrivalRadius(
         double? arrivalRadiusOverride,
         WaypointDefinition destinationWaypoint,
@@ -798,11 +883,14 @@ internal static class Program
             InitialPlanarDistance: 0d,
             FinalPlanarDistance: 0d,
             PulseCount: 0,
+            TurnPulseCount: 0,
             StopReason: stopReason,
             InitialPosition: startWaypoint.Coordinate,
             FinalPosition: startWaypoint.Coordinate,
             DestinationPosition: destinationWaypoint.Coordinate,
-            ElapsedMilliseconds: 0);
+            ElapsedMilliseconds: 0,
+            InitialFacing: null,
+            FinalFacing: null);
 
     private static void WriteUsage(ReaderOptionsParseResult parseResult)
     {

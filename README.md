@@ -52,10 +52,12 @@ Use these helpers:
 - `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.cmd`
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd`
 - `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd`
+- `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.cmd`
 
 See:
 
 - `C:\RIFT MODDING\RiftReader\docs\actor-facing-discovery.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-16-actor-facing-passive-baseline.md`
 
 ## Shell Requirements
 
@@ -566,6 +568,7 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.cmd` - trigger `/rbx export`, reload the latest ReaderBridge snapshot, and freeze addon coords at a stimulus boundary
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd` - run `idle`, `turn-left`, `turn-right`, or `move-forward` validation loops and append per-run evidence to the actor-facing validation history
 - `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.ps1` / `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd` - evaluate the latest matching facing sample plus validation history and emit the current navigation-facing contract as `candidate`, `confirmed`, or `rejected`
+- `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.ps1` / `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.cmd` - build a passive no-movement actor-facing baseline from the latest ReaderBridge snapshot plus the current owner/source artifacts, including addon-facing-signal and historical-drift checks
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review
 - `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1` - append a normalized NDJSON marker record to a watched marker-input file during a live session recording

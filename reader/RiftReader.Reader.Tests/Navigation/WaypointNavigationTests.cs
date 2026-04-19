@@ -126,6 +126,28 @@ public sealed class NavigationMathTests
         Assert.InRange(summary.WorldBearingDegrees, 63.4349d, 63.4351d);
         Assert.False(summary.WithinArrivalRadius);
     }
+
+    [Fact]
+    public void BuildFacingSummary_ComputesSignedTurnErrorFromCandidateYaw()
+    {
+        var facing = NavigationMath.BuildFacingSummary(
+            new NavigationFacingSample(
+                SourceName: "selected-source-basis-forward-row",
+                SourceAddressHex: "0x1234",
+                BasisForwardOffset: "0x60",
+                YawRadians: 0d,
+                YawDegrees: 0d,
+                CoordValidated: true,
+                IntegrityPass: true,
+                IntegrityNotes: ["integrity-pass"]),
+            targetDeltaX: 0d,
+            targetDeltaZ: 5d);
+
+        Assert.Equal("0x1234", facing.SourceAddressHex);
+        Assert.InRange(facing.SignedTurnErrorDegrees, 89.999d, 90.001d);
+        Assert.True(facing.IntegrityPass);
+        Assert.True(facing.CoordValidated);
+    }
 }
 
 public sealed class WaypointNavigatorTests
@@ -145,6 +167,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Keep,
             arrivalRadius: 1.5d,
@@ -172,6 +195,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Run,
             arrivalRadius: 1.5d,
@@ -211,6 +235,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Keep,
             arrivalRadius: 1.5d,
@@ -238,6 +263,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Keep,
             arrivalRadius: 1.5d,
@@ -264,6 +290,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Keep,
             arrivalRadius: 1.5d,
@@ -293,6 +320,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Keep,
             arrivalRadius: 1.5d,
@@ -320,6 +348,7 @@ public sealed class WaypointNavigatorTests
             startWaypoint: StartWaypoint,
             destinationWaypoint: DestinationWaypoint,
             poseSource: poseSource,
+            facingSource: null,
             movementBackend: movementBackend,
             pace: NavigationPace.Keep,
             arrivalRadius: 1.5d,
@@ -328,6 +357,101 @@ public sealed class WaypointNavigatorTests
         Assert.Equal("failure", result.Status);
         Assert.Equal("telemetry-lost", result.StopReason);
         Assert.Equal(1, result.PulseCount);
+    }
+
+    [Fact]
+    public void Run_PulsesLeftTurnBeforeForwardMovementWhenCandidateYawNeedsPositiveCorrection()
+    {
+        var poseSource = new FakePoseSource(
+            Success(0d, 0d, 0d),
+            Success(0d, 0d, 9.2d));
+        var facingSource = new FakeFacingSource(
+            Facing(yawDegrees: 0d),
+            Facing(yawDegrees: 0d),
+            Facing(yawDegrees: 90d),
+            Facing(yawDegrees: 90d));
+        var movementBackend = new FakeMovementBackend();
+        var destination = new WaypointDefinition(
+            Id: "north",
+            Label: "North",
+            Zone: null,
+            X: 0d,
+            Y: 0d,
+            Z: 10d,
+            ArrivalRadius: 1.5d,
+            Pace: null);
+
+        var result = WaypointNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(turnLeftKey: "Left", turnRightKey: "Right"),
+            startWaypoint: StartWaypoint,
+            destinationWaypoint: destination,
+            poseSource: poseSource,
+            facingSource: facingSource,
+            movementBackend: movementBackend,
+            pace: NavigationPace.Keep,
+            arrivalRadius: 1.5d,
+            maxTravelSeconds: 30);
+
+        Assert.Equal("success", result.Status);
+        Assert.Equal("arrived", result.StopReason);
+        Assert.Equal(1, result.PulseCount);
+        Assert.Equal(1, result.TurnPulseCount);
+        Assert.NotNull(result.InitialFacing);
+        Assert.NotNull(result.FinalFacing);
+        Assert.Collection(
+            movementBackend.Calls,
+            call =>
+            {
+                Assert.Equal("Left", call.Key);
+                Assert.Equal(75, call.HoldMilliseconds);
+            },
+            call =>
+            {
+                Assert.Equal("w", call.Key);
+                Assert.Equal(1, call.HoldMilliseconds);
+            });
+    }
+
+    [Fact]
+    public void Run_FailsClosedWhenFacingCandidateCannotPassIntegrity()
+    {
+        var poseSource = new FakePoseSource(
+            Success(0d, 0d, 0d));
+        var facingSource = new FakeFacingSource(
+            Facing(yawDegrees: 0d, integrityPass: false));
+        var movementBackend = new FakeMovementBackend();
+        var destination = new WaypointDefinition(
+            Id: "north",
+            Label: "North",
+            Zone: null,
+            X: 0d,
+            Y: 0d,
+            Z: 10d,
+            ArrivalRadius: 1.5d,
+            Pace: null);
+
+        var result = WaypointNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(turnLeftKey: "Left", turnRightKey: "Right"),
+            startWaypoint: StartWaypoint,
+            destinationWaypoint: destination,
+            poseSource: poseSource,
+            facingSource: facingSource,
+            movementBackend: movementBackend,
+            pace: NavigationPace.Keep,
+            arrivalRadius: 1.5d,
+            maxTravelSeconds: 30);
+
+        Assert.Equal("failure", result.Status);
+        Assert.Equal("facing-unavailable", result.StopReason);
+        Assert.Equal(0, result.PulseCount);
+        Assert.Equal(0, result.TurnPulseCount);
+        Assert.Empty(movementBackend.Calls);
     }
 
     private static readonly WaypointDefinition StartWaypoint = new(
@@ -353,26 +477,38 @@ public sealed class WaypointNavigatorTests
     private static WaypointMovementSettings CreateMovement(
         string? runKey = null,
         string? walkKey = null,
+        string? turnLeftKey = null,
+        string? turnRightKey = null,
         int forwardPulseMilliseconds = 1,
         int postPulseSampleDelayMilliseconds = 0,
+        int turnPulseMilliseconds = 75,
+        int postTurnSampleDelayMilliseconds = 0,
         double startRadius = 2d,
         double defaultArrivalRadius = 1.5d,
+        double turnAlignmentToleranceDegrees = 12d,
         int noProgressWindowMilliseconds = 1000,
         double minimumProgressDistance = 0.35d,
         double wrongWayToleranceDistance = 0.75d,
+        int maxTurnPulsesPerCycle = 8,
         int maxTravelSeconds = 30) =>
         new(
             ForwardKey: "w",
             RunKey: runKey,
             WalkKey: walkKey,
+            TurnLeftKey: turnLeftKey,
+            TurnRightKey: turnRightKey,
             DefaultPace: NavigationPace.Keep,
             ForwardPulseMilliseconds: forwardPulseMilliseconds,
             PostPulseSampleDelayMilliseconds: postPulseSampleDelayMilliseconds,
+            TurnPulseMilliseconds: turnPulseMilliseconds,
+            PostTurnSampleDelayMilliseconds: postTurnSampleDelayMilliseconds,
             StartRadius: startRadius,
             DefaultArrivalRadius: defaultArrivalRadius,
+            TurnAlignmentToleranceDegrees: turnAlignmentToleranceDegrees,
             NoProgressWindowMilliseconds: noProgressWindowMilliseconds,
             MinimumProgressDistance: minimumProgressDistance,
             WrongWayToleranceDistance: wrongWayToleranceDistance,
+            MaxTurnPulsesPerCycle: maxTurnPulsesPerCycle,
             MaxTravelSeconds: maxTravelSeconds);
 
     private static (bool Success, NavigationPoseSample Sample, string? Error) Success(double x, double y, double z) =>
@@ -380,6 +516,23 @@ public sealed class WaypointNavigatorTests
 
     private static (bool Success, NavigationPoseSample Sample, string? Error) Failure(string error) =>
         (false, new NavigationPoseSample("0x1234", 0d, 0d, 0d), error);
+
+    private static (bool Success, NavigationFacingSample Sample, string? Error) Facing(
+        double yawDegrees,
+        bool? coordValidated = true,
+        bool integrityPass = true) =>
+        (
+            true,
+            new NavigationFacingSample(
+                SourceName: "selected-source-basis-forward-row",
+                SourceAddressHex: "0x1234",
+                BasisForwardOffset: "0x60",
+                YawRadians: yawDegrees * Math.PI / 180d,
+                YawDegrees: yawDegrees,
+                CoordValidated: coordValidated,
+                IntegrityPass: integrityPass,
+                IntegrityNotes: integrityPass ? ["integrity-pass"] : ["determinant-out-of-range"]),
+            null);
 
     private sealed class FakePoseSource(
         params (bool Success, NavigationPoseSample Sample, string? Error)[] steps) : INavigationPoseSource
@@ -421,6 +574,40 @@ public sealed class WaypointNavigatorTests
             return _results.Count > 0
                 ? _results.Dequeue()
                 : new MovementCommandResult(true, null);
+        }
+    }
+
+    private sealed class FakeFacingSource(
+        params (bool Success, NavigationFacingSample Sample, string? Error)[] steps) : INavigationFacingSource
+    {
+        private readonly Queue<(bool Success, NavigationFacingSample Sample, string? Error)> _steps =
+            new(steps);
+
+        public string SourceName => "fake-facing";
+
+        public string SourceAddressHex => "0x1234";
+
+        public bool TryReadCurrent(out NavigationFacingSample sample, out string? error)
+        {
+            if (_steps.Count == 0)
+            {
+                sample = new NavigationFacingSample(
+                    SourceName,
+                    SourceAddressHex,
+                    "0x60",
+                    0d,
+                    0d,
+                    null,
+                    false,
+                    []);
+                error = "No navigation facing samples remain.";
+                return false;
+            }
+
+            var next = _steps.Dequeue();
+            sample = next.Sample;
+            error = next.Success ? null : next.Error ?? "Navigation facing read failed.";
+            return next.Success;
         }
     }
 }

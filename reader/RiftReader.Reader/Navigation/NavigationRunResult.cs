@@ -15,8 +15,11 @@ public sealed record NavigationRunResult(
     double InitialPlanarDistance,
     double FinalPlanarDistance,
     int PulseCount,
+    int TurnPulseCount,
     string StopReason,
     NavigationCoordinate InitialPosition,
     NavigationCoordinate FinalPosition,
     NavigationCoordinate DestinationPosition,
-    long ElapsedMilliseconds);
+    long ElapsedMilliseconds,
+    NavigationFacingSummary? InitialFacing,
+    NavigationFacingSummary? FinalFacing);

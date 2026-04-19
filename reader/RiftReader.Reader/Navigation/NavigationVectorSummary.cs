@@ -19,4 +19,5 @@ public sealed record NavigationVectorSummary(
     double WorldBearingRadians,
     double WorldBearingDegrees,
     double ArrivalRadius,
-    bool WithinArrivalRadius);
+    bool WithinArrivalRadius,
+    NavigationFacingSummary? Facing);

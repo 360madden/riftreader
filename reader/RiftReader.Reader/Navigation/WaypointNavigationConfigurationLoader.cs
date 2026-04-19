@@ -5,6 +5,10 @@ namespace RiftReader.Reader.Navigation;
 public static class WaypointNavigationConfigurationLoader
 {
     private const int SupportedSchemaVersion = 1;
+    private const int DefaultTurnPulseMilliseconds = 75;
+    private const int DefaultPostTurnSampleDelayMilliseconds = 60;
+    private const double DefaultTurnAlignmentToleranceDegrees = 12d;
+    private const int DefaultMaxTurnPulsesPerCycle = 8;
 
     public static WaypointNavigationConfiguration? TryLoad(string? filePath, out string? error)
     {
@@ -70,6 +74,14 @@ public static class WaypointNavigationConfigurationLoader
             return null;
         }
 
+        var turnLeftKey = NormalizeOptionalKey(document.Movement.TurnLeftKey);
+        var turnRightKey = NormalizeOptionalKey(document.Movement.TurnRightKey);
+        if (string.IsNullOrWhiteSpace(turnLeftKey) != string.IsNullOrWhiteSpace(turnRightKey))
+        {
+            error = $"Navigation waypoint file '{sourceFile}' must define both movement.turnLeftKey and movement.turnRightKey together.";
+            return null;
+        }
+
         if (!TryRequirePositive(document.Movement.ForwardPulseMilliseconds, "movement.forwardPulseMilliseconds", sourceFile, out var forwardPulseMilliseconds, out error) ||
             !TryRequireNonNegative(document.Movement.PostPulseSampleDelayMilliseconds, "movement.postPulseSampleDelayMilliseconds", sourceFile, out var postPulseSampleDelayMilliseconds, out error) ||
             !TryRequirePositive(document.Movement.StartRadius, "movement.startRadius", sourceFile, out var startRadius, out error) ||
@@ -78,6 +90,38 @@ public static class WaypointNavigationConfigurationLoader
             !TryRequirePositive(document.Movement.MinimumProgressDistance, "movement.minimumProgressDistance", sourceFile, out var minimumProgressDistance, out error) ||
             !TryRequirePositive(document.Movement.WrongWayToleranceDistance, "movement.wrongWayToleranceDistance", sourceFile, out var wrongWayToleranceDistance, out error) ||
             !TryRequirePositive(document.Movement.MaxTravelSeconds, "movement.maxTravelSeconds", sourceFile, out var maxTravelSeconds, out error))
+        {
+            return null;
+        }
+
+        if (!TryNormalizeOptionalPositive(
+                document.Movement.TurnPulseMilliseconds,
+                "movement.turnPulseMilliseconds",
+                sourceFile,
+                DefaultTurnPulseMilliseconds,
+                out var turnPulseMilliseconds,
+                out error) ||
+            !TryNormalizeOptionalNonNegative(
+                document.Movement.PostTurnSampleDelayMilliseconds,
+                "movement.postTurnSampleDelayMilliseconds",
+                sourceFile,
+                DefaultPostTurnSampleDelayMilliseconds,
+                out var postTurnSampleDelayMilliseconds,
+                out error) ||
+            !TryNormalizeOptionalPositive(
+                document.Movement.TurnAlignmentToleranceDegrees,
+                "movement.turnAlignmentToleranceDegrees",
+                sourceFile,
+                DefaultTurnAlignmentToleranceDegrees,
+                out var turnAlignmentToleranceDegrees,
+                out error) ||
+            !TryNormalizeOptionalPositive(
+                document.Movement.MaxTurnPulsesPerCycle,
+                "movement.maxTurnPulsesPerCycle",
+                sourceFile,
+                DefaultMaxTurnPulsesPerCycle,
+                out var maxTurnPulsesPerCycle,
+                out error))
         {
             return null;
         }
@@ -147,14 +191,20 @@ public static class WaypointNavigationConfigurationLoader
                 ForwardKey: document.Movement.ForwardKey!.Trim(),
                 RunKey: NormalizeOptionalKey(document.Movement.RunKey),
                 WalkKey: NormalizeOptionalKey(document.Movement.WalkKey),
+                TurnLeftKey: turnLeftKey,
+                TurnRightKey: turnRightKey,
                 DefaultPace: defaultPace,
                 ForwardPulseMilliseconds: forwardPulseMilliseconds,
                 PostPulseSampleDelayMilliseconds: postPulseSampleDelayMilliseconds,
+                TurnPulseMilliseconds: turnPulseMilliseconds,
+                PostTurnSampleDelayMilliseconds: postTurnSampleDelayMilliseconds,
                 StartRadius: startRadius,
                 DefaultArrivalRadius: defaultArrivalRadius,
+                TurnAlignmentToleranceDegrees: turnAlignmentToleranceDegrees,
                 NoProgressWindowMilliseconds: noProgressWindowMilliseconds,
                 MinimumProgressDistance: minimumProgressDistance,
                 WrongWayToleranceDistance: wrongWayToleranceDistance,
+                MaxTurnPulsesPerCycle: maxTurnPulsesPerCycle,
                 MaxTravelSeconds: maxTravelSeconds),
             Waypoints: waypoints);
     }
@@ -166,6 +216,32 @@ public static class WaypointNavigationConfigurationLoader
     {
         normalized = 0;
         if (!value.HasValue || value.Value <= 0)
+        {
+            error = $"Navigation waypoint file '{sourceFile}' must define a positive {fieldName}.";
+            return false;
+        }
+
+        normalized = value.Value;
+        error = null;
+        return true;
+    }
+
+    private static bool TryNormalizeOptionalPositive(
+        int? value,
+        string fieldName,
+        string sourceFile,
+        int defaultValue,
+        out int normalized,
+        out string? error)
+    {
+        normalized = defaultValue;
+        if (!value.HasValue)
+        {
+            error = null;
+            return true;
+        }
+
+        if (value.Value <= 0)
         {
             error = $"Navigation waypoint file '{sourceFile}' must define a positive {fieldName}.";
             return false;
@@ -190,10 +266,62 @@ public static class WaypointNavigationConfigurationLoader
         return true;
     }
 
+    private static bool TryNormalizeOptionalPositive(
+        double? value,
+        string fieldName,
+        string sourceFile,
+        double defaultValue,
+        out double normalized,
+        out string? error)
+    {
+        normalized = defaultValue;
+        if (!value.HasValue)
+        {
+            error = null;
+            return true;
+        }
+
+        if (value.Value <= 0d)
+        {
+            error = $"Navigation waypoint file '{sourceFile}' must define a positive {fieldName}.";
+            return false;
+        }
+
+        normalized = value.Value;
+        error = null;
+        return true;
+    }
+
     private static bool TryRequireNonNegative(int? value, string fieldName, string sourceFile, out int normalized, out string? error)
     {
         normalized = 0;
         if (!value.HasValue || value.Value < 0)
+        {
+            error = $"Navigation waypoint file '{sourceFile}' must define a non-negative {fieldName}.";
+            return false;
+        }
+
+        normalized = value.Value;
+        error = null;
+        return true;
+    }
+
+    private static bool TryNormalizeOptionalNonNegative(
+        int? value,
+        string fieldName,
+        string sourceFile,
+        int defaultValue,
+        out int normalized,
+        out string? error)
+    {
+        normalized = defaultValue;
+        if (!value.HasValue)
+        {
+            error = null;
+            return true;
+        }
+
+        if (value.Value < 0)
         {
             error = $"Navigation waypoint file '{sourceFile}' must define a non-negative {fieldName}.";
             return false;

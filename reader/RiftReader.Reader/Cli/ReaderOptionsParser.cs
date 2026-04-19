@@ -21,8 +21,8 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--owner-components-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--owner-components-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
@@ -50,8 +50,9 @@ Notes:
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
-  - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint.
-  - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the manual-facing waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition.
+  - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint, and include candidate facing/turn-error telemetry when the selected-source basis can be resolved.
+  - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition; if movement.turnLeftKey and movement.turnRightKey are configured, the navigator auto-aligns using the candidate selected-source yaw first.
+  - Use --owner-components-file with navigation modes when the selected-source owner-component artifact lives outside the active worktree.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
@@ -78,8 +79,8 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --owner-components-file .\scripts\captures\player-owner-components.json --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --owner-components-file .\scripts\captures\player-owner-components.json --pace keep --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
@@ -808,9 +809,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --record-session.", UsageText);
         }
 
-        if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation && !rankStatHubs)
+        if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation && !rankStatHubs && !readNavigationCurrent && !navigateWaypoints)
         {
-            return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components, --rank-stat-hubs, or --read-player-orientation.", UsageText);
+            return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components, --rank-stat-hubs, --read-player-orientation, --read-navigation-current, or --navigate-waypoints.", UsageText);
         }
 
         if (sessionSummary)
@@ -1545,7 +1546,7 @@ Examples:
                     WriteCheatEngineProbe: writeCheatEngineProbe,
                     CheatEngineProbeFile: cheatEngineProbeFile,
                     RankOwnerComponents: false,
-                    OwnerComponentsFile: null,
+                    OwnerComponentsFile: ownerComponentsFile,
                     RankStatHubs: rankStatHubs,
                     CheatEngineStatHubs: cheatEngineStatHubs,
                     ReadPlayerOrientation: false,

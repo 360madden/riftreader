@@ -11,14 +11,20 @@ public sealed record NavigationMovementOptionsDocument(
     string? ForwardKey,
     string? RunKey,
     string? WalkKey,
+    string? TurnLeftKey,
+    string? TurnRightKey,
     string? DefaultPace,
     int? ForwardPulseMilliseconds,
     int? PostPulseSampleDelayMilliseconds,
+    int? TurnPulseMilliseconds,
+    int? PostTurnSampleDelayMilliseconds,
     double? StartRadius,
     double? DefaultArrivalRadius,
+    double? TurnAlignmentToleranceDegrees,
     int? NoProgressWindowMilliseconds,
     double? MinimumProgressDistance,
     double? WrongWayToleranceDistance,
+    int? MaxTurnPulsesPerCycle,
     int? MaxTravelSeconds);
 
 public sealed record NavigationWaypointDocument(
@@ -41,15 +47,27 @@ public sealed record WaypointMovementSettings(
     string ForwardKey,
     string? RunKey,
     string? WalkKey,
+    string? TurnLeftKey,
+    string? TurnRightKey,
     string DefaultPace,
     int ForwardPulseMilliseconds,
     int PostPulseSampleDelayMilliseconds,
+    int TurnPulseMilliseconds,
+    int PostTurnSampleDelayMilliseconds,
     double StartRadius,
     double DefaultArrivalRadius,
+    double TurnAlignmentToleranceDegrees,
     int NoProgressWindowMilliseconds,
     double MinimumProgressDistance,
     double WrongWayToleranceDistance,
-    int MaxTravelSeconds);
+    int MaxTurnPulsesPerCycle,
+    int MaxTravelSeconds)
+{
+    [JsonIgnore]
+    public bool HasTurnKeys =>
+        !string.IsNullOrWhiteSpace(TurnLeftKey) &&
+        !string.IsNullOrWhiteSpace(TurnRightKey);
+}
 
 public sealed record WaypointDefinition(
     string Id,

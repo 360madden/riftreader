@@ -131,6 +131,27 @@ This contract becomes `confirmed` only when one source passes:
 
 Otherwise it remains `candidate` or `rejected`.
 
+### 5. Passive actor-facing analysis
+
+Produced by:
+
+- `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.ps1`
+
+Default output:
+
+- `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-passive-analysis.json`
+
+This helper is the **no-movement bridge** between existing capture artifacts and
+the later live validation workflow. It:
+
+- loads the latest ReaderBridge snapshot
+- loads the owner-components artifact
+- reads the current artifact-side orientation result
+- ranks owner components for current snapshot context
+- compares the current snapshot against the historical actor-orientation capture
+- reports whether the addon exposes any direct facing signal
+- emits a single passive baseline summary for the current client state
+
 ## Implemented workflow
 
 ### Phase A — revalidate the incumbent first
@@ -226,6 +247,13 @@ Build the current navigation-facing contract from the latest sample and history:
 C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd
 ```
 
+Build a passive no-movement baseline from the latest snapshot plus the existing
+owner/source artifacts:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.cmd
+```
+
 ## Offline-tested code support
 
 The shared math / integrity / failure classifier now lives in:
@@ -252,6 +280,22 @@ Those tests cover:
 - integrity instability
 - insufficient movement
 - locomotion mismatch
+
+## Passive no-movement phase
+
+Before sending any turn or movement stimulus, prefer this sequence:
+
+1. load `--readerbridge-snapshot`
+2. capture or reuse a passive ReaderBridge boundary snapshot
+3. run `analyze-actor-facing-passive`
+4. confirm whether the selected-source candidate still aligns with the current
+   snapshot and whether addon expansion is needed
+
+During this phase:
+
+- do **not** use movement-triggered trace refresh helpers
+- do **not** expand the addon just to synthesize facing from coords
+- treat addon data as **coord/freshness truth**, not actor-facing truth
 
 ## Live checklist for tonight
 

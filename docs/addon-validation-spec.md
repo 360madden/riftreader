@@ -120,6 +120,13 @@ Extended schema with additional telemetry:
 | `distance` | number | 3D distance to player (target only) |
 | `ttd` / `ttdText` | number/string | Time-to-death estimate (target only) |
 
+### Facing note
+
+`ReaderBridgeExport` currently does **not** export actor-facing fields such as
+heading, pitch, or yaw. For actor-facing discovery, the addon should be treated
+as a **coordinate/freshness corroboration source only** unless a verified Rift
+API-facing signal is later identified.
+
 This is intentionally narrow. The reader should later grow its own typed models and only use addon data as a comparison surface.
 
 ## Capture Rules

@@ -1,3 +1,5 @@
+using RiftReader.Reader.Facing;
+
 namespace RiftReader.Reader.Navigation;
 
 public static class NavigationMath
@@ -19,7 +21,8 @@ public static class NavigationMath
         WaypointDefinition destinationWaypoint,
         NavigationPoseSample currentSample,
         string anchorSource,
-        double arrivalRadius)
+        double arrivalRadius,
+        NavigationFacingSummary? facing = null)
     {
         var deltaX = destinationWaypoint.X - currentSample.X;
         var deltaY = destinationWaypoint.Y - currentSample.Y;
@@ -46,6 +49,34 @@ public static class NavigationMath
             WorldBearingRadians: bearingRadians,
             WorldBearingDegrees: bearingDegrees,
             ArrivalRadius: arrivalRadius,
-            WithinArrivalRadius: planarDistance <= arrivalRadius);
+            WithinArrivalRadius: planarDistance <= arrivalRadius,
+            Facing: facing);
+    }
+
+    public static NavigationFacingSummary BuildFacingSummary(
+        NavigationFacingSample sample,
+        double targetDeltaX,
+        double targetDeltaZ)
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+
+        var signedTurnErrorRadians = ComputePlanarDistance(targetDeltaX, targetDeltaZ) <= double.Epsilon
+            ? 0d
+            : ActorFacingMath.ComputeSignedTurnErrorRadians(
+                sample.YawRadians,
+                targetDeltaX,
+                targetDeltaZ);
+
+        return new NavigationFacingSummary(
+            SourceName: sample.SourceName,
+            SourceAddressHex: sample.SourceAddressHex,
+            BasisForwardOffset: sample.BasisForwardOffset,
+            ActorYawRadians: sample.YawRadians,
+            ActorYawDegrees: sample.YawDegrees,
+            SignedTurnErrorRadians: signedTurnErrorRadians,
+            SignedTurnErrorDegrees: ActorFacingMath.DegreesFromRadians(signedTurnErrorRadians),
+            CoordValidated: sample.CoordValidated,
+            IntegrityPass: sample.IntegrityPass,
+            IntegrityNotes: sample.IntegrityNotes);
     }
 }
