@@ -1,12 +1,12 @@
 ﻿window.DASHBOARD_DATA = {
     "meta":  {
-                 "generatedAt":  "2026-04-18T01:04:05.5683563-04:00",
+                 "generatedAt":  "2026-04-19T10:28:39.0247416-04:00",
                  "repoPath":  "C:/RIFT MODDING/RiftReader",
                  "currentBranch":  "scanner-with-debug",
                  "worktrees":  [
                                    {
                                        "path":  "C:/RIFT MODDING/RiftReader",
-                                       "head":  "8c44093dcda950b20e68a413d21927d116f6dc68",
+                                       "head":  "52ae24f8885e697999eda024311e3049bb10de72",
                                        "branch":  "scanner-with-debug",
                                        "isCurrent":  true
                                    },
@@ -121,7 +121,7 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/docs/recovery/current-truth.md",
                                              "note":  "Parsed for the truth rows shown in the branch overview.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-17T11:15:59.8283407-04:00"
+                                             "updatedAt":  "2026-04-19T01:32:02.3056817-04:00"
                                          },
                                          {
                                              "label":  "Branch workboard",
@@ -163,7 +163,7 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/scripts/captures/readerbridge-orientation-probe.json",
                                              "note":  "Feeds the latest addon-probe summary.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-17T03:14:01.0629784-04:00"
+                                             "updatedAt":  "2026-04-18T08:30:10.7650558-04:00"
                                          }
                                      ],
                          "candidates":  {
@@ -488,12 +488,12 @@
                                                          },
                                             "probe":  {
                                                           "label":  "Latest addon probe",
-                                                          "at":  "2026-04-17T07:14:00.9992576+00:00",
+                                                          "at":  "2026-04-18T12:30:10.6117731+00:00",
                                                           "summary":  "PlayerSignal=False; directHeadingApiAvailable=False; detailCandidates=0; stateCandidates=0."
                                                       }
                                         },
                          "docs":  {
-                                      "truthUpdatedAt":  "2026-04-17T11:15:59.8283407-04:00",
+                                      "truthUpdatedAt":  "2026-04-19T01:32:02.3056817-04:00",
                                       "workboardUpdatedAt":  null,
                                       "handoffUpdatedAt":  null
                                   },
@@ -582,7 +582,7 @@
                                              "path":  "C:/RIFT MODDING/RiftReader/tools/dashboard/dashboard-data.js",
                                              "note":  "Generated snapshot consumed directly by the browser.",
                                              "present":  true,
-                                             "updatedAt":  "2026-04-18T01:03:23.9860933-04:00"
+                                             "updatedAt":  "2026-04-19T10:26:50.7577171-04:00"
                                          },
                                          {
                                              "label":  "Dashboard generator",
@@ -633,7 +633,7 @@
                                                            "richBranches":  3,
                                                            "worktrees":  5,
                                                            "sources":  8,
-                                                           "dirtyFiles":  3
+                                                           "dirtyFiles":  6
                                                        },
                                             "top":  [
                                                         {
@@ -660,9 +660,9 @@
                                                         {
                                                             "label":  "Current worktree state",
                                                             "classification":  "dirty",
-                                                            "reason":  "dirty=3; modified=3; added=0; deleted=0; renamed=0; untracked=0.",
+                                                            "reason":  "dirty=6; modified=6; added=0; deleted=0; renamed=0; untracked=0.",
                                                             "discoveryMode":  "git status",
-                                                            "searchScore":  3
+                                                            "searchScore":  6
                                                         }
                                                     ],
                                             "rows":  [
@@ -687,18 +687,18 @@
                          "latestRuns":  {
                                             "screen":  {
                                                            "label":  "Latest dashboard build",
-                                                           "at":  "2026-04-18T01:04:05.5683563-04:00",
+                                                           "at":  "2026-04-19T10:28:39.0247416-04:00",
                                                            "summary":  "Compiled 10 branches across 5 worktree(s) into dashboard-data.js."
                                                        },
                                             "recovery":  {
                                                              "label":  "Latest branch commit",
-                                                             "at":  "2026-04-18T01:03:06-04:00",
-                                                             "summary":  "Fix hub attach, monitor, and dashboard validation bugs (8c44093)"
+                                                             "at":  "2026-04-19T05:21:48-04:00",
+                                                             "summary":  "Add workflow HUD status publishing (52ae24f)"
                                                          },
                                             "probe":  {
                                                           "label":  "Working tree state",
-                                                          "at":  "2026-04-18T01:04:06.3730460-04:00",
-                                                          "summary":  "dirty=3; modified=3; added=0; deleted=0; renamed=0; untracked=0."
+                                                          "at":  "2026-04-19T10:28:39.9814507-04:00",
+                                                          "summary":  "dirty=6; modified=6; added=0; deleted=0; renamed=0; untracked=0."
                                                       }
                                         },
                          "docs":  {
@@ -741,7 +741,7 @@
                                           "Dashboard branch workboard doc is missing.",
                                           "Dashboard branch handoff doc is missing.",
                                           "Dashboard workboard Now section could not be parsed.",
-                                          "Current worktree has 3 pending change(s)."
+                                          "Current worktree has 6 pending change(s)."
                                       ]
                      },
                      {

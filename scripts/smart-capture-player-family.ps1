@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
+    [string]$ProcessName = "rift_x64",
     [string]$MovementKey = "w",
     [string[]]$FallbackMovementKeys = @("d", "a", "s"),
     [int]$MovementHoldMilliseconds = 500,
     [int]$MaxScanHits = 12,
     [int]$ScanContextBytes = 192,
+    [int]$ReaderFallbackMaxHits = 1,
+    [int]$ReaderFallbackScanContextBytes = 64,
+    [int]$ReaderFallbackTimeoutSeconds = 45,
     [int]$MaxCeAddresses = 256,
     [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\ce-smart-player-family.json'),
     [int]$CoordScale = 1000,
@@ -120,7 +124,7 @@ function Start-CeExactFloatScan {
         [double]$Value
     )
 
-    return Invoke-CeNumeric -Code "return RiftReaderFloatScan.startExactFloat('rift_x64', ${Value})"
+    return Invoke-CeNumeric -Code "return RiftReaderFloatScan.startExactFloat('$ProcessName', ${Value})"
 }
 
 function Next-CeExactFloatScan {
@@ -202,7 +206,7 @@ function Get-CeScaledFloatAt {
 
 function Get-PlayerSignatureScan {
     return Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+        '--process-name', $ProcessName,
         '--scan-readerbridge-player-signature',
         '--scan-context', $ScanContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--max-hits', $MaxScanHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
@@ -286,16 +290,57 @@ function Convert-HexBytesToByteArray {
 function Invoke-ReaderFloatScan {
     param(
         [Parameter(Mandatory = $true)]
-        [double]$Value
+        [double]$Value,
+
+        [int]$ContextBytes = $ScanContextBytes,
+
+        [int]$MaxHits = $MaxScanHits,
+
+        [int]$TimeoutSeconds = 0
     )
 
-    return Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+    $arguments = @(
+        '--process-name', $ProcessName,
         '--scan-float', (Format-Float $Value),
-        '--scan-context', $ScanContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
-        '--max-hits', $MaxScanHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '--scan-context', $ContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '--max-hits', $MaxHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--json'
     )
+
+    if ($TimeoutSeconds -le 0) {
+        return Invoke-ReaderJson -Arguments $arguments
+    }
+
+    $job = Start-Job -ScriptBlock {
+        param(
+            [string]$ProjectPath,
+            [string[]]$ReaderArguments
+        )
+
+        $output = & dotnet run --project $ProjectPath -- @ReaderArguments 2>&1
+        $exitCode = $LASTEXITCODE
+        [pscustomobject]@{
+            ExitCode = $exitCode
+            Output = ($output -join [Environment]::NewLine)
+        }
+    } -ArgumentList $readerProject, $arguments
+
+    try {
+        if (-not (Wait-Job -Job $job -Timeout $TimeoutSeconds)) {
+            throw "Reader float scan timed out after $TimeoutSeconds seconds."
+        }
+
+        $result = Receive-Job -Job $job
+        if ($result.ExitCode -ne 0) {
+            throw "Reader command failed (`$LASTEXITCODE=$($result.ExitCode)): $($result.Output)"
+        }
+
+        return ($result.Output | ConvertFrom-Json)
+    }
+    finally {
+        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
+    }
 }
 
 function Get-ReaderTripletConfirmedBaseAddresses {
@@ -315,7 +360,11 @@ function Get-ReaderTripletConfirmedBaseAddresses {
 
     $axisOffset = [UInt64](Get-AxisBaseOffset -Axis $Axis)
     $scanValue = Get-CoordValue -Coord ([pscustomobject]@{ X = $ExpectedX; Y = $ExpectedY; Z = $ExpectedZ }) -Axis $Axis
-    $scan = Invoke-ReaderFloatScan -Value $scanValue
+    $scan = Invoke-ReaderFloatScan `
+        -Value $scanValue `
+        -ContextBytes $ReaderFallbackScanContextBytes `
+        -MaxHits $ReaderFallbackMaxHits `
+        -TimeoutSeconds $ReaderFallbackTimeoutSeconds
 
     $expectedXScaled = [int][Math]::Round($ExpectedX * $CoordScale, [MidpointRounding]::AwayFromZero)
     $expectedYScaled = [int][Math]::Round($ExpectedY * $CoordScale, [MidpointRounding]::AwayFromZero)
@@ -784,7 +833,7 @@ $attemptArray = $attemptResults.ToArray()
 $result = [ordered]@{
     Mode = 'ce-smart-player-family'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
-    ProcessName = 'rift_x64'
+    ProcessName = $ProcessName
     MovementKey = $MovementKey
     FallbackMovementKeys = @($FallbackMovementKeys)
     MovementKeySequence = @($movementKeySequence)

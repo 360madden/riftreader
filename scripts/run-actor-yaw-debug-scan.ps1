@@ -631,6 +631,165 @@ function Get-CoordAnchorAssessment {
     }
 }
 
+function Get-TraceRefreshDiagnosticSummary {
+    param(
+        [object]$Diagnostics
+    )
+
+    if ($null -eq $Diagnostics) {
+        return $null
+    }
+
+    $parts = New-Object System.Collections.Generic.List[string]
+
+    $attemptSummary = Get-PropertyValue -InputObject $Diagnostics -PropertyName 'AttemptSummary'
+    if ($null -ne $attemptSummary) {
+        $attemptStage = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'Stage')
+        $attemptError = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'Error')
+        $trace = Get-PropertyValue -InputObject $attemptSummary -PropertyName 'Trace'
+        $traceStatus = [string](Get-PropertyValue -InputObject $trace -PropertyName 'Status')
+
+        if (-not [string]::IsNullOrWhiteSpace($attemptStage)) {
+            $parts.Add(("stage={0}" -f $attemptStage)) | Out-Null
+        }
+        if (-not [string]::IsNullOrWhiteSpace($traceStatus)) {
+            $parts.Add(("trace={0}" -f $traceStatus)) | Out-Null
+        }
+        if (-not [string]::IsNullOrWhiteSpace($attemptError)) {
+            $parts.Add(("attempt-error={0}" -f $attemptError)) | Out-Null
+        }
+    }
+
+    $lastStatus = Get-PropertyValue -InputObject $Diagnostics -PropertyName 'LastStatus'
+    if ($null -ne $lastStatus) {
+        $lastStatusValue = [string](Get-PropertyValue -InputObject $lastStatus -PropertyName 'Status')
+        $lastStatusError = [string](Get-PropertyValue -InputObject $lastStatus -PropertyName 'Error')
+        if (-not [string]::IsNullOrWhiteSpace($lastStatusValue)) {
+            $parts.Add(("status-file={0}" -f $lastStatusValue)) | Out-Null
+        }
+        if (-not [string]::IsNullOrWhiteSpace($lastStatusError)) {
+            $parts.Add(("status-error={0}" -f $lastStatusError)) | Out-Null
+        }
+    }
+
+    $stderrSummary = [string](Get-PropertyValue -InputObject $Diagnostics -PropertyName 'StdErrSummary')
+    $stdoutSummary = [string](Get-PropertyValue -InputObject $Diagnostics -PropertyName 'StdOutSummary')
+    if (-not [string]::IsNullOrWhiteSpace($stderrSummary)) {
+        $parts.Add(("stderr={0}" -f $stderrSummary)) | Out-Null
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($stdoutSummary)) {
+        $parts.Add(("stdout={0}" -f $stdoutSummary)) | Out-Null
+    }
+
+    if ($parts.Count -le 0) {
+        return $null
+    }
+
+    return ($parts -join '; ')
+}
+
+function Get-CoordAnchorRefreshAssessment {
+    param(
+        [object]$TraceRefreshTrigger,
+        [object]$CoordAnchorBeforeRefresh,
+        [object]$CoordAnchorAfterRefresh
+    )
+
+    $attempted = ([bool](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'Attempted'))
+    $timedOut = ([bool](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'TimedOut'))
+    $artifactUpdated = ([bool](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'ArtifactUpdated'))
+    $traceRefreshReason = [string](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'Reason')
+    $attemptOutputFile = [string](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'AttemptOutputFile')
+    $statusFile = [string](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'StatusFile')
+    $diagnostics = Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'Diagnostics'
+    $diagnosticsSummary = Get-TraceRefreshDiagnosticSummary -Diagnostics $diagnostics
+    $refreshError = [string](Get-PropertyValue -InputObject $TraceRefreshTrigger -PropertyName 'Error')
+    $afterMatchesProcess = ($null -ne $CoordAnchorAfterRefresh -and $CoordAnchorAfterRefresh.TraceMatchesProcess -eq $true)
+    $beforeMatchesProcess = ($null -ne $CoordAnchorBeforeRefresh -and $CoordAnchorBeforeRefresh.TraceMatchesProcess -eq $true)
+    $refreshCallSucceeded = ($traceRefreshReason -eq 'trace-artifact-updated' -or ($afterMatchesProcess -and $traceRefreshReason -eq 'anchor-already-matches-process'))
+    $state = 'refreshed-still-stale'
+    $reason = 'Coord-trace refresh ran, but the coord anchor still did not match the current process.'
+
+    if ($afterMatchesProcess) {
+        $state = 'refreshed-match'
+        $reason = 'Coord-trace refresh updated the anchor so it now matches the current process.'
+    }
+    else {
+        switch ($traceRefreshReason) {
+            'trace-refresh-timeout' {
+                $state = 'refresh-timeout'
+                $reason = 'Coord-trace refresh timed out before the coord anchor could be revalidated against the current process.'
+            }
+            'trace-artifact-not-updated' {
+                $state = 'refresh-artifact-stale'
+                $reason = 'Coord-trace refresh finished without updating the canonical coord-trace artifact, so the coord anchor remains stale.'
+            }
+            'trace-refresh-nonzero-exit' {
+                $state = 'refresh-nonzero-exit'
+                $reason = 'Coord-trace refresh helper exited nonzero before the coord anchor could be revalidated.'
+            }
+            'trace-refresh-exception' {
+                $state = 'refresh-exception'
+                $reason = 'Coord-trace refresh threw an exception before the coord anchor could be revalidated.'
+            }
+            'no-usable-anchor-artifact' {
+                $state = 'refresh-skipped-no-anchor-artifact'
+                $reason = 'Coord-trace refresh could not start because no usable coord-anchor artifact was available for the current process.'
+            }
+            'anchor-parse-failed' {
+                $state = 'refresh-anchor-parse-failed'
+                $reason = 'Coord-trace refresh could not parse the coord-anchor state before attempting revalidation.'
+            }
+            default {
+                if (-not [string]::IsNullOrWhiteSpace($refreshError)) {
+                    $reason = ("Coord-trace refresh left the coord anchor stale. {0}" -f $refreshError)
+                }
+            }
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($diagnosticsSummary)) {
+        $reason = ("{0} Diagnostics: {1}" -f $reason, $diagnosticsSummary)
+    }
+
+    return [pscustomobject]@{
+        Attempted = $attempted
+        RefreshCallSucceeded = $refreshCallSucceeded
+        Succeeded = $afterMatchesProcess
+        BeforeTraceMatchesProcess = $beforeMatchesProcess
+        AfterTraceMatchesProcess = $afterMatchesProcess
+        TimedOut = $timedOut
+        TraceArtifactUpdated = $artifactUpdated
+        TraceRefreshReason = $traceRefreshReason
+        AttemptOutputFile = $attemptOutputFile
+        StatusFile = $statusFile
+        DiagnosticsSummary = $diagnosticsSummary
+        Diagnostics = $diagnostics
+        TraceRefreshInvocation = $TraceRefreshTrigger
+        AssessmentState = $state
+        AssessmentReason = $reason
+        Error = $refreshError
+    }
+}
+
+function Resolve-CoordTraceRefreshStimulusMode {
+    param(
+        [string]$ProofStimulusMode,
+        [switch]$SkipStimulus
+    )
+
+    if ($SkipStimulus) {
+        return $null
+    }
+
+    switch ($ProofStimulusMode) {
+        'SendInput' { return 'SendInput' }
+        'PostMessage' { return 'PostMessage' }
+        'AutoHotkey' { return 'AutoHotkey' }
+        default { return $null }
+    }
+}
+
 function Get-PromotionAssessment {
     param(
         [object[]]$DegradedStates,
@@ -702,6 +861,82 @@ function Get-PromotionAssessment {
         else {
             'Keep actor orientation stale or provisional in repo truth docs until a promotion-ready workflow summary exists.'
         }
+    }
+}
+
+function Get-TruthFindingAssessment {
+    param(
+        [object]$SelectedCandidate,
+        [object]$CandidateProofSummary,
+        [object]$Promotion,
+        [string]$WorkflowStatus,
+        [object]$CoordAnchorSummary
+    )
+
+    $truthLikeSelected = ($null -ne $SelectedCandidate -and
+        [string]$SelectedCandidate.SelectionSource -eq 'candidate-proof-truth-like' -and
+        [bool]$SelectedCandidate.TruthLike)
+    $proofSucceeded = ($null -ne $CandidateProofSummary -and [bool]$CandidateProofSummary.Succeeded)
+    $promotionReady = ($null -ne $Promotion -and [bool]$Promotion.PromotionReady)
+    $coordAnchorCurrent = ($null -ne $CoordAnchorSummary -and $CoordAnchorSummary.TraceMatchesProcess -eq $true)
+    $state = 'truth-not-found'
+    $reason = 'No truth-like actor-yaw source was proven in this workflow run.'
+    $evidenceLevel = 'none'
+
+    if (-not $truthLikeSelected) {
+        return [pscustomobject]@{
+            TruthFound = $false
+            ProofSucceeded = $proofSucceeded
+            DebugConfirmed = ($WorkflowStatus -eq 'success')
+            PromotionReady = $promotionReady
+            State = $state
+            EvidenceLevel = $evidenceLevel
+            SelectedCandidateSource = if ($null -eq $SelectedCandidate) { $null } else { [string]$SelectedCandidate.SelectionSource }
+            Reason = $reason
+            PromotionBlockedBy = if ($null -eq $Promotion) { @() } else { @($Promotion.BlockingReasons) }
+        }
+    }
+
+    $state = 'truth-found'
+    $reason = 'A truth-like actor-yaw source was selected from the proof run.'
+    $evidenceLevel = 'truth-like-proof'
+
+    switch ($WorkflowStatus) {
+        'success' {
+            $state = if ($promotionReady) { 'promotion-ready' } else { 'truth-found-promotion-blocked' }
+            $reason = if ($promotionReady) {
+                'A truth-like actor-yaw source was confirmed and the run is safe to promote into repo truth.'
+            }
+            elseif (-not $coordAnchorCurrent) {
+                'A truth-like actor-yaw source was confirmed, but repo promotion is blocked because coord-anchor truth did not verify against the current process.'
+            }
+            else {
+                'A truth-like actor-yaw source was confirmed, but repo promotion is still blocked by the workflow gate.'
+            }
+            $evidenceLevel = 'truth-like-proof+debug-confirmed'
+        }
+        'debug-blocked' {
+            $state = 'truth-found-debug-blocked'
+            $reason = 'A truth-like actor-yaw source was found, but native debug confirmation was skipped because the target process was already under a debugger relationship.'
+            $evidenceLevel = 'truth-like-proof'
+        }
+        'trace-failed' {
+            $state = 'truth-found-trace-failed'
+            $reason = 'A truth-like actor-yaw source was found, but native debug confirmation failed before the workflow could finish cleanly.'
+            $evidenceLevel = 'truth-like-proof'
+        }
+    }
+
+    return [pscustomobject]@{
+        TruthFound = $true
+        ProofSucceeded = $proofSucceeded
+        DebugConfirmed = ($WorkflowStatus -eq 'success')
+        PromotionReady = $promotionReady
+        State = $state
+        EvidenceLevel = $evidenceLevel
+        SelectedCandidateSource = [string]$SelectedCandidate.SelectionSource
+        Reason = $reason
+        PromotionBlockedBy = if ($null -eq $Promotion) { @() } else { @($Promotion.BlockingReasons) }
     }
 }
 
@@ -943,6 +1178,8 @@ function Write-TerminalSummary {
 
     $rows = @(
         [pscustomobject]@{ Field = 'Status'; Value = [string]$Document.Status }
+        [pscustomobject]@{ Field = 'Truth'; Value = if ($null -eq $Document.TruthFinding) { 'n/a' } else { [string]$Document.TruthFinding.State } }
+        [pscustomobject]@{ Field = 'Truth found'; Value = if ($null -eq $Document.TruthFinding) { 'False' } else { [string][bool]$Document.TruthFinding.TruthFound } }
         [pscustomobject]@{ Field = 'Promotion'; Value = if ($null -eq $Document.Promotion) { 'n/a' } else { [string]$Document.Promotion.State } }
         [pscustomobject]@{ Field = 'Promotion ready'; Value = if ($null -eq $Document.Promotion) { 'False' } else { [string][bool]$Document.Promotion.PromotionReady } }
         [pscustomobject]@{ Field = 'Process'; Value = [string]$Document.ProcessName }
@@ -963,6 +1200,11 @@ function Write-TerminalSummary {
             [pscustomobject]@{ Field = 'Basis forward offset'; Value = [string]$Document.SelectedCandidate.BasisForwardOffset }
             [pscustomobject]@{ Field = 'Discovery mode'; Value = [string]$Document.SelectedCandidate.DiscoveryMode }
         ) | Format-Table -AutoSize
+    }
+
+    if ($null -ne $Document.TruthFinding -and -not [string]::IsNullOrWhiteSpace([string]$Document.TruthFinding.Reason)) {
+        Write-Host ''
+        Write-Host ("Truth summary: {0}" -f [string]$Document.TruthFinding.Reason)
     }
 
     if ($null -ne $Document.Promotion -and @($Document.Promotion.BlockingReasons).Count -gt 0) {
@@ -1019,6 +1261,14 @@ function Get-FinalWorkflowHudState {
         [System.Collections.IDictionary]$Summary
     )
 
+    $truthFinding = Get-PropertyValue -InputObject $Summary -PropertyName 'TruthFinding'
+    if ([string]$Summary.Status -eq 'success' -and
+        $null -ne $truthFinding -and
+        [bool](Get-PropertyValue -InputObject $truthFinding -PropertyName 'TruthFound') -and
+        -not [bool](Get-PropertyValue -InputObject $truthFinding -PropertyName 'PromotionReady')) {
+        return 'blocked'
+    }
+
     switch ([string]$Summary.Status) {
         'success' { return 'idle' }
         'debug-blocked' { return 'blocked' }
@@ -1045,10 +1295,15 @@ function Get-FinalWorkflowHudAction {
         [System.Collections.Generic.List[string]]$Notes
     )
 
+    $truthFinding = Get-PropertyValue -InputObject $Summary -PropertyName 'TruthFinding'
     switch ([string]$Summary.Status) {
         'success' {
             if ($null -ne $Summary.Promotion -and [bool](Get-PropertyValue -InputObject $Summary.Promotion -PropertyName 'PromotionReady')) {
                 return 'promotion ready'
+            }
+
+            if ($null -ne $truthFinding -and [bool](Get-PropertyValue -InputObject $truthFinding -PropertyName 'TruthFound')) {
+                return 'truth found; promotion blocked'
             }
 
             return 'debug confirmed'
@@ -1113,6 +1368,7 @@ $summary = [ordered]@{
     DebugTraceSummary = $null
     EvidenceStages = @()
     DegradedStates = @()
+    TruthFinding = $null
     Promotion = $null
     Notes = @()
 }
@@ -1283,33 +1539,29 @@ try {
         try {
             Write-WorkflowHudStatus -State 'waiting' -Action 'coord refresh'
             $coordAnchorBeforeRefresh = $summary.CoordAnchorSummary
-            $traceRefreshTrigger = Invoke-RepoPowerShellScriptJson -ScriptPath $readPlayerCurrentScript -Arguments @(
-                    '-Json',
-                    '-SkipRefresh',
-                    '-RefreshTraceAnchor',
-                    '-TraceRefreshOnly',
-                    '-RecoveryAttempts', '0',
-                    '-TraceRefreshTimeoutSeconds', '20',
-                    '-ProcessName', $ProcessName
-                ) -Label 'refresh-player-coord-anchor'
+            $coordTraceRefreshStimulusMode = Resolve-CoordTraceRefreshStimulusMode -ProofStimulusMode $StimulusMode -SkipStimulus:$SkipStimulus
+            $traceRefreshArguments = @(
+                '-Json',
+                '-SkipRefresh',
+                '-RefreshTraceAnchor',
+                '-TraceRefreshOnly',
+                '-RecoveryAttempts', '0',
+                '-TraceRefreshTimeoutSeconds', '75',
+                '-ProcessName', $ProcessName
+            )
+            if (-not [string]::IsNullOrWhiteSpace($coordTraceRefreshStimulusMode)) {
+                $traceRefreshArguments += @('-TraceRefreshStimulusMode', $coordTraceRefreshStimulusMode)
+            }
+
+            $traceRefreshTrigger = Invoke-RepoPowerShellScriptJson -ScriptPath $readPlayerCurrentScript -Arguments $traceRefreshArguments -Label 'refresh-player-coord-anchor'
 
             $refreshedCoordAnchor = Invoke-ReaderJson -Arguments @('--process-name', $ProcessName, '--read-player-coord-anchor', '--json') -Label 'read-player-coord-anchor-refresh'
             $summary.CoordAnchorSummary = Get-CoordAnchorSummary -CoordAnchor $refreshedCoordAnchor
             $coordAnchorAssessment = Get-CoordAnchorAssessment -CoordAnchorSummary $summary.CoordAnchorSummary
-            $traceRefreshReason = [string](Get-PropertyValue -InputObject $traceRefreshTrigger -PropertyName 'Reason')
-            $traceRefreshTimedOut = [bool](Get-PropertyValue -InputObject $traceRefreshTrigger -PropertyName 'TimedOut')
-            $traceArtifactUpdated = [bool](Get-PropertyValue -InputObject $traceRefreshTrigger -PropertyName 'ArtifactUpdated')
-            $summary.CoordAnchorRefresh = [pscustomobject]@{
-                Attempted = $true
-                RefreshCallSucceeded = (-not $traceRefreshTimedOut -and $traceRefreshReason -notin @('trace-refresh-exception', 'trace-refresh-nonzero-exit'))
-                Succeeded = ($summary.CoordAnchorSummary.TraceMatchesProcess -eq $true)
-                BeforeTraceMatchesProcess = ($coordAnchorBeforeRefresh.TraceMatchesProcess -eq $true)
-                AfterTraceMatchesProcess = ($summary.CoordAnchorSummary.TraceMatchesProcess -eq $true)
-                TraceArtifactUpdated = $traceArtifactUpdated
-                TraceRefreshReason = $traceRefreshReason
-                TraceRefreshInvocation = $traceRefreshTrigger
-                Error = $null
-            }
+            $summary.CoordAnchorRefresh = Get-CoordAnchorRefreshAssessment `
+                -TraceRefreshTrigger $traceRefreshTrigger `
+                -CoordAnchorBeforeRefresh $coordAnchorBeforeRefresh `
+                -CoordAnchorAfterRefresh $summary.CoordAnchorSummary
 
             Remove-StageRecords -Records $evidenceStages -Stage 'coord-anchor'
             Remove-StageRecords -Records $degradedStates -Stage 'coord-anchor'
@@ -1319,13 +1571,8 @@ try {
             }
 
             $evidenceStages.Add((New-EvidenceStageRecord -Stage 'coord-anchor' -State $coordAnchorAssessment.State -Reason $coordAnchorAssessment.Reason -Blocking $coordAnchorAssessment.Blocking -Details $summary.CoordAnchorSummary)) | Out-Null
-            $refreshState = if ($summary.CoordAnchorSummary.TraceMatchesProcess -eq $true) { 'refreshed-match' } else { 'refreshed-still-stale' }
-            $refreshReason = if ($summary.CoordAnchorSummary.TraceMatchesProcess -eq $true) {
-                'Coord-trace refresh updated the anchor so it now matches the current process.'
-            }
-            else {
-                'Coord-trace refresh ran, but the coord anchor still did not match the current process.'
-            }
+            $refreshState = [string](Get-PropertyValue -InputObject $summary.CoordAnchorRefresh -PropertyName 'AssessmentState')
+            $refreshReason = [string](Get-PropertyValue -InputObject $summary.CoordAnchorRefresh -PropertyName 'AssessmentReason')
             $evidenceStages.Add((New-EvidenceStageRecord -Stage 'coord-anchor-refresh' -State $refreshState -Reason $refreshReason -Blocking ($summary.CoordAnchorSummary.TraceMatchesProcess -ne $true) -Details $summary.CoordAnchorRefresh)) | Out-Null
             $notes.Add($refreshReason) | Out-Null
         }
@@ -1455,6 +1702,12 @@ finally {
         -DegradedStates @($summary.DegradedStates) `
         -SelectedCandidate $summary.SelectedCandidate `
         -CandidateProofSummary $summary.CandidateProofSummary `
+        -CoordAnchorSummary $summary.CoordAnchorSummary
+    $summary.TruthFinding = Get-TruthFindingAssessment `
+        -SelectedCandidate $summary.SelectedCandidate `
+        -CandidateProofSummary $summary.CandidateProofSummary `
+        -Promotion $summary.Promotion `
+        -WorkflowStatus ([string]$summary.Status) `
         -CoordAnchorSummary $summary.CoordAnchorSummary
     Write-WorkflowSummaryFile -Document $summary -NoteList $notes -Path $summaryFile
     Write-WorkflowHudStatus -State (Get-FinalWorkflowHudState -Summary $summary) -Action (Get-FinalWorkflowHudAction -Summary $summary -Notes $notes) -StaleAfterSeconds 60

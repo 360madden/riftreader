@@ -1,0 +1,8 @@
+{
+  "state": "blocked",
+  "action": "coord trace timeout",
+  "updatedAtUtc": "2026-04-19T15:14:42.5279316+00:00",
+  "staleAfterSeconds": 90,
+  "lastMessage": "coord trace timeout",
+  "lastMessageAtUtc": "2026-04-19T15:14:42.5279316+00:00"
+}

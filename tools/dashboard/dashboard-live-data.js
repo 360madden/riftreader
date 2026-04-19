@@ -1,33 +1,33 @@
 ﻿window.DASHBOARD_LIVE_DATA = {
     "meta":  {
-                 "generatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                 "generatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                  "staleAfterSeconds":  10,
                  "status":  "active",
                  "sources":  {
                                  "repo":  {
                                               "status":  "active",
-                                              "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                                              "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                                               "usingPrevious":  false,
                                               "fallback":  "",
                                               "error":  ""
                                           },
                                  "snapshot":  {
                                                   "status":  "active",
-                                                  "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                                                  "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                                                   "usingPrevious":  false,
                                                   "fallback":  "",
                                                   "error":  ""
                                               },
                                  "player":  {
                                                 "status":  "active",
-                                                "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                                                "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                                                 "usingPrevious":  false,
                                                 "fallback":  "",
                                                 "error":  ""
                                             },
                                  "target":  {
                                                 "status":  "active",
-                                                "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                                                "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                                                 "usingPrevious":  false,
                                                 "fallback":  "",
                                                 "error":  ""
@@ -37,55 +37,44 @@
     "repo":  {
                  "repoPath":  "C:/RIFT MODDING/RiftReader",
                  "currentBranch":  "scanner-with-debug",
-                 "changedFileCount":  17,
+                 "changedFileCount":  6,
                  "dirty":  true,
                  "dirtyCounts":  {
-                                     "modified":  9,
+                                     "modified":  6,
                                      "added":  0,
                                      "deleted":  0,
                                      "renamed":  0,
-                                     "untracked":  8
+                                     "untracked":  0
                                  },
                  "changes":  [
-                                 " M README.md",
-                                 " M docs/analysis/2026-04-17-debug-trace-progress-and-live-attach-status.md",
-                                 " M reader/RiftReader.Reader/Debugging/DebugTraceWorker.cs",
-                                 " M scripts/build-dashboard-summary.ps1",
-                                 " M scripts/captures/player-signature-captures.tsv",
-                                 " M scripts/open-x64dbg.ps1",
+                                 " M scripts/read-player-current.ps1",
+                                 " M scripts/run-actor-yaw-debug-scan.ps1",
+                                 " M scripts/smart-capture-player-family.ps1",
+                                 " M scripts/trace-player-coord-write.ps1",
                                  " M tools/dashboard/dashboard-data.js",
-                                 " M tools/dashboard/dashboard-live-data.js",
-                                 " M tools/reverse-engineering/README.md",
-                                 "?? artifacts/",
-                                 "?? docs/recovery/focused-postmessage-discovery-prompt.json",
-                                 "?? scripts/inspect-rift-debug-state.cmd",
-                                 "?? scripts/inspect-rift-debug-state.ps1",
-                                 "?? scripts/open-rift-in-x64dbg.cmd",
-                                 "?? scripts/open-rift-in-x64dbg.ps1",
-                                 "?? tools/reverse-engineering/game_debug_scanner_hub.py",
-                                 "?? tools/reverse-engineering/test-game-debug-scanner-hub.ps1"
+                                 " M tools/dashboard/dashboard-live-data.js"
                              ],
-                 "updatedAt":  "2026-04-18T00:42:47.3479952-04:00"
+                 "updatedAt":  "2026-04-19T10:28:41.2824015-04:00"
              },
     "snapshot":  {
                      "available":  true,
-                     "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                     "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                      "sourceFile":  "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
-                     "loadedAt":  "2026-04-18T04:42:53.7813517+00:00",
-                     "exportCount":  923,
+                     "loadedAt":  "2026-04-19T14:28:47.4426175+00:00",
+                     "exportCount":  1121,
                      "lastReason":  "save-begin",
                      "status":  "ready",
                      "exportReason":  "save-begin",
                      "sourceMode":  "DirectAPI",
                      "sourceAddon":  "RiftAPI",
                      "sourceVersion":  null,
-                     "generatedAtReal":  9524.935546875,
+                     "generatedAtReal":  46385.9921875,
                      "playerName":  "Atank",
                      "targetName":  null
                  },
     "player":  {
                    "available":  true,
-                   "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                   "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                    "sourceMode":  "memory+snapshot",
                    "sourceFile":  "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
                    "name":  "Atank",
@@ -98,11 +87,11 @@
                                  "matches":  true
                              },
                    "health":  {
-                                  "current":  18148,
-                                  "max":  18148,
+                                  "current":  18208,
+                                  "max":  18208,
                                   "percent":  100,
-                                  "memory":  18148,
-                                  "expected":  18148,
+                                  "memory":  18208,
+                                  "expected":  18208,
                                   "matches":  true
                               },
                    "resource":  {
@@ -112,15 +101,15 @@
                                     "percent":  100
                                 },
                    "coords":  {
-                                  "x":  7419.4897460938,
-                                  "y":  863.58996582031,
-                                  "z":  2945.4099121094,
-                                  "memoryX":  7419.4897,
-                                  "memoryY":  863.58997,
-                                  "memoryZ":  2945.41,
-                                  "expectedX":  7419.4897460938,
-                                  "expectedY":  863.58996582031,
-                                  "expectedZ":  2945.4099121094
+                                  "x":  7413.25,
+                                  "y":  863.59997558594,
+                                  "z":  2926.8598632812,
+                                  "memoryX":  7413.25,
+                                  "memoryY":  863.6,
+                                  "memoryZ":  2926.8599,
+                                  "expectedX":  7413.25,
+                                  "expectedY":  863.59997558594,
+                                  "expectedZ":  2926.8598632812
                               },
                    "memoryMatch":  {
                                        "LevelMatches":  true,
@@ -131,26 +120,26 @@
                                        "DeltaZ":  0
                                    },
                    "anchor":  {
-                                  "address":  "0x15D85EF4720",
+                                  "address":  "0x1B0D23D15C0",
                                   "familyId":  "fam-6F81F26E",
-                                  "familyNotes":  "location/cache blob",
+                                  "familyNotes":  "asset/cache text",
                                   "signature":  "level@-144|health[1]@-136|health[2]@-128|health[3]@-120|coords@0",
-                                  "selectionSource":  "ce-guided-family",
+                                  "selectionSource":  "cached-anchor",
                                   "anchorProvenance":  "ce-guided-family",
                                   "anchorCacheFile":  "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\player-current-anchor.json",
-                                  "anchorCacheUsed":  false,
-                                  "anchorCacheUpdated":  true,
+                                  "anchorCacheUsed":  true,
+                                  "anchorCacheUpdated":  false,
                                   "confirmationFile":  "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\ce-smart-player-family.json"
                               },
                    "process":  {
-                                   "processId":  10828,
+                                   "processId":  19140,
                                    "processName":  "rift_x64"
                                }
                },
     "target":  {
                    "available":  true,
                    "hasTarget":  true,
-                   "updatedAt":  "2026-04-18T00:42:47.3479952-04:00",
+                   "updatedAt":  "2026-04-19T10:28:41.2824015-04:00",
                    "sourceMode":  "memory+snapshot",
                    "sourceFile":  null,
                    "name":  null,
@@ -208,7 +197,7 @@
                                   "confirmationFile":  null
                               },
                    "process":  {
-                                   "processId":  10828,
+                                   "processId":  19140,
                                    "processName":  "rift_x64"
                                }
                },
