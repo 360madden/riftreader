@@ -10,6 +10,10 @@ After the April 14, 2026 game update:
 - the source-chain / selector-owner / owner-components refresh path drifted
 - actor-orientation and camera notes below the recovery layer should be treated
   as historical until rebuilt
+- the repo-native rebuild gate for actor yaw is now
+  `C:\RIFT MODDING\RiftReader\scripts\run-actor-yaw-debug-scan.ps1`; only a
+  run whose `actor-yaw-debug-workflow.json` reports
+  `Promotion.PromotionReady = true` should be promoted into current truth
 
 Start with:
 

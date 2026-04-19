@@ -4,7 +4,8 @@
 keyText := A_Args.Length >= 1 ? A_Args[1] : ""
 holdMilliseconds := A_Args.Length >= 2 ? Integer(A_Args[2]) : 250
 targetExe := A_Args.Length >= 3 ? A_Args[3] : "rift_x64.exe"
-noRefocus := A_Args.Length >= 4 ? (A_Args[4] = "1") : false
+activationSettleMilliseconds := A_Args.Length >= 4 ? Integer(A_Args[4]) : 500
+noRefocus := A_Args.Length >= 5 ? (A_Args[5] = "1") : false
 
 NormalizeKey(keyValue) {
     trimmed := Trim(keyValue)
@@ -65,7 +66,7 @@ try {
     ExitApp(4)
 }
 
-Sleep(150)
+Sleep(Max(activationSettleMilliseconds, 0))
 SendHeldKey(keyName, holdMilliseconds)
 
 if (!noRefocus && previousHwnd && previousHwnd != targetHwnd) {

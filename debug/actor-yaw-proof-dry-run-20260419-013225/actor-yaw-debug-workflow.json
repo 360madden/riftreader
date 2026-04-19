@@ -1,0 +1,72 @@
+{
+  "Mode": "actor-yaw-debug-workflow",
+  "GeneratedAtUtc": "2026-04-19T05:32:25.8723376+00:00",
+  "Status": "preflight-failed",
+  "ProcessName": "__rift_missing__",
+  "OutputDirectory": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225",
+  "ArtifactFiles": {
+    "SummaryFile": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225\\actor-yaw-debug-workflow.json",
+    "CandidateSearchFile": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225\\player-orientation-candidate-search.json",
+    "CandidateTestFile": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225\\actor-yaw-candidate-test.json",
+    "DebugTraceDirectory": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225\\debug-trace"
+  },
+  "SelectionPolicy": [
+    "candidate-proof-truth-like",
+    "candidate-search-best-pointer-hop",
+    "candidate-search-best-local"
+  ],
+  "DebugState": {
+    "ProcessDetected": false,
+    "AlreadyDebugged": false,
+    "AttachHelpers": [],
+    "AttachHelperCommandLines": [],
+    "RawOutput": "[RiftDebug] No running process matched '__rift_missing__'."
+  },
+  "PlayerCurrentSummary": null,
+  "CoordAnchorSummary": null,
+  "CandidateSearchSummary": null,
+  "CandidateProofSummary": null,
+  "CandidateSearchFile": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225\\player-orientation-candidate-search.json",
+  "CandidateTestFile": "C:\\RIFT MODDING\\RiftReader\\debug\\actor-yaw-proof-dry-run-20260419-013225\\actor-yaw-candidate-test.json",
+  "SelectedCandidate": null,
+  "WatchComponent": "X",
+  "WatchedAddress": null,
+  "DebugMode": "memory-access",
+  "DebugTraceDirectory": null,
+  "DebugTraceSummary": null,
+  "EvidenceStages": [
+    {
+      "Stage": "debug-preflight",
+      "State": "process-missing",
+      "Blocking": true,
+      "Reason": "Target process '__rift_missing__' was not detected.",
+      "Details": null
+    }
+  ],
+  "DegradedStates": [
+    {
+      "Stage": "debug-preflight",
+      "State": "process-missing",
+      "Blocking": true,
+      "Reason": "Target process '__rift_missing__' was not detected.",
+      "Details": null
+    }
+  ],
+  "Promotion": {
+    "PromotionReady": false,
+    "State": "no-candidate",
+    "SelectedCandidateSource": null,
+    "BlockingReasons": [
+      "Target process '__rift_missing__' was not detected.",
+      "No selected candidate was available for truth promotion.",
+      "Turn-based candidate proof did not complete successfully.",
+      "Coord-anchor truth did not verify against the current process.",
+      "Coord-anchor module pattern was not verified for the current run."
+    ],
+    "Guidance": "Keep actor orientation stale or provisional in repo truth docs until a promotion-ready workflow summary exists."
+  },
+  "Notes": [
+    "Target process '__rift_missing__' was not detected during debug preflight.",
+    "Target process '__rift_missing__' was not detected."
+  ]
+}

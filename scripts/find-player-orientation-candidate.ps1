@@ -4,13 +4,14 @@ param(
     [string]$ProcessName = 'rift_x64',
     [int]$MaxHits = 8,
     [string]$OrientationCandidateLedgerFile,
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-orientation-candidate-search.json')
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-orientation-candidate-search.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 

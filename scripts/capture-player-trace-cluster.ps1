@@ -4,18 +4,19 @@ param(
     [switch]$RefreshTrace,
     [int]$InstructionsBefore = 8,
     [int]$InstructionsAfter = 16,
-    [string]$TraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json')
+    [string]$TraceFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-coord-write-trace.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-coord-trace-cluster.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$traceScript = Join-Path $PSScriptRoot 'trace-player-coord-write.ps1'
-$ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
-$clusterLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderDisasmCluster.lua'
+$traceScript = Join-Path $scriptRoot 'trace-player-coord-write.ps1'
+$ceExecScript = Join-Path $scriptRoot 'cheatengine-exec.ps1'
+$clusterLuaFile = Join-Path $scriptRoot 'cheat-engine\RiftReaderDisasmCluster.lua'
 $resolvedTraceFile = [System.IO.Path]::GetFullPath($TraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $rawClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.tsv')
@@ -32,7 +33,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+    return ($output -join [Environment]::NewLine) | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
 function Parse-HexUInt64 {

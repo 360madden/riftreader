@@ -1,0 +1,521 @@
+﻿{
+    "Mode":  "player-orientation-candidate-search",
+    "ProcessId":  19140,
+    "ProcessName":  "rift_x64",
+    "PlayerName":  "Atank",
+    "PlayerCoord":  {
+                        "X":  7419.8896484375,
+                        "Y":  863.58996582031,
+                        "Z":  2967.4699707031
+                    },
+    "CandidateCount":  0,
+    "Candidates":  [
+
+                   ],
+    "PointerHopCandidateCount":  8,
+    "BestPointerHopCandidate":  {
+                                    "Address":  "0x1B122E25470",
+                                    "ParentAddress":  "0x1B122E25470",
+                                    "ParentFamilyId":  "fam-CEC3708F",
+                                    "ParentScore":  161,
+                                    "DiscoveryMode":  "second-hop-pointer-hop",
+                                    "BasisPrimaryForwardOffset":  "0xA0",
+                                    "Score":  311,
+                                    "Basis":  {
+                                                  "Name":  "Basis@0xA0",
+                                                  "Forward":  {
+                                                                  "X":  0.987747848033905,
+                                                                  "Y":  -0.15600140392780304,
+                                                                  "Z":  1.285504549741745E-05
+                                                              },
+                                                  "Up":  {
+                                                             "X":  0.15429072082042694,
+                                                             "Y":  0.9769364595413208,
+                                                             "Z":  0.1474994570016861
+                                                         },
+                                                  "Right":  {
+                                                                "X":  -0.02303936332464218,
+                                                                "Y":  -0.1456889659166336,
+                                                                "Z":  0.9890541434288025
+                                                            },
+                                                  "Determinant":  0.9999664987507646,
+                                                  "IsOrthonormal":  true,
+                                                  "ForwardDotUp":  -1.2356624960602192E-06,
+                                                  "ForwardDotRight":  -1.668398818871486E-05,
+                                                  "UpDotRight":  1.3265695811837119E-06
+                                              },
+                                    "PreferredEstimate":  {
+                                                              "Name":  "Basis@0xA0",
+                                                              "Vector":  {
+                                                                             "X":  0.987747848033905,
+                                                                             "Y":  -0.15600140392780304,
+                                                                             "Z":  1.285504549741745E-05
+                                                                         },
+                                                              "YawRadians":  1.3014501142451904E-05,
+                                                              "YawDegrees":  0.0007456759879306823,
+                                                              "PitchRadians":  -0.1566425903477516,
+                                                              "PitchDegrees":  -8.974959318922853,
+                                                              "Magnitude":  0.9999911247047686
+                                                          },
+                                    "RootAddress":  "0x1B0EA8A0500",
+                                    "RootSource":  "player-signature-family",
+                                    "HopDepth":  2,
+                                    "PointerOffset":  "0x1F8",
+                                    "RawScore":  311,
+                                    "LedgerPenalty":  0,
+                                    "LedgerStableNonresponsiveCount":  0,
+                                    "LedgerResponsiveCount":  0
+                                },
+    "PointerHopCandidates":  [
+                                 {
+                                     "Address":  "0x1B122E25470",
+                                     "ParentAddress":  "0x1B122E25470",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  161,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xA0",
+                                     "Score":  311,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xA0",
+                                                   "Forward":  {
+                                                                   "X":  0.987747848033905,
+                                                                   "Y":  -0.15600140392780304,
+                                                                   "Z":  1.285504549741745E-05
+                                                               },
+                                                   "Up":  {
+                                                              "X":  0.15429072082042694,
+                                                              "Y":  0.9769364595413208,
+                                                              "Z":  0.1474994570016861
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  -0.02303936332464218,
+                                                                 "Y":  -0.1456889659166336,
+                                                                 "Z":  0.9890541434288025
+                                                             },
+                                                   "Determinant":  0.9999664987507646,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  -1.2356624960602192E-06,
+                                                   "ForwardDotRight":  -1.668398818871486E-05,
+                                                   "UpDotRight":  1.3265695811837119E-06
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xA0",
+                                                               "Vector":  {
+                                                                              "X":  0.987747848033905,
+                                                                              "Y":  -0.15600140392780304,
+                                                                              "Z":  1.285504549741745E-05
+                                                                          },
+                                                               "YawRadians":  1.3014501142451904E-05,
+                                                               "YawDegrees":  0.0007456759879306823,
+                                                               "PitchRadians":  -0.1566425903477516,
+                                                               "PitchDegrees":  -8.974959318922853,
+                                                               "Magnitude":  0.9999911247047686
+                                                           },
+                                     "RootAddress":  "0x1B0EA8A0500",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0x1F8",
+                                     "RawScore":  311,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B12B336270",
+                                     "ParentAddress":  "0x1B122E25470",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  161,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xB0",
+                                     "Score":  311,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xB0",
+                                                   "Forward":  {
+                                                                   "X":  0.9409104585647583,
+                                                                   "Y":  0.3385390043258667,
+                                                                   "Z":  -0.008879799395799637
+                                                               },
+                                                   "Up":  {
+                                                              "X":  -0.33786243200302124,
+                                                              "Y":  0.9401777386665344,
+                                                              "Z":  0.04375790059566498
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  0.023162346333265305,
+                                                                 "Y":  -0.03817211836576462,
+                                                                 "Z":  0.9990026950836182
+                                                             },
+                                                   "Determinant":  0.9999999730619906,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  -2.1669524563616704E-08,
+                                                   "ForwardDotRight":  -5.6289239935836122E-10,
+                                                   "UpDotRight":  -1.9620187696745006E-09
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xB0",
+                                                               "Vector":  {
+                                                                              "X":  0.9409104585647583,
+                                                                              "Y":  0.3385390043258667,
+                                                                              "Z":  -0.008879799395799637
+                                                                          },
+                                                               "YawRadians":  -0.009437174070082361,
+                                                               "YawDegrees":  -0.5407102447460167,
+                                                               "PitchRadians":  0.3453637854728756,
+                                                               "PitchDegrees":  19.787887304257346,
+                                                               "Magnitude":  0.9999999996619012
+                                                           },
+                                     "RootAddress":  "0x1B0EA8A0500",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0x158",
+                                     "RawScore":  311,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B12B15B800",
+                                     "ParentAddress":  "0x1B122E25470",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  161,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xA0",
+                                     "Score":  311,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xA0",
+                                                   "Forward":  {
+                                                                   "X":  0.9524402022361755,
+                                                                   "Y":  0.00754112284630537,
+                                                                   "Z":  -0.304632306098938
+                                                               },
+                                                   "Up":  {
+                                                              "X":  -0.00787304900586605,
+                                                              "Y":  0.9999690055847168,
+                                                              "Z":  0.0001387925585731864
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  0.30462390184402466,
+                                                                 "Y":  0.002266193274408579,
+                                                                 "Z":  0.9524700045585632
+                                                             },
+                                                   "Determinant":  1.00000001618658,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  2.90622664822493E-11,
+                                                   "ForwardDotRight":  6.3414304363185181E-09,
+                                                   "UpDotRight":  -1.2360611839623559E-10
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xA0",
+                                                               "Vector":  {
+                                                                              "X":  0.9524402022361755,
+                                                                              "Y":  0.00754112284630537,
+                                                                              "Z":  -0.304632306098938
+                                                                          },
+                                                               "YawRadians":  -0.3095614497083514,
+                                                               "YawDegrees":  -17.736564568239825,
+                                                               "PitchRadians":  0.0075411941377167,
+                                                               "PitchDegrees":  0.432078596579965,
+                                                               "Magnitude":  1.0000000246443133
+                                                           },
+                                     "RootAddress":  "0x1B0EA8A0500",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0x88",
+                                     "RawScore":  311,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B12BFBF630",
+                                     "ParentAddress":  "0x1B122E25470",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  161,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xB0",
+                                     "Score":  311,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xB0",
+                                                   "Forward":  {
+                                                                   "X":  -0.9893643856048584,
+                                                                   "Y":  0,
+                                                                   "Z":  -0.14545810222625732
+                                                               },
+                                                   "Up":  {
+                                                              "X":  -0.14545810222625732,
+                                                              "Y":  4.3246490832871132E-08,
+                                                              "Z":  0.9893643856048584
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  0,
+                                                                 "Y":  1,
+                                                                 "Z":  -4.3711388286737929E-08
+                                                             },
+                                                   "Determinant":  0.9999999470065452,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  0,
+                                                   "ForwardDotRight":  6.3581755858639527E-09,
+                                                   "UpDotRight":  1.6627256754601916E-17
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xB0",
+                                                               "Vector":  {
+                                                                              "X":  -0.9893643856048584,
+                                                                              "Y":  0,
+                                                                              "Z":  -0.14545810222625732
+                                                                          },
+                                                               "YawRadians":  -2.9956166661442225,
+                                                               "YawDegrees":  -171.63619200911413,
+                                                               "PitchRadians":  0,
+                                                               "PitchDegrees":  0,
+                                                               "Magnitude":  0.9999999735032713
+                                                           },
+                                     "RootAddress":  "0x1B0EA8A0500",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0x150",
+                                     "RawScore":  311,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B1218C78E0",
+                                     "ParentAddress":  "0x1B0EA8DFEA0",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  1,
+                                     "DiscoveryMode":  "pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xF0",
+                                     "Score":  161,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xF0",
+                                                   "Forward":  {
+                                                                   "X":  -0.6846433877944946,
+                                                                   "Y":  -0.7190805077552795,
+                                                                   "Z":  0.11910781264305115
+                                                               },
+                                                   "Up":  {
+                                                              "X":  0.7247278094291687,
+                                                              "Y":  -0.6890082359313965,
+                                                              "Z":  0.0061094313859939575
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  0.07767309248447418,
+                                                                 "Y":  0.0905035212635994,
+                                                                 "Z":  0.9928625226020813
+                                                             },
+                                                   "Determinant":  1.0000000368275304,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  -2.9526472378194057E-08,
+                                                   "ForwardDotRight":  -3.8805194613189542E-09,
+                                                   "UpDotRight":  4.0940122403299029E-09
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xF0",
+                                                               "Vector":  {
+                                                                              "X":  -0.6846433877944946,
+                                                                              "Y":  -0.7190805077552795,
+                                                                              "Z":  0.11910781264305115
+                                                                          },
+                                                               "YawRadians":  2.9693459846126165,
+                                                               "YawDegrees":  170.1309928324208,
+                                                               "PitchRadians":  -0.802478253347297,
+                                                               "PitchDegrees":  -45.97861706783015,
+                                                               "Magnitude":  1.0000000080584628
+                                                           },
+                                     "RootAddress":  "0x1B0EA8DFEA0",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  1,
+                                     "PointerOffset":  "0xB8",
+                                     "RawScore":  161,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B124429B60",
+                                     "ParentAddress":  "0x1B11171B330",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  1,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xB0",
+                                     "Score":  151,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xB0",
+                                                   "Forward":  {
+                                                                   "X":  0.9975287318229675,
+                                                                   "Y":  -0.07023422420024872,
+                                                                   "Z":  -2.9404473025351763E-05
+                                                               },
+                                                   "Up":  {
+                                                              "X":  0.07023422420024872,
+                                                              "Y":  0.9975287318229675,
+                                                              "Z":  -5.2258544713801314E-17
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  2.7755575615628914E-17,
+                                                                 "Y":  1.2359904766334751E-17,
+                                                                 "Z":  1
+                                                             },
+                                                   "Determinant":  0.9999964170613487,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  1.5366349683811097E-21,
+                                                   "ForwardDotRight":  -2.9404473025324942E-05,
+                                                   "UpDotRight":  -3.7979793266191721E-17
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xB0",
+                                                               "Vector":  {
+                                                                              "X":  0.9975287318229675,
+                                                                              "Y":  -0.07023422420024872,
+                                                                              "Z":  -2.9404473025351763E-05
+                                                                          },
+                                                               "YawRadians":  -2.9477319378158593E-05,
+                                                               "YawDegrees":  -0.0016889259917276837,
+                                                               "PitchRadians":  -0.07029222129550129,
+                                                               "PitchDegrees":  -4.027447612831832,
+                                                               "Magnitude":  0.9999982089613819
+                                                           },
+                                     "RootAddress":  "0x1B0EA8DFEA0",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0x100",
+                                     "RawScore":  151,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B111716170",
+                                     "ParentAddress":  "0x1B11542E390",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  1,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xA0",
+                                     "Score":  151,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xA0",
+                                                   "Forward":  {
+                                                                   "X":  0.9930852055549622,
+                                                                   "Y":  -0.08783017843961716,
+                                                                   "Z":  0.07784131914377213
+                                                               },
+                                                   "Up":  {
+                                                              "X":  0.11704962700605392,
+                                                              "Y":  0.7895834445953369,
+                                                              "Z":  -0.6021649837493896
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  -0.008532002568244934,
+                                                                 "Y":  0.6071153879165649,
+                                                                 "Z":  0.7944111824035645
+                                                             },
+                                                   "Determinant":  0.9997439757787603,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  1.7681386422108147E-05,
+                                                   "ForwardDotRight":  4.1956002426957184E-05,
+                                                   "UpDotRight":  2.9947973919641768E-06
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xA0",
+                                                               "Vector":  {
+                                                                              "X":  0.9930852055549622,
+                                                                              "Y":  -0.08783017843961716,
+                                                                              "Z":  0.07784131914377213
+                                                                          },
+                                                               "YawRadians":  0.07822338527297336,
+                                                               "YawDegrees":  4.481869835367172,
+                                                               "PitchRadians":  -0.08794386333147683,
+                                                               "PitchDegrees":  -5.038812202968942,
+                                                               "Magnitude":  0.9999958183427163
+                                                           },
+                                     "RootAddress":  "0x1B115373AE0",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0x98",
+                                     "RawScore":  151,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 },
+                                 {
+                                     "Address":  "0x1B12FE77180",
+                                     "ParentAddress":  "0x1B1292269A0",
+                                     "ParentFamilyId":  "fam-CEC3708F",
+                                     "ParentScore":  1,
+                                     "DiscoveryMode":  "second-hop-pointer-hop",
+                                     "BasisPrimaryForwardOffset":  "0xD4",
+                                     "Score":  151,
+                                     "Basis":  {
+                                                   "Name":  "Basis@0xD4",
+                                                   "Forward":  {
+                                                                   "X":  0.9895197153091431,
+                                                                   "Y":  0.08646024763584137,
+                                                                   "Z":  0.11565089225769043
+                                                               },
+                                                   "Up":  {
+                                                              "X":  0.1443970501422882,
+                                                              "Y":  -0.5924923419952393,
+                                                              "Z":  -0.7925289273262024
+                                                          },
+                                                   "Right":  {
+                                                                 "X":  0,
+                                                                 "Y":  0.8009228110313416,
+                                                                 "Z":  -0.5987675786018372
+                                                             },
+                                                   "Determinant":  0.9999997583817091,
+                                                   "IsOrthonormal":  true,
+                                                   "ForwardDotUp":  1.5751723481116642E-08,
+                                                   "ForwardDotRight":  -2.0141315282273808E-08,
+                                                   "UpDotRight":  -5.2783484250085166E-09
+                                               },
+                                     "PreferredEstimate":  {
+                                                               "Name":  "Basis@0xD4",
+                                                               "Vector":  {
+                                                                              "X":  0.9895197153091431,
+                                                                              "Y":  0.08646024763584137,
+                                                                              "Z":  0.11565089225769043
+                                                                          },
+                                                               "YawRadians":  0.1163479308950901,
+                                                               "YawDegrees":  6.6662453953684215,
+                                                               "PitchRadians":  0.08656834204109573,
+                                                               "PitchDegrees":  4.960000638399715,
+                                                               "Magnitude":  0.9999998851433627
+                                                           },
+                                     "RootAddress":  "0x1B11178D1E0",
+                                     "RootSource":  "player-signature-family",
+                                     "HopDepth":  2,
+                                     "PointerOffset":  "0xE8",
+                                     "RawScore":  151,
+                                     "LedgerPenalty":  0,
+                                     "LedgerStableNonresponsiveCount":  0,
+                                     "LedgerResponsiveCount":  0
+                                 }
+                             ],
+    "Diagnostics":  {
+                        "CoordHitCount":  8,
+                        "LocalWindowProbeCount":  168,
+                        "LocalWindowReadFailures":  0,
+                        "LocalCoordMismatchCount":  21,
+                        "SeedProbeCount":  0,
+                        "SeedProbeReadFailures":  0,
+                        "SeedCoordMatchCount":  0,
+                        "PointerRootCount":  14,
+                        "PointerRootReadFailures":  0,
+                        "PointerSlotCount":  4860,
+                        "UniqueChildPointerCount":  1346,
+                        "ChildReadFailures":  151,
+                        "SecondHopRootCount":  69,
+                        "RejectedNonOrthonormalBasisCount":  106012,
+                        "RejectedLowComponentDiversityCount":  174,
+                        "RejectedLowHorizontalMagnitudeCount":  0
+                    },
+    "Notes":  [
+                  "Read-only single-process search over live player coord hits.",
+                  "Candidates scored by coord agreement, transform-like basis quality, and basis-duplicate agreement.",
+                  "The search now performs a bounded local sweep around coord hits instead of relying only on the original fixed offsets.",
+                  "When local coord-window candidates fail, the finder also follows first-hop and second-hop readable pointers from grouped player-signature family roots and explicit live probe seeds.",
+                  "Pointer-hop diagnostics: roots=14, children=1346, secondHopRoots=69, childReadFailures=151.",
+                  "Rejected pointer-hop bases: nonOrthonormal=106012, lowComponentDiversity=174, lowHorizontalMagnitude=0."
+              ]
+}

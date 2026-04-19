@@ -6,16 +6,17 @@ param(
     [switch]$ForceDebuggerTrace,
     [switch]$NoFallback,
     [int]$MaxEntries = 16,
-    [string]$SelectorTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json')
+    [string]$SelectorTraceFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-selector-owner-trace.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$selectorTraceScript = Join-Path $PSScriptRoot 'trace-player-selector-owner.ps1'
+$selectorTraceScript = Join-Path $scriptRoot 'trace-player-selector-owner.ps1'
 $resolvedSelectorTraceFile = [System.IO.Path]::GetFullPath($SelectorTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
@@ -31,7 +32,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+    return ($output -join [Environment]::NewLine) | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
 function Parse-HexUInt64 {
@@ -182,6 +183,9 @@ if ($RefreshSelectorTrace -or -not (Test-Path -LiteralPath $resolvedSelectorTrac
     $selectorTraceArguments = @{
         Json = $true
     }
+    if ($RefreshSelectorTrace) {
+        $selectorTraceArguments['RefreshSourceChain'] = $true
+    }
     if ($ForceDebuggerTrace) {
         $selectorTraceArguments['ForceDebuggerTrace'] = $true
     }
@@ -196,7 +200,7 @@ if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
     throw "Selector trace file not found: $resolvedSelectorTraceFile"
 }
 
-$selectorTrace = Get-Content -LiteralPath $resolvedSelectorTraceFile -Raw | ConvertFrom-Json -Depth 30
+$selectorTrace = Get-Content -LiteralPath $resolvedSelectorTraceFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
 $selectorTraceRecoveryMode = if ($selectorTrace.PSObject.Properties['RecoveryMode']) { [string]$selectorTrace.RecoveryMode } else { $null }
 if (-not $ForceLiveRead -and -not [string]::IsNullOrWhiteSpace($selectorTraceRecoveryMode) -and $selectorTraceRecoveryMode -eq 'cached-fallback') {
     if (Test-Path -LiteralPath $resolvedOutputFile) {
@@ -208,7 +212,21 @@ if (-not $ForceLiveRead -and -not [string]::IsNullOrWhiteSpace($selectorTraceRec
         return
     }
 
-    throw "Selector-owner trace is in cached fallback mode and no cached owner-components artifact was available."
+    $liveSelectorTraceArguments = @{
+        Json = $true
+        ForceDebuggerTrace = $true
+        RefreshSourceChain = $true
+    }
+    if ($NoFallback) {
+        $liveSelectorTraceArguments['NoFallback'] = $true
+    }
+
+    & $selectorTraceScript @liveSelectorTraceArguments | Out-Null
+    $selectorTrace = Get-Content -LiteralPath $resolvedSelectorTraceFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
+    $selectorTraceRecoveryMode = if ($selectorTrace.PSObject.Properties['RecoveryMode']) { [string]$selectorTrace.RecoveryMode } else { $null }
+    if (-not [string]::IsNullOrWhiteSpace($selectorTraceRecoveryMode) -and $selectorTraceRecoveryMode -eq 'cached-fallback') {
+        throw "Selector-owner trace remained in cached fallback mode and no cached owner-components artifact was available."
+    }
 }
 
 $ownerAddress = Parse-HexUInt64 -Value ([string]$selectorTrace.Owner.ObjectAddress)

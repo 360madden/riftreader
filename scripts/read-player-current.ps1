@@ -6,6 +6,7 @@ param(
     [switch]$RefreshTraceAnchor,
     [switch]$RequireSmartCapture,
     [switch]$NoAhkFallback,
+    [string]$ProcessName = 'rift_x64',
     [int]$RecoveryAttempts = 2,
     [string]$RecoveryKey = 'w',
     [int]$RecoveryHoldMilliseconds = 1000,
@@ -50,7 +51,7 @@ function Write-ReaderCommand {
 
 function Try-RefreshTraceAnchor {
     $anchorProbeArguments = @(
-        '--process-name', 'rift_x64',
+        '--process-name', $ProcessName,
         '--read-player-coord-anchor',
         '--json'
     )
@@ -138,7 +139,7 @@ if ($RefreshAnchor) {
 }
 
 $readerArguments = @(
-    '--process-name', 'rift_x64',
+    '--process-name', $ProcessName,
     '--read-player-current',
     '--scan-context', $ScanContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
     '--max-hits', $MaxHits.ToString([System.Globalization.CultureInfo]::InvariantCulture)

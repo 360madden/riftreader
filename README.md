@@ -499,6 +499,7 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review
 - `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1` - append a normalized NDJSON marker record to a watched marker-input file during a live session recording
 - `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using the best available fast path. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read, or `-RefreshTraceAnchor` to refresh a stale saved coord trace before the read.
+- `C:\RIFT MODDING\RiftReader\scripts\run-actor-yaw-debug-scan.ps1` / `C:\RIFT MODDING\RiftReader\scripts\run-actor-yaw-debug-scan.cmd` - repo-native x64 actor-yaw workflow wrapper; replaces the old Cheat Engine-style “find position -> narrow candidate -> confirm with accesses/writes” loop with coord-truth capture, live orientation-candidate search/proof, and an optional bounded debug watchpoint trace that ends in repo-owned JSON/debug-trace artifacts instead of a `.ct` pointer table. The workflow summary at `captures\actor-yaw-debug\<timestamp>\actor-yaw-debug-workflow.json` is now the canonical truth-promotion gate: only runs with `Promotion.PromotionReady = true` should be used to update repo truth. This workflow now permanently skips the startup ReaderBridge `/reloadui` refresh so it does not trigger disruptive in-client UI state before proof begins, and foreground SendInput/AutoHotkey proof modes now wait briefly after activation before sending the held key.
 - `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.cmd` - **historical/pre-update until rebuilt** actor yaw/pitch helper; older workflow reads the selected source object, derives yaw/pitch from the forward row of the source basis matrix, and stores actor-orientation captures
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.cmd` - **historical/pre-update until rebuilt** actor-orientation before/after stimulus harness
 - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` / `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.cmd` - **historical/pre-update until rebuilt** key-profile harness for actor yaw tests
@@ -518,6 +519,18 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd` - launch the repo-local x64dbg x64 build staged under `C:\RIFT MODDING\RiftReader\tools\reverse-engineering\x64dbg`
 - `C:\RIFT MODDING\RiftReader\scripts\inspect-rift-debug-state.ps1` / `C:\RIFT MODDING\RiftReader\scripts\inspect-rift-debug-state.cmd` - check whether the live `rift_x64.exe` client is already owned by `rifterrorhandler_x64.exe` or another debugger before attempting a live attach
 - `C:\RIFT MODDING\RiftReader\scripts\open-rift-in-x64dbg.ps1` / `C:\RIFT MODDING\RiftReader\scripts\open-rift-in-x64dbg.cmd` - capture the current/live Glyph Rift command line (or reuse the last saved one) and launch a **fresh** Rift client directly under x64dbg instead of attaching to the already-debugged live client
+
+Repo-native x64 actor-yaw workflow example:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\run-actor-yaw-debug-scan.cmd -Json
+```
+
+Use the emitted `actor-yaw-debug-workflow.json` summary to review:
+
+- the selected candidate and deterministic selection path
+- degraded states such as cached fallback, skipped stimulus, or debug-blocked confirmation
+- whether the run is promotion-ready for `docs\recovery\current-truth.md`
 
 Reverse-engineering tool staging:
 

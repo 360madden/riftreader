@@ -7,18 +7,19 @@ param(
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
-    [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.json'),
-    [string]$PreviousFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.previous.json')
+    [string]$OwnerComponentsFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.json'),
+    [string]$PreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.previous.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$ownerComponentScript = Join-Path $PSScriptRoot 'capture-player-owner-components.ps1'
-$refreshReaderBridgeScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
+$ownerComponentScript = Join-Path $scriptRoot 'capture-player-owner-components.ps1'
+$refreshReaderBridgeScript = Join-Path $scriptRoot 'refresh-readerbridge-export.ps1'
 $coordTolerance = 0.75
 
 function Invoke-ReaderJson {
@@ -33,7 +34,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
+    return ($output -join [Environment]::NewLine) | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
 function Normalize-AngleRadians {
@@ -657,7 +658,7 @@ $previousCapture = $null
 if (Test-Path -LiteralPath $resolvedOutputFile) {
     $previousJson = Get-Content -LiteralPath $resolvedOutputFile -Raw
     if (-not [string]::IsNullOrWhiteSpace($previousJson)) {
-        $previousCapture = $previousJson | ConvertFrom-Json -Depth 30
+        $previousCapture = $previousJson | Microsoft.PowerShell.Utility\ConvertFrom-Json
     }
 
     $previousDirectory = Split-Path -Path $resolvedPreviousFile -Parent

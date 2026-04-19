@@ -48,6 +48,9 @@ Still working as a module-local pattern:
 - `player-selector-owner-trace.json` is stale until regenerated
 - `player-owner-components.json` is stale until regenerated
 - `player-actor-orientation.json` is stale until regenerated
+- actor yaw remains stale on `main` until
+  `C:\RIFT MODDING\RiftReader\scripts\run-actor-yaw-debug-scan.ps1` produces a
+  fresh `actor-yaw-debug-workflow.json` with `Promotion.PromotionReady = true`
 
 ## Canonical scripts on `main`
 

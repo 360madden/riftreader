@@ -8,22 +8,23 @@ param(
     [int]$MaxArmAttempts = 2,
     [int]$MovementHoldMilliseconds = 750,
     [string[]]$MovementKeys = @('w', 'd', 'a', 's'),
-    [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
-    [string]$CoordTraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
-    [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.status.txt'),
-    [string]$FallbackTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.synthetic.json')
+    [string]$SourceChainFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-source-chain.json'),
+    [string]$CoordTraceFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-coord-write-trace.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-selector-owner-trace.json'),
+    [string]$StatusFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-selector-owner-trace.status.txt'),
+    [string]$FallbackTraceFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-selector-owner-trace.synthetic.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$sourceChainScript = Join-Path $PSScriptRoot 'capture-player-source-chain.ps1'
-$selectorLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderSelectorTrace.lua'
-$ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$sourceChainScript = Join-Path $scriptRoot 'capture-player-source-chain.ps1'
+$selectorLuaFile = Join-Path $scriptRoot 'cheat-engine\RiftReaderSelectorTrace.lua'
+$ceExecScript = Join-Path $scriptRoot 'cheatengine-exec.ps1'
+$postKeyScript = Join-Path $scriptRoot 'post-rift-key.ps1'
 $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedCoordTraceFile = [System.IO.Path]::GetFullPath($CoordTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
@@ -42,7 +43,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+    return ($output -join [Environment]::NewLine) | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
 function Read-KeyValueFile {
@@ -150,7 +151,7 @@ function ConvertTo-LuaLiteral {
         return $Value.ToString().ToLowerInvariant()
     }
 
-    if ($Value -is [byte] -or $Value -is [sbyte] -or $Value -is [short] -or $Value -is [ushort] -or
+    if ($Value -is [byte] -or $Value -is [sbyte] -or $Value -is [int16] -or $Value -is [uint16] -or
         $Value -is [int] -or $Value -is [uint32] -or $Value -is [long] -or $Value -is [uint64]) {
         return ([System.Convert]::ToString($Value, [System.Globalization.CultureInfo]::InvariantCulture))
     }
@@ -289,7 +290,7 @@ function Get-FallbackTraceResult {
         Sort-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc } -Descending |
         Select-Object -First 1
 
-    $fallbackTrace = Get-Content -LiteralPath $fallbackSourceFile -Raw | ConvertFrom-Json -Depth 30
+    $fallbackTrace = Get-Content -LiteralPath $fallbackSourceFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
     $fallbackTraceHash = [ordered]@{} 
     foreach ($property in $fallbackTrace.PSObject.Properties) {
         $fallbackTraceHash[$property.Name] = $property.Value
@@ -329,14 +330,14 @@ if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
     throw "Player source-chain file not found: $resolvedSourceChainFile"
 }
 
-$sourceChain = Get-Content -LiteralPath $resolvedSourceChainFile -Raw | ConvertFrom-Json -Depth 30
-$traceConfiguration = $sourceChain.TraceConfiguration
-$triggerInstruction = if ($sourceChain.TriggerInstruction) { $sourceChain.TriggerInstruction } else { $sourceChain.SourceChain.SourceObjectLoad }
+$sourceChain = Get-Content -LiteralPath $resolvedSourceChainFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
+$traceConfiguration = if ($sourceChain.PSObject.Properties['TraceConfiguration']) { $sourceChain.TraceConfiguration } else { $null }
+$triggerInstruction = if ($sourceChain.PSObject.Properties['TriggerInstruction'] -and $sourceChain.TriggerInstruction) { $sourceChain.TriggerInstruction } else { $sourceChain.SourceChain.SourceObjectLoad }
 if ($null -eq $triggerInstruction -or [string]::IsNullOrWhiteSpace([string]$triggerInstruction.Address)) {
     throw 'Source-chain file did not contain a valid trigger instruction.'
 }
 
-$selectorPattern = [string]$sourceChain.SuggestedSelectorPattern
+$selectorPattern = if ($sourceChain.PSObject.Properties['SuggestedSelectorPattern']) { [string]$sourceChain.SuggestedSelectorPattern } else { $null }
 $selectorPatternScan = $null
 if (-not [string]::IsNullOrWhiteSpace($selectorPattern)) {
     try {
@@ -498,7 +499,7 @@ if ($status.status -ne 'hit') {
 
 $coordTrace = $null
 if (Test-Path -LiteralPath $resolvedCoordTraceFile) {
-    $coordTrace = Get-Content -LiteralPath $resolvedCoordTraceFile -Raw | ConvertFrom-Json -Depth 30
+    $coordTrace = Get-Content -LiteralPath $resolvedCoordTraceFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
 $selectedSourceAddress = [string]$status.selectedSourceAddress

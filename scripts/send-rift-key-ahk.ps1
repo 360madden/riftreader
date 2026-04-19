@@ -4,6 +4,7 @@ param(
     [string]$Key,
     [int]$HoldMilliseconds = 250,
     [string]$TargetExe = "rift_x64.exe",
+    [int]$ActivationSettleMilliseconds = 500,
     [switch]$NoRefocus
 )
 
@@ -50,6 +51,7 @@ Write-Host "[RiftAhkKey] Script     : $scriptPath"
 Write-Host "[RiftAhkKey] Target EXE : $TargetExe"
 Write-Host "[RiftAhkKey] Key        : $Key"
 Write-Host "[RiftAhkKey] Hold ms    : $HoldMilliseconds"
+Write-Host "[RiftAhkKey] Settle ms  : $ActivationSettleMilliseconds"
 Write-Host "[RiftAhkKey] NoRefocus  : $NoRefocus"
 
 $argumentList = @(
@@ -57,6 +59,7 @@ $argumentList = @(
     Quote-ProcessArgument -Value $Key
     Quote-ProcessArgument -Value ([string]$HoldMilliseconds)
     Quote-ProcessArgument -Value $TargetExe
+    Quote-ProcessArgument -Value ([string]$ActivationSettleMilliseconds)
     Quote-ProcessArgument -Value $(if ($NoRefocus) { "1" } else { "0" })
 ) -join ' '
 

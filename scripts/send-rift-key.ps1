@@ -7,6 +7,7 @@ param(
     [int]$HoldMilliseconds = 250,
     [string]$ProcessName = "rift_x64",
     [int]$FocusDelayMilliseconds = 200,
+    [int]$ActivationSettleMilliseconds = 500,
     [switch]$Alt,
     [switch]$Shift,
     [switch]$Ctrl,
@@ -198,7 +199,12 @@ Write-Host "[SendKey] Process:  $($riftProcess.ProcessName) [$($riftProcess.Id)]
 Write-Host "[SendKey] Window:   0x$($hwnd.ToString('X'))"
 Write-Host "[SendKey] Key:      $Key (VK=0x$($vk.ToString('X2')))"
 Write-Host "[SendKey] Hold:     ${HoldMilliseconds}ms"
+Write-Host "[SendKey] Settle:   ${ActivationSettleMilliseconds}ms"
 Write-Host "[SendKey] Mods:     Alt=$Alt Shift=$Shift Ctrl=$Ctrl"
+
+if ($ActivationSettleMilliseconds -gt 0) {
+    Start-Sleep -Milliseconds $ActivationSettleMilliseconds
+}
 
 # Press modifiers
 $modsDown = @()

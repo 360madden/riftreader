@@ -113,6 +113,7 @@ public static class PlayerOrientationCandidateFinder
                 normalizedProbeSeeds,
                 diagnostics,
                 ledger.EvidenceByCandidate,
+                ledger.EvidenceByFamily,
                 Math.Max(maxHits, 12))
             .Take(maxHits)
             .ToArray();
@@ -170,7 +171,9 @@ public static class PlayerOrientationCandidateFinder
         else if (ledger.Entries.Count > 0)
         {
             var penalizedCount = pointerHopCandidates.Count(static candidate => candidate.LedgerPenalty > 0);
-            notes.Add($"Orientation candidate ledger evidence loaded from '{ledger.FilePath}': entries={ledger.Entries.Count}, uniqueCandidates={ledger.EvidenceByCandidate.Count}, penalizedPointerHopCandidates={penalizedCount}.");
+            var familyPenalizedCount = pointerHopCandidates.Count(static candidate => candidate.LedgerFamilyPenalty > 0);
+            var familyBoostedCount = pointerHopCandidates.Count(static candidate => candidate.LedgerFamilyBonus > 0);
+            notes.Add($"Orientation candidate ledger evidence loaded from '{ledger.FilePath}': entries={ledger.Entries.Count}, uniqueCandidates={ledger.EvidenceByCandidate.Count}, uniqueFamilies={ledger.EvidenceByFamily.Count}, penalizedPointerHopCandidates={penalizedCount}, familyPenalizedPointerHopCandidates={familyPenalizedCount}, familyBoostedPointerHopCandidates={familyBoostedCount}.");
         }
 
         return notes;
@@ -629,6 +632,7 @@ public static class PlayerOrientationCandidateFinder
         IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
         OrientationProbeDiagnosticsAccumulator diagnostics,
         IReadOnlyDictionary<string, OrientationCandidateLedgerEvidence> ledgerEvidenceByCandidate,
+        IReadOnlyDictionary<string, OrientationCandidateLedgerFamilyEvidence> ledgerEvidenceByFamily,
         int maxHits)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
@@ -756,7 +760,7 @@ public static class PlayerOrientationCandidateFinder
         }
 
         return bestByChildAddress.Values
-            .Select(candidate => ApplyLedgerEvidence(candidate, ledgerEvidenceByCandidate))
+            .Select(candidate => ApplyLedgerEvidence(candidate, ledgerEvidenceByCandidate, ledgerEvidenceByFamily))
             .OrderByDescending(static candidate => candidate.Score)
             .ThenBy(static candidate => candidate.HopDepth)
             .ThenBy(static candidate => Math.Abs(candidate.PreferredEstimate.YawDegrees ?? double.MaxValue))
@@ -765,27 +769,66 @@ public static class PlayerOrientationCandidateFinder
 
     private static PlayerOrientationPointerHopCandidate ApplyLedgerEvidence(
         PlayerOrientationPointerHopCandidate candidate,
-        IReadOnlyDictionary<string, OrientationCandidateLedgerEvidence> ledgerEvidenceByCandidate)
+        IReadOnlyDictionary<string, OrientationCandidateLedgerEvidence> ledgerEvidenceByCandidate,
+        IReadOnlyDictionary<string, OrientationCandidateLedgerFamilyEvidence> ledgerEvidenceByFamily)
     {
         var rawScore = candidate.Score;
         var key = OrientationCandidateLedgerLoader.BuildCandidateKey(candidate.Address, candidate.BasisPrimaryForwardOffset);
-        if (string.IsNullOrWhiteSpace(key) ||
-            !ledgerEvidenceByCandidate.TryGetValue(key, out var evidence))
+        OrientationCandidateLedgerEvidence? evidence = null;
+        if (!string.IsNullOrWhiteSpace(key))
         {
-            return candidate with { RawScore = rawScore };
+            ledgerEvidenceByCandidate.TryGetValue(key, out evidence);
         }
 
-        var penalty = evidence.ScorePenalty;
+        var penalty = evidence?.ScorePenalty ?? 0;
+        var familyEvidence = ResolveLedgerFamilyEvidence(candidate, ledgerEvidenceByFamily);
+        var familyPenalty = familyEvidence?.ScorePenalty ?? 0;
+        var familyBonus = familyEvidence?.ScoreBonus ?? 0;
         return candidate with
         {
-            Score = Math.Max(0, rawScore - penalty),
+            Score = Math.Max(0, rawScore - penalty - familyPenalty + familyBonus),
             RawScore = rawScore,
             LedgerPenalty = penalty,
-            LedgerRejectionReason = evidence.LatestCandidateRejectedReason,
-            LedgerStableNonresponsiveCount = evidence.StableNonresponsiveCount,
-            LedgerResponsiveCount = evidence.ResponsiveCount,
-            LedgerLatestGeneratedAtUtc = evidence.LatestGeneratedAtUtc
+            LedgerRejectionReason = evidence?.LatestCandidateRejectedReason,
+            LedgerStableNonresponsiveCount = evidence?.StableNonresponsiveCount ?? 0,
+            LedgerResponsiveCount = evidence?.ResponsiveCount ?? 0,
+            LedgerLatestGeneratedAtUtc = evidence?.LatestGeneratedAtUtc,
+            LedgerFamilyKey = familyEvidence?.FamilyKey,
+            LedgerFamilyPenalty = familyPenalty,
+            LedgerFamilyBonus = familyBonus,
+            LedgerFamilyRejectionReason = familyEvidence?.LatestCandidateRejectedReason,
+            LedgerFamilyParentId = familyEvidence?.ParentFamilyId,
+            LedgerFamilyStableNonresponsiveCount = familyEvidence?.StableNonresponsiveCount ?? 0,
+            LedgerFamilyResponsiveCount = familyEvidence?.ResponsiveCount ?? 0,
+            LedgerFamilyLatestGeneratedAtUtc = familyEvidence?.LatestGeneratedAtUtc
         };
+    }
+
+    private static OrientationCandidateLedgerFamilyEvidence? ResolveLedgerFamilyEvidence(
+        PlayerOrientationPointerHopCandidate candidate,
+        IReadOnlyDictionary<string, OrientationCandidateLedgerFamilyEvidence> ledgerEvidenceByFamily)
+    {
+        if (ledgerEvidenceByFamily.Count == 0)
+        {
+            return null;
+        }
+
+        var familyKeys = OrientationCandidateLedgerLoader.BuildFamilyKeys(
+            candidate.DiscoveryMode,
+            candidate.BasisPrimaryForwardOffset,
+            candidate.ParentFamilyId,
+            candidate.RootAddress,
+            candidate.ParentAddress);
+
+        foreach (var familyKey in familyKeys)
+        {
+            if (ledgerEvidenceByFamily.TryGetValue(familyKey, out var evidence))
+            {
+                return evidence;
+            }
+        }
+
+        return null;
     }
 
     private static IReadOnlyList<PointerProbeNode> BuildPointerProbeRoots(
@@ -1172,7 +1215,15 @@ public sealed record PlayerOrientationPointerHopCandidate(
     string? LedgerRejectionReason = null,
     int LedgerStableNonresponsiveCount = 0,
     int LedgerResponsiveCount = 0,
-    string? LedgerLatestGeneratedAtUtc = null);
+    string? LedgerLatestGeneratedAtUtc = null,
+    string? LedgerFamilyKey = null,
+    int LedgerFamilyPenalty = 0,
+    int LedgerFamilyBonus = 0,
+    string? LedgerFamilyRejectionReason = null,
+    string? LedgerFamilyParentId = null,
+    int LedgerFamilyStableNonresponsiveCount = 0,
+    int LedgerFamilyResponsiveCount = 0,
+    string? LedgerFamilyLatestGeneratedAtUtc = null);
 
 public sealed record PlayerOrientationProbeSeed(
     string Address,

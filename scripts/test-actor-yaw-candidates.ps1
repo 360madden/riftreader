@@ -2,14 +2,15 @@
 param(
     [switch]$Json,
     [string]$ProcessName = 'rift_x64',
-    [string]$CandidateScreenFile = (Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-screen.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-yaw-candidate-test.json'),
+    [string]$CandidateScreenFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\actor-orientation-candidate-screen.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\actor-yaw-candidate-test.json'),
     [int]$TopCount = 4,
     [string]$StimulusKey = 'Right',
     [ValidateSet('PostMessage', 'SendInput', 'AutoHotkey', 'Manual')]
     [string]$StimulusMode = 'PostMessage',
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
+    [int]$ForegroundActivationSettleMilliseconds = 500,
     [switch]$SkipStimulus,
     [int]$ManualWindowMilliseconds = 0,
     [double]$MinYawResponseDegrees = 1.0,
@@ -19,13 +20,56 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
-$sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
-$sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
+$postKeyScript = Join-Path $scriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $scriptRoot 'send-rift-key.ps1'
+$sendKeyAhkScript = Join-Path $scriptRoot 'send-rift-key-ahk.ps1'
 $resolvedCandidateScreenFile = [System.IO.Path]::GetFullPath($CandidateScreenFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+
+if (-not ('RiftWindowStateNative' -as [type])) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftWindowStateNative
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+}
+"@
+}
 
 function Invoke-ReaderJson {
     param(
@@ -39,7 +83,116 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
+    return ($output -join [Environment]::NewLine) | Microsoft.PowerShell.Utility\ConvertFrom-Json
+}
+
+function Format-WindowHandleHex {
+    param([System.IntPtr]$Handle)
+
+    if ($Handle -eq [System.IntPtr]::Zero) {
+        return $null
+    }
+
+    return ('0x{0:X}' -f $Handle.ToInt64())
+}
+
+function Get-WindowOwnerState {
+    param([System.IntPtr]$Handle)
+
+    if ($Handle -eq [System.IntPtr]::Zero) {
+        return $null
+    }
+
+    $processId = [uint32]0
+    $threadId = [RiftWindowStateNative]::GetWindowThreadProcessId($Handle, [ref]$processId)
+    $process = $null
+    try {
+        if ($processId -gt 0) {
+            $process = Get-Process -Id ([int]$processId) -ErrorAction Stop
+        }
+    }
+    catch {
+        $process = $null
+    }
+
+    return [pscustomobject]@{
+        Handle = Format-WindowHandleHex -Handle $Handle
+        ProcessId = if ($processId -gt 0) { [int]$processId } else { $null }
+        ThreadId = if ($threadId -gt 0) { [int]$threadId } else { $null }
+        ProcessName = if ($null -ne $process) { [string]$process.ProcessName } else { $null }
+        MainWindowTitle = if ($null -ne $process) { [string]$process.MainWindowTitle } else { $null }
+    }
+}
+
+function Get-GuiThreadInfoState {
+    param(
+        [uint32]$ThreadId,
+        [int]$TargetProcessId
+    )
+
+    if ($ThreadId -le 0) {
+        return $null
+    }
+
+    $guiThreadInfo = New-Object RiftWindowStateNative+GUITHREADINFO
+    $guiThreadInfo.cbSize = [Runtime.InteropServices.Marshal]::SizeOf($guiThreadInfo)
+
+    if (-not [RiftWindowStateNative]::GetGUIThreadInfo($ThreadId, [ref]$guiThreadInfo)) {
+        return $null
+    }
+
+    $focusOwner = Get-WindowOwnerState -Handle $guiThreadInfo.hwndFocus
+    $menuOwner = Get-WindowOwnerState -Handle $guiThreadInfo.hwndMenuOwner
+    $activeOwner = Get-WindowOwnerState -Handle $guiThreadInfo.hwndActive
+
+    return [pscustomobject]@{
+        Active = $activeOwner
+        Focus = $focusOwner
+        MenuOwner = $menuOwner
+        FocusMatchesTargetProcess = ($null -ne $focusOwner -and $focusOwner.ProcessId -eq $TargetProcessId)
+        MenuOwnerMatchesTargetProcess = ($null -ne $menuOwner -and $menuOwner.ProcessId -eq $TargetProcessId)
+    }
+}
+
+function Get-TargetWindowState {
+    param([string]$ProcessName)
+
+    $process = $null
+    try {
+        $process = Get-Process -Name $ProcessName -ErrorAction Stop |
+            Where-Object { $_.MainWindowHandle -ne 0 } |
+            Select-Object -First 1
+    }
+    catch {
+        $process = $null
+    }
+
+    if ($null -eq $process) {
+        return [pscustomobject]@{
+            ProcessName = $ProcessName
+            ProcessFound = $false
+            Error = "No process named '$ProcessName' with a main window was found."
+        }
+    }
+
+    $mainWindowHandle = [System.IntPtr]$process.MainWindowHandle
+    $targetProcessId = [uint32]0
+    $targetThreadId = [RiftWindowStateNative]::GetWindowThreadProcessId($mainWindowHandle, [ref]$targetProcessId)
+    $foreground = Get-WindowOwnerState -Handle ([RiftWindowStateNative]::GetForegroundWindow())
+    $guiState = Get-GuiThreadInfoState -ThreadId $targetThreadId -TargetProcessId ([int]$process.Id)
+
+    return [pscustomobject]@{
+        ProcessName = [string]$process.ProcessName
+        ProcessId = [int]$process.Id
+        ProcessFound = $true
+        MainWindowHandle = Format-WindowHandleHex -Handle $mainWindowHandle
+        MainWindowTitle = [string]$process.MainWindowTitle
+        MainWindowThreadId = if ($targetThreadId -gt 0) { [int]$targetThreadId } else { $null }
+        Foreground = $foreground
+        ForegroundMatchesTargetProcess = ($null -ne $foreground -and $foreground.ProcessId -eq $process.Id)
+        GuiState = $guiState
+        Error = $null
+    }
 }
 
 function Parse-HexUInt64 {
@@ -216,6 +369,34 @@ function Get-ComparableMagnitude {
     return [Math]::Abs([double]$Value)
 }
 
+function Get-CandidateFamilyKey {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Candidate
+    )
+
+    $rootAddress = [string]$Candidate.RootAddress
+    if ([string]::IsNullOrWhiteSpace($rootAddress)) {
+        $rootAddress = [string]$Candidate.ParentAddress
+    }
+
+    if ([string]::IsNullOrWhiteSpace($rootAddress)) {
+        $rootAddress = [string]$Candidate.SourceAddress
+    }
+
+    $discoveryMode = [string]$Candidate.DiscoveryMode
+    if ([string]::IsNullOrWhiteSpace($discoveryMode)) {
+        $discoveryMode = 'unknown'
+    }
+
+    $basisForwardOffset = [string]$Candidate.BasisForwardOffset
+    if ([string]::IsNullOrWhiteSpace($basisForwardOffset)) {
+        $basisForwardOffset = 'unknown'
+    }
+
+    return ('{0}|{1}|{2}' -f $discoveryMode.ToLowerInvariant(), $basisForwardOffset.ToUpperInvariant(), $rootAddress.ToUpperInvariant())
+}
+
 function Get-CandidateSnapshot {
     param(
         [Parameter(Mandatory = $true)][string]$AddressHex,
@@ -273,7 +454,7 @@ if (-not (Test-Path -LiteralPath $resolvedCandidateScreenFile)) {
     throw "Candidate screen file not found: $resolvedCandidateScreenFile"
 }
 
-$screen = Get-Content -LiteralPath $resolvedCandidateScreenFile -Raw | ConvertFrom-Json -Depth 40
+$screen = Get-Content -LiteralPath $resolvedCandidateScreenFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
 $candidateRows = @()
 if ($screen.PSObject.Properties['Mode'] -and [string]$screen.Mode -eq 'actor-orientation-candidate-screen') {
     $candidateRows = @(
@@ -286,6 +467,7 @@ if ($screen.PSObject.Properties['Mode'] -and [string]$screen.Mode -eq 'actor-ori
                     BasisForwardOffset = [string]$_.BasisForwardOffset
                     DiscoveryMode = [string]$_.DiscoveryMode
                     ParentAddress = [string]$_.ParentAddress
+                    ParentFamilyId = if ($null -eq $_.PSObject.Properties['ParentFamilyId']) { $null } else { [string]$_.PSObject.Properties['ParentFamilyId'].Value }
                     RootAddress = [string]$_.RootAddress
                     SearchScore = $_.SearchScore
                 }
@@ -305,6 +487,7 @@ elseif ($screen.PSObject.Properties['Mode'] -and [string]$screen.Mode -eq 'playe
             BasisForwardOffset = [string]$candidate.BasisPrimaryForwardOffset
             DiscoveryMode = [string]$candidate.DiscoveryMode
             ParentAddress = [string]$candidate.ParentAddress
+            ParentFamilyId = if ($null -eq $candidate.PSObject.Properties['ParentFamilyId']) { $null } else { [string]$candidate.PSObject.Properties['ParentFamilyId'].Value }
             RootAddress = [string]$candidate.RootAddress
             SearchScore = $candidate.Score
         }) | Out-Null
@@ -322,6 +505,7 @@ elseif ($screen.PSObject.Properties['Mode'] -and [string]$screen.Mode -eq 'playe
             BasisForwardOffset = [string]$candidate.BasisPrimaryForwardOffset
             DiscoveryMode = [string]$candidate.DiscoveryMode
             ParentAddress = [string]$candidate.ProbeRootAddress
+            ParentFamilyId = if ($null -eq $candidate.PSObject.Properties['ParentFamilyId']) { $null } else { [string]$candidate.PSObject.Properties['ParentFamilyId'].Value }
             RootAddress = [string]$candidate.ProbeRootAddress
             SearchScore = $candidate.Score
         }) | Out-Null
@@ -342,6 +526,14 @@ foreach ($row in $candidateRows) {
     $beforeSnapshots[$row.SourceAddress] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
 }
 
+$stimulusWindowState = [ordered]@{
+    Mode = $StimulusMode
+    ForegroundActivationSettleMilliseconds = $ForegroundActivationSettleMilliseconds
+    Before = $null
+    AfterSend = $null
+    AfterWait = $null
+}
+
 if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
     if ($ManualWindowMilliseconds -gt 0) {
         Write-Host ("Manual turn window:         {0} ms" -f $ManualWindowMilliseconds)
@@ -350,15 +542,17 @@ if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
     }
 }
 else {
+    $stimulusWindowState.Before = Get-TargetWindowState -ProcessName $ProcessName
+
     switch ($StimulusMode) {
         'PostMessage' {
             & $postKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds *> $null
         }
         'SendInput' {
-            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
+            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -ActivationSettleMilliseconds $ForegroundActivationSettleMilliseconds -NoRefocus *> $null
         }
         'AutoHotkey' {
-            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
+            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -ActivationSettleMilliseconds $ForegroundActivationSettleMilliseconds -NoRefocus *> $null
         }
         default {
             throw "Unsupported stimulus mode '$StimulusMode'."
@@ -368,9 +562,15 @@ else {
     if ($LASTEXITCODE -ne 0) {
         throw "Stimulus key '$StimulusKey' failed via mode '$StimulusMode'."
     }
+
+    $stimulusWindowState.AfterSend = Get-TargetWindowState -ProcessName $ProcessName
 }
 
 Start-Sleep -Milliseconds $WaitMilliseconds
+
+if (-not ($SkipStimulus -or $StimulusMode -eq 'Manual')) {
+    $stimulusWindowState.AfterWait = Get-TargetWindowState -ProcessName $ProcessName
+}
 
 $afterPlayer = Get-PlayerCurrent
 $afterPlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $afterPlayer
@@ -398,13 +598,34 @@ foreach ($row in $candidateRows) {
     $candidateResponsive = ($null -ne $yawDeltaDegrees) -and ([Math]::Abs([double]$yawDeltaDegrees) -ge $MinYawResponseDegrees)
     $playerStayedMostlyStill = ($null -ne $coordDeltaMagnitude) -and ([double]$coordDeltaMagnitude -le $MaxCoordDrift)
     $truthLike = $candidateResponsive -and $playerStayedMostlyStill
+    $candidateFamilyKey = Get-CandidateFamilyKey -Candidate $row
+    $candidateRejectedReason = if ($truthLike) {
+        $null
+    }
+    elseif (-not $beforeSnapshotResult.Success -or -not $afterSnapshotResult.Success) {
+        'candidate_read_failed'
+    }
+    elseif (-not $candidateResponsive -and $playerStayedMostlyStill) {
+        'stable_but_nonresponsive'
+    }
+    elseif ($candidateResponsive -and -not $playerStayedMostlyStill) {
+        'idle_drift'
+    }
+    elseif (-not $candidateResponsive -and -not $playerStayedMostlyStill) {
+        'insufficient_signal_and_drift'
+    }
+    else {
+        'insufficient_evidence'
+    }
 
     $results.Add([pscustomobject]@{
         Rank = $row.Rank
+        CandidateFamilyKey = $candidateFamilyKey
         SourceAddress = $address
         BasisForwardOffset = [string]$row.BasisForwardOffset
         DiscoveryMode = [string]$row.DiscoveryMode
         ParentAddress = [string]$row.ParentAddress
+        ParentFamilyId = if ($null -eq $row.PSObject.Properties['ParentFamilyId']) { $null } else { [string]$row.PSObject.Properties['ParentFamilyId'].Value }
         RootAddress = [string]$row.RootAddress
         SearchScore = $row.SearchScore
         BeforeReadSucceeded = $beforeSnapshotResult.Success
@@ -419,14 +640,85 @@ foreach ($row in $candidateRows) {
         CandidateResponsive = $candidateResponsive
         PlayerStayedMostlyStill = $playerStayedMostlyStill
         TruthLike = $truthLike
+        CandidateRejectedReason = $candidateRejectedReason
+        TruthLikeEvidence = [pscustomobject]@{
+            MinYawResponseDegrees = $MinYawResponseDegrees
+            MaxCoordDrift = $MaxCoordDrift
+            CandidateResponsive = $candidateResponsive
+            PlayerStayedMostlyStill = $playerStayedMostlyStill
+            YawDeltaDegrees = $yawDeltaDegrees
+            PitchDeltaDegrees = $pitchDeltaDegrees
+            PlayerCoordDeltaMagnitude = $coordDeltaMagnitude
+        }
     }) | Out-Null
 }
 
-$bestTruthLike = $results |
-    Sort-Object @{ Expression = { if ($_.TruthLike) { 0 } else { 1 } } }, @{ Expression = { -(Get-ComparableMagnitude -Value $_.YawDeltaDegrees) } } |
-    Select-Object -First 1
+$familySummaries = @(
+    $results.ToArray() |
+        Group-Object CandidateFamilyKey |
+        ForEach-Object {
+            $familyResults = @($_.Group)
+            $responsiveCount = @($familyResults | Where-Object { $_.CandidateResponsive }).Count
+            $truthLikeCount = @($familyResults | Where-Object { $_.TruthLike }).Count
+            $bestRanked = $familyResults | Sort-Object Rank | Select-Object -First 1
+            $aggregateRejectedReasons = @(
+                $familyResults |
+                    ForEach-Object { [string]$_.CandidateRejectedReason } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
+
+            [pscustomobject]@{
+                CandidateFamilyKey = [string]$_.Name
+                CandidateCount = $familyResults.Count
+                ResponsiveCandidateCount = $responsiveCount
+                TruthLikeCandidateCount = $truthLikeCount
+                DownRanked = ($responsiveCount -le 0 -and $truthLikeCount -le 0)
+                DownRankReason = if ($responsiveCount -le 0 -and $truthLikeCount -le 0) {
+                    'All tested candidates in this family were stable but nonresponsive under the current turn proof.'
+                }
+                else {
+                    $null
+                }
+                Representative = [pscustomobject]@{
+                    Rank = $bestRanked.Rank
+                    SourceAddress = [string]$bestRanked.SourceAddress
+                    BasisForwardOffset = [string]$bestRanked.BasisForwardOffset
+                    DiscoveryMode = [string]$bestRanked.DiscoveryMode
+                    ParentAddress = [string]$bestRanked.ParentAddress
+                    RootAddress = [string]$bestRanked.RootAddress
+                }
+                AggregateRejectedReasons = $aggregateRejectedReasons
+            }
+        } |
+        Sort-Object @{ Expression = { -[int]$_.TruthLikeCandidateCount } }, @{ Expression = { -[int]$_.ResponsiveCandidateCount } }, @{ Expression = { [int]$_.Representative.Rank } }
+)
 
 $truthLikeResults = @($results.ToArray() | Where-Object { $_.TruthLike })
+$bestTruthLike = $truthLikeResults |
+    Sort-Object @{ Expression = { -(Get-ComparableMagnitude -Value $_.YawDeltaDegrees) } } |
+    Select-Object -First 1
+$responsiveCandidateCount = @($results.ToArray() | Where-Object { $_.CandidateResponsive }).Count
+$responsiveFamilyCount = @($familySummaries | Where-Object { $_.ResponsiveCandidateCount -gt 0 }).Count
+$turnObserved = ($SkipStimulus -or $StimulusMode -eq 'Manual') -or ($responsiveCandidateCount -gt 0)
+$turnVerificationState = if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
+    'manual-or-skipped'
+}
+elseif ($turnObserved) {
+    'observed'
+}
+else {
+    'not-observed'
+}
+$turnVerificationReason = if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
+    'Turn verification was not enforced because the proof used a manual or read-only window.'
+}
+elseif ($turnObserved) {
+    'At least one tested candidate family responded to the applied turn stimulus.'
+}
+else {
+    'No tested candidate family responded to the applied turn stimulus.'
+}
 
 $document = [ordered]@{}
 $document.Mode = 'actor-yaw-candidate-test'
@@ -436,21 +728,37 @@ $document.ProcessName = $ProcessName
 $document.StimulusKey = $StimulusKey
 $document.StimulusMode = $StimulusMode
 $document.SkipStimulus = ($SkipStimulus -or $StimulusMode -eq 'Manual')
+$document.StimulusApplied = -not ($SkipStimulus -or $StimulusMode -eq 'Manual')
 $document.ManualWindowMilliseconds = $ManualWindowMilliseconds
 $document.HoldMilliseconds = $HoldMilliseconds
 $document.WaitMilliseconds = $WaitMilliseconds
+$document.ForegroundActivationSettleMilliseconds = $ForegroundActivationSettleMilliseconds
+$document.StimulusWindowState = $stimulusWindowState
 $document.MinYawResponseDegrees = $MinYawResponseDegrees
 $document.MaxCoordDrift = $MaxCoordDrift
 $document.PlayerBefore = $beforePlayer
 $document.PlayerAfter = $afterPlayer
+$document.TurnObserved = $turnObserved
+$document.TurnVerification = [pscustomobject]@{
+    Verified = $turnObserved
+    State = $turnVerificationState
+    Reason = $turnVerificationReason
+    ResponsiveCandidateCount = $responsiveCandidateCount
+    ResponsiveFamilyCount = $responsiveFamilyCount
+    FamilyCount = @($familySummaries).Count
+}
 $document.CandidateCount = $results.Count
 $document.TruthLikeCandidateCount = $truthLikeResults.Count
 $document.BestTruthLikeCandidate = $bestTruthLike
+$document.FamilySummaries = $familySummaries
 $document.Results = $results.ToArray()
 $document.Notes = @(
     $(if ($SkipStimulus -or $StimulusMode -eq 'Manual') { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { "Read-only candidate validation using direct memory reads plus a controlled $StimulusMode turn key stimulus." }),
     'No debugger attach, breakpoint tracing, or debug scanning was used.',
-    'A candidate is marked truth-like when its yaw changes beyond the configured threshold while player coordinate drift stays under the configured limit.')
+    'A candidate is marked truth-like when its yaw changes beyond the configured threshold while player coordinate drift stays under the configured limit.',
+    'Foreground stimulus modes wait briefly after activation before sending the held key so the proof run does not interact with a just-activated UI too early.',
+    'Foreground/window state is captured before the stimulus, immediately after the helper returns, and after the proof wait window so focus problems can be diagnosed without native debug.',
+    'Candidate families with no responsive members are marked down-ranked so native debug tracing can skip obviously nonresponsive families.')
 
 $outputDirectory = Split-Path -Parent $resolvedOutputFile
 if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
@@ -474,6 +782,9 @@ if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
 else {
     Write-Host "Stimulus key:             $StimulusKey"
     Write-Host "Stimulus mode:            $StimulusMode"
+    if ($StimulusMode -in @('SendInput', 'AutoHotkey')) {
+        Write-Host "Foreground settle (ms):   $ForegroundActivationSettleMilliseconds"
+    }
 }
 Write-Host "Candidates tested:        $($results.Count)"
 Write-Host "Truth-like candidates:    $(@($results | Where-Object { $_.TruthLike }).Count)"

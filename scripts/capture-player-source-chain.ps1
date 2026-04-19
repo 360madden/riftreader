@@ -2,18 +2,19 @@
 param(
     [switch]$Json,
     [switch]$RefreshCluster,
-    [string]$ClusterFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json')
+    [string]$ClusterFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-coord-trace-cluster.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-source-chain.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$clusterScript = Join-Path $PSScriptRoot 'capture-player-trace-cluster.ps1'
-$ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
-$clusterLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderDisasmCluster.lua'
+$clusterScript = Join-Path $scriptRoot 'capture-player-trace-cluster.ps1'
+$ceExecScript = Join-Path $scriptRoot 'cheatengine-exec.ps1'
+$clusterLuaFile = Join-Path $scriptRoot 'cheat-engine\RiftReaderDisasmCluster.lua'
 $resolvedClusterFile = [System.IO.Path]::GetFullPath($ClusterFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
@@ -29,7 +30,7 @@ function Invoke-ReaderJson {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+    return ($output -join [Environment]::NewLine) | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
 function Normalize-Bytes {
@@ -448,7 +449,7 @@ if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
     throw "Player trace cluster file not found: $resolvedClusterFile"
 }
 
-$cluster = Get-Content -LiteralPath $resolvedClusterFile -Raw | ConvertFrom-Json -Depth 30
+$cluster = Get-Content -LiteralPath $resolvedClusterFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
 $instructions = @($cluster.Instructions)
 if ($instructions.Count -eq 0) {
     throw "Owner/source lineage not reconstructed: trace cluster '$resolvedClusterFile' did not contain instructions."
