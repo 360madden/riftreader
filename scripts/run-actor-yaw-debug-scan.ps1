@@ -55,6 +55,8 @@ $readPlayerCurrentScript = Join-Path $scriptRoot 'read-player-current.ps1'
 $findPlayerOrientationCandidateScript = Join-Path $scriptRoot 'find-player-orientation-candidate.ps1'
 $testActorYawCandidatesScript = Join-Path $scriptRoot 'test-actor-yaw-candidates.ps1'
 $updateOrientationCandidateLedgerScript = Join-Path $scriptRoot 'update-orientation-candidate-ledger.ps1'
+$writeWorkflowHudStatusScript = Join-Path $scriptRoot 'write-workflow-hud-status.ps1'
+$workflowHudStatusFile = Join-Path $repoRoot 'debug\workflow-hud-status.json'
 
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $resolvedOutputDirectory = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -979,6 +981,99 @@ function Write-TerminalSummary {
     }
 }
 
+function Write-WorkflowHudStatus {
+    param(
+        [ValidateSet('active', 'waiting', 'blocked', 'idle')]
+        [string]$State,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Action,
+
+        [int]$StaleAfterSeconds = 20
+    )
+
+    if (-not (Test-Path -LiteralPath $writeWorkflowHudStatusScript)) {
+        return
+    }
+
+    try {
+        & $pwshExe `
+            -NoLogo `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File $writeWorkflowHudStatusScript `
+            -State $State `
+            -Action $Action `
+            -StatusFile $workflowHudStatusFile `
+            -StaleAfterSeconds $StaleAfterSeconds `
+            -Quiet | Out-Null
+    }
+    catch {
+        # HUD publishing is best-effort only and must never break the workflow.
+    }
+}
+
+function Get-FinalWorkflowHudState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Summary
+    )
+
+    switch ([string]$Summary.Status) {
+        'success' { return 'idle' }
+        'debug-blocked' { return 'blocked' }
+        'turn-unverified' { return 'blocked' }
+        'candidate-missing' { return 'blocked' }
+        'trace-failed' { return 'blocked' }
+        'preflight-failed' { return 'blocked' }
+        default {
+            if ($null -ne $Summary.Promotion -and [bool](Get-PropertyValue -InputObject $Summary.Promotion -PropertyName 'PromotionReady')) {
+                return 'idle'
+            }
+
+            return 'blocked'
+        }
+    }
+}
+
+function Get-FinalWorkflowHudAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Summary,
+
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.List[string]]$Notes
+    )
+
+    switch ([string]$Summary.Status) {
+        'success' {
+            if ($null -ne $Summary.Promotion -and [bool](Get-PropertyValue -InputObject $Summary.Promotion -PropertyName 'PromotionReady')) {
+                return 'promotion ready'
+            }
+
+            return 'debug confirmed'
+        }
+        'debug-blocked' { return 'debugger present' }
+        'turn-unverified' { return 'turn unverified' }
+        'candidate-missing' { return 'no candidate' }
+        'trace-failed' { return 'debug trace failed' }
+        'preflight-failed' { return 'preflight failed' }
+    }
+
+    if ($null -ne $Summary.Promotion) {
+        $blockingReasons = @($Summary.Promotion.BlockingReasons)
+        if ($blockingReasons.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace([string]$blockingReasons[0])) {
+            return [string]$blockingReasons[0]
+        }
+    }
+
+    if ($Notes.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($Notes[$Notes.Count - 1])) {
+        return [string]$Notes[$Notes.Count - 1]
+    }
+
+    return 'workflow blocked'
+}
+
 $notes = New-Object System.Collections.Generic.List[string]
 $evidenceStages = New-Object System.Collections.Generic.List[object]
 $degradedStates = New-Object System.Collections.Generic.List[object]
@@ -1025,6 +1120,7 @@ $summary = [ordered]@{
 $exitCode = 0
 
 try {
+    Write-WorkflowHudStatus -State 'active' -Action 'debug preflight'
     $debugStateOutput = Invoke-RepoPowerShellScript -ScriptPath $inspectDebugStateScript -Arguments @('-ProcessName', $ProcessName) -Label 'inspect-rift-debug-state'
     $summary.DebugState = Get-DebugStateSummary -RawOutput $debugStateOutput
 
@@ -1046,12 +1142,14 @@ try {
         $evidenceStages.Add((New-EvidenceStageRecord -Stage 'debug-preflight' -State $preflightState -Reason $preflightReason -Blocking ($summary.DebugState.AlreadyDebugged) -Details $summary.DebugState)) | Out-Null
     }
 
+    Write-WorkflowHudStatus -State 'active' -Action 'player baseline'
     $playerCurrent = Invoke-RepoPowerShellScriptJson -ScriptPath $readPlayerCurrentScript -Arguments @('-Json', '-SkipRefresh', '-ProcessName', $ProcessName) -Label 'read-player-current'
     $summary.PlayerCurrentSummary = Get-PlayerCurrentSummary -PlayerCurrent $playerCurrent
     $playerCurrentReason = 'Loaded a player-current baseline without forcing a startup /reloadui refresh.'
     $evidenceStages.Add((New-EvidenceStageRecord -Stage 'player-current' -State 'live-baseline' -Reason $playerCurrentReason -Details $summary.PlayerCurrentSummary)) | Out-Null
     $notes.Add('Skipped the startup ReaderBridge /reloadui refresh to avoid disruptive in-client UI side effects before proof begins.') | Out-Null
 
+    Write-WorkflowHudStatus -State 'active' -Action 'coord anchor'
     $coordAnchor = Invoke-ReaderJson -Arguments @('--process-name', $ProcessName, '--read-player-coord-anchor', '--json') -Label 'read-player-coord-anchor'
     $summary.CoordAnchorSummary = Get-CoordAnchorSummary -CoordAnchor $coordAnchor
     $coordAnchorAssessment = Get-CoordAnchorAssessment -CoordAnchorSummary $summary.CoordAnchorSummary
@@ -1069,6 +1167,7 @@ try {
         $searchArguments += @('-OrientationCandidateLedgerFile', $OrientationCandidateLedgerFile)
     }
 
+    Write-WorkflowHudStatus -State 'active' -Action 'candidate search'
     $candidateSearch = Invoke-RepoPowerShellScriptJson -ScriptPath $findPlayerOrientationCandidateScript -Arguments $searchArguments -Label 'find-player-orientation-candidate'
     $summary.CandidateSearchSummary = Get-CandidateSearchSummary -CandidateSearch $candidateSearch -CandidateSearchFile $candidateSearchFile -OrientationCandidateLedgerFile $OrientationCandidateLedgerFile
     $candidateSearchCount = [int](Get-PropertyValue -InputObject $candidateSearch -PropertyName 'CandidateCount')
@@ -1090,6 +1189,7 @@ try {
     }
 
     try {
+        Write-WorkflowHudStatus -State 'active' -Action 'candidate proof'
         $candidateTestArguments = @(
             '-Json',
             '-ProcessName', $ProcessName,
@@ -1127,6 +1227,7 @@ try {
 
     if ($null -ne $candidateTest -and -not [string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
         try {
+            Write-WorkflowHudStatus -State 'active' -Action 'ledger update'
             $summary.LedgerUpdate = Invoke-RepoPowerShellScriptJson -ScriptPath $updateOrientationCandidateLedgerScript -Arguments @(
                 '-Json',
                 '-CandidateTestFile', $candidateTestFile,
@@ -1180,6 +1281,7 @@ try {
         [int](Get-PropertyValue -InputObject $candidateTest -PropertyName 'TruthLikeCandidateCount') -gt 0 -and
         $summary.CoordAnchorSummary.TraceMatchesProcess -ne $true) {
         try {
+            Write-WorkflowHudStatus -State 'waiting' -Action 'coord refresh'
             $coordAnchorBeforeRefresh = $summary.CoordAnchorSummary
             $traceRefreshTrigger = Invoke-RepoPowerShellScriptJson -ScriptPath $readPlayerCurrentScript -Arguments @(
                     '-Json',
@@ -1240,6 +1342,7 @@ try {
     }
 
     $selectedCandidate = $null
+    Write-WorkflowHudStatus -State 'active' -Action 'candidate select'
     if ($null -ne $candidateTest) {
         $truthLikeCount = [int](Get-PropertyValue -InputObject $candidateTest -PropertyName 'TruthLikeCandidateCount')
         $bestTruthLikeCandidate = Get-PropertyValue -InputObject $candidateTest -PropertyName 'BestTruthLikeCandidate'
@@ -1304,6 +1407,7 @@ try {
     else {
         New-Item -ItemType Directory -Path $debugTraceDirectory -Force | Out-Null
         $summary.DebugTraceDirectory = $debugTraceDirectory
+        Write-WorkflowHudStatus -State 'active' -Action 'debug trace'
 
         $debugArguments = @(
             '--process-name', $ProcessName,
@@ -1353,6 +1457,7 @@ finally {
         -CandidateProofSummary $summary.CandidateProofSummary `
         -CoordAnchorSummary $summary.CoordAnchorSummary
     Write-WorkflowSummaryFile -Document $summary -NoteList $notes -Path $summaryFile
+    Write-WorkflowHudStatus -State (Get-FinalWorkflowHudState -Summary $summary) -Action (Get-FinalWorkflowHudAction -Summary $summary -Notes $notes) -StaleAfterSeconds 60
 }
 
 if ($Json) {

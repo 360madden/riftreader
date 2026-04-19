@@ -12,6 +12,8 @@ internal sealed class WorkflowHudForm : Form
     private const int ScreenMargin = 16;
     private const int ActivePulseIntervalMilliseconds = 160;
     private const int StatusPollIntervalMilliseconds = 400;
+    private const int MinimumDisplayDurationMilliseconds = 650;
+    private const int DefaultStaleAfterSeconds = 8;
 
     private readonly WorkflowHudOptions _options;
     private readonly string _utilityVersionLabel;
@@ -25,8 +27,11 @@ internal sealed class WorkflowHudForm : Form
         WriteIndented = true
     };
 
-    private WorkflowHudStatusDocument _status = WorkflowHudStatusDocument.CreateDefault();
+    private WorkflowHudStatusDocument _sourceStatus = WorkflowHudStatusDocument.CreateDefault();
+    private WorkflowHudStatusDocument _displayStatus = WorkflowHudStatusDocument.CreateDefault();
+    private WorkflowHudStatusDocument? _pendingStatus;
     private DateTime _lastStatusFileWriteUtc = DateTime.MinValue;
+    private DateTimeOffset _displayStatusChangedUtc = DateTimeOffset.MinValue;
     private double _pulsePhase;
     private bool _dragging;
     private Point _dragOrigin;
@@ -49,6 +54,7 @@ internal sealed class WorkflowHudForm : Form
         MinimumSize = new Size(FormWidth, FormHeight);
         MaximumSize = new Size(FormWidth, FormHeight);
         Cursor = Cursors.SizeAll;
+        Text = utilityVersionLabel;
 
         ApplyRoundedRegion();
         RestoreLocation();
@@ -119,8 +125,8 @@ internal sealed class WorkflowHudForm : Form
         e.Graphics.DrawPath(borderPen, backgroundPath);
 
         var titleText = _utilityVersionLabel;
-        var actionText = FormatActionText(_status.Action);
-        var dotColor = ResolveDotColor(_status.State);
+        var actionText = FormatActionText(_displayStatus.Action);
+        var dotColor = ResolveDotColor(_displayStatus.State);
         const int dotSize = 12;
         const int interLineGap = 6;
         const int dotGap = 9;
@@ -221,37 +227,36 @@ internal sealed class WorkflowHudForm : Form
             {
                 if (force)
                 {
-                    _status = WorkflowHudStatusDocument.CreateDefault();
-                    Invalidate();
+                    _sourceStatus = WorkflowHudStatusDocument.CreateDefault();
+                    ApplyDisplayStatus(_sourceStatus, force: true);
                 }
 
+                CommitPendingStatusIfDue();
                 return;
             }
 
             var lastWriteUtc = File.GetLastWriteTimeUtc(_options.StatusFilePath);
-            if (!force && lastWriteUtc == _lastStatusFileWriteUtc)
+            if (force || lastWriteUtc != _lastStatusFileWriteUtc)
             {
-                return;
+                using var stream = File.Open(_options.StatusFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var parsed = JsonSerializer.Deserialize<WorkflowHudStatusDocument>(stream, _jsonOptions) ?? WorkflowHudStatusDocument.CreateDefault();
+                _sourceStatus = NormalizeStatusDocument(parsed);
+                _lastStatusFileWriteUtc = lastWriteUtc;
             }
 
-            using var stream = File.Open(_options.StatusFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            var parsed = JsonSerializer.Deserialize<WorkflowHudStatusDocument>(stream, _jsonOptions) ?? WorkflowHudStatusDocument.CreateDefault();
-            _status = parsed with
-            {
-                State = NormalizeState(parsed.State),
-                Action = string.IsNullOrWhiteSpace(parsed.Action) ? "idle" : parsed.Action.Trim()
-            };
-            _lastStatusFileWriteUtc = lastWriteUtc;
-            Invalidate();
+            var effectiveStatus = GetEffectiveStatus(_sourceStatus);
+            ApplyDisplayStatus(effectiveStatus, force);
         }
         catch
         {
             if (force)
             {
-                _status = WorkflowHudStatusDocument.CreateBlocked("status file unreadable");
-                Invalidate();
+                _sourceStatus = WorkflowHudStatusDocument.CreateBlocked("status file unreadable");
+                ApplyDisplayStatus(_sourceStatus, force: true);
             }
         }
+
+        CommitPendingStatusIfDue();
     }
 
     private void RestoreLocation()
@@ -368,6 +373,115 @@ internal sealed class WorkflowHudForm : Form
         return $"{normalized[..(maxLength - 1)].TrimEnd()}…";
     }
 
+    private WorkflowHudStatusDocument NormalizeStatusDocument(WorkflowHudStatusDocument parsed)
+    {
+        var normalizedState = NormalizeState(parsed.State);
+        var normalizedAction = string.IsNullOrWhiteSpace(parsed.Action)
+            ? (string.IsNullOrWhiteSpace(parsed.LastMessage) ? (normalizedState == "idle" ? "idle" : "working") : parsed.LastMessage.Trim())
+            : parsed.Action.Trim();
+        var normalizedLastMessage = string.IsNullOrWhiteSpace(parsed.LastMessage)
+            ? (normalizedAction.Equals("idle", StringComparison.OrdinalIgnoreCase) ? null : normalizedAction)
+            : parsed.LastMessage.Trim();
+        var staleAfterSeconds = parsed.StaleAfterSeconds is > 0 ? parsed.StaleAfterSeconds.Value : DefaultStaleAfterSeconds;
+
+        return parsed with
+        {
+            State = normalizedState,
+            Action = normalizedAction,
+            LastMessage = normalizedLastMessage,
+            StaleAfterSeconds = staleAfterSeconds
+        };
+    }
+
+    private WorkflowHudStatusDocument GetEffectiveStatus(WorkflowHudStatusDocument source)
+    {
+        var normalized = NormalizeStatusDocument(source);
+        if (normalized.UpdatedAtUtc.HasValue &&
+            NormalizeState(normalized.State) is "active" or "waiting" &&
+            normalized.StaleAfterSeconds.GetValueOrDefault(DefaultStaleAfterSeconds) > 0)
+        {
+            var age = DateTimeOffset.UtcNow - normalized.UpdatedAtUtc.Value;
+            if (age > TimeSpan.FromSeconds(normalized.StaleAfterSeconds!.Value))
+            {
+                var staleAction = string.IsNullOrWhiteSpace(normalized.LastMessage)
+                    ? "status stale"
+                    : $"stale: {normalized.LastMessage}";
+                return normalized with
+                {
+                    State = "waiting",
+                    Action = staleAction
+                };
+            }
+        }
+
+        return normalized;
+    }
+
+    private void ApplyDisplayStatus(WorkflowHudStatusDocument candidate, bool force)
+    {
+        if (force)
+        {
+            CommitDisplayStatus(candidate);
+            _pendingStatus = null;
+            return;
+        }
+
+        if (AreEquivalent(_displayStatus, candidate))
+        {
+            _pendingStatus = null;
+            return;
+        }
+
+        var elapsed = DateTimeOffset.UtcNow - _displayStatusChangedUtc;
+        if (elapsed < TimeSpan.FromMilliseconds(MinimumDisplayDurationMilliseconds) &&
+            !ShouldBypassDebounce(_displayStatus, candidate))
+        {
+            _pendingStatus = candidate;
+            return;
+        }
+
+        CommitDisplayStatus(candidate);
+        _pendingStatus = null;
+    }
+
+    private void CommitPendingStatusIfDue()
+    {
+        if (_pendingStatus is null)
+        {
+            return;
+        }
+
+        var elapsed = DateTimeOffset.UtcNow - _displayStatusChangedUtc;
+        if (elapsed < TimeSpan.FromMilliseconds(MinimumDisplayDurationMilliseconds))
+        {
+            return;
+        }
+
+        CommitDisplayStatus(_pendingStatus);
+        _pendingStatus = null;
+    }
+
+    private void CommitDisplayStatus(WorkflowHudStatusDocument status)
+    {
+        _displayStatus = status;
+        _displayStatusChangedUtc = DateTimeOffset.UtcNow;
+        Invalidate();
+    }
+
+    private static bool ShouldBypassDebounce(WorkflowHudStatusDocument current, WorkflowHudStatusDocument next)
+    {
+        var currentState = NormalizeState(current.State);
+        var nextState = NormalizeState(next.State);
+        return currentState == "idle" || nextState == "blocked";
+    }
+
+    private static bool AreEquivalent(WorkflowHudStatusDocument left, WorkflowHudStatusDocument right)
+    {
+        return string.Equals(NormalizeState(left.State), NormalizeState(right.State), StringComparison.Ordinal) &&
+               string.Equals(left.Action?.Trim(), right.Action?.Trim(), StringComparison.Ordinal) &&
+               string.Equals(left.LastMessage?.Trim(), right.LastMessage?.Trim(), StringComparison.Ordinal);
+    }
+
     private Color ResolveDotColor(string? state)
     {
         return NormalizeState(state) switch
@@ -432,13 +546,21 @@ internal sealed record WorkflowHudOptions(string StatusFilePath, string ConfigFi
     }
 }
 
-internal sealed record WorkflowHudStatusDocument(string? State, string? Action)
+internal sealed record WorkflowHudStatusDocument(
+    string? State,
+    string? Action,
+    DateTimeOffset? UpdatedAtUtc = null,
+    string? LastMessage = null,
+    DateTimeOffset? LastMessageAtUtc = null,
+    int? StaleAfterSeconds = null)
 {
+    private const int DefaultDocumentStaleAfterSeconds = 8;
+
     public static WorkflowHudStatusDocument CreateDefault() =>
-        new("idle", "waiting for status");
+        new("idle", "waiting for status", null, "waiting for status", null, DefaultDocumentStaleAfterSeconds);
 
     public static WorkflowHudStatusDocument CreateBlocked(string action) =>
-        new("blocked", action);
+        new("blocked", action, DateTimeOffset.UtcNow, action, DateTimeOffset.UtcNow, DefaultDocumentStaleAfterSeconds);
 }
 
 internal sealed record WorkflowHudConfigDocument(int? X, int? Y);
