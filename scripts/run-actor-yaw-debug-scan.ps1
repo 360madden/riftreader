@@ -1181,21 +1181,31 @@ try {
         $summary.CoordAnchorSummary.TraceMatchesProcess -ne $true) {
         try {
             $coordAnchorBeforeRefresh = $summary.CoordAnchorSummary
-            [void](Invoke-RepoPowerShellScriptJson -ScriptPath $readPlayerCurrentScript -Arguments @(
+            $traceRefreshTrigger = Invoke-RepoPowerShellScriptJson -ScriptPath $readPlayerCurrentScript -Arguments @(
                     '-Json',
                     '-SkipRefresh',
                     '-RefreshTraceAnchor',
-                    '-ProcessName', $ProcessName) -Label 'refresh-player-coord-anchor')
+                    '-TraceRefreshOnly',
+                    '-RecoveryAttempts', '0',
+                    '-TraceRefreshTimeoutSeconds', '20',
+                    '-ProcessName', $ProcessName
+                ) -Label 'refresh-player-coord-anchor'
 
             $refreshedCoordAnchor = Invoke-ReaderJson -Arguments @('--process-name', $ProcessName, '--read-player-coord-anchor', '--json') -Label 'read-player-coord-anchor-refresh'
             $summary.CoordAnchorSummary = Get-CoordAnchorSummary -CoordAnchor $refreshedCoordAnchor
             $coordAnchorAssessment = Get-CoordAnchorAssessment -CoordAnchorSummary $summary.CoordAnchorSummary
+            $traceRefreshReason = [string](Get-PropertyValue -InputObject $traceRefreshTrigger -PropertyName 'Reason')
+            $traceRefreshTimedOut = [bool](Get-PropertyValue -InputObject $traceRefreshTrigger -PropertyName 'TimedOut')
+            $traceArtifactUpdated = [bool](Get-PropertyValue -InputObject $traceRefreshTrigger -PropertyName 'ArtifactUpdated')
             $summary.CoordAnchorRefresh = [pscustomobject]@{
                 Attempted = $true
-                RefreshCallSucceeded = $true
+                RefreshCallSucceeded = (-not $traceRefreshTimedOut -and $traceRefreshReason -notin @('trace-refresh-exception', 'trace-refresh-nonzero-exit'))
                 Succeeded = ($summary.CoordAnchorSummary.TraceMatchesProcess -eq $true)
                 BeforeTraceMatchesProcess = ($coordAnchorBeforeRefresh.TraceMatchesProcess -eq $true)
                 AfterTraceMatchesProcess = ($summary.CoordAnchorSummary.TraceMatchesProcess -eq $true)
+                TraceArtifactUpdated = $traceArtifactUpdated
+                TraceRefreshReason = $traceRefreshReason
+                TraceRefreshInvocation = $traceRefreshTrigger
                 Error = $null
             }
 
