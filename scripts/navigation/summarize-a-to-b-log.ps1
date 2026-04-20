@@ -50,6 +50,7 @@ $facingChecks = @($entries | Where-Object { $_.step -eq 'facing-guard' })
 $lastSession = @($sessionResults | Select-Object -Last 1)
 $lastFacing = @($facingChecks | Select-Object -Last 1)
 $stopReasonCounts = [ordered]@{}
+$lastMovementVerification = $null
 
 foreach ($session in $sessionResults) {
     $reason = $null
@@ -73,6 +74,16 @@ foreach ($session in $sessionResults) {
     $stopReasonCounts[$reason]++
 }
 
+if ($lastSession.Count -gt 0) {
+    $lastNavigation = Get-OptionalPropertyValue -Object $lastSession[0] -Name 'navigation'
+    if ($null -ne $lastNavigation) {
+        $lastMovementVerification = Get-OptionalPropertyValue -Object $lastNavigation -Name 'MovementVerification'
+        if ($null -eq $lastMovementVerification) {
+            $lastMovementVerification = Get-OptionalPropertyValue -Object $lastNavigation -Name 'movementVerification'
+        }
+    }
+}
+
 $recent = @($entries | Select-Object -Last $RecentCount)
 
 $summary = [ordered]@{
@@ -86,6 +97,7 @@ $summary = [ordered]@{
     navigateCount = $navigateSteps.Count
     facingCheckCount = $facingChecks.Count
     lastSession = if ($lastSession.Count -gt 0) { $lastSession[0] } else { $null }
+    lastMovementVerification = $lastMovementVerification
     lastFacingCheck = if ($lastFacing.Count -gt 0) { $lastFacing[0] } else { $null }
     stopReasonCounts = $stopReasonCounts
     recentSteps = $recent

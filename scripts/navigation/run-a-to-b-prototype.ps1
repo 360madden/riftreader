@@ -26,6 +26,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..')).Path 'logging-common.ps1')
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $refreshScript = Join-Path $repoRoot 'scripts\refresh-readerbridge-export.ps1'
@@ -104,6 +106,7 @@ if ($UseSmokeTestFile -and -not $UseLastSuccessfulRoute) {
 }
 
 $resolvedWaypointFile = [System.IO.Path]::GetFullPath($WaypointFile)
+$sessionRunId = New-LogRunId -Source 'navigation-prototype'
 
 function Write-SessionLog {
     param(
@@ -122,8 +125,8 @@ function Write-SessionLog {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
 
-    $entry = [ordered]@{
-        timestampUtc = (Get-Date).ToUniversalTime().ToString('o')
+    $legacyFields = [ordered]@{
+        timestampUtc = Get-LogEventTimeUtc
         step         = $Step
         exitCode     = $ExitCode
         processName  = $ProcessName
@@ -140,11 +143,45 @@ function Write-SessionLog {
 
     if ($null -ne $Metadata -and $Metadata.Count -gt 0) {
         foreach ($key in $Metadata.Keys) {
-            $entry[$key] = $Metadata[$key]
+            $legacyFields[$key] = $Metadata[$key]
         }
     }
 
-    Add-Content -LiteralPath $resolvedLogFile -Value (($entry | ConvertTo-Json -Compress -Depth 8))
+    $message = switch ($Step) {
+        'preflight' { 'Navigation preflight completed.' }
+        'navigate' { 'Navigation command completed.' }
+        'session-result' { 'Navigation session finished.' }
+        'facing-guard' { 'Facing guard completed.' }
+        default { "Navigation event '$Step' recorded." }
+    }
+
+    $level = if ($ExitCode -eq 0) { 'info' } elseif ($Step -eq 'navigate' -or $Step -eq 'session-result') { 'warn' } else { 'error' }
+
+    $data = [ordered]@{
+        step        = $Step
+        exitCode    = $ExitCode
+        processName = $ProcessName
+        waypointFile = $resolvedWaypointFile
+        route       = $legacyFields.route
+        arguments   = $Arguments
+        output      = $Output
+    }
+
+    if ($null -ne $Metadata -and $Metadata.Count -gt 0) {
+        foreach ($key in $Metadata.Keys) {
+            $data[$key] = $Metadata[$key]
+        }
+    }
+
+    $entry = New-StructuredLogEntry `
+        -Level $level `
+        -Source 'navigation-prototype' `
+        -RunId $sessionRunId `
+        -Message $message `
+        -Data $data `
+        -LegacyFields $legacyFields
+
+    Write-StructuredLogLine -Path $resolvedLogFile -Entry $entry
 }
 
 function Test-WaypointExists {

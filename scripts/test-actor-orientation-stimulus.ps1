@@ -21,6 +21,7 @@ $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
 $useSkipBackgroundFocus = $SkipBackgroundFocus.IsPresent
 $backgroundProcessAvailable = $false
+$coordMovementThreshold = 0.01
 
 if (-not $useSkipBackgroundFocus) {
     try {
@@ -55,22 +56,71 @@ function Convert-RadiansToDegrees {
 function Invoke-Capture {
     param([Parameter(Mandatory = $true)][string]$CaptureLabel)
 
-    if ($RefreshReaderBridge) {
-        if ($NoAhkFallback) {
-            $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge -NoAhkFallback
-        }
-        else {
-            $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge
-        }
+    if ($NoAhkFallback) {
+        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge -NoAhkFallback
     }
     else {
-        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile
+        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge
     }
     if ($LASTEXITCODE -ne 0) {
         throw "Actor orientation capture failed for '$CaptureLabel'."
     }
 
     return $json | ConvertFrom-Json -Depth 30
+}
+
+function Test-CoordMovementConfirmed {
+    param($DeltaMagnitude)
+
+    if ($null -eq $DeltaMagnitude) {
+        return $false
+    }
+
+    return ([double]$DeltaMagnitude -gt $coordMovementThreshold)
+}
+
+function Get-PreferredLiveCoordDeltaMagnitude {
+    param(
+        $BeforeCapture,
+        $AfterCapture
+    )
+
+    if ($null -eq $BeforeCapture -or $null -eq $AfterCapture) {
+        return $null
+    }
+
+    $beforeReader = $BeforeCapture.ReaderOrientation
+    $afterReader = $AfterCapture.ReaderOrientation
+    if ($null -eq $beforeReader -or $null -eq $afterReader) {
+        return $null
+    }
+
+    $beforeLive = $beforeReader.LiveSourceSample
+    $afterLive = $afterReader.LiveSourceSample
+    if ($null -eq $beforeLive -or $null -eq $afterLive) {
+        return $null
+    }
+
+    $coord48Delta = Get-CoordDeltaMagnitude -BeforeCoord $beforeLive.Coord48 -AfterCoord $afterLive.Coord48
+    $coord88Delta = Get-CoordDeltaMagnitude -BeforeCoord $beforeLive.Coord88 -AfterCoord $afterLive.Coord88
+
+    if ($beforeReader.LiveSourceCoord48MatchesPlayerCoord -or $afterReader.LiveSourceCoord48MatchesPlayerCoord) {
+        return $coord48Delta
+    }
+
+    if ($beforeReader.LiveSourceCoord88MatchesPlayerCoord -or $afterReader.LiveSourceCoord88MatchesPlayerCoord) {
+        return $coord88Delta
+    }
+
+    if ($null -eq $coord48Delta) {
+        return $coord88Delta
+    }
+
+    if ($null -eq $coord88Delta) {
+        return $coord48Delta
+    }
+
+    return [Math]::Max([double]$coord48Delta, [double]$coord88Delta)
 }
 
 function Get-CoordDeltaMagnitude {
@@ -186,8 +236,40 @@ $result = [pscustomobject]@{
         PitchDeltaRadians = $pitchDeltaRadians
         PitchDeltaDegrees = $pitchDeltaDegrees
         CoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
+        AddonCoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
+        AddonCoordMovementConfirmed = $false
+        AddonCoordSource = 'ReaderBridgeSnapshot.PlayerCoord'
+        AddonSnapshotBeforeUtc = $before.ReaderOrientation.SnapshotLoadedAtUtc
+        AddonSnapshotAfterUtc = $after.ReaderOrientation.SnapshotLoadedAtUtc
+        PreferredLiveCoordDeltaMagnitude = Get-PreferredLiveCoordDeltaMagnitude -BeforeCapture $before -AfterCapture $after
+        LiveCoord48DeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.LiveSourceSample.Coord48 -AfterCoord $after.ReaderOrientation.LiveSourceSample.Coord48
+        LiveCoord88DeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.LiveSourceSample.Coord88 -AfterCoord $after.ReaderOrientation.LiveSourceSample.Coord88
+        LiveCoordMovementConfirmed = $false
+        AnyCoordMovementConfirmed = $false
+        TelemetryAlignmentStatus = $null
+        TelemetryBlocker = $false
         VectorDeltaMagnitude = Get-VectorDeltaMagnitude -BeforeVector $beforeEstimate.Vector -AfterVector $afterEstimate.Vector
     }
+}
+
+$result.Comparison.AddonCoordMovementConfirmed = Test-CoordMovementConfirmed -DeltaMagnitude $result.Comparison.AddonCoordDeltaMagnitude
+$result.Comparison.LiveCoordMovementConfirmed = `
+    (Test-CoordMovementConfirmed -DeltaMagnitude $result.Comparison.PreferredLiveCoordDeltaMagnitude) -or `
+    (Test-CoordMovementConfirmed -DeltaMagnitude $result.Comparison.LiveCoord48DeltaMagnitude) -or `
+    (Test-CoordMovementConfirmed -DeltaMagnitude $result.Comparison.LiveCoord88DeltaMagnitude)
+$result.Comparison.AnyCoordMovementConfirmed = `
+    $result.Comparison.AddonCoordMovementConfirmed -or `
+    $result.Comparison.LiveCoordMovementConfirmed
+
+if ($result.Comparison.AddonCoordMovementConfirmed -and $result.Comparison.LiveCoordMovementConfirmed) {
+    $result.Comparison.TelemetryAlignmentStatus = 'aligned-success'
+}
+elseif ($result.Comparison.AddonCoordMovementConfirmed -or $result.Comparison.LiveCoordMovementConfirmed) {
+    $result.Comparison.TelemetryAlignmentStatus = 'source-mismatch'
+    $result.Comparison.TelemetryBlocker = $true
+}
+else {
+    $result.Comparison.TelemetryAlignmentStatus = 'no-coord-movement-confirmed'
 }
 
 try {
@@ -203,7 +285,14 @@ try {
     Write-Host ("After yaw/pitch (deg):       {0} / {1}" -f (Format-Nullable $afterEstimate.YawDegrees '0.000'), (Format-Nullable $afterEstimate.PitchDegrees '0.000'))
     Write-Host ("Yaw/pitch delta (deg):       {0} / {1}" -f (Format-Nullable $result.Comparison.YawDeltaDegrees '0.000'), (Format-Nullable $result.Comparison.PitchDeltaDegrees '0.000'))
     Write-Host ("Vector delta magnitude:      {0}" -f (Format-Nullable $result.Comparison.VectorDeltaMagnitude '0.000000'))
-    Write-Host ("Coord delta magnitude:       {0}" -f (Format-Nullable $result.Comparison.CoordDeltaMagnitude '0.000000'))
+    Write-Host ("Addon coord delta magnitude: {0}" -f (Format-Nullable $result.Comparison.AddonCoordDeltaMagnitude '0.000000'))
+    Write-Host ("Addon coord confirmed:       {0}" -f $result.Comparison.AddonCoordMovementConfirmed)
+    Write-Host ("Preferred live coord delta:  {0}" -f (Format-Nullable $result.Comparison.PreferredLiveCoordDeltaMagnitude '0.000000'))
+    Write-Host ("Live coord48/88 delta:       {0} / {1}" -f (Format-Nullable $result.Comparison.LiveCoord48DeltaMagnitude '0.000000'), (Format-Nullable $result.Comparison.LiveCoord88DeltaMagnitude '0.000000'))
+    Write-Host ("Live coord confirmed:        {0}" -f $result.Comparison.LiveCoordMovementConfirmed)
+    Write-Host ("Any coord movement seen:     {0}" -f $result.Comparison.AnyCoordMovementConfirmed)
+    Write-Host ("Telemetry alignment:         {0}" -f $result.Comparison.TelemetryAlignmentStatus)
+    Write-Host ("Telemetry blocker:           {0}" -f $result.Comparison.TelemetryBlocker)
 }
 finally {
     Remove-Item -LiteralPath $tempOutputFile, $tempPreviousFile -ErrorAction SilentlyContinue

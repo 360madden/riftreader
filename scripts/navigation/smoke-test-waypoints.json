@@ -1,37 +1,37 @@
 {
-    "schemaVersion":  1,
-    "movement":  {
-                     "forwardKey":  "w",
-                     "runKey":  null,
-                     "walkKey":  null,
-                     "defaultPace":  "keep",
-                     "forwardPulseMilliseconds":  250,
-                     "postPulseSampleDelayMilliseconds":  150,
-                     "startRadius":  1.5,
-                     "defaultArrivalRadius":  0.75,
-                     "noProgressWindowMilliseconds":  1500,
-                     "minimumProgressDistance":  0.15,
-                     "wrongWayToleranceDistance":  0.6,
-                     "maxTravelSeconds":  6
-                 },
-    "waypoints":  [
-                      {
-                          "id":  "smoke_start",
-                          "label":  "Smoke Start",
-                          "x":  7321.2700195312,
-                          "y":  818.39996337891,
-                          "z":  2839.2600097656,
-                          "arrivalRadius":  0.75,
-                          "pace":  "keep"
-                      },
-                      {
-                          "id":  "smoke_destination",
-                          "label":  "Smoke Destination",
-                          "x":  7321.15575464161,
-                          "y":  818.39996337891,
-                          "z":  2837.2632765498179,
-                          "arrivalRadius":  0.75,
-                          "pace":  "keep"
-                      }
-                  ]
+  "schemaVersion": 1,
+  "movement": {
+    "forwardKey": "w",
+    "runKey": null,
+    "walkKey": null,
+    "defaultPace": "keep",
+    "forwardPulseMilliseconds": 250,
+    "postPulseSampleDelayMilliseconds": 150,
+    "startRadius": 1.5,
+    "defaultArrivalRadius": 5.0,
+    "noProgressWindowMilliseconds": 1500,
+    "minimumProgressDistance": 0.15,
+    "wrongWayToleranceDistance": 0.6,
+    "maxTravelSeconds": 10
+  },
+  "waypoints": [
+    {
+      "id": "smoke_start",
+      "label": "Smoke Start",
+      "x": 7242.349609375,
+      "y": 818.39996337891,
+      "z": 2790.8898925781,
+      "arrivalRadius": 5.0,
+      "pace": "keep"
+    },
+    {
+      "id": "smoke_destination",
+      "label": "Smoke Destination",
+      "x": 7238.3002322403145,
+      "y": 818.39996337891,
+      "z": 2800.033335300679,
+      "arrivalRadius": 5.0,
+      "pace": "keep"
+    }
+  ]
 }
