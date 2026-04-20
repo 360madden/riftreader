@@ -1,0 +1,21 @@
+{
+  "Mode": "actor-facing-behavior-backed-lead",
+  "GeneratedAtUtc": "2026-04-20T09:09:00Z",
+  "ValidatedAtUtc": "2026-04-20T09:09:00Z",
+  "ProcessName": "rift_x64",
+  "SourceAddress": "0x1B115201EB0",
+  "BasisForwardOffset": "0xD4",
+  "Status": "preferred-solved-lead",
+  "OperationalStatus": "behavior-backed-lead",
+  "PreferredLead": true,
+  "SolvedActorFacing": true,
+  "CanonicalActorYaw": true,
+  "CanonicalPitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
+  "CanonicalYawFormula": "atan2(forwardZ, forwardX)",
+  "Notes": [
+    "Fresh no-CE validation on April 20, 2026 confirmed that the live actor-facing basis is the forward row at +0xD4/+0xD8/+0xDC on source 0x1B115201EB0.",
+    "Fresh focused foreground PostMessage A stimulus changed yaw from -93.2956 degrees to 63.0244 degrees while pitch remained 0.0 degrees.",
+    "Fresh focused foreground PostMessage D stimulus changed yaw from 63.0244 degrees to -92.4286 degrees while pitch remained 0.0 degrees.",
+    "The historical +0x60/+0x94 basis windows on this source are not truth-bearing on the current client and must not be promoted over the validated +0xD4 basis row."
+  ]
+}

@@ -4,15 +4,20 @@ Start here if artifacts, notes, or workflow state drift or get corrupted.
 
 ## Current post-update note
 
-After the April 14, 2026 game update:
+After the April 14, 2026 game update, and after the April 20, 2026 truth
+revalidation pass:
 
 - `player-current` and the coord-anchor module pattern still survived
-- the source-chain / selector-owner / owner-components refresh path drifted
-- actor-orientation and camera notes below the recovery layer should be treated
-  as historical until rebuilt
+- actor yaw / pitch truth was recovered on `main` through the behavior-backed
+  lead consumed by `scripts\capture-actor-orientation.ps1`
+- the source-chain / selector-owner / owner-components refresh path is still
+  drifted/stale
+- camera notes below the recovery layer should still be treated as historical
+  until rebuilt on the updated client
 
 Start with:
 
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-20-actor-yaw-pitch-behavior-backed-lead-validation.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 

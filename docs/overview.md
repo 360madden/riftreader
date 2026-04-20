@@ -44,7 +44,7 @@ If artifacts or notes are corrupted, start here:
 
 - C:\RIFT MODDING\RiftReader\docs\recovery\README.md
 
-## Post-Update Status (April 14, 2026)
+## Post-Update Status (April 20, 2026)
 
 The April 14, 2026 Rift update left the reader baseline partially intact but
 drifted the owner/source discovery chain.
@@ -53,15 +53,21 @@ Current short version:
 
 - `player-current` still works
 - the coord-anchor module pattern still works
+- `scripts\capture-actor-orientation.ps1` is working again through the
+  behavior-backed lead `0x1B115201EB0 + 0xD4`
+- actor yaw / pitch truth is currently coming from that validated live basis
+  row, not from ReaderBridge/API orientation fields
 - source-chain refresh is broken
 - selector-owner trace is broken
-- actor-orientation and camera claims below are historical until rebuilt
+- `--read-player-orientation` is still historical because it depends on the
+  stale owner-components path
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
 
 Use these first:
 
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-20-actor-yaw-pitch-behavior-backed-lead-validation.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
@@ -85,16 +91,18 @@ Use these first:
 11. enumerate the stable owner container itself and separate the live selected-source component from its sibling component records
 12. classify the first stat-side graph around that owner/component table by identifying raw-unit-id-bearing identity components and shared level/resource hubs
 13. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
-14. expose an actor-orientation helper via `--read-player-orientation` plus a capture script so live yaw/pitch experiments can compare repeated owner/source orientation samples and the full source basis matrix instead of rescanning blindly
+14. keep the live actor-yaw / pitch capture helper anchored on the validated behavior-backed lead while the owner/source artifact path is rebuilt for a future typed reader mode
 
 Current discovery refinement:
 
 Post-update note:
 
-- as of April 14, 2026, only the player-current path and coord-anchor module
-  pattern are currently revalidated on `main`
-- the selected-source / selector-owner / owner-components / actor-orientation
-  bullets below are historical until the chain is rebuilt on the updated client
+- as of April 20, 2026, the player-current path, coord-anchor module pattern,
+  and `capture-actor-orientation.ps1` behavior-backed lead are currently
+  revalidated on `main`
+- `--read-player-orientation` and the selected-source / selector-owner /
+  owner-components artifact path remain historical until the chain is rebuilt on
+  the updated client
 
 - keep artifact freshness and provenance explicit before promoting a new anchor:
   - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
@@ -106,6 +114,13 @@ Post-update note:
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
+  - current actor yaw / pitch truth is behavior-backed from source
+    `0x1B115201EB0` via forward row `+0xD4/+0xD8/+0xDC`
+  - `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1`
+    prefers `scripts\actor-facing-behavior-backed-lead.json` when present and
+    fails closed if the live basis no longer validates
+  - `--read-player-orientation` remains stale until the owner/source artifact
+    path is rebuilt
   - pre-update, the selected source component yielded the strongest actor-orientation vectors
   - pre-update, that selected source also exposed duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
   - pre-update, `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` produced repeatable yaw/pitch captures derived from the forward basis row
