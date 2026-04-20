@@ -1378,7 +1378,10 @@ internal static class Program
                         }),
                     markerKinds,
                     ref markerCount);
+                sampleWriter.Flush();
                 markerWriter.Flush();
+                sampleWriter.Dispose();
+                markerWriter.Dispose();
 
                 if (requiredReadFailures.Count > 0)
                 {
