@@ -16,6 +16,8 @@ Expected during the current post-update state:
 - player-current should still match ReaderBridge
 - coord-anchor should still find the module-local pattern, even if the absolute
   instruction address changed
+- the coord-anchor module pattern may be current even when the saved
+  coord-write trace artifact is stale for this process
 
 If these fail, stop and fix the reader baseline before trusting any
 owner/source/camera artifact.
@@ -26,7 +28,7 @@ owner/source/camera artifact.
 dotnet build C:\RIFT MODDING\RiftReader\RiftReader.slnx
 ```
 
-## 2. Attempt to rebuild the owner/source chain
+## 2. Rebuild the owner/source chain in two stages: structure first, authority second
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
@@ -41,12 +43,30 @@ Healthy result:
 
 Current post-update warning:
 
-- if `capture-player-source-chain.ps1` cannot locate the required
-  source-container load, stop and mark the actor/camera chain stale
-- if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
-  mark the actor/camera chain stale
+- `capture-player-source-chain.ps1` may recover a useful selector/container
+  shape before it recovers live authority; treat this as **structural only**
+  until the trace path is rebased to the current process
+- if `player-source-chain.json` contains a fresh selector scan but stale
+  absolute trigger/source addresses, stop and fix rebasing before trusting the
+  owner/source chain
+- if any upstream artifact reports `TraceMatchesProcess = false`, treat its
+  absolute addresses as pattern-only hints, not live authority
+- if `trace-player-selector-owner.ps1` remains `armed` without a live hit, or
+  falls back to cached recovery, stop and mark the actor/camera chain stale
 
 Do not promote stale owner/source artifacts as current truth.
+
+### 2a. Required authority check before trusting owner/source rebuilds
+
+Before treating step 2 as successful, verify all of the following:
+
+- the chosen trigger/breakpoint address was resolved in the **current**
+  `rift_x64.exe` process
+- `player-selector-owner-trace.json` is from a live hit, not `cached-fallback`
+- no critical live address came from an artifact whose `TraceMatchesProcess`
+  was `false`
+
+If any of those checks fail, the chain is still **not current truth**.
 
 ## 3. Refresh the core graph artifacts
 
@@ -56,7 +76,8 @@ C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1 -Json -Refr
 C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1 -Json
 ```
 
-Run this step only after step 2 succeeds on the current game build.
+Run this step only after step 2 succeeds with live current-process authority on
+the current game build.
 
 ## 4. Verify the live camera read path
 
@@ -75,6 +96,8 @@ Current post-update note:
   `feature/camera-orientation-discovery`, not on the `main` worktree
 - do not treat older camera outputs as current until this step succeeds on the
   updated client
+- do not attempt this step from stale owner/source artifacts or cached fallback
+  selector traces
 
 ## 5. Rebuild controller-search helpers if needed
 
@@ -90,6 +113,13 @@ C:\RIFT MODDING\RiftReader_camera_feature\scripts\capture-camera-memory-dump.ps1
 - missing `player-owner-graph.json` or `player-stat-hub-graph.json` -> do step 3
 - missing camera helper outputs -> do steps 4 and 5
 - missing old notes -> rebuild the current state first, then compare history later
+
+## Current authority rule
+
+- live module patterns and live current-process scans are authoritative
+- stale artifact addresses are never authoritative after a patch
+- stale artifacts can still help rediscover shape/patterns, but they do not
+  count as live proof
 
 ## Operator note
 

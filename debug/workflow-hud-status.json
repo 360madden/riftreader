@@ -1,8 +1,8 @@
 {
-  "state": "blocked",
-  "action": "coord trace timeout",
-  "updatedAtUtc": "2026-04-19T15:14:42.5279316+00:00",
+  "state": "idle",
+  "action": "idle",
+  "updatedAtUtc": "2026-04-19T18:04:50.7665913+00:00",
   "staleAfterSeconds": 90,
-  "lastMessage": "coord trace timeout",
-  "lastMessageAtUtc": "2026-04-19T15:14:42.5279316+00:00"
+  "lastMessage": "coord trace failed",
+  "lastMessageAtUtc": "04/19/2026 13:45:24"
 }

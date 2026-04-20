@@ -15,6 +15,26 @@ After the April 14, 2026 game update:
   run whose `actor-yaw-debug-workflow.json` reports
   `Promotion.PromotionReady = true` should be promoted into current truth
 
+## Truth policy
+
+Establish truth in this order:
+
+1. **reader-native baseline first**
+   - ReaderBridge snapshot
+   - `--read-player-current`
+   - `--read-player-coord-anchor`
+2. **current-process pattern / module scans second**
+   - use these to rebase live addresses in the active `rift_x64.exe`
+3. **Cheat Engine only as bounded last-mile validation**
+   - use CE only when the remaining question truly requires debugger-level proof
+
+Cheat Engine is **not baseline infrastructure** for current truth.
+
+- CE failures are tooling blockers, not truth by themselves
+- stale artifacts may be pattern hints, but they are not live authority
+- any artifact with `TraceMatchesProcess = false` is not authoritative for live
+  addresses
+
 Start with:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`

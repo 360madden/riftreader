@@ -33,7 +33,18 @@ Use this file to decide what must survive, what can be regenerated, and what can
 ## Rule
 
 If recovery is needed:
+0. establish the reader-native baseline first
 1. rebuild Tier 1
 2. regenerate Tier 2 if still needed
 3. use Tier 3 only for comparison
 4. ignore Tier 4 unless a specific bug needs it
+
+## Reader-native baseline first
+
+Before treating any artifact tier as current truth, first confirm:
+
+- ReaderBridge snapshot loads
+- `--read-player-current` matches ReaderBridge
+- `--read-player-coord-anchor` resolves a current-process module pattern
+
+Artifacts come **after** that baseline; they do not replace it.

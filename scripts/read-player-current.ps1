@@ -147,6 +147,9 @@ function Get-TraceRefreshDiagnostics {
     if (-not [string]::IsNullOrWhiteSpace($AttemptOutputFile) -and (Test-Path -LiteralPath $AttemptOutputFile)) {
         try {
             $attemptDocument = Get-Content -LiteralPath $AttemptOutputFile -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 20
+            $attemptItems = if ($attemptDocument.PSObject.Properties['Candidates']) { @($attemptDocument.Candidates.Attempts) } else { @() }
+            $lastAttempt = @($attemptItems | Select-Object -Last 1)
+            $lastAttemptItem = if ($lastAttempt.Count -gt 0) { $lastAttempt[0] } else { $null }
             $stimulus = $null
             if ($attemptDocument.PSObject.Properties['Stimulus']) {
                 $stimulus = [pscustomobject]@{
@@ -175,9 +178,30 @@ function Get-TraceRefreshDiagnostics {
                 Error = [string]$attemptDocument.Error
                 CanonicalOutputWritten = [bool]$attemptDocument.CanonicalOutputWritten
                 CandidateCount = if ($attemptDocument.PSObject.Properties['Candidates']) { [int]$attemptDocument.Candidates.Count } else { 0 }
-                AttemptCount = if ($attemptDocument.PSObject.Properties['Candidates']) { @($attemptDocument.Candidates.Attempts).Count } else { 0 }
+                AttemptCount = $attemptItems.Count
                 Stimulus = $stimulus
                 Trace = $trace
+                LastAttemptStatus = if ($null -ne $lastAttemptItem) { [string]$lastAttemptItem.Status } else { $null }
+                LastAttemptCandidateAddress = if ($null -ne $lastAttemptItem) { [string]$lastAttemptItem.CandidateAddress } else { $null }
+                LastAttemptCandidateSource = if ($null -ne $lastAttemptItem) { [string]$lastAttemptItem.CandidateSource } else { $null }
+                LastAttemptCandidateFamilyId = if ($null -ne $lastAttemptItem) { [string]$lastAttemptItem.CandidateFamilyId } else { $null }
+                LastAttemptStimulusKey = if ($null -ne $lastAttemptItem) { [string]$lastAttemptItem.StimulusKey } else { $null }
+                LastAttemptElapsedMilliseconds = if ($null -ne $lastAttemptItem) { [int]$lastAttemptItem.ElapsedMilliseconds } else { 0 }
+                LastAttemptLastObservedStatus = if ($null -ne $lastAttemptItem) { [string]$lastAttemptItem.LastObservedStatus } else { $null }
+                LastAttemptObservedStatuses = if ($null -ne $lastAttemptItem) { @($lastAttemptItem.ObservedStatuses | ForEach-Object { [string]$_.Status }) } else { @() }
+                RecentAttempts = @($attemptItems | Select-Object -Last 4 | ForEach-Object {
+                        [pscustomobject]@{
+                            CandidateAddress = [string]$_.CandidateAddress
+                            CandidateSource = [string]$_.CandidateSource
+                            CandidateFamilyId = [string]$_.CandidateFamilyId
+                            Status = [string]$_.Status
+                            LastObservedStatus = [string]$_.LastObservedStatus
+                            StimulusKey = [string]$_.StimulusKey
+                            ElapsedMilliseconds = [int]$_.ElapsedMilliseconds
+                            DebugAttachLabel = [string]$_.DebugAttachLabel
+                            BreakpointMethod = [string]$_.BreakpointMethod
+                        }
+                    })
             }
         }
         catch {
@@ -220,6 +244,215 @@ function Get-TraceRefreshDiagnostics {
         LastStatus = $lastStatus
         StdOutSummary = Get-FirstMeaningfulLine -Path $StdOutFile
         StdErrSummary = Get-FirstMeaningfulLine -Path $StdErrFile
+    }
+}
+
+function Get-TraceRefreshAttemptSummaryText {
+    param(
+        [object]$Diagnostics
+    )
+
+    if ($null -eq $Diagnostics -or $null -eq $Diagnostics.AttemptSummary) {
+        return $null
+    }
+
+    $summary = $Diagnostics.AttemptSummary
+    $parts = New-Object System.Collections.Generic.List[string]
+
+    $lastStatus = [string]$summary.LastAttemptStatus
+    $lastCandidate = [string]$summary.LastAttemptCandidateAddress
+    $lastSource = [string]$summary.LastAttemptCandidateSource
+    $lastKey = [string]$summary.LastAttemptStimulusKey
+    $lastObservedStatus = [string]$summary.LastAttemptLastObservedStatus
+    if (-not [string]::IsNullOrWhiteSpace($lastStatus)) {
+        $parts.Add(("last={0} {1} [{2}] key={3} observed={4}" -f $lastStatus, $lastCandidate, $lastSource, $lastKey, $lastObservedStatus)) | Out-Null
+    }
+
+    $recentAttempts = @($summary.RecentAttempts)
+    if ($recentAttempts.Count -gt 0) {
+        $recentSummary = @($recentAttempts | ForEach-Object {
+                "{0}:{1}[{2}] key={3}" -f $_.CandidateAddress, $_.Status, $_.CandidateSource, $_.StimulusKey
+            }) -join '; '
+        if (-not [string]::IsNullOrWhiteSpace($recentSummary)) {
+            $parts.Add(("recent={0}" -f $recentSummary)) | Out-Null
+        }
+    }
+
+    if ($parts.Count -le 0) {
+        return $null
+    }
+
+    return ($parts -join ' | ')
+}
+
+function Invoke-CoordTraceRefreshPass {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PassName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StimulusMode,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Write', 'Access')]
+        [string]$WatchMode,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$AttachPreferences,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$BreakpointMethods,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$StimulusKeys,
+
+        [Parameter(Mandatory = $true)]
+        [int]$MovementHoldMilliseconds,
+
+        [Parameter(Mandatory = $true)]
+        [int]$TraceTimeoutSeconds,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessTimeoutSeconds,
+
+        [datetime]$BeforeWriteTimeUtc,
+
+        [switch]$TrustStimulusMode,
+
+        [switch]$SamplePlayerCurrentDuringTrace,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StdOutFile,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StdErrFile,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TraceStatusFile,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TraceAttemptOutputFile
+    )
+
+    $passResult = [ordered]@{
+        PassName = $PassName
+        StimulusMode = $StimulusMode
+        WatchMode = $WatchMode
+        ExitCode = $null
+        TimedOut = $false
+        Error = $null
+        Reason = $null
+        AttemptOutputFile = $TraceAttemptOutputFile
+        StatusFile = $TraceStatusFile
+        Diagnostics = $null
+        ArtifactUpdated = $false
+        AfterArtifactWriteTimeUtc = $null
+    }
+
+    try {
+        $traceArgumentList = @(
+            '-NoLogo',
+            '-NoProfile',
+            '-File', ('"{0}"' -f $traceScript),
+            '-Json',
+            '-SkipRefresh',
+            '-ProcessName', $ProcessName,
+            '-StimulusMode', $StimulusMode,
+            '-WatchMode', $WatchMode,
+            '-TraceStimulusKeysCsv', ('"{0}"' -f ($StimulusKeys -join ',')),
+            '-AttachPreferenceSequenceCsv', ('"{0}"' -f ($AttachPreferences -join ',')),
+            '-BreakpointMethodSequenceCsv', ('"{0}"' -f ($BreakpointMethods -join ',')),
+            '-MovementHoldMilliseconds', $MovementHoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            '-TimeoutSeconds', $TraceTimeoutSeconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            '-MaxCandidates', '4',
+            '-TraceStatusFile', ('"{0}"' -f $TraceStatusFile),
+            '-AttemptOutputFile', ('"{0}"' -f $TraceAttemptOutputFile)
+        )
+
+        if ($TrustStimulusMode) {
+            $traceArgumentList += '-TrustStimulusMode'
+        }
+
+        if ($SamplePlayerCurrentDuringTrace) {
+            $traceArgumentList += '-SamplePlayerCurrentDuringTrace'
+        }
+
+        $traceArgumentList = $traceArgumentList -join ' '
+
+        $traceProcess = Start-Process -FilePath $pwshPath -ArgumentList $traceArgumentList -PassThru -WindowStyle Hidden -RedirectStandardOutput $StdOutFile -RedirectStandardError $StdErrFile
+
+        if (-not $traceProcess.WaitForExit(($ProcessTimeoutSeconds * 1000))) {
+            try {
+                Stop-Process -Id $traceProcess.Id -Force -ErrorAction Stop
+            }
+            catch {
+                # Best-effort stop only.
+            }
+
+            $passResult.TimedOut = $true
+            $passResult.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $TraceAttemptOutputFile -StatusFile $TraceStatusFile -StdOutFile $StdOutFile -StdErrFile $StdErrFile
+            $timedOutLastStatus = if ($null -ne $passResult.Diagnostics -and $null -ne $passResult.Diagnostics.LastStatus) { [string]$passResult.Diagnostics.LastStatus.Status } else { $null }
+            $timedOutLastAttemptStatus = if ($null -ne $passResult.Diagnostics -and $null -ne $passResult.Diagnostics.AttemptSummary) { [string]$passResult.Diagnostics.AttemptSummary.LastAttemptStatus } else { $null }
+            if ($timedOutLastStatus -eq 'armed' -or $timedOutLastAttemptStatus -eq 'armed-no-hit') {
+                $passResult.Reason = 'trace-refresh-armed-no-hit'
+                $passResult.Error = Get-TraceRefreshAttemptSummaryText -Diagnostics $passResult.Diagnostics
+            }
+            else {
+                $passResult.Reason = 'trace-refresh-timeout'
+            }
+
+            return [pscustomobject]$passResult
+        }
+
+        $stdoutText = if (Test-Path -LiteralPath $StdOutFile) { Get-Content -LiteralPath $StdOutFile -Raw } else { '' }
+        $stderrText = if (Test-Path -LiteralPath $StdErrFile) { Get-Content -LiteralPath $StdErrFile -Raw } else { '' }
+        $passResult.ExitCode = $traceProcess.ExitCode
+
+        if ($traceProcess.ExitCode -ne 0) {
+            $detail = @($stdoutText, $stderrText) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                ForEach-Object { $_.Trim() } |
+                Select-Object -First 1
+
+            $passResult.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $TraceAttemptOutputFile -StatusFile $TraceStatusFile -StdOutFile $StdOutFile -StdErrFile $StdErrFile
+            $nonzeroLastStatus = if ($null -ne $passResult.Diagnostics -and $null -ne $passResult.Diagnostics.LastStatus) { [string]$passResult.Diagnostics.LastStatus.Status } else { $null }
+            $nonzeroLastAttemptStatus = if ($null -ne $passResult.Diagnostics -and $null -ne $passResult.Diagnostics.AttemptSummary) { [string]$passResult.Diagnostics.AttemptSummary.LastAttemptStatus } else { $null }
+            if ($nonzeroLastStatus -eq 'armed' -or $nonzeroLastAttemptStatus -eq 'armed-no-hit') {
+                $passResult.Reason = 'trace-refresh-armed-no-hit'
+                $passResult.Error = Get-TraceRefreshAttemptSummaryText -Diagnostics $passResult.Diagnostics
+            }
+            else {
+                $passResult.Reason = 'trace-refresh-nonzero-exit'
+                $passResult.Error = $detail
+            }
+
+            return [pscustomobject]$passResult
+        }
+
+        $afterWriteTimeUtc = if (Test-Path -LiteralPath $traceOutputFile) {
+            (Get-Item -LiteralPath $traceOutputFile).LastWriteTimeUtc
+        }
+        else {
+            $null
+        }
+
+        $artifactUpdated = $null -ne $afterWriteTimeUtc -and ($null -eq $beforeWriteTimeUtc -or $afterWriteTimeUtc -gt $beforeWriteTimeUtc)
+        $passResult.AfterArtifactWriteTimeUtc = if ($null -ne $afterWriteTimeUtc) { $afterWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) } else { $null }
+        $passResult.ArtifactUpdated = $artifactUpdated
+        if (-not $artifactUpdated) {
+            $passResult.Reason = 'trace-artifact-not-updated'
+            $passResult.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $TraceAttemptOutputFile -StatusFile $TraceStatusFile -StdOutFile $StdOutFile -StdErrFile $StdErrFile
+            return [pscustomobject]$passResult
+        }
+
+        $passResult.Reason = 'trace-artifact-updated'
+        return [pscustomobject]$passResult
+    }
+    catch {
+        $passResult.Reason = 'trace-refresh-exception'
+        $passResult.Error = $_.Exception.Message
+        $passResult.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $TraceAttemptOutputFile -StatusFile $TraceStatusFile -StdOutFile $StdOutFile -StdErrFile $StdErrFile
+        return [pscustomobject]$passResult
     }
 }
 
@@ -297,96 +530,165 @@ function Try-RefreshTraceAnchor {
     $traceAttemptOutputFile = Join-Path $traceRefreshCaptureDirectory ("coord-trace-refresh-{0}.attempt.json" -f $traceRefreshId)
     $result.AttemptOutputFile = $traceAttemptOutputFile
     $result.StatusFile = $traceStatusPath
+    $traceStimulusKeys = New-Object System.Collections.Generic.List[string]
+    $traceStimulusKeySeen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($key in @($RecoveryKey, 'w', 'd')) {
+        $normalizedKey = [string]$key
+        if ([string]::IsNullOrWhiteSpace($normalizedKey)) {
+            continue
+        }
 
-    try {
-        $traceArgumentList = @(
-            '-NoLogo',
-            '-NoProfile',
-            '-File', ('"{0}"' -f $traceScript),
-            '-Json',
-            '-SkipRefresh',
-            '-ProcessName', $ProcessName,
-            '-StimulusMode', $TraceRefreshStimulusMode,
-            '-TrustStimulusMode',
-            '-TimeoutSeconds', '8',
-            '-MaxCandidates', '4',
-            '-TraceStatusFile', ('"{0}"' -f $traceStatusPath),
-            '-AttemptOutputFile', ('"{0}"' -f $traceAttemptOutputFile)
-        ) -join ' '
+        $normalizedKey = $normalizedKey.Trim()
+        if ($traceStimulusKeySeen.Add($normalizedKey)) {
+            $traceStimulusKeys.Add($normalizedKey) | Out-Null
+        }
+    }
 
-        Write-WorkflowHudStatus -State 'active' -Action 'coord trace launch' -StaleAfterSeconds 60
-        $traceProcess = Start-Process -FilePath $pwshPath -ArgumentList $traceArgumentList -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $traceStimulusModes = New-Object System.Collections.Generic.List[string]
+    $traceStimulusModeSeen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $configuredTraceStimulusMode = [string]$TraceRefreshStimulusMode
+    if ([string]::IsNullOrWhiteSpace($configuredTraceStimulusMode) -or $configuredTraceStimulusMode -eq 'Auto') {
+        $configuredTraceStimulusMode = 'PostMessage'
+    }
 
-        if (-not $traceProcess.WaitForExit(($TraceRefreshTimeoutSeconds * 1000))) {
-            try {
-                Stop-Process -Id $traceProcess.Id -Force -ErrorAction Stop
-            }
-            catch {
-                Write-Warning ("Coord-trace refresh timed out after {0}s and the helper could not be stopped cleanly. {1}" -f $TraceRefreshTimeoutSeconds, $_.Exception.Message)
-            }
+    foreach ($mode in @($configuredTraceStimulusMode, 'PostMessage', 'SendInput')) {
+        $normalizedMode = [string]$mode
+        if ([string]::IsNullOrWhiteSpace($normalizedMode)) {
+            continue
+        }
 
-            $result.TimedOut = $true
-            $result.Reason = 'trace-refresh-timeout'
-            $result.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $traceAttemptOutputFile -StatusFile $traceStatusPath -StdOutFile $stdoutPath -StdErrFile $stderrPath
-            Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace timeout' -StaleAfterSeconds 90
-            Write-Warning ("Coord-trace refresh timed out after {0}s; leaving the existing coord anchor in place." -f $TraceRefreshTimeoutSeconds)
+        $normalizedMode = $normalizedMode.Trim()
+        if ($traceStimulusModeSeen.Add($normalizedMode)) {
+            $traceStimulusModes.Add($normalizedMode) | Out-Null
+        }
+    }
+
+    $passResults = New-Object System.Collections.Generic.List[object]
+    $tracePasses = New-Object System.Collections.Generic.List[object]
+    for ($modeIndex = 0; $modeIndex -lt $traceStimulusModes.Count; $modeIndex++) {
+        $passStimulusMode = [string]$traceStimulusModes[$modeIndex]
+        $passName = if ($modeIndex -eq 0) { 'debug-register' } else { 'debug-register-{0}' -f $passStimulusMode.ToLowerInvariant() }
+        $tracePasses.Add([pscustomobject]@{
+                Name = $passName
+                StimulusMode = $passStimulusMode
+                WatchMode = 'Write'
+                TrustStimulusMode = $true
+                SamplePlayerCurrentDuringTrace = ($modeIndex -gt 0)
+                AttachPreferences = @('interface-2')
+                BreakpointMethods = @('debug-register')
+                MovementHoldMilliseconds = 650
+                TimeoutSeconds = 3
+            }) | Out-Null
+    }
+
+    $pageExceptionStimulusMode = if ($traceStimulusModes.Count -gt 1) { [string]$traceStimulusModes[1] } else { [string]$traceStimulusModes[0] }
+    $tracePasses.Add([pscustomobject]@{
+            Name = 'page-exception'
+            StimulusMode = $pageExceptionStimulusMode
+            WatchMode = 'Write'
+            TrustStimulusMode = $true
+            SamplePlayerCurrentDuringTrace = $true
+            AttachPreferences = @('interface-2')
+            BreakpointMethods = @('page-exception')
+            MovementHoldMilliseconds = 650
+            TimeoutSeconds = 3
+        }) | Out-Null
+    $tracePasses.Add([pscustomobject]@{
+            Name = 'debug-register-access'
+            StimulusMode = $pageExceptionStimulusMode
+            WatchMode = 'Access'
+            TrustStimulusMode = $true
+            SamplePlayerCurrentDuringTrace = $true
+            AttachPreferences = @('interface-2')
+            BreakpointMethods = @('debug-register')
+            MovementHoldMilliseconds = 650
+            TimeoutSeconds = 3
+        }) | Out-Null
+
+    for ($passIndex = 0; $passIndex -lt $tracePasses.Count; $passIndex++) {
+        $pass = $tracePasses[$passIndex]
+        $passSlug = ((([string]$pass.Name) -replace '[^a-zA-Z0-9]+', '-').Trim('-')).ToLowerInvariant()
+        $passStdOutPath = Join-Path $traceRefreshCaptureDirectory ("coord-trace-refresh-{0}-{1}.stdout.log" -f $traceRefreshId, $passSlug)
+        $passStdErrPath = Join-Path $traceRefreshCaptureDirectory ("coord-trace-refresh-{0}-{1}.stderr.log" -f $traceRefreshId, $passSlug)
+        $passTraceStatusPath = Join-Path $traceRefreshCaptureDirectory ("coord-trace-refresh-{0}-{1}.status.txt" -f $traceRefreshId, $passSlug)
+        $passTraceAttemptOutputFile = Join-Path $traceRefreshCaptureDirectory ("coord-trace-refresh-{0}-{1}.attempt.json" -f $traceRefreshId, $passSlug)
+
+        Write-WorkflowHudStatus -State 'active' -Action ('coord trace {0}' -f $passSlug) -StaleAfterSeconds 60
+        $passResult = Invoke-CoordTraceRefreshPass `
+            -PassName $pass.Name `
+            -StimulusMode ([string]$pass.StimulusMode) `
+            -WatchMode ([string]$pass.WatchMode) `
+            -AttachPreferences @($pass.AttachPreferences) `
+            -BreakpointMethods @($pass.BreakpointMethods) `
+            -StimulusKeys @($traceStimulusKeys) `
+            -MovementHoldMilliseconds ([int]$pass.MovementHoldMilliseconds) `
+            -TraceTimeoutSeconds ([int]$pass.TimeoutSeconds) `
+            -ProcessTimeoutSeconds $TraceRefreshTimeoutSeconds `
+            -BeforeWriteTimeUtc $beforeWriteTimeUtc `
+            -TrustStimulusMode:([bool]$pass.TrustStimulusMode) `
+            -SamplePlayerCurrentDuringTrace:([bool]$pass.SamplePlayerCurrentDuringTrace) `
+            -StdOutFile $passStdOutPath `
+            -StdErrFile $passStdErrPath `
+            -TraceStatusFile $passTraceStatusPath `
+            -TraceAttemptOutputFile $passTraceAttemptOutputFile
+
+        $passResults.Add($passResult) | Out-Null
+        $result.ExitCode = $passResult.ExitCode
+        $result.TimedOut = $passResult.TimedOut
+        $result.Error = $passResult.Error
+        $result.Reason = $passResult.Reason
+        $result.AttemptOutputFile = $passResult.AttemptOutputFile
+        $result.StatusFile = $passResult.StatusFile
+        $result.Diagnostics = $passResult.Diagnostics
+        $result.ArtifactUpdated = $passResult.ArtifactUpdated
+        $result.AfterArtifactWriteTimeUtc = $passResult.AfterArtifactWriteTimeUtc
+        $result.PassResults = @($passResults.ToArray())
+
+        if ($passResult.Reason -eq 'trace-artifact-updated') {
+            Write-WorkflowHudStatus -State 'active' -Action 'coord trace updated' -StaleAfterSeconds 30
+            Write-Host ("[ReadPlayerCurrent] Coord-trace refresh updated {0} using {1} stimulus via pass '{2}'." -f $traceOutputFile, $passResult.StimulusMode, $pass.Name) -ForegroundColor DarkGray
             return [pscustomobject]$result
         }
 
-        $stdoutText = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
-        $stderrText = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '' }
-        $result.ExitCode = $traceProcess.ExitCode
+        $hasFallbackPass = ($passIndex + 1) -lt $tracePasses.Count
+        if ($passResult.Reason -eq 'trace-refresh-armed-no-hit' -and $hasFallbackPass) {
+            $nextPass = $tracePasses[$passIndex + 1]
+            Write-Host ("[ReadPlayerCurrent] Coord-trace pass '{0}' armed but saw no hit; escalating to '{1}' ({2})." -f $pass.Name, $nextPass.Name, $nextPass.StimulusMode) -ForegroundColor DarkGray
+            continue
+        }
 
-        if ($traceProcess.ExitCode -ne 0) {
-            $detail = @($stdoutText, $stderrText) |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-                ForEach-Object { $_.Trim() } |
-                Select-Object -First 1
-            $result.Reason = 'trace-refresh-nonzero-exit'
-            $result.Error = $detail
-            $result.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $traceAttemptOutputFile -StatusFile $traceStatusPath -StdOutFile $stdoutPath -StdErrFile $stderrPath
-            Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace failed' -StaleAfterSeconds 90
-            if ($detail) {
-                Write-Warning ("Coord-trace refresh exited with code {0}; continuing without a fresh trace anchor. {1}" -f $traceProcess.ExitCode, $detail)
+        switch ($passResult.Reason) {
+            'trace-refresh-timeout' {
+                Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace timeout' -StaleAfterSeconds 90
+                Write-Warning ("Coord-trace refresh pass '{0}' timed out after {1}s; leaving the existing coord anchor in place." -f $pass.Name, $TraceRefreshTimeoutSeconds)
             }
-            else {
-                Write-Warning ("Coord-trace refresh exited with code {0}; continuing without a fresh trace anchor." -f $traceProcess.ExitCode)
+            'trace-refresh-armed-no-hit' {
+                Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace armed no hit' -StaleAfterSeconds 90
+                Write-Warning ("Coord-trace refresh pass '{0}' armed but saw no coord-write hit; leaving the existing coord anchor in place. {1}" -f $pass.Name, $passResult.Error)
             }
-
-            return [pscustomobject]$result
+            'trace-refresh-nonzero-exit' {
+                Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace failed' -StaleAfterSeconds 90
+                if ($passResult.Error) {
+                    Write-Warning ("Coord-trace refresh pass '{0}' exited with code {1}; continuing without a fresh trace anchor. {2}" -f $pass.Name, $passResult.ExitCode, $passResult.Error)
+                }
+                else {
+                    Write-Warning ("Coord-trace refresh pass '{0}' exited with code {1}; continuing without a fresh trace anchor." -f $pass.Name, $passResult.ExitCode)
+                }
+            }
+            'trace-artifact-not-updated' {
+                Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace stale' -StaleAfterSeconds 90
+                Write-Warning ("Coord-trace refresh pass '{0}' completed without updating the canonical player-coord-write-trace artifact; continuing without a fresh trace anchor." -f $pass.Name)
+            }
+            default {
+                Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace exception' -StaleAfterSeconds 90
+                Write-Warning ("Coord-trace refresh pass '{0}' failed; continuing without a fresh trace anchor. {1}" -f $pass.Name, $passResult.Error)
+            }
         }
 
-        $afterWriteTimeUtc = if (Test-Path -LiteralPath $traceOutputFile) {
-            (Get-Item -LiteralPath $traceOutputFile).LastWriteTimeUtc
-        }
-        else {
-            $null
-        }
-
-        $artifactUpdated = $null -ne $afterWriteTimeUtc -and ($null -eq $beforeWriteTimeUtc -or $afterWriteTimeUtc -gt $beforeWriteTimeUtc)
-        $result.AfterArtifactWriteTimeUtc = if ($null -ne $afterWriteTimeUtc) { $afterWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) } else { $null }
-        $result.ArtifactUpdated = $artifactUpdated
-        if (-not $artifactUpdated) {
-            $result.Reason = 'trace-artifact-not-updated'
-            $result.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $traceAttemptOutputFile -StatusFile $traceStatusPath -StdOutFile $stdoutPath -StdErrFile $stderrPath
-            Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace stale' -StaleAfterSeconds 90
-            Write-Warning "Coord-trace refresh completed without updating the canonical player-coord-write-trace artifact; continuing without a fresh trace anchor."
-            return [pscustomobject]$result
-        }
-
-        $result.Reason = 'trace-artifact-updated'
-        Write-WorkflowHudStatus -State 'active' -Action 'coord trace updated' -StaleAfterSeconds 30
-        Write-Host ("[ReadPlayerCurrent] Coord-trace refresh updated {0} using {1} stimulus." -f $traceOutputFile, $TraceRefreshStimulusMode) -ForegroundColor DarkGray
         return [pscustomobject]$result
     }
-    catch {
-        $result.Reason = 'trace-refresh-exception'
-        $result.Error = $_.Exception.Message
-        $result.Diagnostics = Get-TraceRefreshDiagnostics -AttemptOutputFile $traceAttemptOutputFile -StatusFile $traceStatusPath -StdOutFile $stdoutPath -StdErrFile $stderrPath
-        Write-WorkflowHudStatus -State 'blocked' -Action 'coord trace exception' -StaleAfterSeconds 90
-        Write-Warning ("Coord-trace refresh failed; continuing without a fresh trace anchor. {0}" -f $_.Exception.Message)
-        return [pscustomobject]$result
-    }
+
+    return [pscustomobject]$result
 }
 
 function Invoke-RecoveryMove {

@@ -441,23 +441,85 @@ function Get-InstructionWindow {
     return @($items.ToArray())
 }
 
-if ($RefreshCluster -or -not (Test-Path -LiteralPath $resolvedClusterFile)) {
+function Read-JsonDocument {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    return (Get-Content -LiteralPath $Path -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json)
+}
+
+function Refresh-TraceCluster {
     & $clusterScript -Json -InstructionsBefore 40 -InstructionsAfter 24 | Out-Null
+}
+
+$clusterRefreshReason = $null
+$clusterRefreshAttempted = $false
+$clusterRefreshPreviewError = $null
+$clusterPreview = $null
+
+if (Test-Path -LiteralPath $resolvedClusterFile) {
+    try {
+        $clusterPreview = Read-JsonDocument -Path $resolvedClusterFile
+    }
+    catch {
+        $clusterRefreshPreviewError = $_.Exception.Message
+        $clusterRefreshReason = 'cluster-preview-unreadable'
+    }
+}
+else {
+    $clusterRefreshReason = 'cluster-missing'
+}
+
+if (-not [string]::IsNullOrWhiteSpace($clusterRefreshPreviewError)) {
+    $clusterRefreshAttempted = $true
+    Refresh-TraceCluster
+}
+elseif ($RefreshCluster) {
+    $clusterRefreshAttempted = $true
+    if ([string]::IsNullOrWhiteSpace($clusterRefreshReason)) {
+        $clusterRefreshReason = 'requested'
+    }
+    Refresh-TraceCluster
+}
+elseif ($null -eq $clusterPreview) {
+    $clusterRefreshAttempted = $true
+    if ([string]::IsNullOrWhiteSpace($clusterRefreshReason)) {
+        $clusterRefreshReason = 'cluster-missing'
+    }
+    Refresh-TraceCluster
+}
+elseif ($null -eq $clusterPreview.Anchor -or $clusterPreview.Anchor.TraceMatchesProcess -ne $true) {
+    $clusterRefreshAttempted = $true
+    $clusterRefreshReason = 'trace-stale-or-nonmatching'
+    Refresh-TraceCluster
 }
 
 if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
     throw "Player trace cluster file not found: $resolvedClusterFile"
 }
 
-$cluster = Get-Content -LiteralPath $resolvedClusterFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
+$cluster = Read-JsonDocument -Path $resolvedClusterFile
 $instructions = @($cluster.Instructions)
 if ($instructions.Count -eq 0) {
     throw "Owner/source lineage not reconstructed: trace cluster '$resolvedClusterFile' did not contain instructions."
 }
 
-$clusterSourceObjectAddress = if ($cluster.Anchor.TraceMatchesProcess) { [string]$cluster.Anchor.SourceObjectAddress } else { $null }
+$clusterInstructionAddressSource = if ($cluster.PSObject.Properties['InstructionAddressSource']) { [string]$cluster.InstructionAddressSource } else { $null }
+$clusterTraceMatchesProcess = ($null -ne $cluster.Anchor -and $cluster.Anchor.TraceMatchesProcess -eq $true)
+$triggerInstructionAuthority = switch ($clusterInstructionAddressSource) {
+    'coord-trace' {
+        if ($clusterTraceMatchesProcess) { 'live-coord-trace' } else { 'stale-trace-authority' }
+    }
+    'module-pattern' { 'live-module-pattern' }
+    default { 'unknown' }
+}
+$sourceObjectAddressAuthority = if ($clusterTraceMatchesProcess) { 'live-coord-trace' } else { 'not-current-truth' }
+
+$clusterSourceObjectAddress = if ($clusterTraceMatchesProcess) { [string]$cluster.Anchor.SourceObjectAddress } else { $null }
 $clusterSourceObjectRegister = Normalize-RegisterName -Name ([string]$cluster.Anchor.SourceObjectRegister)
-$clusterSourceObjectRegisterValue = if ($cluster.Anchor.TraceMatchesProcess) { [string]$cluster.Anchor.SourceObjectRegisterValue } else { $null }
+$clusterSourceObjectRegisterValue = if ($clusterTraceMatchesProcess) { [string]$cluster.Anchor.SourceObjectRegisterValue } else { $null }
 
 if ([string]::IsNullOrWhiteSpace($clusterSourceObjectRegister)) {
     throw "Owner/source lineage not reconstructed: trace cluster did not expose a source object register."
@@ -610,10 +672,21 @@ $result = [ordered]@{
     Mode = 'player-source-chain'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     ClusterFile = $resolvedClusterFile
+    Authority = [ordered]@{
+        StructuralOnly = (-not $clusterTraceMatchesProcess)
+        ClusterRefreshAttempted = $clusterRefreshAttempted
+        ClusterRefreshReason = $clusterRefreshReason
+        ClusterPreviewError = $clusterRefreshPreviewError
+        InstructionAddressSource = $clusterInstructionAddressSource
+        TriggerInstructionAuthority = $triggerInstructionAuthority
+        SourceObjectAddressAuthority = $sourceObjectAddressAuthority
+    }
     SourceObjectAddress = $clusterSourceObjectAddress
     SelectedSourceAddress = $clusterSourceObjectAddress
     TriggerInstruction = $sourceObjectLoad
     ClusterSummary = [ordered]@{
+        InstructionAddressSource = $clusterInstructionAddressSource
+        TraceMatchesProcess = $clusterTraceMatchesProcess
         TraceInstruction = $cluster.Anchor.InstructionAddress
         ClusterPatternAddress = $cluster.SuggestedClusterScan.Address
         ClusterPatternOffset = $cluster.SuggestedClusterScan.RelativeOffsetHex
@@ -698,6 +771,7 @@ if ($Json) {
 else {
     Write-Host "Source-chain file:     $resolvedOutputFile"
     Write-Host "Trigger instruction:   $($sourceObjectLoad.Address) | $($sourceObjectLoad.Full)"
+    Write-Host "Trigger authority:     $triggerInstructionAuthority"
     Write-Host "Selected source reg:   $clusterSourceObjectRegister"
     Write-Host "Container register:    $containerRegister"
     Write-Host "Selector index reg:    $selectorIndexRegister"

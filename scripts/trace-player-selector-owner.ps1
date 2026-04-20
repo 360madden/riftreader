@@ -229,6 +229,178 @@ function Get-CoordTraceSelectedSourceAddress {
     return $null
 }
 
+function Normalize-HexText {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    $normalized = $Value.Trim()
+    if ($normalized.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $normalized = $normalized.Substring(2)
+    }
+
+    return $normalized.ToUpperInvariant()
+}
+
+function Get-PatternScanAddress {
+    param($PatternScan)
+
+    if ($null -eq $PatternScan) {
+        return $null
+    }
+
+    if ($PatternScan.PSObject.Properties['Found'] -and $PatternScan.Found -eq $true -and
+        $PatternScan.PSObject.Properties['Address'] -and -not [string]::IsNullOrWhiteSpace([string]$PatternScan.Address)) {
+        return [string]$PatternScan.Address
+    }
+
+    return $null
+}
+
+function Copy-InstructionWithResolvedAddress {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Instruction,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ResolvedAddress
+    )
+
+    $resolvedAddressText = Normalize-HexText -Value $ResolvedAddress
+    if ([string]::IsNullOrWhiteSpace($resolvedAddressText)) {
+        throw 'Resolved trigger address was empty.'
+    }
+
+    $instructionCopy = [ordered]@{}
+    foreach ($property in $Instruction.PSObject.Properties) {
+        $instructionCopy[$property.Name] = $property.Value
+    }
+
+    $instructionCopy.Address = $resolvedAddressText
+    if ($instructionCopy.Contains('Full') -and -not [string]::IsNullOrWhiteSpace([string]$instructionCopy.Full)) {
+        $instructionCopy.Full = ([string]$instructionCopy.Full -replace '^[0-9A-Fa-f`]+', $resolvedAddressText)
+    }
+
+    return [pscustomobject]$instructionCopy
+}
+
+function Resolve-LiveTriggerInstruction {
+    param(
+        [Parameter(Mandatory = $true)]
+        $SourceChain,
+
+        [Parameter(Mandatory = $true)]
+        $TriggerInstruction,
+
+        [string]$SelectorPattern,
+        $SelectorPatternScan
+    )
+
+    $originalAddress = if ($TriggerInstruction.PSObject.Properties['Address']) { [string]$TriggerInstruction.Address } else { $null }
+    $selectorPatternScanAddress = Get-PatternScanAddress -PatternScan $SelectorPatternScan
+    $selectorPatternScanOffset = if ($null -ne $SelectorPatternScan -and $SelectorPatternScan.PSObject.Properties['RelativeOffsetHex']) { [string]$SelectorPatternScan.RelativeOffsetHex } else { $null }
+    $selectorPatternScanError = if ($null -ne $SelectorPatternScan -and $SelectorPatternScan.PSObject.Properties['Error']) { [string]$SelectorPatternScan.Error } else { $null }
+    $sourceChainSelectorScanAddress = if ($SourceChain.PSObject.Properties['SuggestedSelectorScan'] -and $SourceChain.SuggestedSelectorScan -and $SourceChain.SuggestedSelectorScan.PSObject.Properties['Address']) { [string]$SourceChain.SuggestedSelectorScan.Address } else { $null }
+    $sourceChainAuthority = if ($SourceChain.PSObject.Properties['Authority'] -and $SourceChain.Authority -and $SourceChain.Authority.PSObject.Properties['TriggerInstructionAuthority']) { [string]$SourceChain.Authority.TriggerInstructionAuthority } else { $null }
+
+    if (-not [string]::IsNullOrWhiteSpace($selectorPatternScanAddress)) {
+        $resolvedTriggerInstruction = Copy-InstructionWithResolvedAddress -Instruction $TriggerInstruction -ResolvedAddress $selectorPatternScanAddress
+        return [pscustomobject]@{
+            ResolutionSource = 'selector-pattern-scan'
+            OriginalAddress = $originalAddress
+            ResolvedAddress = [string]$resolvedTriggerInstruction.Address
+            AddressRebased = ((Normalize-HexText -Value $originalAddress) -ne (Normalize-HexText -Value ([string]$resolvedTriggerInstruction.Address)))
+            SelectorPattern = $SelectorPattern
+            SelectorPatternScanAddress = $selectorPatternScanAddress
+            SelectorPatternScanOffset = $selectorPatternScanOffset
+            SelectorPatternScanError = $selectorPatternScanError
+            SourceChainSelectorScanAddress = $sourceChainSelectorScanAddress
+            SourceChainAuthority = $sourceChainAuthority
+            TriggerInstruction = $resolvedTriggerInstruction
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($SelectorPattern)) {
+        $reason = if (-not [string]::IsNullOrWhiteSpace($selectorPatternScanError)) {
+            "Live selector pattern scan failed: $selectorPatternScanError"
+        }
+        else {
+            'Live selector pattern scan did not resolve a current-process trigger.'
+        }
+
+        throw "Selector-owner trace refused to arm stale trigger authority. $reason"
+    }
+
+    if ($sourceChainAuthority -in @('live-module-pattern', 'live-coord-trace') -and -not [string]::IsNullOrWhiteSpace($originalAddress)) {
+        return [pscustomobject]@{
+            ResolutionSource = 'source-chain-authority'
+            OriginalAddress = $originalAddress
+            ResolvedAddress = Normalize-HexText -Value $originalAddress
+            AddressRebased = $false
+            SelectorPattern = $SelectorPattern
+            SelectorPatternScanAddress = $selectorPatternScanAddress
+            SelectorPatternScanOffset = $selectorPatternScanOffset
+            SelectorPatternScanError = $selectorPatternScanError
+            SourceChainSelectorScanAddress = $sourceChainSelectorScanAddress
+            SourceChainAuthority = $sourceChainAuthority
+            TriggerInstruction = $TriggerInstruction
+        }
+    }
+
+    throw 'Selector-owner trace refused to arm stale trigger authority because no live current-process trigger instruction was available.'
+}
+
+function Apply-CurrentTraceMetadata {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Result,
+
+        $SourceChainTriggerInstruction,
+        $TriggerInstruction,
+        $TriggerResolution,
+        [string]$SelectorPattern,
+        $SelectorPatternScan,
+        $TraceConfiguration
+    )
+
+    $Result.SourceChainTriggerInstruction = $SourceChainTriggerInstruction
+    $Result.TriggerInstruction = $TriggerInstruction
+    $Result.TriggerResolution = $TriggerResolution
+    $Result.SuggestedSelectorPattern = $SelectorPattern
+    $Result.SuggestedSelectorPatternScan = $SelectorPatternScan
+
+    $traceConfigurationSource = if ($null -ne $TraceConfiguration) {
+        $TraceConfiguration
+    }
+    elseif ($Result.Contains('TraceConfiguration')) {
+        $Result.TraceConfiguration
+    }
+    else {
+        $null
+    }
+
+    if ($null -ne $traceConfigurationSource) {
+        $traceConfigurationCopy = [ordered]@{}
+        if ($traceConfigurationSource -is [System.Collections.IDictionary]) {
+            foreach ($entry in $traceConfigurationSource.GetEnumerator()) {
+                $traceConfigurationCopy[$entry.Key] = $entry.Value
+            }
+        }
+        else {
+            foreach ($property in $traceConfigurationSource.PSObject.Properties) {
+                $traceConfigurationCopy[$property.Name] = $property.Value
+            }
+        }
+
+        $traceConfigurationCopy.TriggerInstructionAddress = [string]$TriggerInstruction.Address
+        $Result.TraceConfiguration = $traceConfigurationCopy
+    }
+
+    return $Result
+}
+
 function Save-JsonResult {
     param(
         [Parameter(Mandatory = $true)]
@@ -254,7 +426,17 @@ function Save-JsonResult {
         if ($Result.Contains('FallbackSourceFile')) {
             Write-Host "Fallback source:       $($Result.FallbackSourceFile)"
         }
+        if ($Result.Contains('TriggerResolution') -and $null -ne $Result.TriggerResolution) {
+            Write-Host "Trigger resolution:    $($Result.TriggerResolution.ResolutionSource) -> $($Result.TriggerResolution.ResolvedAddress)"
+        }
         Write-Host "Trigger instruction:   $($Result.TriggerInstruction.Address) | $($Result.TriggerInstruction.Full)"
+        if ($Result.Contains('SourceChainTriggerInstruction') -and $null -ne $Result.SourceChainTriggerInstruction) {
+            $sourceChainTriggerAddress = Normalize-HexText -Value ([string]$Result.SourceChainTriggerInstruction.Address)
+            $resolvedTriggerAddress = Normalize-HexText -Value ([string]$Result.TriggerInstruction.Address)
+            if (-not [string]::IsNullOrWhiteSpace($sourceChainTriggerAddress) -and $sourceChainTriggerAddress -ne $resolvedTriggerAddress) {
+                Write-Host "Source-chain trigger:  $($Result.SourceChainTriggerInstruction.Address) | $($Result.SourceChainTriggerInstruction.Full)"
+            }
+        }
         Write-Host "Owner object:          $($Result.Owner.ObjectAddress)"
         Write-Host "Owner container:       $($Result.Owner.ContainerAddress)"
         Write-Host "Selector index:        $($Result.Owner.SelectorIndex)"
@@ -332,8 +514,8 @@ if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
 
 $sourceChain = Get-Content -LiteralPath $resolvedSourceChainFile -Raw | Microsoft.PowerShell.Utility\ConvertFrom-Json
 $traceConfiguration = if ($sourceChain.PSObject.Properties['TraceConfiguration']) { $sourceChain.TraceConfiguration } else { $null }
-$triggerInstruction = if ($sourceChain.PSObject.Properties['TriggerInstruction'] -and $sourceChain.TriggerInstruction) { $sourceChain.TriggerInstruction } else { $sourceChain.SourceChain.SourceObjectLoad }
-if ($null -eq $triggerInstruction -or [string]::IsNullOrWhiteSpace([string]$triggerInstruction.Address)) {
+$sourceChainTriggerInstruction = if ($sourceChain.PSObject.Properties['TriggerInstruction'] -and $sourceChain.TriggerInstruction) { $sourceChain.TriggerInstruction } else { $sourceChain.SourceChain.SourceObjectLoad }
+if ($null -eq $sourceChainTriggerInstruction -or [string]::IsNullOrWhiteSpace([string]$sourceChainTriggerInstruction.Address)) {
     throw 'Source-chain file did not contain a valid trigger instruction.'
 }
 
@@ -354,6 +536,9 @@ if (-not [string]::IsNullOrWhiteSpace($selectorPattern)) {
         }
     }
 }
+
+$triggerResolution = Resolve-LiveTriggerInstruction -SourceChain $sourceChain -TriggerInstruction $sourceChainTriggerInstruction -SelectorPattern $selectorPattern -SelectorPatternScan $selectorPatternScan
+$triggerInstruction = $triggerResolution.TriggerInstruction
 
 $luaConfiguration = [ordered]@{
     ownerObjectRegister = Normalize-RegisterName -Name ([string](Get-ConfigurationValue -Configuration $traceConfiguration -Name 'OwnerObjectRegister'))
@@ -394,6 +579,7 @@ $movementSequence = @($MovementKeys | Where-Object { -not [string]::IsNullOrWhit
 if (-not $ForceDebuggerTrace) {
     $fallbackResult = Get-FallbackTraceResult -SourceChain $sourceChain -TriggerInstruction $triggerInstruction -Reason 'Cheat Engine debugger tracing disabled by default; using cached selector-owner fallback.'
     if ($null -ne $fallbackResult) {
+        $fallbackResult = Apply-CurrentTraceMetadata -Result $fallbackResult -SourceChainTriggerInstruction $sourceChainTriggerInstruction -TriggerInstruction $triggerInstruction -TriggerResolution $triggerResolution -SelectorPattern $selectorPattern -SelectorPatternScan $selectorPatternScan -TraceConfiguration $traceConfiguration
         Save-JsonResult -Result $fallbackResult
         return
     }
@@ -470,6 +656,7 @@ return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatu
 if ($null -eq $status) {
     $fallbackResult = if (-not $NoFallback) { Get-FallbackTraceResult -SourceChain $sourceChain -TriggerInstruction $triggerInstruction -Reason "Selector-owner trace did not produce a terminal status after $MaxArmAttempts arm attempt(s)." } else { $null }
     if ($null -ne $fallbackResult) {
+        $fallbackResult = Apply-CurrentTraceMetadata -Result $fallbackResult -SourceChainTriggerInstruction $sourceChainTriggerInstruction -TriggerInstruction $triggerInstruction -TriggerResolution $triggerResolution -SelectorPattern $selectorPattern -SelectorPatternScan $selectorPatternScan -TraceConfiguration $traceConfiguration
         Write-Warning $fallbackResult.FallbackReason
         Save-JsonResult -Result $fallbackResult
         return
@@ -485,6 +672,7 @@ if ($null -eq $status) {
 if ($status.status -ne 'hit') {
     $fallbackResult = if (-not $NoFallback) { Get-FallbackTraceResult -SourceChain $sourceChain -TriggerInstruction $triggerInstruction -Reason "Selector-owner trace failed with status '$($status.status)' after $MaxArmAttempts arm attempt(s)." } else { $null }
     if ($null -ne $fallbackResult) {
+        $fallbackResult = Apply-CurrentTraceMetadata -Result $fallbackResult -SourceChainTriggerInstruction $sourceChainTriggerInstruction -TriggerInstruction $triggerInstruction -TriggerResolution $triggerResolution -SelectorPattern $selectorPattern -SelectorPatternScan $selectorPatternScan -TraceConfiguration $traceConfiguration
         Write-Warning $fallbackResult.FallbackReason
         Save-JsonResult -Result $fallbackResult
         return
@@ -529,7 +717,9 @@ $result = [ordered]@{
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     SourceChainFile = $resolvedSourceChainFile
     CoordTraceFile = if (Test-Path -LiteralPath $resolvedCoordTraceFile) { $resolvedCoordTraceFile } else { $null }
+    SourceChainTriggerInstruction = $sourceChainTriggerInstruction
     TriggerInstruction = $triggerInstruction
+    TriggerResolution = $triggerResolution
     TraceConfiguration = [ordered]@{
         OwnerObjectRegister = [string]$status.ownerObjectRegister
         OwnerContainerRegister = [string]$status.ownerContainerRegister

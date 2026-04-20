@@ -8,6 +8,12 @@ param(
     [ValidateSet('Auto', 'SendInput', 'PostMessage', 'AutoHotkey')]
     [string]$StimulusMode = 'Auto',
     [string]$StimulusKey = 'w',
+    [string]$TraceStimulusKeysCsv = '',
+    [string]$AttachPreferenceSequenceCsv = '',
+    [string]$BreakpointMethodSequenceCsv = '',
+    [ValidateSet('Write', 'Access')]
+    [string]$WatchMode = 'Write',
+    [switch]$SamplePlayerCurrentDuringTrace,
     [int]$MovementHoldMilliseconds = 1000,
     [int]$MovementVerificationDelayMilliseconds = 350,
     [double]$MinMovementCoordDelta = 0.01,
@@ -245,36 +251,141 @@ function Get-StimulusModeSequence {
 function Invoke-StimulusByMode {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Mode
+        [string]$Mode,
+
+        [string]$Key = $StimulusKey
     )
 
     switch ($Mode) {
         'SendInput' {
-            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus | Out-Null
+            & $sendKeyScript -Key $Key -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "SendInput stimulus failed for key '$StimulusKey'."
+                throw "SendInput stimulus failed for key '$Key'."
             }
 
             return
         }
         'PostMessage' {
-            & $postKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds | Out-Null
+            & $postKeyScript -Key $Key -HoldMilliseconds $MovementHoldMilliseconds | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "PostMessage stimulus failed for key '$StimulusKey'."
+                throw "PostMessage stimulus failed for key '$Key'."
             }
 
             return
         }
         'AutoHotkey' {
-            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus | Out-Null
+            & $sendKeyAhkScript -Key $Key -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "AutoHotkey stimulus failed for key '$StimulusKey'."
+                throw "AutoHotkey stimulus failed for key '$Key'."
             }
 
             return
         }
         default {
             throw "Unsupported stimulus mode '$Mode'."
+        }
+    }
+}
+
+function Get-TraceStimulusKeys {
+    $keys = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $configuredKeys = @()
+    if (-not [string]::IsNullOrWhiteSpace($TraceStimulusKeysCsv)) {
+        $configuredKeys += ($TraceStimulusKeysCsv -split ',')
+    }
+
+    if ($configuredKeys.Count -le 0) {
+        $configuredKeys += $StimulusKey
+    }
+
+    foreach ($key in $configuredKeys) {
+        $normalizedKey = [string]$key
+        if ([string]::IsNullOrWhiteSpace($normalizedKey)) {
+            continue
+        }
+
+        $normalizedKey = $normalizedKey.Trim()
+        if ($seen.Add($normalizedKey)) {
+            $keys.Add($normalizedKey) | Out-Null
+        }
+    }
+
+    if ($keys.Count -le 0) {
+        $keys.Add($StimulusKey) | Out-Null
+    }
+
+    return @($keys)
+}
+
+function Resolve-ConfiguredSequence {
+    param(
+        [string]$Csv,
+        [string[]]$DefaultValues
+    )
+
+    $values = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $rawValues = @()
+    if (-not [string]::IsNullOrWhiteSpace($Csv)) {
+        $rawValues += ($Csv -split ',')
+    }
+    else {
+        $rawValues += @($DefaultValues)
+    }
+
+    foreach ($rawValue in $rawValues) {
+        $normalizedValue = [string]$rawValue
+        if ([string]::IsNullOrWhiteSpace($normalizedValue)) {
+            continue
+        }
+
+        $normalizedValue = $normalizedValue.Trim()
+        if ($seen.Add($normalizedValue)) {
+            $values.Add($normalizedValue) | Out-Null
+        }
+    }
+
+    return @($values)
+}
+
+function Get-TraceAttachPreferences {
+    return @(Resolve-ConfiguredSequence -Csv $AttachPreferenceSequenceCsv -DefaultValues @('interface-2', 'default', 'interface-1'))
+}
+
+function Get-TraceBreakpointMethods {
+    return @(Resolve-ConfiguredSequence -Csv $BreakpointMethodSequenceCsv -DefaultValues @('debug-register', 'page-exception'))
+}
+
+function Get-EstimatedStimulusDurationMilliseconds {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Mode
+    )
+
+    switch ($Mode) {
+        'AutoHotkey' { return ($MovementHoldMilliseconds + 500) }
+        'SendInput' { return ($MovementHoldMilliseconds + 500) }
+        'PostMessage' { return $MovementHoldMilliseconds }
+        default { return ($MovementHoldMilliseconds + 250) }
+    }
+}
+
+function Get-PlayerCurrentTraceSample {
+    try {
+        $playerRead = Invoke-PlayerCurrentJsonWithRetry -MaxAttempts 3 -RetryDelayMilliseconds 100
+        return [pscustomobject]@{
+            Available = $true
+            Error = $null
+            Sample = Get-PlayerCoordSnapshot -PlayerRead $playerRead
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Available = $false
+            Error = $_.Exception.Message
+            Sample = $null
         }
     }
 }
@@ -485,10 +596,28 @@ function Convert-StatusToTraceAttempt {
         [Parameter(Mandatory = $true)]
         [string]$Source,
 
+        [string]$FamilyId = $null,
+
         [Parameter(Mandatory = $true)]
         [bool]$Success,
 
-        [string]$StimulusExecutionMode = $null
+        [string]$WatchMode = $null,
+
+        [string]$StimulusExecutionMode = $null,
+
+        [string]$AppliedStimulusKey = $StimulusKey,
+
+        [object[]]$StimulusAttempts = @(),
+
+        [object[]]$ObservedStatuses = @(),
+
+        [string]$LastObservedStatus = $null,
+
+        [int]$ElapsedMilliseconds = 0,
+
+        [string]$StartedAtUtc = $null,
+
+        [string]$CompletedAtUtc = $null
     )
 
     return [pscustomobject]@{
@@ -496,8 +625,10 @@ function Convert-StatusToTraceAttempt {
         Status = [string](Get-ObjectValue -Object $Status -Name 'status')
         CandidateAddress = $AddressHex
         CandidateSource = $Source
+        CandidateFamilyId = $FamilyId
         DebugAttachLabel = Get-ObjectValue -Object $Status -Name 'debugAttachLabel'
         BreakpointMethod = Get-ObjectValue -Object $Status -Name 'breakpointMethod'
+        WatchMode = $(if (-not [string]::IsNullOrWhiteSpace([string](Get-ObjectValue -Object $Status -Name 'watchMode'))) { [string](Get-ObjectValue -Object $Status -Name 'watchMode') } else { $WatchMode })
         VerificationMethod = Get-ObjectValue -Object $Status -Name 'verificationMethod'
         TargetAddress = Get-ObjectValue -Object $Status -Name 'targetAddress'
         HitCount = if (Get-ObjectValue -Object $Status -Name 'hitCount') { [int](Get-ObjectValue -Object $Status -Name 'hitCount') } else { 0 }
@@ -517,8 +648,14 @@ function Convert-StatusToTraceAttempt {
         ModuleName = Get-ObjectValue -Object $Status -Name 'moduleName'
         ModuleBase = Get-ObjectValue -Object $Status -Name 'moduleBase'
         ModuleOffset = Get-ObjectValue -Object $Status -Name 'moduleOffset'
-        StimulusKey = $StimulusKey
+        StimulusKey = $AppliedStimulusKey
         StimulusExecutionMode = $StimulusExecutionMode
+        StimulusAttempts = @($StimulusAttempts)
+        ObservedStatuses = @($ObservedStatuses)
+        LastObservedStatus = $LastObservedStatus
+        ElapsedMilliseconds = $ElapsedMilliseconds
+        StartedAtUtc = $StartedAtUtc
+        CompletedAtUtc = $CompletedAtUtc
         Error = Get-ObjectValue -Object $Status -Name 'error'
         Registers = [ordered]@{
             RAX = Get-ObjectValue -Object $Status -Name 'rax'
@@ -549,18 +686,28 @@ function Get-CoordTraceResult {
         [Parameter(Mandatory = $true)]
         [string]$Source,
 
+        [string]$FamilyId = $null,
+
+        [string]$WatchMode = $WatchMode,
+
         [Parameter(Mandatory = $true)]
         [string]$StimulusExecutionMode
     )
 
     $coordAddress = Parse-HexAddress -AddressHex $AddressHex
-    $attachPreferences = @('interface-2', 'default', 'interface-1')
-    $breakpointMethods = @('debug-register', 'page-exception')
+    $attachPreferences = @(Get-TraceAttachPreferences)
+    $breakpointMethods = @(Get-TraceBreakpointMethods)
+    $stimulusKeys = @(Get-TraceStimulusKeys)
     $lastAttempt = $null
 
     foreach ($attachPreference in $attachPreferences) {
         foreach ($breakpointMethod in $breakpointMethods) {
             $methodAttempt = $null
+            $appliedStimulusKey = $StimulusKey
+            $methodStartedAt = [DateTimeOffset]::UtcNow
+            $stimulusAttemptRecords = New-Object System.Collections.Generic.List[object]
+            $observedStatusRecords = New-Object System.Collections.Generic.List[object]
+            $lastObservedStatusValue = $null
 
             if (Test-Path -LiteralPath $resolvedStatusFile) {
                 Remove-Item -LiteralPath $resolvedStatusFile -Force
@@ -569,44 +716,102 @@ function Get-CoordTraceResult {
             & $ceExecScript -LuaFile $traceLuaFile | Out-Null
 
             $luaCode = @"
-return RiftReaderWriteTrace.arm('$ProcessName', $coordAddress, 4, [[$resolvedStatusFile]], '$breakpointMethod', '$attachPreference')
+return RiftReaderWriteTrace.arm('$ProcessName', $coordAddress, 4, [[$resolvedStatusFile]], '$breakpointMethod', '$attachPreference', '$WatchMode')
 "@
             & $ceExecScript -Code $luaCode | Out-Null
 
-            Invoke-StimulusByMode -Mode $StimulusExecutionMode
-
             $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
             $lastStatus = $null
+            $estimatedStimulusDurationMilliseconds = Get-EstimatedStimulusDurationMilliseconds -Mode $StimulusExecutionMode
+            $remainingPollingBudgetMilliseconds = [Math]::Max(0, ($TimeoutSeconds * 1000) - ($estimatedStimulusDurationMilliseconds * [Math]::Max(1, $stimulusKeys.Count)))
+            $perKeyWindowMilliseconds = [Math]::Max(250, [int][Math]::Floor($remainingPollingBudgetMilliseconds / [Math]::Max(1, $stimulusKeys.Count)))
 
-            while ([DateTime]::UtcNow -lt $deadline) {
-                if (Test-Path -LiteralPath $resolvedStatusFile) {
-                    $status = Read-KeyValueFile -Path $resolvedStatusFile
-                    $lastStatus = $status
-
-                    if ($status.status -eq 'hit') {
-                        return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $true -StimulusExecutionMode $StimulusExecutionMode
-                    }
-
-                    if ($status.status -eq 'error') {
-                        $methodAttempt = Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false -StimulusExecutionMode $StimulusExecutionMode
-                        break
-                    }
+            foreach ($candidateStimulusKey in $stimulusKeys) {
+                if ([DateTime]::UtcNow -ge $deadline) {
+                    break
                 }
 
-                Start-Sleep -Milliseconds 200
+                $appliedStimulusKey = $candidateStimulusKey
+                $beforeTraceSample = if ($SamplePlayerCurrentDuringTrace) { Get-PlayerCurrentTraceSample } else { [pscustomobject]@{ Available = $false; Error = $null; Sample = $null } }
+                $stimulusStartedAt = [DateTimeOffset]::UtcNow
+                Invoke-StimulusByMode -Mode $StimulusExecutionMode -Key $candidateStimulusKey
+                $afterTraceSample = if ($SamplePlayerCurrentDuringTrace) { Get-PlayerCurrentTraceSample } else { [pscustomobject]@{ Available = $false; Error = $null; Sample = $null } }
+                $stimulusCompletedAt = [DateTimeOffset]::UtcNow
+
+                $deltaSummary = $null
+                if ($beforeTraceSample.Available -and $afterTraceSample.Available -and $null -ne $beforeTraceSample.Sample -and $null -ne $afterTraceSample.Sample) {
+                    $deltaSummary = Get-CoordDeltaSummary -Before $beforeTraceSample.Sample -After $afterTraceSample.Sample
+                }
+
+                $stimulusAttemptRecords.Add([pscustomobject]@{
+                        Key = $candidateStimulusKey
+                        StartedAtUtc = $stimulusStartedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                        CompletedAtUtc = $stimulusCompletedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                        Before = $beforeTraceSample.Sample
+                        After = $afterTraceSample.Sample
+                        Delta = $deltaSummary
+                        BeforeError = $beforeTraceSample.Error
+                        AfterError = $afterTraceSample.Error
+                    }) | Out-Null
+
+                $keyDeadline = [DateTime]::UtcNow.AddMilliseconds($perKeyWindowMilliseconds)
+                if ($keyDeadline -gt $deadline) {
+                    $keyDeadline = $deadline
+                }
+
+                while ([DateTime]::UtcNow -lt $keyDeadline) {
+                    if (Test-Path -LiteralPath $resolvedStatusFile) {
+                        $status = Read-KeyValueFile -Path $resolvedStatusFile
+                        $lastStatus = $status
+                        $statusValue = [string]$status.status
+                        $lastObservedStatusValue = $statusValue
+                        $observedStatusRecords.Add([pscustomobject]@{
+                                ObservedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                                Status = $statusValue
+                                DebugAttachLabel = [string]$status.debugAttachLabel
+                                BreakpointMethod = [string]$status.breakpointMethod
+                                VerificationMethod = [string]$status.verificationMethod
+                                TargetAddress = [string]$status.targetAddress
+                                EffectiveAddress = [string]$status.effectiveAddress
+                                Error = [string]$status.error
+                            }) | Out-Null
+
+                        if ($statusValue -eq 'hit') {
+                            $attempt = Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -FamilyId $FamilyId -Success $true -WatchMode $WatchMode -StimulusExecutionMode $StimulusExecutionMode -AppliedStimulusKey $appliedStimulusKey -StimulusAttempts @($stimulusAttemptRecords.ToArray()) -ObservedStatuses @($observedStatusRecords.ToArray()) -LastObservedStatus $lastObservedStatusValue -ElapsedMilliseconds ([int]([DateTimeOffset]::UtcNow - $methodStartedAt).TotalMilliseconds) -StartedAtUtc $methodStartedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) -CompletedAtUtc ([DateTimeOffset]::UtcNow).ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                            return $attempt
+                        }
+
+                        if ($statusValue -eq 'error') {
+                            $methodAttempt = Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -FamilyId $FamilyId -Success $false -WatchMode $WatchMode -StimulusExecutionMode $StimulusExecutionMode -AppliedStimulusKey $appliedStimulusKey -StimulusAttempts @($stimulusAttemptRecords.ToArray()) -ObservedStatuses @($observedStatusRecords.ToArray()) -LastObservedStatus $lastObservedStatusValue -ElapsedMilliseconds ([int]([DateTimeOffset]::UtcNow - $methodStartedAt).TotalMilliseconds) -StartedAtUtc $methodStartedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) -CompletedAtUtc ([DateTimeOffset]::UtcNow).ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                            break
+                        }
+                    }
+
+                    Start-Sleep -Milliseconds 200
+                }
+
+                if ($null -ne $methodAttempt) {
+                    break
+                }
             }
 
             if ($null -eq $methodAttempt -and $lastStatus) {
-                $methodAttempt = Convert-StatusToTraceAttempt -Status $lastStatus -AddressHex $AddressHex -Source $Source -Success $false -StimulusExecutionMode $StimulusExecutionMode
+                $methodAttempt = Convert-StatusToTraceAttempt -Status $lastStatus -AddressHex $AddressHex -Source $Source -FamilyId $FamilyId -Success $false -WatchMode $WatchMode -StimulusExecutionMode $StimulusExecutionMode -AppliedStimulusKey $appliedStimulusKey -StimulusAttempts @($stimulusAttemptRecords.ToArray()) -ObservedStatuses @($observedStatusRecords.ToArray()) -LastObservedStatus $lastObservedStatusValue -ElapsedMilliseconds ([int]([DateTimeOffset]::UtcNow - $methodStartedAt).TotalMilliseconds) -StartedAtUtc $methodStartedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) -CompletedAtUtc ([DateTimeOffset]::UtcNow).ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                if ($methodAttempt.Status -eq 'armed') {
+                    $methodAttempt.Status = 'armed-no-hit'
+                }
             }
             elseif ($null -eq $methodAttempt) {
+                $completedAt = [DateTimeOffset]::UtcNow
                 $methodAttempt = [pscustomobject]@{
                     Success = $false
                     Status = 'timeout'
                     CandidateAddress = $AddressHex
                     CandidateSource = $Source
+                    CandidateFamilyId = $FamilyId
                     DebugAttachLabel = $attachPreference
                     BreakpointMethod = $breakpointMethod
+                    WatchMode = $WatchMode
                     VerificationMethod = $null
                     TargetAddress = $AddressHex
                     HitCount = 0
@@ -626,15 +831,21 @@ return RiftReaderWriteTrace.arm('$ProcessName', $coordAddress, 4, [[$resolvedSta
                     ModuleName = $null
                     ModuleBase = $null
                     ModuleOffset = $null
-                    StimulusKey = $StimulusKey
+                    StimulusKey = $appliedStimulusKey
                     StimulusExecutionMode = $StimulusExecutionMode
+                    StimulusAttempts = @($stimulusAttemptRecords.ToArray())
+                    ObservedStatuses = @($observedStatusRecords.ToArray())
+                    LastObservedStatus = $lastObservedStatusValue
+                    ElapsedMilliseconds = [int]($completedAt - $methodStartedAt).TotalMilliseconds
+                    StartedAtUtc = $methodStartedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                    CompletedAtUtc = $completedAt.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
                     Error = $null
                     Registers = [ordered]@{}
                 }
             }
 
             $lastAttempt = $methodAttempt
-            if ($methodAttempt.Status -notin @('armed', 'timeout')) {
+            if ($methodAttempt.Status -notin @('armed', 'armed-no-hit', 'timeout')) {
                 return $methodAttempt
             }
         }
@@ -677,6 +888,10 @@ function Get-TraceCandidates {
         try {
             $confirmation = Get-Content -Path $resolvedConfirmationFile -Raw | ConvertFrom-Json
             $winnerFamilyId = [string]$confirmation.WinnerFamilyId
+            $orderedFamilies = @($confirmation.Families | Sort-Object -Property `
+                @{ Expression = { [int](Get-ObjectValue -Object $_ -Name 'CeConfirmedSampleCount') }; Descending = $true }, `
+                @{ Expression = { [int](Get-ObjectValue -Object $_ -Name 'BestScore') }; Descending = $true }, `
+                @{ Expression = { [int](Get-ObjectValue -Object $_ -Name 'HitCount') }; Descending = $true })
             $candidateBuckets = @(
                 [pscustomobject]@{
                     Source = 'ce-confirmed'
@@ -687,15 +902,31 @@ function Get-TraceCandidates {
                     Source = 'ce-triplet-confirmed'
                     FamilyId = $winnerFamilyId
                     Addresses = @($confirmation.TripletConfirmedAddresses)
-                },
-                [pscustomobject]@{
-                    Source = 'ce-ranked-family'
-                    FamilyId = $winnerFamilyId
-                    Addresses = @($confirmation.Winner.SampleAddresses)
                 }
             )
 
-            foreach ($family in @($confirmation.Families)) {
+            foreach ($family in $orderedFamilies) {
+                $representativeAddress = [string](Get-ObjectValue -Object $family -Name 'RepresentativeAddressHex')
+                if ([string]::IsNullOrWhiteSpace($representativeAddress)) {
+                    $representativeAddress = [string](@($family.SampleAddresses) | Select-Object -First 1)
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($representativeAddress)) {
+                    $candidateBuckets += [pscustomobject]@{
+                        Source = 'ce-family-representative'
+                        FamilyId = [string]$family.FamilyId
+                        Addresses = @($representativeAddress)
+                    }
+                }
+            }
+
+            $candidateBuckets += [pscustomobject]@{
+                Source = 'ce-ranked-family'
+                FamilyId = $winnerFamilyId
+                Addresses = @($confirmation.Winner.SampleAddresses)
+            }
+
+            foreach ($family in $orderedFamilies) {
                 $candidateBuckets += [pscustomobject]@{
                     Source = 'ce-family-sample'
                     FamilyId = [string]$family.FamilyId
@@ -875,6 +1106,7 @@ function Get-TraceResultDocument {
             Status = $(if ($null -ne $TraceStatus) { $TraceStatus.Status } else { $null })
             DebugAttachLabel = $(if ($null -ne $TraceStatus) { $TraceStatus.DebugAttachLabel } else { $null })
             BreakpointMethod = $(if ($null -ne $TraceStatus) { $TraceStatus.BreakpointMethod } else { $null })
+            WatchMode = $(if ($null -ne $TraceStatus) { $TraceStatus.WatchMode } else { $null })
             VerificationMethod = $(if ($null -ne $TraceStatus) { $TraceStatus.VerificationMethod } else { $null })
             CandidateAddress = $selectedCandidateAddress
             CandidateSource = $selectedCandidateSource
@@ -994,7 +1226,7 @@ try {
         Write-Host ("[CoordTrace] Attempting candidate {0} ({1})..." -f $candidate.AddressHex, $candidate.Source) -ForegroundColor Cyan
         $attempt = $null
         try {
-            $attempt = Get-CoordTraceResult -AddressHex $candidate.AddressHex -Source $candidate.Source -StimulusExecutionMode $selectedStimulus.Mode
+            $attempt = Get-CoordTraceResult -AddressHex $candidate.AddressHex -Source $candidate.Source -FamilyId $candidate.FamilyId -WatchMode $WatchMode -StimulusExecutionMode $selectedStimulus.Mode
             $attempts.Add($attempt) | Out-Null
         }
         finally {
@@ -1016,6 +1248,7 @@ try {
             $matchedOffset = Get-ObjectValue -Object $_ -Name 'MatchedOffset'
             $breakpointMethod = Get-ObjectValue -Object $_ -Name 'BreakpointMethod'
             $debugAttachLabel = Get-ObjectValue -Object $_ -Name 'DebugAttachLabel'
+            $watchMode = Get-ObjectValue -Object $_ -Name 'WatchMode'
 
             $summary = "{0}:{1}" -f $_.CandidateAddress, $_.Status
             if ($debugAttachLabel) {
@@ -1023,6 +1256,9 @@ try {
             }
             if ($breakpointMethod) {
                 $summary += " [bp=$breakpointMethod]"
+            }
+            if ($watchMode) {
+                $summary += " [watch=$watchMode]"
             }
             if ($instruction) {
                 $summary += " -> $instruction"
@@ -1161,6 +1397,9 @@ try {
         }
         if ($traceStatus.BreakpointMethod) {
             Write-Host "Breakpoint method:    $($traceStatus.BreakpointMethod)"
+        }
+        if ($traceStatus.WatchMode) {
+            Write-Host "Watch mode:           $($traceStatus.WatchMode)"
         }
         if ($traceStatus.VerificationMethod) {
             Write-Host "Verification:         $($traceStatus.VerificationMethod)"

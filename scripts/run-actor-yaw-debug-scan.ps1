@@ -646,6 +646,11 @@ function Get-TraceRefreshDiagnosticSummary {
     if ($null -ne $attemptSummary) {
         $attemptStage = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'Stage')
         $attemptError = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'Error')
+        $lastAttemptStatus = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'LastAttemptStatus')
+        $lastAttemptCandidateAddress = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'LastAttemptCandidateAddress')
+        $lastAttemptCandidateSource = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'LastAttemptCandidateSource')
+        $lastAttemptStimulusKey = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'LastAttemptStimulusKey')
+        $lastAttemptObservedStatus = [string](Get-PropertyValue -InputObject $attemptSummary -PropertyName 'LastAttemptLastObservedStatus')
         $trace = Get-PropertyValue -InputObject $attemptSummary -PropertyName 'Trace'
         $traceStatus = [string](Get-PropertyValue -InputObject $trace -PropertyName 'Status')
 
@@ -657,6 +662,9 @@ function Get-TraceRefreshDiagnosticSummary {
         }
         if (-not [string]::IsNullOrWhiteSpace($attemptError)) {
             $parts.Add(("attempt-error={0}" -f $attemptError)) | Out-Null
+        }
+        if (-not [string]::IsNullOrWhiteSpace($lastAttemptStatus)) {
+            $parts.Add(("last-attempt={0} {1} [{2}] key={3} observed={4}" -f $lastAttemptStatus, $lastAttemptCandidateAddress, $lastAttemptCandidateSource, $lastAttemptStimulusKey, $lastAttemptObservedStatus)) | Out-Null
         }
     }
 
@@ -716,6 +724,10 @@ function Get-CoordAnchorRefreshAssessment {
     }
     else {
         switch ($traceRefreshReason) {
+            'trace-refresh-armed-no-hit' {
+                $state = 'refresh-armed-no-hit'
+                $reason = 'Coord-trace refresh armed the watchpoint on fresh candidates, but no coord-write hit was observed under the applied movement stimuli.'
+            }
             'trace-refresh-timeout' {
                 $state = 'refresh-timeout'
                 $reason = 'Coord-trace refresh timed out before the coord anchor could be revalidated against the current process.'

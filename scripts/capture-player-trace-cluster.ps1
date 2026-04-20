@@ -135,7 +135,7 @@ if ($RefreshTrace -or -not (Test-Path -LiteralPath $resolvedTraceFile)) {
 }
 
 $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
-if (-not $anchor.TraceMatchesProcess) {
+if ($RefreshTrace -and -not $anchor.TraceMatchesProcess) {
     try {
         & $traceScript -Json -MaxCandidates 1 | Out-Null
         $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
@@ -143,6 +143,9 @@ if (-not $anchor.TraceMatchesProcess) {
     catch {
         Write-Warning ("Unable to refresh the coord write trace for a live-matching anchor; falling back to the current module pattern. {0}" -f $_.Exception.Message)
     }
+}
+elseif (-not $anchor.TraceMatchesProcess) {
+    Write-Warning 'The saved coord trace does not match the current Rift process; using the current module-pattern anchor without attempting a CE-backed trace refresh.'
 }
 
 $instructionAddressText = $null
@@ -250,6 +253,7 @@ $result = [ordered]@{
     Mode = 'player-coord-trace-cluster'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     TraceFile = $resolvedTraceFile
+    TraceRefreshAttempted = [bool]$RefreshTrace
     InstructionAddress = $instructionAddressText
     InstructionAddressSource = $instructionAddressSource
     SourceObjectAddress = if ($anchor.TraceMatchesProcess) { [string]$anchor.SourceObjectAddress } else { $null }
