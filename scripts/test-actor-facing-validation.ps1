@@ -9,14 +9,17 @@ param(
     [int]$WaitMilliseconds = 250,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus,
+    [switch]$UseAhkSendKey,
     [string]$TurnLeftKey = 'A',
     [string]$TurnRightKey = 'D',
     [string]$MoveForwardKey = 'W',
     [switch]$UseBackgroundPostKey,
     [switch]$NoBoundaryTrigger,
+    [switch]$UsePlayerCurrentAnchorBoundary,
     [switch]$RefreshOwnerComponents,
     [switch]$AllowLegacyRecovery,
     [string]$PreferredLeadFile = 'actor-facing-behavior-backed-lead.json',
+    [string]$PlayerCurrentAnchorFile = 'captures\player-current-anchor.json',
     [string]$OwnerComponentsFile,
     [string]$OutputFile = 'captures\actor-facing-validation.json',
     [string]$HistoryFile = 'captures\actor-facing-validation-history.ndjson'
@@ -47,12 +50,23 @@ Assert-PowerShell7
 
 . (Join-Path $scriptRoot 'actor-facing-common.ps1')
 
+$repoRoot = Get-RiftReaderRepoRoot -ScriptRoot $scriptRoot
+$readerProject = Get-RiftReaderProjectPath -RepoRoot $repoRoot
 $boundaryCaptureScript = Join-Path $scriptRoot 'capture-readerbridge-boundary.ps1'
 $facingCaptureScript = Join-Path $scriptRoot 'capture-actor-facing.ps1'
-$keyScript = Join-Path $scriptRoot $(if ($UseBackgroundPostKey) { 'post-rift-key.ps1' } else { 'send-rift-key.ps1' })
+$keyScript = if ($UseAhkSendKey) {
+    Join-Path $scriptRoot 'send-rift-key-ahk.ps1'
+}
+elseif ($UseBackgroundPostKey) {
+    Join-Path $scriptRoot 'post-rift-key.ps1'
+}
+else {
+    Join-Path $scriptRoot 'send-rift-key.ps1'
+}
 $resolvedOutputFile = Resolve-ScriptRelativePath -Path $OutputFile
 $resolvedHistoryFile = Resolve-ScriptRelativePath -Path $HistoryFile
 $resolvedPreferredLeadFile = Resolve-ScriptRelativePath -Path $PreferredLeadFile
+$resolvedPlayerCurrentAnchorFile = Resolve-ScriptRelativePath -Path $PlayerCurrentAnchorFile
 $resolvedOwnerComponentsFile = if (-not [string]::IsNullOrWhiteSpace($OwnerComponentsFile)) { Resolve-ScriptRelativePath -Path $OwnerComponentsFile } else { $null }
 $thresholds = Get-ActorFacingThresholds
 $tempPaths = New-Object System.Collections.Generic.List[string]
@@ -93,6 +107,93 @@ function Get-TempPathForRun {
     return $path
 }
 
+function Parse-UnsignedAddress {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AddressText
+    )
+
+    $normalized = $AddressText.Trim()
+    if ($normalized.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $normalized = $normalized.Substring(2)
+    }
+
+    return [Convert]::ToUInt64($normalized, 16)
+}
+
+function Invoke-PlayerCurrentBoundaryCapture {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CaptureLabel,
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath
+    )
+
+    if (-not (Test-Path -LiteralPath $resolvedPlayerCurrentAnchorFile)) {
+        throw "Player-current anchor file was not found: $resolvedPlayerCurrentAnchorFile"
+    }
+
+    $anchorDocument = Get-Content -LiteralPath $resolvedPlayerCurrentAnchorFile -Raw | ConvertFrom-Json -Depth 40
+    $addressText = [string](Get-OptionalPropertyValue -InputObject $anchorDocument -PropertyName 'AddressHex')
+    if ([string]::IsNullOrWhiteSpace($addressText)) {
+        throw "Player-current anchor file did not contain AddressHex: $resolvedPlayerCurrentAnchorFile"
+    }
+
+    $processName = [string](Get-OptionalPropertyValue -InputObject $anchorDocument -PropertyName 'ProcessName')
+    if ([string]::IsNullOrWhiteSpace($processName)) {
+        $processName = 'rift_x64'
+    }
+
+    $coordXOffset = [int](Get-OptionalPropertyValue -InputObject $anchorDocument -PropertyName 'CoordXOffset')
+    $coordYOffset = [int](Get-OptionalPropertyValue -InputObject $anchorDocument -PropertyName 'CoordYOffset')
+    $coordZOffset = [int](Get-OptionalPropertyValue -InputObject $anchorDocument -PropertyName 'CoordZOffset')
+    $offsets = @($coordXOffset, $coordYOffset, $coordZOffset)
+    $minimumOffset = [int](($offsets | Measure-Object -Minimum).Minimum)
+    $maximumOffset = [int](($offsets | Measure-Object -Maximum).Maximum)
+    $baseAddress = Parse-UnsignedAddress -AddressText $addressText
+    $readAddress = $baseAddress + [uint64]$minimumOffset
+    $length = ($maximumOffset - $minimumOffset) + 4
+
+    $memoryRead = Invoke-RiftReaderJson -ReaderProject $readerProject -Arguments @(
+        '--process-name', $processName,
+        '--address', ('0x{0:X}' -f $readAddress),
+        '--length', $length.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '--json'
+    )
+
+    $bytesHex = [string](Get-OptionalPropertyValue -InputObject $memoryRead -PropertyName 'BytesHex')
+    if ([string]::IsNullOrWhiteSpace($bytesHex)) {
+        throw "Live player-current memory read returned no bytes for anchor $addressText."
+    }
+
+    $bytes = [Convert]::FromHexString($bytesHex)
+    $coord = [pscustomobject]@{
+        X = [BitConverter]::ToSingle($bytes, $coordXOffset - $minimumOffset)
+        Y = [BitConverter]::ToSingle($bytes, $coordYOffset - $minimumOffset)
+        Z = [BitConverter]::ToSingle($bytes, $coordZOffset - $minimumOffset)
+    }
+
+    $document = [pscustomobject]@{
+        Mode            = 'player-current-boundary-capture'
+        GeneratedAtUtc  = [DateTimeOffset]::UtcNow.ToString('O')
+        Label           = $CaptureLabel
+        OutputFile      = $OutputPath
+        CommandIssued   = $null
+        SourceFile      = $resolvedPlayerCurrentAnchorFile
+        SourceAddress   = $addressText
+        SourceSignature = Get-OptionalPropertyValue -InputObject $anchorDocument -PropertyName 'Signature'
+        ProcessName     = $processName
+        PlayerCoord     = $coord
+        Notes           = @(
+            'Boundary coords were read directly from the verified player-current anchor in live memory.',
+            'This bypasses /rbx export and uses the cached player-current family offsets as the movement truth source.'
+        )
+    }
+
+    [System.IO.File]::WriteAllText($OutputPath, ($document | ConvertTo-Json -Depth 40))
+    return $document
+}
+
 function Invoke-BoundaryCapture {
     param(
         [Parameter(Mandatory = $true)]
@@ -102,6 +203,10 @@ function Invoke-BoundaryCapture {
     )
 
     $outputPath = Get-TempPathForRun -Prefix 'actor-facing-boundary' -Iteration $Iteration -Suffix $Phase
+    if ($UsePlayerCurrentAnchorBoundary) {
+        return Invoke-PlayerCurrentBoundaryCapture -CaptureLabel $CaptureLabel -OutputPath $outputPath
+    }
+
     $arguments = @{
         Json       = $true
         Label      = $CaptureLabel
@@ -236,7 +341,12 @@ function Invoke-Stimulus {
         Key              = $key
         HoldMilliseconds = $HoldMilliseconds
     }
-    if ($UseBackgroundPostKey -and $SkipBackgroundFocus) {
+    if ($UseAhkSendKey) {
+        if ($SkipBackgroundFocus) {
+            $keyArgs['NoRefocus'] = $true
+        }
+    }
+    elseif ($UseBackgroundPostKey -and $SkipBackgroundFocus) {
         $keyArgs['SkipBackgroundFocus'] = $true
     }
 
@@ -365,13 +475,13 @@ try {
             FailureShape                = $failureShape
             Verdict                     = $verdict
             Notes                       = @(
-                $(if ($NoBoundaryTrigger) { 'Addon boundary coords were read from the latest available ReaderBridge snapshot without issuing /rbx export.' } else { 'Addon boundary coords are captured through explicit /rbx export boundaries.' }),
+                $(if ($UsePlayerCurrentAnchorBoundary) { 'Boundary coords were read directly from the verified player-current anchor in live memory.' } elseif ($NoBoundaryTrigger) { 'Addon boundary coords were read from the latest available ReaderBridge snapshot without issuing /rbx export.' } else { 'Addon boundary coords are captured through explicit /rbx export boundaries.' }),
                 'Predicted heading is derived from the before-sample actor yaw using atan2(forwardZ, forwardX).'
             )
         }
 
         $results.Add($runResult)
-        $historyEntries += @($runResult)
+        $historyEntries = @($historyEntries) + @($runResult)
 
         $historyDirectory = Split-Path -Path $resolvedHistoryFile -Parent
         if (-not [string]::IsNullOrWhiteSpace($historyDirectory)) {
@@ -433,9 +543,9 @@ $document = [pscustomobject]@{
         FailureShapeCounts      = $failureShapeCounts
     }
     Notes           = @(
-        $(if ($NoBoundaryTrigger) { 'This validation used read-only ReaderBridge snapshot reads and did not issue /rbx export during boundary capture.' } else { 'Boundary captures issued /rbx export to tighten stimulus-boundary timing.' }),
+        $(if ($UsePlayerCurrentAnchorBoundary) { 'This validation used direct live memory reads from the verified player-current anchor for movement-boundary coordinates.' } elseif ($NoBoundaryTrigger) { 'This validation used read-only ReaderBridge snapshot reads and did not issue /rbx export during boundary capture.' } else { 'Boundary captures issued /rbx export to tighten stimulus-boundary timing.' }),
         'Use idle plus turn-left / turn-right validation before treating forward-move mismatch as authoritative source failure.',
-        'Forward movement acceptance uses addon boundary coords, not saved-variable heartbeat timing.'
+        $(if ($UsePlayerCurrentAnchorBoundary) { 'Forward movement acceptance uses live player-current anchor coords sampled directly from memory.' } else { 'Forward movement acceptance uses addon boundary coords, not saved-variable heartbeat timing.' })
     )
 }
 
