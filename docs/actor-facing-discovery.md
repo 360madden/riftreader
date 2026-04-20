@@ -1,28 +1,42 @@
 # Actor-Facing Discovery Workflow (Navigation-Ready)
 
+> **April 20, 2026 update**
+>
+> Actor-facing is now **solved for the canonical live source**
+> `0x1B115201EB0 + 0xD4`.
+>
+> The older incumbent `0x1B1230D39E0 + 0x144` is **rejected** and must not be
+> reused.
+>
+> Forward movement / navigation proof remains a **separate downstream track**.
+> Do not reopen actor-facing discovery unless new live evidence contradicts the
+> canonical solved source.
+
 ## Scope
 
 This workflow is for **actor-facing only**, not camera-facing.
 
-The goal is to keep the current selected-source basis forward row as the
-**incumbent candidate** and give the repo a repeatable way to either:
+The goal is to keep the canonical solved actor-facing source stable in the repo
+and give the workflow a repeatable way to either:
 
-- confirm it as the navigation-facing source, or
-- reject it on evidence before widening the search.
+- regression-check it as the actor-facing source, or
+- explicitly contradict it on fresh live evidence before widening the search.
 
-As of **April 16, 2026**, this workflow is implemented, but the source is still
-only a **candidate** until live validation passes.
+As of **April 20, 2026**, actor-facing itself is solved; only forward movement
+correlation remains pending.
 
 ## Current posture
 
 | Area | Current state |
 |---|---|
-| Primary candidate | selected-source basis forward row |
-| Ground truth for movement | addon-exported player coords captured at experiment boundaries |
+| Canonical actor-facing source | `0x1B115201EB0 + 0xD4` |
+| Rejected incumbent | `0x1B1230D39E0 + 0x144` |
+| Ground truth for movement | direct player-current-anchor boundary or addon-exported coords captured at experiment boundaries |
 | Facing math | fixed and offline-tested |
 | Integrity gates | fixed and offline-tested |
 | Failure-shape classifier | fixed and offline-tested |
-| Authoritative source | **not confirmed yet** |
+| Actor-facing authority | **solved** |
+| Forward/navigation authority | **separate downstream track** |
 | Camera-facing | out of scope |
 
 ## Facing contract definition
@@ -50,8 +64,8 @@ Default output:
 
 - `C:\RIFT MODDING\RiftReader\scripts\captures\player-actor-facing.json`
 
-The sample normalizes the incumbent selected-source capture into a single
-candidate-facing document with:
+The sample now normalizes the canonical solved source into a single
+actor-facing document with:
 
 - source address / selected entry
 - forward vector
@@ -64,7 +78,7 @@ candidate-facing document with:
 - basis forward offset
 - resolution mode / notes
 - integrity gate result
-- status: `candidate | rejected | stale`
+- status: `preferred-solved-lead | candidate | rejected | stale`
 
 ### 2. Boundary capture
 
@@ -129,7 +143,9 @@ This contract becomes `confirmed` only when one source passes:
 - turn-right response
 - five forward movement validations with repeated-forward thresholds
 
-Otherwise it remains `candidate` or `rejected`.
+If the canonical source has passing idle + turn-left + turn-right evidence but
+forward proof is still pending, the contract remains
+`actor-facing-solved-forward-pending` instead of reopening actor-facing work.
 
 ### 5. Passive actor-facing analysis
 
@@ -154,9 +170,12 @@ the later live validation workflow. It:
 
 ## Implemented workflow
 
-### Phase A — revalidate the incumbent first
+### Phase A — revalidate the canonical solved source first
 
-Reuse the existing orientation capture path first:
+Reuse the existing orientation capture path first, but anchor it to the
+canonical solved source:
+
+- `0x1B115201EB0 + 0xD4`
 
 - `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1`
@@ -175,11 +194,13 @@ Integrity gates are fixed as:
 | Cross-row dot products | absolute value `<= 0.02` |
 | Duplicate basis agreement | max row delta `<= 0.02` when duplicate exists |
 
-### Phase B — correlate facing to actual movement
+### Phase B — correlate the solved facing source to actual movement
 
 Use:
 
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.ps1`
+- `C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.ps1` when the remaining question is whether a gameplay key produces real movement at all
+- `C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.ps1` when movement keys still fail and the remaining question is which coordinate truth source is stale or mismatched
 
 Stimulus matrix:
 
@@ -191,10 +212,12 @@ Stimulus matrix:
 | `move-forward` | compare facing vs actual heading | movement `>= 0.75`, angular error `<= 12°` |
 | repeated `move-forward` (5x) | prove stability | median error `<= 8°`, no single valid run `> 15°` |
 
-Ground truth for movement is the addon-exported coordinate boundary capture,
-not the heartbeat delay itself.
+Ground truth for movement is still the boundary or live coordinate truth source,
+not the heartbeat delay itself. A failed `move-forward` run does **not** reopen
+actor-facing discovery once the canonical source continues to pass `idle`,
+`turn-left`, and `turn-right`.
 
-### Phase C — classify failure shape before broadening search
+### Phase C — classify downstream failure shape before broadening search
 
 The implemented classifier buckets failures into:
 
@@ -207,11 +230,12 @@ The implemented classifier buckets failures into:
 | `insufficient-movement` | movement too small / noisy to evaluate |
 | `none` | no classified failure |
 
-Only after this classification should the search widen.
+Only after this classification should the search widen, and only if new live
+evidence contradicts the canonical solved source.
 
 ## Script examples
 
-Capture the current candidate facing sample:
+Capture the current canonical actor-facing sample:
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.cmd -Label baseline
@@ -239,6 +263,18 @@ Run five repeated forward validations:
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd -Stimulus move-forward -RepeatCount 5
+```
+
+Verify whether a candidate movement key actually moves the player-current anchor:
+
+```powershell
+C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.cmd -UseAhkSendKey -Keys W,Up
+```
+
+Compare the live coordinate truth sources before trusting any movement verdict:
+
+```powershell
+C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.cmd
 ```
 
 Build the current navigation-facing contract from the latest sample and history:
@@ -288,8 +324,8 @@ Before sending any turn or movement stimulus, prefer this sequence:
 1. load `--readerbridge-snapshot`
 2. capture or reuse a passive ReaderBridge boundary snapshot
 3. run `analyze-actor-facing-passive`
-4. confirm whether the selected-source candidate still aligns with the current
-   snapshot and whether addon expansion is needed
+4. confirm whether the canonical solved source still aligns with the current
+   snapshot and whether addon expansion is needed for movement truth only
 
 During this phase:
 
@@ -315,19 +351,23 @@ During this phase:
 - camera-facing discovery
 - orbit pitch / zoom / camera controller work
 - mounts, swimming, airborne, or scripted motion states
-- automatic widening into broad memory search without incumbent failure evidence
+- automatic widening into broad memory search without contradiction evidence
 - immediate auto-turn navigation implementation
 
 ## Result expected from this workflow
 
-When live validation passes, the repo will have all five required outputs for a
-navigation-ready actor-facing contract:
+With the current solved source, the repo already has the actor-facing-side
+outputs required for a navigation-ready contract:
 
-1. one confirmed source
+1. one solved actor-facing source
 2. fixed yaw / pitch math
-3. forward movement correlation evidence
-4. fixed signed turn-error formula
-5. explicit fallback / rejection rules
+3. fixed signed turn-error formula
+4. explicit fallback / rejection rules
 
-Until then, the selected-source basis forward row remains the **incumbent
-candidate**, not proven final truth.
+The remaining missing output is:
+
+5. forward movement correlation evidence
+
+Until contradictory live evidence appears, `0x1B115201EB0 + 0xD4` should be
+treated as the **canonical solved actor-facing source**. Forward movement work
+is a separate downstream validation track.

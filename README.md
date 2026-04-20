@@ -32,17 +32,19 @@ See:
 
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
 
-## Actor-Facing Discovery Workflow (April 16, 2026)
+## Actor-Facing Discovery Workflow (April 20, 2026)
 
-Actor-facing discovery now has a dedicated **navigation-ready revalidation**
-workflow.
+Actor-facing discovery is now **solved for the canonical live source**, with
+forward/navigation proof tracked separately.
 
 | Area | Current workflow status |
 |---|---|
-| Primary candidate | selected-source basis forward row |
-| Movement truth | addon-exported coords captured at explicit `/rbx export` boundaries |
+| Canonical actor-facing source | `0x1B115201EB0 + 0xD4` |
+| Rejected incumbent | `0x1B1230D39E0 + 0x144` (**do not use**) |
+| Movement truth | direct player-current-anchor boundary or addon-exported coords, depending on validation mode |
 | Math / thresholds | fixed and offline-tested |
-| Live authority | still **candidate-only** until the contract passes live validation |
+| Actor-facing authority | **solved** for left/right turn behavior |
+| Forward/navigation authority | separate downstream track; still pending |
 | Output artifacts | actor-facing sample, validation history, navigation-facing contract |
 | Non-goals | no camera discovery, no auto-turn implementation in this pass |
 
@@ -58,6 +60,7 @@ See:
 
 - `C:\RIFT MODDING\RiftReader\docs\actor-facing-discovery.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-16-actor-facing-passive-baseline.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-20-actor-facing-solved-state.md`
 
 ## Shell Requirements
 
@@ -564,10 +567,12 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\cheatengine-capture-best.cmd` - remotely append the current best-family sample set to `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\probe-samples.tsv`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.cmd` - primary native PowerShell no-focus Rift command helper; posts AHK-style raw keydown/keyup messages with proper scan-code `lParam` values and verifies success by watching `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` / `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.cmd` - native PowerShell no-focus Rift gameplay-key helper for movement or hotbar-style input tests
-- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.cmd` - normalize the incumbent selected-source basis into a navigation-ready actor-facing sample with fixed yaw / pitch / planar-forward math and basis integrity gates
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-facing.cmd` - normalize the canonical solved actor-facing source (`0x1B115201EB0 + 0xD4`) into a navigation-ready actor-facing sample with fixed yaw / pitch / planar-forward math and basis integrity gates, while rejecting conflicting sources unless legacy recovery is explicitly allowed
 - `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-readerbridge-boundary.cmd` - trigger `/rbx export`, reload the latest ReaderBridge snapshot, and freeze addon coords at a stimulus boundary
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd` - run `idle`, `turn-left`, `turn-right`, or `move-forward` validation loops and append per-run evidence to the actor-facing validation history
-- `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.ps1` / `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd` - evaluate the latest matching facing sample plus validation history and emit the current navigation-facing contract as `candidate`, `confirmed`, or `rejected`
+- `C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.ps1` / `C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.cmd` - verify that a candidate gameplay key actually produces live player-current-anchor movement before retrying downstream `move-forward` validation
+- `C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.ps1` / `C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.cmd` - compare ReaderBridge, player-current-anchor, actor-orientation-source, and `--read-player-current` coordinate sources to detect movement-truth source mismatch before blaming solved actor-facing
+- `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.ps1` / `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd` - evaluate the latest matching facing sample plus validation history and emit the current navigation-facing contract as `actor-facing-solved-forward-pending`, `confirmed`, or `rejected`
 - `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.ps1` / `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.cmd` - build a passive no-movement actor-facing baseline from the latest ReaderBridge snapshot plus the current owner/source artifacts, including addon-facing-signal and historical-drift checks
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review

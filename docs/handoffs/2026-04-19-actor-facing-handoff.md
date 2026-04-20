@@ -1,5 +1,14 @@
 # Actor-Facing Discovery Handoff — 2026-04-19
 
+> **Superseded on April 20, 2026**
+>
+> Actor-facing is now solved for the canonical live source
+> `0x1B115201EB0 + 0xD4`.
+>
+> See:
+>
+> - `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-20-actor-facing-solved-state.md`
+
 ## Status
 
 - **Actor-facing source is not solved yet.**
@@ -118,4 +127,3 @@ These are the main files touched before this handoff:
 - `C:\RIFT MODDING\RiftReader_facing\scripts\send-rift-key-ahk.ps1`
 - `C:\RIFT MODDING\RiftReader_facing\scripts\send-rift-key-ahk.ahk`
 - `C:\RIFT MODDING\RiftReader_facing\scripts\smart-capture-player-family.ps1`
-

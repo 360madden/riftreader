@@ -47,6 +47,7 @@ $resolvedOrientationOutputFile = Resolve-ScriptRelativePath -Path $OrientationOu
 $resolvedOrientationPreviousFile = Resolve-ScriptRelativePath -Path $OrientationPreviousFile
 $resolvedOutputFile = Resolve-ScriptRelativePath -Path $OutputFile
 $resolvedPreviousFile = Resolve-ScriptRelativePath -Path $PreviousFile
+$canonicalLead = Get-BehaviorBackedLead -FilePath $resolvedPreferredLeadFile
 
 if (($RefreshOwnerComponents -or $RefreshReaderBridge) -and -not $AllowLegacyRecovery -and (Test-Path -LiteralPath $resolvedPreferredLeadFile)) {
     throw "Explicit refresh was requested while the preferred behavior-backed lead file is active. Re-run with -AllowLegacyRecovery if you intentionally want legacy refresh behavior."
@@ -156,6 +157,7 @@ function Write-ActorFacingText {
     $lines.Add("Basis forward offset:        $(if ($sample.BasisForwardOffset) { $sample.BasisForwardOffset } else { 'n/a' })")
     $lines.Add("Status:                      $($sample.Status)")
     $lines.Add("Operational status:          $(if ($sample.OperationalStatus) { $sample.OperationalStatus } else { 'n/a' })")
+    $lines.Add("Solved actor-facing:         $(if ($sample.SolvedActorFacing) { 'true' } else { 'false' })")
     $lines.Add("Forward vector:              $(Format-Vector $sample.ForwardVector)")
     $lines.Add("Planar forward:              $(Format-PlanarVector $sample.PlanarForward)")
     $lines.Add("Yaw/pitch (deg):             $(Format-Nullable $sample.YawDegrees '0.000') / $(Format-Nullable $sample.PitchDegrees '0.000')")
@@ -209,11 +211,34 @@ if ($LASTEXITCODE -ne 0) {
 
 $orientationCapture = $orientationJson | ConvertFrom-Json -Depth 80
 $sample = ConvertTo-ActorFacingSample -CaptureDocument $orientationCapture
+$matchesCanonicalLead = if ($null -ne $canonicalLead) { Test-ActorFacingSampleMatchesLead -Sample $sample -Lead $canonicalLead } else { $null }
+
+if ($null -ne $canonicalLead -and -not $matchesCanonicalLead) {
+    $conflictMessage = "Actor-facing capture resolved '$($sample.SourceAddress) @ $($sample.BasisForwardOffset)' but the canonical solved actor-facing source is '$($canonicalLead.SourceAddress) @ $($canonicalLead.BasisPrimaryForwardOffset)'."
+    if ($AllowLegacyRecovery) {
+        Write-Warning $conflictMessage
+    }
+    else {
+        throw "$conflictMessage Re-run with -AllowLegacyRecovery only if you intentionally want non-canonical source work."
+    }
+}
 
 $notes = New-Object System.Collections.Generic.List[string]
-$notes.Add('This helper normalizes the incumbent selected-source basis into a navigation-ready actor-facing sample.')
-$notes.Add('Use the output as the candidate sample for idle / turn / forward movement correlation runs.')
-$notes.Add('A confirmed navigation-facing contract still requires live movement validation against addon boundary coords.')
+if ($sample.SolvedActorFacing) {
+    $notes.Add('This helper normalizes the canonical solved actor-facing source into a navigation-ready sample.')
+    $notes.Add('Forward movement validation remains a separate downstream track and should not reopen actor-facing discovery by itself.')
+}
+else {
+    $notes.Add('This helper normalizes the current selected-source basis into a navigation-ready actor-facing sample.')
+    $notes.Add('Use the output as a candidate sample for live validation runs until actor-facing is solved.')
+}
+$notes.Add('A confirmed navigation-facing contract still requires separate live movement validation.')
+if ($null -ne $canonicalLead) {
+    $notes.Add("Canonical solved actor-facing source: $($canonicalLead.SourceAddress) @ $($canonicalLead.BasisPrimaryForwardOffset).")
+    if (-not [string]::IsNullOrWhiteSpace($canonicalLead.SupersededRejectedSourceAddress)) {
+        $notes.Add("Superseded rejected incumbent: $($canonicalLead.SupersededRejectedSourceAddress) @ $($canonicalLead.SupersededRejectedBasisForwardOffset).")
+    }
+}
 
 $document = [pscustomobject]@{
     Mode              = 'actor-facing-sample'
@@ -223,6 +248,7 @@ $document = [pscustomobject]@{
     PreviousFile      = $resolvedPreviousFile
     SourceCaptureFile = $resolvedOrientationOutputFile
     ActorFacingSample = $sample
+    CanonicalPreferredLeadMatch = $matchesCanonicalLead
     Notes             = $notes
 }
 

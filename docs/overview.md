@@ -40,17 +40,19 @@ Full doc:
 
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
 
-## Actor-Facing Discovery Workflow (April 16, 2026)
+## Actor-Facing Discovery Workflow (April 20, 2026)
 
-Actor-facing discovery now has a dedicated revalidation path aimed at later
-navigation-facing turn logic.
+Actor-facing discovery is now solved for the canonical live source and should
+be treated as separate from still-pending forward/navigation proof.
 
 | Area | Current status |
 |---|---|
-| Primary candidate | selected-source basis forward row |
-| Movement truth | addon-exported coords captured at explicit `/rbx export` boundaries |
+| Canonical actor-facing source | `0x1B115201EB0 + 0xD4` |
+| Rejected incumbent | `0x1B1230D39E0 + 0x144` |
+| Movement truth | direct player-current-anchor boundary or addon-exported coords depending on validation mode |
 | Offline support | math, basis-integrity thresholds, and failure-shape classification are implemented and tested |
-| Live authority | still **candidate-only** until the contract is confirmed |
+| Actor-facing authority | **solved** for idle + turn-left + turn-right |
+| Forward/navigation authority | still pending as a separate downstream track |
 | Main outputs | actor-facing sample, validation history, navigation-facing contract |
 
 Use:
@@ -63,6 +65,7 @@ Use:
 Full doc:
 
 - `C:\RIFT MODDING\RiftReader\docs\actor-facing-discovery.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-20-actor-facing-solved-state.md`
 
 The current prototype should stay focused on:
 

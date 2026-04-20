@@ -476,6 +476,7 @@ try {
             Verdict                     = $verdict
             Notes                       = @(
                 $(if ($UsePlayerCurrentAnchorBoundary) { 'Boundary coords were read directly from the verified player-current anchor in live memory.' } elseif ($NoBoundaryTrigger) { 'Addon boundary coords were read from the latest available ReaderBridge snapshot without issuing /rbx export.' } else { 'Addon boundary coords are captured through explicit /rbx export boundaries.' }),
+                $(if ($Stimulus -eq 'move-forward' -and $turnResponsive) { 'This run belongs to the separate forward-movement track; actor-facing already has passing turn evidence for this same source and basis offset.' } else { 'This run participates directly in actor-facing regression/validation for the sampled source.' }),
                 'Predicted heading is derived from the before-sample actor yaw using atan2(forwardZ, forwardX).'
             )
         }
@@ -535,6 +536,7 @@ $document = [pscustomobject]@{
     Results         = $results
     Summary         = [pscustomobject]@{
         OverallVerdict          = $overallVerdict
+        ValidationTrack         = if ($Stimulus -eq 'move-forward') { 'forward-movement-separate-track' } else { 'actor-facing-regression-track' }
         PassCount               = $passCount
         FailCount               = $failCount
         MedianAngularErrorDegrees = Get-Median -Values $angularErrors
@@ -545,6 +547,7 @@ $document = [pscustomobject]@{
     Notes           = @(
         $(if ($UsePlayerCurrentAnchorBoundary) { 'This validation used direct live memory reads from the verified player-current anchor for movement-boundary coordinates.' } elseif ($NoBoundaryTrigger) { 'This validation used read-only ReaderBridge snapshot reads and did not issue /rbx export during boundary capture.' } else { 'Boundary captures issued /rbx export to tighten stimulus-boundary timing.' }),
         'Use idle plus turn-left / turn-right validation before treating forward-move mismatch as authoritative source failure.',
+        $(if ($Stimulus -eq 'move-forward') { 'Forward movement results belong to a separate downstream track; they should not reopen solved actor-facing work by themselves.' } else { 'Turn and idle results are the primary regression checks for the solved actor-facing source.' }),
         $(if ($UsePlayerCurrentAnchorBoundary) { 'Forward movement acceptance uses live player-current anchor coords sampled directly from memory.' } else { 'Forward movement acceptance uses addon boundary coords, not saved-variable heartbeat timing.' })
     )
 }

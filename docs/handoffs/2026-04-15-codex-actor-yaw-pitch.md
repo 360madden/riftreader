@@ -1,9 +1,15 @@
 ---
-state: active
-as_of: 2026-04-19
+state: superseded-by-solved-state
+as_of: 2026-04-20
 ---
 
 # Actor-Facing Discovery Handoff (2026-04-19)
+
+> **Superseded on April 20, 2026.**
+>
+> Actor-facing is now treated as solved at `0x1B115201EB0 + 0xD4`.
+> See `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-20-actor-facing-solved-state.md`
+> for the canonical current state.
 
 ## Scope
 
@@ -150,11 +156,15 @@ Use these tools first:
 | Keep branch scope on actor-facing proof | Expand navigation/consumer work first |
 | Require live evidence before promotion | Trust old owner/source artifacts as current truth |
 
-## Recommended first action in the next conversation
+## Historical recommendation block
 
-- Reacquire the live selected-source / transform family from the working coord anchor with `C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-trace-cluster.ps1` plus `C:\RIFT MODDING\RiftReader_facing\scripts\capture-owner-state-neighborhood.ps1`, then run turn-response validation on the top basis-like candidate before doing any more navigation work.
-- If the incumbent selected-source basis cannot be reacquired quickly, switch immediately to `C:\RIFT MODDING\RiftReader_facing\scripts\capture-ce-family-neighborhood.ps1` plus the Cheat Engine probe to watch live candidate families during manual turn stimuli.
-- Keep the first successful proof package small: baseline, idle, turn-left, turn-right, repeated forward.
+The recommendations below are preserved only as historical context. They are
+superseded by the solved-state handoff because actor-facing no longer needs to
+be rediscovered unless new live evidence contradicts `0x1B115201EB0 + 0xD4`.
+
+- Historical next step was to reacquire the live selected-source / transform family from the working coord anchor with `C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-trace-cluster.ps1` plus `C:\RIFT MODDING\RiftReader_facing\scripts\capture-owner-state-neighborhood.ps1`, then run turn-response validation on the top basis-like candidate before doing any more navigation work.
+- Historical fallback was to use `C:\RIFT MODDING\RiftReader_facing\scripts\capture-ce-family-neighborhood.ps1` plus the Cheat Engine probe during manual turn stimuli.
+- Historical proof package target was: baseline, idle, turn-left, turn-right, repeated forward.
 
 ## Practical next improvements after handoff
 

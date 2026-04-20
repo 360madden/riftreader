@@ -280,6 +280,66 @@ function Normalize-HexOffset {
 
     return $trimmed.ToUpperInvariant()
 }
+
+function Get-BehaviorBackedLead {
+    param([string]$FilePath)
+
+    if ([string]::IsNullOrWhiteSpace($FilePath)) {
+        return $null
+    }
+
+    $resolvedPath = [System.IO.Path]::GetFullPath($FilePath)
+    if (-not (Test-Path -LiteralPath $resolvedPath)) {
+        return $null
+    }
+
+    $jsonText = Get-Content -LiteralPath $resolvedPath -Raw
+    if ([string]::IsNullOrWhiteSpace($jsonText)) {
+        return $null
+    }
+
+    $document = $jsonText | ConvertFrom-Json -Depth 40
+    $sourceAddress = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'SourceAddress'))
+    if ([string]::IsNullOrWhiteSpace($sourceAddress)) {
+        return $null
+    }
+
+    $basisPrimaryForwardOffset = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'BasisPrimaryForwardOffset'))
+    if ([string]::IsNullOrWhiteSpace($basisPrimaryForwardOffset)) {
+        $basisPrimaryForwardOffset = '0x60'
+    }
+
+    return [pscustomobject]@{
+        FilePath                           = $resolvedPath
+        SourceAddress                      = $sourceAddress
+        BasisPrimaryForwardOffset          = $basisPrimaryForwardOffset
+        BasisDuplicateForwardOffset        = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'BasisDuplicateForwardOffset'))
+        Status                             = [string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'Status')
+        Notes                              = @((Get-OptionalPropertyValue -InputObject $document -PropertyName 'Notes'))
+        CanonicalSolvedActorFacing         = [bool]$(if ($document.PSObject.Properties.Name -contains 'CanonicalSolvedActorFacing') { $document.CanonicalSolvedActorFacing } else { $true })
+        SupersededRejectedSourceAddress    = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'SupersededRejectedSourceAddress'))
+        SupersededRejectedBasisForwardOffset = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'SupersededRejectedBasisForwardOffset'))
+    }
+}
+
+function Test-ActorFacingSampleMatchesLead {
+    param(
+        $Sample,
+        $Lead
+    )
+
+    if ($null -eq $Sample -or $null -eq $Lead) {
+        return $false
+    }
+
+    $sampleSourceAddress = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $Sample -PropertyName 'SourceAddress'))
+    $sampleBasisForwardOffset = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $Sample -PropertyName 'BasisForwardOffset'))
+    if ([string]::IsNullOrWhiteSpace($sampleSourceAddress) -or [string]::IsNullOrWhiteSpace($sampleBasisForwardOffset)) {
+        return $false
+    }
+
+    return $sampleSourceAddress -eq $Lead.SourceAddress -and $sampleBasisForwardOffset -eq $Lead.BasisPrimaryForwardOffset
+}
 function Resolve-ActorFacingBasisForwardOffset {
     param($ReaderOrientation)
 
@@ -468,6 +528,11 @@ function Resolve-ActorFacingStatus {
         $IntegrityResult
     )
 
+    $resolutionMode = [string](Get-OptionalPropertyValue -InputObject $ReaderOrientation -PropertyName 'ResolutionMode')
+    if ($resolutionMode -eq 'behavior-backed-lead' -and $IntegrityResult.Pass) {
+        return 'preferred-solved-lead'
+    }
+
     $joinedNotes = @()
     $joinedNotes += @((Get-OptionalPropertyValue -InputObject $ReaderOrientation -PropertyName 'Notes'))
     $joinedText = ($joinedNotes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join ' '
@@ -533,7 +598,8 @@ function ConvertTo-ActorFacingSample {
     $notes = New-Object System.Collections.Generic.List[string]
     $notes.Add('Navigation-facing derivation uses the planar X/Z projection of the actor forward row.')
     if ($isBehaviorBackedLead) {
-        $notes.Add('This capture is currently pinned to the repo-preferred behavior-backed lead.')
+        $notes.Add('This capture is currently pinned to the canonical solved actor-facing source.')
+        $notes.Add('Forward movement validation is tracked separately and should not reopen actor-facing discovery by itself.')
     }
     foreach ($note in @((Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'Notes'))) {
         if (-not [string]::IsNullOrWhiteSpace([string]$note)) {
@@ -576,6 +642,9 @@ function ConvertTo-ActorFacingSample {
         Status                         = Resolve-ActorFacingStatus -ReaderOrientation $readerOrientation -IntegrityResult $integrity
         OperationalStatus              = Resolve-ActorFacingOperationalStatus -ReaderOrientation $readerOrientation -IntegrityResult $integrity
         PreferredLead                  = $isBehaviorBackedLead
+        SolvedActorFacing              = $isBehaviorBackedLead
+        ForwardValidationTrack         = if ($isBehaviorBackedLead) { 'separate-downstream' } else { $null }
+        ReopenOnlyIfContradicted       = $isBehaviorBackedLead
         Integrity                      = $integrity
         Notes                          = $notes
     }

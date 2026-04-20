@@ -1,13 +1,23 @@
 {
   "Mode": "actor-facing-behavior-backed-lead",
-  "UpdatedAtUtc": "2026-04-20T02:33:38.8980106+00:00",
+  "UpdatedAtUtc": "2026-04-20T04:36:18.8935275+00:00",
   "ProcessName": "rift_x64",
   "SourceAddress": "0x1B115201EB0",
   "BasisPrimaryForwardOffset": "0xD4",
-  "Status": "behavior-backed-lead",
+  "Status": "preferred-solved-lead",
+  "CanonicalSolvedActorFacing": true,
+  "SupersededRejectedSourceAddress": "0x1B1230D39E0",
+  "SupersededRejectedBasisForwardOffset": "0x144",
+  "PromotionEvidence": [
+    "idle-pass",
+    "turn-left-pass",
+    "turn-right-pass"
+  ],
   "Notes": [
     "Validated through AutoHotkey-backed visible A and D turn stimulus on April 19, 2026.",
     "The strongest recurring live access anchor is rift_x64.exe+0x5CDC93 reading movss xmm3,[rcx+8] with RCX=0x1B115201F84 and effective address 0x1B115201F8C.",
-    "Use this lead to override the previously rejected incumbent until newer live evidence disproves it."
+    "This is the canonical solved actor-facing source unless newer live evidence disproves it.",
+    "Forward movement / navigation proof remains a separate downstream track.",
+    "The previously rejected incumbent was 0x1B1230D39E0 + 0x144."
   ]
 }

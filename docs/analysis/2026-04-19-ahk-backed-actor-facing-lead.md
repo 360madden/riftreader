@@ -1,9 +1,17 @@
 ---
-state: current
+state: superseded-by-solved-state
 as_of: 2026-04-19
 ---
 
 # AHK-Backed Actor-Facing Lead (2026-04-19)
+
+> **Superseded on April 20, 2026**
+>
+> This note captured the first behavior-backed lead.
+>
+> The canonical solved-state handoff is now:
+>
+> - `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-20-actor-facing-solved-state.md`
 
 ## Scope
 
