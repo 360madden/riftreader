@@ -5,12 +5,14 @@ param(
     [switch]$RefreshOwnerComponents,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [switch]$AllowLegacyRecovery,
     [string]$ProcessName = 'rift_x64',
-    [string]$OwnerComponentsFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json'),
-    [string]$OrientationOutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.json'),
-    [string]$OrientationPreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.previous.json'),
-    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-facing.json'),
-    [string]$PreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-facing.previous.json')
+    [string]$PreferredLeadFile = 'actor-facing-behavior-backed-lead.json',
+    [string]$OwnerComponentsFile = 'captures\player-owner-components.json',
+    [string]$OrientationOutputFile = 'captures\player-actor-orientation.json',
+    [string]$OrientationPreviousFile = 'captures\player-actor-orientation.previous.json',
+    [string]$OutputFile = 'captures\player-actor-facing.json',
+    [string]$PreviousFile = 'captures\player-actor-facing.previous.json'
 )
 
 Set-StrictMode -Version Latest
@@ -18,14 +20,37 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
 
+function Assert-PowerShell7 {
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        throw "PowerShell 7+ (pwsh) is required for $PSCommandPath. Use C:\RIFT MODDING\RiftReader_facing\scripts\capture-actor-facing.cmd or run the script with pwsh.exe."
+    }
+}
+
+function Resolve-ScriptRelativePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $Path))
+}
+
+Assert-PowerShell7
+
 . (Join-Path $scriptRoot 'actor-facing-common.ps1')
 
 $captureOrientationScript = Join-Path $scriptRoot 'capture-actor-orientation.ps1'
-$resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
-$resolvedOrientationOutputFile = [System.IO.Path]::GetFullPath($OrientationOutputFile)
-$resolvedOrientationPreviousFile = [System.IO.Path]::GetFullPath($OrientationPreviousFile)
-$resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
-$resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
+$resolvedPreferredLeadFile = Resolve-ScriptRelativePath -Path $PreferredLeadFile
+$resolvedOwnerComponentsFile = Resolve-ScriptRelativePath -Path $OwnerComponentsFile
+$resolvedOrientationOutputFile = Resolve-ScriptRelativePath -Path $OrientationOutputFile
+$resolvedOrientationPreviousFile = Resolve-ScriptRelativePath -Path $OrientationPreviousFile
+$resolvedOutputFile = Resolve-ScriptRelativePath -Path $OutputFile
+$resolvedPreviousFile = Resolve-ScriptRelativePath -Path $PreviousFile
+
+if (($RefreshOwnerComponents -or $RefreshReaderBridge) -and -not $AllowLegacyRecovery -and (Test-Path -LiteralPath $resolvedPreferredLeadFile)) {
+    throw "Explicit refresh was requested while the preferred behavior-backed lead file is active. Re-run with -AllowLegacyRecovery if you intentionally want legacy refresh behavior."
+}
 
 function Format-Nullable {
     param(
@@ -130,6 +155,7 @@ function Write-ActorFacingText {
     $lines.Add("Selected entry:              index $(if ($null -ne $sample.SelectedEntryIndex) { $sample.SelectedEntryIndex } else { 'n/a' }) | $(if ($sample.SelectedEntryAddress) { $sample.SelectedEntryAddress } else { 'n/a' })")
     $lines.Add("Basis forward offset:        $(if ($sample.BasisForwardOffset) { $sample.BasisForwardOffset } else { 'n/a' })")
     $lines.Add("Status:                      $($sample.Status)")
+    $lines.Add("Operational status:          $(if ($sample.OperationalStatus) { $sample.OperationalStatus } else { 'n/a' })")
     $lines.Add("Forward vector:              $(Format-Vector $sample.ForwardVector)")
     $lines.Add("Planar forward:              $(Format-PlanarVector $sample.PlanarForward)")
     $lines.Add("Yaw/pitch (deg):             $(Format-Nullable $sample.YawDegrees '0.000') / $(Format-Nullable $sample.PitchDegrees '0.000')")
@@ -154,6 +180,7 @@ function Write-ActorFacingText {
 $captureArgs = @{
     Json                = $true
     ProcessName         = $ProcessName
+    PreferredLeadFile   = $resolvedPreferredLeadFile
     OwnerComponentsFile = $resolvedOwnerComponentsFile
     OutputFile          = $resolvedOrientationOutputFile
     PreviousFile        = $resolvedOrientationPreviousFile
@@ -170,6 +197,9 @@ if ($RefreshReaderBridge) {
 }
 if ($NoAhkFallback) {
     $captureArgs['NoAhkFallback'] = $true
+}
+if ($AllowLegacyRecovery) {
+    $captureArgs['AllowLegacyRecovery'] = $true
 }
 
 $orientationJson = & $captureOrientationScript @captureArgs

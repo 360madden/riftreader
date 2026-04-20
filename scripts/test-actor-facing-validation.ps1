@@ -13,10 +13,13 @@ param(
     [string]$TurnRightKey = 'D',
     [string]$MoveForwardKey = 'W',
     [switch]$UseBackgroundPostKey,
+    [switch]$NoBoundaryTrigger,
     [switch]$RefreshOwnerComponents,
+    [switch]$AllowLegacyRecovery,
+    [string]$PreferredLeadFile = 'actor-facing-behavior-backed-lead.json',
     [string]$OwnerComponentsFile,
-    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\actor-facing-validation.json'),
-    [string]$HistoryFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\actor-facing-validation-history.ndjson')
+    [string]$OutputFile = 'captures\actor-facing-validation.json',
+    [string]$HistoryFile = 'captures\actor-facing-validation-history.ndjson'
 )
 
 Set-StrictMode -Version Latest
@@ -24,13 +27,33 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
 
+function Assert-PowerShell7 {
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        throw "PowerShell 7+ (pwsh) is required for $PSCommandPath. Use C:\RIFT MODDING\RiftReader_facing\scripts\test-actor-facing-validation.cmd or run the script with pwsh.exe."
+    }
+}
+
+function Resolve-ScriptRelativePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $Path))
+}
+
+Assert-PowerShell7
+
 . (Join-Path $scriptRoot 'actor-facing-common.ps1')
 
 $boundaryCaptureScript = Join-Path $scriptRoot 'capture-readerbridge-boundary.ps1'
 $facingCaptureScript = Join-Path $scriptRoot 'capture-actor-facing.ps1'
 $keyScript = Join-Path $scriptRoot $(if ($UseBackgroundPostKey) { 'post-rift-key.ps1' } else { 'send-rift-key.ps1' })
-$resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
-$resolvedHistoryFile = [System.IO.Path]::GetFullPath($HistoryFile)
+$resolvedOutputFile = Resolve-ScriptRelativePath -Path $OutputFile
+$resolvedHistoryFile = Resolve-ScriptRelativePath -Path $HistoryFile
+$resolvedPreferredLeadFile = Resolve-ScriptRelativePath -Path $PreferredLeadFile
+$resolvedOwnerComponentsFile = if (-not [string]::IsNullOrWhiteSpace($OwnerComponentsFile)) { Resolve-ScriptRelativePath -Path $OwnerComponentsFile } else { $null }
 $thresholds = Get-ActorFacingThresholds
 $tempPaths = New-Object System.Collections.Generic.List[string]
 
@@ -84,6 +107,9 @@ function Invoke-BoundaryCapture {
         Label      = $CaptureLabel
         OutputFile = $outputPath
     }
+    if ($NoBoundaryTrigger) {
+        $arguments['NoTrigger'] = $true
+    }
     if ($NoAhkFallback) {
         $arguments['NoAhkFallback'] = $true
     }
@@ -115,6 +141,7 @@ function Invoke-FacingCapture {
     $arguments = @{
         Json                    = $true
         Label                   = $CaptureLabel
+        PreferredLeadFile       = $resolvedPreferredLeadFile
         OutputFile              = $outputPath
         PreviousFile            = $previousPath
         OrientationOutputFile   = $orientationOutputPath
@@ -123,11 +150,14 @@ function Invoke-FacingCapture {
     if ($RefreshOwnerComponents) {
         $arguments['RefreshOwnerComponents'] = $true
     }
-    if (-not [string]::IsNullOrWhiteSpace($OwnerComponentsFile)) {
-        $arguments['OwnerComponentsFile'] = $OwnerComponentsFile
+    if (-not [string]::IsNullOrWhiteSpace($resolvedOwnerComponentsFile)) {
+        $arguments['OwnerComponentsFile'] = $resolvedOwnerComponentsFile
     }
     if ($NoAhkFallback) {
         $arguments['NoAhkFallback'] = $true
+    }
+    if ($AllowLegacyRecovery) {
+        $arguments['AllowLegacyRecovery'] = $true
     }
 
     $jsonText = & $facingCaptureScript @arguments
@@ -291,7 +321,8 @@ try {
 
         $sourceAddress = [string](Get-OptionalPropertyValue -InputObject $beforeFacing -PropertyName 'SourceAddress')
         $basisForwardOffset = [string](Get-OptionalPropertyValue -InputObject $beforeFacing -PropertyName 'BasisForwardOffset')
-        $turnResponsive = Test-SourceTurnResponsive -HistoryEntries (@($historyEntries) + @($results)) -SourceAddress $sourceAddress -BasisForwardOffset $basisForwardOffset
+        $combinedHistoryEntries = @($historyEntries) + @($results.ToArray())
+        $turnResponsive = Test-SourceTurnResponsive -HistoryEntries $combinedHistoryEntries -SourceAddress $sourceAddress -BasisForwardOffset $basisForwardOffset
         $failureShape = if ($Stimulus -eq 'move-forward') {
             Classify-ActorFacingFailureShape -SignedAngularErrorDegrees $signedAngularErrorDegrees -MovementDistance ([double]$planarDelta.Distance) -IntegrityPass $integrityPass -TurnResponsive $turnResponsive -Thresholds $thresholds
         }
@@ -334,7 +365,7 @@ try {
             FailureShape                = $failureShape
             Verdict                     = $verdict
             Notes                       = @(
-                'Addon boundary coords are captured through explicit /rbx export boundaries.',
+                $(if ($NoBoundaryTrigger) { 'Addon boundary coords were read from the latest available ReaderBridge snapshot without issuing /rbx export.' } else { 'Addon boundary coords are captured through explicit /rbx export boundaries.' }),
                 'Predicted heading is derived from the before-sample actor yaw using atan2(forwardZ, forwardX).'
             )
         }
@@ -402,6 +433,7 @@ $document = [pscustomobject]@{
         FailureShapeCounts      = $failureShapeCounts
     }
     Notes           = @(
+        $(if ($NoBoundaryTrigger) { 'This validation used read-only ReaderBridge snapshot reads and did not issue /rbx export during boundary capture.' } else { 'Boundary captures issued /rbx export to tighten stimulus-boundary timing.' }),
         'Use idle plus turn-left / turn-right validation before treating forward-move mismatch as authoritative source failure.',
         'Forward movement acceptance uses addon boundary coords, not saved-variable heartbeat timing.'
     )

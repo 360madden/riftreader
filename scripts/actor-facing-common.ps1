@@ -484,6 +484,20 @@ function Resolve-ActorFacingStatus {
     return 'rejected'
 }
 
+function Resolve-ActorFacingOperationalStatus {
+    param(
+        $ReaderOrientation,
+        $IntegrityResult
+    )
+
+    $resolutionMode = [string](Get-OptionalPropertyValue -InputObject $ReaderOrientation -PropertyName 'ResolutionMode')
+    if ($resolutionMode -eq 'behavior-backed-lead') {
+        return 'behavior-backed-lead'
+    }
+
+    return Resolve-ActorFacingStatus -ReaderOrientation $ReaderOrientation -IntegrityResult $IntegrityResult
+}
+
 function ConvertTo-ActorFacingSample {
     param(
         [Parameter(Mandatory = $true)]
@@ -514,9 +528,13 @@ function ConvertTo-ActorFacingSample {
     if ([string]::IsNullOrWhiteSpace($resolutionMode)) {
         $resolutionMode = $sourceName
     }
+    $isBehaviorBackedLead = $resolutionMode -eq 'behavior-backed-lead'
 
     $notes = New-Object System.Collections.Generic.List[string]
     $notes.Add('Navigation-facing derivation uses the planar X/Z projection of the actor forward row.')
+    if ($isBehaviorBackedLead) {
+        $notes.Add('This capture is currently pinned to the repo-preferred behavior-backed lead.')
+    }
     foreach ($note in @((Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'Notes'))) {
         if (-not [string]::IsNullOrWhiteSpace([string]$note)) {
             $notes.Add([string]$note)
@@ -556,6 +574,8 @@ function ConvertTo-ActorFacingSample {
         OrientationCandidateLedgerFile = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'OrientationCandidateLedgerFile'
         PlayerCoord                    = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'PlayerCoord'
         Status                         = Resolve-ActorFacingStatus -ReaderOrientation $readerOrientation -IntegrityResult $integrity
+        OperationalStatus              = Resolve-ActorFacingOperationalStatus -ReaderOrientation $readerOrientation -IntegrityResult $integrity
+        PreferredLead                  = $isBehaviorBackedLead
         Integrity                      = $integrity
         Notes                          = $notes
     }

@@ -7,7 +7,7 @@ param(
     [switch]$NoTrigger,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus,
-    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\readerbridge-boundary.json')
+    [string]$OutputFile = 'captures\readerbridge-boundary.json'
 )
 
 Set-StrictMode -Version Latest
@@ -15,13 +15,31 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
 
+function Assert-PowerShell7 {
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        throw "PowerShell 7+ (pwsh) is required for $PSCommandPath. Use C:\RIFT MODDING\RiftReader_facing\scripts\capture-readerbridge-boundary.cmd or run the script with pwsh.exe."
+    }
+}
+
+function Resolve-ScriptRelativePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $Path))
+}
+
+Assert-PowerShell7
+
 . (Join-Path $scriptRoot 'actor-facing-common.ps1')
 
 $repoRoot = Get-RiftReaderRepoRoot -ScriptRoot $scriptRoot
 $readerProject = Get-RiftReaderProjectPath -RepoRoot $repoRoot
 $postCommandScript = Join-Path $scriptRoot 'post-rift-command.ps1'
 $postCommandAhkScript = Join-Path $PSScriptRoot 'post-rift-command-ahk.ps1'
-$resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+$resolvedOutputFile = Resolve-ScriptRelativePath -Path $OutputFile
 
 function Invoke-ReaderBridgeSnapshotJson {
     $arguments = @('--readerbridge-snapshot', '--json')
@@ -96,7 +114,7 @@ catch {
 
 $verifyFilePath = $null
 if (-not [string]::IsNullOrWhiteSpace($ReaderBridgeSnapshotFile)) {
-    $verifyFilePath = [System.IO.Path]::GetFullPath($ReaderBridgeSnapshotFile)
+    $verifyFilePath = Resolve-ScriptRelativePath -Path $ReaderBridgeSnapshotFile
 }
 elseif ($null -ne $baselineSnapshot) {
     $verifyFilePath = [string](Get-OptionalPropertyValue -InputObject $baselineSnapshot -PropertyName 'SourceFile')

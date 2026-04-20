@@ -5,10 +5,12 @@ param(
     [switch]$RefreshOwnerComponents,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [switch]$AllowLegacyRecovery,
     [string]$ProcessName = 'rift_x64',
-    [string]$OwnerComponentsFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json'),
-    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.json'),
-    [string]$PreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.previous.json')
+    [string]$PreferredLeadFile = 'actor-facing-behavior-backed-lead.json',
+    [string]$OwnerComponentsFile = 'captures\player-owner-components.json',
+    [string]$OutputFile = 'captures\player-actor-orientation.json',
+    [string]$PreviousFile = 'captures\player-actor-orientation.previous.json'
 )
 
 Set-StrictMode -Version Latest
@@ -20,6 +22,24 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $ownerComponentScript = Join-Path $scriptRoot 'capture-player-owner-components.ps1'
 $refreshReaderBridgeScript = Join-Path $scriptRoot 'refresh-readerbridge-export.ps1'
 $coordTolerance = 0.75
+
+function Assert-PowerShell7 {
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        throw "PowerShell 7+ (pwsh) is required for $PSCommandPath. Use C:\RIFT MODDING\RiftReader_facing\scripts\capture-actor-orientation.cmd or run the script with pwsh.exe."
+    }
+}
+
+function Resolve-ScriptRelativePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $Path))
+}
+
+Assert-PowerShell7
 
 function Invoke-ReaderJson {
     param(
@@ -453,14 +473,33 @@ function Get-BasisDuplicateAgreement {
 function Get-LiveSourceSample {
     param(
         [Parameter(Mandatory = $true)][string]$SelectedSourceAddress,
-        [Parameter(Mandatory = $true)][string]$ProcessName
+        [Parameter(Mandatory = $true)][string]$ProcessName,
+        [int]$BasisPrimaryForwardOffset = 0x60,
+        [Nullable[int]]$BasisDuplicateForwardOffset = 0x94
     )
 
     $address = Parse-HexUInt64 -Value $SelectedSourceAddress
+    $requiredReadLength = 192
+    $requiredOffsets = @(
+        0x48,
+        0x60,
+        0x88,
+        0x94,
+        $BasisPrimaryForwardOffset
+    )
+    if ($null -ne $BasisDuplicateForwardOffset) {
+        $requiredOffsets += [int]$BasisDuplicateForwardOffset
+    }
+
+    $maxRequiredOffset = ($requiredOffsets | Where-Object { $null -ne $_ } | Measure-Object -Maximum).Maximum
+    if ($null -ne $maxRequiredOffset) {
+        $requiredReadLength = [Math]::Max($requiredReadLength, [int]$maxRequiredOffset + 0x24)
+    }
+
     $memoryRead = Invoke-ReaderJson -Arguments @(
         '--process-name', $ProcessName,
         '--address', ('0x{0:X}' -f $address),
-        '--length', '192',
+        '--length', $requiredReadLength.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--json')
 
     $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
@@ -470,6 +509,20 @@ function Get-LiveSourceSample {
     $orientation94 = Read-TripletAt -Bytes $bytes -Offset 0x94
     $basis60 = New-BasisMatrixEstimate -Name 'Basis60' -Forward $orientation60 -Up (Read-TripletAt -Bytes $bytes -Offset 0x6C) -Right (Read-TripletAt -Bytes $bytes -Offset 0x78)
     $basis94 = New-BasisMatrixEstimate -Name 'Basis94' -Forward $orientation94 -Up (Read-TripletAt -Bytes $bytes -Offset 0xA0) -Right (Read-TripletAt -Bytes $bytes -Offset 0xAC)
+    $resolvedOrientation = Read-TripletAt -Bytes $bytes -Offset $BasisPrimaryForwardOffset
+    $resolvedBasis = New-BasisMatrixEstimate `
+        -Name ('Basis@0x{0:X}' -f $BasisPrimaryForwardOffset) `
+        -Forward $resolvedOrientation `
+        -Up (Read-TripletAt -Bytes $bytes -Offset ($BasisPrimaryForwardOffset + 0x0C)) `
+        -Right (Read-TripletAt -Bytes $bytes -Offset ($BasisPrimaryForwardOffset + 0x18))
+    $resolvedDuplicateBasis = $null
+    if ($null -ne $BasisDuplicateForwardOffset) {
+        $resolvedDuplicateBasis = New-BasisMatrixEstimate `
+            -Name ('Basis@0x{0:X}' -f ([int]$BasisDuplicateForwardOffset)) `
+            -Forward (Read-TripletAt -Bytes $bytes -Offset ([int]$BasisDuplicateForwardOffset)) `
+            -Up (Read-TripletAt -Bytes $bytes -Offset (([int]$BasisDuplicateForwardOffset) + 0x0C)) `
+            -Right (Read-TripletAt -Bytes $bytes -Offset (([int]$BasisDuplicateForwardOffset) + 0x18))
+    }
 
     return [pscustomobject]@{
         AddressHex = ('0x{0:X}' -f $address)
@@ -480,6 +533,51 @@ function Get-LiveSourceSample {
         Orientation94 = $orientation94
         Basis94 = $basis94
         BasisDuplicateAgreement = Get-BasisDuplicateAgreement -PrimaryBasis $basis60 -DuplicateBasis $basis94
+        ResolvedForwardOffset = ('0x{0:X}' -f $BasisPrimaryForwardOffset)
+        ResolvedDuplicateForwardOffset = if ($null -ne $BasisDuplicateForwardOffset) { ('0x{0:X}' -f ([int]$BasisDuplicateForwardOffset)) } else { $null }
+        ResolvedOrientation = $resolvedOrientation
+        ResolvedBasisCandidate = $resolvedBasis
+        ResolvedBasisDuplicateCandidate = $resolvedDuplicateBasis
+    }
+}
+
+function Get-BehaviorBackedLead {
+    param([string]$FilePath)
+
+    if ([string]::IsNullOrWhiteSpace($FilePath)) {
+        return $null
+    }
+
+    $resolvedPath = [System.IO.Path]::GetFullPath($FilePath)
+    if (-not (Test-Path -LiteralPath $resolvedPath)) {
+        return $null
+    }
+
+    $jsonText = Get-Content -LiteralPath $resolvedPath -Raw
+    if ([string]::IsNullOrWhiteSpace($jsonText)) {
+        return $null
+    }
+
+    $document = $jsonText | ConvertFrom-Json -Depth 40
+    $sourceAddress = [string]$document.SourceAddress
+    if ([string]::IsNullOrWhiteSpace($sourceAddress)) {
+        return $null
+    }
+
+    $basisPrimaryForwardOffset = if (($document.PSObject.Properties.Name -contains 'BasisPrimaryForwardOffset') -and -not [string]::IsNullOrWhiteSpace([string]$document.BasisPrimaryForwardOffset)) { [string]$document.BasisPrimaryForwardOffset } else { '0x60' }
+    $basisDuplicateForwardOffset = if (($document.PSObject.Properties.Name -contains 'BasisDuplicateForwardOffset') -and -not [string]::IsNullOrWhiteSpace([string]$document.BasisDuplicateForwardOffset)) { [string]$document.BasisDuplicateForwardOffset } else { $null }
+    $status = if ($document.PSObject.Properties.Name -contains 'Status') { [string]$document.Status } else { $null }
+    $notes = if ($document.PSObject.Properties.Name -contains 'Notes') { @($document.Notes) } else { @() }
+
+    return [pscustomobject]@{
+        FilePath = $resolvedPath
+        SourceAddress = $sourceAddress
+        BasisPrimaryForwardOffset = $basisPrimaryForwardOffset
+        BasisPrimaryForwardOffsetValue = [int](Parse-HexUInt64 -Value $basisPrimaryForwardOffset)
+        BasisDuplicateForwardOffset = $basisDuplicateForwardOffset
+        BasisDuplicateForwardOffsetValue = if ($null -ne $basisDuplicateForwardOffset) { [int](Parse-HexUInt64 -Value $basisDuplicateForwardOffset) } else { $null }
+        Status = $status
+        Notes = $notes
     }
 }
 
@@ -510,62 +608,138 @@ function Test-CoordMatch {
 
 function Resolve-LiveOrientation {
     param(
-        [bool]$AllowOwnerRefresh
+        [bool]$AllowOwnerRefresh,
+        [bool]$AllowLegacyRecovery
     )
 
-    $metadata = Invoke-ReaderJson -Arguments @(
-        '--read-player-orientation',
-        '--owner-components-file', $resolvedOwnerComponentsFile,
-        '--json')
-
-    if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {
-        throw 'The player-orientation reader did not resolve a selected source address.'
-    }
-
+    $preferredLead = Get-BehaviorBackedLead -FilePath $resolvedPreferredLeadFile
+    $metadata = $null
     $resolutionMode = 'artifact-selected-source'
     $resolutionNotes = New-Object System.Collections.Generic.List[string]
-    $artifactSelectedSourceAddress = [string]$metadata.SelectedSourceAddress
+    $artifactSelectedSourceAddress = $null
+    $liveSample = $null
 
-    try {
-        $liveSample = Get-LiveSourceSample -SelectedSourceAddress $artifactSelectedSourceAddress -ProcessName $ProcessName
+    if ($null -ne $preferredLead) {
+        try {
+            $previousOrientation = $null
+            if (Test-Path -LiteralPath $resolvedOutputFile) {
+                $previousOrientationJson = Get-Content -LiteralPath $resolvedOutputFile -Raw
+                if (-not [string]::IsNullOrWhiteSpace($previousOrientationJson)) {
+                    $previousOrientationDocument = $previousOrientationJson | ConvertFrom-Json -Depth 40
+                    $previousOrientation = $previousOrientationDocument.ReaderOrientation
+                }
+            }
+
+            $metadata = [pscustomobject]@{
+                ArtifactFile = $preferredLead.FilePath
+                ArtifactLoadedAtUtc = $null
+                ArtifactGeneratedAtUtc = $null
+                SnapshotFile = if ($null -ne $previousOrientation) { $previousOrientation.SnapshotFile } else { $null }
+                SnapshotLoadedAtUtc = if ($null -ne $previousOrientation) { $previousOrientation.SnapshotLoadedAtUtc } else { $null }
+                PlayerName = if ($null -ne $previousOrientation) { $previousOrientation.PlayerName } else { $null }
+                PlayerLevel = if ($null -ne $previousOrientation) { $previousOrientation.PlayerLevel } else { $null }
+                PlayerGuild = if ($null -ne $previousOrientation) { $previousOrientation.PlayerGuild } else { $null }
+                PlayerLocation = if ($null -ne $previousOrientation) { $previousOrientation.PlayerLocation } else { $null }
+                PlayerCoord = if ($null -ne $previousOrientation) { $previousOrientation.PlayerCoord } else { $null }
+                SelectedSourceAddress = $preferredLead.SourceAddress
+                SelectedEntryAddress = $null
+                SelectedEntryIndex = $null
+                SelectedEntryMatchesSelectedSource = $null
+                SelectedEntryRoleHints = @()
+                Notes = @()
+            }
+
+            $liveSample = Get-LiveSourceSample `
+                -SelectedSourceAddress $preferredLead.SourceAddress `
+                -ProcessName $ProcessName `
+                -BasisPrimaryForwardOffset $preferredLead.BasisPrimaryForwardOffsetValue `
+                -BasisDuplicateForwardOffset $preferredLead.BasisDuplicateForwardOffsetValue
+
+            $resolutionMode = 'behavior-backed-lead'
+            $resolutionNotes.Add("Resolved live source via behavior-backed lead file '$($preferredLead.FilePath)': $($preferredLead.SourceAddress) (basis $($preferredLead.BasisPrimaryForwardOffset)).")
+            if ($preferredLead.Status) {
+                $resolutionNotes.Add("Behavior-backed lead status: $($preferredLead.Status).")
+            }
+            foreach ($leadNote in @($preferredLead.Notes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })) {
+                $resolutionNotes.Add([string]$leadNote)
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($artifactSelectedSourceAddress)) {
+                $metadata | Add-Member -NotePropertyName ArtifactSelectedSourceAddress -NotePropertyValue $artifactSelectedSourceAddress -Force
+            }
+            $metadata | Add-Member -NotePropertyName SelectedSourceAddress -NotePropertyValue $preferredLead.SourceAddress -Force
+            $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
+            $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue $resolutionNotes.ToArray() -Force
+
+            $liveSample | Add-Member -NotePropertyName BasisPrimaryForwardOffset -NotePropertyValue $preferredLead.BasisPrimaryForwardOffset -Force
+            if ($null -ne $preferredLead.BasisDuplicateForwardOffset) {
+                $liveSample | Add-Member -NotePropertyName BasisDuplicateForwardOffset -NotePropertyValue $preferredLead.BasisDuplicateForwardOffset -Force
+            }
+            $liveSample | Add-Member -NotePropertyName ResolvedBasis -NotePropertyValue $liveSample.ResolvedBasisCandidate -Force
+            $liveSample | Add-Member -NotePropertyName ResolvedEstimate -NotePropertyValue $liveSample.ResolvedBasisCandidate.ForwardEstimate -Force
+        }
+        catch {
+            $resolutionNotes.Add("Behavior-backed lead live read failed: $($_.Exception.Message)")
+            $liveSample = $null
+        }
     }
-    catch {
-        $resolutionNotes.Add("Artifact-selected source live read failed: $($_.Exception.Message)")
 
-        $candidateSearch = Invoke-ReaderJson -Arguments @(
-            '--process-name', $ProcessName,
-            '--find-player-orientation-candidate',
-            '--max-hits', '16',
+    if ($null -eq $liveSample -and $null -ne $preferredLead -and -not $AllowLegacyRecovery) {
+        throw "Behavior-backed lead live read failed and legacy recovery is disabled. $($resolutionNotes -join ' ')"
+    }
+
+    if ($null -eq $liveSample) {
+        $metadata = Invoke-ReaderJson -Arguments @(
+            '--read-player-orientation',
+            '--owner-components-file', $resolvedOwnerComponentsFile,
             '--json')
+        $artifactSelectedSourceAddress = [string]$metadata.SelectedSourceAddress
 
-        $resolvedCandidate = $candidateSearch.BestPointerHopCandidate
-        if ($null -eq $resolvedCandidate) {
-            $resolvedCandidate = $candidateSearch.BestCandidate
+        if ([string]::IsNullOrWhiteSpace($artifactSelectedSourceAddress)) {
+            throw "The player-orientation reader did not resolve a selected source address. $($resolutionNotes -join ' ')"
         }
 
-        if ($null -eq $resolvedCandidate -or [string]::IsNullOrWhiteSpace([string]$resolvedCandidate.Address)) {
-            throw "Live source recovery failed after the artifact-selected source read failed. $($resolutionNotes -join ' ')"
+        try {
+            $liveSample = Get-LiveSourceSample -SelectedSourceAddress $artifactSelectedSourceAddress -ProcessName $ProcessName
         }
+        catch {
+            $resolutionNotes.Add("Artifact-selected source live read failed: $($_.Exception.Message)")
 
-        $resolvedSourceAddress = [string]$resolvedCandidate.Address
-        $liveSample = Get-LiveSourceSample -SelectedSourceAddress $resolvedSourceAddress -ProcessName $ProcessName
-        $resolutionMode = 'read-only-pointer-hop-candidate-search'
-        $resolutionNotes.Add("Resolved live source via pointer-hop candidate search: $resolvedSourceAddress (basis $([string]$resolvedCandidate.BasisPrimaryForwardOffset), parent $([string]$resolvedCandidate.ParentAddress), hopDepth $([string]$resolvedCandidate.HopDepth))")
+            $candidateSearch = Invoke-ReaderJson -Arguments @(
+                '--process-name', $ProcessName,
+                '--find-player-orientation-candidate',
+                '--max-hits', '16',
+                '--json')
 
-        $metadata | Add-Member -NotePropertyName ArtifactSelectedSourceAddress -NotePropertyValue $artifactSelectedSourceAddress -Force
-        $metadata | Add-Member -NotePropertyName SelectedSourceAddress -NotePropertyValue $resolvedSourceAddress -Force
-        $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
-        $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue $resolutionNotes.ToArray() -Force
+            $resolvedCandidate = $candidateSearch.BestPointerHopCandidate
+            if ($null -eq $resolvedCandidate) {
+                $resolvedCandidate = $candidateSearch.BestCandidate
+            }
 
-        $liveSample | Add-Member -NotePropertyName BasisPrimaryForwardOffset -NotePropertyValue ([string]$resolvedCandidate.BasisPrimaryForwardOffset) -Force
-        $liveSample | Add-Member -NotePropertyName ParentAddress -NotePropertyValue ([string]$resolvedCandidate.ParentAddress) -Force
-        $liveSample | Add-Member -NotePropertyName DiscoveryMode -NotePropertyValue ([string]$resolvedCandidate.DiscoveryMode) -Force
-        $liveSample | Add-Member -NotePropertyName RootAddress -NotePropertyValue ([string]$resolvedCandidate.RootAddress) -Force
-        $liveSample | Add-Member -NotePropertyName RootSource -NotePropertyValue ([string]$resolvedCandidate.RootSource) -Force
-        $liveSample | Add-Member -NotePropertyName HopDepth -NotePropertyValue ([int]$resolvedCandidate.HopDepth) -Force
-        $liveSample | Add-Member -NotePropertyName PointerOffset -NotePropertyValue ([string]$resolvedCandidate.PointerOffset) -Force
-        $liveSample | Add-Member -NotePropertyName ResolvedBasis -NotePropertyValue $resolvedCandidate.Basis -Force
-        $liveSample | Add-Member -NotePropertyName ResolvedEstimate -NotePropertyValue $resolvedCandidate.PreferredEstimate -Force
+            if ($null -eq $resolvedCandidate -or [string]::IsNullOrWhiteSpace([string]$resolvedCandidate.Address)) {
+                throw "Live source recovery failed after the artifact-selected source read failed. $($resolutionNotes -join ' ')"
+            }
+
+            $resolvedSourceAddress = [string]$resolvedCandidate.Address
+            $liveSample = Get-LiveSourceSample -SelectedSourceAddress $resolvedSourceAddress -ProcessName $ProcessName
+            $resolutionMode = 'read-only-pointer-hop-candidate-search'
+            $resolutionNotes.Add("Resolved live source via pointer-hop candidate search: $resolvedSourceAddress (basis $([string]$resolvedCandidate.BasisPrimaryForwardOffset), parent $([string]$resolvedCandidate.ParentAddress), hopDepth $([string]$resolvedCandidate.HopDepth))")
+
+            $metadata | Add-Member -NotePropertyName ArtifactSelectedSourceAddress -NotePropertyValue $artifactSelectedSourceAddress -Force
+            $metadata | Add-Member -NotePropertyName SelectedSourceAddress -NotePropertyValue $resolvedSourceAddress -Force
+            $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
+            $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue $resolutionNotes.ToArray() -Force
+
+            $liveSample | Add-Member -NotePropertyName BasisPrimaryForwardOffset -NotePropertyValue ([string]$resolvedCandidate.BasisPrimaryForwardOffset) -Force
+            $liveSample | Add-Member -NotePropertyName ParentAddress -NotePropertyValue ([string]$resolvedCandidate.ParentAddress) -Force
+            $liveSample | Add-Member -NotePropertyName DiscoveryMode -NotePropertyValue ([string]$resolvedCandidate.DiscoveryMode) -Force
+            $liveSample | Add-Member -NotePropertyName RootAddress -NotePropertyValue ([string]$resolvedCandidate.RootAddress) -Force
+            $liveSample | Add-Member -NotePropertyName RootSource -NotePropertyValue ([string]$resolvedCandidate.RootSource) -Force
+            $liveSample | Add-Member -NotePropertyName HopDepth -NotePropertyValue ([int]$resolvedCandidate.HopDepth) -Force
+            $liveSample | Add-Member -NotePropertyName PointerOffset -NotePropertyValue ([string]$resolvedCandidate.PointerOffset) -Force
+            $liveSample | Add-Member -NotePropertyName ResolvedBasis -NotePropertyValue $resolvedCandidate.Basis -Force
+            $liveSample | Add-Member -NotePropertyName ResolvedEstimate -NotePropertyValue $resolvedCandidate.PreferredEstimate -Force
+        }
     }
 
     $playerCoord = $metadata.PlayerCoord
@@ -588,11 +762,20 @@ function Resolve-LiveOrientation {
     }
 }
 
-$resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
-$resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
-$resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
+$resolvedOwnerComponentsFile = Resolve-ScriptRelativePath -Path $OwnerComponentsFile
+$resolvedPreferredLeadFile = Resolve-ScriptRelativePath -Path $PreferredLeadFile
+$resolvedOutputFile = Resolve-ScriptRelativePath -Path $OutputFile
+$resolvedPreviousFile = Resolve-ScriptRelativePath -Path $PreviousFile
+$behaviorBackedLead = Get-BehaviorBackedLead -FilePath $resolvedPreferredLeadFile
+$legacyRecoverySuppressed = ($null -ne $behaviorBackedLead) -and -not $AllowLegacyRecovery
+$effectiveRefreshReaderBridge = $RefreshReaderBridge -and -not $legacyRecoverySuppressed
+$effectiveRefreshOwnerComponents = $RefreshOwnerComponents -and -not $legacyRecoverySuppressed
 
-if ($RefreshReaderBridge) {
+if (($RefreshReaderBridge -or $RefreshOwnerComponents) -and $legacyRecoverySuppressed) {
+    throw "Explicit refresh was requested while behavior-backed lead recovery is active. Re-run with -AllowLegacyRecovery if you intentionally want legacy refresh/owner-component recovery."
+}
+
+if ($effectiveRefreshReaderBridge) {
     $refreshArguments = @{ 'NoReader' = $true }
     if ($NoAhkFallback) {
         $refreshArguments['NoAhkFallback'] = $true
@@ -606,11 +789,11 @@ if ($RefreshReaderBridge) {
     }
 }
 
-if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
+if ((($effectiveRefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) -and $null -eq $behaviorBackedLead) -and -not $legacyRecoverySuppressed) {
     & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
 }
 
-$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents
+$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $effectiveRefreshOwnerComponents -AllowLegacyRecovery (-not $legacyRecoverySuppressed)
 $orientationMetadata = $liveResolution.Metadata
 $liveSourceSample = $liveResolution.LiveSample
 $resolvedEstimate = $null
@@ -647,6 +830,9 @@ if ($orientationMetadata.Notes) {
 $orientationNotes.Add('Preferred estimate in this capture was recomputed from a fresh live memory read of the selected source object.')
 $orientationNotes.Add('Coord48/Coord88 and Orientation60/Orientation94 were read directly from source offsets +0x48/+0x88 and +0x60/+0x94.')
 $orientationNotes.Add('The source object also exposes duplicated 3x3 basis blocks at +0x60/+0x6C/+0x78 and +0x94/+0xA0/+0xAC; yaw/pitch are derived from the forward row.')
+if ($legacyRecoverySuppressed) {
+    $orientationNotes.Add('Legacy refresh/recovery was suppressed because a behavior-backed lead file is present; the helper now fails closed instead of falling back to owner-component recovery.')
+}
 if ($liveResolution.Coord48Matches -or $liveResolution.Coord88Matches) {
     $orientationNotes.Add('Live source coords matched the current ReaderBridge player coords during capture.')
 }
