@@ -414,6 +414,12 @@ public sealed class WaypointNavigatorTests
             new(results ?? Enumerable.Repeat(new MovementCommandResult(true, null), 32));
 
         public List<(string Key, int HoldMilliseconds)> Calls { get; } = [];
+        public int PrepareCalls { get; private set; }
+
+        public void PrepareForMovement()
+        {
+            PrepareCalls++;
+        }
 
         public MovementCommandResult PressKey(string key, int holdMilliseconds)
         {

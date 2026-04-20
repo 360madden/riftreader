@@ -116,6 +116,8 @@ public static class WaypointNavigator
                 finalPlanarDistance: initialPlanarDistance);
         }
 
+        movementBackend.PrepareForMovement();
+
         if (paceKey is string toggleKey)
         {
             var paceCommand = movementBackend.PressKey(toggleKey, PaceToggleHoldMilliseconds);

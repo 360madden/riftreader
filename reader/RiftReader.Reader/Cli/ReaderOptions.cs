@@ -59,4 +59,10 @@ public sealed record ReaderOptions(
     string? DestinationWaypointId = null,
     string? Pace = null,
     double? ArrivalRadius = null,
-    int? MaxTravelSeconds = null);
+    int? MaxTravelSeconds = null,
+    bool CaptureNavigationWaypoint = false,
+    string? CaptureNavigationWaypointId = null,
+    string? WaypointLabel = null,
+    string? WaypointZone = null,
+    double? WaypointArrivalRadius = null,
+    string? WaypointPace = null);

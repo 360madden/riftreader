@@ -159,7 +159,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -215,6 +215,11 @@ internal static class Program
         if (options.ReadNavigationCurrent)
         {
             return RunReadNavigationCurrentMode(options, target, reader);
+        }
+
+        if (options.CaptureNavigationWaypoint)
+        {
+            return RunCaptureNavigationWaypointMode(options, target, reader);
         }
 
         if (options.NavigateWaypoints)
@@ -618,6 +623,68 @@ internal static class Program
 
         Console.WriteLine(NavigationRunResultTextFormatter.Format(result));
         return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static int RunCaptureNavigationWaypointMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+            return 1;
+        }
+
+        var waypoint = WaypointNavigationConfigurationStore.TryUpsertWaypoint(
+            options.NavigationWaypointFile,
+            options.CaptureNavigationWaypointId!,
+            poseSource.InitialSample,
+            options.WaypointLabel,
+            options.WaypointZone,
+            options.WaypointArrivalRadius,
+            options.WaypointPace,
+            out var waypointFile,
+            out var created,
+            out var storeError);
+
+        if (waypoint is null)
+        {
+            Console.Error.WriteLine(storeError ?? "Unable to capture the waypoint.");
+            return 1;
+        }
+
+        var result = new WaypointCaptureResult(
+            Mode: "capture-navigation-waypoint",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            WaypointFile: waypointFile,
+            Status: created ? "created" : "updated",
+            WaypointId: waypoint.Id,
+            WaypointLabel: waypoint.Label,
+            WaypointZone: waypoint.Zone,
+            Pace: waypoint.Pace,
+            ArrivalRadius: waypoint.ArrivalRadius,
+            AnchorSource: poseSource.Source.AnchorSource,
+            AnchorAddress: poseSource.InitialSample.AddressHex,
+            Position: waypoint.Coordinate);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(WaypointCaptureResultTextFormatter.Format(result));
+        return 0;
     }
 
     private static int RunReadPlayerCoordAnchorMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)

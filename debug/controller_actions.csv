@@ -1,0 +1,1 @@
+Timestamp,Slot,LeaderDistance,GoalDistance,GoalX,GoalZ,SelectedAxis,PulseDurationMs,HasBasis,PendingAxis,IdleReason,RoleMatched,ProgressState,ErrorForward,ErrorLateral,Theta,CanPulse,WithinLeaderBand,StopRadius,HoldRadius,BasisForwardX,BasisForwardZ

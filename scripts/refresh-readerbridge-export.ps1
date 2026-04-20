@@ -2,7 +2,8 @@
 param(
     [switch]$Json,
     [switch]$NoReader,
-    [switch]$NoAhkFallback
+    [switch]$NoAhkFallback,
+    [switch]$SkipBackgroundFocus
 )
 
 Set-StrictMode -Version Latest
@@ -15,7 +16,15 @@ $postCommandAhkScript = Join-Path $PSScriptRoot 'post-rift-command-ahk.ps1'
 
 Write-Host "[RiftRefresh] Forcing a Rift UI reload via the native no-focus PostMessage helper..." -ForegroundColor Cyan
 try {
-    & $postCommandScript -Command '/reloadui'
+    $postArguments = @{
+        Command = '/reloadui'
+    }
+    if ($SkipBackgroundFocus) {
+        $postArguments['SkipBackgroundFocus'] = $true
+        $postArguments['RequireTargetForeground'] = $true
+    }
+
+    & $postCommandScript @postArguments
 }
 catch {
     if ($NoAhkFallback) {

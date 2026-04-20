@@ -1,6 +1,7 @@
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Models;
+using RiftReader.Reader.Scanning;
 
 namespace RiftReader.Reader.Navigation;
 
@@ -157,6 +158,7 @@ public static class NavigationPoseSourceFactory
     {
         result = null;
         error = null;
+        string? playerCurrentError = null;
 
         PlayerCurrentReadResult currentRead;
         try
@@ -171,7 +173,24 @@ public static class NavigationPoseSourceFactory
         }
         catch (Exception ex)
         {
-            error = $"Unable to reacquire a player-current anchor for navigation: {ex.Message}";
+            playerCurrentError = ex.Message;
+
+            if (TryResolveCoordOnlyReacquiredAnchor(
+                reader,
+                processId,
+                processName,
+                snapshotDocument,
+                inspectionRadius,
+                maxHits,
+                out result,
+                out var coordOnlyError))
+            {
+                return true;
+            }
+
+            error = string.IsNullOrWhiteSpace(coordOnlyError)
+                ? $"Unable to reacquire a player-current anchor for navigation: {playerCurrentError}"
+                : $"Unable to reacquire a player-current anchor for navigation: {playerCurrentError} Coord-only fallback failed: {coordOnlyError}";
             return false;
         }
 
@@ -219,6 +238,79 @@ public static class NavigationPoseSourceFactory
         if (!source.TryReadCurrent(out var sample, out error) || !IsTrustedSample(sample, snapshotDocument))
         {
             error ??= "Player-current reacquisition did not produce a trusted coordinate sample for navigation.";
+            return false;
+        }
+
+        result = new NavigationPoseSourceCreationResult(source, sample);
+        return true;
+    }
+
+    private static bool TryResolveCoordOnlyReacquiredAnchor(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument snapshotDocument,
+        int inspectionRadius,
+        int maxHits,
+        out NavigationPoseSourceCreationResult? result,
+        out string? error)
+    {
+        result = null;
+        error = null;
+
+        PlayerSignatureProbeCapture capture;
+        try
+        {
+            capture = PlayerSignatureProbeCaptureBuilder.CaptureBestFamily(
+                reader,
+                processId,
+                processName,
+                snapshotDocument,
+                inspectionRadius,
+                maxHits,
+                label: null,
+                outputFile: null,
+                preferCeConfirmation: true);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+
+        var verifiedSample = capture.Samples.FirstOrDefault(sample =>
+            sample.CoordX.HasValue &&
+            sample.CoordY.HasValue &&
+            sample.CoordZ.HasValue &&
+            snapshotDocument.Current?.Player?.Coord is { X: double expectedX, Y: double expectedY, Z: double expectedZ } &&
+            Math.Abs(sample.CoordX.Value - expectedX) <= VerificationTolerance &&
+            Math.Abs(sample.CoordY.Value - expectedY) <= VerificationTolerance &&
+            Math.Abs(sample.CoordZ.Value - expectedZ) <= VerificationTolerance);
+
+        if (verifiedSample is null)
+        {
+            error = $"Player-signature coord-only fallback did not return a sample matching the current ReaderBridge coordinates for family '{capture.FamilyId}'.";
+            return false;
+        }
+
+        if (!PlayerCurrentAnchorCacheStore.TryParseAddress(verifiedSample.AddressHex, out var baseAddress))
+        {
+            error = $"Player-signature coord-only fallback returned an unreadable base address: '{verifiedSample.AddressHex}'.";
+            return false;
+        }
+
+        var source = new DirectMemoryNavigationPoseSource(
+            source: "player-signature-reacquire",
+            addressHex: verifiedSample.AddressHex,
+            reader: reader,
+            baseAddress: baseAddress,
+            coordXOffset: DefaultCoordXOffset,
+            coordYOffset: DefaultCoordYOffset,
+            coordZOffset: DefaultCoordZOffset);
+
+        if (!source.TryReadCurrent(out var sample, out error) || !IsTrustedSample(sample, snapshotDocument))
+        {
+            error ??= $"Player-signature coord-only fallback did not produce a trusted coordinate sample for family '{capture.FamilyId}'.";
             return false;
         }
 

@@ -5,6 +5,8 @@ namespace RiftReader.Reader.Navigation;
 
 public interface IMovementBackend
 {
+    void PrepareForMovement();
+
     MovementCommandResult PressKey(string key, int holdMilliseconds);
 }
 
@@ -15,6 +17,19 @@ public sealed record MovementCommandResult(
 public sealed class PowerShellMovementBackend(string scriptFile, string targetProcessName) : IMovementBackend
 {
     private const int MinimumCommandTimeoutMilliseconds = 5000;
+    private const int LiveInteractionCountdownSeconds = 10;
+    private bool _liveInteractionArmed;
+
+    public void PrepareForMovement()
+    {
+        if (_liveInteractionArmed)
+        {
+            return;
+        }
+
+        RunLiveInteractionCountdown();
+        _liveInteractionArmed = true;
+    }
 
     public MovementCommandResult PressKey(string key, int holdMilliseconds)
     {
@@ -104,7 +119,20 @@ public sealed class PowerShellMovementBackend(string scriptFile, string targetPr
         startInfo.ArgumentList.Add("-TargetProcessName");
         startInfo.ArgumentList.Add(targetProcessName);
         startInfo.ArgumentList.Add("-SkipBackgroundFocus");
+        startInfo.ArgumentList.Add("-RequireTargetForeground");
 
         return startInfo;
+    }
+
+    private static void RunLiveInteractionCountdown()
+    {
+        Console.Error.WriteLine("[Navigation] Live movement will start in 10 seconds.");
+        Console.Error.WriteLine("[Navigation] Keep the Rift window focused. Movement will abort if focus is lost.");
+
+        for (var remaining = LiveInteractionCountdownSeconds; remaining >= 1; remaining--)
+        {
+            Console.Error.WriteLine($"[Navigation] Starting in {remaining}...");
+            Thread.Sleep(1000);
+        }
     }
 }

@@ -22,6 +22,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --capture-navigation-waypoint <id> [--navigation-waypoint-file <path>] [--waypoint-label <text>] [--waypoint-zone <text>] [--waypoint-arrival-radius <distance>] [--waypoint-pace run|walk|keep] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
@@ -51,6 +52,7 @@ Notes:
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint.
+  - Use --capture-navigation-waypoint to record the current live position into the waypoint JSON so point A / point B runs do not require manual coordinate edits.
   - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the manual-facing waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
@@ -79,6 +81,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-navigation-waypoint point_a --waypoint-label "Point A" --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
@@ -118,6 +121,8 @@ Examples:
         var readPlayerCurrent = false;
         var readPlayerCoordAnchor = false;
         var readNavigationCurrent = false;
+        var captureNavigationWaypoint = false;
+        string? captureNavigationWaypointId = null;
         var navigateWaypoints = false;
         var recordSession = false;
         var sessionSummary = false;
@@ -127,6 +132,10 @@ Examples:
         string? pace = null;
         double? arrivalRadius = null;
         int? maxTravelSeconds = null;
+        string? waypointLabel = null;
+        string? waypointZone = null;
+        double? waypointArrivalRadius = null;
+        string? waypointPace = null;
         string? sessionDirectory = null;
         string? sessionWatchsetFile = null;
         string? sessionOutputDirectory = null;
@@ -393,6 +402,21 @@ Examples:
                     readNavigationCurrent = true;
                     break;
 
+                case "--capture-navigation-waypoint":
+                    if (!TryReadNext(args, ref index, out var captureNavigationWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --capture-navigation-waypoint.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(captureNavigationWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Navigation waypoint id must not be blank.", UsageText);
+                    }
+
+                    captureNavigationWaypoint = true;
+                    captureNavigationWaypointId = captureNavigationWaypointValue.Trim();
+                    break;
+
                 case "--navigate-waypoints":
                     navigateWaypoints = true;
                     break;
@@ -437,6 +461,62 @@ Examples:
                     }
 
                     destinationWaypointId = destinationWaypointValue.Trim();
+                    break;
+
+                case "--waypoint-label":
+                    if (!TryReadNext(args, ref index, out var waypointLabelValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --waypoint-label.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(waypointLabelValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Waypoint label must not be blank.", UsageText);
+                    }
+
+                    waypointLabel = waypointLabelValue.Trim();
+                    break;
+
+                case "--waypoint-zone":
+                    if (!TryReadNext(args, ref index, out var waypointZoneValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --waypoint-zone.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(waypointZoneValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Waypoint zone must not be blank.", UsageText);
+                    }
+
+                    waypointZone = waypointZoneValue.Trim();
+                    break;
+
+                case "--waypoint-arrival-radius":
+                    if (!TryReadNext(args, ref index, out var waypointArrivalRadiusValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --waypoint-arrival-radius.", UsageText);
+                    }
+
+                    if (!double.TryParse(waypointArrivalRadiusValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedWaypointArrivalRadius) || parsedWaypointArrivalRadius <= 0d)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid waypoint arrival radius '{waypointArrivalRadiusValue}'.", UsageText);
+                    }
+
+                    waypointArrivalRadius = parsedWaypointArrivalRadius;
+                    break;
+
+                case "--waypoint-pace":
+                    if (!TryReadNext(args, ref index, out var waypointPaceValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --waypoint-pace.", UsageText);
+                    }
+
+                    if (!NavigationPace.TryNormalize(waypointPaceValue, out var normalizedWaypointPace))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Unsupported waypoint pace '{waypointPaceValue}'. Use run, walk, or keep.", UsageText);
+                    }
+
+                    waypointPace = normalizedWaypointPace;
                     break;
 
                 case "--pace":
@@ -778,6 +858,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --read-navigation-current.", UsageText);
         }
 
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && captureNavigationWaypoint)
+        {
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --capture-navigation-waypoint.", UsageText);
+        }
+
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && navigateWaypoints)
         {
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --navigate-waypoints.", UsageText);
@@ -811,6 +896,12 @@ Examples:
         if (ownerComponentsFile is not null && !rankOwnerComponents && !readPlayerOrientation && !rankStatHubs)
         {
             return ReaderOptionsParseResult.Fail("--owner-components-file can only be used with --rank-owner-components, --rank-stat-hubs, or --read-player-orientation.", UsageText);
+        }
+
+        if (captureNavigationWaypoint &&
+            (sessionSummary || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation))
+        {
+            return ReaderOptionsParseResult.Fail("--capture-navigation-waypoint cannot be combined with session-summary, ranking, or orientation modes.", UsageText);
         }
 
         if (sessionSummary)
@@ -1183,9 +1274,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--session-directory can only be used with --session-summary.", UsageText);
         }
 
-        if (navigationWaypointFile is not null && !readNavigationCurrent && !navigateWaypoints)
+        if (navigationWaypointFile is not null && !readNavigationCurrent && !captureNavigationWaypoint && !navigateWaypoints)
         {
-            return ReaderOptionsParseResult.Fail("--navigation-waypoint-file can only be used with --read-navigation-current or --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--navigation-waypoint-file can only be used with --read-navigation-current, --capture-navigation-waypoint, or --navigate-waypoints.", UsageText);
         }
 
         if (startWaypointId is not null && !navigateWaypoints)
@@ -1211,6 +1302,26 @@ Examples:
         if (maxTravelSeconds.HasValue && !navigateWaypoints)
         {
             return ReaderOptionsParseResult.Fail("--max-travel-seconds can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (waypointLabel is not null && !captureNavigationWaypoint)
+        {
+            return ReaderOptionsParseResult.Fail("--waypoint-label can only be used with --capture-navigation-waypoint.", UsageText);
+        }
+
+        if (waypointZone is not null && !captureNavigationWaypoint)
+        {
+            return ReaderOptionsParseResult.Fail("--waypoint-zone can only be used with --capture-navigation-waypoint.", UsageText);
+        }
+
+        if (waypointArrivalRadius.HasValue && !captureNavigationWaypoint)
+        {
+            return ReaderOptionsParseResult.Fail("--waypoint-arrival-radius can only be used with --capture-navigation-waypoint.", UsageText);
+        }
+
+        if (waypointPace is not null && !captureNavigationWaypoint)
+        {
+            return ReaderOptionsParseResult.Fail("--waypoint-pace can only be used with --capture-navigation-waypoint.", UsageText);
         }
 
         if (sessionLabel is not null && !recordSession)
@@ -1243,6 +1354,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-navigation-current requires --destination-waypoint.", UsageText);
         }
 
+        if (captureNavigationWaypoint && string.IsNullOrWhiteSpace(captureNavigationWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--capture-navigation-waypoint requires a waypoint id.", UsageText);
+        }
+
         if (navigateWaypoints && string.IsNullOrWhiteSpace(startWaypointId))
         {
             return ReaderOptionsParseResult.Fail("--navigate-waypoints requires --start-waypoint.", UsageText);
@@ -1256,6 +1372,12 @@ Examples:
         if (scanRequested && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (captureNavigationWaypoint &&
+            (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readTargetCurrent || readNavigationCurrent || navigateWaypoints || readPlayerCoordAnchor || recordSession || address.HasValue))
+        {
+            return ReaderOptionsParseResult.Fail("--capture-navigation-waypoint cannot be combined with list-modules, scan, probe, capture, navigation, coord-anchor, record-session, or raw memory-read switches.", UsageText);
         }
 
         if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || readNavigationCurrent || navigateWaypoints || recordSession || address.HasValue))
@@ -1591,7 +1713,13 @@ Examples:
                     DestinationWaypointId: destinationWaypointId,
                     Pace: pace,
                     ArrivalRadius: arrivalRadius,
-                    MaxTravelSeconds: maxTravelSeconds),
+                    MaxTravelSeconds: maxTravelSeconds,
+                    CaptureNavigationWaypoint: captureNavigationWaypoint,
+                    CaptureNavigationWaypointId: captureNavigationWaypointId,
+                    WaypointLabel: waypointLabel,
+                    WaypointZone: waypointZone,
+                    WaypointArrivalRadius: waypointArrivalRadius,
+                    WaypointPace: waypointPace),
             UsageText);
     }
 

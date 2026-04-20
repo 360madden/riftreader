@@ -6,7 +6,8 @@ param(
     [string]$TargetProcessName = "rift_x64",
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
     [int]$InterKeyDelayMilliseconds = 20,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [switch]$RequireTargetForeground
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +19,29 @@ using System.Runtime.InteropServices;
 
 public static class RiftKeyNative
 {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public uint type;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct InputUnion
+    {
+        [FieldOffset(0)] public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
@@ -64,6 +88,9 @@ public static class RiftKeyNative
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 }
 "@
 
@@ -71,6 +98,8 @@ $WM_KEYDOWN = 0x0100
 $WM_KEYUP = 0x0101
 $MAPVK_VK_TO_VSC = 0
 $SW_RESTORE = 9
+$INPUT_KEYBOARD = 1
+$KEYEVENTF_KEYUP = 0x0002
 $VK_SHIFT = 0x10
 $VK_CONTROL = 0x11
 $VK_MENU = 0x12
@@ -106,6 +135,19 @@ function Focus-Window {
     [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
     [void][RiftKeyNative]::SetForegroundWindow($Process.MainWindowHandle)
     Start-Sleep -Milliseconds 250
+}
+
+function Test-TargetProcessIsForeground {
+    param([int]$TargetProcessId)
+
+    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+    if ($foregroundHandle -eq [IntPtr]::Zero) {
+        return $false
+    }
+
+    $foregroundProcessId = 0
+    [void][RiftKeyNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+    return $foregroundProcessId -eq $TargetProcessId
 }
 
 function Get-EffectiveTargetHandle {
@@ -196,6 +238,59 @@ function Post-KeyUp {
     [void][RiftKeyNative]::PostMessage($WindowHandle, $WM_KEYUP, [IntPtr]$VirtualKey, (New-KeyLParam -VirtualKey $VirtualKey -KeyUp))
 }
 
+function New-KeyboardInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$VirtualKey,
+        [switch]$KeyUp
+    )
+
+    $input = New-Object RiftKeyNative+INPUT
+    $input.type = $INPUT_KEYBOARD
+    $input.U.ki.wVk = [uint16]$VirtualKey
+    $input.U.ki.wScan = 0
+    $input.U.ki.dwFlags = if ($KeyUp) { $KEYEVENTF_KEYUP } else { 0 }
+    $input.U.ki.time = 0
+    $input.U.ki.dwExtraInfo = [IntPtr]::Zero
+    return $input
+}
+
+function Send-KeyInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$VirtualKey,
+        [switch]$KeyUp
+    )
+
+    $input = New-KeyboardInput -VirtualKey $VirtualKey -KeyUp:$KeyUp
+    $size = [Runtime.InteropServices.Marshal]::SizeOf([type][RiftKeyNative+INPUT])
+    $sent = [RiftKeyNative]::SendInput([uint32]1, @($input), $size)
+    if ($sent -ne 1) {
+        throw "SendInput sent $sent of 1 keyboard inputs for virtual key $VirtualKey."
+    }
+}
+
+function Invoke-AhkKeyFallback {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$KeyText,
+        [Parameter(Mandatory = $true)]
+        [int]$HoldTimeMilliseconds,
+        [Parameter(Mandatory = $true)]
+        [string]$TargetExe
+    )
+
+    $ahkFallbackScript = Join-Path $PSScriptRoot 'post-rift-key-ahk.ps1'
+    if (-not (Test-Path -LiteralPath $ahkFallbackScript)) {
+        throw "AutoHotkey fallback script was not found: $ahkFallbackScript"
+    }
+
+    & powershell -ExecutionPolicy Bypass -File $ahkFallbackScript -Key $KeyText -HoldMilliseconds $HoldTimeMilliseconds -TargetExe $TargetExe
+    if ($LASTEXITCODE -ne 0) {
+        throw "AutoHotkey fallback exited with code $LASTEXITCODE."
+    }
+}
+
 $targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
 $targetHandle = [IntPtr]$targetProcess.MainWindowHandle
 $targetOwnerProcessId = 0
@@ -206,6 +301,13 @@ if ($targetOwnerProcessId -ne $targetProcess.Id) {
 
 $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
 $binding = Resolve-KeyBinding -KeyText $Key
+$useSendInput = $RequireTargetForeground.IsPresent
+$targetExeName = if ($targetProcess.ProcessName.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+    $targetProcess.ProcessName
+}
+else {
+    '{0}.exe' -f $targetProcess.ProcessName
+}
 
 Write-Host "[RiftKey] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
 Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
@@ -222,30 +324,79 @@ if (-not $SkipBackgroundFocus) {
     Write-Host ("[RiftKey] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
 }
 
-$modifiersDown = New-Object System.Collections.Generic.List[int]
-if (($binding.ShiftState -band 1) -ne 0) {
-    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_SHIFT
-    $modifiersDown.Add($VK_SHIFT)
-    Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
-}
-if (($binding.ShiftState -band 2) -ne 0) {
-    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_CONTROL
-    $modifiersDown.Add($VK_CONTROL)
-    Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
-}
-if (($binding.ShiftState -band 4) -ne 0) {
-    Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_MENU
-    $modifiersDown.Add($VK_MENU)
-    Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+if ($RequireTargetForeground) {
+    if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {
+        throw "Rift is not the foreground window. Aborting live key input to preserve focus safety."
+    }
 }
 
-Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey
-Start-Sleep -Milliseconds $HoldMilliseconds
-Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey
+try {
+    $modifiersDown = New-Object System.Collections.Generic.List[int]
+    if (($binding.ShiftState -band 1) -ne 0) {
+        if ($useSendInput) {
+            Send-KeyInput -VirtualKey $VK_SHIFT
+        }
+        else {
+            Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_SHIFT
+        }
+        $modifiersDown.Add($VK_SHIFT)
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+    }
+    if (($binding.ShiftState -band 2) -ne 0) {
+        if ($useSendInput) {
+            Send-KeyInput -VirtualKey $VK_CONTROL
+        }
+        else {
+            Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_CONTROL
+        }
+        $modifiersDown.Add($VK_CONTROL)
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+    }
+    if (($binding.ShiftState -band 4) -ne 0) {
+        if ($useSendInput) {
+            Send-KeyInput -VirtualKey $VK_MENU
+        }
+        else {
+            Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $VK_MENU
+        }
+        $modifiersDown.Add($VK_MENU)
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+    }
 
-for ($i = $modifiersDown.Count - 1; $i -ge 0; $i--) {
-    Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
-    Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $modifiersDown[$i]
+    if ($useSendInput) {
+        Send-KeyInput -VirtualKey $binding.VirtualKey
+    }
+    else {
+        Post-KeyDown -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey
+    }
+    Start-Sleep -Milliseconds $HoldMilliseconds
+    if ($useSendInput) {
+        Send-KeyInput -VirtualKey $binding.VirtualKey -KeyUp
+    }
+    else {
+        Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $binding.VirtualKey
+    }
+
+    for ($i = $modifiersDown.Count - 1; $i -ge 0; $i--) {
+        Start-Sleep -Milliseconds $InterKeyDelayMilliseconds
+        if ($useSendInput) {
+            Send-KeyInput -VirtualKey $modifiersDown[$i] -KeyUp
+        }
+        else {
+            Post-KeyUp -WindowHandle $effectiveTargetHandle -VirtualKey $modifiersDown[$i]
+        }
+    }
+}
+catch {
+    if ($useSendInput) {
+        Write-Warning ("Foreground SendInput path failed; attempting AutoHotkey fallback. {0}" -f $_.Exception.Message)
+        Invoke-AhkKeyFallback -KeyText $Key -HoldTimeMilliseconds $HoldMilliseconds -TargetExe $targetExeName
+        Write-Host "[RiftKey] AutoHotkey fallback SUCCESS"
+        Write-Host "[RiftKey] SUCCESS"
+        exit 0
+    }
+
+    throw
 }
 
 Write-Host "[RiftKey] SUCCESS"

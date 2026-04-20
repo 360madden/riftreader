@@ -6,7 +6,8 @@ param(
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
     [int]$AttemptTimeoutSeconds = 10,
     [int]$InterKeyDelayMilliseconds = 20,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [switch]$RequireTargetForeground
 )
 
 Set-StrictMode -Version Latest
@@ -117,6 +118,22 @@ function Focus-Window {
     [void][RiftPostMessageNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
     [void][RiftPostMessageNative]::SetForegroundWindow($Process.MainWindowHandle)
     Start-Sleep -Milliseconds 250
+}
+
+function Test-TargetProcessIsForeground {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$TargetProcessId
+    )
+
+    $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+    if ($foregroundHandle -eq [IntPtr]::Zero) {
+        return $false
+    }
+
+    $foregroundProcessId = 0
+    [void][RiftPostMessageNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+    return $foregroundProcessId -eq $TargetProcessId
 }
 
 function Get-FileTimestampUtc {
@@ -339,6 +356,12 @@ if (-not $SkipBackgroundFocus) {
 
     if ($foregroundHandle -eq $targetHandle) {
         throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+    }
+}
+
+if ($RequireTargetForeground) {
+    if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {
+        throw "Rift is not the foreground window. Aborting live command posting to preserve focus safety."
     }
 }
 
