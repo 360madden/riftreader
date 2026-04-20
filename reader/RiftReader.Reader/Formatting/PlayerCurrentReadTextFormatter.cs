@@ -10,7 +10,7 @@ public static class PlayerCurrentReadTextFormatter
         var lines = new List<string>
         {
             $"Process:              {result.ProcessName} ({result.ProcessId})",
-            $"ReaderBridge source:  {result.ReaderBridgeSourceFile}",
+            $"Bootstrap source:     {result.ReaderBridgeSourceFile}",
             $"Family:               {result.FamilyId}",
             $"Kind:                 {result.FamilyNotes}",
             $"Signature:            {result.Signature}",

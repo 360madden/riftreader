@@ -405,41 +405,256 @@ internal static class Program
 
     private static int RunReadPlayerCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
     {
-        var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
-        if (document?.Current?.Player is null)
+        var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+        var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
+
+        if (bootstrapDocuments.Count == 0)
         {
-            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player-current reading.");
+            var errors = new[]
+                {
+                    loadError,
+                    validatorLoadError
+                }
+                .Where(static error => !string.IsNullOrWhiteSpace(error))
+                .ToArray();
+
+            Console.Error.WriteLine(errors.Length > 0
+                ? string.Join(" ", errors)
+                : "Unable to load any player-current bootstrap snapshot.");
             return 1;
         }
 
         var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
 
-        PlayerCurrentReadResult result;
+        var failures = new List<string>(bootstrapDocuments.Count);
+
+        for (var index = 0; index < bootstrapDocuments.Count; index++)
+        {
+            var document = bootstrapDocuments[index];
+
+            try
+            {
+                var result = PlayerCurrentReader.ReadCurrent(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    document,
+                    inspectionRadius,
+                    options.MaxHits);
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(result));
+                    return 0;
+                }
+
+                Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"[{index + 1}/{bootstrapDocuments.Count}] {document.SourceFile}: {ex.Message}");
+            }
+        }
+
+        Console.Error.WriteLine($"Unable to read the current player snapshot: {string.Join(" | ", failures)}");
+        return 1;
+    }
+
+    private static IReadOnlyList<ReaderBridgeSnapshotDocument> BuildPlayerCurrentBootstrapDocuments(
+        ReaderBridgeSnapshotDocument? readerBridgeDocument,
+        ValidatorSnapshotDocument? validatorDocument)
+    {
+        var candidates = new List<(ReaderBridgeSnapshotDocument Document, DateTime FileWriteTimeUtc, int Priority)>(2);
+
+        if (readerBridgeDocument?.Current?.Player is not null)
+        {
+            candidates.Add((readerBridgeDocument, TryGetFileLastWriteTimeUtc(readerBridgeDocument.SourceFile), 1));
+        }
+
+        if (validatorDocument?.Current is not null)
+        {
+            candidates.Add((BuildValidatorBootstrapDocument(validatorDocument), TryGetFileLastWriteTimeUtc(validatorDocument.SourceFile), 0));
+        }
+
+        return candidates
+            .OrderByDescending(static candidate => candidate.FileWriteTimeUtc)
+            .ThenByDescending(static candidate => candidate.Priority)
+            .Select(static candidate => candidate.Document)
+            .ToArray();
+    }
+
+    private static ReaderBridgeSnapshotDocument BuildValidatorBootstrapDocument(ValidatorSnapshotDocument document)
+    {
+        var snapshot = document.Current!;
+        var exportCount = snapshot.Sequence is >= int.MinValue and <= int.MaxValue
+            ? (int)snapshot.Sequence.Value
+            : (int?)null;
+        long? hpPct = snapshot.Health.HasValue && snapshot.HealthMax is > 0
+            ? (long)Math.Clamp((int)Math.Round((double)snapshot.Health.Value / snapshot.HealthMax.Value * 100d), 0, 100)
+            : null;
+
+        return new ReaderBridgeSnapshotDocument(
+            SourceFile: $"validator-bootstrap: {document.SourceFile}",
+            LoadedAtUtc: document.LoadedAtUtc,
+            SchemaVersion: 1,
+            LastExportAt: document.LastCaptureAt,
+            LastReason: document.LastReason,
+            ExportCount: exportCount,
+            Current: new ReaderBridgeSnapshot(
+                SchemaVersion: 1,
+                Status: "ready",
+                ExportReason: snapshot.Reason ?? document.LastReason,
+                ExportCount: exportCount,
+                GeneratedAtRealtime: snapshot.CapturedAt,
+                SourceMode: "ValidatorBootstrap",
+                SourceAddon: "RiftReaderValidator",
+                SourceVersion: null,
+                Hud: null,
+                Player: new ReaderBridgeUnitSnapshot(
+                    Id: snapshot.PlayerUnit,
+                    Name: snapshot.Name,
+                    Level: snapshot.Level,
+                    Calling: null,
+                    Guild: null,
+                    Relation: null,
+                    Role: snapshot.Role,
+                    Player: true,
+                    Combat: snapshot.Combat,
+                    Pvp: null,
+                    Hp: snapshot.Health,
+                    HpMax: snapshot.HealthMax,
+                    HpPct: hpPct,
+                    Absorb: null,
+                    Vitality: null,
+                    ResourceKind: snapshot.ManaMax.HasValue ? "Mana" :
+                        snapshot.EnergyMax.HasValue ? "Energy" :
+                        snapshot.Power.HasValue ? "Power" :
+                        snapshot.ChargeMax.HasValue ? "Charge" :
+                        null,
+                    Resource: snapshot.Mana ?? snapshot.Energy ?? snapshot.Power ?? snapshot.Charge,
+                    ResourceMax: snapshot.ManaMax ?? snapshot.EnergyMax ?? snapshot.ChargeMax,
+                    ResourcePct: null,
+                    Mana: snapshot.Mana,
+                    ManaMax: snapshot.ManaMax,
+                    Energy: snapshot.Energy,
+                    EnergyMax: snapshot.EnergyMax,
+                    Power: snapshot.Power,
+                    Charge: snapshot.Charge,
+                    ChargeMax: snapshot.ChargeMax,
+                    ChargePct: null,
+                    Planar: null,
+                    PlanarMax: null,
+                    PlanarPct: null,
+                    Combo: snapshot.Combo,
+                    Zone: snapshot.Zone,
+                    LocationName: snapshot.LocationName,
+                    Coord: snapshot.Coord,
+                    Distance: null,
+                    Ttd: null,
+                    TtdText: null,
+                    Cast: null),
+                Target: null,
+                PlayerBuffLines: Array.Empty<string>(),
+                PlayerDebuffLines: Array.Empty<string>(),
+                TargetBuffLines: Array.Empty<string>(),
+                TargetDebuffLines: Array.Empty<string>()));
+    }
+
+    private static DateTime TryGetFileLastWriteTimeUtc(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return DateTime.MinValue;
+        }
 
         try
         {
-            result = PlayerCurrentReader.ReadCurrent(
+            return File.Exists(path)
+                ? File.GetLastWriteTimeUtc(path)
+                : DateTime.MinValue;
+        }
+        catch
+        {
+            return DateTime.MinValue;
+        }
+    }
+
+    private static FloatSequenceScanResult? TryScanBootstrapPlayerCoords(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        IReadOnlyList<ReaderBridgeSnapshotDocument> bootstrapDocuments,
+        int contextBytes,
+        int maxHits)
+    {
+        foreach (var document in bootstrapDocuments)
+        {
+            var playerCoord = document.Current?.Player?.Coord;
+            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
+            {
+                continue;
+            }
+
+            var result = ProcessFloatSequenceScanner.ScanFloatTriplet(
                 reader,
                 target.ProcessId,
                 target.ProcessName,
-                document,
+                $"player-coords ({document.SourceFile})",
+                (float)coordX,
+                (float)coordY,
+                (float)coordZ,
+                contextBytes,
+                maxHits);
+
+            if (result.HitCount > 0)
+            {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    private static PlayerSignatureScanResult? TryScanBootstrapPlayerSignature(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        IReadOnlyList<ReaderBridgeSnapshotDocument> bootstrapDocuments,
+        int inspectionRadius,
+        int maxHits)
+    {
+        foreach (var document in bootstrapDocuments)
+        {
+            var player = document.Current?.Player;
+            var playerCoord = player?.Coord;
+            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
+            {
+                continue;
+            }
+
+            var result = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                $"player-signature ({document.SourceFile})",
+                (float)coordX,
+                (float)coordY,
+                (float)coordZ,
+                player?.Level,
+                player?.Hp,
+                player?.HpMax,
+                player?.Name,
+                player?.LocationName,
                 inspectionRadius,
-                options.MaxHits);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Unable to read the current player snapshot: {ex.Message}");
-            return 1;
+                maxHits);
+
+            if (result.FamilyCount > 0 && result.HitCount > 0)
+            {
+                return result;
+            }
         }
 
-        if (options.JsonOutput)
-        {
-            Console.WriteLine(JsonOutput.Serialize(result));
-            return 0;
-        }
-
-        Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
-        return 0;
+        return null;
     }
 
     private static int RunReadTargetCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
@@ -1089,26 +1304,31 @@ internal static class Program
 
         if (options.ScanReaderBridgePlayerCoords)
         {
-            var document = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
-            var playerCoord = document?.Current?.Player?.Coord;
-            var sourceFile = document?.SourceFile ?? "<unknown>";
-
-            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
-            {
-                Console.Error.WriteLine(loadError ?? "Unable to resolve current player coordinates from the latest ReaderBridge export.");
-                return 1;
-            }
-
-            var sequenceResult = ProcessFloatSequenceScanner.ScanFloatTriplet(
+            var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
+            var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+            var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
+            var sequenceResult = TryScanBootstrapPlayerCoords(
                 reader,
-                target.ProcessId,
-                target.ProcessName,
-                $"readerbridge-player-coords ({sourceFile})",
-                (float)coordX,
-                (float)coordY,
-                (float)coordZ,
+                target,
+                bootstrapDocuments,
                 options.ScanContextBytes,
                 options.MaxHits);
+
+            if (sequenceResult is null)
+            {
+                var errors = new[]
+                    {
+                        loadError,
+                        validatorLoadError
+                    }
+                    .Where(static error => !string.IsNullOrWhiteSpace(error))
+                    .ToArray();
+
+                Console.Error.WriteLine(errors.Length > 0
+                    ? string.Join(" ", errors)
+                    : "Unable to resolve current player coordinates from any bootstrap snapshot.");
+                return 1;
+            }
 
             if (options.JsonOutput)
             {
@@ -1122,32 +1342,31 @@ internal static class Program
 
         if (options.ScanReaderBridgePlayerSignature)
         {
-            var document = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
-            var player = document?.Current?.Player;
-            var playerCoord = player?.Coord;
-            var sourceFile = document?.SourceFile ?? "<unknown>";
-
-            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
-            {
-                Console.Error.WriteLine(loadError ?? "Unable to resolve current player coordinates from the latest ReaderBridge export.");
-                return 1;
-            }
-
-            var signatureResult = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
+            var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
+            var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+            var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
+            var signatureResult = TryScanBootstrapPlayerSignature(
                 reader,
-                target.ProcessId,
-                target.ProcessName,
-                $"readerbridge-player-signature ({sourceFile})",
-                (float)coordX,
-                (float)coordY,
-                (float)coordZ,
-                player?.Level,
-                player?.Hp,
-                player?.HpMax,
-                player?.Name,
-                player?.LocationName,
+                target,
+                bootstrapDocuments,
                 options.ScanContextBytes,
                 options.MaxHits);
+
+            if (signatureResult is null)
+            {
+                var errors = new[]
+                    {
+                        loadError,
+                        validatorLoadError
+                    }
+                    .Where(static error => !string.IsNullOrWhiteSpace(error))
+                    .ToArray();
+
+                Console.Error.WriteLine(errors.Length > 0
+                    ? string.Join(" ", errors)
+                    : "Unable to resolve current player coordinates from any bootstrap snapshot.");
+                return 1;
+            }
 
             if (options.JsonOutput)
             {
