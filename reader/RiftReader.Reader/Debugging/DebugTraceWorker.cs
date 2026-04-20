@@ -17,6 +17,9 @@ public static class DebugTraceWorker
     private const int SchemaVersion = 1;
     private const int MarkerPollSliceMilliseconds = 50;
     private const int InstructionReadBytes = 16;
+    private const int DetachRetryCount = 5;
+    private const int DetachRetryDelayMilliseconds = 50;
+    private const int DetachPendingDrainLimit = 32;
 
     private static readonly JsonSerializerOptions PrettyJsonOptions = new()
     {
@@ -140,84 +143,85 @@ public static class DebugTraceWorker
                 ValidateResolvedBreakpoint(request, currentResolvedBreakpoint, memoryRegions);
                 WriteJsonArray(tempModulesFile, modules);
 
-            RecordEvent(
-                eventWriter,
-                traceId,
-                stopwatch.ElapsedMilliseconds,
-                ref eventCount,
-                "preflight",
-                "preflight-complete",
-                threadId: null,
-                debugEventCode: null,
-                exceptionCode: null,
-                firstChance: null,
-                breakpointId: "primary",
-                hitIndex: null,
-                moduleRelativeRip: null,
-                rawRip: currentResolvedBreakpoint.AddressHex,
-                moduleName: currentResolvedBreakpoint.ModuleName,
-                moduleOffset: currentResolvedBreakpoint.ModuleOffsetHex,
-                statusCode: "preflight-ok",
-                message: $"Resolved {currentResolvedBreakpoint.Kind} breakpoint at {currentResolvedBreakpoint.AddressHex}.");
+                RecordEvent(
+                    eventWriter,
+                    traceId,
+                    stopwatch.ElapsedMilliseconds,
+                    ref eventCount,
+                    "preflight",
+                    "preflight-complete",
+                    threadId: null,
+                    debugEventCode: null,
+                    exceptionCode: null,
+                    firstChance: null,
+                    breakpointId: "primary",
+                    hitIndex: null,
+                    moduleRelativeRip: null,
+                    rawRip: currentResolvedBreakpoint.AddressHex,
+                    moduleName: currentResolvedBreakpoint.ModuleName,
+                    moduleOffset: currentResolvedBreakpoint.ModuleOffsetHex,
+                    statusCode: "preflight-ok",
+                    message: $"Resolved {currentResolvedBreakpoint.Kind} breakpoint at {currentResolvedBreakpoint.AddressHex}.");
 
-            var cleanupSweepPerformed = TryCleanupFromPriorFailure(process.Id, warnings);
-            cleanupOutcome = cleanupSweepPerformed ? "pre-attach-sweep-ok" : "pre-attach-sweep-skipped";
+                var cleanupSweepPerformed = TryCleanupFromPriorFailure(process.Id, warnings);
+                cleanupOutcome = cleanupSweepPerformed ? "pre-attach-sweep-ok" : "pre-attach-sweep-skipped";
+                TryResolveAttachHelperBlocker(process, reader, warnings);
 
-            if (!DebugWindowsNativeMethods.DebugActiveProcess(process.Id))
-            {
-                throw new InvalidOperationException($"DebugActiveProcess failed: {FormatWin32Error()}");
-            }
-
-            attachActive = true;
-            attachOutcome = "attached";
-
-            if (!DebugWindowsNativeMethods.DebugSetProcessKillOnExit(false))
-            {
-                warnings.Add($"DebugSetProcessKillOnExit(false) failed: {FormatWin32Error()}");
-            }
-
-            foreach (var threadId in EnumerateThreadIds(process.Id))
-            {
-                ArmThreadBreakpoint(threadId, currentResolvedBreakpoint, warnings);
-                armedThreads.Add(threadId);
-            }
-
-            RecordMarker(
-                markerWriter,
-                traceId,
-                "breakpoints-armed",
-                DateTimeOffset.UtcNow,
-                stopwatch.ElapsedMilliseconds,
-                eventIndex: eventCount,
-                hitIndex: null,
-                request.Label,
-                $"Armed {armedThreads.Count} thread(s) for {currentResolvedBreakpoint.Kind} tracing.",
-                "system",
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                if (!DebugWindowsNativeMethods.DebugActiveProcess(process.Id))
                 {
-                    ["address"] = currentResolvedBreakpoint.AddressHex,
-                    ["module"] = currentResolvedBreakpoint.ModuleName ?? "<absolute>"
-                });
-
-            var done = false;
-            while (!done)
-            {
-                DrainMarkerInputFile(
-                    markerWriter,
-                    request.MarkerInputFile,
-                    ref markerInputProcessedLineCount,
-                    request.Label,
-                    eventCount,
-                    hitCount,
-                    stopwatch,
-                    traceId);
-
-                if (cancellationRequested)
-                {
-                    interrupted = true;
-                    stopReason = "operator-cancelled";
-                    break;
+                    throw new InvalidOperationException(BuildAttachFailureMessage(process, reader));
                 }
+
+                attachActive = true;
+                attachOutcome = "attached";
+
+                if (!DebugWindowsNativeMethods.DebugSetProcessKillOnExit(false))
+                {
+                    warnings.Add($"DebugSetProcessKillOnExit(false) failed: {FormatWin32Error()}");
+                }
+
+                foreach (var threadId in EnumerateThreadIds(process.Id))
+                {
+                    ArmThreadBreakpoint(threadId, currentResolvedBreakpoint, warnings);
+                    armedThreads.Add(threadId);
+                }
+
+                RecordMarker(
+                    markerWriter,
+                    traceId,
+                    "breakpoints-armed",
+                    DateTimeOffset.UtcNow,
+                    stopwatch.ElapsedMilliseconds,
+                    eventIndex: eventCount,
+                    hitIndex: null,
+                    request.Label,
+                    $"Armed {armedThreads.Count} thread(s) for {currentResolvedBreakpoint.Kind} tracing.",
+                    "system",
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["address"] = currentResolvedBreakpoint.AddressHex,
+                        ["module"] = currentResolvedBreakpoint.ModuleName ?? "<absolute>"
+                    });
+
+                var done = false;
+                while (!done)
+                {
+                    DrainMarkerInputFile(
+                        markerWriter,
+                        request.MarkerInputFile,
+                        ref markerInputProcessedLineCount,
+                        request.Label,
+                        eventCount,
+                        hitCount,
+                        stopwatch,
+                        traceId);
+
+                    if (cancellationRequested)
+                    {
+                        interrupted = true;
+                        stopReason = "operator-cancelled";
+                        break;
+                    }
 
                 if (stopwatch.ElapsedMilliseconds >= request.Limits.TimeoutMilliseconds)
                 {
@@ -582,13 +586,9 @@ public static class DebugTraceWorker
                         ClearThreadBreakpoint(threadId, warnings);
                     }
 
-                    if (DebugWindowsNativeMethods.DebugActiveProcessStop(processId))
+                    detachOutcome = TryDetachActiveProcess(processId, warnings);
+                    if (!string.Equals(detachOutcome, "detached", StringComparison.Ordinal))
                     {
-                        detachOutcome = "detached";
-                    }
-                    else
-                    {
-                        detachOutcome = $"detach-failed: {FormatWin32Error()}";
                         warnings.Add(detachOutcome);
                     }
                 }
@@ -1529,6 +1529,270 @@ public static class DebugTraceWorker
         }
     }
 
+    private static void TryResolveAttachHelperBlocker(Process process, ProcessMemoryReader reader, List<string> warnings)
+    {
+        if (!TryCheckRemoteDebuggerPresent(reader.ProcessHandle, out var debuggerPresent, out var error))
+        {
+            warnings.Add($"Unable to query debugger state for PID {process.Id}: {error}");
+            return;
+        }
+
+        if (!debuggerPresent)
+        {
+            return;
+        }
+
+        var helper = FindAttachHelper(process.Id);
+        if (!helper.HasValue)
+        {
+            warnings.Add($"PID {process.Id} is already marked as debugged by another process; native attach may fail until that debugger detaches.");
+            return;
+        }
+
+        var attachHelper = helper.Value;
+        if (!TryStopProcess(attachHelper.ProcessId, 3000, out var stopError))
+        {
+            warnings.Add($"Unable to stop blocking attach helper {attachHelper.ImageName} [{attachHelper.ProcessId}] for PID {process.Id}: {stopError}");
+            return;
+        }
+
+        if (!TryWaitForDebuggerReleased(reader.ProcessHandle, 3000, out error))
+        {
+            warnings.Add($"Stopped attach helper {attachHelper.ImageName} [{attachHelper.ProcessId}], but PID {process.Id} still reports DebuggerPresent=true: {error}");
+        }
+    }
+
+    private static string BuildAttachFailureMessage(Process process, ProcessMemoryReader reader)
+    {
+        var message = $"DebugActiveProcess failed: {FormatWin32Error()}";
+        if (!TryCheckRemoteDebuggerPresent(reader.ProcessHandle, out var debuggerPresent, out _))
+        {
+            return message;
+        }
+
+        if (!debuggerPresent)
+        {
+            return message;
+        }
+
+        var helper = FindAttachHelper(process.Id);
+        return !helper.HasValue
+            ? $"{message} PID {process.Id} is already marked as debugged by another process."
+            : $"{message} PID {process.Id} is already being debugged by {helper.Value.ImageName} [{helper.Value.ProcessId}].";
+    }
+
+    private static bool TryCheckRemoteDebuggerPresent(nint processHandle, out bool debuggerPresent, out string? error)
+    {
+        debuggerPresent = false;
+        if (processHandle == 0)
+        {
+            error = "Process handle was invalid.";
+            return false;
+        }
+
+        if (!DebugWindowsNativeMethods.CheckRemoteDebuggerPresent(processHandle, out debuggerPresent))
+        {
+            error = FormatWin32Error();
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static bool TryWaitForDebuggerReleased(nint processHandle, int timeoutMilliseconds, out string? error)
+    {
+        var deadlineUtc = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
+        while (DateTime.UtcNow <= deadlineUtc)
+        {
+            if (!TryCheckRemoteDebuggerPresent(processHandle, out var debuggerPresent, out error))
+            {
+                return false;
+            }
+
+            if (!debuggerPresent)
+            {
+                error = null;
+                return true;
+            }
+
+            Thread.Sleep(100);
+        }
+
+        error = "Timed out waiting for the debugger relationship to clear.";
+        return false;
+    }
+
+    private static bool TryStopProcess(int processId, int waitMilliseconds, out string? error)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            if (process.HasExited)
+            {
+                error = null;
+                return true;
+            }
+
+            process.Kill(entireProcessTree: false);
+            if (!process.WaitForExit(waitMilliseconds))
+            {
+                error = $"Process {processId} did not exit within {waitMilliseconds} ms.";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            error = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static AttachHelperProcessRecord? FindAttachHelper(int processId)
+    {
+        nint snapshotHandle = 0;
+        try
+        {
+            snapshotHandle = DebugWindowsNativeMethods.CreateToolhelp32Snapshot((uint)DebugWindowsNativeMethods.Th32CsSnapProcess, 0);
+            if (snapshotHandle == new nint(-1))
+            {
+                return null;
+            }
+
+            var entry = new DebugWindowsNativeMethods.PROCESSENTRY32
+            {
+                dwSize = (uint)Marshal.SizeOf<DebugWindowsNativeMethods.PROCESSENTRY32>()
+            };
+
+            if (!DebugWindowsNativeMethods.Process32First(snapshotHandle, ref entry))
+            {
+                return null;
+            }
+
+            do
+            {
+                if (entry.th32ParentProcessID == processId &&
+                    string.Equals(entry.szExeFile, "rifterrorhandler_x64.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new AttachHelperProcessRecord((int)entry.th32ProcessID, (int)entry.th32ParentProcessID, entry.szExeFile);
+                }
+            }
+            while (DebugWindowsNativeMethods.Process32Next(snapshotHandle, ref entry));
+
+            return null;
+        }
+        finally
+        {
+            SafeCloseHandle(snapshotHandle);
+        }
+    }
+
+    private static string TryDetachActiveProcess(int processId, List<string> warnings)
+    {
+        string? lastError = null;
+        for (var attempt = 1; attempt <= DetachRetryCount; attempt++)
+        {
+            var drainedEvents = DrainPendingDebugEvents(processId, warnings);
+            if (drainedEvents > 0)
+            {
+                warnings.Add($"Drained {drainedEvents} pending debug event(s) before detach attempt {attempt}.");
+            }
+
+            if (DebugWindowsNativeMethods.DebugActiveProcessStop(processId))
+            {
+                return attempt == 1
+                    ? "detached"
+                    : $"detached-after-retry-{attempt}";
+            }
+
+            lastError = FormatWin32Error();
+            if (!IsProcessRunning(processId))
+            {
+                return $"detach-failed: {lastError} (process-exited)";
+            }
+
+            if (attempt < DetachRetryCount)
+            {
+                Thread.Sleep(DetachRetryDelayMilliseconds);
+            }
+        }
+
+        return $"detach-failed: {lastError ?? "unknown error"}";
+    }
+
+    private static int DrainPendingDebugEvents(int processId, List<string> warnings)
+    {
+        var drained = 0;
+        while (drained < DetachPendingDrainLimit)
+        {
+            if (!DebugWindowsNativeMethods.WaitForDebugEvent(out var debugEvent, 0))
+            {
+                var lastError = (uint)Marshal.GetLastWin32Error();
+                if (lastError == DebugWindowsNativeMethods.ErrorSemTimeout)
+                {
+                    break;
+                }
+
+                warnings.Add($"WaitForDebugEvent(drain) failed: {FormatWin32Error((int)lastError)}");
+                break;
+            }
+
+            drained++;
+            var continueStatus = GetDrainContinueStatus(debugEvent);
+            if (!DebugWindowsNativeMethods.ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus))
+            {
+                warnings.Add($"ContinueDebugEvent(drain) failed for thread {debugEvent.dwThreadId}: {FormatWin32Error()}");
+            }
+
+            if (debugEvent.dwProcessId == processId &&
+                debugEvent.dwDebugEventCode == DebugWindowsNativeMethods.DebugEventType.ExitProcess)
+            {
+                break;
+            }
+        }
+
+        return drained;
+    }
+
+    private static uint GetDrainContinueStatus(DebugWindowsNativeMethods.DEBUG_EVENT debugEvent)
+    {
+        if (debugEvent.dwDebugEventCode != DebugWindowsNativeMethods.DebugEventType.Exception)
+        {
+            return DebugWindowsNativeMethods.DebugContinue;
+        }
+
+        var exceptionCode = debugEvent.u.Exception.ExceptionRecord.ExceptionCode;
+        return exceptionCode == DebugWindowsNativeMethods.ExceptionBreakpoint ||
+               exceptionCode == DebugWindowsNativeMethods.ExceptionSingleStep
+            ? DebugWindowsNativeMethods.DebugContinue
+            : DebugWindowsNativeMethods.DebugExceptionNotHandled;
+    }
+
+    private static bool IsProcessRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     private static void DrainMarkerInputFile(
         StreamWriter markerWriter,
         string? markerInputFile,
@@ -1839,7 +2103,7 @@ public static class DebugTraceWorker
 
     private static void SafeCloseHandle(nint handle)
     {
-        if (handle != 0)
+        if (handle != 0 && handle != new nint(-1))
         {
             DebugWindowsNativeMethods.CloseHandle(handle);
         }
@@ -1859,6 +2123,11 @@ public static class DebugTraceWorker
         string? ModuleOffsetHex,
         int? Width,
         string TargetArchitecture);
+
+    private readonly record struct AttachHelperProcessRecord(
+        int ProcessId,
+        int ParentProcessId,
+        string ImageName);
 
     private readonly record struct DebugMemoryReadResult(
         string Label,
