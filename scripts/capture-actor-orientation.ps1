@@ -6,18 +6,19 @@ param(
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
-    [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.json'),
-    [string]$PreviousFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.previous.json')
+    [string]$OwnerComponentsFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.json'),
+    [string]$PreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.previous.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$ownerComponentScript = Join-Path $PSScriptRoot 'capture-player-owner-components.ps1'
-$refreshReaderBridgeScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
+$ownerComponentScript = Join-Path $scriptRoot 'capture-player-owner-components.ps1'
+$refreshReaderBridgeScript = Join-Path $scriptRoot 'refresh-readerbridge-export.ps1'
 $coordTolerance = 0.75
 
 function Invoke-ReaderJson {
@@ -521,12 +522,63 @@ function Resolve-LiveOrientation {
         throw 'The player-orientation reader did not resolve a selected source address.'
     }
 
-    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+    $resolutionMode = 'artifact-selected-source'
+    $resolutionNotes = New-Object System.Collections.Generic.List[string]
+    $artifactSelectedSourceAddress = [string]$metadata.SelectedSourceAddress
+
+    try {
+        $liveSample = Get-LiveSourceSample -SelectedSourceAddress $artifactSelectedSourceAddress -ProcessName $ProcessName
+    }
+    catch {
+        $resolutionNotes.Add("Artifact-selected source live read failed: $($_.Exception.Message)")
+
+        $candidateSearch = Invoke-ReaderJson -Arguments @(
+            '--process-name', $ProcessName,
+            '--find-player-orientation-candidate',
+            '--max-hits', '16',
+            '--json')
+
+        $resolvedCandidate = $candidateSearch.BestPointerHopCandidate
+        if ($null -eq $resolvedCandidate) {
+            $resolvedCandidate = $candidateSearch.BestCandidate
+        }
+
+        if ($null -eq $resolvedCandidate -or [string]::IsNullOrWhiteSpace([string]$resolvedCandidate.Address)) {
+            throw "Live source recovery failed after the artifact-selected source read failed. $($resolutionNotes -join ' ')"
+        }
+
+        $resolvedSourceAddress = [string]$resolvedCandidate.Address
+        $liveSample = Get-LiveSourceSample -SelectedSourceAddress $resolvedSourceAddress -ProcessName $ProcessName
+        $resolutionMode = 'read-only-pointer-hop-candidate-search'
+        $resolutionNotes.Add("Resolved live source via pointer-hop candidate search: $resolvedSourceAddress (basis $([string]$resolvedCandidate.BasisPrimaryForwardOffset), parent $([string]$resolvedCandidate.ParentAddress), hopDepth $([string]$resolvedCandidate.HopDepth))")
+
+        $metadata | Add-Member -NotePropertyName ArtifactSelectedSourceAddress -NotePropertyValue $artifactSelectedSourceAddress -Force
+        $metadata | Add-Member -NotePropertyName SelectedSourceAddress -NotePropertyValue $resolvedSourceAddress -Force
+        $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
+        $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue $resolutionNotes.ToArray() -Force
+
+        $liveSample | Add-Member -NotePropertyName BasisPrimaryForwardOffset -NotePropertyValue ([string]$resolvedCandidate.BasisPrimaryForwardOffset) -Force
+        $liveSample | Add-Member -NotePropertyName ParentAddress -NotePropertyValue ([string]$resolvedCandidate.ParentAddress) -Force
+        $liveSample | Add-Member -NotePropertyName DiscoveryMode -NotePropertyValue ([string]$resolvedCandidate.DiscoveryMode) -Force
+        $liveSample | Add-Member -NotePropertyName RootAddress -NotePropertyValue ([string]$resolvedCandidate.RootAddress) -Force
+        $liveSample | Add-Member -NotePropertyName RootSource -NotePropertyValue ([string]$resolvedCandidate.RootSource) -Force
+        $liveSample | Add-Member -NotePropertyName HopDepth -NotePropertyValue ([int]$resolvedCandidate.HopDepth) -Force
+        $liveSample | Add-Member -NotePropertyName PointerOffset -NotePropertyValue ([string]$resolvedCandidate.PointerOffset) -Force
+        $liveSample | Add-Member -NotePropertyName ResolvedBasis -NotePropertyValue $resolvedCandidate.Basis -Force
+        $liveSample | Add-Member -NotePropertyName ResolvedEstimate -NotePropertyValue $resolvedCandidate.PreferredEstimate -Force
+    }
+
     $playerCoord = $metadata.PlayerCoord
     $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
     $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
 
     $metadata | Add-Member -NotePropertyName RefreshedOwnerComponents -NotePropertyValue ([bool]$AllowOwnerRefresh) -Force
+    if (-not ($metadata.PSObject.Properties.Name -contains 'ResolutionMode')) {
+        $metadata | Add-Member -NotePropertyName ResolutionMode -NotePropertyValue $resolutionMode -Force
+    }
+    if (-not ($metadata.PSObject.Properties.Name -contains 'ResolutionNotes') -and $resolutionNotes.Count -gt 0) {
+        $metadata | Add-Member -NotePropertyName ResolutionNotes -NotePropertyValue $resolutionNotes.ToArray() -Force
+    }
 
     return [pscustomobject]@{
         Metadata = $metadata
@@ -561,14 +613,29 @@ if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerCompo
 $liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents
 $orientationMetadata = $liveResolution.Metadata
 $liveSourceSample = $liveResolution.LiveSample
-$estimates = @(
-    (New-VectorEstimate -Name 'Orientation60' -Vector $liveSourceSample.Orientation60),
-    (New-VectorEstimate -Name 'Orientation94' -Vector $liveSourceSample.Orientation94)
-)
+$resolvedEstimate = $null
+if ($liveSourceSample.PSObject.Properties.Name -contains 'ResolvedEstimate') {
+    $resolvedEstimate = $liveSourceSample.ResolvedEstimate
+}
+$resolvedBasis = $null
+if ($liveSourceSample.PSObject.Properties.Name -contains 'ResolvedBasis') {
+    $resolvedBasis = $liveSourceSample.ResolvedBasis
+}
 
-$preferredEstimate = $estimates | Where-Object { $_.Name -eq 'Orientation60' } | Select-Object -First 1
-if ($null -eq $preferredEstimate) {
-    $preferredEstimate = $estimates | Select-Object -First 1
+if ($null -ne $resolvedEstimate) {
+    $estimates = @($resolvedEstimate)
+    $preferredEstimate = $resolvedEstimate
+}
+else {
+    $estimates = @(
+        (New-VectorEstimate -Name 'Orientation60' -Vector $liveSourceSample.Orientation60),
+        (New-VectorEstimate -Name 'Orientation94' -Vector $liveSourceSample.Orientation94)
+    )
+
+    $preferredEstimate = $estimates | Where-Object { $_.Name -eq 'Orientation60' } | Select-Object -First 1
+    if ($null -eq $preferredEstimate) {
+        $preferredEstimate = $estimates | Select-Object -First 1
+    }
 }
 
 $orientationNotes = New-Object System.Collections.Generic.List[string]
@@ -613,9 +680,11 @@ $orientation = [pscustomobject]@{
     LiveSourceCoord48MatchesPlayerCoord = $liveResolution.Coord48Matches
     LiveSourceCoord88MatchesPlayerCoord = $liveResolution.Coord88Matches
     RefreshedOwnerComponents = $orientationMetadata.RefreshedOwnerComponents
+    ResolutionMode = $orientationMetadata.ResolutionMode
+    ResolutionNotes = $orientationMetadata.ResolutionNotes
     LiveSourceSample = $liveSourceSample
-    PreferredBasis = $liveSourceSample.Basis60
-    DuplicateBasisAgreement = $liveSourceSample.BasisDuplicateAgreement
+    PreferredBasis = if ($null -ne $resolvedBasis) { $resolvedBasis } else { $liveSourceSample.Basis60 }
+    DuplicateBasisAgreement = if ($null -ne $resolvedBasis) { $null } else { $liveSourceSample.BasisDuplicateAgreement }
     PreferredEstimate = $preferredEstimate
     Estimates = $estimates
     Notes = $orientationNotes

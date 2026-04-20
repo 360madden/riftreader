@@ -329,6 +329,27 @@ foreach ($axis in $AxisPriority) {
     $baselineCeCount = Start-CeExactFloatScan -Value $baselineAxisValue
     Write-Host "[SmartFamily] Baseline CE hit count for axis $normalizedAxis`: $baselineCeCount" -ForegroundColor DarkGray
 
+    if ([int]$baselineCeCount -le 0) {
+        Write-Warning ("No CE baseline hits were found for axis '{0}'; skipping live movement narrowing for this axis." -f $normalizedAxis)
+        $attemptResults.Add([pscustomobject]@{
+                Axis = $normalizedAxis
+                StimulusKey = $null
+                MotionObserved = $false
+                BaselineCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
+                MovedCoords = [pscustomobject]@{ X = $baselineX; Y = $baselineY; Z = $baselineZ }
+                Delta = [pscustomobject]@{ X = 0.0; Y = 0.0; Z = 0.0 }
+                BaselineCeHitCount = [int]$baselineCeCount
+                NextScanMode = $null
+                MovedCeHitCount = 0
+                RetrievedCeAddressCount = 0
+                RetrievedCeAddresses = @()
+                TripletConfirmedAddressCount = 0
+                TripletConfirmedAddresses = @()
+                StimulusAttempts = @()
+            }) | Out-Null
+        continue
+    }
+
     $stimulusAttempts = New-Object System.Collections.Generic.List[object]
     $movedSnapshot = $null
     $movedPlayer = $null

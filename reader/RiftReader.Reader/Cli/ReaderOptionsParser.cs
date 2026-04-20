@@ -19,6 +19,7 @@ Usage:
   RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--owner-components-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
@@ -49,6 +50,7 @@ Notes:
   - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
+  - Use --find-player-orientation-candidate to do a single-process read-only search for live actor/source candidates near current player coordinate hits.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint, and include candidate facing/turn-error telemetry when the selected-source basis can be resolved.
   - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition; if movement.turnLeftKey and movement.turnRightKey are configured, the navigator auto-aligns using the candidate selected-source yaw first.
@@ -79,6 +81,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --rank-owner-components --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-readerbridge-best-family --capture-label baseline --capture-file .\scripts\captures\player-signature-captures.tsv
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 16 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --owner-components-file .\scripts\captures\player-owner-components.json --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --owner-components-file .\scripts\captures\player-owner-components.json --pace keep --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
@@ -117,6 +120,7 @@ Examples:
         var readPlayerOrientation = false;
         var captureReaderBridgeBestFamily = false;
         var readPlayerCurrent = false;
+        var findPlayerOrientationCandidate = false;
         var readPlayerCoordAnchor = false;
         var readNavigationCurrent = false;
         var navigateWaypoints = false;
@@ -380,6 +384,10 @@ Examples:
 
                 case "--read-player-current":
                     readPlayerCurrent = true;
+                    break;
+
+                case "--find-player-orientation-candidate":
+                    findPlayerOrientationCandidate = true;
                     break;
 
                 case "--read-player-coord-anchor":
@@ -1254,6 +1262,14 @@ Examples:
             return ReaderOptionsParseResult.Fail("--navigate-waypoints requires --destination-waypoint.", UsageText);
         }
 
+        if (findPlayerOrientationCandidate)
+        {
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || address.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with scan, probe, capture, navigation, snapshot, or other reader modes.", UsageText);
+            }
+        }
+
         if (scanRequested && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
@@ -1585,6 +1601,7 @@ Examples:
                     ReadReaderBridgeSnapshot: false,
                     ReaderBridgeSnapshotFile: null,
                     JsonOutput: jsonOutput,
+                    FindPlayerOrientationCandidate: findPlayerOrientationCandidate,
                     ReadNavigationCurrent: readNavigationCurrent,
                     NavigateWaypoints: navigateWaypoints,
                     NavigationWaypointFile: navigationWaypointFile,

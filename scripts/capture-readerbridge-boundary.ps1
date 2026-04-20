@@ -7,17 +7,19 @@ param(
     [switch]$NoTrigger,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus,
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\readerbridge-boundary.json')
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\readerbridge-boundary.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path $PSScriptRoot 'actor-facing-common.ps1')
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
 
-$repoRoot = Get-RiftReaderRepoRoot -ScriptRoot $PSScriptRoot
+. (Join-Path $scriptRoot 'actor-facing-common.ps1')
+
+$repoRoot = Get-RiftReaderRepoRoot -ScriptRoot $scriptRoot
 $readerProject = Get-RiftReaderProjectPath -RepoRoot $repoRoot
-$postCommandScript = Join-Path $PSScriptRoot 'post-rift-command.ps1'
+$postCommandScript = Join-Path $scriptRoot 'post-rift-command.ps1'
 $postCommandAhkScript = Join-Path $PSScriptRoot 'post-rift-command-ahk.ps1'
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 

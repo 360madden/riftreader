@@ -111,6 +111,31 @@ function Get-VectorMagnitude {
     return [Math]::Sqrt(($x * $x) + ($y * $y) + ($z * $z))
 }
 
+function Get-VectorDotProduct {
+    param(
+        $Left,
+        $Right
+    )
+
+    if ($null -eq $Left -or $null -eq $Right) {
+        return $null
+    }
+
+    $leftX = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Left -PropertyName 'X')
+    $leftY = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Left -PropertyName 'Y')
+    $leftZ = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Left -PropertyName 'Z')
+    $rightX = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Right -PropertyName 'X')
+    $rightY = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Right -PropertyName 'Y')
+    $rightZ = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Right -PropertyName 'Z')
+
+    if ($null -eq $leftX -or $null -eq $leftY -or $null -eq $leftZ -or
+        $null -eq $rightX -or $null -eq $rightY -or $null -eq $rightZ) {
+        return $null
+    }
+
+    return ($leftX * $rightX) + ($leftY * $rightY) + ($leftZ * $rightZ)
+}
+
 function Normalize-AngleRadians {
     param([double]$Radians)
 
@@ -301,15 +326,48 @@ function Get-ActorFacingBasisMetrics {
     $forwardEstimate = Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'ForwardEstimate'
     $upEstimate = Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'UpEstimate'
     $rightEstimate = Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'RightEstimate'
+    $forwardVector = Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'Forward'
+    $upVector = Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'Up'
+    $rightVector = Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'Right'
+
+    $forwardMagnitude = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $forwardEstimate -PropertyName 'Magnitude')
+    if ($null -eq $forwardMagnitude) {
+        $forwardMagnitude = Get-VectorMagnitude -Vector $forwardVector
+    }
+
+    $upMagnitude = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $upEstimate -PropertyName 'Magnitude')
+    if ($null -eq $upMagnitude) {
+        $upMagnitude = Get-VectorMagnitude -Vector $upVector
+    }
+
+    $rightMagnitude = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $rightEstimate -PropertyName 'Magnitude')
+    if ($null -eq $rightMagnitude) {
+        $rightMagnitude = Get-VectorMagnitude -Vector $rightVector
+    }
+
+    $forwardDotUp = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'ForwardDotUp')
+    if ($null -eq $forwardDotUp) {
+        $forwardDotUp = Get-VectorDotProduct -Left $forwardVector -Right $upVector
+    }
+
+    $forwardDotRight = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'ForwardDotRight')
+    if ($null -eq $forwardDotRight) {
+        $forwardDotRight = Get-VectorDotProduct -Left $forwardVector -Right $rightVector
+    }
+
+    $upDotRight = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'UpDotRight')
+    if ($null -eq $upDotRight) {
+        $upDotRight = Get-VectorDotProduct -Left $upVector -Right $rightVector
+    }
 
     return [pscustomobject]@{
         Determinant                   = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'Determinant')
-        ForwardMagnitude              = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $forwardEstimate -PropertyName 'Magnitude')
-        UpMagnitude                   = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $upEstimate -PropertyName 'Magnitude')
-        RightMagnitude                = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $rightEstimate -PropertyName 'Magnitude')
-        ForwardDotUp                  = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'ForwardDotUp')
-        ForwardDotRight               = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'ForwardDotRight')
-        UpDotRight                    = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $Basis -PropertyName 'UpDotRight')
+        ForwardMagnitude              = $forwardMagnitude
+        UpMagnitude                   = $upMagnitude
+        RightMagnitude                = $rightMagnitude
+        ForwardDotUp                  = $forwardDotUp
+        ForwardDotRight               = $forwardDotRight
+        UpDotRight                    = $upDotRight
         DuplicateBasisMaximumRowDelta = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $DuplicateBasisAgreement -PropertyName 'MaxRowDeltaMagnitude')
     }
 }

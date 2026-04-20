@@ -6,19 +6,21 @@ param(
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
-    [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
-    [string]$OrientationOutputFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.json'),
-    [string]$OrientationPreviousFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.previous.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-actor-facing.json'),
-    [string]$PreviousFile = (Join-Path $PSScriptRoot 'captures\player-actor-facing.previous.json')
+    [string]$OwnerComponentsFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json'),
+    [string]$OrientationOutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.json'),
+    [string]$OrientationPreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-orientation.previous.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-facing.json'),
+    [string]$PreviousFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-actor-facing.previous.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path $PSScriptRoot 'actor-facing-common.ps1')
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
 
-$captureOrientationScript = Join-Path $PSScriptRoot 'capture-actor-orientation.ps1'
+. (Join-Path $scriptRoot 'actor-facing-common.ps1')
+
+$captureOrientationScript = Join-Path $scriptRoot 'capture-actor-orientation.ps1'
 $resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
 $resolvedOrientationOutputFile = [System.IO.Path]::GetFullPath($OrientationOutputFile)
 $resolvedOrientationPreviousFile = [System.IO.Path]::GetFullPath($OrientationPreviousFile)

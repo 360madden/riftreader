@@ -254,7 +254,7 @@ function Get-GitWorktrees {
                 $worktrees.Add([pscustomobject]@{
                         path      = (Convert-ToDashboardPath $current.path)
                         head      = $current.head
-                        branch    = $current.branch
+                        branch    = if ($current.Contains('branch')) { $current.branch } else { $null }
                         isCurrent = ((Convert-ToDashboardPath $current.path) -eq (Convert-ToDashboardPath $RepoRoot))
                     })
             }

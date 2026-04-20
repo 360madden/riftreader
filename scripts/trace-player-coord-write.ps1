@@ -6,6 +6,8 @@ param(
     [int]$MovementHoldMilliseconds = 1000,
     [int]$TimeoutSeconds = 8,
     [int]$MaxCandidates = 8,
+    [ValidateSet('auto', 'default', 'interface-1', 'interface-2')]
+    [string]$PreferredAttachLabel = 'default',
     [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt')
@@ -197,7 +199,7 @@ function Get-CoordTraceResult {
     & $ceExecScript -LuaFile $traceLuaFile | Out-Null
 
     $luaCode = @"
-return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]])
+return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]], nil, '$PreferredAttachLabel')
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
@@ -224,7 +226,14 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
     }
 
     if ($lastStatus) {
-        return Convert-StatusToTraceAttempt -Status $lastStatus -AddressHex $AddressHex -Source $Source -Success $false
+        $attempt = Convert-StatusToTraceAttempt -Status $lastStatus -AddressHex $AddressHex -Source $Source -Success $false
+        $attempt.Status = 'timeout'
+        if ([string]::IsNullOrWhiteSpace([string]$attempt.Error)) {
+            $lastObservedStatus = [string](Get-ObjectValue -Object $lastStatus -Name 'status')
+            $attempt.Error = "Timed out after ${TimeoutSeconds}s waiting for a verified trace hit. Last CE status: '$lastObservedStatus'."
+        }
+
+        return $attempt
     }
 
     return [pscustomobject]@{
@@ -392,6 +401,15 @@ function Cleanup-Trace {
     }
     catch {
         Write-Warning ("Unable to clean up the CE trace helper cleanly: {0}" -f $_.Exception.Message)
+    }
+
+    if (Test-Path -LiteralPath $resolvedStatusFile) {
+        try {
+            Remove-Item -LiteralPath $resolvedStatusFile -Force
+        }
+        catch {
+            Write-Warning ("Unable to remove stale coord-trace status file '{0}': {1}" -f $resolvedStatusFile, $_.Exception.Message)
+        }
     }
 }
 

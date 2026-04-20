@@ -3,16 +3,17 @@ param(
     [switch]$Json,
     [switch]$RefreshSelectorTrace,
     [int]$MaxEntries = 16,
-    [string]$SelectorTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json')
+    [string]$SelectorTraceFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-selector-owner-trace.json'),
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\player-owner-components.json')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$selectorTraceScript = Join-Path $PSScriptRoot 'trace-player-selector-owner.ps1'
+$selectorTraceScript = Join-Path $scriptRoot 'trace-player-selector-owner.ps1'
 $resolvedSelectorTraceFile = [System.IO.Path]::GetFullPath($SelectorTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 

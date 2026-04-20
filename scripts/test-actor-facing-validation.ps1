@@ -9,19 +9,26 @@ param(
     [int]$WaitMilliseconds = 250,
     [switch]$NoAhkFallback,
     [switch]$SkipBackgroundFocus,
+    [string]$TurnLeftKey = 'A',
+    [string]$TurnRightKey = 'D',
+    [string]$MoveForwardKey = 'W',
+    [switch]$UseBackgroundPostKey,
     [switch]$RefreshOwnerComponents,
-    [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-facing-validation.json'),
-    [string]$HistoryFile = (Join-Path $PSScriptRoot 'captures\actor-facing-validation-history.ndjson')
+    [string]$OwnerComponentsFile,
+    [string]$OutputFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\actor-facing-validation.json'),
+    [string]$HistoryFile = (Join-Path $(if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }) 'captures\actor-facing-validation-history.ndjson')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path $PSScriptRoot 'actor-facing-common.ps1')
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
 
-$boundaryCaptureScript = Join-Path $PSScriptRoot 'capture-readerbridge-boundary.ps1'
-$facingCaptureScript = Join-Path $PSScriptRoot 'capture-actor-facing.ps1'
-$keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+. (Join-Path $scriptRoot 'actor-facing-common.ps1')
+
+$boundaryCaptureScript = Join-Path $scriptRoot 'capture-readerbridge-boundary.ps1'
+$facingCaptureScript = Join-Path $scriptRoot 'capture-actor-facing.ps1'
+$keyScript = Join-Path $scriptRoot $(if ($UseBackgroundPostKey) { 'post-rift-key.ps1' } else { 'send-rift-key.ps1' })
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedHistoryFile = [System.IO.Path]::GetFullPath($HistoryFile)
 $thresholds = Get-ActorFacingThresholds
@@ -44,9 +51,9 @@ function Get-StimulusKey {
     param([string]$StimulusType)
 
     switch ($StimulusType) {
-        'turn-left' { return 'Left' }
-        'turn-right' { return 'Right' }
-        'move-forward' { return 'W' }
+        'turn-left' { return $TurnLeftKey }
+        'turn-right' { return $TurnRightKey }
+        'move-forward' { return $MoveForwardKey }
         default { return $null }
     }
 }
@@ -115,6 +122,9 @@ function Invoke-FacingCapture {
     }
     if ($RefreshOwnerComponents) {
         $arguments['RefreshOwnerComponents'] = $true
+    }
+    if (-not [string]::IsNullOrWhiteSpace($OwnerComponentsFile)) {
+        $arguments['OwnerComponentsFile'] = $OwnerComponentsFile
     }
     if ($NoAhkFallback) {
         $arguments['NoAhkFallback'] = $true
@@ -196,7 +206,7 @@ function Invoke-Stimulus {
         Key              = $key
         HoldMilliseconds = $HoldMilliseconds
     }
-    if ($SkipBackgroundFocus) {
+    if ($UseBackgroundPostKey -and $SkipBackgroundFocus) {
         $keyArgs['SkipBackgroundFocus'] = $true
     }
 
