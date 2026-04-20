@@ -281,6 +281,26 @@ function Normalize-HexOffset {
     return $trimmed.ToUpperInvariant()
 }
 
+function Add-HexOffset {
+    param(
+        [string]$BaseOffset,
+        [int]$Delta
+    )
+
+    $normalizedBaseOffset = Normalize-HexOffset -Value $BaseOffset
+    if ([string]::IsNullOrWhiteSpace($normalizedBaseOffset)) {
+        return $null
+    }
+
+    $trimmed = $normalizedBaseOffset
+    if ($trimmed.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $trimmed = $trimmed.Substring(2)
+    }
+
+    $numericValue = [Convert]::ToInt32($trimmed, 16)
+    return ('0x{0:X}' -f ($numericValue + $Delta))
+}
+
 function Get-BehaviorBackedLead {
     param([string]$FilePath)
 
@@ -314,9 +334,15 @@ function Get-BehaviorBackedLead {
         SourceAddress                      = $sourceAddress
         BasisPrimaryForwardOffset          = $basisPrimaryForwardOffset
         BasisDuplicateForwardOffset        = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'BasisDuplicateForwardOffset'))
+        HotSiblingForwardZOffset           = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'HotSiblingForwardZOffset'))
         Status                             = [string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'Status')
+        CanonicalSolvedActorYaw            = [bool]$($(if ($document.PSObject.Properties.Name -contains 'CanonicalSolvedActorYaw') { $document.CanonicalSolvedActorYaw } else { $true }))
+        YawDerivationFormula               = [string]$($(if ($document.PSObject.Properties.Name -contains 'YawDerivationFormula') { $document.YawDerivationFormula } else { 'atan2(forwardZ, forwardX)' }))
+        PitchDerivationFormula             = [string]$($(if ($document.PSObject.Properties.Name -contains 'PitchDerivationFormula') { $document.PitchDerivationFormula } else { 'atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))' }))
+        StandaloneYawFloatStatus           = [string]$($(if ($document.PSObject.Properties.Name -contains 'StandaloneYawFloatStatus') { $document.StandaloneYawFloatStatus } else { 'not-required-unless-contradicted' }))
+        ReopenStandaloneYawOnlyIfContradicted = [bool]$($(if ($document.PSObject.Properties.Name -contains 'ReopenStandaloneYawOnlyIfContradicted') { $document.ReopenStandaloneYawOnlyIfContradicted } else { $true }))
         Notes                              = @((Get-OptionalPropertyValue -InputObject $document -PropertyName 'Notes'))
-        CanonicalSolvedActorFacing         = [bool]$(if ($document.PSObject.Properties.Name -contains 'CanonicalSolvedActorFacing') { $document.CanonicalSolvedActorFacing } else { $true })
+        CanonicalSolvedActorFacing         = [bool]$($(if ($document.PSObject.Properties.Name -contains 'CanonicalSolvedActorFacing') { $document.CanonicalSolvedActorFacing } else { $true }))
         SupersededRejectedSourceAddress    = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'SupersededRejectedSourceAddress'))
         SupersededRejectedBasisForwardOffset = Normalize-HexOffset -Value ([string](Get-OptionalPropertyValue -InputObject $document -PropertyName 'SupersededRejectedBasisForwardOffset'))
     }
@@ -594,12 +620,19 @@ function ConvertTo-ActorFacingSample {
         $resolutionMode = $sourceName
     }
     $isBehaviorBackedLead = $resolutionMode -eq 'behavior-backed-lead'
+    $basisForwardOffset = Resolve-ActorFacingBasisForwardOffset -ReaderOrientation $readerOrientation
+    $forwardXOffset = $basisForwardOffset
+    $forwardYOffset = Add-HexOffset -BaseOffset $basisForwardOffset -Delta 4
+    $forwardZOffset = Add-HexOffset -BaseOffset $basisForwardOffset -Delta 8
 
     $notes = New-Object System.Collections.Generic.List[string]
     $notes.Add('Navigation-facing derivation uses the planar X/Z projection of the actor forward row.')
+    $notes.Add('Actor yaw is derived from atan2(forwardZ, forwardX); no standalone yaw float is treated as canonical truth in this workflow.')
     if ($isBehaviorBackedLead) {
         $notes.Add('This capture is currently pinned to the canonical solved actor-facing source.')
         $notes.Add('Forward movement validation is tracked separately and should not reopen actor-facing discovery by itself.')
+        $notes.Add("The hot traced sibling component for actor yaw remains forward Z at $forwardZOffset.")
+        $notes.Add('Do not reopen standalone yaw-float hunting unless fresh live evidence directly contradicts this basis-derived actor yaw source.')
     }
     foreach ($note in @((Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'Notes'))) {
         if (-not [string]::IsNullOrWhiteSpace([string]$note)) {
@@ -632,7 +665,19 @@ function ConvertTo-ActorFacingSample {
         DuplicateBasisDelta            = $metrics.DuplicateBasisMaximumRowDelta
         ResolutionMode                 = $resolutionMode
         ResolutionNotes                = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'ResolutionNotes'
-        BasisForwardOffset             = Resolve-ActorFacingBasisForwardOffset -ReaderOrientation $readerOrientation
+        BasisForwardOffset             = $basisForwardOffset
+        ForwardComponentOffsets        = [pscustomobject]@{
+            X = $forwardXOffset
+            Y = $forwardYOffset
+            Z = $forwardZOffset
+        }
+        HotTracedSiblingOffset         = $forwardZOffset
+        YawTruthMode                   = if ($isBehaviorBackedLead) { 'derived-from-canonical-forward-basis' } else { 'derived-from-sampled-forward-basis' }
+        YawDerivationFormula           = 'atan2(forwardZ, forwardX)'
+        PitchDerivationFormula         = 'atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))'
+        CanonicalActorYaw              = $isBehaviorBackedLead
+        StandaloneYawFloatStatus       = if ($isBehaviorBackedLead) { 'not-required-unless-contradicted' } else { 'unverified' }
+        StandaloneYawFloatSearchPolicy = if ($isBehaviorBackedLead) { 'do-not-reopen-without-contradiction' } else { $null }
         PreferredBasisName             = Get-OptionalPropertyValue -InputObject $preferredBasis -PropertyName 'Name'
         ArtifactFile                   = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'ArtifactFile'
         ArtifactGeneratedAtUtc         = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'ArtifactGeneratedAtUtc'

@@ -26,6 +26,8 @@ is **rejected** and must not be trusted or silently re-promoted.
 | Basis forward offset | `0xD4` |
 | Forward block start | `0x1B115201F84` |
 | Sibling component | `0x1B115201F8C` |
+| Actor yaw formula | `atan2(forwardZ, forwardX)` |
+| Hot traced sibling offset | `0xDC` |
 | Dominant live access anchor | `rift_x64.exe+0x5CDC93 : movss xmm3,[rcx+8]` |
 | Repo status | `preferred-solved-lead` |
 | Operational status | `behavior-backed-lead` |
@@ -77,6 +79,8 @@ is **rejected** and must not be trusted or silently re-promoted.
 | Policy | Meaning |
 |---|---|
 | Canonical source | `0x1B115201EB0 + 0xD4` is the default actor-facing source |
+| Canonical actor yaw | derived from the canonical forward basis row, not a separately promoted standalone float |
+| Standalone yaw-float search | do not reopen unless fresh live evidence contradicts the canonical basis-derived yaw source |
 | Reopen rule | Do not reopen actor-facing discovery unless fresh live evidence contradicts the canonical source |
 | Forward validation | Treat forward movement / navigation proof as a separate downstream track |
 | Promotion rule | Do not promote any conflicting source without fresh proof that beats the canonical solved lead |
@@ -88,4 +92,3 @@ is **rejected** and must not be trusted or silently re-promoted.
 | Actor-facing | solved |
 | Forward movement validation | pending |
 | Navigation-grade contract | pending repeated forward proof |
-

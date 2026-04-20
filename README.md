@@ -40,10 +40,13 @@ forward/navigation proof tracked separately.
 | Area | Current workflow status |
 |---|---|
 | Canonical actor-facing source | `0x1B115201EB0 + 0xD4` |
+| Canonical actor-yaw derivation | `atan2(forwardZ, forwardX)` from `+0xD4/+0xDC` |
+| Hot traced sibling component | `+0xDC` (forward Z) |
 | Rejected incumbent | `0x1B1230D39E0 + 0x144` (**do not use**) |
 | Movement truth | direct player-current-anchor boundary or addon-exported coords, depending on validation mode |
 | Math / thresholds | fixed and offline-tested |
 | Actor-facing authority | **solved** for left/right turn behavior |
+| Actor-yaw authority | **solved** as a derived value from the canonical actor-facing basis |
 | Forward/navigation authority | separate downstream track; still pending |
 | Output artifacts | actor-facing sample, validation history, navigation-facing contract |
 | Non-goals | no camera discovery, no auto-turn implementation in this pass |
@@ -55,6 +58,8 @@ Use these helpers:
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd`
 - `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd`
 - `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.cmd`
+- `C:\RIFT MODDING\RiftReader_facing\scripts\print-live-actor-yaw.cmd`
+- `C:\RIFT MODDING\RiftReader_facing\scripts\assert-actor-yaw-truth.cmd`
 
 See:
 
@@ -572,6 +577,8 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.cmd` - run `idle`, `turn-left`, `turn-right`, or `move-forward` validation loops and append per-run evidence to the actor-facing validation history
 - `C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.ps1` / `C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.cmd` - verify that a candidate gameplay key actually produces live player-current-anchor movement before retrying downstream `move-forward` validation
 - `C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.ps1` / `C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.cmd` - compare ReaderBridge, player-current-anchor, actor-orientation-source, and `--read-player-current` coordinate sources to detect movement-truth source mismatch before blaming solved actor-facing
+- `C:\RIFT MODDING\RiftReader_facing\scripts\print-live-actor-yaw.ps1` / `C:\RIFT MODDING\RiftReader_facing\scripts\print-live-actor-yaw.cmd` - capture or reuse the canonical solved actor-facing sample and print the live derived actor yaw from `0x1B115201EB0 + 0xD4`, with the hot traced sibling at `+0xDC`
+- `C:\RIFT MODDING\RiftReader_facing\scripts\assert-actor-yaw-truth.ps1` / `C:\RIFT MODDING\RiftReader_facing\scripts\assert-actor-yaw-truth.cmd` - assert that actor yaw is still solved through the canonical basis-derived source, that turn-left / turn-right regression evidence still exists, and that the rejected incumbent `0x1B1230D39E0 + 0x144` stays rejected
 - `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.ps1` / `C:\RIFT MODDING\RiftReader\scripts\build-navigation-facing-contract.cmd` - evaluate the latest matching facing sample plus validation history and emit the current navigation-facing contract as `actor-facing-solved-forward-pending`, `confirmed`, or `rejected`
 - `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.ps1` / `C:\RIFT MODDING\RiftReader\scripts\analyze-actor-facing-passive.cmd` - build a passive no-movement actor-facing baseline from the latest ReaderBridge snapshot plus the current owner/source artifacts, including addon-facing-signal and historical-drift checks
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` / `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.cmd` - force a fresh ReaderBridge export via the native no-focus `/reloadui` path and automatically fall back to the known-good AutoHotkey helper if the native post does not advance `ReaderBridgeExport.lua`

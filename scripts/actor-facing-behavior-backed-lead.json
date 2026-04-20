@@ -4,8 +4,14 @@
   "ProcessName": "rift_x64",
   "SourceAddress": "0x1B115201EB0",
   "BasisPrimaryForwardOffset": "0xD4",
+  "HotSiblingForwardZOffset": "0xDC",
   "Status": "preferred-solved-lead",
   "CanonicalSolvedActorFacing": true,
+  "CanonicalSolvedActorYaw": true,
+  "YawDerivationFormula": "atan2(forwardZ, forwardX)",
+  "PitchDerivationFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
+  "StandaloneYawFloatStatus": "not-required-unless-contradicted",
+  "ReopenStandaloneYawOnlyIfContradicted": true,
   "SupersededRejectedSourceAddress": "0x1B1230D39E0",
   "SupersededRejectedBasisForwardOffset": "0x144",
   "PromotionEvidence": [
@@ -16,6 +22,8 @@
   "Notes": [
     "Validated through AutoHotkey-backed visible A and D turn stimulus on April 19, 2026.",
     "The strongest recurring live access anchor is rift_x64.exe+0x5CDC93 reading movss xmm3,[rcx+8] with RCX=0x1B115201F84 and effective address 0x1B115201F8C.",
+    "Actor yaw is derived from the canonical forward basis row via atan2(forwardZ, forwardX); no standalone yaw float is promoted to truth unless this basis source is contradicted.",
+    "The hot traced sibling component for the canonical actor-yaw path is forward Z at +0xDC.",
     "This is the canonical solved actor-facing source unless newer live evidence disproves it.",
     "Forward movement / navigation proof remains a separate downstream track.",
     "The previously rejected incumbent was 0x1B1230D39E0 + 0x144."

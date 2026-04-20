@@ -158,9 +158,15 @@ function Write-ActorFacingText {
     $lines.Add("Status:                      $($sample.Status)")
     $lines.Add("Operational status:          $(if ($sample.OperationalStatus) { $sample.OperationalStatus } else { 'n/a' })")
     $lines.Add("Solved actor-facing:         $(if ($sample.SolvedActorFacing) { 'true' } else { 'false' })")
+    $lines.Add("Canonical actor yaw:         $(if ($sample.CanonicalActorYaw) { 'true' } else { 'false' })")
     $lines.Add("Forward vector:              $(Format-Vector $sample.ForwardVector)")
+    $lines.Add("Forward offsets (x/y/z):     $(if ($sample.ForwardComponentOffsets) { \"$($sample.ForwardComponentOffsets.X) / $($sample.ForwardComponentOffsets.Y) / $($sample.ForwardComponentOffsets.Z)\" } else { 'n/a' })")
+    $lines.Add("Hot traced sibling offset:   $(if ($sample.HotTracedSiblingOffset) { $sample.HotTracedSiblingOffset } else { 'n/a' })")
     $lines.Add("Planar forward:              $(Format-PlanarVector $sample.PlanarForward)")
     $lines.Add("Yaw/pitch (deg):             $(Format-Nullable $sample.YawDegrees '0.000') / $(Format-Nullable $sample.PitchDegrees '0.000')")
+    $lines.Add("Yaw truth mode:              $(if ($sample.YawTruthMode) { $sample.YawTruthMode } else { 'n/a' })")
+    $lines.Add("Yaw formula:                 $(if ($sample.YawDerivationFormula) { $sample.YawDerivationFormula } else { 'n/a' })")
+    $lines.Add("Standalone yaw float status: $(if ($sample.StandaloneYawFloatStatus) { $sample.StandaloneYawFloatStatus } else { 'n/a' })")
     $lines.Add("Basis determinant:           $(Format-Nullable $sample.Determinant '0.000000')")
     $lines.Add("Basis row magnitudes:        f $(Format-Nullable $sample.RowMagnitudes.Forward '0.000000') | u $(Format-Nullable $sample.RowMagnitudes.Up '0.000000') | r $(Format-Nullable $sample.RowMagnitudes.Right '0.000000')")
     $lines.Add("Basis row dots:              f·u $(Format-Nullable $sample.RowDotProducts.ForwardUp '0.000000') | f·r $(Format-Nullable $sample.RowDotProducts.ForwardRight '0.000000') | u·r $(Format-Nullable $sample.RowDotProducts.UpRight '0.000000')")
@@ -227,6 +233,7 @@ $notes = New-Object System.Collections.Generic.List[string]
 if ($sample.SolvedActorFacing) {
     $notes.Add('This helper normalizes the canonical solved actor-facing source into a navigation-ready sample.')
     $notes.Add('Forward movement validation remains a separate downstream track and should not reopen actor-facing discovery by itself.')
+    $notes.Add('Actor yaw is derived from the canonical forward basis row via atan2(forwardZ, forwardX); no standalone yaw float is promoted to truth unless this source is contradicted.')
 }
 else {
     $notes.Add('This helper normalizes the current selected-source basis into a navigation-ready actor-facing sample.')
@@ -235,6 +242,10 @@ else {
 $notes.Add('A confirmed navigation-facing contract still requires separate live movement validation.')
 if ($null -ne $canonicalLead) {
     $notes.Add("Canonical solved actor-facing source: $($canonicalLead.SourceAddress) @ $($canonicalLead.BasisPrimaryForwardOffset).")
+    $notes.Add("Canonical actor-yaw formula: $($canonicalLead.YawDerivationFormula).")
+    if (-not [string]::IsNullOrWhiteSpace($canonicalLead.HotSiblingForwardZOffset)) {
+        $notes.Add("Hot traced sibling offset for actor yaw: $($canonicalLead.HotSiblingForwardZOffset).")
+    }
     if (-not [string]::IsNullOrWhiteSpace($canonicalLead.SupersededRejectedSourceAddress)) {
         $notes.Add("Superseded rejected incumbent: $($canonicalLead.SupersededRejectedSourceAddress) @ $($canonicalLead.SupersededRejectedBasisForwardOffset).")
     }

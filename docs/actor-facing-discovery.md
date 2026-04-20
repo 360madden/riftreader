@@ -5,6 +5,10 @@
 > Actor-facing is now **solved for the canonical live source**
 > `0x1B115201EB0 + 0xD4`.
 >
+> Actor yaw is now **solved as a derived value** from that same canonical basis
+> row via `atan2(forwardZ, forwardX)`. The hot traced sibling component remains
+> forward Z at `+0xDC`.
+>
 > The older incumbent `0x1B1230D39E0 + 0x144` is **rejected** and must not be
 > reused.
 >
@@ -30,6 +34,8 @@ correlation remains pending.
 | Area | Current state |
 |---|---|
 | Canonical actor-facing source | `0x1B115201EB0 + 0xD4` |
+| Canonical actor-yaw support | derived from `+0xD4/+0xDC` |
+| Hot traced sibling component | `+0xDC` |
 | Rejected incumbent | `0x1B1230D39E0 + 0x144` |
 | Ground truth for movement | direct player-current-anchor boundary or addon-exported coords captured at experiment boundaries |
 | Facing math | fixed and offline-tested |
@@ -52,6 +58,10 @@ Use this contract everywhere in discovery and later navigation:
 | Turn error to waypoint | `Normalize(atan2(targetDeltaZ, targetDeltaX) - actorYawRadians)` |
 | Flat-ground navigation usage | consume yaw / planar forward only; keep pitch as evidence |
 
+Actor yaw in this repo is therefore **derived truth**, not a separately
+promoted standalone yaw float. Do not reopen standalone yaw-float hunting unless
+new live evidence directly contradicts the canonical basis-derived source.
+
 ## Implemented artifacts
 
 ### 1. Actor-facing sample
@@ -71,6 +81,7 @@ actor-facing document with:
 - forward vector
 - planar forward
 - yaw / pitch radians and degrees
+- yaw derivation formula / truth mode / standalone-yaw-float policy
 - determinant
 - row magnitudes
 - cross-row dot products
@@ -201,6 +212,8 @@ Use:
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-validation.ps1`
 - `C:\RIFT MODDING\RiftReader_facing\scripts\test-player-movement-stimulus.ps1` when the remaining question is whether a gameplay key produces real movement at all
 - `C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.ps1` when movement keys still fail and the remaining question is which coordinate truth source is stale or mismatched
+- `C:\RIFT MODDING\RiftReader_facing\scripts\print-live-actor-yaw.ps1` when you want the current live actor yaw from the canonical source without reopening discovery
+- `C:\RIFT MODDING\RiftReader_facing\scripts\assert-actor-yaw-truth.ps1` when you want a regression assertion that the canonical yaw source still matches the solved source and still has passing turn evidence
 
 Stimulus matrix:
 
@@ -275,6 +288,18 @@ Compare the live coordinate truth sources before trusting any movement verdict:
 
 ```powershell
 C:\RIFT MODDING\RiftReader_facing\scripts\compare-live-player-coord-sources.cmd
+```
+
+Print the live actor yaw from the canonical solved source:
+
+```powershell
+C:\RIFT MODDING\RiftReader_facing\scripts\print-live-actor-yaw.cmd
+```
+
+Assert that actor yaw is still solved through the canonical basis-derived path:
+
+```powershell
+C:\RIFT MODDING\RiftReader_facing\scripts\assert-actor-yaw-truth.cmd
 ```
 
 Build the current navigation-facing contract from the latest sample and history:

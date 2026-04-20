@@ -40,6 +40,7 @@ function Write-ContractText {
     $lines.Add("Generated (UTC):             $($Document.GeneratedAtUtc)")
     $lines.Add("Status:                      $($Document.Status)")
     $lines.Add("Actor-facing status:         $($Document.ActorFacingStatus)")
+    $lines.Add("Actor-yaw status:            $($Document.ActorYawStatus)")
     $lines.Add("Forward validation status:   $($Document.ForwardValidationStatus)")
     $lines.Add("Source name/address:         $($Document.AuthoritativeSourceName) / $(if ($Document.SourceAddress) { $Document.SourceAddress } else { 'n/a' })")
     $lines.Add("Forward row offset:          $(if ($Document.AuthoritativeForwardRowOffset) { $Document.AuthoritativeForwardRowOffset } else { 'n/a' })")
@@ -47,6 +48,8 @@ function Write-ContractText {
     $lines.Add("Resolution mode:             $(if ($Document.ResolutionMode) { $Document.ResolutionMode } else { 'n/a' })")
     $lines.Add("Yaw formula:                 $($Document.YawFormula)")
     $lines.Add("Pitch formula:               $($Document.PitchFormula)")
+    $lines.Add("Yaw truth mode:              $($Document.YawTruthMode)")
+    $lines.Add("Standalone yaw float status: $($Document.StandaloneYawFloatStatus)")
     $lines.Add("Planar projection:           $($Document.PlanarProjectionFormula)")
     $lines.Add("Turn error formula:          $($Document.SignedTurnErrorFormula)")
     $lines.Add("Idle pass count:             $($Document.EvidenceSummary.IdlePassCount)")
@@ -125,6 +128,7 @@ elseif ($actorFacingSolved) {
 else {
     $notes.Add('Actor-facing is not yet solved unless idle, turn-left, and turn-right all pass for the canonical source.')
 }
+$notes.Add('Actor yaw is derived from the canonical forward basis via atan2(forwardZ, forwardX); no standalone yaw float is promoted to truth unless this source is contradicted.')
 $notes.Add('Pitch is retained in the contract as evidence, but flat-ground navigation should consume planar yaw / signed turn error only.')
 $notes.Add('If runtime integrity gates fail, navigation must treat facing as unavailable and stop turning decisions.')
 if ($null -ne $canonicalLead) {
@@ -141,6 +145,7 @@ $document = [pscustomobject]@{
     OutputFile               = $resolvedOutputFile
     Status                   = if ($forwardConfirmed) { 'confirmed' } elseif ($actorFacingSolved) { 'actor-facing-solved-forward-pending' } elseif ($integrityPass) { 'candidate' } else { 'rejected' }
     ActorFacingStatus        = if ($actorFacingSolved) { 'solved' } elseif ($integrityPass) { 'candidate' } else { 'rejected' }
+    ActorYawStatus           = if ($actorFacingSolved) { 'solved-derived-from-facing' } elseif ($integrityPass) { 'candidate-derived-from-facing' } else { 'rejected' }
     ForwardValidationStatus  = if ($forwardConfirmed) { 'confirmed' } elseif ($actorFacingSolved) { 'pending-separate-track' } else { 'not-ready' }
     AuthoritativeSourceName  = Get-OptionalPropertyValue -InputObject $sample -PropertyName 'SourceName'
     SourceAddress            = $sourceAddress
@@ -150,6 +155,8 @@ $document = [pscustomobject]@{
     ResolutionMode           = Get-OptionalPropertyValue -InputObject $sample -PropertyName 'ResolutionMode'
     YawFormula               = 'atan2(forwardZ, forwardX)'
     PitchFormula             = 'atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))'
+    YawTruthMode             = Get-OptionalPropertyValue -InputObject $sample -PropertyName 'YawTruthMode'
+    StandaloneYawFloatStatus = Get-OptionalPropertyValue -InputObject $sample -PropertyName 'StandaloneYawFloatStatus'
     PlanarProjectionFormula  = 'normalize(forwardX, forwardZ)'
     SignedTurnErrorFormula   = 'Normalize(atan2(targetDeltaZ, targetDeltaX) - actorYawRadians)'
     AcceptanceThresholds     = [pscustomobject]@{
