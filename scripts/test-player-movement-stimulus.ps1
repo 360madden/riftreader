@@ -12,6 +12,8 @@ param(
     [switch]$UseAhkSendKey,
     [switch]$UseBackgroundPostKey,
     [switch]$SkipRefocus,
+    [switch]$CompareReaderBridgeBoundary,
+    [switch]$CompareActorOrientationSource,
     [string]$PlayerCurrentAnchorFile = 'captures\player-current-anchor.json',
     [string]$OutputFile = 'captures\movement-stimulus-verification.json',
     [string]$HistoryFile = 'captures\movement-stimulus-verification-history.ndjson'
@@ -44,6 +46,8 @@ Assert-PowerShell7
 
 $repoRoot = Get-RiftReaderRepoRoot -ScriptRoot $scriptRoot
 $readerProject = Get-RiftReaderProjectPath -RepoRoot $repoRoot
+$boundaryCaptureScript = Join-Path $scriptRoot 'capture-readerbridge-boundary.ps1'
+$orientationCaptureScript = Join-Path $scriptRoot 'capture-actor-orientation.ps1'
 $keyScript = if ($UseAhkSendKey) {
     Join-Path $scriptRoot 'send-rift-key-ahk.ps1'
 }
@@ -154,6 +158,93 @@ function Invoke-PlayerCurrentCoordRead {
     }
 }
 
+function Invoke-ReaderBridgeCoordRead {
+    $jsonText = & $boundaryCaptureScript -NoTrigger -Json -Label 'movement-stimulus-compare'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'ReaderBridge boundary compare read failed.'
+    }
+
+    $document = $jsonText | ConvertFrom-Json -Depth 80
+    return [pscustomobject]@{
+        Source         = 'readerbridge-boundary'
+        Coord          = Get-OptionalPropertyValue -InputObject $document -PropertyName 'PlayerCoord'
+        SnapshotFile   = Get-OptionalPropertyValue -InputObject $document -PropertyName 'SourceFile'
+        GeneratedAtUtc = Get-OptionalPropertyValue -InputObject $document -PropertyName 'GeneratedAtUtc'
+    }
+}
+
+function Invoke-ActorOrientationSourceCoordRead {
+    $jsonText = & $orientationCaptureScript -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Actor-orientation source compare read failed.'
+    }
+
+    $document = $jsonText | ConvertFrom-Json -Depth 80
+    $readerOrientation = Get-OptionalPropertyValue -InputObject $document -PropertyName 'ReaderOrientation'
+    return [pscustomobject]@{
+        Source             = 'actor-orientation-source'
+        Coord              = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'PlayerCoord'
+        SourceAddress      = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'SelectedSourceAddress'
+        ResolutionMode     = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'ResolutionMode'
+        SnapshotFile       = Get-OptionalPropertyValue -InputObject $readerOrientation -PropertyName 'SnapshotFile'
+        GeneratedAtUtc     = Get-OptionalPropertyValue -InputObject $document -PropertyName 'GeneratedAtUtc'
+    }
+}
+
+function New-CoordSourceSnapshot {
+    $snapshot = [ordered]@{}
+    $snapshot['player-current-anchor'] = [pscustomobject]@{
+        Source = 'player-current-anchor'
+        Coord  = Invoke-PlayerCurrentCoordRead
+    }
+
+    if ($CompareReaderBridgeBoundary) {
+        try {
+            $snapshot['readerbridge-boundary'] = Invoke-ReaderBridgeCoordRead
+        }
+        catch {
+            $snapshot['readerbridge-boundary'] = [pscustomobject]@{
+                Source = 'readerbridge-boundary'
+                Coord  = $null
+                Error  = $_.Exception.Message
+            }
+        }
+    }
+
+    if ($CompareActorOrientationSource) {
+        try {
+            $snapshot['actor-orientation-source'] = Invoke-ActorOrientationSourceCoordRead
+        }
+        catch {
+            $snapshot['actor-orientation-source'] = [pscustomobject]@{
+                Source = 'actor-orientation-source'
+                Coord  = $null
+                Error  = $_.Exception.Message
+            }
+        }
+    }
+
+    return [pscustomobject]$snapshot
+}
+
+function Get-CoordDeltaDocument {
+    param($BeforeCoord, $AfterCoord)
+
+    $beforeX = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $BeforeCoord -PropertyName 'X')
+    $beforeY = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $BeforeCoord -PropertyName 'Y')
+    $beforeZ = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $BeforeCoord -PropertyName 'Z')
+    $afterX = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $AfterCoord -PropertyName 'X')
+    $afterY = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $AfterCoord -PropertyName 'Y')
+    $afterZ = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $AfterCoord -PropertyName 'Z')
+
+    return [pscustomobject]@{
+        DeltaX   = if ($null -ne $beforeX -and $null -ne $afterX) { $afterX - $beforeX } else { $null }
+        DeltaY   = if ($null -ne $beforeY -and $null -ne $afterY) { $afterY - $beforeY } else { $null }
+        DeltaZ   = if ($null -ne $beforeZ -and $null -ne $afterZ) { $afterZ - $beforeZ } else { $null }
+        Distance = Get-PlanarDistance -LeftCoord $BeforeCoord -RightCoord $AfterCoord
+    }
+}
+
 function Invoke-StimulusKey {
     param(
         [Parameter(Mandatory = $true)][string]$Key,
@@ -205,12 +296,14 @@ function Write-VerificationText {
     $lines.Add("Pre-key hold/wait ms:        $($Document.PreKeyHoldMilliseconds) / $($Document.PreKeyWaitMilliseconds)")
     $lines.Add("Minimum planar distance:     $(Format-Nullable $Document.MinimumPlanarDistance '0.000')")
     $lines.Add("Summary verdict:             $($Document.Summary.OverallVerdict)")
+    $lines.Add("Primary-source working keys: $(if ($Document.Summary.PrimarySourceWorkingKeys.Count -gt 0) { $Document.Summary.PrimarySourceWorkingKeys -join ', ' } else { 'none' })")
     $lines.Add("Working keys:                $(if ($Document.Summary.WorkingKeys.Count -gt 0) { $Document.Summary.WorkingKeys -join ', ' } else { 'none' })")
+    $lines.Add("Source-mismatch keys:        $(if ($Document.Summary.SourceMismatchKeys.Count -gt 0) { $Document.Summary.SourceMismatchKeys -join ', ' } else { 'none' })")
     $lines.Add("Non-moving keys:             $(if ($Document.Summary.NonMovingKeys.Count -gt 0) { $Document.Summary.NonMovingKeys -join ', ' } else { 'none' })")
     $lines.Add('Results:')
 
     foreach ($entry in $Document.Results) {
-        $lines.Add("  - $($entry.Key) run $($entry.Iteration): $($entry.Verdict) | move $(Format-Nullable $entry.PlanarCoordDelta.Distance '0.000000') | heading $(Format-Nullable $entry.ObservedMovementHeadingDegrees '0.000') | failure $(if ($entry.FailureShape) { $entry.FailureShape } else { 'n/a' })")
+        $lines.Add("  - $($entry.Key) run $($entry.Iteration): $($entry.Verdict) | primary move $(Format-Nullable $entry.PlanarCoordDelta.Distance '0.000000') | any-source $($entry.AnySourceMoved) | sources $(if ($entry.MovingSources.Count -gt 0) { $entry.MovingSources -join ', ' } else { 'none' }) | heading $(Format-Nullable $entry.ObservedMovementHeadingDegrees '0.000') | failure $(if ($entry.FailureShape) { $entry.FailureShape } else { 'n/a' })")
     }
 
     return [string]::Join([Environment]::NewLine, $lines)
@@ -225,37 +318,57 @@ foreach ($key in $Keys) {
     }
 
     for ($iteration = 1; $iteration -le $RepeatCount; $iteration++) {
-        $beforeCoord = Invoke-PlayerCurrentCoordRead
+        $beforeSources = New-CoordSourceSnapshot
+        $beforeCoord = (Get-OptionalPropertyValue -InputObject $beforeSources -PropertyName 'player-current-anchor').Coord
         Invoke-PreKeys
         Invoke-StimulusKey -Key $key
         Start-Sleep -Milliseconds $WaitMilliseconds
-        $afterCoord = Invoke-PlayerCurrentCoordRead
+        $afterSources = New-CoordSourceSnapshot
+        $afterCoord = (Get-OptionalPropertyValue -InputObject $afterSources -PropertyName 'player-current-anchor').Coord
 
-        $beforeX = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $beforeCoord -PropertyName 'X')
-        $beforeY = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $beforeCoord -PropertyName 'Y')
-        $beforeZ = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $beforeCoord -PropertyName 'Z')
-        $afterX = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $afterCoord -PropertyName 'X')
-        $afterY = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $afterCoord -PropertyName 'Y')
-        $afterZ = Convert-ToFiniteDouble (Get-OptionalPropertyValue -InputObject $afterCoord -PropertyName 'Z')
-
-        $planarDelta = [pscustomobject]@{
-            DeltaX   = if ($null -ne $beforeX -and $null -ne $afterX) { $afterX - $beforeX } else { $null }
-            DeltaZ   = if ($null -ne $beforeZ -and $null -ne $afterZ) { $afterZ - $beforeZ } else { $null }
-            Distance = Get-PlanarDistance -LeftCoord $beforeCoord -RightCoord $afterCoord
-        }
-        $verticalDelta = if ($null -ne $beforeY -and $null -ne $afterY) { $afterY - $beforeY } else { $null }
+        $planarDelta = Get-CoordDeltaDocument -BeforeCoord $beforeCoord -AfterCoord $afterCoord
+        $verticalDelta = $planarDelta.DeltaY
         $observedHeadingRadians = Get-ObservedHeadingRadians -BeforeCoord $beforeCoord -AfterCoord $afterCoord
         $observedHeadingDegrees = if ($null -ne $observedHeadingRadians) { Convert-RadiansToDegrees -Radians $observedHeadingRadians } else { $null }
-        $moved = ([double]$planarDelta.Distance) -ge $MinimumPlanarDistance
+        $primaryMoved = ([double]$planarDelta.Distance) -ge $MinimumPlanarDistance
+
+        $sourceDeltas = [ordered]@{}
+        foreach ($property in $beforeSources.PSObject.Properties) {
+            $beforeSource = $property.Value
+            $afterSource = Get-OptionalPropertyValue -InputObject $afterSources -PropertyName $property.Name
+            $beforeSourceCoord = Get-OptionalPropertyValue -InputObject $beforeSource -PropertyName 'Coord'
+            $afterSourceCoord = Get-OptionalPropertyValue -InputObject $afterSource -PropertyName 'Coord'
+            $delta = Get-CoordDeltaDocument -BeforeCoord $beforeSourceCoord -AfterCoord $afterSourceCoord
+            $sourceDeltas[$property.Name] = [pscustomobject]@{
+                Source = $property.Name
+                Delta  = $delta
+                Before = $beforeSourceCoord
+                After  = $afterSourceCoord
+                Error  = if ($null -ne $beforeSource -and $beforeSource.PSObject.Properties['Error']) { $beforeSource.Error } elseif ($null -ne $afterSource -and $afterSource.PSObject.Properties['Error']) { $afterSource.Error } else { $null }
+            }
+        }
+
+        $movingSources = @($sourceDeltas.GetEnumerator() | Where-Object {
+                $delta = $_.Value.Delta
+                $null -ne $delta -and $null -ne $delta.Distance -and ([double]$delta.Distance) -ge $MinimumPlanarDistance
+            } | ForEach-Object { $_.Key })
+        $anySourceMoved = $movingSources.Count -gt 0
+        $verdict = if ($primaryMoved) { 'pass' } elseif ($anySourceMoved) { 'source-mismatch' } else { 'fail' }
+        $failureShape = if ($primaryMoved) { 'none' } elseif ($anySourceMoved) { 'primary-source-no-planar-movement' } else { 'no-planar-movement' }
 
         $runResult = [pscustomobject]@{
             Mode                         = 'movement-stimulus-verification-run'
             GeneratedAtUtc               = [DateTimeOffset]::UtcNow.ToString('O')
             Key                          = $key
             Iteration                    = $iteration
+            BeforeCoordSources           = $beforeSources
+            AfterCoordSources            = $afterSources
             BeforeCoord                  = $beforeCoord
             AfterCoord                   = $afterCoord
             PlanarCoordDelta             = $planarDelta
+            SourceDeltas                 = [pscustomobject]$sourceDeltas
+            MovingSources                = $movingSources
+            AnySourceMoved               = $anySourceMoved
             VerticalDelta                = $verticalDelta
             ObservedMovementHeadingRadians = $observedHeadingRadians
             ObservedMovementHeadingDegrees = $observedHeadingDegrees
@@ -265,11 +378,12 @@ foreach ($key in $Keys) {
             PreKeyWaitMilliseconds       = $PreKeyWaitMilliseconds
             HoldMilliseconds             = $HoldMilliseconds
             WaitMilliseconds             = $WaitMilliseconds
-            Verdict                      = if ($moved) { 'pass' } else { 'fail' }
-            FailureShape                 = if ($moved) { 'none' } else { 'no-planar-movement' }
+            Verdict                      = $verdict
+            FailureShape                 = $failureShape
             Notes                        = @(
                 'This verifier checks only whether the tested gameplay key produces actual player-current-anchor movement in live memory.',
-                'It is intentionally separate from solved actor-facing validation and does not reopen actor-facing discovery by itself.'
+                'It is intentionally separate from solved actor-facing validation and does not reopen actor-facing discovery by itself.',
+                $(if ($anySourceMoved -and -not $primaryMoved) { 'At least one secondary coordinate source moved while the primary player-current-anchor source did not; treat this as a movement-truth source mismatch until resolved.' } else { 'All compared movement sources agreed on the observed outcome for this key.' })
             )
         }
 
@@ -285,8 +399,10 @@ foreach ($key in $Keys) {
     }
 }
 
-$workingKeys = @($results | Where-Object { $_.Verdict -eq 'pass' } | Select-Object -ExpandProperty Key -Unique)
-$nonMovingKeys = @($results | Where-Object { $_.Verdict -ne 'pass' } | Select-Object -ExpandProperty Key -Unique)
+$workingKeys = @($results | Where-Object { $_.AnySourceMoved } | Select-Object -ExpandProperty Key -Unique)
+$primaryWorkingKeys = @($results | Where-Object { $_.Verdict -eq 'pass' } | Select-Object -ExpandProperty Key -Unique)
+$sourceMismatchKeys = @($results | Where-Object { $_.Verdict -eq 'source-mismatch' } | Select-Object -ExpandProperty Key -Unique)
+$nonMovingKeys = @($results | Where-Object { $_.Verdict -eq 'fail' } | Select-Object -ExpandProperty Key -Unique)
 $maximumPlanarDistance = if ($results.Count -gt 0) { ($results | ForEach-Object { [double]$_.PlanarCoordDelta.Distance } | Measure-Object -Maximum).Maximum } else { $null }
 
 $document = [pscustomobject]@{
@@ -306,15 +422,19 @@ $document = [pscustomobject]@{
     MinimumPlanarDistance = $MinimumPlanarDistance
     Results              = $results
     Summary              = [pscustomobject]@{
-        OverallVerdict        = if ($workingKeys.Count -gt 0) { 'pass' } else { 'fail' }
+        OverallVerdict        = if ($primaryWorkingKeys.Count -gt 0) { 'pass' } elseif ($sourceMismatchKeys.Count -gt 0) { 'source-mismatch' } else { 'fail' }
         WorkingKeys           = $workingKeys
+        PrimarySourceWorkingKeys = $primaryWorkingKeys
+        SourceMismatchKeys    = $sourceMismatchKeys
         NonMovingKeys         = $nonMovingKeys
         PassCount             = @($results | Where-Object { $_.Verdict -eq 'pass' }).Count
-        FailCount             = @($results | Where-Object { $_.Verdict -ne 'pass' }).Count
+        SourceMismatchCount   = @($results | Where-Object { $_.Verdict -eq 'source-mismatch' }).Count
+        FailCount             = @($results | Where-Object { $_.Verdict -eq 'fail' }).Count
         MaximumPlanarDistance = $maximumPlanarDistance
     }
     Notes                = @(
         'Movement truth is sampled directly from the verified player-current anchor in live memory.',
+        $(if ($CompareReaderBridgeBoundary -or $CompareActorOrientationSource) { 'Secondary coordinate sources were also sampled so source-mismatch can be distinguished from pure no-movement failures.' } else { 'Only the primary player-current-anchor source was sampled in this run.' }),
         'Use this helper to prove that a candidate gameplay key actually produces movement before retrying move-forward actor-facing validation.',
         'Actor-facing remains solved separately at 0x1B115201EB0 + 0xD4.'
     )
