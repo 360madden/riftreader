@@ -19,9 +19,10 @@ $keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-actor-orientation-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
-$backgroundProcessAvailable = $SkipBackgroundFocus.IsPresent
+$useSkipBackgroundFocus = $SkipBackgroundFocus.IsPresent
+$backgroundProcessAvailable = $false
 
-if (-not $backgroundProcessAvailable) {
+if (-not $useSkipBackgroundFocus) {
     try {
         $null = Get-Process -Name 'cheatengine-x86_64-SSE4-AVX2' -ErrorAction Stop | Select-Object -First 1
         $backgroundProcessAvailable = $true
@@ -141,7 +142,7 @@ $keyArguments = @{
     HoldMilliseconds = $HoldMilliseconds
 }
 
-if (-not $backgroundProcessAvailable) {
+if ($useSkipBackgroundFocus -or -not $backgroundProcessAvailable) {
     $keyArguments['SkipBackgroundFocus'] = $true
 }
 
