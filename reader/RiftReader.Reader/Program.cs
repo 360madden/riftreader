@@ -169,6 +169,11 @@ internal static class Program
             }
         }
 
+        if (options.KillRiftErrorHandler)
+        {
+            return RunKillRiftErrorHandlerMode(options, target, process);
+        }
+
         if (DebugTraceRequestBuilder.IsDebugTraceMode(options))
         {
             return RunDebugTraceMode(options, process, target);
@@ -272,6 +277,55 @@ internal static class Program
         Console.WriteLine(HexDumpFormatter.Format(bytes, address));
 
         return 0;
+    }
+
+    private static int RunKillRiftErrorHandlerMode(ReaderOptions options, ProcessTarget target, Process process)
+    {
+        using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+        if (reader is null)
+        {
+            Console.Error.WriteLine(openError ?? "Unable to open a memory-reading handle for the target process.");
+            return 1;
+        }
+
+        var result = DebugTraceWorker.ClearBlockingRiftErrorHandler(process, reader);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return result.Error is null ? 0 : 1;
+        }
+
+        Console.WriteLine("# **✅ RESULT**");
+        Console.WriteLine();
+        Console.WriteLine($"Process: {result.ProcessName} [{result.ProcessId}]");
+        Console.WriteLine($"Status: {result.Status}");
+        Console.WriteLine($"DebuggerPresent(before): {result.DebuggerPresentBefore}");
+        Console.WriteLine($"DebuggerPresent(after): {result.DebuggerPresentAfter}");
+        Console.WriteLine($"HelperFound: {result.HelperFound}");
+        Console.WriteLine($"HelperStopped: {result.HelperStopped}");
+
+        if (result.HelperFound)
+        {
+            Console.WriteLine($"Helper: {result.HelperImageName} [{result.HelperProcessId}]");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Error))
+        {
+            Console.WriteLine($"Error: {result.Error}");
+        }
+
+        if (result.Warnings.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Warnings:");
+            foreach (var warning in result.Warnings)
+            {
+                Console.WriteLine($"- {warning}");
+            }
+        }
+
+        return result.Error is null ? 0 : 1;
     }
 
     private static int RunSessionSummaryMode(ReaderOptions options)

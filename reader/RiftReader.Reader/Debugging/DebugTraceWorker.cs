@@ -32,6 +32,93 @@ public static class DebugTraceWorker
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    public static DebugAttachHelperClearResult ClearBlockingRiftErrorHandler(Process process, ProcessMemoryReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(process);
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var warnings = new List<string>();
+        if (!TryCheckRemoteDebuggerPresent(reader.ProcessHandle, out var debuggerPresentBefore, out var queryError))
+        {
+            return new DebugAttachHelperClearResult(
+                ProcessId: process.Id,
+                ProcessName: process.ProcessName,
+                DebuggerPresentBefore: false,
+                DebuggerPresentAfter: false,
+                HelperFound: false,
+                HelperProcessId: null,
+                HelperImageName: null,
+                HelperStopped: false,
+                Status: "query-failed",
+                Error: queryError,
+                Warnings: warnings);
+        }
+
+        if (!debuggerPresentBefore)
+        {
+            return new DebugAttachHelperClearResult(
+                ProcessId: process.Id,
+                ProcessName: process.ProcessName,
+                DebuggerPresentBefore: false,
+                DebuggerPresentAfter: false,
+                HelperFound: false,
+                HelperProcessId: null,
+                HelperImageName: null,
+                HelperStopped: false,
+                Status: "already-clear",
+                Error: null,
+                Warnings: warnings);
+        }
+
+        var helper = FindAttachHelper(process.Id);
+        if (!helper.HasValue)
+        {
+            return new DebugAttachHelperClearResult(
+                ProcessId: process.Id,
+                ProcessName: process.ProcessName,
+                DebuggerPresentBefore: true,
+                DebuggerPresentAfter: true,
+                HelperFound: false,
+                HelperProcessId: null,
+                HelperImageName: null,
+                HelperStopped: false,
+                Status: "debugger-present-no-known-helper",
+                Error: "The target is already debugged, but no child rifterrorhandler_x64.exe helper was found.",
+                Warnings: warnings);
+        }
+
+        var attachHelper = helper.Value;
+        if (!TryStopProcess(attachHelper.ProcessId, 3000, out var stopError))
+        {
+            return new DebugAttachHelperClearResult(
+                ProcessId: process.Id,
+                ProcessName: process.ProcessName,
+                DebuggerPresentBefore: true,
+                DebuggerPresentAfter: true,
+                HelperFound: true,
+                HelperProcessId: attachHelper.ProcessId,
+                HelperImageName: attachHelper.ImageName,
+                HelperStopped: false,
+                Status: "helper-stop-failed",
+                Error: stopError,
+                Warnings: warnings);
+        }
+
+        var released = TryWaitForDebuggerReleased(reader.ProcessHandle, 3000, out var releaseError);
+        return new DebugAttachHelperClearResult(
+            ProcessId: process.Id,
+            ProcessName: process.ProcessName,
+            DebuggerPresentBefore: true,
+            DebuggerPresentAfter: !released,
+            HelperFound: true,
+            HelperProcessId: attachHelper.ProcessId,
+            HelperImageName: attachHelper.ImageName,
+            HelperStopped: true,
+            Status: released ? "helper-stopped" : "helper-stopped-but-debugger-still-present",
+            Error: released ? null : releaseError,
+            Warnings: warnings);
+    }
+
     public static int Execute(DebugTraceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -1531,34 +1618,38 @@ public static class DebugTraceWorker
 
     private static void TryResolveAttachHelperBlocker(Process process, ProcessMemoryReader reader, List<string> warnings)
     {
-        if (!TryCheckRemoteDebuggerPresent(reader.ProcessHandle, out var debuggerPresent, out var error))
+        var result = ClearBlockingRiftErrorHandler(process, reader);
+        foreach (var warning in result.Warnings)
         {
-            warnings.Add($"Unable to query debugger state for PID {process.Id}: {error}");
+            warnings.Add(warning);
+        }
+
+        if (result.Status is "query-failed")
+        {
+            warnings.Add($"Unable to query debugger state for PID {process.Id}: {result.Error}");
             return;
         }
 
-        if (!debuggerPresent)
+        if (result.Status is "already-clear")
         {
             return;
         }
 
-        var helper = FindAttachHelper(process.Id);
-        if (!helper.HasValue)
+        if (result.Status is "debugger-present-no-known-helper")
         {
             warnings.Add($"PID {process.Id} is already marked as debugged by another process; native attach may fail until that debugger detaches.");
             return;
         }
 
-        var attachHelper = helper.Value;
-        if (!TryStopProcess(attachHelper.ProcessId, 3000, out var stopError))
+        if (result.Status is "helper-stop-failed")
         {
-            warnings.Add($"Unable to stop blocking attach helper {attachHelper.ImageName} [{attachHelper.ProcessId}] for PID {process.Id}: {stopError}");
+            warnings.Add($"Unable to stop blocking attach helper {result.HelperImageName} [{result.HelperProcessId}] for PID {process.Id}: {result.Error}");
             return;
         }
 
-        if (!TryWaitForDebuggerReleased(reader.ProcessHandle, 3000, out error))
+        if (result.Status is "helper-stopped-but-debugger-still-present")
         {
-            warnings.Add($"Stopped attach helper {attachHelper.ImageName} [{attachHelper.ProcessId}], but PID {process.Id} still reports DebuggerPresent=true: {error}");
+            warnings.Add($"Stopped attach helper {result.HelperImageName} [{result.HelperProcessId}], but PID {process.Id} still reports DebuggerPresent=true: {result.Error}");
         }
     }
 
@@ -2128,6 +2219,19 @@ public static class DebugTraceWorker
         int ProcessId,
         int ParentProcessId,
         string ImageName);
+
+    public readonly record struct DebugAttachHelperClearResult(
+        int ProcessId,
+        string ProcessName,
+        bool DebuggerPresentBefore,
+        bool DebuggerPresentAfter,
+        bool HelperFound,
+        int? HelperProcessId,
+        string? HelperImageName,
+        bool HelperStopped,
+        string Status,
+        string? Error,
+        IReadOnlyList<string> Warnings);
 
     private readonly record struct DebugMemoryReadResult(
         string Label,

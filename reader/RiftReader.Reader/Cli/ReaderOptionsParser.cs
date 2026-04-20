@@ -26,6 +26,7 @@ Usage:
   RiftReader.Reader --process-name <name> --debug-trace-memory-access (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) --debug-width <1|2|4|8> [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
   RiftReader.Reader --process-name <name> --debug-trace-player-coord-write [--player-coord-trace-file <path>] [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
   RiftReader.Reader --debug-trace-summary --trace-directory <path> [--json]
+  RiftReader.Reader (--pid <processId> | --process-name <name>) --kill-rift-error-handler [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
@@ -60,6 +61,7 @@ Notes:
   - Use --debug-trace-memory-write or --debug-trace-memory-access to arm a bounded hardware watchpoint against a narrowed address.
   - Use --debug-trace-player-coord-write to validate the current coord-trace lineage and execute-trace the current player coord write instruction.
   - Use --debug-trace-summary to inspect a recorded debug-trace package without attaching to a live process.
+  - Use --kill-rift-error-handler to terminate Rift's attached error-handler debugger process on demand before live tracing.
   - Use --debug-disable-* switches to trim capture/analyzer modules without changing the worker core.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
@@ -92,6 +94,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-memory-write --debug-address 0x2039DD70 --debug-width 4 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-player-coord-write --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --debug-trace-summary --trace-directory .\scripts\captures\debug-traces\20260417-coord --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --kill-rift-error-handler --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
@@ -191,6 +194,7 @@ Examples:
         var debugDisableFollowUpSuggestions = false;
         var debugWorker = false;
         string? debugRequestFile = null;
+        var killRiftErrorHandler = false;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -650,6 +654,10 @@ Examples:
                     debugWorker = true;
                     break;
 
+                case "--kill-rift-error-handler":
+                    killRiftErrorHandler = true;
+                    break;
+
                 case "--debug-request-file":
                     if (!TryReadNext(args, ref index, out var debugRequestFileValue))
                     {
@@ -932,10 +940,11 @@ Examples:
         if (debugTracePlayerCoordWrite) debugModeCount++;
         if (debugTraceSummary) debugModeCount++;
         if (debugWorker) debugModeCount++;
+        if (killRiftErrorHandler) debugModeCount++;
 
         if (debugModeCount > 1)
         {
-            return ReaderOptionsParseResult.Fail("Choose only one debug mode: --debug-trace-instruction, --debug-trace-memory-write, --debug-trace-memory-access, --debug-trace-player-coord-write, --debug-trace-summary, or the internal --debug-worker mode.", UsageText);
+            return ReaderOptionsParseResult.Fail("Choose only one debug mode: --debug-trace-instruction, --debug-trace-memory-write, --debug-trace-memory-access, --debug-trace-player-coord-write, --debug-trace-summary, --kill-rift-error-handler, or the internal --debug-worker mode.", UsageText);
         }
 
         if (debugWorker)
@@ -1081,6 +1090,78 @@ Examples:
                     JsonOutput: jsonOutput,
                     DebugTraceSummary: true,
                     DebugTraceDirectory: debugTraceDirectory),
+                UsageText);
+        }
+
+        if (killRiftErrorHandler)
+        {
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--kill-rift-error-handler cannot be combined with scan, snapshot, summary, record-session, or other live reader modes.", UsageText);
+            }
+
+            if (processId.HasValue == !string.IsNullOrWhiteSpace(processName))
+            {
+                return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name for --kill-rift-error-handler.", UsageText);
+            }
+
+            if (!string.IsNullOrWhiteSpace(debugTraceDirectory) || !string.IsNullOrWhiteSpace(debugRequestFile) || debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue || debugWidth.HasValue || !string.IsNullOrWhiteSpace(debugOutputDirectory) || !string.IsNullOrWhiteSpace(debugMarkerInputFile) || !string.IsNullOrWhiteSpace(debugLabel) || debugTimeoutMilliseconds != 8000 || debugMaxHits != 8 || debugMaxEvents != 5000 || debugCaptureStackBytes != 256 || debugCaptureMemoryWindowBytes != 128 || debugDisableRegisterCapture || debugDisableStackCapture || debugDisableMemoryWindows || debugDisableInstructionDecode || debugDisableInstructionFingerprint || debugDisableHitClustering || debugDisableFollowUpSuggestions || !string.IsNullOrWhiteSpace(playerCoordTraceFile))
+            {
+                return ReaderOptionsParseResult.Fail("--kill-rift-error-handler only accepts --pid/--process-name and --json.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: processId,
+                    ProcessName: processName,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput,
+                    KillRiftErrorHandler: true),
                 UsageText);
         }
 

@@ -80,4 +80,5 @@ public sealed record ReaderOptions(
     bool DebugDisableHitClustering = false,
     bool DebugDisableFollowUpSuggestions = false,
     bool DebugWorker = false,
-    string? DebugRequestFile = null);
+    string? DebugRequestFile = null,
+    bool KillRiftErrorHandler = false);
