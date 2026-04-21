@@ -12,6 +12,7 @@ public sealed class PlayerActorTruthChainDumpJsonOutputTests
 
         var json = JsonOutput.Serialize(result);
 
+        Assert.Contains("\"TruthSearchMaxHits\": 16", json);
         Assert.Contains("\"RootFamilySummary\"", json);
         Assert.Contains("\"CanonicalInstanceAddress\": \"0x2000\"", json);
         Assert.Contains("\"RepresentativeAddress\": \"0x2000\"", json);

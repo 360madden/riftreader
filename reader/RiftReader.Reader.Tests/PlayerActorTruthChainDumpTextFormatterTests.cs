@@ -12,6 +12,7 @@ public sealed class PlayerActorTruthChainDumpTextFormatterTests
 
         var formatted = PlayerActorTruthChainDumpTextFormatter.Format(result);
 
+        Assert.Contains("Truth search max hits:   16", formatted);
         Assert.Contains("Canonical root instance: 0x2000", formatted);
         Assert.Contains("Root family summary:     0x7ff00000 canonicalObs=3/5 rep=0x2000", formatted);
         Assert.Contains("Best root family:        0x7ff00000 (4/5, distinct=2, avgMatch=42.0)", formatted);

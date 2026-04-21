@@ -33,7 +33,10 @@ public sealed record PlayerActorTruthChainDumpResult(
     IReadOnlyList<PlayerActorTruthRootFamilyCandidate> RootFamilyCandidates,
     IReadOnlyList<PlayerActorTruthChainObservation> StabilityObservations,
     IReadOnlyList<PlayerActorTruthSharedAncestorCandidate> SharedAncestorCandidates,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes)
+{
+    public int TruthSearchMaxHits { get; init; } = 16;
+}
 
 public sealed record PlayerActorTruthObjectWindow(
     string Label,

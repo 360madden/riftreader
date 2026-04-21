@@ -16,6 +16,7 @@ public static class PlayerActorTruthChainDumpTextFormatter
             $"Window length:           {result.WindowLength}",
             $"Pointer width:           {result.PointerWidth}",
             $"Pointer scan max hits:   {result.PointerScanMaxHits}",
+            $"Truth search max hits:   {result.TruthSearchMaxHits}",
             $"Second-hop seeds:        {result.SecondHopSeedLimitPerSurface} per surface",
             $"Second-hop max hits:     {result.SecondHopPointerScanMaxHits}",
             $"Stability samples:       {result.StabilitySampleCount} @ {result.StabilitySampleDelayMilliseconds} ms",

@@ -25,7 +25,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-actor-coords [--player-coord-trace-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-actor-orientation [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-actor-truth [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --dump-player-actor-truth-chain [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--scan-context <bytes>] [--pointer-width 4|8] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --dump-player-actor-truth-chain [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--scan-context <bytes>] [--pointer-width 4|8] [--max-hits <count>] [--truth-max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --debug-trace-instruction (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
   RiftReader.Reader --process-name <name> --debug-trace-memory-write (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) --debug-width <1|2|4|8> [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
@@ -69,6 +69,7 @@ Notes:
   - Use --read-player-actor-orientation to read the current live actor-facing yaw/pitch from the preferred pointer-hop orientation candidate, bootstrapping from trace-derived coords when ReaderBridge omits them.
   - Use --read-player-actor-truth to read both the current actor coords and the canonical live actor orientation truth in one result, including the same root-family provenance used by the actor-coordinate reader.
   - Use --dump-player-actor-truth-chain to dump the current coord/orientation truth surfaces, nearby object bytes, and pointer backrefs for chain reconstruction.
+  - Use --truth-max-hits with --dump-player-actor-truth-chain when you want the underlying actor-truth search breadth to stay separate from pointer/backref dump breadth; if omitted, chain dump uses a dedicated truth-search limit of 16.
   - Use --debug-trace-instruction to run the bounded native x64 debug worker against a known code address or module-relative offset.
   - Use --debug-trace-memory-write or --debug-trace-memory-access to arm a bounded hardware watchpoint against a narrowed address.
   - Use --debug-trace-player-coord-write to validate the current coord-trace lineage and execute-trace the current player coord write instruction.
@@ -107,7 +108,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-actor-coords --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-actor-orientation --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-actor-truth --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --dump-player-actor-truth-chain --scan-context 128 --max-hits 12 --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --dump-player-actor-truth-chain --scan-context 128 --max-hits 12 --truth-max-hits 16 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-instruction --debug-module-name rift_x64.exe --debug-module-offset 0x123456 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-memory-write --debug-address 0x2039DD70 --debug-width 4 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-player-coord-write --json
@@ -177,6 +178,8 @@ Examples:
         var scanEncoding = StringScanEncoding.Both;
         var scanContextBytes = 0;
         var maxHits = 16;
+        var truthSearchMaxHits = 16;
+        var truthSearchMaxHitsSpecified = false;
         var scanReaderBridgePlayerName = false;
         var scanReaderBridgePlayerCoords = false;
         var scanReaderBridgePlayerSignature = false;
@@ -877,6 +880,20 @@ Examples:
 
                     break;
 
+                case "--truth-max-hits":
+                    if (!TryReadNext(args, ref index, out var truthMaxHitsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --truth-max-hits.", UsageText);
+                    }
+
+                    if (!int.TryParse(truthMaxHitsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out truthSearchMaxHits) || truthSearchMaxHits <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid truth-max-hits value '{truthMaxHitsValue}'.", UsageText);
+                    }
+
+                    truthSearchMaxHitsSpecified = true;
+                    break;
+
                 case "--scan-context":
                     if (!TryReadNext(args, ref index, out var scanContextValue))
                     {
@@ -974,6 +991,11 @@ Examples:
         if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float or --scan-double.", UsageText);
+        }
+
+        if (truthSearchMaxHitsSpecified && !dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--truth-max-hits can only be used with --dump-player-actor-truth-chain.", UsageText);
         }
 
         var debugModeCount = 0;
@@ -1447,7 +1469,7 @@ Examples:
 
             if (!string.IsNullOrWhiteSpace(debugTraceDirectory) || !string.IsNullOrWhiteSpace(debugRequestFile) || debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue || debugWidth.HasValue || !string.IsNullOrWhiteSpace(debugOutputDirectory) || !string.IsNullOrWhiteSpace(debugMarkerInputFile) || !string.IsNullOrWhiteSpace(debugLabel) || debugTimeoutMilliseconds != 8000 || debugMaxHits != 8 || debugMaxEvents != 5000 || debugCaptureStackBytes != 256 || debugCaptureMemoryWindowBytes != 128 || debugDisableRegisterCapture || debugDisableStackCapture || debugDisableMemoryWindows || debugDisableInstructionDecode || debugDisableInstructionFingerprint || debugDisableHitClustering || debugDisableFollowUpSuggestions)
             {
-                return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain only accepts --pid/--process-name, --player-coord-trace-file, --orientation-candidate-ledger-file, --readerbridge-snapshot-file, --scan-context, --pointer-width, --max-hits, and --json.", UsageText);
+                return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain only accepts --pid/--process-name, --player-coord-trace-file, --orientation-candidate-ledger-file, --readerbridge-snapshot-file, --scan-context, --pointer-width, --max-hits, --truth-max-hits, and --json.", UsageText);
             }
 
             return ReaderOptionsParseResult.Success(
@@ -1507,7 +1529,10 @@ Examples:
                     ReaderBridgeSnapshotFile: readerBridgeSnapshotFile,
                     JsonOutput: jsonOutput,
                     FindPlayerOrientationCandidate: false,
-                    OrientationCandidateLedgerFile: orientationCandidateLedgerFile),
+                    OrientationCandidateLedgerFile: orientationCandidateLedgerFile)
+                {
+                    TruthSearchMaxHits = truthSearchMaxHits
+                },
                 UsageText);
         }
 

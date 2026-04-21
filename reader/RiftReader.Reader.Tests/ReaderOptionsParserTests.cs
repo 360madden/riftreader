@@ -51,7 +51,27 @@ public sealed class ReaderOptionsParserTests
         Assert.Equal(128, result.Options.ScanContextBytes);
         Assert.Equal(8, result.Options.PointerWidth);
         Assert.Equal(12, result.Options.MaxHits);
+        Assert.Equal(16, result.Options.TruthSearchMaxHits);
         Assert.True(result.Options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_DumpPlayerActorTruthChain_WithExplicitTruthMaxHits_Succeeds()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--dump-player-actor-truth-chain",
+            "--max-hits", "12",
+            "--truth-max-hits", "9"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.ShowUsage);
+        Assert.NotNull(result.Options);
+        Assert.True(result.Options!.DumpPlayerActorTruthChain);
+        Assert.Equal(12, result.Options.MaxHits);
+        Assert.Equal(9, result.Options.TruthSearchMaxHits);
     }
 
     [Fact]
@@ -103,5 +123,20 @@ public sealed class ReaderOptionsParserTests
         Assert.True(result.ShowUsage);
         Assert.Contains("--read-player-actor-truth cannot be combined with", result.ErrorMessage);
         Assert.Contains("other actor/coord reader modes", result.ErrorMessage);
+    }
+
+    [Fact]
+    public void Parse_TruthMaxHits_WithoutDumpTruthChain_Fails()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--read-player-actor-truth",
+            "--truth-max-hits", "9"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.ShowUsage);
+        Assert.Contains("--truth-max-hits can only be used with --dump-player-actor-truth-chain.", result.ErrorMessage);
     }
 }

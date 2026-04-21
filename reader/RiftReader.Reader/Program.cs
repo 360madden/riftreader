@@ -1162,7 +1162,12 @@ internal static class Program
 
     private static int RunDumpPlayerActorTruthChainMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
-        if (!TryBuildPlayerActorTruthResult(options, process, target, reader, out var truthResult, out var error))
+        var truthSearchOptions = options with
+        {
+            MaxHits = options.TruthSearchMaxHits
+        };
+
+        if (!TryBuildPlayerActorTruthResult(truthSearchOptions, process, target, reader, out var truthResult, out var error))
         {
             Console.Error.WriteLine(error ?? "Unable to read the current player actor truth for chain dumping.");
             return 1;
@@ -1185,7 +1190,7 @@ internal static class Program
             notes.Add($"Coord and orientation truth unified on the same live object surface at {unifiedTruthObjectAddress}.");
         }
         var stabilityObservations = CollectTruthChainObservations(
-            options,
+            truthSearchOptions,
             process,
             target,
             reader,
@@ -1352,7 +1357,10 @@ internal static class Program
             RootFamilyCandidates: rootFamilyCandidates,
             StabilityObservations: stabilityObservations,
             SharedAncestorCandidates: sharedAncestorCandidates,
-            Notes: notes);
+            Notes: notes)
+        {
+            TruthSearchMaxHits = truthSearchOptions.MaxHits
+        };
 
         if (options.JsonOutput)
         {

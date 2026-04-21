@@ -86,4 +86,7 @@ public sealed record ReaderOptions(
     bool DebugDisableFollowUpSuggestions = false,
     bool DebugWorker = false,
     string? DebugRequestFile = null,
-    bool KillRiftErrorHandler = false);
+    bool KillRiftErrorHandler = false)
+{
+    public int TruthSearchMaxHits { get; init; } = 16;
+}
