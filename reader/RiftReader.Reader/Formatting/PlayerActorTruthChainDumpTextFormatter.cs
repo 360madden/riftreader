@@ -46,6 +46,12 @@ public static class PlayerActorTruthChainDumpTextFormatter
             lines.Add($"Best root family:        {result.BestRootFamily.RegionBase} ({result.BestRootFamily.ObservationCount}/{result.BestRootFamily.StabilitySampleCount}, distinct={result.BestRootFamily.DistinctAddressCount}, avgMatch={result.BestRootFamily.AverageMatchingBytes:0.0})");
         }
 
+        if (result.RootFamilySummary is not null)
+        {
+            lines.Add($"Canonical root instance: {result.RootFamilySummary.CanonicalInstanceAddress}");
+            lines.Add($"Root family summary:     {result.RootFamilySummary.RegionBase} canonicalObs={result.RootFamilySummary.CanonicalInstanceObservationCount}/{result.RootFamilySummary.StabilitySampleCount} rep={result.RootFamilySummary.RepresentativeAddress}");
+        }
+
         AppendWindow(lines, result.CoordObjectWindow);
         AppendWindow(lines, result.OrientationObjectWindow);
         AppendWindow(lines, result.OrientationParentWindow);

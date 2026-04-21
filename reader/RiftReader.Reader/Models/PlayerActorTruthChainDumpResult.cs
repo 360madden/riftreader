@@ -20,6 +20,7 @@ public sealed record PlayerActorTruthChainDumpResult(
     int UnifiedTruthObservationCount,
     PlayerActorTruthBestContainerChain? BestContainerChain,
     PlayerActorTruthRootFamilyCandidate? BestRootFamily,
+    PlayerActorTruthRootFamilySummary? RootFamilySummary,
     PlayerActorTruthObjectWindow? CoordObjectWindow,
     PlayerActorTruthObjectWindow? OrientationObjectWindow,
     PlayerActorTruthObjectWindow? OrientationParentWindow,

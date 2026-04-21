@@ -1208,6 +1208,11 @@ internal static class Program
             RootFamilyComparisonBytes,
             notes);
         var bestRootFamily = rootFamilyCandidates.FirstOrDefault();
+        var rootFamilySummary = BuildRootFamilySummary(
+            bestContainerChain,
+            bestRootFamily,
+            stabilityObservations,
+            resolvedTruthResult.Orientation.RootAddress);
 
         var knownTargets = new Dictionary<long, string>
         {
@@ -1334,6 +1339,7 @@ internal static class Program
             UnifiedTruthObservationCount: unifiedTruthObservationCount,
             BestContainerChain: bestContainerChain,
             BestRootFamily: bestRootFamily,
+            RootFamilySummary: rootFamilySummary,
             CoordObjectWindow: coordWindow,
             OrientationObjectWindow: orientationWindow,
             OrientationParentWindow: orientationParentWindow,

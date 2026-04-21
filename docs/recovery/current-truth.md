@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 20, 2026 (live actor-coordinate + actor-orientation truth operationalized in `RiftReader.Reader`)_
+_Last updated: April 21, 2026 (root-family provenance integrated into actor coord/truth readers; fresh post-relaunch validation still blocked)_
 
 ## Current status
 
@@ -10,21 +10,21 @@ _Last updated: April 20, 2026 (live actor-coordinate + actor-orientation truth o
 | ReaderBridge snapshot load | working |
 | Player current read | working |
 | Coord-anchor module pattern | working |
-| Actor coordinates truth | working through `--read-player-actor-coords` |
-| Combined actor truth | working through `--read-player-actor-truth` |
+| Actor coordinates truth | working through `--read-player-actor-coords` (root-family provenance now included) |
+| Combined actor truth | working through `--read-player-actor-truth` (same root-family provenance field set) |
 | ReaderBridge orientation probe | still empty on the current client |
 | `--read-player-actor-orientation` reader mode | working on the live client |
 | `--read-player-orientation` reader mode | historical when used offline; live process-attached use now routes to the current actor-orientation truth path |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
 | Actor yaw / pitch truth | working again on the current live session via canonical pointer-hop forward basis row `+0xD4/+0xD8/+0xDC` |
-| Source-chain refresh | still broken after the update |
+| Source-chain refresh | reader-side trace-backed coord refresh is working; script/chain-helper behavior still inconsistent |
 | Selector-owner trace | still broken after the update |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 
 ## Fresh actor coordinate truth
 
-Fresh live validation on **April 20, 2026** established:
+Fresh live validation on **April 20, 2026** and follow-up on **April 21, 2026** established:
 
 - canonical coord-read instruction anchor:
   - `rift_x64.exe+0x93560E`
@@ -48,6 +48,13 @@ Operational interpretation:
 - missing `ReaderBridge` player coord blocks no longer block the actor-coordinate
   truth path because the reader can bootstrap from the refreshed trace-backed
   source object
+- `--read-player-actor-coords` and `--read-player-actor-truth` now both expose
+  compact root-family provenance (best chain, best root family, and canonical
+  current-process family instance)
+- old fixed owner-chain addresses are not treated as permanent truth; provenance
+  is process-scoped and derived per run
+- the stronger truth abstraction is the current-process root family/cluster, not a
+  single fixed pair of owner/root addresses
 
 ## Fresh actor yaw / pitch truth
 
@@ -92,6 +99,13 @@ See the fresh validation note:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-20-actor-yaw-pitch-behavior-backed-lead-validation.md`
 
+## Post-relaunch validation status
+
+- Explicit relaunch path was attempted on a new PID (`42048`) after the April 21
+  live pass.
+- The relaunched process reported a main window state of `Error`, so immediate
+  clean post-relaunch coord/truth revalidation remained blocked.
+
 ## ReaderBridge / addon orientation status
 
 Fresh inspection on **April 20, 2026** still showed:
@@ -105,6 +119,22 @@ Fresh inspection on **April 20, 2026** still showed:
 So the addon/API lane still does **not** expose a usable direct orientation
 signal on the current client. Actor yaw / pitch truth is currently coming from
 the validated live memory basis above, not from ReaderBridge orientation fields.
+
+## Live owner/root-family provenance evidence (as of April 21, 2026)
+
+In the last successful live run on PID `48840`:
+
+- Coord object matched the expected actor surface (`coord match: true`)
+- Best parent/root chain observed: `0x1EEB13B2160 -> 0x1EED91793B8`
+- Best root family observed: `0x1EED9170000` with `4 / 5` observations
+- Canonical root-family instance observed: `0x1EED91793B8` with `3 / 5`
+
+Important caution:
+
+- the family addresses above are **process-local artifacts** for that run and are
+  not reusable as cross-session hardcoded constants
+- this aligns with the current proof that a fixed `2 / 3` owner chain is not a
+  permanent stable owner truth
 
 ## Broken or stale right now
 
