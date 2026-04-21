@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 21, 2026 (root-family provenance integrated into actor coord/truth readers; fresh post-relaunch validation still blocked)_
+_Last updated: April 21, 2026 (root-family provenance integrated into actor coord/truth readers; later same-day healthy rerun succeeded after allowing Windows Controlled Folder Access for debug-trace refresh output; historical explicit relaunch `Error` state still unresolved)_
 
 ## Current status
 
@@ -55,6 +55,12 @@ Operational interpretation:
   is process-scoped and derived per run
 - the stronger truth abstraction is the current-process root family/cluster, not a
   single fixed pair of owner/root addresses
+- a later same-day healthy rerun on **April 21, 2026** revalidated both
+  `--read-player-actor-coords` and `--read-player-actor-truth` on PID `16344`
+  after Windows Controlled Folder Access was allowed for
+  `C:\RIFT MODDING\RiftReader\scripts\captures\debug-traces\...`
+- that rerun produced an internally aligned best parent/root chain and canonical
+  root-family instance across both coord and combined truth reads
 
 ## Fresh actor yaw / pitch truth
 
@@ -105,6 +111,19 @@ See the fresh validation note:
   live pass.
 - The relaunched process reported a main window state of `Error`, so immediate
   clean post-relaunch coord/truth revalidation remained blocked.
+- Later on **April 21, 2026**, a healthy live process (`16344`, window title
+  `RIFT`) successfully returned both `--read-player-actor-coords --json` and
+  `--read-player-actor-truth --json`.
+- The first retry on that healthy process exposed a different blocker:
+  Windows Controlled Folder Access prevented creation of the debug-trace refresh
+  output directory under
+  `C:\RIFT MODDING\RiftReader\scripts\captures\debug-traces\...`.
+- After allowing that access, the rerun succeeded cleanly. This clears the
+  Windows-security false blocker for this session but does **not** explain the
+  earlier explicit relaunch `Error` state or fully prove automatic fresh-relaunch
+  readiness.
+- See:
+  - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-21-actor-truth-rerun-after-controlled-folder-access-allow.md`
 
 ## ReaderBridge / addon orientation status
 
@@ -122,9 +141,15 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 
 ## Live owner/root-family provenance evidence (as of April 21, 2026)
 
-In the last successful live run on PID `48840`:
+Latest successful aligned rerun on PID `16344`:
 
 - Coord object matched the expected actor surface (`coord match: true`)
+- Best parent/root chain observed: `0x27046B3FF00 -> 0x2705579D928`
+- Best root family observed: `0x27055790000` with `3 / 5` observations
+- Canonical root-family instance observed: `0x2705579D928` with `3 / 5`
+
+Earlier successful run on PID `48840`:
+
 - Best parent/root chain observed: `0x1EEB13B2160 -> 0x1EED91793B8`
 - Best root family observed: `0x1EED9170000` with `4 / 5` observations
 - Canonical root-family instance observed: `0x1EED91793B8` with `3 / 5`

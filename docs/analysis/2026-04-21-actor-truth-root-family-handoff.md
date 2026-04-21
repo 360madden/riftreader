@@ -209,3 +209,31 @@ If the next agent wants to finish the blocked validation:
 5. once relaunch validation is healthy, update
    `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md` with the new
    “coord reader includes root-family provenance” status
+
+## Later same-day branch note (not part of the original frozen snapshot)
+
+Later on **April 21, 2026**, branch `xyz` was revalidated on a healthy live
+process (`rift_x64` PID `16344`, main window title `RIFT`).
+
+Important later findings:
+
+- the first retry hit a different blocker from the historical relaunch `Error`
+  state: Windows Controlled Folder Access blocked creation of the debug-trace
+  refresh output directory under
+  `C:\RIFT MODDING\RiftReader\scripts\captures\debug-traces\...`
+- once that access was allowed, both
+  `--read-player-actor-coords --json` and `--read-player-actor-truth --json`
+  succeeded again on PID `16344`
+- the later aligned rerun produced the same best parent/root chain and canonical
+  root-family instance in both the coord and combined truth reads:
+  - best parent/root chain: `0x27046B3FF00 -> 0x2705579D928`
+  - best root family: `0x27055790000`
+  - canonical root-family instance: `0x2705579D928` (`3 / 5` observations)
+
+This later note improves branch operating context, but it does **not** explain
+the original explicit relaunch `MainWindowTitle = Error` state that blocked the
+frozen handoff snapshot above.
+
+See the follow-up analysis note:
+
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-21-actor-truth-rerun-after-controlled-folder-access-allow.md`
