@@ -71,6 +71,12 @@ public static class PlayerActorCoordReadTextFormatter
             lines.Add($"Root family exemplar:    {result.BestRootFamily.RepresentativeAddress}");
         }
 
+        if (result.RootFamilySummary is not null)
+        {
+            lines.Add($"Canonical root instance: {result.RootFamilySummary.CanonicalInstanceAddress}");
+            lines.Add($"Root family summary:     {result.RootFamilySummary.RegionBase} canonicalObs={result.RootFamilySummary.CanonicalInstanceObservationCount}/{result.RootFamilySummary.StabilitySampleCount} rep={result.RootFamilySummary.RepresentativeAddress}");
+        }
+
         if (result.Notes.Count > 0)
         {
             lines.Add("Notes:");

@@ -38,4 +38,5 @@ public sealed record PlayerActorCoordReadResult(
     ModulePatternScanResult? ModulePattern,
     PlayerActorTruthBestContainerChain? BestContainerChain,
     PlayerActorTruthRootFamilyCandidate? BestRootFamily,
+    PlayerActorTruthRootFamilySummary? RootFamilySummary,
     IReadOnlyList<string> Notes);

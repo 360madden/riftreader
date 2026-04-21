@@ -65,9 +65,9 @@ Notes:
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary. Stale coord-trace artifacts are auto-refreshed when the live native trace can reacquire them.
   - Use --refresh-player-coord-trace to force-refresh the current-process coord-trace artifact through the native trace path and rewrite the trace file before returning the refreshed anchor summary.
-  - Use --read-player-actor-coords to read the current player actor coords through the proven coord-anchor path; stale coord-trace artifacts are auto-refreshed first when the live native trace can reacquire them, with current-reader fallback only if that refresh path still fails.
+  - Use --read-player-actor-coords to read the current player actor coords through the proven coord-anchor path; stale coord-trace artifacts are auto-refreshed first when the live native trace can reacquire them, with current-reader fallback only if that refresh path still fails. The result now includes best-chain, best-root-family, and canonical-root-instance provenance.
   - Use --read-player-actor-orientation to read the current live actor-facing yaw/pitch from the preferred pointer-hop orientation candidate, bootstrapping from trace-derived coords when ReaderBridge omits them.
-  - Use --read-player-actor-truth to read both the current actor coords and the canonical live actor orientation truth in one result.
+  - Use --read-player-actor-truth to read both the current actor coords and the canonical live actor orientation truth in one result, including the same root-family provenance used by the actor-coordinate reader.
   - Use --dump-player-actor-truth-chain to dump the current coord/orientation truth surfaces, nearby object bytes, and pointer backrefs for chain reconstruction.
   - Use --debug-trace-instruction to run the bounded native x64 debug worker against a known code address or module-relative offset.
   - Use --debug-trace-memory-write or --debug-trace-memory-access to arm a bounded hardware watchpoint against a narrowed address.

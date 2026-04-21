@@ -895,27 +895,20 @@ internal static class Program
             OrientationResolutionSource: orientationResult.ResolutionSource,
             Coordinates: result,
             Orientation: orientationResult,
+            BestContainerChain: null,
+            BestRootFamily: null,
+            RootFamilySummary: null,
             Notes: truthNotes);
 
-        var stabilityNotes = new List<string>();
-        var stabilityObservations = CollectTruthChainObservations(
+        var structuralContext = AnalyzeTruthStructuralContext(
             options,
             process,
             target,
             reader,
-            truthResult,
-            stabilityNotes);
-        var bestContainerChain = BuildBestContainerChain(stabilityObservations);
-        var readableRegions = reader.EnumerateMemoryRegions()
-            .Where(static region => region.IsCommitted && region.IsReadable)
-            .ToArray();
-        var rootFamilyCandidates = AnalyzeRootFamilyCandidates(
-            reader,
-            readableRegions,
-            stabilityObservations,
-            RootFamilyComparisonBytes,
-            stabilityNotes);
-        var bestRootFamily = rootFamilyCandidates.FirstOrDefault();
+            truthResult);
+        var bestContainerChain = structuralContext.BestContainerChain;
+        var bestRootFamily = structuralContext.BestRootFamily;
+        var rootFamilySummary = structuralContext.RootFamilySummary;
 
         if (bestRootFamily is not null)
         {
@@ -931,7 +924,12 @@ internal static class Program
             notes.Add($"Best parent/root chain during coord enrichment: {bestContainerChain.ParentAddress ?? "n/a"} -> {bestContainerChain.RootAddress} ({bestContainerChain.RootObservationCount}/{bestContainerChain.StabilitySampleCount} root observations).");
         }
 
-        foreach (var note in stabilityNotes)
+        if (rootFamilySummary is not null)
+        {
+            notes.Add($"Canonical root-family instance for coord truth: {rootFamilySummary.CanonicalInstanceAddress} in {rootFamilySummary.RegionBase} ({rootFamilySummary.CanonicalInstanceObservationCount}/{rootFamilySummary.StabilitySampleCount} observations).");
+        }
+
+        foreach (var note in structuralContext.Notes)
         {
             if (!notes.Contains(note, StringComparer.Ordinal))
             {
@@ -943,9 +941,133 @@ internal static class Program
         {
             BestContainerChain = bestContainerChain,
             BestRootFamily = bestRootFamily,
+            RootFamilySummary = rootFamilySummary,
             Notes = notes
         };
     }
+
+    private static PlayerActorTruthStructuralContext AnalyzeTruthStructuralContext(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        PlayerActorTruthReadResult truthResult)
+    {
+        var notes = new List<string>();
+        var stabilityObservations = CollectTruthChainObservations(
+            options,
+            process,
+            target,
+            reader,
+            truthResult,
+            notes);
+        var bestContainerChain = BuildBestContainerChain(stabilityObservations);
+        var readableRegions = reader.EnumerateMemoryRegions()
+            .Where(static region => region.IsCommitted && region.IsReadable)
+            .ToArray();
+        var rootFamilyCandidates = AnalyzeRootFamilyCandidates(
+            reader,
+            readableRegions,
+            stabilityObservations,
+            RootFamilyComparisonBytes,
+            notes);
+        var bestRootFamily = rootFamilyCandidates.FirstOrDefault();
+        var rootFamilySummary = BuildRootFamilySummary(
+            bestContainerChain,
+            bestRootFamily,
+            stabilityObservations,
+            truthResult.Orientation.RootAddress);
+
+        return new PlayerActorTruthStructuralContext(
+            StabilityObservations: stabilityObservations,
+            BestContainerChain: bestContainerChain,
+            BestRootFamily: bestRootFamily,
+            RootFamilySummary: rootFamilySummary,
+            Notes: notes);
+    }
+
+    private static PlayerActorTruthRootFamilySummary? BuildRootFamilySummary(
+        PlayerActorTruthBestContainerChain? bestContainerChain,
+        PlayerActorTruthRootFamilyCandidate? bestRootFamily,
+        IReadOnlyList<PlayerActorTruthChainObservation> observations,
+        string? preferredCurrentRootAddress)
+    {
+        if (bestRootFamily is null)
+        {
+            return null;
+        }
+
+        var canonicalInstanceAddress = SelectCanonicalRootFamilyInstanceAddress(
+            bestContainerChain,
+            bestRootFamily,
+            observations,
+            preferredCurrentRootAddress);
+        var canonicalInstanceObservationCount = CountRootFamilyObservations(
+            observations,
+            canonicalInstanceAddress);
+
+        return new PlayerActorTruthRootFamilySummary(
+            RegionBase: bestRootFamily.RegionBase,
+            CanonicalInstanceAddress: canonicalInstanceAddress,
+            CanonicalInstanceObservationCount: canonicalInstanceObservationCount,
+            RepresentativeAddress: bestRootFamily.RepresentativeAddress,
+            RepresentativeObservationCount: bestRootFamily.RepresentativeObservationCount,
+            ObservationCount: bestRootFamily.ObservationCount,
+            DistinctAddressCount: bestRootFamily.DistinctAddressCount,
+            StabilitySampleCount: bestRootFamily.StabilitySampleCount,
+            Score: bestRootFamily.Score);
+    }
+
+    private static string SelectCanonicalRootFamilyInstanceAddress(
+        PlayerActorTruthBestContainerChain? bestContainerChain,
+        PlayerActorTruthRootFamilyCandidate bestRootFamily,
+        IReadOnlyList<PlayerActorTruthChainObservation> observations,
+        string? preferredCurrentRootAddress)
+    {
+        var rootCounts = observations
+            .Where(observation => bestRootFamily.MemberAddresses.Contains(observation.OrientationRootAddress, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(static observation => observation.OrientationRootAddress, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                Address = group.Key,
+                Count = group.Count(),
+                IsCurrentRoot = !string.IsNullOrWhiteSpace(preferredCurrentRootAddress) &&
+                    string.Equals(group.Key, preferredCurrentRootAddress, StringComparison.OrdinalIgnoreCase),
+                IsBestChainRoot = !string.IsNullOrWhiteSpace(bestContainerChain?.RootAddress) &&
+                    string.Equals(group.Key, bestContainerChain.RootAddress, StringComparison.OrdinalIgnoreCase),
+                IsRepresentative = string.Equals(group.Key, bestRootFamily.RepresentativeAddress, StringComparison.OrdinalIgnoreCase)
+            })
+            .OrderByDescending(static item => item.Count)
+            .ThenByDescending(static item => item.IsCurrentRoot)
+            .ThenByDescending(static item => item.IsBestChainRoot)
+            .ThenByDescending(static item => item.IsRepresentative)
+            .ThenBy(static item => item.Address, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        return rootCounts?.Address
+            ?? bestContainerChain?.RootAddress
+            ?? bestRootFamily.RepresentativeAddress;
+    }
+
+    private static int CountRootFamilyObservations(
+        IReadOnlyList<PlayerActorTruthChainObservation> observations,
+        string? rootAddress)
+    {
+        if (string.IsNullOrWhiteSpace(rootAddress))
+        {
+            return 0;
+        }
+
+        return observations.Count(observation =>
+            string.Equals(observation.OrientationRootAddress, rootAddress, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed record PlayerActorTruthStructuralContext(
+        IReadOnlyList<PlayerActorTruthChainObservation> StabilityObservations,
+        PlayerActorTruthBestContainerChain? BestContainerChain,
+        PlayerActorTruthRootFamilyCandidate? BestRootFamily,
+        PlayerActorTruthRootFamilySummary? RootFamilySummary,
+        IReadOnlyList<string> Notes);
 
     private static int RunReadPlayerActorOrientationMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
@@ -1021,13 +1143,20 @@ internal static class Program
             return 1;
         }
 
+        var enrichedResult = EnrichPlayerActorTruthResultWithStructuralContext(
+            options,
+            process,
+            target,
+            reader,
+            result!);
+
         if (options.JsonOutput)
         {
-            Console.WriteLine(JsonOutput.Serialize(result));
+            Console.WriteLine(JsonOutput.Serialize(enrichedResult));
             return 0;
         }
 
-        Console.WriteLine(PlayerActorTruthReadTextFormatter.Format(result!));
+        Console.WriteLine(PlayerActorTruthReadTextFormatter.Format(enrichedResult));
         return 0;
     }
 
@@ -1373,9 +1502,61 @@ internal static class Program
             OrientationResolutionSource: orientationResult.ResolutionSource,
             Coordinates: coordResult,
             Orientation: orientationResult,
+            BestContainerChain: null,
+            BestRootFamily: null,
+            RootFamilySummary: null,
             Notes: notes);
 
         return true;
+    }
+
+    private static PlayerActorTruthReadResult EnrichPlayerActorTruthResultWithStructuralContext(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        PlayerActorTruthReadResult result)
+    {
+        var structuralContext = AnalyzeTruthStructuralContext(
+            options,
+            process,
+            target,
+            reader,
+            result);
+        var notes = result.Notes.Count == 0
+            ? new List<string>()
+            : result.Notes.ToList();
+
+        if (structuralContext.BestRootFamily is not null)
+        {
+            notes.Add($"Best root family {structuralContext.BestRootFamily.RegionBase} held {structuralContext.BestRootFamily.ObservationCount}/{structuralContext.BestRootFamily.StabilitySampleCount} observations across {structuralContext.BestRootFamily.DistinctAddressCount} root instances.");
+        }
+
+        if (structuralContext.BestContainerChain?.RootAddress is not null)
+        {
+            notes.Add($"Best parent/root chain during actor-truth enrichment: {structuralContext.BestContainerChain.ParentAddress ?? "n/a"} -> {structuralContext.BestContainerChain.RootAddress} ({structuralContext.BestContainerChain.RootObservationCount}/{structuralContext.BestContainerChain.StabilitySampleCount} root observations).");
+        }
+
+        if (structuralContext.RootFamilySummary is not null)
+        {
+            notes.Add($"Canonical root-family instance for actor truth: {structuralContext.RootFamilySummary.CanonicalInstanceAddress} in {structuralContext.RootFamilySummary.RegionBase} ({structuralContext.RootFamilySummary.CanonicalInstanceObservationCount}/{structuralContext.RootFamilySummary.StabilitySampleCount} observations).");
+        }
+
+        foreach (var note in structuralContext.Notes)
+        {
+            if (!notes.Contains(note, StringComparer.Ordinal))
+            {
+                notes.Add(note);
+            }
+        }
+
+        return result with
+        {
+            BestContainerChain = structuralContext.BestContainerChain,
+            BestRootFamily = structuralContext.BestRootFamily,
+            RootFamilySummary = structuralContext.RootFamilySummary,
+            Notes = notes
+        };
     }
 
     private static ReaderBridgeSnapshotDocument? TryEnsurePlayerCoordSnapshot(

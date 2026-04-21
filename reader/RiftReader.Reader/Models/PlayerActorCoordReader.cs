@@ -129,6 +129,7 @@ public static class PlayerActorCoordReader
             ModulePattern: anchorResult.ModulePattern,
             BestContainerChain: null,
             BestRootFamily: null,
+            RootFamilySummary: null,
             Notes: Array.Empty<string>());
     }
 
@@ -248,6 +249,7 @@ public static class PlayerActorCoordReader
             ModulePattern: anchorResult?.ModulePattern,
             BestContainerChain: null,
             BestRootFamily: null,
+            RootFamilySummary: null,
             Notes: Array.Empty<string>());
     }
 }

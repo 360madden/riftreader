@@ -22,9 +22,26 @@ public static class PlayerActorTruthReadTextFormatter
             $"Orientation object:      {result.Orientation.SelectedAddress}",
             $"Forward basis:           {result.Orientation.BasisPrimaryForwardOffset}",
             $"Yaw / pitch (deg):       {FormatDouble(result.Orientation.PreferredEstimate.YawDegrees)} / {FormatDouble(result.Orientation.PreferredEstimate.PitchDegrees)}",
-            $"Basis orthonormal:       {FormatBool(result.Orientation.Basis.IsOrthonormal)}",
-            $"Notes:                   {FormatNotes(result.Notes)}"
+            $"Basis orthonormal:       {FormatBool(result.Orientation.Basis.IsOrthonormal)}"
         };
+
+        if (result.BestContainerChain is not null)
+        {
+            lines.Add($"Best chain parent/root:  {result.BestContainerChain.ParentAddress ?? "n/a"} -> {result.BestContainerChain.RootAddress ?? "n/a"} ({result.BestContainerChain.RootObservationCount}/{result.BestContainerChain.StabilitySampleCount} root obs)");
+        }
+
+        if (result.BestRootFamily is not null)
+        {
+            lines.Add($"Best root family:        {result.BestRootFamily.RegionBase} ({result.BestRootFamily.ObservationCount}/{result.BestRootFamily.StabilitySampleCount}, distinct={result.BestRootFamily.DistinctAddressCount})");
+        }
+
+        if (result.RootFamilySummary is not null)
+        {
+            lines.Add($"Canonical root instance: {result.RootFamilySummary.CanonicalInstanceAddress}");
+            lines.Add($"Root family summary:     rep={result.RootFamilySummary.RepresentativeAddress} canonicalObs={result.RootFamilySummary.CanonicalInstanceObservationCount}/{result.RootFamilySummary.StabilitySampleCount}");
+        }
+
+        lines.Add($"Notes:                   {FormatNotes(result.Notes)}");
 
         return string.Join(Environment.NewLine, lines);
     }

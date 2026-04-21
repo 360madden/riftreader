@@ -12,4 +12,18 @@ public sealed record PlayerActorTruthReadResult(
     string OrientationResolutionSource,
     PlayerActorCoordReadResult Coordinates,
     PlayerActorOrientationReadResult Orientation,
+    PlayerActorTruthBestContainerChain? BestContainerChain,
+    PlayerActorTruthRootFamilyCandidate? BestRootFamily,
+    PlayerActorTruthRootFamilySummary? RootFamilySummary,
     IReadOnlyList<string> Notes);
+
+public sealed record PlayerActorTruthRootFamilySummary(
+    string RegionBase,
+    string CanonicalInstanceAddress,
+    int CanonicalInstanceObservationCount,
+    string RepresentativeAddress,
+    int RepresentativeObservationCount,
+    int ObservationCount,
+    int DistinctAddressCount,
+    int StabilitySampleCount,
+    int Score);
