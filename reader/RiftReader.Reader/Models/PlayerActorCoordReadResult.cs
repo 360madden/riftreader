@@ -1,0 +1,38 @@
+using RiftReader.Reader.Scanning;
+
+namespace RiftReader.Reader.Models;
+
+public sealed record PlayerActorCoordReadResult(
+    string Mode,
+    int ProcessId,
+    string ProcessName,
+    string ReaderBridgeSourceFile,
+    string? TraceSourceFile,
+    bool TraceAvailable,
+    bool TraceMatchesProcess,
+    string ResolutionSource,
+    string AnchorProvenance,
+    string? FamilyId,
+    string? FamilyNotes,
+    string? Signature,
+    string? SelectionSource,
+    string? ConfirmationFile,
+    int CeConfirmedSampleCount,
+    string? BaseRegister,
+    string? BaseRegisterValue,
+    string? ObjectBaseAddress,
+    int? CoordBaseRelativeOffset,
+    int? CoordXRelativeOffset,
+    int? CoordYRelativeOffset,
+    int? CoordZRelativeOffset,
+    int? LevelRelativeOffset,
+    int? HealthRelativeOffset,
+    string? ModuleName,
+    string? ModuleOffset,
+    string? InstructionSymbol,
+    string? Instruction,
+    string? Pattern,
+    PlayerCurrentReadSample Memory,
+    PlayerCurrentReadExpected Expected,
+    PlayerCurrentReadMatch Match,
+    ModulePatternScanResult? ModulePattern);

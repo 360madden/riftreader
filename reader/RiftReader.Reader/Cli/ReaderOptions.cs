@@ -52,6 +52,7 @@ public sealed record ReaderOptions(
     bool ReadReaderBridgeSnapshot,
     string? ReaderBridgeSnapshotFile,
     bool JsonOutput,
+    bool ReadPlayerActorCoords = false,
     bool FindPlayerOrientationCandidate = false,
     string? OrientationCandidateLedgerFile = null,
     bool DebugTraceInstruction = false,

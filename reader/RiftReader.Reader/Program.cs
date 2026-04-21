@@ -24,10 +24,18 @@ internal static class Program
     private const long SessionRecommendedRawByteBudget = 8L * 1024L * 1024L;
     private const int SessionRecommendedBurstSampleCount = 200;
     private const int SessionRecommendedBurstIntervalMilliseconds = 50;
+    private const int PlayerCoordTraceRefreshTimeoutMilliseconds = 10000;
+    private const int PlayerCoordTraceRefreshMaxHits = 4;
+    private const int PlayerCoordTraceRefreshMaxEvents = 4096;
 
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private static readonly JsonSerializerOptions PrettyJsonOptions = new()
+    {
+        WriteIndented = true
     };
 
     private static int Main(string[] args)
@@ -179,7 +187,7 @@ internal static class Program
             return RunDebugTraceMode(options, process, target);
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.ReadPlayerActorCoords && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -240,6 +248,11 @@ internal static class Program
         if (options.ReadPlayerCoordAnchor)
         {
             return RunReadPlayerCoordAnchorMode(options, process, target, reader);
+        }
+
+        if (options.ReadPlayerActorCoords)
+        {
+            return RunReadPlayerActorCoordsMode(options, process, target, reader);
         }
 
         if (options.RecordSession)
@@ -694,52 +707,17 @@ internal static class Program
 
         var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
 
-        ModulePatternScanResult? modulePattern = null;
-        var trace = traceDocument.Trace;
-        if (!string.IsNullOrWhiteSpace(trace.ModuleName) && !string.IsNullOrWhiteSpace(trace.NormalizedPattern ?? trace.InstructionBytes))
+        var result = TryReadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            refreshIfNeeded: true,
+            out var anchorError);
+        if (result is null)
         {
-            var module = ProcessModuleLocator.FindModule(process, trace.ModuleName, out var moduleError);
-            if (module is null)
-            {
-                Console.Error.WriteLine(moduleError ?? "Unable to resolve the traced module.");
-                return 1;
-            }
-
-            var pattern = trace.NormalizedPattern;
-            if (string.IsNullOrWhiteSpace(pattern))
-            {
-                pattern = string.Join(' ', Enumerable.Range(0, trace.InstructionBytes!.Replace(" ", string.Empty).Length / 2)
-                    .Select(index => trace.InstructionBytes.Replace(" ", string.Empty).Substring(index * 2, 2).ToUpperInvariant()));
-            }
-
-            modulePattern = ModulePatternScanner.Scan(
-                process,
-                reader,
-                target.ProcessId,
-                target.ProcessName,
-                module.ModuleName,
-                module.FileName,
-                module.BaseAddress.ToInt64(),
-                module.ModuleMemorySize,
-                pattern!,
-                options.ScanContextBytes);
-        }
-
-        PlayerCoordAnchorReadResult result;
-        try
-        {
-            result = PlayerCoordAnchorReader.Read(
-                reader,
-                target.ProcessId,
-                target.ProcessName,
-                traceDocument.SourceFile,
-                traceDocument,
-                snapshotDocument,
-                modulePattern);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Unable to read the current player coord anchor: {ex.Message}");
+            Console.Error.WriteLine(anchorError ?? "Unable to read the current player coord anchor.");
             return 1;
         }
 
@@ -751,6 +729,534 @@ internal static class Program
 
         Console.WriteLine(PlayerCoordAnchorReadTextFormatter.Format(result));
         return 0;
+    }
+
+    private static int RunReadPlayerActorCoordsMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (snapshotDocument?.Current?.Player is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player actor-coordinate reading.");
+            return 1;
+        }
+
+        var anchorResult = TryReadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            refreshIfNeeded: true,
+            out _);
+
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+        PlayerActorCoordReadResult result;
+        try
+        {
+            result = PlayerActorCoordReader.ReadCurrent(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                inspectionRadius,
+                options.MaxHits,
+                anchorResult);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current player actor coordinates: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerActorCoordReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static PlayerCoordAnchorReadResult? TryReadPlayerCoordAnchorResult(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        bool refreshIfNeeded,
+        out string? error)
+    {
+        error = null;
+
+        var anchorResult = TryLoadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            out var loadError);
+
+        if (!refreshIfNeeded || !ShouldRefreshPlayerCoordAnchor(anchorResult))
+        {
+            error = loadError;
+            return anchorResult;
+        }
+
+        if (!TryRefreshPlayerCoordTraceArtifact(options, process, target, reader, out var refreshError))
+        {
+            error = refreshError ?? loadError;
+            return anchorResult;
+        }
+
+        var refreshedResult = TryLoadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            out var refreshLoadError);
+
+        error = refreshedResult is null
+            ? refreshLoadError ?? refreshError ?? loadError
+            : refreshLoadError;
+
+        return refreshedResult ?? anchorResult;
+    }
+
+    private static PlayerCoordAnchorReadResult? TryLoadPlayerCoordAnchorResult(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        out string? error)
+    {
+        error = null;
+
+        var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(options.PlayerCoordTraceFile, out var loadError);
+        if (traceDocument?.Trace is null || string.IsNullOrWhiteSpace(traceDocument.SourceFile))
+        {
+            error = loadError ?? "Unable to load the latest player coord trace artifact.";
+            return null;
+        }
+
+        try
+        {
+            return PlayerCoordAnchorReader.Read(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                traceDocument.SourceFile,
+                traceDocument,
+                snapshotDocument,
+                ScanTraceModulePattern(process, target, reader, traceDocument, options.ScanContextBytes));
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to read the current player coord anchor: {ex.Message}";
+            return null;
+        }
+    }
+
+    private static bool ShouldRefreshPlayerCoordAnchor(PlayerCoordAnchorReadResult? anchorResult)
+    {
+        if (anchorResult is null || !anchorResult.TraceMatchesProcess)
+        {
+            return true;
+        }
+
+        var coordMatch =
+            anchorResult.Match?.CoordMatchesWithinTolerance == true ||
+            anchorResult.SourceObjectMatch?.CoordMatchesWithinTolerance == true;
+
+        return !coordMatch;
+    }
+
+    private static bool TryRefreshPlayerCoordTraceArtifact(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        out string? error)
+    {
+        error = null;
+
+        var baselineDocument = PlayerCoordTraceAnchorLoader.TryLoad(options.PlayerCoordTraceFile, out var loadError);
+        if (baselineDocument?.Trace is null)
+        {
+            error = loadError ?? "Unable to load the baseline player coord trace artifact for refresh.";
+            return false;
+        }
+
+        var modulePattern = ScanTraceModulePattern(process, target, reader, baselineDocument, options.ScanContextBytes);
+        if (modulePattern is null || !modulePattern.Found || string.IsNullOrWhiteSpace(modulePattern.RelativeOffsetHex))
+        {
+            error = "Unable to resolve the live coord instruction pattern for player-coord trace refresh.";
+            return false;
+        }
+
+        var outputDirectory = ResolvePlayerCoordTraceRefreshOutputDirectory();
+        var request = new DebugTraceRequest(
+            SchemaVersion: DebugTraceRequestBuilder.SchemaVersion,
+            Mode: "debug-trace-instruction",
+            Target: new DebugTraceTargetSpec(
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                ModuleName: target.ModuleName,
+                MainWindowTitle: target.MainWindowTitle,
+                ProcessStartTimeUtc: TryGetProcessStartTimeUtc(process)),
+            Breakpoint: new DebugTraceBreakpointSpec(
+                Kind: "instruction",
+                ResolutionMode: "module-relative",
+                Address: null,
+                ModuleName: modulePattern.ModuleName,
+                ModuleOffset: modulePattern.RelativeOffsetHex,
+                Width: 4,
+                Pattern: modulePattern.Pattern,
+                SourceFile: baselineDocument.SourceFile,
+                AccessType: baselineDocument.Trace.AccessType,
+                Metadata: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["instruction"] = baselineDocument.Trace.Instruction ?? string.Empty,
+                    ["effectiveAddress"] = baselineDocument.Trace.EffectiveAddress ?? string.Empty,
+                    ["targetAddress"] = baselineDocument.Trace.TargetAddress ?? string.Empty
+                }),
+            Capture: new DebugTraceCaptureOptions(
+                StackBytes: options.DebugCaptureStackBytes,
+                MemoryWindowBytes: options.DebugCaptureMemoryWindowBytes),
+            Limits: new DebugTraceLimits(
+                TimeoutMilliseconds: Math.Max(options.DebugTimeoutMilliseconds, PlayerCoordTraceRefreshTimeoutMilliseconds),
+                MaxHits: Math.Max(options.DebugMaxHits, PlayerCoordTraceRefreshMaxHits),
+                MaxEvents: Math.Max(options.DebugMaxEvents, PlayerCoordTraceRefreshMaxEvents)),
+            Capabilities: new DebugTraceCapabilities(
+                PreflightValidation: true,
+                RegisterCapture: !options.DebugDisableRegisterCapture,
+                StackCapture: !options.DebugDisableStackCapture,
+                MemoryWindows: !options.DebugDisableMemoryWindows,
+                InstructionDecode: !options.DebugDisableInstructionDecode,
+                InstructionFingerprint: !options.DebugDisableInstructionFingerprint,
+                HitClustering: !options.DebugDisableHitClustering,
+                FollowUpSuggestions: !options.DebugDisableFollowUpSuggestions,
+                Artifacts: true),
+            OutputDirectory: outputDirectory,
+            Label: "refresh-player-coord-trace",
+            MarkerInputFile: null,
+            PresetName: "player-coord-write-refresh",
+            PlayerCoordTraceFile: options.PlayerCoordTraceFile,
+            ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
+            JsonOutput: false);
+
+        var requestFile = DebugTraceRequestBuilder.WriteRequestFile(request);
+        var startInfo = BuildDebugWorkerStartInfo(requestFile);
+
+        using var worker = Process.Start(startInfo);
+        if (worker is null)
+        {
+            error = "Unable to start the internal debug worker for player-coord trace refresh.";
+            return false;
+        }
+
+        var workerStdout = worker.StandardOutput.ReadToEnd();
+        var workerStderr = worker.StandardError.ReadToEnd();
+        worker.WaitForExit();
+
+        var inspection = DebugTracePackageLoader.TryInspect(request.OutputDirectory, out var inspectError);
+        if (inspection is null)
+        {
+            error = inspectError
+                ?? workerStderr
+                ?? "Unable to inspect the refreshed player-coord trace package.";
+            return false;
+        }
+
+        if (inspection.Hits.Count == 0)
+        {
+            error = inspection.Package.FailureMessage
+                ?? workerStderr
+                ?? "Player-coord trace refresh completed without any debug hits.";
+            return false;
+        }
+
+        var outputFile = ResolvePlayerCoordTraceOutputFile(options.PlayerCoordTraceFile);
+        var refreshedDocument = BuildRefreshedPlayerCoordTraceDocument(baselineDocument, inspection, outputFile);
+        File.WriteAllText(outputFile, JsonSerializer.Serialize(refreshedDocument, PrettyJsonOptions));
+        return true;
+    }
+
+    private static ModulePatternScanResult? ScanTraceModulePattern(
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        PlayerCoordTraceAnchorDocument traceDocument,
+        int scanContextBytes)
+    {
+        var trace = traceDocument.Trace;
+        var pattern = ResolveTracePattern(trace);
+        if (trace is null || string.IsNullOrWhiteSpace(trace.ModuleName) || string.IsNullOrWhiteSpace(pattern))
+        {
+            return null;
+        }
+
+        var module = ProcessModuleLocator.FindModule(process, trace.ModuleName, out _);
+        if (module is null)
+        {
+            return null;
+        }
+
+        return ModulePatternScanner.Scan(
+            process,
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            module.ModuleName,
+            module.FileName,
+            module.BaseAddress.ToInt64(),
+            module.ModuleMemorySize,
+            pattern,
+            scanContextBytes);
+    }
+
+    private static string ResolvePlayerCoordTraceOutputFile(string? explicitPath)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            return Path.GetFullPath(explicitPath);
+        }
+
+        var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
+        return Path.Combine(repoRoot, "scripts", "captures", "player-coord-write-trace.json");
+    }
+
+    private static string ResolvePlayerCoordTraceRefreshOutputDirectory()
+    {
+        var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
+        return Path.Combine(
+            repoRoot,
+            "scripts",
+            "captures",
+            "debug-traces",
+            $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}-refresh-player-coord-trace");
+    }
+
+    private static PlayerCoordTraceAnchorDocument BuildRefreshedPlayerCoordTraceDocument(
+        PlayerCoordTraceAnchorDocument baselineDocument,
+        DebugTraceInspectResult inspection,
+        string outputFile)
+    {
+        var baselineTrace = baselineDocument.Trace
+            ?? throw new InvalidOperationException("The baseline player coord trace document did not contain a trace payload.");
+        var hit = inspection.Hits.FirstOrDefault()
+            ?? throw new InvalidOperationException("The debug trace inspection did not contain any hits.");
+
+        var matchedOffset = TryParseInvariantInt32(baselineTrace.MatchedOffset);
+        var effectiveAddress = NormalizeAddressText(hit.EffectiveAddress) ?? baselineTrace.EffectiveAddress;
+        var candidateAddress = effectiveAddress is not null && matchedOffset.HasValue
+            ? TryAddOffsetToAddress(effectiveAddress, -matchedOffset.Value)
+            : baselineTrace.CandidateAddress;
+        var (hitModuleName, hitModuleOffset) = ParseModuleRelativeRip(hit.ModuleRelativeRip);
+        var moduleName = hitModuleName
+            ?? inspection.TraceManifest?.BreakpointModuleName
+            ?? baselineTrace.ModuleName;
+        var moduleOffset = hitModuleOffset
+            ?? inspection.TraceManifest?.BreakpointModuleOffset
+            ?? baselineTrace.ModuleOffset;
+        var moduleBase = ResolveModuleBaseAddress(inspection, moduleName) ?? baselineTrace.ModuleBase;
+        var instructionAddress = NormalizeAddressText(hit.RawRip) ?? baselineTrace.InstructionAddress;
+        var instructionBytes = NormalizeHexBytes(hit.InstructionBytes) ?? baselineTrace.InstructionBytes;
+        var normalizedPattern = baselineTrace.NormalizedPattern ?? instructionBytes;
+        var instructionText = hit.InstructionText ?? baselineTrace.Instruction;
+        var instructionSymbol = hit.ModuleRelativeRip;
+        if (string.IsNullOrWhiteSpace(instructionSymbol) &&
+            !string.IsNullOrWhiteSpace(moduleName) &&
+            !string.IsNullOrWhiteSpace(moduleOffset))
+        {
+            instructionSymbol = $"{moduleName}+{moduleOffset}";
+        }
+
+        var refreshedTrace = new PlayerCoordTraceAnchorTrace(
+            Status: inspection.Package.Status ?? (inspection.Hits.Count > 0 ? "hit" : baselineTrace.Status),
+            VerificationMethod: baselineTrace.VerificationMethod ?? "native-debug-trace-instruction",
+            CandidateAddress: candidateAddress,
+            CandidateSource: "native-debug-trace-package",
+            TargetAddress: candidateAddress ?? baselineTrace.TargetAddress,
+            HitCount: inspection.Package.HitCount ?? inspection.Hits.Count,
+            InstructionAddress: instructionAddress,
+            InstructionSymbol: instructionSymbol ?? baselineTrace.InstructionSymbol,
+            Instruction: instructionText,
+            InstructionBytes: instructionBytes,
+            NormalizedPattern: normalizedPattern,
+            InstructionOpcode: instructionText ?? baselineTrace.InstructionOpcode,
+            InstructionExtra: baselineTrace.InstructionExtra,
+            InstructionSize: ResolveInstructionSize(instructionBytes, baselineTrace.InstructionSize),
+            WriteOperand: baselineTrace.WriteOperand,
+            AccessOperand: baselineTrace.AccessOperand,
+            AccessType: baselineTrace.AccessType,
+            EffectiveAddress: effectiveAddress,
+            AccessMatchesTarget: candidateAddress is not null ? bool.TrueString.ToLowerInvariant() : baselineTrace.AccessMatchesTarget,
+            MatchedOffset: baselineTrace.MatchedOffset,
+            ModuleName: moduleName,
+            ModuleBase: moduleBase,
+            ModuleOffset: moduleOffset,
+            Registers: hit.Registers?.ToDictionary(
+                static pair => pair.Key,
+                static pair => pair.Value,
+                StringComparer.OrdinalIgnoreCase));
+
+        return new PlayerCoordTraceAnchorDocument(
+            Mode: baselineDocument.Mode ?? "player-coord-write-trace",
+            GeneratedAtUtc: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+            Reader: new PlayerCoordTraceAnchorReaderSummary(
+                Mode: inspection.TraceManifest?.Mode ?? baselineDocument.Reader?.Mode ?? "debug-trace-instruction",
+                ProcessId: inspection.TraceManifest?.ProcessId ?? inspection.Package.ProcessId,
+                ProcessName: inspection.TraceManifest?.ProcessName ?? inspection.Package.ProcessName),
+            Trace: refreshedTrace,
+            OutputFile: outputFile,
+            SourceFile: outputFile);
+    }
+
+    private static string? ResolveTracePattern(PlayerCoordTraceAnchorTrace? trace)
+    {
+        if (trace is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(trace.NormalizedPattern))
+        {
+            return trace.NormalizedPattern;
+        }
+
+        return NormalizeHexBytes(trace.InstructionBytes);
+    }
+
+    private static string? NormalizeHexBytes(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var compact = value.Replace(" ", string.Empty).Trim();
+        if (compact.Length == 0 || (compact.Length % 2) != 0)
+        {
+            return null;
+        }
+
+        return string.Join(' ', Enumerable.Range(0, compact.Length / 2)
+            .Select(index => compact.Substring(index * 2, 2).ToUpperInvariant()));
+    }
+
+    private static string? NormalizeAddressText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return TryParseHexAddress(value, out var address)
+            ? $"0x{address:X}"
+            : null;
+    }
+
+    private static string? TryAddOffsetToAddress(string addressText, int delta)
+    {
+        if (!TryParseHexAddress(addressText, out var address))
+        {
+            return null;
+        }
+
+        var adjusted = address + delta;
+        return adjusted < 0
+            ? null
+            : $"0x{adjusted:X}";
+    }
+
+    private static bool TryParseHexAddress(string? value, out long address)
+    {
+        address = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var token = value.Trim();
+        if (token.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            token = token[2..];
+        }
+
+        return long.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out address);
+    }
+
+    private static int? TryParseInvariantInt32(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static string? ResolveModuleBaseAddress(DebugTraceInspectResult inspection, string? moduleName)
+    {
+        if (string.IsNullOrWhiteSpace(moduleName))
+        {
+            return null;
+        }
+
+        return inspection.Modules.FirstOrDefault(module =>
+            string.Equals(module.ModuleName, moduleName, StringComparison.OrdinalIgnoreCase))
+            ?.BaseAddressHex;
+    }
+
+    private static string? ResolveInstructionSize(string? instructionBytes, string? fallback)
+    {
+        var normalized = NormalizeHexBytes(instructionBytes);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return fallback;
+        }
+
+        var size = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        return size.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string? TryGetProcessStartTimeUtc(Process process)
+    {
+        try
+        {
+            return process.StartTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static (string? ModuleName, string? ModuleOffset) ParseModuleRelativeRip(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return (null, null);
+        }
+
+        var separatorIndex = value.IndexOf('+');
+        if (separatorIndex <= 0 || separatorIndex >= value.Length - 1)
+        {
+            return (null, null);
+        }
+
+        var moduleName = value[..separatorIndex].Trim();
+        var moduleOffset = NormalizeAddressText(value[(separatorIndex + 1)..].Trim());
+        return (
+            string.IsNullOrWhiteSpace(moduleName) ? null : moduleName,
+            moduleOffset);
     }
 
     private static int RunReadPlayerOrientationMode(ReaderOptions options)

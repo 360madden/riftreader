@@ -1,0 +1,8 @@
+{
+  "state": "idle",
+  "action": "waiting for status",
+  "updatedAtUtc": "2026-04-20T23:55:00.0000000+00:00",
+  "staleAfterSeconds": 90,
+  "lastMessage": "waiting for status",
+  "lastMessageAtUtc": null
+}
