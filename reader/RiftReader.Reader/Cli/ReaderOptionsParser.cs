@@ -57,8 +57,8 @@ Notes:
   - Use --find-player-orientation-candidate to do a single-process read-only search for live actor/source candidates near current player coordinate hits.
   - Use --orientation-candidate-ledger-file to downrank candidates that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
-  - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
-  - Use --read-player-actor-coords to read the current player actor coords through the proven coord-anchor path when a current-process trace is available, with current-reader fallback when it is not.
+  - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary. Stale coord-trace artifacts are auto-refreshed when the live native trace can reacquire them.
+  - Use --read-player-actor-coords to read the current player actor coords through the proven coord-anchor path; stale coord-trace artifacts are auto-refreshed first when the live native trace can reacquire them, with current-reader fallback only if that refresh path still fails.
   - Use --debug-trace-instruction to run the bounded native x64 debug worker against a known code address or module-relative offset.
   - Use --debug-trace-memory-write or --debug-trace-memory-access to arm a bounded hardware watchpoint against a narrowed address.
   - Use --debug-trace-player-coord-write to validate the current coord-trace lineage and execute-trace the current player coord write instruction.

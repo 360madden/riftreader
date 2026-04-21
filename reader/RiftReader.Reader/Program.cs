@@ -24,9 +24,10 @@ internal static class Program
     private const long SessionRecommendedRawByteBudget = 8L * 1024L * 1024L;
     private const int SessionRecommendedBurstSampleCount = 200;
     private const int SessionRecommendedBurstIntervalMilliseconds = 50;
-    private const int PlayerCoordTraceRefreshTimeoutMilliseconds = 10000;
+    private const int PlayerCoordTraceRefreshTimeoutMilliseconds = 30000;
     private const int PlayerCoordTraceRefreshMaxHits = 4;
     private const int PlayerCoordTraceRefreshMaxEvents = 4096;
+    private const int PlayerCoordTraceRefreshAttempts = 2;
 
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
@@ -896,93 +897,100 @@ internal static class Program
             error = "Unable to resolve the live coord instruction pattern for player-coord trace refresh.";
             return false;
         }
+        string? lastError = null;
 
-        var outputDirectory = ResolvePlayerCoordTraceRefreshOutputDirectory();
-        var request = new DebugTraceRequest(
-            SchemaVersion: DebugTraceRequestBuilder.SchemaVersion,
-            Mode: "debug-trace-instruction",
-            Target: new DebugTraceTargetSpec(
-                ProcessId: target.ProcessId,
-                ProcessName: target.ProcessName,
-                ModuleName: target.ModuleName,
-                MainWindowTitle: target.MainWindowTitle,
-                ProcessStartTimeUtc: TryGetProcessStartTimeUtc(process)),
-            Breakpoint: new DebugTraceBreakpointSpec(
-                Kind: "instruction",
-                ResolutionMode: "module-relative",
-                Address: null,
-                ModuleName: modulePattern.ModuleName,
-                ModuleOffset: modulePattern.RelativeOffsetHex,
-                Width: 4,
-                Pattern: modulePattern.Pattern,
-                SourceFile: baselineDocument.SourceFile,
-                AccessType: baselineDocument.Trace.AccessType,
-                Metadata: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["instruction"] = baselineDocument.Trace.Instruction ?? string.Empty,
-                    ["effectiveAddress"] = baselineDocument.Trace.EffectiveAddress ?? string.Empty,
-                    ["targetAddress"] = baselineDocument.Trace.TargetAddress ?? string.Empty
-                }),
-            Capture: new DebugTraceCaptureOptions(
-                StackBytes: options.DebugCaptureStackBytes,
-                MemoryWindowBytes: options.DebugCaptureMemoryWindowBytes),
-            Limits: new DebugTraceLimits(
-                TimeoutMilliseconds: Math.Max(options.DebugTimeoutMilliseconds, PlayerCoordTraceRefreshTimeoutMilliseconds),
-                MaxHits: Math.Max(options.DebugMaxHits, PlayerCoordTraceRefreshMaxHits),
-                MaxEvents: Math.Max(options.DebugMaxEvents, PlayerCoordTraceRefreshMaxEvents)),
-            Capabilities: new DebugTraceCapabilities(
-                PreflightValidation: true,
-                RegisterCapture: !options.DebugDisableRegisterCapture,
-                StackCapture: !options.DebugDisableStackCapture,
-                MemoryWindows: !options.DebugDisableMemoryWindows,
-                InstructionDecode: !options.DebugDisableInstructionDecode,
-                InstructionFingerprint: !options.DebugDisableInstructionFingerprint,
-                HitClustering: !options.DebugDisableHitClustering,
-                FollowUpSuggestions: !options.DebugDisableFollowUpSuggestions,
-                Artifacts: true),
-            OutputDirectory: outputDirectory,
-            Label: "refresh-player-coord-trace",
-            MarkerInputFile: null,
-            PresetName: "player-coord-write-refresh",
-            PlayerCoordTraceFile: options.PlayerCoordTraceFile,
-            ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
-            JsonOutput: false);
-
-        var requestFile = DebugTraceRequestBuilder.WriteRequestFile(request);
-        var startInfo = BuildDebugWorkerStartInfo(requestFile);
-
-        using var worker = Process.Start(startInfo);
-        if (worker is null)
+        for (var attempt = 1; attempt <= PlayerCoordTraceRefreshAttempts; attempt++)
         {
-            error = "Unable to start the internal debug worker for player-coord trace refresh.";
-            return false;
+            var outputDirectory = ResolvePlayerCoordTraceRefreshOutputDirectory(attempt);
+            var request = new DebugTraceRequest(
+                SchemaVersion: DebugTraceRequestBuilder.SchemaVersion,
+                Mode: "debug-trace-instruction",
+                Target: new DebugTraceTargetSpec(
+                    ProcessId: target.ProcessId,
+                    ProcessName: target.ProcessName,
+                    ModuleName: target.ModuleName,
+                    MainWindowTitle: target.MainWindowTitle,
+                    ProcessStartTimeUtc: TryGetProcessStartTimeUtc(process)),
+                Breakpoint: new DebugTraceBreakpointSpec(
+                    Kind: "instruction",
+                    ResolutionMode: "module-relative",
+                    Address: null,
+                    ModuleName: modulePattern.ModuleName,
+                    ModuleOffset: modulePattern.RelativeOffsetHex,
+                    Width: null,
+                    Pattern: modulePattern.Pattern,
+                    SourceFile: baselineDocument.SourceFile,
+                    AccessType: baselineDocument.Trace.AccessType,
+                    Metadata: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["instruction"] = baselineDocument.Trace.Instruction ?? string.Empty,
+                        ["effectiveAddress"] = baselineDocument.Trace.EffectiveAddress ?? string.Empty,
+                        ["targetAddress"] = baselineDocument.Trace.TargetAddress ?? string.Empty
+                    }),
+                Capture: new DebugTraceCaptureOptions(
+                    StackBytes: options.DebugCaptureStackBytes,
+                    MemoryWindowBytes: options.DebugCaptureMemoryWindowBytes),
+                Limits: new DebugTraceLimits(
+                    TimeoutMilliseconds: Math.Max(options.DebugTimeoutMilliseconds, PlayerCoordTraceRefreshTimeoutMilliseconds),
+                    MaxHits: Math.Max(options.DebugMaxHits, PlayerCoordTraceRefreshMaxHits),
+                    MaxEvents: Math.Max(options.DebugMaxEvents, PlayerCoordTraceRefreshMaxEvents)),
+                Capabilities: new DebugTraceCapabilities(
+                    PreflightValidation: true,
+                    RegisterCapture: !options.DebugDisableRegisterCapture,
+                    StackCapture: !options.DebugDisableStackCapture,
+                    MemoryWindows: !options.DebugDisableMemoryWindows,
+                    InstructionDecode: !options.DebugDisableInstructionDecode,
+                    InstructionFingerprint: !options.DebugDisableInstructionFingerprint,
+                    HitClustering: !options.DebugDisableHitClustering,
+                    FollowUpSuggestions: !options.DebugDisableFollowUpSuggestions,
+                    Artifacts: true),
+                OutputDirectory: outputDirectory,
+                Label: $"refresh-player-coord-trace-attempt-{attempt}",
+                MarkerInputFile: null,
+                PresetName: "player-coord-write-refresh",
+                PlayerCoordTraceFile: options.PlayerCoordTraceFile,
+                ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
+                JsonOutput: false);
+
+            var requestFile = DebugTraceRequestBuilder.WriteRequestFile(request);
+            var startInfo = BuildDebugWorkerStartInfo(requestFile);
+
+            using var worker = Process.Start(startInfo);
+            if (worker is null)
+            {
+                error = "Unable to start the internal debug worker for player-coord trace refresh.";
+                return false;
+            }
+
+            var workerStdout = worker.StandardOutput.ReadToEnd();
+            var workerStderr = worker.StandardError.ReadToEnd();
+            worker.WaitForExit();
+
+            var inspection = DebugTracePackageLoader.TryInspect(request.OutputDirectory, out var inspectError);
+            if (inspection is null)
+            {
+                lastError = inspectError
+                    ?? workerStderr
+                    ?? "Unable to inspect the refreshed player-coord trace package.";
+                continue;
+            }
+
+            if (inspection.Hits.Count == 0)
+            {
+                lastError = inspection.Package.FailureMessage
+                    ?? workerStderr
+                    ?? $"Player-coord trace refresh attempt {attempt} completed without any debug hits.";
+                continue;
+            }
+
+            var outputFile = ResolvePlayerCoordTraceOutputFile(options.PlayerCoordTraceFile);
+            var refreshedDocument = BuildRefreshedPlayerCoordTraceDocument(baselineDocument, inspection, outputFile);
+            File.WriteAllText(outputFile, JsonSerializer.Serialize(refreshedDocument, PrettyJsonOptions));
+            return true;
         }
 
-        var workerStdout = worker.StandardOutput.ReadToEnd();
-        var workerStderr = worker.StandardError.ReadToEnd();
-        worker.WaitForExit();
-
-        var inspection = DebugTracePackageLoader.TryInspect(request.OutputDirectory, out var inspectError);
-        if (inspection is null)
-        {
-            error = inspectError
-                ?? workerStderr
-                ?? "Unable to inspect the refreshed player-coord trace package.";
-            return false;
-        }
-
-        if (inspection.Hits.Count == 0)
-        {
-            error = inspection.Package.FailureMessage
-                ?? workerStderr
-                ?? "Player-coord trace refresh completed without any debug hits.";
-            return false;
-        }
-
-        var outputFile = ResolvePlayerCoordTraceOutputFile(options.PlayerCoordTraceFile);
-        var refreshedDocument = BuildRefreshedPlayerCoordTraceDocument(baselineDocument, inspection, outputFile);
-        File.WriteAllText(outputFile, JsonSerializer.Serialize(refreshedDocument, PrettyJsonOptions));
-        return true;
+        error = lastError ?? "Unable to refresh the player-coord trace artifact.";
+        return false;
     }
 
     private static ModulePatternScanResult? ScanTraceModulePattern(
@@ -1029,7 +1037,7 @@ internal static class Program
         return Path.Combine(repoRoot, "scripts", "captures", "player-coord-write-trace.json");
     }
 
-    private static string ResolvePlayerCoordTraceRefreshOutputDirectory()
+    private static string ResolvePlayerCoordTraceRefreshOutputDirectory(int attempt)
     {
         var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
         return Path.Combine(
@@ -1037,7 +1045,7 @@ internal static class Program
             "scripts",
             "captures",
             "debug-traces",
-            $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}-refresh-player-coord-trace");
+            $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-refresh-player-coord-trace-attempt-{attempt}");
     }
 
     private static PlayerCoordTraceAnchorDocument BuildRefreshedPlayerCoordTraceDocument(
