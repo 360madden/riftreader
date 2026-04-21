@@ -28,6 +28,8 @@ internal static class Program
     private const int PlayerCoordTraceRefreshMaxHits = 4;
     private const int PlayerCoordTraceRefreshMaxEvents = 4096;
     private const int PlayerCoordTraceRefreshAttempts = 2;
+    private const int TruthChainSecondHopSeedLimitPerSurface = 2;
+    private const int TruthChainSecondHopPointerScanMaxHits = 6;
 
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
@@ -188,7 +190,7 @@ internal static class Program
             return RunDebugTraceMode(options, process, target);
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerOrientation && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RefreshPlayerCoordTrace && !options.ReadPlayerActorCoords && !options.ReadPlayerActorOrientation && !options.ReadPlayerActorTruth && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerOrientation && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RefreshPlayerCoordTrace && !options.ReadPlayerActorCoords && !options.ReadPlayerActorOrientation && !options.ReadPlayerActorTruth && !options.DumpPlayerActorTruthChain && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -269,6 +271,11 @@ internal static class Program
         if (options.ReadPlayerActorTruth)
         {
             return RunReadPlayerActorTruthMode(options, process, target, reader);
+        }
+
+        if (options.DumpPlayerActorTruthChain)
+        {
+            return RunDumpPlayerActorTruthChainMode(options, process, target, reader);
         }
 
         if (options.ReadPlayerOrientation)
@@ -873,97 +880,149 @@ internal static class Program
 
     private static int RunReadPlayerActorTruthMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
-
-        var anchorResult = TryReadPlayerCoordAnchorResult(
-            options,
-            process,
-            target,
-            reader,
-            snapshotDocument,
-            refreshIfNeeded: true,
-            out _);
-
-        var effectiveSnapshotDocument = TryEnsurePlayerCoordSnapshot(snapshotDocument, anchorResult);
-        if (effectiveSnapshotDocument?.Current?.Player?.Coord is null)
+        if (!TryBuildPlayerActorTruthResult(options, process, target, reader, out var result, out var error))
         {
-            Console.Error.WriteLine("Unable to derive live player coordinates for player actor-truth reading.");
+            Console.Error.WriteLine(error ?? "Unable to read the current player actor truth.");
             return 1;
         }
 
-        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
-
-        PlayerActorCoordReadResult coordResult;
-        try
+        if (options.JsonOutput)
         {
-            coordResult = PlayerActorCoordReader.ReadCurrent(
-                reader,
-                target.ProcessId,
-                target.ProcessName,
-                snapshotDocument,
-                inspectionRadius,
-                options.MaxHits,
-                anchorResult);
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
         }
-        catch (Exception ex)
+
+        Console.WriteLine(PlayerActorTruthReadTextFormatter.Format(result!));
+        return 0;
+    }
+
+    private static int RunDumpPlayerActorTruthChainMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryBuildPlayerActorTruthResult(options, process, target, reader, out var truthResult, out var error))
         {
-            Console.Error.WriteLine($"Unable to read the current player actor coordinates for player actor-truth: {ex.Message}");
+            Console.Error.WriteLine(error ?? "Unable to read the current player actor truth for chain dumping.");
             return 1;
         }
 
-        PlayerOrientationCandidateSearchResult orientationSearchResult;
-        try
-        {
-            orientationSearchResult = PlayerOrientationCandidateFinder.Find(
-                reader,
-                target.ProcessId,
-                target.ProcessName,
-                effectiveSnapshotDocument,
-                options.MaxHits,
-                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Unable to find a live player actor-orientation candidate for player actor-truth: {ex.Message}");
-            return 1;
-        }
-
-        PlayerActorOrientationReadResult orientationResult;
-        try
-        {
-            orientationResult = PlayerActorOrientationReader.ReadCurrent(
-                effectiveSnapshotDocument,
-                anchorResult,
-                orientationSearchResult);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Unable to read the current player actor orientation for player actor-truth: {ex.Message}");
-            return 1;
-        }
+        var resolvedTruthResult = truthResult!;
 
         var notes = new List<string>
         {
-            "Combined actor-truth read succeeded through the trace-backed coord source object and the canonical pointer-hop orientation basis."
+            "Chain dump captured the current coord truth object, the canonical orientation surface, and pointer backrefs for each parsed address."
         };
 
-        if (!string.Equals(coordResult.ObjectBaseAddress, orientationResult.SelectedAddress, StringComparison.OrdinalIgnoreCase))
-        {
-            notes.Add($"Coord truth and orientation truth currently resolve on different live object surfaces ({coordResult.ObjectBaseAddress ?? "n/a"} vs {orientationResult.SelectedAddress}).");
-        }
+        var windowLength = Math.Max(options.ScanContextBytes, 128);
+        var pointerWidth = options.PointerWidth;
+        var pointerScanMaxHits = options.MaxHits;
+        var readableRegions = reader.EnumerateMemoryRegions()
+            .Where(static region => region.IsCommitted && region.IsReadable)
+            .ToArray();
 
-        var result = new PlayerActorTruthReadResult(
-            Mode: "player-actor-truth",
+        var knownTargets = new Dictionary<long, string>
+        {
+            [TryParseRequiredAddress(resolvedTruthResult.Coordinates.ObjectBaseAddress)] = "coord-object",
+            [TryParseRequiredAddress(resolvedTruthResult.Orientation.SelectedAddress)] = "orientation-object",
+            [TryParseRequiredAddress(resolvedTruthResult.Orientation.ParentAddress)] = "orientation-parent",
+            [TryParseRequiredAddress(resolvedTruthResult.Orientation.RootAddress)] = "orientation-root"
+        };
+
+        var coordWindow = TryBuildTruthObjectWindow(
+            reader,
+            resolvedTruthResult.Coordinates.ObjectBaseAddress,
+            "coord-object",
+            windowLength,
+            pointerWidth,
+            readableRegions,
+            knownTargets,
+            notes);
+        var orientationWindow = TryBuildTruthObjectWindow(
+            reader,
+            resolvedTruthResult.Orientation.SelectedAddress,
+            "orientation-object",
+            windowLength,
+            pointerWidth,
+            readableRegions,
+            knownTargets,
+            notes);
+        var orientationParentWindow = TryBuildTruthObjectWindow(
+            reader,
+            resolvedTruthResult.Orientation.ParentAddress,
+            "orientation-parent",
+            windowLength,
+            pointerWidth,
+            readableRegions,
+            knownTargets,
+            notes);
+
+        var coordBackrefs = RunPointerScanOrEmpty(
+            reader,
+            target,
+            resolvedTruthResult.Coordinates.ObjectBaseAddress,
+            pointerWidth,
+            windowLength,
+            pointerScanMaxHits,
+            notes,
+            "coord-object");
+        var orientationBackrefs = RunPointerScanOrEmpty(
+            reader,
+            target,
+            resolvedTruthResult.Orientation.SelectedAddress,
+            pointerWidth,
+            windowLength,
+            pointerScanMaxHits,
+            notes,
+            "orientation-object");
+        var orientationParentBackrefs = RunPointerScanOrEmpty(
+            reader,
+            target,
+            resolvedTruthResult.Orientation.ParentAddress,
+            pointerWidth,
+            windowLength,
+            pointerScanMaxHits,
+            notes,
+            "orientation-parent");
+
+        var secondHopSeedLimit = Math.Min(TruthChainSecondHopSeedLimitPerSurface, pointerScanMaxHits);
+        var secondHopMaxHits = Math.Min(TruthChainSecondHopPointerScanMaxHits, pointerScanMaxHits);
+        var slotCorrelations = FindSlotCorrelations(
+            coordWindow,
+            orientationWindow,
+            orientationParentWindow);
+        var sharedAncestorCandidates = FindSharedAncestorCandidates(
+            reader,
+            target,
+            new Dictionary<string, PointerScanResult>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["coord-object"] = coordBackrefs,
+                ["orientation-object"] = orientationBackrefs,
+                ["orientation-parent"] = orientationParentBackrefs
+            },
+            pointerWidth,
+            windowLength,
+            secondHopSeedLimit,
+            secondHopMaxHits,
+            notes);
+
+        var result = new PlayerActorTruthChainDumpResult(
+            Mode: "player-actor-truth-chain-dump",
             ProcessId: target.ProcessId,
             ProcessName: target.ProcessName,
-            ReaderBridgeSourceFile: effectiveSnapshotDocument.SourceFile,
-            TraceSourceFile: anchorResult?.SourceFile,
-            TraceAvailable: anchorResult is not null,
-            TraceMatchesProcess: anchorResult?.TraceMatchesProcess == true,
-            CoordBootstrapSource: orientationResult.CoordBootstrapSource,
-            OrientationResolutionSource: orientationResult.ResolutionSource,
-            Coordinates: coordResult,
-            Orientation: orientationResult,
+            ReaderBridgeSourceFile: resolvedTruthResult.ReaderBridgeSourceFile,
+            TraceSourceFile: resolvedTruthResult.TraceSourceFile,
+            WindowLength: windowLength,
+            PointerWidth: pointerWidth,
+            PointerScanMaxHits: pointerScanMaxHits,
+            SecondHopSeedLimitPerSurface: secondHopSeedLimit,
+            SecondHopPointerScanMaxHits: secondHopMaxHits,
+            Truth: resolvedTruthResult,
+            CoordObjectWindow: coordWindow,
+            OrientationObjectWindow: orientationWindow,
+            OrientationParentWindow: orientationParentWindow,
+            CoordObjectBackrefs: coordBackrefs,
+            OrientationObjectBackrefs: orientationBackrefs,
+            OrientationParentBackrefs: orientationParentBackrefs,
+            SlotCorrelations: slotCorrelations,
+            SharedAncestorCandidates: sharedAncestorCandidates,
             Notes: notes);
 
         if (options.JsonOutput)
@@ -972,7 +1031,7 @@ internal static class Program
             return 0;
         }
 
-        Console.WriteLine(PlayerActorTruthReadTextFormatter.Format(result));
+        Console.WriteLine(PlayerActorTruthChainDumpTextFormatter.Format(result));
         return 0;
     }
 
@@ -1016,6 +1075,113 @@ internal static class Program
 
         Console.WriteLine(PlayerCoordTraceRefreshTextFormatter.Format(result));
         return 0;
+    }
+
+    private static bool TryBuildPlayerActorTruthResult(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        out PlayerActorTruthReadResult? result,
+        out string? error)
+    {
+        result = null;
+        error = null;
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+
+        var anchorResult = TryReadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            refreshIfNeeded: true,
+            out _);
+
+        var effectiveSnapshotDocument = TryEnsurePlayerCoordSnapshot(snapshotDocument, anchorResult);
+        if (effectiveSnapshotDocument?.Current?.Player?.Coord is null)
+        {
+            error = "Unable to derive live player coordinates for player actor-truth reading.";
+            return false;
+        }
+
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+        PlayerActorCoordReadResult coordResult;
+        try
+        {
+            coordResult = PlayerActorCoordReader.ReadCurrent(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                inspectionRadius,
+                options.MaxHits,
+                anchorResult);
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to read the current player actor coordinates for player actor-truth: {ex.Message}";
+            return false;
+        }
+
+        PlayerOrientationCandidateSearchResult orientationSearchResult;
+        try
+        {
+            orientationSearchResult = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                effectiveSnapshotDocument,
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to find a live player actor-orientation candidate for player actor-truth: {ex.Message}";
+            return false;
+        }
+
+        PlayerActorOrientationReadResult orientationResult;
+        try
+        {
+            orientationResult = PlayerActorOrientationReader.ReadCurrent(
+                effectiveSnapshotDocument,
+                anchorResult,
+                orientationSearchResult);
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to read the current player actor orientation for player actor-truth: {ex.Message}";
+            return false;
+        }
+
+        var notes = new List<string>
+        {
+            "Combined actor-truth read succeeded through the trace-backed coord source object and the canonical pointer-hop orientation basis."
+        };
+
+        if (!string.Equals(coordResult.ObjectBaseAddress, orientationResult.SelectedAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            notes.Add($"Coord truth and orientation truth currently resolve on different live object surfaces ({coordResult.ObjectBaseAddress ?? "n/a"} vs {orientationResult.SelectedAddress}).");
+        }
+
+        result = new PlayerActorTruthReadResult(
+            Mode: "player-actor-truth",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            ReaderBridgeSourceFile: effectiveSnapshotDocument.SourceFile,
+            TraceSourceFile: anchorResult?.SourceFile,
+            TraceAvailable: anchorResult is not null,
+            TraceMatchesProcess: anchorResult?.TraceMatchesProcess == true,
+            CoordBootstrapSource: orientationResult.CoordBootstrapSource,
+            OrientationResolutionSource: orientationResult.ResolutionSource,
+            Coordinates: coordResult,
+            Orientation: orientationResult,
+            Notes: notes);
+
+        return true;
     }
 
     private static ReaderBridgeSnapshotDocument? TryEnsurePlayerCoordSnapshot(
@@ -1541,6 +1707,368 @@ internal static class Program
         }
 
         return long.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out address);
+    }
+
+    private static long TryParseRequiredAddress(string? value)
+    {
+        if (!TryParseHexAddress(value, out var address))
+        {
+            throw new InvalidOperationException($"Unable to parse the required hex address '{value ?? "n/a"}'.");
+        }
+
+        return address;
+    }
+
+    private static PlayerActorTruthObjectWindow? TryBuildTruthObjectWindow(
+        ProcessMemoryReader reader,
+        string? targetAddressText,
+        string label,
+        int windowLength,
+        int pointerWidth,
+        IReadOnlyList<ProcessMemoryRegion> readableRegions,
+        IReadOnlyDictionary<long, string> knownTargets,
+        ICollection<string> notes)
+    {
+        if (!TryParseHexAddress(targetAddressText, out var targetAddress))
+        {
+            notes.Add($"Skipped {label} window capture because the target address was unavailable.");
+            return null;
+        }
+
+        var normalizedWindowLength = Math.Max(windowLength, pointerWidth);
+        var halfWindow = normalizedWindowLength / 2;
+        var windowStart = Math.Max(0, targetAddress - halfWindow);
+
+        if (!reader.TryReadBytes(new nint(windowStart), normalizedWindowLength, out var bytes, out var readError))
+        {
+            notes.Add($"Unable to capture the {label} window at 0x{targetAddress:X}: {readError ?? "read failed"}");
+            return null;
+        }
+
+        var pointerSlots = BuildPointerSlots(windowStart, bytes, pointerWidth, readableRegions, knownTargets);
+        return new PlayerActorTruthObjectWindow(
+            Label: label,
+            TargetAddress: $"0x{targetAddress:X}",
+            WindowStart: $"0x{windowStart:X}",
+            WindowLength: bytes.Length,
+            BytesHex: Convert.ToHexString(bytes),
+            AsciiPreview: BuildAsciiPreview(bytes),
+            Utf16Preview: BuildUtf16Preview(bytes),
+            PointerSlots: pointerSlots);
+    }
+
+    private static IReadOnlyList<PlayerActorTruthPointerSlot> BuildPointerSlots(
+        long windowStart,
+        byte[] bytes,
+        int pointerWidth,
+        IReadOnlyList<ProcessMemoryRegion> readableRegions,
+        IReadOnlyDictionary<long, string> knownTargets)
+    {
+        var normalizedPointerWidth = pointerWidth is 4 or 8 ? pointerWidth : IntPtr.Size;
+        var slots = new List<PlayerActorTruthPointerSlot>();
+
+        for (var offset = 0; offset + normalizedPointerWidth <= bytes.Length; offset += normalizedPointerWidth)
+        {
+            long value = normalizedPointerWidth switch
+            {
+                4 => BitConverter.ToUInt32(bytes, offset),
+                8 => unchecked((long)BitConverter.ToUInt64(bytes, offset)),
+                _ => throw new InvalidOperationException($"Unsupported pointer width {normalizedPointerWidth}.")
+            };
+
+            var (classification, targetRegionBase) = ClassifyPointerSlot(value, readableRegions, knownTargets);
+            var slotAddress = windowStart + offset;
+            slots.Add(new PlayerActorTruthPointerSlot(
+                Offset: offset,
+                OffsetHex: $"0x{offset:X}",
+                SlotAddress: $"0x{slotAddress:X}",
+                ValueHex: $"0x{value:X}",
+                Classification: classification,
+                TargetRegionBase: targetRegionBase));
+        }
+
+        return slots;
+    }
+
+    private static (string Classification, string? TargetRegionBase) ClassifyPointerSlot(
+        long value,
+        IReadOnlyList<ProcessMemoryRegion> readableRegions,
+        IReadOnlyDictionary<long, string> knownTargets)
+    {
+        if (value == 0)
+        {
+            return ("null", null);
+        }
+
+        if (knownTargets.TryGetValue(value, out var label))
+        {
+            return (label, readableRegions.FirstOrDefault(region => region.ContainsAddress(new nint(value))) is { } knownRegion
+                ? $"0x{knownRegion.BaseAddress.ToInt64():X}"
+                : null);
+        }
+
+        return value < 0x10000
+            ? ("small-immediate", null)
+            : TryFindReadableRegionBase(value, readableRegions) is { } regionBase
+                ? ("readable-region", regionBase)
+                : ("non-pointer-data", null);
+    }
+
+    private static string? TryFindReadableRegionBase(long value, IReadOnlyList<ProcessMemoryRegion> readableRegions)
+    {
+        foreach (var region in readableRegions)
+        {
+            if (region.ContainsAddress(new nint(value)))
+            {
+                return $"0x{region.BaseAddress.ToInt64():X}";
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<PlayerActorTruthSlotCorrelation> FindSlotCorrelations(params PlayerActorTruthObjectWindow?[] windows)
+    {
+        var grouped = windows
+            .Where(static window => window is not null)
+            .SelectMany(static window => window!.PointerSlots.Select(slot => new
+            {
+                Window = window,
+                Slot = slot
+            }))
+            .Where(static item =>
+                string.Equals(item.Slot.Classification, "readable-region", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Slot.Classification, "coord-object", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Slot.Classification, "orientation-object", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Slot.Classification, "orientation-parent", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Slot.Classification, "orientation-root", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(static item => item.Slot.ValueHex, StringComparer.OrdinalIgnoreCase);
+
+        return grouped
+            .Select(group =>
+            {
+                var references = group
+                    .Select(item => new PlayerActorTruthSlotCorrelationReference(
+                        Surface: item.Window!.Label,
+                        OffsetHex: item.Slot.OffsetHex,
+                        SlotAddress: item.Slot.SlotAddress,
+                        Classification: item.Slot.Classification))
+                    .OrderBy(reference => reference.Surface, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(reference => reference.OffsetHex, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var surfaces = references.Select(reference => reference.Surface)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static surface => surface, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var score = (surfaces.Length * 100) + references.Length;
+                var targetRegionBase = group.Select(item => item.Slot.TargetRegionBase)
+                    .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
+
+                return new PlayerActorTruthSlotCorrelation(
+                    ValueHex: group.Key,
+                    TargetRegionBase: targetRegionBase,
+                    Score: score,
+                    DistinctSurfaceCount: surfaces.Length,
+                    Surfaces: surfaces,
+                    References: references);
+            })
+            .Where(correlation =>
+                correlation.DistinctSurfaceCount >= 2 ||
+                correlation.References.Any(reference =>
+                    !string.Equals(reference.Classification, "readable-region", StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(static correlation => correlation.Score)
+            .ThenBy(static correlation => correlation.ValueHex, StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
+    }
+
+    private static PointerScanResult RunPointerScanOrEmpty(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        string? pointerTargetText,
+        int pointerWidth,
+        int contextBytes,
+        int maxHits,
+        ICollection<string> notes,
+        string label)
+    {
+        if (!TryParseHexAddress(pointerTargetText, out var pointerTarget))
+        {
+            notes.Add($"Skipped pointer backref scan for {label} because the target address was unavailable.");
+            return BuildEmptyPointerScanResult(target, pointerTargetText, pointerWidth, contextBytes, maxHits);
+        }
+
+        try
+        {
+            return ProcessPointerScanner.Scan(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                new nint(pointerTarget),
+                pointerWidth,
+                contextBytes,
+                maxHits);
+        }
+        catch (Exception ex)
+        {
+            notes.Add($"Pointer backref scan for {label} failed at 0x{pointerTarget:X}: {ex.Message}");
+            return BuildEmptyPointerScanResult(target, $"0x{pointerTarget:X}", pointerWidth, contextBytes, maxHits);
+        }
+    }
+
+    private static PointerScanResult BuildEmptyPointerScanResult(
+        ProcessTarget target,
+        string? pointerTargetText,
+        int pointerWidth,
+        int contextBytes,
+        int maxHits)
+    {
+        return new PointerScanResult(
+            Mode: "pointer-scan",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            PointerTarget: pointerTargetText ?? "n/a",
+            PointerWidth: pointerWidth,
+            ContextBytes: contextBytes,
+            MaxHits: maxHits,
+            HitCount: 0,
+            Hits: Array.Empty<PointerScanHit>());
+    }
+
+    private static IReadOnlyList<PlayerActorTruthSharedAncestorCandidate> FindSharedAncestorCandidates(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        IReadOnlyDictionary<string, PointerScanResult> firstHopScans,
+        int pointerWidth,
+        int contextBytes,
+        int secondHopSeedLimitPerSurface,
+        int secondHopMaxHits,
+        ICollection<string> notes)
+    {
+        var candidatePaths = new Dictionary<long, HashSet<PlayerActorTruthSharedAncestorPath>>();
+        var candidateRegionBases = new Dictionary<long, string>();
+        var performedSecondHopScans = 0;
+
+        foreach (var firstHopScan in firstHopScans)
+        {
+            foreach (var firstHopHit in firstHopScan.Value.Hits.Take(secondHopSeedLimitPerSurface))
+            {
+                performedSecondHopScans++;
+                PointerScanResult secondHopScan;
+                try
+                {
+                    secondHopScan = ProcessPointerScanner.Scan(
+                        reader,
+                        target.ProcessId,
+                        target.ProcessName,
+                        new nint(firstHopHit.Address),
+                        pointerWidth,
+                        contextBytes,
+                        secondHopMaxHits);
+                }
+                catch (Exception ex)
+                {
+                    notes.Add($"Second-hop pointer scan failed for {firstHopScan.Key} backref {firstHopHit.AddressHex}: {ex.Message}");
+                    continue;
+                }
+
+                foreach (var secondHopHit in secondHopScan.Hits)
+                {
+                    if (!candidatePaths.TryGetValue(secondHopHit.Address, out var pathSet))
+                    {
+                        pathSet = new HashSet<PlayerActorTruthSharedAncestorPath>();
+                        candidatePaths[secondHopHit.Address] = pathSet;
+                        candidateRegionBases[secondHopHit.Address] = secondHopHit.RegionBaseHex;
+                    }
+
+                    pathSet.Add(new PlayerActorTruthSharedAncestorPath(
+                        Surface: firstHopScan.Key,
+                        FirstHopAddress: firstHopHit.AddressHex,
+                        SecondHopAddress: secondHopHit.AddressHex));
+                }
+            }
+        }
+
+        notes.Add($"Second-hop ancestor search scanned {performedSecondHopScans} first-hop seeds across {firstHopScans.Count} truth surfaces.");
+
+        var candidates = candidatePaths
+            .Select(pair =>
+            {
+                var paths = pair.Value.OrderBy(path => path.Surface, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(path => path.FirstHopAddress, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(path => path.SecondHopAddress, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var surfaces = paths.Select(path => path.Surface)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(surface => surface, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var firstHopReferenceCount = paths.Select(path => path.FirstHopAddress)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                var secondHopReferenceCount = paths.Select(path => path.SecondHopAddress)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                var score = (surfaces.Length * 100) + (firstHopReferenceCount * 10) + secondHopReferenceCount;
+
+                return new PlayerActorTruthSharedAncestorCandidate(
+                    Address: $"0x{pair.Key:X}",
+                    RegionBase: candidateRegionBases[pair.Key],
+                    Score: score,
+                    DistinctSurfaceCount: surfaces.Length,
+                    Surfaces: surfaces,
+                    FirstHopReferenceCount: firstHopReferenceCount,
+                    SecondHopReferenceCount: secondHopReferenceCount,
+                    Paths: paths);
+            })
+            .Where(candidate => candidate.DistinctSurfaceCount >= 2)
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenBy(candidate => candidate.Address, StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
+
+        if (candidates.Length == 0)
+        {
+            notes.Add("No shared second-hop ancestor candidate pointed to backrefs from more than one truth surface.");
+        }
+        else
+        {
+            notes.Add($"Found {candidates.Length} shared second-hop ancestor candidates spanning multiple truth surfaces.");
+        }
+
+        return candidates;
+    }
+
+    private static string BuildAsciiPreview(byte[] bytes)
+    {
+        var builder = new StringBuilder(bytes.Length);
+        foreach (var value in bytes)
+        {
+            builder.Append(value is >= 32 and <= 126 ? (char)value : '.');
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildUtf16Preview(byte[] bytes)
+    {
+        if ((bytes.Length % 2) != 0)
+        {
+            bytes = bytes.Take(bytes.Length - 1).ToArray();
+        }
+
+        if (bytes.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var chars = Encoding.Unicode.GetChars(bytes);
+        var builder = new StringBuilder(chars.Length);
+        foreach (var value in chars)
+        {
+            builder.Append(!char.IsControl(value) ? value : '.');
+        }
+
+        return builder.ToString();
     }
 
     private static int? TryParseInvariantInt32(string? value)

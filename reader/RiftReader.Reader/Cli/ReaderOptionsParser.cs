@@ -25,6 +25,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-actor-coords [--player-coord-trace-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-actor-orientation [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-actor-truth [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --dump-player-actor-truth-chain [--player-coord-trace-file <path>] [--orientation-candidate-ledger-file <path>] [--scan-context <bytes>] [--pointer-width 4|8] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --debug-trace-instruction (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
   RiftReader.Reader --process-name <name> --debug-trace-memory-write (--debug-address <hexOrDecimal> | --debug-module-name <module> --debug-module-offset <hexOrDecimal>) --debug-width <1|2|4|8> [--debug-timeout-ms <ms>] [--debug-max-hits <count>] [--debug-max-events <count>] [--debug-output-directory <path>] [--debug-capture-stack-bytes <count>] [--debug-capture-memory-window-bytes <count>] [--debug-marker-input-file <path>] [--debug-label <text>] [--debug-disable-register-capture] [--debug-disable-stack-capture] [--debug-disable-memory-windows] [--debug-disable-instruction-decode] [--debug-disable-instruction-fingerprint] [--debug-disable-hit-clustering] [--debug-disable-follow-up-suggestions] [--json]
@@ -67,6 +68,7 @@ Notes:
   - Use --read-player-actor-coords to read the current player actor coords through the proven coord-anchor path; stale coord-trace artifacts are auto-refreshed first when the live native trace can reacquire them, with current-reader fallback only if that refresh path still fails.
   - Use --read-player-actor-orientation to read the current live actor-facing yaw/pitch from the preferred pointer-hop orientation candidate, bootstrapping from trace-derived coords when ReaderBridge omits them.
   - Use --read-player-actor-truth to read both the current actor coords and the canonical live actor orientation truth in one result.
+  - Use --dump-player-actor-truth-chain to dump the current coord/orientation truth surfaces, nearby object bytes, and pointer backrefs for chain reconstruction.
   - Use --debug-trace-instruction to run the bounded native x64 debug worker against a known code address or module-relative offset.
   - Use --debug-trace-memory-write or --debug-trace-memory-access to arm a bounded hardware watchpoint against a narrowed address.
   - Use --debug-trace-player-coord-write to validate the current coord-trace lineage and execute-trace the current player coord write instruction.
@@ -105,6 +107,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-actor-coords --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-actor-orientation --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-actor-truth --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --dump-player-actor-truth-chain --scan-context 128 --max-hits 12 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-instruction --debug-module-name rift_x64.exe --debug-module-offset 0x123456 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-memory-write --debug-address 0x2039DD70 --debug-width 4 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --debug-trace-player-coord-write --json
@@ -151,6 +154,7 @@ Examples:
         var readPlayerActorCoords = false;
         var readPlayerActorOrientation = false;
         var readPlayerActorTruth = false;
+        var dumpPlayerActorTruthChain = false;
         var recordSession = false;
         var sessionSummary = false;
         string? sessionDirectory = null;
@@ -467,6 +471,10 @@ Examples:
 
                 case "--read-player-actor-truth":
                     readPlayerActorTruth = true;
+                    break;
+
+                case "--dump-player-actor-truth-chain":
+                    dumpPlayerActorTruthChain = true;
                     break;
 
                 case "--read-target-current":
@@ -1130,7 +1138,7 @@ Examples:
 
         if (killRiftErrorHandler)
         {
-            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || refreshPlayerCoordTrace || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || refreshPlayerCoordTrace || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || dumpPlayerActorTruthChain || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
             {
                 return ReaderOptionsParseResult.Fail("--kill-rift-error-handler cannot be combined with scan, snapshot, summary, record-session, or other live reader modes.", UsageText);
             }
@@ -1202,7 +1210,7 @@ Examples:
 
         if (refreshPlayerCoordTrace)
         {
-        if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
+        if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || dumpPlayerActorTruthChain || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
             {
                 return ReaderOptionsParseResult.Fail("--refresh-player-coord-trace cannot be combined with scan, snapshot, summary, record-session, or other live reader modes.", UsageText);
             }
@@ -1274,7 +1282,7 @@ Examples:
 
         if (readPlayerActorOrientation)
         {
-            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorTruth || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue || refreshPlayerCoordTrace || killRiftErrorHandler || debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite || debugTraceSummary)
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorTruth || dumpPlayerActorTruthChain || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue || refreshPlayerCoordTrace || killRiftErrorHandler || debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite || debugTraceSummary)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with scan, snapshot, summary, record-session, coord-reader, coord-trace refresh, or other live reader modes.", UsageText);
             }
@@ -1350,7 +1358,7 @@ Examples:
 
         if (readPlayerActorTruth)
         {
-            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue || refreshPlayerCoordTrace || killRiftErrorHandler || debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite || debugTraceSummary)
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || dumpPlayerActorTruthChain || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue || refreshPlayerCoordTrace || killRiftErrorHandler || debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite || debugTraceSummary)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-actor-truth cannot be combined with scan, snapshot, summary, record-session, other actor/coord reader modes, coord-trace refresh, or debug trace modes.", UsageText);
             }
@@ -1425,10 +1433,88 @@ Examples:
                 UsageText);
         }
 
+        if (dumpPlayerActorTruthChain)
+        {
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue || refreshPlayerCoordTrace || killRiftErrorHandler || debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite || debugTraceSummary)
+            {
+                return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain cannot be combined with scan, snapshot, summary, other actor/coord reader modes, coord-trace refresh, or debug trace modes.", UsageText);
+            }
+
+            if (processId.HasValue == !string.IsNullOrWhiteSpace(processName))
+            {
+                return ReaderOptionsParseResult.Fail("Specify either --pid or --process-name for --dump-player-actor-truth-chain.", UsageText);
+            }
+
+            if (!string.IsNullOrWhiteSpace(debugTraceDirectory) || !string.IsNullOrWhiteSpace(debugRequestFile) || debugAddress.HasValue || !string.IsNullOrWhiteSpace(debugModuleName) || debugModuleOffset.HasValue || debugWidth.HasValue || !string.IsNullOrWhiteSpace(debugOutputDirectory) || !string.IsNullOrWhiteSpace(debugMarkerInputFile) || !string.IsNullOrWhiteSpace(debugLabel) || debugTimeoutMilliseconds != 8000 || debugMaxHits != 8 || debugMaxEvents != 5000 || debugCaptureStackBytes != 256 || debugCaptureMemoryWindowBytes != 128 || debugDisableRegisterCapture || debugDisableStackCapture || debugDisableMemoryWindows || debugDisableInstructionDecode || debugDisableInstructionFingerprint || debugDisableHitClustering || debugDisableFollowUpSuggestions)
+            {
+                return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain only accepts --pid/--process-name, --player-coord-trace-file, --orientation-candidate-ledger-file, --readerbridge-snapshot-file, --scan-context, --pointer-width, --max-hits, and --json.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: processId,
+                    ProcessName: processName,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    RefreshPlayerCoordTrace: false,
+                    ReadPlayerActorCoords: false,
+                    ReadPlayerActorOrientation: false,
+                    ReadPlayerActorTruth: false,
+                    DumpPlayerActorTruthChain: true,
+                    ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: playerCoordTraceFile,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: 0d,
+                    PointerWidth: pointerWidth,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: scanContextBytes,
+                    MaxHits: maxHits,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: readerBridgeSnapshotFile,
+                    JsonOutput: jsonOutput,
+                    FindPlayerOrientationCandidate: false,
+                    OrientationCandidateLedgerFile: orientationCandidateLedgerFile),
+                UsageText);
+        }
+
         var publicDebugTraceMode = debugTraceInstruction || debugTraceMemoryWrite || debugTraceMemoryAccess || debugTracePlayerCoordWrite;
         if (publicDebugTraceMode)
         {
-            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || refreshPlayerCoordTrace || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
+            if (sessionSummary || readAddonSnapshot || readReaderBridgeSnapshot || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readPlayerCoordAnchor || refreshPlayerCoordTrace || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || dumpPlayerActorTruthChain || readTargetCurrent || recordSession || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation || listModules || scanRequested || address.HasValue || length.HasValue)
             {
                 return ReaderOptionsParseResult.Fail("Debug trace modes cannot be combined with scan, snapshot, summary, record-session, or other live reader modes.", UsageText);
             }
@@ -2064,9 +2150,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (orientationCandidateLedgerFile is not null && !findPlayerOrientationCandidate && !readPlayerActorOrientation)
+        if (orientationCandidateLedgerFile is not null && !findPlayerOrientationCandidate && !readPlayerActorOrientation && !readPlayerActorTruth && !dumpPlayerActorTruthChain)
         {
-            return ReaderOptionsParseResult.Fail("--orientation-candidate-ledger-file can only be used with --find-player-orientation-candidate or --read-player-actor-orientation.", UsageText);
+            return ReaderOptionsParseResult.Fail("--orientation-candidate-ledger-file can only be used with --find-player-orientation-candidate, --read-player-actor-orientation, --read-player-actor-truth, or --dump-player-actor-truth-chain.", UsageText);
         }
 
         if (processId.HasValue == !string.IsNullOrWhiteSpace(processName))
@@ -2124,9 +2210,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Scan mode cannot be combined with raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || recordSession || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCoordAnchor || readPlayerActorCoords || readPlayerActorOrientation || readPlayerActorTruth || dumpPlayerActorTruthChain || recordSession || address.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, actor-coord, actor-orientation, coord-anchor, record-session, or raw memory-read switches.", UsageText);
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, actor-coord, actor-orientation, actor-truth, truth-chain dump, coord-anchor, record-session, or raw memory-read switches.", UsageText);
         }
 
         if (scanModuleName is not null && string.IsNullOrWhiteSpace(scanModulePattern))
@@ -2169,6 +2255,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with scan switches.", UsageText);
         }
 
+        if (readPlayerActorTruth && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-truth cannot be combined with scan switches.", UsageText);
+        }
+
+        if (dumpPlayerActorTruthChain && scanRequested)
+        {
+            return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain cannot be combined with scan switches.", UsageText);
+        }
+
         if (recordSession && scanRequested)
         {
             return ReaderOptionsParseResult.Fail("--record-session cannot be combined with scan switches.", UsageText);
@@ -2209,6 +2305,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with raw memory-read switches.", UsageText);
         }
 
+        if (readPlayerActorTruth && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-truth cannot be combined with raw memory-read switches.", UsageText);
+        }
+
+        if (dumpPlayerActorTruthChain && address.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain cannot be combined with raw memory-read switches.", UsageText);
+        }
+
         if (recordSession && address.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--record-session cannot be combined with raw memory-read switches.", UsageText);
@@ -2224,9 +2330,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-file can only be used with --capture-readerbridge-best-family.", UsageText);
         }
 
-        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor && !refreshPlayerCoordTrace && !readPlayerActorCoords && !readPlayerActorOrientation && !debugTracePlayerCoordWrite)
+        if (playerCoordTraceFile is not null && !readPlayerCoordAnchor && !refreshPlayerCoordTrace && !readPlayerActorCoords && !readPlayerActorOrientation && !readPlayerActorTruth && !dumpPlayerActorTruthChain && !debugTracePlayerCoordWrite)
         {
-            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor, --refresh-player-coord-trace, --read-player-actor-coords, --read-player-actor-orientation, or --debug-trace-player-coord-write.", UsageText);
+            return ReaderOptionsParseResult.Fail("--player-coord-trace-file can only be used with --read-player-coord-anchor, --refresh-player-coord-trace, --read-player-actor-coords, --read-player-actor-orientation, --read-player-actor-truth, --dump-player-actor-truth-chain, or --debug-trace-player-coord-write.", UsageText);
         }
 
         if (listModules && findPlayerOrientationCandidate)
@@ -2257,6 +2363,16 @@ Examples:
         if (listModules && readPlayerActorOrientation)
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-actor-orientation.", UsageText);
+        }
+
+        if (listModules && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (listModules && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with --dump-player-actor-truth-chain.", UsageText);
         }
 
         if (listModules && recordSession)
@@ -2294,6 +2410,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-actor-orientation.", UsageText);
         }
 
+        if (writeCheatEngineProbe && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (writeCheatEngineProbe && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--cheatengine-probe cannot be combined with --dump-player-actor-truth-chain.", UsageText);
+        }
+
         if (captureReaderBridgeBestFamily && findPlayerOrientationCandidate)
         {
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --find-player-orientation-candidate.", UsageText);
@@ -2324,6 +2450,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-actor-orientation.", UsageText);
         }
 
+        if (captureReaderBridgeBestFamily && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (captureReaderBridgeBestFamily && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--capture-readerbridge-best-family cannot be combined with --dump-player-actor-truth-chain.", UsageText);
+        }
+
         if (findPlayerOrientationCandidate && readPlayerCurrent)
         {
             return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-current.", UsageText);
@@ -2342,6 +2478,16 @@ Examples:
         if (findPlayerOrientationCandidate && readPlayerActorOrientation)
         {
             return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-actor-orientation.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (findPlayerOrientationCandidate && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--find-player-orientation-candidate cannot be combined with --dump-player-actor-truth-chain.", UsageText);
         }
 
         if (findPlayerOrientationCandidate && readTargetCurrent)
@@ -2369,6 +2515,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-player-actor-orientation.", UsageText);
         }
 
+        if (readPlayerCurrent && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (readPlayerCurrent && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --dump-player-actor-truth-chain.", UsageText);
+        }
+
         if (readPlayerCurrent && readTargetCurrent)
         {
             return ReaderOptionsParseResult.Fail("--read-player-current cannot be combined with --read-target-current.", UsageText);
@@ -2382,6 +2538,16 @@ Examples:
         if (readPlayerCoordAnchor && readPlayerActorOrientation)
         {
             return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --read-player-actor-orientation.", UsageText);
+        }
+
+        if (readPlayerCoordAnchor && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (readPlayerCoordAnchor && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-coord-anchor cannot be combined with --dump-player-actor-truth-chain.", UsageText);
         }
 
         if (readPlayerCoordAnchor && readTargetCurrent)
@@ -2399,9 +2565,44 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-actor-coords cannot be combined with --read-player-actor-orientation.", UsageText);
         }
 
+        if (readPlayerActorCoords && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-coords cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (readPlayerActorCoords && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-coords cannot be combined with --dump-player-actor-truth-chain.", UsageText);
+        }
+
         if (readPlayerActorOrientation && readTargetCurrent)
         {
             return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with --read-target-current.", UsageText);
+        }
+
+        if (readPlayerActorOrientation && readPlayerActorTruth)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with --read-player-actor-truth.", UsageText);
+        }
+
+        if (readPlayerActorOrientation && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with --dump-player-actor-truth-chain.", UsageText);
+        }
+
+        if (readPlayerActorTruth && readTargetCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-truth cannot be combined with --read-target-current.", UsageText);
+        }
+
+        if (readPlayerActorTruth && dumpPlayerActorTruthChain)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-truth cannot be combined with --dump-player-actor-truth-chain.", UsageText);
+        }
+
+        if (dumpPlayerActorTruthChain && readTargetCurrent)
+        {
+            return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain cannot be combined with --read-target-current.", UsageText);
         }
 
         if (writeCheatEngineProbe && recordSession)
@@ -2439,6 +2640,16 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-player-actor-orientation cannot be combined with --record-session.", UsageText);
         }
 
+        if (readPlayerActorTruth && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--read-player-actor-truth cannot be combined with --record-session.", UsageText);
+        }
+
+        if (dumpPlayerActorTruthChain && recordSession)
+        {
+            return ReaderOptionsParseResult.Fail("--dump-player-actor-truth-chain cannot be combined with --record-session.", UsageText);
+        }
+
         if (address.HasValue != length.HasValue)
         {
             return ReaderOptionsParseResult.Fail("Specify --address and --length together.", UsageText);
@@ -2466,6 +2677,7 @@ Examples:
                     ReadPlayerActorCoords: readPlayerActorCoords,
                     ReadPlayerActorOrientation: readPlayerActorOrientation,
                     ReadPlayerActorTruth: readPlayerActorTruth,
+                    DumpPlayerActorTruthChain: dumpPlayerActorTruthChain,
                     ReadTargetCurrent: readTargetCurrent,
                     SessionSummary: false,
                     SessionDirectory: null,

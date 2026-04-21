@@ -56,6 +56,7 @@ public sealed record ReaderOptions(
     bool ReadPlayerActorCoords = false,
     bool ReadPlayerActorOrientation = false,
     bool ReadPlayerActorTruth = false,
+    bool DumpPlayerActorTruthChain = false,
     bool FindPlayerOrientationCandidate = false,
     string? OrientationCandidateLedgerFile = null,
     bool DebugTraceInstruction = false,
