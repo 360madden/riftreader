@@ -159,7 +159,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -205,6 +205,11 @@ internal static class Program
         if (options.ReadPlayerCurrent)
         {
             return RunReadPlayerCurrentMode(options, target, reader);
+        }
+
+        if (options.FindPlayerOrientationCandidate)
+        {
+            return RunFindPlayerOrientationCandidateMode(options, target, reader);
         }
 
         if (options.ReadTargetCurrent)
@@ -459,6 +464,91 @@ internal static class Program
         }
 
         Console.Error.WriteLine($"Unable to read the current player snapshot: {string.Join(" | ", failures)}");
+        return 1;
+    }
+
+    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+        var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument)
+            .Where(static document => document.Current?.Player?.Coord is not null)
+            .ToArray();
+
+        if (bootstrapDocuments.Length == 0)
+        {
+            var errors = new[]
+                {
+                    loadError,
+                    validatorLoadError
+                }
+                .Where(static error => !string.IsNullOrWhiteSpace(error))
+                .ToArray();
+
+            Console.Error.WriteLine(errors.Length > 0
+                ? string.Join(" ", errors)
+                : "Unable to load any player-orientation bootstrap snapshot.");
+            return 1;
+        }
+
+        var failures = new List<string>(bootstrapDocuments.Length);
+
+        for (var index = 0; index < bootstrapDocuments.Length; index++)
+        {
+            var document = bootstrapDocuments[index];
+
+            try
+            {
+                var result = PlayerOrientationCandidateFinder.Find(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    document,
+                    options.MaxHits,
+                    orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+
+                if (result.CandidateCount == 0 && result.PointerHopCandidateCount == 0)
+                {
+                    failures.Add($"[{index + 1}/{bootstrapDocuments.Length}] {document.SourceFile}: no live orientation candidates were found for the bootstrap coordinates.");
+                    continue;
+                }
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(result));
+                    return 0;
+                }
+
+                Console.WriteLine("Player orientation candidate search");
+                Console.WriteLine($"Player:                      {result.PlayerName ?? "n/a"}");
+                Console.WriteLine($"Candidate count:             {result.CandidateCount}");
+                Console.WriteLine($"Pointer-hop candidate count: {result.PointerHopCandidateCount}");
+
+                if (result.BestPointerHopCandidate is not null)
+                {
+                    Console.WriteLine($"Best pointer-hop candidate:  {result.BestPointerHopCandidate.Address} @ {result.BestPointerHopCandidate.BasisPrimaryForwardOffset}");
+                    Console.WriteLine($"Pointer-hop yaw/pitch (deg): {result.BestPointerHopCandidate.PreferredEstimate.YawDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"} / {result.BestPointerHopCandidate.PreferredEstimate.PitchDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"}");
+                }
+                else if (result.BestCandidate is not null)
+                {
+                    Console.WriteLine($"Best local candidate:        {result.BestCandidate.Address} @ {result.BestCandidate.BasisPrimaryForwardOffset}");
+                    Console.WriteLine($"Local yaw/pitch (deg):       {result.BestCandidate.PreferredEstimate.YawDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"} / {result.BestCandidate.PreferredEstimate.PitchDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"}");
+                }
+
+                foreach (var note in result.Notes)
+                {
+                    Console.WriteLine($"- {note}");
+                }
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"[{index + 1}/{bootstrapDocuments.Length}] {document.SourceFile}: {ex.Message}");
+            }
+        }
+
+        Console.Error.WriteLine($"Unable to find a live player orientation candidate: {string.Join(" | ", failures)}");
         return 1;
     }
 

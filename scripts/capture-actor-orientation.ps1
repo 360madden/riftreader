@@ -510,6 +510,84 @@ function Test-MeaningfulBasisCandidate {
     return ($magnitude -ge 0.85) -and ($magnitude -le 1.15)
 }
 
+function Try-ParseDateTimeOffsetValue {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    $parsed = [DateTimeOffset]::MinValue
+    if ([DateTimeOffset]::TryParse($Value, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
+        return $parsed.ToUniversalTime()
+    }
+
+    return $null
+}
+
+function Get-TargetProcessMetadata {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $process = Get-Process -Name $Name -ErrorAction Stop |
+        Where-Object { $_.MainWindowHandle -ne 0 } |
+        Sort-Object StartTime |
+        Select-Object -First 1
+
+    if ($null -eq $process) {
+        throw "No process named '$Name' with a main window was found."
+    }
+
+    return [pscustomobject]@{
+        ProcessId = $process.Id
+        ProcessName = $process.ProcessName
+        StartTimeUtc = $process.StartTime.ToUniversalTime()
+        MainWindowTitle = $process.MainWindowTitle
+    }
+}
+
+function Test-BehaviorBackedLeadApplicability {
+    param(
+        $Lead,
+        $ProcessMetadata
+    )
+
+    if ($null -eq $Lead -or $null -eq $ProcessMetadata) {
+        return [pscustomobject]@{
+            IsValid = $true
+            Reason = $null
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Lead.ProcessName) -and
+        -not [string]::Equals([string]$Lead.ProcessName, [string]$ProcessMetadata.ProcessName, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{
+            IsValid = $false
+            Reason = ("Behavior-backed lead targets process '{0}', but the live process is '{1}'." -f $Lead.ProcessName, $ProcessMetadata.ProcessName)
+        }
+    }
+
+    $leadTimestamp = Try-ParseDateTimeOffsetValue -Value ([string]$Lead.ValidatedAtUtc)
+    if ($null -eq $leadTimestamp) {
+        $leadTimestamp = Try-ParseDateTimeOffsetValue -Value ([string]$Lead.GeneratedAtUtc)
+    }
+
+    if ($null -ne $leadTimestamp -and $leadTimestamp.UtcDateTime -lt $ProcessMetadata.StartTimeUtc.AddSeconds(-1)) {
+        return [pscustomobject]@{
+            IsValid = $false
+            Reason = ("Behavior-backed lead '{0}' is stale for live PID {1}: lead timestamp {2} predates process start {3}." -f `
+                $resolvedBehaviorBackedLeadFile, `
+                $ProcessMetadata.ProcessId, `
+                $leadTimestamp.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture), `
+                $ProcessMetadata.StartTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture))
+        }
+    }
+
+    return [pscustomobject]@{
+        IsValid = $true
+        Reason = $null
+    }
+}
+
 function Load-BehaviorBackedLead {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -538,7 +616,9 @@ function Load-BehaviorBackedLead {
         SourceAddress = $sourceAddress
         BasisForwardOffset = $basisForwardOffset
         BasisDuplicateForwardOffset = [string](Get-OptionalPropertyValue -Object $document -Name 'BasisDuplicateForwardOffset')
+        ProcessName = [string](Get-OptionalPropertyValue -Object $document -Name 'ProcessName')
         GeneratedAtUtc = [string](Get-OptionalPropertyValue -Object $document -Name 'GeneratedAtUtc')
+        ValidatedAtUtc = [string](Get-OptionalPropertyValue -Object $document -Name 'ValidatedAtUtc')
         Status = [string](Get-OptionalPropertyValue -Object $document -Name 'Status')
         OperationalStatus = [string](Get-OptionalPropertyValue -Object $document -Name 'OperationalStatus')
         PreferredLead = [bool](Get-OptionalPropertyValue -Object $document -Name 'PreferredLead')
@@ -777,9 +857,14 @@ $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
 $resolvedBehaviorBackedLeadFile = [System.IO.Path]::GetFullPath($BehaviorBackedLeadFile)
 $behaviorBackedLead = $null
+$targetProcessMetadata = Get-TargetProcessMetadata -Name $ProcessName
 
 if (-not $IgnoreBehaviorBackedLead -and (Test-Path -LiteralPath $resolvedBehaviorBackedLeadFile)) {
     $behaviorBackedLead = Load-BehaviorBackedLead -Path $resolvedBehaviorBackedLeadFile
+    $behaviorBackedLeadApplicability = Test-BehaviorBackedLeadApplicability -Lead $behaviorBackedLead -ProcessMetadata $targetProcessMetadata
+    if (-not $behaviorBackedLeadApplicability.IsValid) {
+        throw ("{0} Rebuild the live facing lead with find-player-orientation-candidate.ps1 / test-actor-yaw-candidates.ps1, or rerun with -IgnoreBehaviorBackedLead to bypass the cached lead." -f $behaviorBackedLeadApplicability.Reason)
+    }
 }
 
 if ($RefreshReaderBridge) {

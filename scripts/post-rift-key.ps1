@@ -4,7 +4,7 @@ param(
     [string]$Key,
     [int]$HoldMilliseconds = 250,
     [string]$TargetProcessName = "rift_x64",
-    [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
+    [string]$BackgroundProcessName = "",
     [int]$InterKeyDelayMilliseconds = 20,
     [switch]$SkipBackgroundFocus,
     [switch]$RequireTargetForeground
@@ -316,12 +316,21 @@ Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt6
 Write-Host "[RiftKey] Key           : $Key"
 Write-Host "[RiftKey] Hold ms       : $HoldMilliseconds"
 
-if (-not $SkipBackgroundFocus) {
-    $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
-    Write-Host "[RiftKey] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
-    Focus-Window -Process $backgroundProcess
-    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
-    Write-Host ("[RiftKey] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+if (-not $SkipBackgroundFocus -and -not [string]::IsNullOrWhiteSpace($BackgroundProcessName)) {
+    $backgroundProcess = $null
+    try {
+        $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
+    }
+    catch {
+        Write-Warning ("Background focus target '{0}' was not available; continuing without background focus. {1}" -f $BackgroundProcessName, $_.Exception.Message)
+    }
+
+    if ($backgroundProcess) {
+        Write-Host "[RiftKey] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
+        Focus-Window -Process $backgroundProcess
+        $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+        Write-Host ("[RiftKey] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+    }
 }
 
 if ($RequireTargetForeground) {

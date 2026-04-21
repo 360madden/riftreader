@@ -3,7 +3,7 @@ param(
     [string]$Command = "/reloadui",
     [string]$TargetProcessName = "rift_x64",
     [string]$VerifyFilePath = "C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
-    [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
+    [string]$BackgroundProcessName = "",
     [int]$AttemptTimeoutSeconds = 10,
     [int]$InterKeyDelayMilliseconds = 20,
     [switch]$SkipBackgroundFocus,
@@ -346,16 +346,25 @@ Write-Host "[RiftPost] Target thread : $targetThreadId"
 $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
 Write-Host ("[RiftPost] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 
-if (-not $SkipBackgroundFocus) {
-    $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
-    Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
-    Focus-Window -Process $backgroundProcess
+if (-not $SkipBackgroundFocus -and -not [string]::IsNullOrWhiteSpace($BackgroundProcessName)) {
+    $backgroundProcess = $null
+    try {
+        $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
+    }
+    catch {
+        Write-Warning ("Background focus target '{0}' was not available; continuing without background focus. {1}" -f $BackgroundProcessName, $_.Exception.Message)
+    }
 
-    $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
-    Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+    if ($backgroundProcess) {
+        Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
+        Focus-Window -Process $backgroundProcess
 
-    if ($foregroundHandle -eq $targetHandle) {
-        throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+        Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+
+        if ($foregroundHandle -eq $targetHandle) {
+            throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        }
     }
 }
 
