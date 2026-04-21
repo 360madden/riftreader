@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.CheatEngine;
 using RiftReader.Reader.Cli;
@@ -33,6 +34,9 @@ internal static class Program
     private const int ParentChainSecondHopSeedLimit = 3;
     private const int ParentChainSecondHopMaxHits = 4;
     private const int ParentChainPreviewBytes = 64;
+    private const int TruthChainStabilitySampleCount = 5;
+    private const int TruthChainStabilityDelayMilliseconds = 250;
+    private const int RootFamilyComparisonBytes = 128;
 
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
@@ -805,6 +809,15 @@ internal static class Program
             return 1;
         }
 
+        result = EnrichPlayerActorCoordResultWithTruthChainContext(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            anchorResult,
+            result);
+
         if (options.JsonOutput)
         {
             Console.WriteLine(JsonOutput.Serialize(result));
@@ -813,6 +826,125 @@ internal static class Program
 
         Console.WriteLine(PlayerActorCoordReadTextFormatter.Format(result));
         return 0;
+    }
+
+    private static PlayerActorCoordReadResult EnrichPlayerActorCoordResultWithTruthChainContext(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        PlayerCoordAnchorReadResult? anchorResult,
+        PlayerActorCoordReadResult result)
+    {
+        var notes = result.Notes.Count == 0
+            ? new List<string>()
+            : result.Notes.ToList();
+
+        var effectiveSnapshotDocument = TryEnsurePlayerCoordSnapshot(snapshotDocument, anchorResult);
+        if (effectiveSnapshotDocument?.Current?.Player?.Coord is null)
+        {
+            notes.Add("Skipped root-family structural context because no live player-coordinate snapshot could be derived.");
+            return result with { Notes = notes };
+        }
+
+        PlayerOrientationCandidateSearchResult orientationSearchResult;
+        try
+        {
+            orientationSearchResult = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                effectiveSnapshotDocument,
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+        }
+        catch (Exception ex)
+        {
+            notes.Add($"Skipped root-family structural context because live actor-orientation discovery failed: {ex.Message}");
+            return result with { Notes = notes };
+        }
+
+        PlayerActorOrientationReadResult orientationResult;
+        try
+        {
+            orientationResult = PlayerActorOrientationReader.ReadCurrent(
+                effectiveSnapshotDocument,
+                anchorResult,
+                orientationSearchResult);
+        }
+        catch (Exception ex)
+        {
+            notes.Add($"Skipped root-family structural context because live actor-orientation reading failed: {ex.Message}");
+            return result with { Notes = notes };
+        }
+
+        var truthNotes = new List<string>
+        {
+            "Actor-coordinate read enriched with live truth-chain stability context."
+        };
+        var truthResult = new PlayerActorTruthReadResult(
+            Mode: "player-actor-truth",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            ReaderBridgeSourceFile: effectiveSnapshotDocument.SourceFile,
+            TraceSourceFile: anchorResult?.SourceFile,
+            TraceAvailable: anchorResult is not null,
+            TraceMatchesProcess: anchorResult?.TraceMatchesProcess == true,
+            CoordBootstrapSource: orientationResult.CoordBootstrapSource,
+            OrientationResolutionSource: orientationResult.ResolutionSource,
+            Coordinates: result,
+            Orientation: orientationResult,
+            Notes: truthNotes);
+
+        var stabilityNotes = new List<string>();
+        var stabilityObservations = CollectTruthChainObservations(
+            options,
+            process,
+            target,
+            reader,
+            truthResult,
+            stabilityNotes);
+        var bestContainerChain = BuildBestContainerChain(stabilityObservations);
+        var readableRegions = reader.EnumerateMemoryRegions()
+            .Where(static region => region.IsCommitted && region.IsReadable)
+            .ToArray();
+        var rootFamilyCandidates = AnalyzeRootFamilyCandidates(
+            reader,
+            readableRegions,
+            stabilityObservations,
+            RootFamilyComparisonBytes,
+            stabilityNotes);
+        var bestRootFamily = rootFamilyCandidates.FirstOrDefault();
+
+        if (bestRootFamily is not null)
+        {
+            notes.Add($"Best root family {bestRootFamily.RegionBase} held {bestRootFamily.ObservationCount}/{bestRootFamily.StabilitySampleCount} observations across {bestRootFamily.DistinctAddressCount} root instances.");
+        }
+        else
+        {
+            notes.Add("Truth-chain stability sampling did not produce a root-family candidate for the current actor-coordinate read.");
+        }
+
+        if (bestContainerChain?.RootAddress is not null)
+        {
+            notes.Add($"Best parent/root chain during coord enrichment: {bestContainerChain.ParentAddress ?? "n/a"} -> {bestContainerChain.RootAddress} ({bestContainerChain.RootObservationCount}/{bestContainerChain.StabilitySampleCount} root observations).");
+        }
+
+        foreach (var note in stabilityNotes)
+        {
+            if (!notes.Contains(note, StringComparer.Ordinal))
+            {
+                notes.Add(note);
+            }
+        }
+
+        return result with
+        {
+            BestContainerChain = bestContainerChain,
+            BestRootFamily = bestRootFamily,
+            Notes = notes
+        };
     }
 
     private static int RunReadPlayerActorOrientationMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
@@ -923,6 +1055,16 @@ internal static class Program
         {
             notes.Add($"Coord and orientation truth unified on the same live object surface at {unifiedTruthObjectAddress}.");
         }
+        var stabilityObservations = CollectTruthChainObservations(
+            options,
+            process,
+            target,
+            reader,
+            resolvedTruthResult,
+            notes);
+        var unifiedTruthObservationCount = stabilityObservations.Count(observation =>
+            !string.IsNullOrWhiteSpace(observation.UnifiedTruthObjectAddress));
+        var bestContainerChain = BuildBestContainerChain(stabilityObservations);
 
         var windowLength = Math.Max(options.ScanContextBytes, 128);
         var pointerWidth = options.PointerWidth;
@@ -930,6 +1072,13 @@ internal static class Program
         var readableRegions = reader.EnumerateMemoryRegions()
             .Where(static region => region.IsCommitted && region.IsReadable)
             .ToArray();
+        var rootFamilyCandidates = AnalyzeRootFamilyCandidates(
+            reader,
+            readableRegions,
+            stabilityObservations,
+            RootFamilyComparisonBytes,
+            notes);
+        var bestRootFamily = rootFamilyCandidates.FirstOrDefault();
 
         var knownTargets = new Dictionary<long, string>
         {
@@ -1021,6 +1170,7 @@ internal static class Program
             orientationParentBackrefs,
             pointerWidth,
             windowLength,
+            stabilityObservations,
             notes);
         var sharedAncestorCandidates = FindSharedAncestorCandidates(
             reader,
@@ -1048,8 +1198,13 @@ internal static class Program
             PointerScanMaxHits: pointerScanMaxHits,
             SecondHopSeedLimitPerSurface: secondHopSeedLimit,
             SecondHopPointerScanMaxHits: secondHopMaxHits,
+            StabilitySampleCount: TruthChainStabilitySampleCount,
+            StabilitySampleDelayMilliseconds: TruthChainStabilityDelayMilliseconds,
             Truth: resolvedTruthResult,
             UnifiedTruthObjectAddress: unifiedTruthObjectAddress,
+            UnifiedTruthObservationCount: unifiedTruthObservationCount,
+            BestContainerChain: bestContainerChain,
+            BestRootFamily: bestRootFamily,
             CoordObjectWindow: coordWindow,
             OrientationObjectWindow: orientationWindow,
             OrientationParentWindow: orientationParentWindow,
@@ -1059,6 +1214,8 @@ internal static class Program
             OrientationParentBackrefs: orientationParentBackrefs,
             SlotCorrelations: slotCorrelations,
             ParentContainerCandidates: parentContainerCandidates,
+            RootFamilyCandidates: rootFamilyCandidates,
+            StabilityObservations: stabilityObservations,
             SharedAncestorCandidates: sharedAncestorCandidates,
             Notes: notes);
 
@@ -1924,6 +2081,217 @@ internal static class Program
             .ToArray();
     }
 
+    private static IReadOnlyList<PlayerActorTruthChainObservation> CollectTruthChainObservations(
+        ReaderOptions options,
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        PlayerActorTruthReadResult initialResult,
+        ICollection<string> notes)
+    {
+        var observations = new List<PlayerActorTruthChainObservation>
+        {
+            BuildTruthChainObservation(1, initialResult)
+        };
+
+        for (var sampleIndex = 2; sampleIndex <= TruthChainStabilitySampleCount; sampleIndex++)
+        {
+            Thread.Sleep(TruthChainStabilityDelayMilliseconds);
+
+            if (!TryBuildPlayerActorTruthResult(options, process, target, reader, out var sampleResult, out var error) ||
+                sampleResult is null)
+            {
+                notes.Add($"Truth-chain stability sample {sampleIndex} failed: {error ?? "unknown error"}");
+                continue;
+            }
+
+            observations.Add(BuildTruthChainObservation(sampleIndex, sampleResult));
+        }
+
+        notes.Add($"Collected {observations.Count} truth-chain stability observations over {TruthChainStabilitySampleCount} attempted samples.");
+        return observations;
+    }
+
+    private static PlayerActorTruthChainObservation BuildTruthChainObservation(int sampleIndex, PlayerActorTruthReadResult result)
+    {
+        var unifiedTruthObjectAddress = string.Equals(
+            result.Coordinates.ObjectBaseAddress,
+            result.Orientation.SelectedAddress,
+            StringComparison.OrdinalIgnoreCase)
+            ? result.Coordinates.ObjectBaseAddress
+            : null;
+
+        return new PlayerActorTruthChainObservation(
+            SampleIndex: sampleIndex,
+            UnifiedTruthObjectAddress: unifiedTruthObjectAddress,
+            CoordObjectAddress: result.Coordinates.ObjectBaseAddress,
+            OrientationObjectAddress: result.Orientation.SelectedAddress,
+            OrientationParentAddress: result.Orientation.ParentAddress,
+            OrientationRootAddress: result.Orientation.RootAddress);
+    }
+
+    private static PlayerActorTruthBestContainerChain? BuildBestContainerChain(IReadOnlyList<PlayerActorTruthChainObservation> observations)
+    {
+        if (observations.Count == 0)
+        {
+            return null;
+        }
+
+        var unifiedTruthObservationCount = observations.Count(observation =>
+            !string.IsNullOrWhiteSpace(observation.UnifiedTruthObjectAddress));
+        var bestUnifiedTruth = observations
+            .Where(static observation => !string.IsNullOrWhiteSpace(observation.UnifiedTruthObjectAddress))
+            .GroupBy(static observation => observation.UnifiedTruthObjectAddress!, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static group => group.Count())
+            .ThenBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        var bestParent = observations
+            .GroupBy(static observation => observation.OrientationParentAddress, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static group => group.Count())
+            .ThenBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .First();
+        var bestRoot = observations
+            .GroupBy(static observation => observation.OrientationRootAddress, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static group => group.Count())
+            .ThenBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .First();
+
+        return new PlayerActorTruthBestContainerChain(
+            UnifiedTruthObjectAddress: bestUnifiedTruth?.Key,
+            UnifiedTruthObservationCount: unifiedTruthObservationCount,
+            ParentAddress: bestParent.Key,
+            ParentObservationCount: bestParent.Count(),
+            RootAddress: bestRoot.Key,
+            RootObservationCount: bestRoot.Count(),
+            StabilitySampleCount: observations.Count);
+    }
+
+    private static IReadOnlyList<PlayerActorTruthRootFamilyCandidate> AnalyzeRootFamilyCandidates(
+        ProcessMemoryReader reader,
+        IReadOnlyList<ProcessMemoryRegion> readableRegions,
+        IReadOnlyList<PlayerActorTruthChainObservation> observations,
+        int comparisonBytes,
+        ICollection<string> notes)
+    {
+        if (observations.Count == 0)
+        {
+            return Array.Empty<PlayerActorTruthRootFamilyCandidate>();
+        }
+
+        var effectiveComparisonBytes = Math.Max(16, comparisonBytes);
+        var groupedObservations = observations
+            .Select(observation =>
+            {
+                if (!TryParseHexAddress(observation.OrientationRootAddress, out var rootAddress))
+                {
+                    return null;
+                }
+
+                var regionBase = TryFindReadableRegionBase(rootAddress, readableRegions);
+                return regionBase is null
+                    ? null
+                    : new
+                    {
+                        Observation = observation,
+                        RootAddress = rootAddress,
+                        RootAddressHex = observation.OrientationRootAddress,
+                        RegionBase = regionBase
+                    };
+            })
+            .Where(static item => item is not null)
+            .Select(static item => item!)
+            .GroupBy(static item => item.RegionBase, StringComparer.OrdinalIgnoreCase);
+
+        var candidates = new List<PlayerActorTruthRootFamilyCandidate>();
+
+        foreach (var group in groupedObservations)
+        {
+            var representativeGroup = group
+                .GroupBy(static item => item.RootAddressHex, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(static item => item.Count())
+                .ThenBy(static item => item.Key, StringComparer.OrdinalIgnoreCase)
+                .First();
+
+            var representativeAddress = representativeGroup.Key;
+            if (!TryParseHexAddress(representativeAddress, out var representativeValue))
+            {
+                continue;
+            }
+
+            if (!reader.TryReadBytes(new nint(representativeValue), effectiveComparisonBytes, out var representativeBytes, out _))
+            {
+                notes.Add($"Unable to read representative root-family bytes at {representativeAddress}.");
+                continue;
+            }
+
+            var comparisons = new List<int> { representativeBytes.Length };
+            foreach (var addressText in group.Select(static item => item.RootAddressHex).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (string.Equals(addressText, representativeAddress, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!TryParseHexAddress(addressText, out var addressValue))
+                {
+                    continue;
+                }
+
+                if (!reader.TryReadBytes(new nint(addressValue), effectiveComparisonBytes, out var otherBytes, out _))
+                {
+                    notes.Add($"Unable to read comparison root-family bytes at {addressText}.");
+                    continue;
+                }
+
+                comparisons.Add(CountMatchingBytes(representativeBytes, otherBytes));
+            }
+
+            var (asciiPreview, _) = TryReadPreview(reader, representativeValue, Math.Min(ParentChainPreviewBytes, representativeBytes.Length));
+            var memberAddresses = group
+                .Select(static item => item.RootAddressHex)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var score = (group.Count() * 100) + (memberAddresses.Length * 10) + (int)Math.Round(comparisons.Average());
+
+            candidates.Add(new PlayerActorTruthRootFamilyCandidate(
+                RegionBase: group.Key,
+                Score: score,
+                ObservationCount: group.Count(),
+                DistinctAddressCount: memberAddresses.Length,
+                StabilitySampleCount: observations.Count,
+                RepresentativeAddress: representativeAddress,
+                RepresentativeObservationCount: representativeGroup.Count(),
+                MemberAddresses: memberAddresses,
+                AverageMatchingBytes: comparisons.Average(),
+                MinimumMatchingBytes: comparisons.Min(),
+                MaximumMatchingBytes: comparisons.Max(),
+                RepresentativeAsciiPreview: asciiPreview));
+        }
+
+        notes.Add($"Root-family analysis grouped {observations.Count} stability observations into {candidates.Count} candidate root families.");
+
+        return candidates
+            .OrderByDescending(static candidate => candidate.Score)
+            .ThenBy(static candidate => candidate.RegionBase, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static int CountMatchingBytes(byte[] left, byte[] right)
+    {
+        var length = Math.Min(left.Length, right.Length);
+        var same = 0;
+        for (var index = 0; index < length; index++)
+        {
+            if (left[index] == right[index])
+            {
+                same++;
+            }
+        }
+
+        return same;
+    }
+
     private static IReadOnlyList<PlayerActorTruthParentContainerCandidate> FindParentContainerCandidates(
         ProcessMemoryReader reader,
         ProcessTarget target,
@@ -1934,6 +2302,7 @@ internal static class Program
         PointerScanResult parentBackrefs,
         int pointerWidth,
         int windowLength,
+        IReadOnlyList<PlayerActorTruthChainObservation> stabilityObservations,
         ICollection<string> notes)
     {
         if (!TryParseHexAddress(parentAddressText, out var parentAddress))
@@ -1966,6 +2335,23 @@ internal static class Program
             var rootCandidate = EnsureCandidate(rootAddress);
             rootCandidate.IsOrientationRoot = true;
             rootCandidate.Sources.Add("orientation-root");
+        }
+
+        foreach (var observation in stabilityObservations)
+        {
+            if (TryParseHexAddress(observation.OrientationParentAddress, out var observedParentAddress))
+            {
+                var candidate = EnsureCandidate(observedParentAddress);
+                candidate.ObservedAsParentCount++;
+                candidate.Sources.Add($"stability-parent#{observation.SampleIndex}");
+            }
+
+            if (TryParseHexAddress(observation.OrientationRootAddress, out var observedRootAddress))
+            {
+                var candidate = EnsureCandidate(observedRootAddress);
+                candidate.ObservedAsRootCount++;
+                candidate.Sources.Add($"stability-root#{observation.SampleIndex}");
+            }
         }
 
         if (parentWindow is not null)
@@ -2029,6 +2415,8 @@ internal static class Program
                 candidate.Score =
                     (candidate.IsOrientationRoot ? 300 : 0) +
                     (candidate.IsDirectParent ? 200 : 0) +
+                    (candidate.ObservedAsRootCount * 140) +
+                    (candidate.ObservedAsParentCount * 110) +
                     (candidate.ParentBackrefCount * 80) +
                     (candidate.ParentSecondHopCount * 30) +
                     (candidate.ParentWindowSlotCount * 10) +
@@ -2041,6 +2429,8 @@ internal static class Program
                     Score: candidate.Score,
                     IsDirectParent: candidate.IsDirectParent,
                     IsOrientationRoot: candidate.IsOrientationRoot,
+                    ObservedAsParentCount: candidate.ObservedAsParentCount,
+                    ObservedAsRootCount: candidate.ObservedAsRootCount,
                     ParentWindowSlotCount: candidate.ParentWindowSlotCount,
                     ParentBackrefCount: candidate.ParentBackrefCount,
                     ParentSecondHopCount: candidate.ParentSecondHopCount,
@@ -2051,6 +2441,8 @@ internal static class Program
             .Where(candidate =>
                 candidate.IsDirectParent ||
                 candidate.IsOrientationRoot ||
+                candidate.ObservedAsParentCount > 0 ||
+                candidate.ObservedAsRootCount > 0 ||
                 candidate.ParentBackrefCount > 0 ||
                 candidate.ParentSecondHopCount > 0 ||
                 candidate.ParentWindowSlotCount > 1)
@@ -2091,6 +2483,8 @@ internal static class Program
         public int Score { get; set; }
         public bool IsDirectParent { get; set; }
         public bool IsOrientationRoot { get; set; }
+        public int ObservedAsParentCount { get; set; }
+        public int ObservedAsRootCount { get; set; }
         public int ParentWindowSlotCount { get; set; }
         public int ParentBackrefCount { get; set; }
         public int ParentSecondHopCount { get; set; }

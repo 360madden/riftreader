@@ -18,7 +18,9 @@ public static class PlayerActorTruthChainDumpTextFormatter
             $"Pointer scan max hits:   {result.PointerScanMaxHits}",
             $"Second-hop seeds:        {result.SecondHopSeedLimitPerSurface} per surface",
             $"Second-hop max hits:     {result.SecondHopPointerScanMaxHits}",
+            $"Stability samples:       {result.StabilitySampleCount} @ {result.StabilitySampleDelayMilliseconds} ms",
             $"Unified truth object:    {result.UnifiedTruthObjectAddress ?? "n/a"}",
+            $"Unified truth hits:      {result.UnifiedTruthObservationCount}",
             $"Coord object:            {result.Truth.Coordinates.ObjectBaseAddress ?? "n/a"}",
             $"Orientation object:      {result.Truth.Orientation.SelectedAddress}",
             $"Orientation parent:      {result.Truth.Orientation.ParentAddress}",
@@ -29,9 +31,20 @@ public static class PlayerActorTruthChainDumpTextFormatter
             $"Parent backrefs:         {result.OrientationParentBackrefs.HitCount}",
             $"Slot correlations:       {result.SlotCorrelations.Count}",
             $"Parent candidates:       {result.ParentContainerCandidates.Count}",
+            $"Root families:           {result.RootFamilyCandidates.Count}",
             $"Shared ancestors:        {result.SharedAncestorCandidates.Count}",
             $"Notes:                   {FormatNotes(result.Notes)}"
         };
+
+        if (result.BestContainerChain is not null)
+        {
+            lines.Add($"Best chain:              parent={result.BestContainerChain.ParentAddress ?? "n/a"} ({result.BestContainerChain.ParentObservationCount}/{result.BestContainerChain.StabilitySampleCount}), root={result.BestContainerChain.RootAddress ?? "n/a"} ({result.BestContainerChain.RootObservationCount}/{result.BestContainerChain.StabilitySampleCount})");
+        }
+
+        if (result.BestRootFamily is not null)
+        {
+            lines.Add($"Best root family:        {result.BestRootFamily.RegionBase} ({result.BestRootFamily.ObservationCount}/{result.BestRootFamily.StabilitySampleCount}, distinct={result.BestRootFamily.DistinctAddressCount}, avgMatch={result.BestRootFamily.AverageMatchingBytes:0.0})");
+        }
 
         AppendWindow(lines, result.CoordObjectWindow);
         AppendWindow(lines, result.OrientationObjectWindow);
@@ -40,8 +53,10 @@ public static class PlayerActorTruthChainDumpTextFormatter
         AppendPointerSummary(lines, "coord-object", result.CoordObjectBackrefs);
         AppendPointerSummary(lines, "orientation-object", result.OrientationObjectBackrefs);
         AppendPointerSummary(lines, "orientation-parent", result.OrientationParentBackrefs);
+        AppendStabilitySummary(lines, result.StabilityObservations);
         AppendSlotCorrelationSummary(lines, result.SlotCorrelations);
         AppendParentCandidateSummary(lines, result.ParentContainerCandidates);
+        AppendRootFamilySummary(lines, result.RootFamilyCandidates);
         AppendSharedAncestorSummary(lines, result.SharedAncestorCandidates);
 
         return string.Join(Environment.NewLine, lines);
@@ -124,13 +139,49 @@ public static class PlayerActorTruthChainDumpTextFormatter
         lines.Add("parent candidates:");
         foreach (var candidate in candidates.Take(6))
         {
-            lines.Add($"  {candidate.Address} score={candidate.Score} direct={FormatBool(candidate.IsDirectParent)} root={FormatBool(candidate.IsOrientationRoot)} backrefs={candidate.ParentBackrefCount} secondHop={candidate.ParentSecondHopCount} slots={candidate.ParentWindowSlotCount}{FormatRegion(candidate.RegionBase)}");
+            lines.Add($"  {candidate.Address} score={candidate.Score} direct={FormatBool(candidate.IsDirectParent)} root={FormatBool(candidate.IsOrientationRoot)} parentObs={candidate.ObservedAsParentCount} rootObs={candidate.ObservedAsRootCount} backrefs={candidate.ParentBackrefCount} secondHop={candidate.ParentSecondHopCount} slots={candidate.ParentWindowSlotCount}{FormatRegion(candidate.RegionBase)}");
             lines.Add($"    sources: {string.Join(',', candidate.Sources)}");
 
             if (!string.IsNullOrWhiteSpace(candidate.AsciiPreview))
             {
                 lines.Add($"    ascii: {candidate.AsciiPreview}");
             }
+        }
+    }
+
+    private static void AppendRootFamilySummary(List<string> lines, IReadOnlyList<PlayerActorTruthRootFamilyCandidate> candidates)
+    {
+        if (candidates.Count == 0)
+        {
+            lines.Add("root families:          none");
+            return;
+        }
+
+        lines.Add("root families:");
+        foreach (var candidate in candidates.Take(5))
+        {
+            lines.Add($"  {candidate.RegionBase} score={candidate.Score} obs={candidate.ObservationCount}/{candidate.StabilitySampleCount} distinct={candidate.DistinctAddressCount} rep={candidate.RepresentativeAddress} repObs={candidate.RepresentativeObservationCount} match={candidate.MinimumMatchingBytes}/{candidate.MaximumMatchingBytes}/{candidate.AverageMatchingBytes:0.0}");
+            lines.Add($"    members: {string.Join(',', candidate.MemberAddresses)}");
+
+            if (!string.IsNullOrWhiteSpace(candidate.RepresentativeAsciiPreview))
+            {
+                lines.Add($"    ascii: {candidate.RepresentativeAsciiPreview}");
+            }
+        }
+    }
+
+    private static void AppendStabilitySummary(List<string> lines, IReadOnlyList<PlayerActorTruthChainObservation> observations)
+    {
+        if (observations.Count == 0)
+        {
+            lines.Add("stability observations:  none");
+            return;
+        }
+
+        lines.Add("stability observations:");
+        foreach (var observation in observations.Take(6))
+        {
+            lines.Add($"  #{observation.SampleIndex}: unified={observation.UnifiedTruthObjectAddress ?? "n/a"} parent={observation.OrientationParentAddress} root={observation.OrientationRootAddress}");
         }
     }
 

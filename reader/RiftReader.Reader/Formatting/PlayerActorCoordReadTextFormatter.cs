@@ -57,6 +57,29 @@ public static class PlayerActorCoordReadTextFormatter
             }
         }
 
+        if (result.BestContainerChain is not null)
+        {
+            lines.Add($"Best chain parent:       {result.BestContainerChain.ParentAddress ?? "n/a"}");
+            lines.Add($"Best chain root:         {result.BestContainerChain.RootAddress ?? "n/a"}");
+            lines.Add($"Chain observations:      {result.BestContainerChain.ParentObservationCount}/{result.BestContainerChain.StabilitySampleCount} parent, {result.BestContainerChain.RootObservationCount}/{result.BestContainerChain.StabilitySampleCount} root");
+        }
+
+        if (result.BestRootFamily is not null)
+        {
+            lines.Add($"Best root family:        {result.BestRootFamily.RegionBase}");
+            lines.Add($"Root family evidence:    {result.BestRootFamily.ObservationCount}/{result.BestRootFamily.StabilitySampleCount} observations across {result.BestRootFamily.DistinctAddressCount} addresses");
+            lines.Add($"Root family exemplar:    {result.BestRootFamily.RepresentativeAddress}");
+        }
+
+        if (result.Notes.Count > 0)
+        {
+            lines.Add("Notes:");
+            foreach (var note in result.Notes)
+            {
+                lines.Add($"- {note}");
+            }
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 

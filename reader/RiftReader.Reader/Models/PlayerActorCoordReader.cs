@@ -126,7 +126,10 @@ public static class PlayerActorCoordReader
             Memory: memory,
             Expected: expected,
             Match: match,
-            ModulePattern: anchorResult.ModulePattern);
+            ModulePattern: anchorResult.ModulePattern,
+            BestContainerChain: null,
+            BestRootFamily: null,
+            Notes: Array.Empty<string>());
     }
 
     private static bool HasExpectedCoord(ReaderBridgeSnapshotDocument? snapshotDocument) =>
@@ -242,6 +245,9 @@ public static class PlayerActorCoordReader
             Memory: currentResult.Memory,
             Expected: currentResult.Expected,
             Match: currentResult.Match,
-            ModulePattern: anchorResult?.ModulePattern);
+            ModulePattern: anchorResult?.ModulePattern,
+            BestContainerChain: null,
+            BestRootFamily: null,
+            Notes: Array.Empty<string>());
     }
 }

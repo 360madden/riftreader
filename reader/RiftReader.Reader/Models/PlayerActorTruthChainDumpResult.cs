@@ -13,8 +13,13 @@ public sealed record PlayerActorTruthChainDumpResult(
     int PointerScanMaxHits,
     int SecondHopSeedLimitPerSurface,
     int SecondHopPointerScanMaxHits,
+    int StabilitySampleCount,
+    int StabilitySampleDelayMilliseconds,
     PlayerActorTruthReadResult Truth,
     string? UnifiedTruthObjectAddress,
+    int UnifiedTruthObservationCount,
+    PlayerActorTruthBestContainerChain? BestContainerChain,
+    PlayerActorTruthRootFamilyCandidate? BestRootFamily,
     PlayerActorTruthObjectWindow? CoordObjectWindow,
     PlayerActorTruthObjectWindow? OrientationObjectWindow,
     PlayerActorTruthObjectWindow? OrientationParentWindow,
@@ -24,6 +29,8 @@ public sealed record PlayerActorTruthChainDumpResult(
     PointerScanResult OrientationParentBackrefs,
     IReadOnlyList<PlayerActorTruthSlotCorrelation> SlotCorrelations,
     IReadOnlyList<PlayerActorTruthParentContainerCandidate> ParentContainerCandidates,
+    IReadOnlyList<PlayerActorTruthRootFamilyCandidate> RootFamilyCandidates,
+    IReadOnlyList<PlayerActorTruthChainObservation> StabilityObservations,
     IReadOnlyList<PlayerActorTruthSharedAncestorCandidate> SharedAncestorCandidates,
     IReadOnlyList<string> Notes);
 
@@ -65,12 +72,45 @@ public sealed record PlayerActorTruthParentContainerCandidate(
     int Score,
     bool IsDirectParent,
     bool IsOrientationRoot,
+    int ObservedAsParentCount,
+    int ObservedAsRootCount,
     int ParentWindowSlotCount,
     int ParentBackrefCount,
     int ParentSecondHopCount,
     IReadOnlyList<string> Sources,
     string? AsciiPreview,
     string? Utf16Preview);
+
+public sealed record PlayerActorTruthChainObservation(
+    int SampleIndex,
+    string? UnifiedTruthObjectAddress,
+    string? CoordObjectAddress,
+    string OrientationObjectAddress,
+    string OrientationParentAddress,
+    string OrientationRootAddress);
+
+public sealed record PlayerActorTruthBestContainerChain(
+    string? UnifiedTruthObjectAddress,
+    int UnifiedTruthObservationCount,
+    string? ParentAddress,
+    int ParentObservationCount,
+    string? RootAddress,
+    int RootObservationCount,
+    int StabilitySampleCount);
+
+public sealed record PlayerActorTruthRootFamilyCandidate(
+    string RegionBase,
+    int Score,
+    int ObservationCount,
+    int DistinctAddressCount,
+    int StabilitySampleCount,
+    string RepresentativeAddress,
+    int RepresentativeObservationCount,
+    IReadOnlyList<string> MemberAddresses,
+    double AverageMatchingBytes,
+    int MinimumMatchingBytes,
+    int MaximumMatchingBytes,
+    string? RepresentativeAsciiPreview);
 
 public sealed record PlayerActorTruthSharedAncestorCandidate(
     string Address,
