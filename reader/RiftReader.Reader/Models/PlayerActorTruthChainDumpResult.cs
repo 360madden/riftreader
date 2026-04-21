@@ -14,13 +14,16 @@ public sealed record PlayerActorTruthChainDumpResult(
     int SecondHopSeedLimitPerSurface,
     int SecondHopPointerScanMaxHits,
     PlayerActorTruthReadResult Truth,
+    string? UnifiedTruthObjectAddress,
     PlayerActorTruthObjectWindow? CoordObjectWindow,
     PlayerActorTruthObjectWindow? OrientationObjectWindow,
     PlayerActorTruthObjectWindow? OrientationParentWindow,
+    PlayerActorTruthObjectWindow? OrientationRootWindow,
     PointerScanResult CoordObjectBackrefs,
     PointerScanResult OrientationObjectBackrefs,
     PointerScanResult OrientationParentBackrefs,
     IReadOnlyList<PlayerActorTruthSlotCorrelation> SlotCorrelations,
+    IReadOnlyList<PlayerActorTruthParentContainerCandidate> ParentContainerCandidates,
     IReadOnlyList<PlayerActorTruthSharedAncestorCandidate> SharedAncestorCandidates,
     IReadOnlyList<string> Notes);
 
@@ -55,6 +58,19 @@ public sealed record PlayerActorTruthSlotCorrelationReference(
     string OffsetHex,
     string SlotAddress,
     string Classification);
+
+public sealed record PlayerActorTruthParentContainerCandidate(
+    string Address,
+    string? RegionBase,
+    int Score,
+    bool IsDirectParent,
+    bool IsOrientationRoot,
+    int ParentWindowSlotCount,
+    int ParentBackrefCount,
+    int ParentSecondHopCount,
+    IReadOnlyList<string> Sources,
+    string? AsciiPreview,
+    string? Utf16Preview);
 
 public sealed record PlayerActorTruthSharedAncestorCandidate(
     string Address,

@@ -30,6 +30,9 @@ internal static class Program
     private const int PlayerCoordTraceRefreshAttempts = 2;
     private const int TruthChainSecondHopSeedLimitPerSurface = 2;
     private const int TruthChainSecondHopPointerScanMaxHits = 6;
+    private const int ParentChainSecondHopSeedLimit = 3;
+    private const int ParentChainSecondHopMaxHits = 4;
+    private const int ParentChainPreviewBytes = 64;
 
     private static readonly JsonSerializerOptions NdjsonOptions = new()
     {
@@ -910,6 +913,16 @@ internal static class Program
         {
             "Chain dump captured the current coord truth object, the canonical orientation surface, and pointer backrefs for each parsed address."
         };
+        var unifiedTruthObjectAddress = string.Equals(
+            resolvedTruthResult.Coordinates.ObjectBaseAddress,
+            resolvedTruthResult.Orientation.SelectedAddress,
+            StringComparison.OrdinalIgnoreCase)
+            ? resolvedTruthResult.Coordinates.ObjectBaseAddress
+            : null;
+        if (!string.IsNullOrWhiteSpace(unifiedTruthObjectAddress))
+        {
+            notes.Add($"Coord and orientation truth unified on the same live object surface at {unifiedTruthObjectAddress}.");
+        }
 
         var windowLength = Math.Max(options.ScanContextBytes, 128);
         var pointerWidth = options.PointerWidth;
@@ -953,6 +966,15 @@ internal static class Program
             readableRegions,
             knownTargets,
             notes);
+        var orientationRootWindow = TryBuildTruthObjectWindow(
+            reader,
+            resolvedTruthResult.Orientation.RootAddress,
+            "orientation-root",
+            windowLength,
+            pointerWidth,
+            readableRegions,
+            knownTargets,
+            notes);
 
         var coordBackrefs = RunPointerScanOrEmpty(
             reader,
@@ -987,7 +1009,19 @@ internal static class Program
         var slotCorrelations = FindSlotCorrelations(
             coordWindow,
             orientationWindow,
-            orientationParentWindow);
+            orientationParentWindow,
+            orientationRootWindow);
+        var parentContainerCandidates = FindParentContainerCandidates(
+            reader,
+            target,
+            readableRegions,
+            resolvedTruthResult.Orientation.ParentAddress,
+            resolvedTruthResult.Orientation.RootAddress,
+            orientationParentWindow,
+            orientationParentBackrefs,
+            pointerWidth,
+            windowLength,
+            notes);
         var sharedAncestorCandidates = FindSharedAncestorCandidates(
             reader,
             target,
@@ -1015,13 +1049,16 @@ internal static class Program
             SecondHopSeedLimitPerSurface: secondHopSeedLimit,
             SecondHopPointerScanMaxHits: secondHopMaxHits,
             Truth: resolvedTruthResult,
+            UnifiedTruthObjectAddress: unifiedTruthObjectAddress,
             CoordObjectWindow: coordWindow,
             OrientationObjectWindow: orientationWindow,
             OrientationParentWindow: orientationParentWindow,
+            OrientationRootWindow: orientationRootWindow,
             CoordObjectBackrefs: coordBackrefs,
             OrientationObjectBackrefs: orientationBackrefs,
             OrientationParentBackrefs: orientationParentBackrefs,
             SlotCorrelations: slotCorrelations,
+            ParentContainerCandidates: parentContainerCandidates,
             SharedAncestorCandidates: sharedAncestorCandidates,
             Notes: notes);
 
@@ -1829,8 +1866,13 @@ internal static class Program
 
     private static IReadOnlyList<PlayerActorTruthSlotCorrelation> FindSlotCorrelations(params PlayerActorTruthObjectWindow?[] windows)
     {
-        var grouped = windows
+        var uniqueWindows = windows
             .Where(static window => window is not null)
+            .GroupBy(static window => window!.TargetAddress, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First()!)
+            .ToArray();
+
+        var grouped = uniqueWindows
             .SelectMany(static window => window!.PointerSlots.Select(slot => new
             {
                 Window = window,
@@ -1880,6 +1922,179 @@ internal static class Program
             .ThenBy(static correlation => correlation.ValueHex, StringComparer.OrdinalIgnoreCase)
             .Take(12)
             .ToArray();
+    }
+
+    private static IReadOnlyList<PlayerActorTruthParentContainerCandidate> FindParentContainerCandidates(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        IReadOnlyList<ProcessMemoryRegion> readableRegions,
+        string? parentAddressText,
+        string? rootAddressText,
+        PlayerActorTruthObjectWindow? parentWindow,
+        PointerScanResult parentBackrefs,
+        int pointerWidth,
+        int windowLength,
+        ICollection<string> notes)
+    {
+        if (!TryParseHexAddress(parentAddressText, out var parentAddress))
+        {
+            notes.Add("Skipped focused parent-container analysis because the direct parent address was unavailable.");
+            return Array.Empty<PlayerActorTruthParentContainerCandidate>();
+        }
+
+        TryParseHexAddress(rootAddressText, out var rootAddress);
+
+        var candidates = new Dictionary<long, ParentCandidateAccumulator>();
+
+        ParentCandidateAccumulator EnsureCandidate(long address)
+        {
+            if (!candidates.TryGetValue(address, out var candidate))
+            {
+                candidate = new ParentCandidateAccumulator(address, TryFindReadableRegionBase(address, readableRegions));
+                candidates[address] = candidate;
+            }
+
+            return candidate;
+        }
+
+        var directParent = EnsureCandidate(parentAddress);
+        directParent.IsDirectParent = true;
+        directParent.Sources.Add("direct-parent");
+
+        if (rootAddress != 0)
+        {
+            var rootCandidate = EnsureCandidate(rootAddress);
+            rootCandidate.IsOrientationRoot = true;
+            rootCandidate.Sources.Add("orientation-root");
+        }
+
+        if (parentWindow is not null)
+        {
+            foreach (var slot in parentWindow.PointerSlots.Where(static slot =>
+                         string.Equals(slot.Classification, "readable-region", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(slot.Classification, "coord-object", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(slot.Classification, "orientation-object", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(slot.Classification, "orientation-parent", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(slot.Classification, "orientation-root", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!TryParseHexAddress(slot.ValueHex, out var address))
+                {
+                    continue;
+                }
+
+                var candidate = EnsureCandidate(address);
+                candidate.ParentWindowSlotCount++;
+                candidate.Sources.Add($"parent-slot{slot.OffsetHex}");
+            }
+        }
+
+        foreach (var hit in parentBackrefs.Hits)
+        {
+            var candidate = EnsureCandidate(hit.Address);
+            candidate.RegionBase ??= hit.RegionBaseHex;
+            candidate.ParentBackrefCount++;
+            candidate.Sources.Add("parent-backref");
+        }
+
+        foreach (var hit in parentBackrefs.Hits.Take(ParentChainSecondHopSeedLimit))
+        {
+            try
+            {
+                var secondHop = ProcessPointerScanner.Scan(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    new nint(hit.Address),
+                    pointerWidth,
+                    windowLength,
+                    ParentChainSecondHopMaxHits);
+
+                foreach (var secondHit in secondHop.Hits)
+                {
+                    var candidate = EnsureCandidate(secondHit.Address);
+                    candidate.RegionBase ??= secondHit.RegionBaseHex;
+                    candidate.ParentSecondHopCount++;
+                    candidate.Sources.Add("parent-second-hop");
+                }
+            }
+            catch (Exception ex)
+            {
+                notes.Add($"Focused parent second-hop scan failed for {hit.AddressHex}: {ex.Message}");
+            }
+        }
+
+        var result = candidates.Values
+            .Select(candidate =>
+            {
+                candidate.Score =
+                    (candidate.IsOrientationRoot ? 300 : 0) +
+                    (candidate.IsDirectParent ? 200 : 0) +
+                    (candidate.ParentBackrefCount * 80) +
+                    (candidate.ParentSecondHopCount * 30) +
+                    (candidate.ParentWindowSlotCount * 10) +
+                    (candidate.Sources.Count * 5);
+
+                var (asciiPreview, utf16Preview) = TryReadPreview(reader, candidate.Address, Math.Min(windowLength, ParentChainPreviewBytes));
+                return new PlayerActorTruthParentContainerCandidate(
+                    Address: $"0x{candidate.Address:X}",
+                    RegionBase: candidate.RegionBase,
+                    Score: candidate.Score,
+                    IsDirectParent: candidate.IsDirectParent,
+                    IsOrientationRoot: candidate.IsOrientationRoot,
+                    ParentWindowSlotCount: candidate.ParentWindowSlotCount,
+                    ParentBackrefCount: candidate.ParentBackrefCount,
+                    ParentSecondHopCount: candidate.ParentSecondHopCount,
+                    Sources: candidate.Sources.OrderBy(static source => source, StringComparer.OrdinalIgnoreCase).ToArray(),
+                    AsciiPreview: asciiPreview,
+                    Utf16Preview: utf16Preview);
+            })
+            .Where(candidate =>
+                candidate.IsDirectParent ||
+                candidate.IsOrientationRoot ||
+                candidate.ParentBackrefCount > 0 ||
+                candidate.ParentSecondHopCount > 0 ||
+                candidate.ParentWindowSlotCount > 1)
+            .OrderByDescending(static candidate => candidate.Score)
+            .ThenBy(static candidate => candidate.Address, StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToArray();
+
+        notes.Add($"Focused parent-container analysis produced {result.Length} ranked candidates above the unified truth surface.");
+        return result;
+    }
+
+    private static (string? AsciiPreview, string? Utf16Preview) TryReadPreview(ProcessMemoryReader reader, long address, int length)
+    {
+        if (address <= 0 || length <= 0)
+        {
+            return (null, null);
+        }
+
+        if (!reader.TryReadBytes(new nint(address), length, out var bytes, out _))
+        {
+            return (null, null);
+        }
+
+        return (BuildAsciiPreview(bytes), BuildUtf16Preview(bytes));
+    }
+
+    private sealed class ParentCandidateAccumulator
+    {
+        public ParentCandidateAccumulator(long address, string? regionBase)
+        {
+            Address = address;
+            RegionBase = regionBase;
+        }
+
+        public long Address { get; }
+        public string? RegionBase { get; set; }
+        public int Score { get; set; }
+        public bool IsDirectParent { get; set; }
+        public bool IsOrientationRoot { get; set; }
+        public int ParentWindowSlotCount { get; set; }
+        public int ParentBackrefCount { get; set; }
+        public int ParentSecondHopCount { get; set; }
+        public HashSet<string> Sources { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private static PointerScanResult RunPointerScanOrEmpty(
