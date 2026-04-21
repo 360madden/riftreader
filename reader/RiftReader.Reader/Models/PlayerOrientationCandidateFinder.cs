@@ -26,6 +26,7 @@ public static class PlayerOrientationCandidateFinder
     private const int MinimumLocalWindowReadLength = 0x80;
     private const int MinimumPointerRootReadLength = 0x80;
     private const int MinimumPointerChildReadLength = 0x80;
+    private const int CanonicalBehaviorBackedForwardOffset = 0xD4;
     private const double PointerHopForwardComponentFloor = 0.05d;
     private const double PointerHopHorizontalMagnitudeFloor = 0.20d;
 
@@ -875,7 +876,7 @@ public static class PlayerOrientationCandidateFinder
                 ParentScore: parentScore,
                 DiscoveryMode: hopDepth == 1 ? "pointer-hop" : "second-hop-pointer-hop",
                 BasisPrimaryForwardOffset: $"0x{basisOffset:X}",
-                Score: ScorePointerHopCandidate(basis, estimate, parentScore, hopDepth, rootSource),
+                Score: ScorePointerHopCandidate(basis, estimate, parentScore, hopDepth, rootSource, basisOffset),
                 Basis: basis,
                 PreferredEstimate: estimate,
                 RootAddress: rootAddressHex,
@@ -990,7 +991,8 @@ public static class PlayerOrientationCandidateFinder
         PlayerOrientationVectorEstimate estimate,
         int parentScore,
         int hopDepth,
-        string rootSource)
+        string rootSource,
+        int basisOffset)
     {
         var score = Math.Max(0, parentScore);
 
@@ -1015,6 +1017,11 @@ public static class PlayerOrientationCandidateFinder
         else if (string.Equals(rootSource, "coord-anchor-object-base", StringComparison.OrdinalIgnoreCase))
         {
             score += 35;
+        }
+
+        if (basisOffset == CanonicalBehaviorBackedForwardOffset)
+        {
+            score += 25;
         }
 
         return score;

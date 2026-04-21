@@ -247,7 +247,7 @@ public static partial class PlayerCoordAnchorReader
         ReaderBridgeSnapshotDocument? snapshotDocument,
         PlayerCoordResolvedAnchor? resolvedAnchor)
     {
-        if (snapshotDocument?.Current?.Player is not { } player || resolvedAnchor is null)
+        if (resolvedAnchor is null)
         {
             return null;
         }
@@ -266,16 +266,18 @@ public static partial class PlayerCoordAnchorReader
             return null;
         }
 
+        var player = snapshotDocument?.Current?.Player;
         var expected = new PlayerCurrentReadExpected(
-            Name: player.Name,
-            Location: player.LocationName,
-            Level: player.Level,
-            Health: player.Hp,
-            HealthMax: player.HpMax,
-            CoordX: player.Coord?.X,
-            CoordY: player.Coord?.Y,
-            CoordZ: player.Coord?.Z);
+            Name: player?.Name,
+            Location: player?.LocationName,
+            Level: player?.Level ?? memory.Level,
+            Health: player?.Hp ?? memory.Health,
+            HealthMax: player?.HpMax,
+            CoordX: player?.Coord?.X ?? memory.CoordX,
+            CoordY: player?.Coord?.Y ?? memory.CoordY,
+            CoordZ: player?.Coord?.Z ?? memory.CoordZ);
 
+        var hasSnapshotCoord = player?.Coord is { X: not null, Y: not null, Z: not null };
         float? deltaX = memory.CoordX.HasValue && expected.CoordX.HasValue
             ? memory.CoordX.Value - (float)expected.CoordX.Value
             : null;
@@ -287,18 +289,20 @@ public static partial class PlayerCoordAnchorReader
             : null;
 
         var match = new PlayerCurrentReadMatch(
-            LevelMatches: memory.Level.HasValue && expected.Level.HasValue && memory.Level.Value == expected.Level.Value,
-            HealthMatches: memory.Health.HasValue && expected.Health.HasValue && memory.Health.Value == expected.Health.Value,
+            LevelMatches: !expected.Level.HasValue || !memory.Level.HasValue || memory.Level.Value == expected.Level.Value,
+            HealthMatches: !expected.Health.HasValue || !memory.Health.HasValue || memory.Health.Value == expected.Health.Value,
             CoordMatchesWithinTolerance:
-                deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
-                deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
-                deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f,
-            DeltaX: deltaX,
-            DeltaY: deltaY,
-            DeltaZ: deltaZ);
+                hasSnapshotCoord
+                    ? deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
+                      deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
+                      deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f
+                    : true,
+            DeltaX: hasSnapshotCoord ? deltaX : 0f,
+            DeltaY: hasSnapshotCoord ? deltaY : 0f,
+            DeltaZ: hasSnapshotCoord ? deltaZ : 0f);
 
         return new PlayerCoordAnchorComparison(
-            snapshotDocument.SourceFile,
+            snapshotDocument?.SourceFile ?? string.Empty,
             memory,
             expected,
             match);
@@ -309,7 +313,7 @@ public static partial class PlayerCoordAnchorReader
         ReaderBridgeSnapshotDocument? snapshotDocument,
         long? sourceObjectAddress)
     {
-        if (snapshotDocument?.Current?.Player is not { } player || !sourceObjectAddress.HasValue)
+        if (!sourceObjectAddress.HasValue)
         {
             return null;
         }
@@ -326,27 +330,31 @@ public static partial class PlayerCoordAnchorReader
             return null;
         }
 
-        float? deltaX = memory.CoordX.HasValue && player.Coord?.X is double expectedX
+        var player = snapshotDocument?.Current?.Player;
+        var hasSnapshotCoord = player?.Coord is { X: not null, Y: not null, Z: not null };
+        float? deltaX = memory.CoordX.HasValue && player?.Coord?.X is double expectedX
             ? memory.CoordX.Value - (float)expectedX
             : null;
-        float? deltaY = memory.CoordY.HasValue && player.Coord?.Y is double expectedY
+        float? deltaY = memory.CoordY.HasValue && player?.Coord?.Y is double expectedY
             ? memory.CoordY.Value - (float)expectedY
             : null;
-        float? deltaZ = memory.CoordZ.HasValue && player.Coord?.Z is double expectedZ
+        float? deltaZ = memory.CoordZ.HasValue && player?.Coord?.Z is double expectedZ
             ? memory.CoordZ.Value - (float)expectedZ
             : null;
 
         var match = new PlayerCoordAnchorSourceMatch(
             CoordMatchesWithinTolerance:
-                deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
-                deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
-                deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f,
-            DeltaX: deltaX,
-            DeltaY: deltaY,
-            DeltaZ: deltaZ);
+                hasSnapshotCoord
+                    ? deltaX.HasValue && MathF.Abs(deltaX.Value) <= 0.25f &&
+                      deltaY.HasValue && MathF.Abs(deltaY.Value) <= 0.25f &&
+                      deltaZ.HasValue && MathF.Abs(deltaZ.Value) <= 0.25f
+                    : true,
+            DeltaX: hasSnapshotCoord ? deltaX : 0f,
+            DeltaY: hasSnapshotCoord ? deltaY : 0f,
+            DeltaZ: hasSnapshotCoord ? deltaZ : 0f);
 
         return new PlayerCoordAnchorSourceComparison(
-            snapshotDocument.SourceFile,
+            snapshotDocument?.SourceFile ?? string.Empty,
             memory,
             match);
     }

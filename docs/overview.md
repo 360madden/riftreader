@@ -53,14 +53,22 @@ Current short version:
 
 - `player-current` still works
 - the coord-anchor module pattern still works
+- `--read-player-actor-coords` now promotes live actor coordinate truth through
+  the trace-backed source-object path
+- `--read-player-actor-orientation` now promotes live actor yaw / pitch truth
+  through the canonical pointer-hop `+0xD4` basis
+- `--read-player-actor-truth` now returns the promoted live coord and
+  orientation truth together
 - `scripts\capture-actor-orientation.ps1` is working again through the
-  behavior-backed lead `0x1B115201EB0 + 0xD4`
+  behavior-backed lead and canonical `+0xD4` basis row
 - actor yaw / pitch truth is currently coming from that validated live basis
   row, not from ReaderBridge/API orientation fields
+- process-attached `--read-player-orientation` now acts as a compatibility
+  wrapper over the live actor-orientation truth path
 - source-chain refresh is broken
 - selector-owner trace is broken
-- `--read-player-orientation` is still historical because it depends on the
-  stale owner-components path
+- offline `--read-player-orientation` is still historical because it depends on
+  the stale owner-components path
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
 
@@ -92,15 +100,19 @@ Use these first:
 12. classify the first stat-side graph around that owner/component table by identifying raw-unit-id-bearing identity components and shared level/resource hubs
 13. reuse only validated fast paths for `--read-player-current` when they still belong to the current process and still match current exported player state
 14. keep the live actor-yaw / pitch capture helper anchored on the validated behavior-backed lead while the owner/source artifact path is rebuilt for a future typed reader mode
+15. keep `--read-player-actor-coords` and `--read-player-actor-orientation`
+    as the canonical truth modes while the historical owner-artifact path is
+    being retired
 
 Current discovery refinement:
 
 Post-update note:
 
 - as of April 20, 2026, the player-current path, coord-anchor module pattern,
-  and `capture-actor-orientation.ps1` behavior-backed lead are currently
+  actor-coordinate truth path, actor-orientation truth path, and
+  `capture-actor-orientation.ps1` behavior-backed lead are currently
   revalidated on `main`
-- `--read-player-orientation` and the selected-source / selector-owner /
+- offline `--read-player-orientation` and the selected-source / selector-owner /
   owner-components artifact path remain historical until the chain is rebuilt on
   the updated client
 
@@ -119,8 +131,10 @@ Post-update note:
   - `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1`
     prefers `scripts\actor-facing-behavior-backed-lead.json` when present and
     fails closed if the live basis no longer validates
-  - `--read-player-orientation` remains stale until the owner/source artifact
-    path is rebuilt
+  - offline `--read-player-orientation` remains stale until the owner/source
+    artifact path is rebuilt
+  - process-attached `--read-player-orientation` now routes to the same live
+    actor-orientation truth path as `--read-player-actor-orientation`
   - pre-update, the selected source component yielded the strongest actor-orientation vectors
   - pre-update, that selected source also exposed duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
   - pre-update, `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` produced repeatable yaw/pitch captures derived from the forward basis row

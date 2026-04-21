@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 20, 2026 (fresh no-CE actor-yaw / pitch revalidation on the live `rift_x64` session)_
+_Last updated: April 20, 2026 (live actor-coordinate + actor-orientation truth operationalized in `RiftReader.Reader`)_
 
 ## Current status
 
@@ -10,20 +10,49 @@ _Last updated: April 20, 2026 (fresh no-CE actor-yaw / pitch revalidation on the
 | ReaderBridge snapshot load | working |
 | Player current read | working |
 | Coord-anchor module pattern | working |
+| Actor coordinates truth | working through `--read-player-actor-coords` |
+| Combined actor truth | working through `--read-player-actor-truth` |
 | ReaderBridge orientation probe | still empty on the current client |
-| `--read-player-orientation` reader mode | still historical / stale because it depends on the owner-components artifact |
+| `--read-player-actor-orientation` reader mode | working on the live client |
+| `--read-player-orientation` reader mode | historical when used offline; live process-attached use now routes to the current actor-orientation truth path |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
-| Actor yaw / pitch truth | working again on the current live session via source `0x1B115201EB0` and forward basis row `+0xD4/+0xD8/+0xDC` |
+| Actor yaw / pitch truth | working again on the current live session via canonical pointer-hop forward basis row `+0xD4/+0xD8/+0xDC` |
 | Source-chain refresh | still broken after the update |
 | Selector-owner trace | still broken after the update |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 
+## Fresh actor coordinate truth
+
+Fresh live validation on **April 20, 2026** established:
+
+- canonical coord-read instruction anchor:
+  - `rift_x64.exe+0x93560E`
+  - `movss xmm0,[rsi+15Ch]`
+- traced execution-side coord layout:
+  - `X = +0x158`
+  - `Y = +0x15C`
+  - `Z = +0x160`
+- promoted source-object coord surface used by the reader:
+  - base register/object = `RDI`
+  - coord row = `+0x48/+0x4C/+0x50`
+
+Operational interpretation:
+
+- `--read-player-actor-coords` is now the canonical live reader mode for actor
+  coordinate truth
+- `--read-player-actor-truth` now returns the current live actor-coordinate and
+  actor-orientation truth surfaces in one combined result
+- stale coord-trace artifacts are auto-refreshed when the current live native
+  trace can reacquire them
+- missing `ReaderBridge` player coord blocks no longer block the actor-coordinate
+  truth path because the reader can bootstrap from the refreshed trace-backed
+  source object
+
 ## Fresh actor yaw / pitch truth
 
 Fresh live validation on **April 20, 2026** established:
 
-- canonical live source address: `0x1B115201EB0`
 - canonical forward basis row:
   - `X = +0xD4`
   - `Y = +0xD8`
@@ -48,6 +77,10 @@ Operational interpretation:
 
 - the current truth-bearing actor-facing basis is **not** the historical
   `+0x60/+0x94` layout
+- the canonical live reader mode is now
+  `--read-player-actor-orientation`
+- process-attached `--read-player-orientation` now routes to that same live
+  truth path as a compatibility wrapper
 - those historical basis windows read as garbage on this live source and must
   not be promoted over the validated `+0xD4` row
 - the repo now carries a behavior-backed lead file at:
@@ -79,7 +112,8 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 - `trace-player-selector-owner.ps1` can remain `armed` without a live hit
 - `player-selector-owner-trace.json` is stale until regenerated with a current-process proof
 - `player-owner-components.json` is stale until regenerated with a current-process proof
-- `--read-player-orientation` remains stale until the owner/source artifact path is rebuilt
+- offline `--read-player-orientation` remains a historical owner-artifact view until the owner/source artifact path is rebuilt
+- `player-owner-components.json` and the selected-source artifact chain are still stale until regenerated with a current-process proof
 
 ## Canonical scripts on `main`
 

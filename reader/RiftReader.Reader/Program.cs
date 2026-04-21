@@ -84,7 +84,7 @@ internal static class Program
             return RunSessionSummaryMode(options);
         }
 
-        if (options.ReadPlayerOrientation)
+        if (options.ReadPlayerOrientation && !options.ProcessId.HasValue && string.IsNullOrWhiteSpace(options.ProcessName))
         {
             return RunReadPlayerOrientationMode(options);
         }
@@ -188,7 +188,7 @@ internal static class Program
             return RunDebugTraceMode(options, process, target);
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.ReadPlayerActorCoords && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerOrientation && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.RefreshPlayerCoordTrace && !options.ReadPlayerActorCoords && !options.ReadPlayerActorOrientation && !options.ReadPlayerActorTruth && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -238,7 +238,7 @@ internal static class Program
 
         if (options.FindPlayerOrientationCandidate)
         {
-            return RunFindPlayerOrientationCandidateMode(options, target, reader);
+            return RunFindPlayerOrientationCandidateMode(options, process, target, reader);
         }
 
         if (options.ReadTargetCurrent)
@@ -251,9 +251,29 @@ internal static class Program
             return RunReadPlayerCoordAnchorMode(options, process, target, reader);
         }
 
+        if (options.RefreshPlayerCoordTrace)
+        {
+            return RunRefreshPlayerCoordTraceMode(options, process, target, reader);
+        }
+
         if (options.ReadPlayerActorCoords)
         {
             return RunReadPlayerActorCoordsMode(options, process, target, reader);
+        }
+
+        if (options.ReadPlayerActorOrientation)
+        {
+            return RunReadPlayerActorOrientationMode(options, process, target, reader);
+        }
+
+        if (options.ReadPlayerActorTruth)
+        {
+            return RunReadPlayerActorTruthMode(options, process, target, reader);
+        }
+
+        if (options.ReadPlayerOrientation)
+        {
+            return RunReadPlayerOrientationLiveCompatibilityMode(options, process, target, reader);
         }
 
         if (options.RecordSession)
@@ -602,12 +622,22 @@ internal static class Program
         return 0;
     }
 
-    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
-        if (snapshotDocument?.Current?.Player?.Coord is null)
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+
+        var actorCoordAnchorResult = TryReadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            refreshIfNeeded: true,
+            out _);
+        var effectiveSnapshotDocument = TryEnsurePlayerCoordSnapshot(snapshotDocument, actorCoordAnchorResult);
+        if (effectiveSnapshotDocument?.Current?.Player?.Coord is null)
         {
-            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player orientation candidate search.");
+            Console.Error.WriteLine("Unable to derive live player coordinates for player orientation candidate search.");
             return 1;
         }
 
@@ -618,7 +648,7 @@ internal static class Program
                 reader,
                 target.ProcessId,
                 target.ProcessName,
-                snapshotDocument,
+                effectiveSnapshotDocument,
                 options.MaxHits,
                 orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
         }
@@ -734,12 +764,7 @@ internal static class Program
 
     private static int RunReadPlayerActorCoordsMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
-        if (snapshotDocument?.Current?.Player is null)
-        {
-            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player actor-coordinate reading.");
-            return 1;
-        }
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
 
         var anchorResult = TryReadPlayerCoordAnchorResult(
             options,
@@ -778,6 +803,325 @@ internal static class Program
 
         Console.WriteLine(PlayerActorCoordReadTextFormatter.Format(result));
         return 0;
+    }
+
+    private static int RunReadPlayerActorOrientationMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+
+        var anchorResult = TryReadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            refreshIfNeeded: true,
+            out _);
+
+        var effectiveSnapshotDocument = TryEnsurePlayerCoordSnapshot(snapshotDocument, anchorResult);
+        if (effectiveSnapshotDocument?.Current?.Player?.Coord is null)
+        {
+            Console.Error.WriteLine("Unable to derive live player coordinates for player actor-orientation reading.");
+            return 1;
+        }
+
+        PlayerOrientationCandidateSearchResult searchResult;
+        try
+        {
+            searchResult = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                effectiveSnapshotDocument,
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to find a live player actor-orientation candidate: {ex.Message}");
+            return 1;
+        }
+
+        PlayerActorOrientationReadResult result;
+        try
+        {
+            result = PlayerActorOrientationReader.ReadCurrent(
+                effectiveSnapshotDocument,
+                anchorResult,
+                searchResult);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current player actor orientation: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerActorOrientationReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunReadPlayerOrientationLiveCompatibilityMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        return RunReadPlayerActorOrientationMode(options, process, target, reader);
+    }
+
+    private static int RunReadPlayerActorTruthMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+
+        var anchorResult = TryReadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            refreshIfNeeded: true,
+            out _);
+
+        var effectiveSnapshotDocument = TryEnsurePlayerCoordSnapshot(snapshotDocument, anchorResult);
+        if (effectiveSnapshotDocument?.Current?.Player?.Coord is null)
+        {
+            Console.Error.WriteLine("Unable to derive live player coordinates for player actor-truth reading.");
+            return 1;
+        }
+
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+
+        PlayerActorCoordReadResult coordResult;
+        try
+        {
+            coordResult = PlayerActorCoordReader.ReadCurrent(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                inspectionRadius,
+                options.MaxHits,
+                anchorResult);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current player actor coordinates for player actor-truth: {ex.Message}");
+            return 1;
+        }
+
+        PlayerOrientationCandidateSearchResult orientationSearchResult;
+        try
+        {
+            orientationSearchResult = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                effectiveSnapshotDocument,
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to find a live player actor-orientation candidate for player actor-truth: {ex.Message}");
+            return 1;
+        }
+
+        PlayerActorOrientationReadResult orientationResult;
+        try
+        {
+            orientationResult = PlayerActorOrientationReader.ReadCurrent(
+                effectiveSnapshotDocument,
+                anchorResult,
+                orientationSearchResult);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to read the current player actor orientation for player actor-truth: {ex.Message}");
+            return 1;
+        }
+
+        var notes = new List<string>
+        {
+            "Combined actor-truth read succeeded through the trace-backed coord source object and the canonical pointer-hop orientation basis."
+        };
+
+        if (!string.Equals(coordResult.ObjectBaseAddress, orientationResult.SelectedAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            notes.Add($"Coord truth and orientation truth currently resolve on different live object surfaces ({coordResult.ObjectBaseAddress ?? "n/a"} vs {orientationResult.SelectedAddress}).");
+        }
+
+        var result = new PlayerActorTruthReadResult(
+            Mode: "player-actor-truth",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            ReaderBridgeSourceFile: effectiveSnapshotDocument.SourceFile,
+            TraceSourceFile: anchorResult?.SourceFile,
+            TraceAvailable: anchorResult is not null,
+            TraceMatchesProcess: anchorResult?.TraceMatchesProcess == true,
+            CoordBootstrapSource: orientationResult.CoordBootstrapSource,
+            OrientationResolutionSource: orientationResult.ResolutionSource,
+            Coordinates: coordResult,
+            Orientation: orientationResult,
+            Notes: notes);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerActorTruthReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunRefreshPlayerCoordTraceMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+
+        if (!TryRefreshPlayerCoordTraceArtifact(options, process, target, reader, out var refreshError))
+        {
+            Console.Error.WriteLine(refreshError ?? "Unable to refresh the current player coord trace.");
+            return 1;
+        }
+
+        var anchorResult = TryLoadPlayerCoordAnchorResult(
+            options,
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            out var anchorError);
+        if (anchorResult is null)
+        {
+            Console.Error.WriteLine(anchorError ?? "Unable to load the refreshed player coord anchor.");
+            return 1;
+        }
+
+        var traceSourceFile = ResolvePlayerCoordTraceOutputFile(options.PlayerCoordTraceFile);
+        var result = new PlayerCoordTraceRefreshResult(
+            Mode: "player-coord-trace-refresh",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            TraceSourceFile: traceSourceFile,
+            RefreshPerformed: true,
+            Anchor: anchorResult);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(PlayerCoordTraceRefreshTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static ReaderBridgeSnapshotDocument? TryEnsurePlayerCoordSnapshot(
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        PlayerCoordAnchorReadResult? anchorResult = null)
+    {
+        if (snapshotDocument?.Current?.Player?.Coord is { X: not null, Y: not null, Z: not null })
+        {
+            return snapshotDocument;
+        }
+
+        var sample = anchorResult?.SourceObjectSample;
+        if (sample?.CoordX is null || sample.CoordY is null || sample.CoordZ is null)
+        {
+            sample = anchorResult?.MemorySample is null
+                ? null
+                : new PlayerCoordAnchorSourceSample(
+                    AddressHex: anchorResult.MemorySample.AddressHex,
+                    CoordX: anchorResult.MemorySample.CoordX,
+                    CoordY: anchorResult.MemorySample.CoordY,
+                    CoordZ: anchorResult.MemorySample.CoordZ);
+        }
+
+        if (sample?.CoordX is null || sample.CoordY is null || sample.CoordZ is null)
+        {
+            return snapshotDocument;
+        }
+
+        var coord = new ValidatorCoordinateSnapshot(sample.CoordX.Value, sample.CoordY.Value, sample.CoordZ.Value);
+        var existingCurrent = snapshotDocument?.Current;
+        var existingPlayer = existingCurrent?.Player;
+        var enrichedPlayer = existingPlayer is null
+            ? new ReaderBridgeUnitSnapshot(
+                Id: "player",
+                Name: null,
+                Level: anchorResult?.MemorySample?.Level,
+                Calling: null,
+                Guild: null,
+                Relation: null,
+                Role: null,
+                Player: true,
+                Combat: null,
+                Pvp: null,
+                Hp: anchorResult?.MemorySample?.Health,
+                HpMax: null,
+                HpPct: null,
+                Absorb: null,
+                Vitality: null,
+                ResourceKind: null,
+                Resource: null,
+                ResourceMax: null,
+                ResourcePct: null,
+                Mana: null,
+                ManaMax: null,
+                Energy: null,
+                EnergyMax: null,
+                Power: null,
+                Charge: null,
+                ChargeMax: null,
+                ChargePct: null,
+                Planar: null,
+                PlanarMax: null,
+                PlanarPct: null,
+                Combo: null,
+                Zone: null,
+                LocationName: null,
+                Coord: coord,
+                Distance: null,
+                Ttd: null,
+                TtdText: null,
+                Cast: null)
+            : existingPlayer with
+            {
+                Coord = coord,
+                Level = existingPlayer.Level ?? anchorResult?.MemorySample?.Level,
+                Hp = existingPlayer.Hp ?? anchorResult?.MemorySample?.Health
+            };
+
+        var current = existingCurrent is null
+            ? new ReaderBridgeSnapshot(
+                SchemaVersion: snapshotDocument?.SchemaVersion,
+                Status: null,
+                ExportReason: snapshotDocument?.LastReason,
+                ExportCount: snapshotDocument?.ExportCount,
+                GeneratedAtRealtime: snapshotDocument?.LastExportAt,
+                SourceMode: null,
+                SourceAddon: null,
+                SourceVersion: null,
+                Hud: null,
+                Player: enrichedPlayer,
+                Target: null,
+                OrientationProbe: null,
+                PlayerBuffLines: Array.Empty<string>(),
+                PlayerDebuffLines: Array.Empty<string>(),
+                TargetBuffLines: Array.Empty<string>(),
+                TargetDebuffLines: Array.Empty<string>())
+            : existingCurrent with { Player = enrichedPlayer };
+
+        return new ReaderBridgeSnapshotDocument(
+            SourceFile: snapshotDocument?.SourceFile ?? "trace-derived-player-coords",
+            LoadedAtUtc: snapshotDocument?.LoadedAtUtc ?? DateTimeOffset.UtcNow,
+            SchemaVersion: snapshotDocument?.SchemaVersion,
+            LastExportAt: snapshotDocument?.LastExportAt,
+            LastReason: snapshotDocument?.LastReason,
+            ExportCount: snapshotDocument?.ExportCount,
+            Current: current);
     }
 
     private static PlayerCoordAnchorReadResult? TryReadPlayerCoordAnchorResult(

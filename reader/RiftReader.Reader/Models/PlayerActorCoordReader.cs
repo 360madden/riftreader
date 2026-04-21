@@ -9,22 +9,21 @@ public static class PlayerActorCoordReader
         ProcessMemoryReader reader,
         int processId,
         string processName,
-        ReaderBridgeSnapshotDocument snapshotDocument,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
         int inspectionRadius,
         int maxHits,
         PlayerCoordAnchorReadResult? anchorResult)
     {
         ArgumentNullException.ThrowIfNull(reader);
-        ArgumentNullException.ThrowIfNull(snapshotDocument);
 
-        if (snapshotDocument.Current?.Player is null)
+        if (CanUseAnchor(anchorResult, snapshotDocument))
         {
-            throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot.");
+            return BuildFromAnchor(anchorResult!, snapshotDocument);
         }
 
-        if (CanUseAnchor(anchorResult))
+        if (snapshotDocument?.Current?.Player is null)
         {
-            return BuildFromAnchor(anchorResult!);
+            throw new InvalidOperationException("ReaderBridge export did not contain a player snapshot, and no current-process coord trace could provide a live actor-coordinate sample.");
         }
 
         var currentResult = PlayerCurrentReader.ReadCurrent(
@@ -38,25 +37,36 @@ public static class PlayerActorCoordReader
         return BuildFromCurrent(currentResult, anchorResult);
     }
 
-    private static bool CanUseAnchor(PlayerCoordAnchorReadResult? anchorResult) =>
-        anchorResult is not null &&
-        anchorResult.TraceMatchesProcess &&
-        anchorResult.Expected is not null &&
-        ((anchorResult.MemorySample is not null &&
-          anchorResult.Match is not null &&
-          anchorResult.Match.CoordMatchesWithinTolerance) ||
-         (anchorResult.SourceObjectSample is not null &&
-          anchorResult.SourceObjectMatch is not null &&
-          anchorResult.SourceObjectMatch.CoordMatchesWithinTolerance));
+    private static bool CanUseAnchor(PlayerCoordAnchorReadResult? anchorResult, ReaderBridgeSnapshotDocument? snapshotDocument)
+    {
+        if (anchorResult is null || !anchorResult.TraceMatchesProcess)
+        {
+            return false;
+        }
 
-    private static PlayerActorCoordReadResult BuildFromAnchor(PlayerCoordAnchorReadResult anchorResult)
+        var requireSnapshotMatch = HasExpectedCoord(snapshotDocument);
+        var sourceObjectUsable =
+            anchorResult.SourceObjectSample is not null &&
+            (!requireSnapshotMatch || anchorResult.SourceObjectMatch?.CoordMatchesWithinTolerance == true);
+        var anchorUsable =
+            anchorResult.MemorySample is not null &&
+            (!requireSnapshotMatch || anchorResult.Match?.CoordMatchesWithinTolerance == true);
+
+        return sourceObjectUsable || anchorUsable;
+    }
+
+    private static PlayerActorCoordReadResult BuildFromAnchor(
+        PlayerCoordAnchorReadResult anchorResult,
+        ReaderBridgeSnapshotDocument? snapshotDocument)
     {
         ArgumentNullException.ThrowIfNull(anchorResult);
 
-        var useSourceObject =
+        var requireSnapshotMatch = HasExpectedCoord(snapshotDocument);
+        var preferSourceObject =
             anchorResult.SourceObjectSample is not null &&
-            anchorResult.SourceObjectMatch is not null &&
-            anchorResult.SourceObjectMatch.CoordMatchesWithinTolerance;
+            (!requireSnapshotMatch || anchorResult.SourceObjectMatch?.CoordMatchesWithinTolerance == true);
+        var useSourceObject = preferSourceObject ||
+            (anchorResult.MemorySample is null && anchorResult.SourceObjectSample is not null);
 
         var memory = useSourceObject
             ? new PlayerCurrentReadSample(
@@ -68,17 +78,13 @@ public static class PlayerActorCoordReader
                 CoordX: anchorResult.SourceObjectSample.CoordX,
                 CoordY: anchorResult.SourceObjectSample.CoordY,
                 CoordZ: anchorResult.SourceObjectSample.CoordZ)
-            : anchorResult.MemorySample!;
+            : anchorResult.MemorySample
+              ?? throw new InvalidOperationException("The current coord trace did not expose a readable actor-coordinate sample.");
 
+        var expected = BuildExpected(snapshotDocument, memory);
         var match = useSourceObject
-            ? new PlayerCurrentReadMatch(
-                LevelMatches: false,
-                HealthMatches: false,
-                CoordMatchesWithinTolerance: anchorResult.SourceObjectMatch!.CoordMatchesWithinTolerance,
-                DeltaX: anchorResult.SourceObjectMatch.DeltaX,
-                DeltaY: anchorResult.SourceObjectMatch.DeltaY,
-                DeltaZ: anchorResult.SourceObjectMatch.DeltaZ)
-            : anchorResult.Match!;
+            ? BuildSourceObjectMatch(anchorResult, snapshotDocument, expected, memory)
+            : BuildAnchorMatch(anchorResult, snapshotDocument, expected, memory);
 
         var coordBaseOffset = useSourceObject ? anchorResult.SourceCoordRelativeOffset : anchorResult.InferredCoordBaseRelativeOffset;
         var coordXOffset = coordBaseOffset;
@@ -89,7 +95,7 @@ public static class PlayerActorCoordReader
             Mode: "player-actor-coords",
             ProcessId: anchorResult.ProcessId,
             ProcessName: anchorResult.ProcessName,
-            ReaderBridgeSourceFile: anchorResult.ReaderBridgeSourceFile ?? string.Empty,
+            ReaderBridgeSourceFile: snapshotDocument?.SourceFile ?? anchorResult.ReaderBridgeSourceFile ?? string.Empty,
             TraceSourceFile: anchorResult.SourceFile,
             TraceAvailable: true,
             TraceMatchesProcess: true,
@@ -118,9 +124,74 @@ public static class PlayerActorCoordReader
             Instruction: anchorResult.Instruction,
             Pattern: anchorResult.Pattern,
             Memory: memory,
-            Expected: anchorResult.Expected!,
+            Expected: expected,
             Match: match,
             ModulePattern: anchorResult.ModulePattern);
+    }
+
+    private static bool HasExpectedCoord(ReaderBridgeSnapshotDocument? snapshotDocument) =>
+        snapshotDocument?.Current?.Player?.Coord is { X: not null, Y: not null, Z: not null };
+
+    private static PlayerCurrentReadExpected BuildExpected(
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        PlayerCurrentReadSample memory)
+    {
+        var player = snapshotDocument?.Current?.Player;
+        return new PlayerCurrentReadExpected(
+            Name: player?.Name ?? memory.Name,
+            Location: player?.LocationName ?? memory.Location,
+            Level: player?.Level ?? memory.Level,
+            Health: player?.Hp ?? memory.Health,
+            HealthMax: player?.HpMax,
+            CoordX: player?.Coord?.X ?? memory.CoordX,
+            CoordY: player?.Coord?.Y ?? memory.CoordY,
+            CoordZ: player?.Coord?.Z ?? memory.CoordZ);
+    }
+
+    private static PlayerCurrentReadMatch BuildSourceObjectMatch(
+        PlayerCoordAnchorReadResult anchorResult,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        PlayerCurrentReadExpected expected,
+        PlayerCurrentReadSample memory)
+    {
+        if (HasExpectedCoord(snapshotDocument) && anchorResult.SourceObjectMatch is not null)
+        {
+            return new PlayerCurrentReadMatch(
+                LevelMatches: !expected.Level.HasValue || !memory.Level.HasValue || expected.Level.Value == memory.Level.Value,
+                HealthMatches: !expected.Health.HasValue || !memory.Health.HasValue || expected.Health.Value == memory.Health.Value,
+                CoordMatchesWithinTolerance: anchorResult.SourceObjectMatch.CoordMatchesWithinTolerance,
+                DeltaX: anchorResult.SourceObjectMatch.DeltaX,
+                DeltaY: anchorResult.SourceObjectMatch.DeltaY,
+                DeltaZ: anchorResult.SourceObjectMatch.DeltaZ);
+        }
+
+        return new PlayerCurrentReadMatch(
+            LevelMatches: !expected.Level.HasValue || !memory.Level.HasValue || expected.Level.Value == memory.Level.Value,
+            HealthMatches: !expected.Health.HasValue || !memory.Health.HasValue || expected.Health.Value == memory.Health.Value,
+            CoordMatchesWithinTolerance: true,
+            DeltaX: 0f,
+            DeltaY: 0f,
+            DeltaZ: 0f);
+    }
+
+    private static PlayerCurrentReadMatch BuildAnchorMatch(
+        PlayerCoordAnchorReadResult anchorResult,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        PlayerCurrentReadExpected expected,
+        PlayerCurrentReadSample memory)
+    {
+        if (HasExpectedCoord(snapshotDocument) && anchorResult.Match is not null)
+        {
+            return anchorResult.Match;
+        }
+
+        return new PlayerCurrentReadMatch(
+            LevelMatches: !expected.Level.HasValue || !memory.Level.HasValue || expected.Level.Value == memory.Level.Value,
+            HealthMatches: !expected.Health.HasValue || !memory.Health.HasValue || expected.Health.Value == memory.Health.Value,
+            CoordMatchesWithinTolerance: true,
+            DeltaX: 0f,
+            DeltaY: 0f,
+            DeltaZ: 0f);
     }
 
     private static PlayerActorCoordReadResult BuildFromCurrent(

@@ -73,17 +73,51 @@ public static class DebugTraceWorker
         var helper = FindAttachHelper(process.Id);
         if (!helper.HasValue)
         {
+            var fallbackHelpers = FindAttachHelpersByImageName();
+            if (fallbackHelpers.Count == 0)
+            {
+                return new DebugAttachHelperClearResult(
+                    ProcessId: process.Id,
+                    ProcessName: process.ProcessName,
+                    DebuggerPresentBefore: true,
+                    DebuggerPresentAfter: true,
+                    HelperFound: false,
+                    HelperProcessId: null,
+                    HelperImageName: null,
+                    HelperStopped: false,
+                    Status: "debugger-present-no-known-helper",
+                    Error: "The target is already debugged, but no rifterrorhandler_x64.exe helper was found.",
+                    Warnings: warnings);
+            }
+
+            if (!TryStopProcesses(fallbackHelpers, 3000, warnings, out var firstStoppedHelperId, out var fallbackStopError))
+            {
+                return new DebugAttachHelperClearResult(
+                    ProcessId: process.Id,
+                    ProcessName: process.ProcessName,
+                    DebuggerPresentBefore: true,
+                    DebuggerPresentAfter: true,
+                    HelperFound: true,
+                    HelperProcessId: firstStoppedHelperId,
+                    HelperImageName: "rifterrorhandler_x64.exe",
+                    HelperStopped: firstStoppedHelperId.HasValue,
+                    Status: "helper-stop-failed",
+                    Error: fallbackStopError,
+                    Warnings: warnings);
+            }
+
+            var releasedAfterFallback = TryWaitForDebuggerReleased(reader.ProcessHandle, 3000, out var fallbackReleaseError);
             return new DebugAttachHelperClearResult(
                 ProcessId: process.Id,
                 ProcessName: process.ProcessName,
                 DebuggerPresentBefore: true,
-                DebuggerPresentAfter: true,
-                HelperFound: false,
-                HelperProcessId: null,
-                HelperImageName: null,
-                HelperStopped: false,
-                Status: "debugger-present-no-known-helper",
-                Error: "The target is already debugged, but no child rifterrorhandler_x64.exe helper was found.",
+                DebuggerPresentAfter: !releasedAfterFallback,
+                HelperFound: true,
+                HelperProcessId: firstStoppedHelperId,
+                HelperImageName: "rifterrorhandler_x64.exe",
+                HelperStopped: true,
+                Status: releasedAfterFallback ? "helper-stopped" : "helper-stopped-but-debugger-still-present",
+                Error: releasedAfterFallback ? null : fallbackReleaseError,
                 Warnings: warnings);
         }
 
@@ -1745,6 +1779,53 @@ public static class DebugTraceWorker
             error = ex.Message;
             return false;
         }
+    }
+
+    private static IReadOnlyList<AttachHelperProcessRecord> FindAttachHelpersByImageName()
+    {
+        var helpers = new List<AttachHelperProcessRecord>();
+        foreach (var process in Process.GetProcessesByName("rifterrorhandler_x64"))
+        {
+            try
+            {
+                helpers.Add(new AttachHelperProcessRecord(process.Id, 0, "rifterrorhandler_x64.exe"));
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        return helpers;
+    }
+
+    private static bool TryStopProcesses(
+        IReadOnlyList<AttachHelperProcessRecord> helpers,
+        int waitMilliseconds,
+        List<string> warnings,
+        out int? firstStoppedHelperId,
+        out string? error)
+    {
+        firstStoppedHelperId = null;
+        error = null;
+
+        foreach (var helper in helpers)
+        {
+            if (!TryStopProcess(helper.ProcessId, waitMilliseconds, out var stopError))
+            {
+                error = stopError ?? $"Unable to stop helper {helper.ProcessId}.";
+                return false;
+            }
+
+            firstStoppedHelperId ??= helper.ProcessId;
+        }
+
+        if (helpers.Count > 1)
+        {
+            warnings.Add($"Stopped {helpers.Count} rifterrorhandler_x64.exe helper processes while clearing the debug-attach blocker.");
+        }
+
+        return true;
     }
 
     private static AttachHelperProcessRecord? FindAttachHelper(int processId)
