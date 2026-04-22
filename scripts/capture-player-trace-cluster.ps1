@@ -129,13 +129,38 @@ function Convert-OffsetToLittleEndianPattern {
     return ($bytes | ForEach-Object { $_.ToString('X2', [System.Globalization.CultureInfo]::InvariantCulture) }) -join ' '
 }
 
+function Invoke-CoordTraceRefresh {
+    param(
+        [int]$MaxAttempts = 3,
+        [int]$RetryDelayMilliseconds = 1500
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            & $traceScript -Json -MaxCandidates 1 -WatchMode access -StimulusMode AutoHotkey | Out-Null
+            return
+        }
+        catch {
+            $message = $_.Exception.Message
+            $playerNotReady = $message -like '*Current player snapshot is not ready after refresh*'
+            if ($playerNotReady -and $attempt -lt $MaxAttempts) {
+                Write-Warning ("Coord-trace refresh outran current-player recovery after /reloadui; retrying in {0} ms (attempt {1}/{2})." -f $RetryDelayMilliseconds, $attempt + 1, $MaxAttempts)
+                Start-Sleep -Milliseconds $RetryDelayMilliseconds
+                continue
+            }
+
+            throw
+        }
+    }
+}
+
 if ($RefreshTrace -or -not (Test-Path -LiteralPath $resolvedTraceFile)) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
+    Invoke-CoordTraceRefresh
 }
 
 $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
 if (-not $anchor.TraceMatchesProcess) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
+    Invoke-CoordTraceRefresh
     $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
 }
 

@@ -79,7 +79,7 @@ function Try-RefreshTraceAnchor {
     Write-Host "[ReadPlayerCurrent] Coord-trace anchor is stale; attempting a fresh coord trace for the current process..." -ForegroundColor Cyan
 
     try {
-        & $traceScript -Json -MaxCandidates 1 | Out-Null
+        & $traceScript -Json -MaxCandidates 1 -WatchMode access -StimulusMode AutoHotkey | Out-Null
     }
     catch {
         Write-Warning ("Coord-trace refresh failed; continuing without a fresh trace anchor. {0}" -f $_.Exception.Message)

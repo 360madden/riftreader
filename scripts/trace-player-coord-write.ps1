@@ -514,7 +514,16 @@ try {
             $summary
         }
 
-        throw ("Timed out waiting for a verified coord {0} trace hit across {1} candidates. {2}" -f $WatchMode, $traceCandidates.Count, ($attemptSummary -join '; '))
+        $timeoutMessage = "Timed out waiting for a verified coord {0} trace hit across {1} candidates. {2}" -f $WatchMode, $traceCandidates.Count, ($attemptSummary -join '; ')
+        if ($WatchMode -eq 'write') {
+            $timeoutMessage += " Try rerunning with -WatchMode access"
+            if ($StimulusMode -ne 'AutoHotkey') {
+                $timeoutMessage += " -StimulusMode AutoHotkey"
+            }
+            $timeoutMessage += '.'
+        }
+
+        throw $timeoutMessage
     }
 
     $modulePattern = $null

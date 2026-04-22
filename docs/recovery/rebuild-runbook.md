@@ -20,6 +20,17 @@ Expected during the current post-update state:
 If these fail, stop and fix the reader baseline before trusting any
 owner/source/camera artifact.
 
+When a fresh coord trace is required on the current client, prefer:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1 -Json -WatchMode access -StimulusMode AutoHotkey
+```
+
+The default write/PostMessage path can still arm successfully without ever
+producing a verified hit on the current build. If a `/reloadui` refresh just
+ran, wait until `--read-player-current` succeeds again before refreshing the
+coord trace or disassembly cluster.
+
 ## 1. Build the repo
 
 ```powershell
@@ -48,6 +59,10 @@ Current post-update warning:
   object, stop and mark the actor-facing chain stale
 - if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
   mark the selector-owner / owner-components chain stale
+- if `capture-player-trace-cluster.ps1 -RefreshTrace` fails immediately after a
+  `/reloadui`, wait for current-player recovery and rerun it; the cluster
+  refresh now retries briefly, but it still depends on a fully loaded character
+  state
 
 If step 2 succeeds for source-chain + accessor-family but selector-owner still
 fails, actor-facing truth can still be refreshed through the behavior-backed
