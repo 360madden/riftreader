@@ -139,4 +139,95 @@ public sealed class TelemetryMathAndMergerTests
         Assert.True(root.TryGetProperty("generatedAtUtc", out _));
         Assert.Equal("addon", root.GetProperty("meta").GetProperty("effectivePositionSource").GetString());
     }
+
+    [Fact]
+    public void Merge_ClampsNegativeFreshnessAges()
+    {
+        var merger = new DefaultTelemetryMerger(100, diagnosticsEnabled: true);
+        var now = new DateTimeOffset(2026, 4, 22, 16, 0, 0, TimeSpan.Zero);
+        var process = new TelemetryProcessInfo(1234, "rift_x64", "rift_x64.exe", "RIFT", now.AddMinutes(-2));
+
+        var context = new TelemetryContextSourceReading(
+            Available: true,
+            Valid: true,
+            SampledAtUtc: now,
+            SourceKind: "addon-readerbridge-export",
+            Reason: null,
+            SnapshotFile: @"C:\temp\ReaderBridgeExport.lua",
+            SnapshotFileAgeSeconds: 1d,
+            SnapshotDocument: null,
+            AddonPosition: null,
+            PlayerId: "player.unit",
+            TargetId: "target.unit",
+            Zone: "Sanctum",
+            LocationName: "City",
+            Combat: false,
+            SourceAddon: "ReaderBridge",
+            SourceMode: "ReaderBridge");
+
+        var memory = new TelemetryPositionSourceReading(
+            Available: true,
+            Valid: true,
+            SampledAtUtc: now,
+            SourceKind: "proof-coord-anchor",
+            Reason: null,
+            Position: new TelemetryPositionValue(
+                Valid: true,
+                SourceKind: "memory",
+                SampledAtUtc: now,
+                Coord: new TelemetryVector3(1d, 2d, 3d),
+                Zone: "Sanctum",
+                LocationName: "City",
+                Address: "0x12345678",
+                Reason: null,
+                Provenance: "coord-trace-direct-region"),
+            ProofAnchor: new TelemetryProofAnchorDiagnostics(
+                Valid: true,
+                SourceKind: "coord-trace-direct-region",
+                MatchSource: "readerbridge-live",
+                TraceSourceFile: null,
+                CoordRegionAddress: "0x12345678",
+                AgeSeconds: -8.75d,
+                Notes: Array.Empty<string>()),
+            CoordMismatch: null,
+            Discovery: new { sample = "position" });
+
+        var facing = new TelemetryFacingSourceReading(
+            Available: true,
+            Valid: true,
+            SampledAtUtc: now,
+            SourceKind: "behavior-backed-memory-facing",
+            Reason: null,
+            Facing: new TelemetryFacingEnvelope(
+                Valid: true,
+                SourceKind: "behavior-backed-memory-facing",
+                YawRadians: 0.5d,
+                YawDegrees: 28.64788975654116d,
+                PitchRadians: 0.1d,
+                PitchDegrees: 5.729577951308232d,
+                Forward: new TelemetryVector3(0d, 0d, 1d),
+                SourceAddress: "0xABC",
+                BasisForwardOffset: "0xD4",
+                BasisDuplicateForwardOffset: null,
+                Reason: null,
+                Provenance: "lead.json"),
+            LeadDiagnostics: new TelemetryFacingLeadDiagnostics(
+                Valid: true,
+                LeadFile: "lead.json",
+                AgeSeconds: -1.5d,
+                SourceAddress: "0xABC",
+                BasisForwardOffset: "0xD4",
+                BasisDuplicateForwardOffset: null,
+                Notes: Array.Empty<string>()),
+            Discovery: new { sample = "facing" });
+
+        var snapshot = merger.Merge(1, now, process, context, memory, facing);
+
+        Assert.Equal(0d, snapshot.Meta.Freshness.ProofAnchorAgeSeconds);
+        Assert.Equal(0d, snapshot.Meta.Freshness.FacingLeadAgeSeconds);
+        Assert.NotNull(snapshot.Diagnostics.ProofAnchor);
+        Assert.NotNull(snapshot.Diagnostics.FacingLead);
+        Assert.Equal(0d, snapshot.Diagnostics.ProofAnchor!.AgeSeconds);
+        Assert.Equal(0d, snapshot.Diagnostics.FacingLead!.AgeSeconds);
+    }
 }

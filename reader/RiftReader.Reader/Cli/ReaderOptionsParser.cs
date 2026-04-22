@@ -27,7 +27,8 @@ Usage:
   RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
-  RiftReader.Reader --process-name <name> --run-telemetry-host [--telemetry-poll-interval-ms <ms>] [--telemetry-output-file <path>] [--telemetry-event-log-file <path>] [--telemetry-diagnostics-log-file <path>] [--telemetry-diagnostics]
+  RiftReader.Reader --process-name <name> --telemetry-preflight [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics] [--json]
+  RiftReader.Reader --process-name <name> --run-telemetry-host [--telemetry-poll-interval-ms <ms>] [--telemetry-output-file <path>] [--telemetry-event-log-file <path>] [--telemetry-diagnostics-log-file <path>] [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics]
   RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -61,7 +62,9 @@ Notes:
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
+  - Use --telemetry-preflight to print one merged telemetry readiness snapshot without entering the continuous host loop.
   - Use --run-telemetry-host to publish an always-on merged telemetry snapshot and structured NDJSON logs for local tools.
+  - Use --telemetry-proof-anchor-file to preload a freshly validated proof coord anchor cache so the host can publish memory-backed coords immediately when available.
   - Use --session-marker-input-file with --record-session when you want manual or script-driven markers appended during the live recording window.
   - Use --scan-string to search process memory for a text value.
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
@@ -94,7 +97,8 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --run-telemetry-host --telemetry-poll-interval-ms 100 --telemetry-diagnostics
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --telemetry-preflight --telemetry-proof-anchor-file .\scripts\captures\telemetry-proof-coord-anchor.json --telemetry-diagnostics --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --run-telemetry-host --telemetry-poll-interval-ms 100 --telemetry-proof-anchor-file .\scripts\captures\telemetry-proof-coord-anchor.json --telemetry-diagnostics
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
@@ -178,12 +182,14 @@ Examples:
         var rankStatHubs = false;
         var cheatEngineStatHubs = false;
         var readTargetCurrent = false;
+        var telemetryPreflight = false;
         var runTelemetryHost = false;
         var telemetryPollIntervalMilliseconds = 100;
         var telemetryDiagnostics = false;
         string? telemetryOutputFile = null;
         string? telemetryEventLogFile = null;
         string? telemetryDiagnosticsLogFile = null;
+        string? telemetryProofAnchorFile = null;
         var jsonOutput = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -366,6 +372,10 @@ Examples:
                         : sessionLabelValue.Trim();
                     break;
 
+                case "--telemetry-preflight":
+                    telemetryPreflight = true;
+                    break;
+
                 case "--run-telemetry-host":
                     runTelemetryHost = true;
                     break;
@@ -408,6 +418,15 @@ Examples:
                     }
 
                     telemetryDiagnosticsLogFile = string.IsNullOrWhiteSpace(telemetryDiagnosticsLogFileValue) ? null : telemetryDiagnosticsLogFileValue.Trim();
+                    break;
+
+                case "--telemetry-proof-anchor-file":
+                    if (!TryReadNext(args, ref index, out var telemetryProofAnchorFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --telemetry-proof-anchor-file.", UsageText);
+                    }
+
+                    telemetryProofAnchorFile = string.IsNullOrWhiteSpace(telemetryProofAnchorFileValue) ? null : telemetryProofAnchorFileValue.Trim();
                     break;
 
                 case "--telemetry-diagnostics":
@@ -906,12 +925,12 @@ Examples:
             return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float or --scan-double.", UsageText);
         }
 
-        if ((telemetryOutputFile is not null || telemetryEventLogFile is not null || telemetryDiagnosticsLogFile is not null || telemetryDiagnostics) && !runTelemetryHost)
+        if ((telemetryOutputFile is not null || telemetryEventLogFile is not null || telemetryDiagnosticsLogFile is not null || telemetryProofAnchorFile is not null || telemetryDiagnostics) && !runTelemetryHost && !telemetryPreflight)
         {
-            return ReaderOptionsParseResult.Fail("Telemetry output and diagnostics switches can only be used with --run-telemetry-host.", UsageText);
+            return ReaderOptionsParseResult.Fail("Telemetry output, proof-anchor, and diagnostics switches can only be used with --run-telemetry-host or --telemetry-preflight.", UsageText);
         }
 
-        if (runTelemetryHost &&
+        if ((runTelemetryHost || telemetryPreflight) &&
             (sessionSummary ||
              rankOwnerComponents ||
              rankStatHubs ||
@@ -933,12 +952,12 @@ Examples:
              address.HasValue ||
              length.HasValue))
         {
-            return ReaderOptionsParseResult.Fail("--run-telemetry-host cannot be combined with other reader, snapshot, scan, navigation, or raw memory modes.", UsageText);
+            return ReaderOptionsParseResult.Fail("Telemetry modes cannot be combined with other reader, snapshot, scan, navigation, or raw memory modes.", UsageText);
         }
 
-        if (runTelemetryHost && !processId.HasValue && string.IsNullOrWhiteSpace(processName))
+        if ((runTelemetryHost || telemetryPreflight) && !processId.HasValue && string.IsNullOrWhiteSpace(processName))
         {
-            return ReaderOptionsParseResult.Fail("--run-telemetry-host requires --pid or --process-name.", UsageText);
+            return ReaderOptionsParseResult.Fail("Telemetry modes require --pid or --process-name.", UsageText);
         }
 
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && scanRequested)
@@ -1906,12 +1925,14 @@ Examples:
                     WaypointZone: waypointZone,
                     WaypointArrivalRadius: waypointArrivalRadius,
                     WaypointPace: waypointPace,
+                    TelemetryPreflight: telemetryPreflight,
                     RunTelemetryHost: runTelemetryHost,
                     TelemetryPollIntervalMilliseconds: telemetryPollIntervalMilliseconds,
                     TelemetryDiagnostics: telemetryDiagnostics,
                     TelemetryOutputFile: telemetryOutputFile,
                     TelemetryEventLogFile: telemetryEventLogFile,
-                    TelemetryDiagnosticsLogFile: telemetryDiagnosticsLogFile),
+                    TelemetryDiagnosticsLogFile: telemetryDiagnosticsLogFile,
+                    TelemetryProofAnchorFile: telemetryProofAnchorFile),
             UsageText);
     }
 

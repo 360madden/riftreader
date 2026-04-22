@@ -55,11 +55,26 @@ public sealed class TelemetryHost
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var nowUtc = DateTimeOffset.UtcNow;
                 var context = _contextSource.Read();
                 var memoryPosition = _positionSource.Read(context);
                 var facing = _facingSource.Read(context);
-                var snapshot = _merger.Merge(++sequence, nowUtc, _process, context, memoryPosition, facing);
+                var generatedAtUtc = DateTimeOffset.UtcNow;
+                if (context.SampledAtUtc > generatedAtUtc)
+                {
+                    generatedAtUtc = context.SampledAtUtc;
+                }
+
+                if (memoryPosition.SampledAtUtc > generatedAtUtc)
+                {
+                    generatedAtUtc = memoryPosition.SampledAtUtc;
+                }
+
+                if (facing.SampledAtUtc > generatedAtUtc)
+                {
+                    generatedAtUtc = facing.SampledAtUtc;
+                }
+
+                var snapshot = _merger.Merge(++sequence, generatedAtUtc, _process, context, memoryPosition, facing);
                 _publisher.Publish(snapshot);
 
                 _logger.LogTransition(
@@ -124,9 +139,9 @@ public sealed class TelemetryHost
                         });
                 }
 
-                if ((nowUtc - lastHeartbeatUtc) >= HeartbeatInterval)
+                if ((generatedAtUtc - lastHeartbeatUtc) >= HeartbeatInterval)
                 {
-                    lastHeartbeatUtc = nowUtc;
+                    lastHeartbeatUtc = generatedAtUtc;
                     _logger.LogEvent(
                         "publish.snapshot",
                         "Telemetry heartbeat.",

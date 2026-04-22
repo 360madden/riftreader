@@ -71,6 +71,11 @@ internal static class Program
             return RunReadPlayerOrientationMode(options);
         }
 
+        if (options.TelemetryPreflight)
+        {
+            return RunTelemetryPreflightMode(options);
+        }
+
         if (options.RunTelemetryHost)
         {
             return RunTelemetryHostMode(options);
@@ -1190,6 +1195,8 @@ internal static class Program
             ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.events.ndjson");
         var discoveryLogFile = options.TelemetryDiagnosticsLogFile
             ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.discovery.ndjson");
+        var proofAnchorCacheFile = options.TelemetryProofAnchorFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "telemetry-proof-coord-anchor.json");
         var proofCoordAnchorScript = Path.Combine(repoRoot, "scripts", "resolve-proof-coord-anchor.ps1");
 
         var hostOptions = new TelemetryHostOptions(
@@ -1203,6 +1210,7 @@ internal static class Program
             EventLogFile: eventLogFile,
             DiscoveryLogFile: options.TelemetryDiagnostics ? discoveryLogFile : null,
             ProofCoordAnchorScript: proofCoordAnchorScript,
+            ProofAnchorCacheFile: proofAnchorCacheFile,
             ProofAnchorRevalidationInterval: TimeSpan.FromSeconds(5),
             ProofAnchorMaxAge: TimeSpan.FromSeconds(15));
 
@@ -1225,6 +1233,7 @@ internal static class Program
                 target.ProcessName,
                 hostOptions.ProofCoordAnchorScript,
                 hostOptions.PlayerCoordTraceFile,
+                hostOptions.ProofAnchorCacheFile,
                 hostOptions.ProofAnchorRevalidationInterval,
                 hostOptions.ProofAnchorMaxAge,
                 logger,
@@ -1268,6 +1277,106 @@ internal static class Program
         {
             Console.CancelKeyPress -= handler;
         }
+    }
+
+    private static int RunTelemetryPreflightMode(ReaderOptions options)
+    {
+        using var process = TryResolveProcess(options, out var resolveError);
+        if (process is null)
+        {
+            Console.Error.WriteLine(resolveError ?? "Unable to resolve the target process for telemetry preflight mode.");
+            return 1;
+        }
+
+        DateTimeOffset processStartTimeUtc;
+        try
+        {
+            processStartTimeUtc = process.StartTime.ToUniversalTime();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            Console.Error.WriteLine($"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+            return 1;
+        }
+
+        var target = ProcessTarget.FromProcess(process);
+        using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+        if (reader is null)
+        {
+            Console.Error.WriteLine(openError ?? "Unable to open the target process for telemetry preflight mode.");
+            return 1;
+        }
+
+        var repoRoot = RepositoryPathLocator.FindRepoRoot();
+        var proofCoordAnchorScript = Path.Combine(repoRoot, "scripts", "resolve-proof-coord-anchor.ps1");
+        var proofAnchorCacheFile = options.TelemetryProofAnchorFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "telemetry-proof-coord-anchor.json");
+        var hostOptions = new TelemetryHostOptions(
+            ProcessName: target.ProcessName,
+            ProcessId: target.ProcessId,
+            PollIntervalMilliseconds: options.TelemetryPollIntervalMilliseconds,
+            DiagnosticsEnabled: options.TelemetryDiagnostics,
+            ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
+            PlayerCoordTraceFile: options.PlayerCoordTraceFile,
+            LatestSnapshotFile: options.TelemetryOutputFile
+                ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.latest.json"),
+            EventLogFile: options.TelemetryEventLogFile
+                ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.events.ndjson"),
+            DiscoveryLogFile: options.TelemetryDiagnostics
+                ? options.TelemetryDiagnosticsLogFile ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.discovery.ndjson")
+                : null,
+            ProofCoordAnchorScript: proofCoordAnchorScript,
+            ProofAnchorCacheFile: proofAnchorCacheFile,
+            ProofAnchorRevalidationInterval: TimeSpan.FromSeconds(5),
+            ProofAnchorMaxAge: TimeSpan.FromSeconds(15));
+
+        var processInfo = new TelemetryProcessInfo(
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            ModuleName: target.ModuleName,
+            MainWindowTitle: target.MainWindowTitle,
+            StartedAtUtc: processStartTimeUtc);
+        var logger = new NullTelemetryLogger();
+        var context = new AddonContextSource(options.ReaderBridgeSnapshotFile).Read();
+        var memoryPosition = new MemoryCoordSource(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            hostOptions.ProofCoordAnchorScript,
+            hostOptions.PlayerCoordTraceFile,
+            hostOptions.ProofAnchorCacheFile,
+            hostOptions.ProofAnchorRevalidationInterval,
+            hostOptions.ProofAnchorMaxAge,
+            logger,
+            hostOptions.DiagnosticsEnabled).Read(context);
+        var facing = new MemoryFacingSource(reader, target, processStartTimeUtc, hostOptions.DiagnosticsEnabled).Read(context);
+        var snapshot = new DefaultTelemetryMerger(hostOptions.PollIntervalMilliseconds, hostOptions.DiagnosticsEnabled)
+            .Merge(1, DateTimeOffset.UtcNow, processInfo, context, memoryPosition, facing);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(snapshot));
+            return memoryPosition.Valid && facing.Valid ? 0 : 1;
+        }
+
+        Console.WriteLine("RiftReader.Reader telemetry preflight");
+        Console.WriteLine($"Process: {target.ProcessName} ({target.ProcessId})");
+        Console.WriteLine($"Memory coords: {(memoryPosition.Valid ? "valid" : "invalid")}");
+        Console.WriteLine($"Facing: {(facing.Valid ? "valid" : "invalid")}");
+        Console.WriteLine($"Effective position source: {snapshot.Meta.EffectivePositionSource}");
+        Console.WriteLine($"Effective facing source: {snapshot.Meta.EffectiveFacingSource}");
+
+        if (!memoryPosition.Valid && !string.IsNullOrWhiteSpace(memoryPosition.Reason))
+        {
+            Console.WriteLine($"Coord reason: {memoryPosition.Reason}");
+        }
+
+        if (!facing.Valid && !string.IsNullOrWhiteSpace(facing.Reason))
+        {
+            Console.WriteLine($"Facing reason: {facing.Reason}");
+        }
+
+        return memoryPosition.Valid && facing.Valid ? 0 : 1;
     }
 
     private static Process? TryResolveProcess(ReaderOptions options, out string? error)

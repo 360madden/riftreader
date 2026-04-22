@@ -1,11 +1,11 @@
 {
   "Mode": "actor-facing-behavior-backed-lead",
-  "GeneratedAtUtc": "2026-04-22T04:42:25.9986530+00:00",
-  "ValidatedAtUtc": "2026-04-22T04:42:26.0060098+00:00",
+  "GeneratedAtUtc": "2026-04-22T21:49:35.8203838+00:00",
+  "ValidatedAtUtc": "2026-04-22T21:49:35.8203838+00:00",
   "ProcessName": "rift_x64",
-  "SourceAddress": "0x24F595F8D10",
-  "BasisForwardOffset": "0x60",
-  "BasisDuplicateForwardOffset": "0x94",
+  "SourceAddress": "0x12CAF6F7080",
+  "BasisForwardOffset": "0xD4",
+  "BasisDuplicateForwardOffset": null,
   "Status": "preferred-solved-lead",
   "OperationalStatus": "behavior-backed-lead",
   "PreferredLead": true,
@@ -14,11 +14,17 @@
   "CanonicalPitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
   "CanonicalYawFormula": "atan2(forwardZ, forwardX)",
   "Notes": [
-    "Fresh source-chain/accessor-family validation on April 22, 2026 confirmed that the live actor-facing basis is the forward row at +0x60/+0x64/+0x68 on source 0x24F595F8D10.",
-    "A duplicate truth-bearing forward row at +0x94/+0x98/+0x9C matched the primary basis on the same source.",
-    "Fresh focused foreground AutoHotkey D/A validation produced reversible yaw deltas of about -146.67/+147.92 degrees on +0x60 with 0.0 coord drift across two cycles.",
-    "Fresh focused foreground AutoHotkey D/A validation produced reversible yaw deltas of about -146.67/+147.92 degrees on +0x94 with 0.0 coord drift across two cycles.",
-    "The same current-session validation showed +0xD4 and +0x140 on the same source stayed flat and must not be promoted over the validated +0x60/+0x94 rows.",
-    "This lead replaces the stale April 20, 2026 +0xD4 behavior-backed address that no longer resolved on the current process."
-  ]
+    "Fresh focused foreground AutoHotkey D/A validation on April 22, 2026 confirmed that the live actor-facing basis is the forward row at 0xD4 on source 0x12CAF6F7080. Fresh focused foreground AutoHotkey D/A validation produced reversible yaw deltas of about -118.2/91.21 degrees with 0.0 coord drift across one cycle. This lead was rebuilt from the current-session actor yaw candidate screen and truth-like candidate test. The lead targets the current live process and replaces the stale behavior-backed lead that predated the current process start."
+  ],
+  "CandidateDiagnostics": {
+    "Rank": 7,
+    "DiscoveryMode": "second-hop-pointer-hop",
+    "ParentAddress": "0x12CC54ADFD0",
+    "RootAddress": "0x12CC54ADFA0",
+    "ReversibleCycleCount": 1,
+    "CandidateResponsive": true,
+    "PlayerStayedMostlyStill": true,
+    "CandidateScreenFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-orientation-candidate-screen.json",
+    "ValidationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-candidate-test-top8.json"
+  }
 }

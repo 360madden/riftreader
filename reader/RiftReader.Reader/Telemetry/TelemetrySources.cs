@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Memory;
@@ -73,19 +74,25 @@ public sealed class AddonContextSource(string? snapshotFile) : IContextSource
 
 public sealed class MemoryCoordSource : IPositionSource
 {
+    private static readonly TimeSpan StaleAnchorGraceWindow = TimeSpan.FromSeconds(10);
+
     private readonly ProcessMemoryReader _reader;
     private readonly int _processId;
     private readonly string _processName;
     private readonly string _proofCoordAnchorScript;
     private readonly string? _playerCoordTraceFile;
+    private readonly string? _proofAnchorCacheFile;
     private readonly TimeSpan _revalidationInterval;
     private readonly TimeSpan _maxAnchorAge;
     private readonly ITelemetryLogger _logger;
     private readonly bool _diagnosticsEnabled;
+    private readonly object _refreshSync = new();
 
     private ProofCoordAnchorDocument? _anchor;
     private DateTimeOffset? _lastResolveAttemptUtc;
     private string? _lastResolveError;
+    private bool _cacheLoadAttempted;
+    private Task<ProofCoordAnchorRefreshResult>? _refreshTask;
 
     public MemoryCoordSource(
         ProcessMemoryReader reader,
@@ -93,6 +100,7 @@ public sealed class MemoryCoordSource : IPositionSource
         string processName,
         string proofCoordAnchorScript,
         string? playerCoordTraceFile,
+        string? proofAnchorCacheFile,
         TimeSpan revalidationInterval,
         TimeSpan maxAnchorAge,
         ITelemetryLogger logger,
@@ -103,6 +111,9 @@ public sealed class MemoryCoordSource : IPositionSource
         _processName = processName;
         _proofCoordAnchorScript = proofCoordAnchorScript;
         _playerCoordTraceFile = playerCoordTraceFile;
+        _proofAnchorCacheFile = string.IsNullOrWhiteSpace(proofAnchorCacheFile)
+            ? null
+            : Path.GetFullPath(proofAnchorCacheFile);
         _revalidationInterval = revalidationInterval;
         _maxAnchorAge = maxAnchorAge;
         _logger = logger;
@@ -112,61 +123,64 @@ public sealed class MemoryCoordSource : IPositionSource
     public TelemetryPositionSourceReading Read(TelemetryContextSourceReading? context)
     {
         var sampledAtUtc = DateTimeOffset.UtcNow;
-        var refreshed = TryRefreshAnchorIfNeeded(sampledAtUtc);
-        if (refreshed?.Document is not null)
-        {
-            _anchor = refreshed.Document;
-            _lastResolveError = null;
-        }
-        else if (!string.IsNullOrWhiteSpace(refreshed?.Error))
-        {
-            _lastResolveError = refreshed.Error;
-        }
+        TryLoadCachedAnchorIfNeeded(sampledAtUtc);
+        ConsumeRefreshResultIfReady();
+        StartRefreshIfNeeded(sampledAtUtc);
 
-        if (_anchor is null)
+        var anchor = _anchor;
+        var refreshInFlight = IsRefreshInFlight();
+        if (anchor is null)
         {
             return new TelemetryPositionSourceReading(
                 Available: false,
                 Valid: false,
                 SampledAtUtc: sampledAtUtc,
                 SourceKind: "proof-coord-anchor",
-                Reason: _lastResolveError ?? "Proof coord anchor has not been established.",
+                Reason: refreshInFlight
+                    ? "Proof coord anchor refresh is in progress."
+                    : _lastResolveError ?? "Proof coord anchor has not been established.",
                 Position: null,
                 ProofAnchor: null,
                 CoordMismatch: null,
                 Discovery: null);
         }
 
-        var anchorAge = sampledAtUtc - _anchor.GeneratedAtUtc;
-        if (anchorAge > _maxAnchorAge)
+        var anchorAge = sampledAtUtc - anchor.GeneratedAtUtc;
+        var anchorAgeSeconds = Math.Max(0d, anchorAge.TotalSeconds);
+        var staleGraceActive =
+            refreshInFlight &&
+            anchorAge > _maxAnchorAge &&
+            anchorAge <= (_maxAnchorAge + StaleAnchorGraceWindow);
+
+        if (anchorAge > _maxAnchorAge && !staleGraceActive)
         {
             return new TelemetryPositionSourceReading(
                 Available: true,
                 Valid: false,
                 SampledAtUtc: sampledAtUtc,
                 SourceKind: "proof-coord-anchor",
-                Reason: $"Proof coord anchor validation is stale ({anchorAge.TotalSeconds:0.0}s old).",
+                Reason: $"Proof coord anchor validation is stale ({anchorAgeSeconds:0.0}s old).",
                 Position: null,
-                ProofAnchor: BuildProofAnchorDiagnostics(_anchor, anchorAge.TotalSeconds),
-                CoordMismatch: BuildCoordMismatch(_anchor.Match),
-                Discovery: BuildDiscovery(_anchor));
+                ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds),
+                CoordMismatch: BuildCoordMismatch(anchor.Match),
+                Discovery: BuildDiscovery(anchor));
         }
 
-        if (!TryParseAddress(_anchor.CoordRegionAddress, out var coordRegionAddress))
+        if (!TryParseAddress(anchor.CoordRegionAddress, out var coordRegionAddress))
         {
             return new TelemetryPositionSourceReading(
                 Available: true,
                 Valid: false,
                 SampledAtUtc: sampledAtUtc,
                 SourceKind: "proof-coord-anchor",
-                Reason: $"Invalid coord region address '{_anchor.CoordRegionAddress ?? "<null>"}'.",
+                Reason: $"Invalid coord region address '{anchor.CoordRegionAddress ?? "<null>"}'.",
                 Position: null,
-                ProofAnchor: BuildProofAnchorDiagnostics(_anchor, anchorAge.TotalSeconds),
-                CoordMismatch: BuildCoordMismatch(_anchor.Match),
-                Discovery: BuildDiscovery(_anchor));
+                ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds, staleGraceActive),
+                CoordMismatch: BuildCoordMismatch(anchor.Match),
+                Discovery: BuildDiscovery(anchor));
         }
 
-        var sample = TryReadVector3(coordRegionAddress, _anchor.CoordXRelativeOffset ?? 0, _anchor.CoordYRelativeOffset ?? 4, _anchor.CoordZRelativeOffset ?? 8, out var readError);
+        var sample = TryReadVector3(coordRegionAddress, anchor.CoordXRelativeOffset ?? 0, anchor.CoordYRelativeOffset ?? 4, anchor.CoordZRelativeOffset ?? 8, out var readError);
         if (sample is null)
         {
             _lastResolveError = readError;
@@ -177,9 +191,9 @@ public sealed class MemoryCoordSource : IPositionSource
                 SourceKind: "proof-coord-anchor",
                 Reason: readError,
                 Position: null,
-                ProofAnchor: BuildProofAnchorDiagnostics(_anchor, anchorAge.TotalSeconds),
-                CoordMismatch: BuildCoordMismatch(_anchor.Match),
-                Discovery: BuildDiscovery(_anchor));
+                ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds, staleGraceActive),
+                CoordMismatch: BuildCoordMismatch(anchor.Match),
+                Discovery: BuildDiscovery(anchor));
         }
 
         var position = new TelemetryPositionValue(
@@ -189,9 +203,9 @@ public sealed class MemoryCoordSource : IPositionSource
             Coord: sample,
             Zone: context?.Zone,
             LocationName: context?.LocationName,
-            Address: _anchor.CoordRegionAddress,
+            Address: anchor.CoordRegionAddress,
             Reason: null,
-            Provenance: _anchor.CanonicalCoordSourceKind);
+            Provenance: anchor.CanonicalCoordSourceKind);
 
         return new TelemetryPositionSourceReading(
             Available: true,
@@ -200,75 +214,235 @@ public sealed class MemoryCoordSource : IPositionSource
             SourceKind: "proof-coord-anchor",
             Reason: null,
             Position: position,
-            ProofAnchor: BuildProofAnchorDiagnostics(_anchor, anchorAge.TotalSeconds),
-            CoordMismatch: BuildCoordMismatch(_anchor.Match),
-            Discovery: BuildDiscovery(_anchor));
+            ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds, staleGraceActive),
+            CoordMismatch: BuildCoordMismatch(anchor.Match),
+            Discovery: BuildDiscovery(anchor));
     }
 
-    private ProofCoordAnchorResolveAttempt? TryRefreshAnchorIfNeeded(DateTimeOffset nowUtc)
+    private void TryLoadCachedAnchorIfNeeded(DateTimeOffset nowUtc)
     {
-        var needsResolve =
-            _anchor is null ||
-            !_anchor.MatchIsValid ||
-            !_lastResolveAttemptUtc.HasValue ||
-            (nowUtc - _lastResolveAttemptUtc.Value) >= _revalidationInterval;
-
-        if (!needsResolve)
+        if (_cacheLoadAttempted || _anchor is not null)
         {
-            return null;
+            return;
         }
 
-        _lastResolveAttemptUtc = nowUtc;
-
-        var quick = TryResolve(skipRefresh: true);
-        if (quick.Document is not null && quick.Document.MatchIsValid)
+        _cacheLoadAttempted = true;
+        if (string.IsNullOrWhiteSpace(_proofAnchorCacheFile) || !File.Exists(_proofAnchorCacheFile))
         {
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_proofAnchorCacheFile);
+            var document = JsonSerializer.Deserialize<ProofCoordAnchorDocument>(json, TelemetryJson.SerializerOptions);
+            if (document is null || !document.MatchIsValid)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(document.ProcessName) &&
+                !string.Equals(document.ProcessName, _processName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (document.ProcessId.HasValue && document.ProcessId.Value != _processId)
+            {
+                return;
+            }
+
+            var age = nowUtc - document.GeneratedAtUtc;
+            if (age > _maxAnchorAge)
+            {
+                return;
+            }
+
+            _anchor = document;
+            _lastResolveAttemptUtc = nowUtc;
+            _lastResolveError = null;
+
             _logger.LogTransition(
                 "source.coord",
-                $"coord-anchor:{quick.Document.CanonicalCoordSourceKind}:{quick.Document.CoordRegionAddress}",
-                "Validated proof coord anchor.",
+                $"coord-anchor-cache:{document.CanonicalCoordSourceKind}:{document.CoordRegionAddress}",
+                "Loaded cached proof coord anchor.",
                 new
                 {
-                    quick.Document.CanonicalCoordSourceKind,
-                    quick.Document.MatchSource,
-                    quick.Document.CoordRegionAddress
-                },
-                discovery: _diagnosticsEnabled);
-
-            return quick;
-        }
-
-        var full = TryResolve(skipRefresh: false);
-        if (full.Document is not null && full.Document.MatchIsValid)
-        {
-            _logger.LogTransition(
-                "source.coord",
-                $"coord-anchor:{full.Document.CanonicalCoordSourceKind}:{full.Document.CoordRegionAddress}",
-                "Refreshed proof coord anchor.",
-                new
-                {
-                    full.Document.CanonicalCoordSourceKind,
-                    full.Document.MatchSource,
-                    full.Document.CoordRegionAddress
+                    document.CanonicalCoordSourceKind,
+                    document.MatchSource,
+                    document.CoordRegionAddress,
+                    CacheFile = _proofAnchorCacheFile,
+                    AgeSeconds = age.TotalSeconds
                 },
                 discovery: _diagnosticsEnabled);
         }
-        else if (!string.IsNullOrWhiteSpace(full.Error ?? quick.Error))
+        catch (Exception ex)
         {
+            _lastResolveError = $"Unable to load cached proof coord anchor '{_proofAnchorCacheFile}': {ex.Message}";
+        }
+    }
+
+    private void StartRefreshIfNeeded(DateTimeOffset nowUtc)
+    {
+        lock (_refreshSync)
+        {
+            if (_refreshTask is not null)
+            {
+                return;
+            }
+
+            var needsResolve =
+                _anchor is null ||
+                !_anchor.MatchIsValid ||
+                !_lastResolveAttemptUtc.HasValue ||
+                (nowUtc - _lastResolveAttemptUtc.Value) >= _revalidationInterval;
+
+            if (!needsResolve)
+            {
+                return;
+            }
+
+            _lastResolveAttemptUtc = nowUtc;
+            _refreshTask = Task.Run(ResolveAnchorAsync);
+        }
+    }
+
+    private void ConsumeRefreshResultIfReady()
+    {
+        Task<ProofCoordAnchorRefreshResult>? completedTask;
+        lock (_refreshSync)
+        {
+            if (_refreshTask is null || !_refreshTask.IsCompleted)
+            {
+                return;
+            }
+
+            completedTask = _refreshTask;
+            _refreshTask = null;
+        }
+
+        ProofCoordAnchorRefreshResult refresh;
+        try
+        {
+            refresh = completedTask!.GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _lastResolveError = $"Proof coord anchor refresh task failed: {ex.Message}";
             _logger.LogTransition(
                 "validation.mismatch",
-                $"coord-anchor-error:{full.Error ?? quick.Error}",
+                $"coord-anchor-error:{_lastResolveError}",
                 "Proof coord anchor validation failed.",
                 new
                 {
-                    Error = full.Error ?? quick.Error,
-                    QuickMatch = quick.Document?.Match,
-                    FullMatch = full.Document?.Match
+                    Error = _lastResolveError
+                },
+                discovery: _diagnosticsEnabled);
+
+            return;
+        }
+
+        if (refresh.Document is not null && refresh.Document.MatchIsValid)
+        {
+            _anchor = refresh.Document;
+            _lastResolveError = null;
+            PersistAnchorCache(refresh.Document);
+            _logger.LogTransition(
+                "source.coord",
+                $"coord-anchor:{refresh.Document.CanonicalCoordSourceKind}:{refresh.Document.CoordRegionAddress}",
+                refresh.UsedFullRefresh
+                    ? "Refreshed proof coord anchor."
+                    : "Validated proof coord anchor.",
+                new
+                {
+                    refresh.Document.CanonicalCoordSourceKind,
+                    refresh.Document.MatchSource,
+                    refresh.Document.CoordRegionAddress
+                },
+                discovery: _diagnosticsEnabled);
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(refresh.Error))
+        {
+            _lastResolveError = refresh.Error;
+            _logger.LogTransition(
+                "validation.mismatch",
+                $"coord-anchor-error:{refresh.Error}",
+                "Proof coord anchor validation failed.",
+                new
+                {
+                    Error = refresh.Error,
+                    QuickMatch = refresh.QuickDocument?.Match,
+                    FullMatch = refresh.FullDocument?.Match
                 },
                 discovery: _diagnosticsEnabled);
         }
+    }
 
-        return full.Document is not null ? full : quick;
+    private ProofCoordAnchorRefreshResult ResolveAnchorAsync()
+    {
+        var quick = TryResolve(skipRefresh: true);
+        if (quick.Document is not null && quick.Document.MatchIsValid)
+        {
+            return new ProofCoordAnchorRefreshResult(
+                Document: quick.Document,
+                Error: null,
+                UsedFullRefresh: false,
+                QuickDocument: quick.Document,
+                FullDocument: null);
+        }
+
+        var full = TryResolve(skipRefresh: false);
+        return new ProofCoordAnchorRefreshResult(
+            Document: full.Document is not null && full.Document.MatchIsValid ? full.Document : null,
+            Error: full.Error ?? quick.Error,
+            UsedFullRefresh: true,
+            QuickDocument: quick.Document,
+            FullDocument: full.Document);
+    }
+
+    private bool IsRefreshInFlight()
+    {
+        lock (_refreshSync)
+        {
+            return _refreshTask is not null;
+        }
+    }
+
+    private void PersistAnchorCache(ProofCoordAnchorDocument document)
+    {
+        if (string.IsNullOrWhiteSpace(_proofAnchorCacheFile) || !document.MatchIsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(_proofAnchorCacheFile);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var tempFile = _proofAnchorCacheFile + ".tmp";
+            var json = JsonSerializer.Serialize(document, TelemetryJson.SerializerOptions);
+            File.WriteAllText(tempFile, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            File.Move(tempFile, _proofAnchorCacheFile, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogEvent(
+                "source.coord",
+                "Unable to persist proof coord anchor cache.",
+                new
+                {
+                    CacheFile = _proofAnchorCacheFile,
+                    ex.Message
+                },
+                discovery: _diagnosticsEnabled);
+        }
     }
 
     private ProofCoordAnchorResolveAttempt TryResolve(bool skipRefresh)
@@ -344,15 +518,25 @@ public sealed class MemoryCoordSource : IPositionSource
         }
     }
 
-    private TelemetryProofAnchorDiagnostics BuildProofAnchorDiagnostics(ProofCoordAnchorDocument anchor, double ageSeconds) =>
-        new(
+    private TelemetryProofAnchorDiagnostics BuildProofAnchorDiagnostics(ProofCoordAnchorDocument anchor, double ageSeconds, bool staleGraceActive = false)
+    {
+        IReadOnlyList<string> notes = anchor.Notes ?? Array.Empty<string>();
+        if (staleGraceActive)
+        {
+            notes = notes
+                .Concat(["Telemetry host is temporarily using a stale proof coord anchor while background refresh is in progress."])
+                .ToArray();
+        }
+
+        return new TelemetryProofAnchorDiagnostics(
             Valid: anchor.MatchIsValid,
             SourceKind: anchor.CanonicalCoordSourceKind,
             MatchSource: anchor.MatchSource,
             TraceSourceFile: anchor.TraceSourceFile,
             CoordRegionAddress: anchor.CoordRegionAddress,
-            AgeSeconds: ageSeconds,
-            Notes: anchor.Notes ?? Array.Empty<string>());
+            AgeSeconds: Math.Max(0d, ageSeconds),
+            Notes: notes);
+    }
 
     private static TelemetryDeltaDiagnostics? BuildCoordMismatch(ProofCoordAnchorMatch? match) =>
         match is null
@@ -594,6 +778,13 @@ internal static class RepositoryPathLocator
 public sealed record ProofCoordAnchorResolveAttempt(
     ProofCoordAnchorDocument? Document,
     string? Error);
+
+public sealed record ProofCoordAnchorRefreshResult(
+    ProofCoordAnchorDocument? Document,
+    string? Error,
+    bool UsedFullRefresh,
+    ProofCoordAnchorDocument? QuickDocument,
+    ProofCoordAnchorDocument? FullDocument);
 
 public sealed record ProofCoordAnchorDocument(
     string? Mode,

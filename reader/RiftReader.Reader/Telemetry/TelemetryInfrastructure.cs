@@ -133,6 +133,17 @@ public sealed class StructuredTelemetryLogger : ITelemetryLogger
     }
 }
 
+public sealed class NullTelemetryLogger : ITelemetryLogger
+{
+    public void LogEvent(string category, string message, object? data = null, bool discovery = false)
+    {
+    }
+
+    public void LogTransition(string category, string key, string message, object? data = null, bool discovery = false)
+    {
+    }
+}
+
 public sealed class DefaultTelemetryMerger(int pollIntervalMilliseconds, bool diagnosticsEnabled) : ITelemetryMerger
 {
     private TelemetryPositionValue? _previousEffectivePosition;
@@ -161,6 +172,8 @@ public sealed class DefaultTelemetryMerger(int pollIntervalMilliseconds, bool di
                 : "none";
 
         var effectiveFacingSource = facing.Valid ? "memory-facing" : "none";
+        var normalizedProofAnchor = NormalizeProofAnchorDiagnostics(memoryPosition.ProofAnchor);
+        var normalizedFacingLead = NormalizeFacingLeadDiagnostics(facing.LeadDiagnostics);
 
         double? dx = null;
         double? dy = null;
@@ -227,8 +240,8 @@ public sealed class DefaultTelemetryMerger(int pollIntervalMilliseconds, bool di
                     MemoryFacingAvailable: facing.Available),
                 Freshness: new TelemetrySourceFreshness(
                     AddonSnapshotFileAgeSeconds: context.SnapshotFileAgeSeconds,
-                    ProofAnchorAgeSeconds: memoryPosition.ProofAnchor?.AgeSeconds,
-                    FacingLeadAgeSeconds: facing.LeadDiagnostics?.AgeSeconds),
+                    ProofAnchorAgeSeconds: normalizedProofAnchor?.AgeSeconds,
+                    FacingLeadAgeSeconds: normalizedFacingLead?.AgeSeconds),
                 Validity: new TelemetrySourceValidity(
                     AddonPositionValid: addonPosition?.Valid == true,
                     MemoryCoordValid: memoryPosition.Valid,
@@ -251,8 +264,8 @@ public sealed class DefaultTelemetryMerger(int pollIntervalMilliseconds, bool di
             Diagnostics: new TelemetryDiagnosticsEnvelope(
                 PositionReason: memoryPosition.Reason,
                 FacingReason: facing.Reason,
-                ProofAnchor: memoryPosition.ProofAnchor,
-                FacingLead: facing.LeadDiagnostics,
+                ProofAnchor: normalizedProofAnchor,
+                FacingLead: normalizedFacingLead,
                 CoordMismatch: memoryPosition.CoordMismatch,
                 Discovery: diagnosticsEnabled
                     ? new
@@ -262,4 +275,35 @@ public sealed class DefaultTelemetryMerger(int pollIntervalMilliseconds, bool di
                     }
                     : null));
     }
+
+    private static TelemetryProofAnchorDiagnostics? NormalizeProofAnchorDiagnostics(TelemetryProofAnchorDiagnostics? proofAnchor)
+    {
+        if (proofAnchor is null)
+        {
+            return null;
+        }
+
+        var normalizedAgeSeconds = NormalizeAgeSeconds(proofAnchor.AgeSeconds);
+        return normalizedAgeSeconds == proofAnchor.AgeSeconds
+            ? proofAnchor
+            : proofAnchor with { AgeSeconds = normalizedAgeSeconds };
+    }
+
+    private static TelemetryFacingLeadDiagnostics? NormalizeFacingLeadDiagnostics(TelemetryFacingLeadDiagnostics? facingLead)
+    {
+        if (facingLead is null)
+        {
+            return null;
+        }
+
+        var normalizedAgeSeconds = NormalizeAgeSeconds(facingLead.AgeSeconds);
+        return normalizedAgeSeconds == facingLead.AgeSeconds
+            ? facingLead
+            : facingLead with { AgeSeconds = normalizedAgeSeconds };
+    }
+
+    private static double? NormalizeAgeSeconds(double? ageSeconds) =>
+        ageSeconds.HasValue
+            ? Math.Max(0d, ageSeconds.Value)
+            : null;
 }

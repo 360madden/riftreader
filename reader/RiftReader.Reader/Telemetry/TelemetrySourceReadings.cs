@@ -52,5 +52,6 @@ public sealed record TelemetryHostOptions(
     string EventLogFile,
     string? DiscoveryLogFile,
     string ProofCoordAnchorScript,
+    string? ProofAnchorCacheFile,
     TimeSpan ProofAnchorRevalidationInterval,
     TimeSpan ProofAnchorMaxAge);
