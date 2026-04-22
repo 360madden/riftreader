@@ -3,6 +3,28 @@
 Cheat Engine is now treated as the **interactive discovery workbench** for
 RiftReader, not as a replacement for the reader itself.
 
+## Preserve durable CE progress
+
+If a Cheat Engine session contains reverse-engineering state that would be
+costly to recreate, save a `.ct` file before closing CE, restarting Rift, or
+switching branches.
+
+Use this tracked repo location for durable tables:
+
+- `C:\RIFT MODDING\RiftReader\artifacts\cheat-engine\tables\`
+
+Do **not** treat `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\` as durable
+storage for `.ct` tables. That directory is used for generated/local CE helper
+artifacts and is ignored by git.
+
+When you save a `.ct`, add a short sibling `.md` note recording:
+
+- branch/worktree
+- target process or build/PID when relevant
+- what the table proves
+- what is still tentative
+- which repo artifacts/scripts depend on it
+
 ## Verified local integration points
 
 From the installed Cheat Engine 7.6 files on this machine:

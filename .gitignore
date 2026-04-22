@@ -30,6 +30,8 @@ dist/
 build/
 
 # Generated local helper artifacts
+# Durable Cheat Engine tables belong under artifacts/cheat-engine/tables/,
+# not under scripts/cheat-engine/, because this helper-output folder is ignored.
 scripts/cheat-engine/
 scripts/captures/
 scripts/sessions/

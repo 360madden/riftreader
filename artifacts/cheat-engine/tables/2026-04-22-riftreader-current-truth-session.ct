@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="27">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>1</ID>
+      <Description>"RiftReader current truth snapshot (2026-04-22)"</Description>
+      <Options moHideChildren="1"/>
+      <LastState Value="" RealAddress="00000000"/>
+      <Color>0080FF</Color>
+      <GroupHeader>1</GroupHeader>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>2</ID>
+          <Description>"Session-bound actor-facing source (PID 34088, base 0x24F595F8D10)"</Description>
+          <Options moHideChildren="1"/>
+          <LastState Value="" RealAddress="00000000"/>
+          <Color>00A5FF</Color>
+          <GroupHeader>1</GroupHeader>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>3</ID>
+              <Description>"Primary forward X (+0x60)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D70</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>4</ID>
+              <Description>"Primary forward Y (+0x64)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D74</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>5</ID>
+              <Description>"Primary forward Z (+0x68)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D78</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>6</ID>
+              <Description>"Primary up X (+0x6C)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D7C</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>7</ID>
+              <Description>"Primary up Y (+0x70)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D80</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>8</ID>
+              <Description>"Primary up Z (+0x74)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D84</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>9</ID>
+              <Description>"Primary right X (+0x78)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D88</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>10</ID>
+              <Description>"Primary right Y (+0x7C)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D8C</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>11</ID>
+              <Description>"Primary right Z (+0x80)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8D90</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>12</ID>
+              <Description>"Duplicate forward X (+0x94)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DA4</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>13</ID>
+              <Description>"Duplicate forward Y (+0x98)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DA8</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>14</ID>
+              <Description>"Duplicate forward Z (+0x9C)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DAC</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>15</ID>
+              <Description>"Duplicate up X (+0xA0)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DB0</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>16</ID>
+              <Description>"Duplicate up Y (+0xA4)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DB4</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>17</ID>
+              <Description>"Duplicate up Z (+0xA8)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DB8</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>18</ID>
+              <Description>"Duplicate right X (+0xAC)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DBC</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>19</ID>
+              <Description>"Duplicate right Y (+0xB0)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DC0</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>20</ID>
+              <Description>"Duplicate right Z (+0xB4)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F595F8DC4</Address>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>21</ID>
+          <Description>"Session-bound player-current family (PID 34088, fam-6F81F26E, base 0x24F0500ACA0)"</Description>
+          <Options moHideChildren="1"/>
+          <LastState Value="" RealAddress="00000000"/>
+          <Color>80C000</Color>
+          <GroupHeader>1</GroupHeader>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>22</ID>
+              <Description>"Level (+0x00)"</Description>
+              <VariableType>4 Bytes</VariableType>
+              <Address>24F0500ACA0</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>23</ID>
+              <Description>"Health[1] (+0x08)"</Description>
+              <VariableType>4 Bytes</VariableType>
+              <Address>24F0500ACA8</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>24</ID>
+              <Description>"Health[2] (+0x10)"</Description>
+              <VariableType>4 Bytes</VariableType>
+              <Address>24F0500ACB0</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>25</ID>
+              <Description>"Health[3] (+0x18)"</Description>
+              <VariableType>4 Bytes</VariableType>
+              <Address>24F0500ACB8</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>26</ID>
+              <Description>"Coord X (+0x90)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F0500AD30</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>27</ID>
+              <Description>"Coord Y (+0x94)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F0500AD34</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>28</ID>
+              <Description>"Coord Z (+0x98)"</Description>
+              <VariableType>Float</VariableType>
+              <Address>24F0500AD38</Address>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+  </CheatEntries>
+  <UserdefinedSymbols>
+    <SymbolEntry>
+      <Name>actorFacingSourceBase_20260422</Name>
+      <Address>24F595F8D10</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>playerCurrentFamilyBase_20260422</Name>
+      <Address>24F0500ACA0</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>playerCoordBase_20260422</Name>
+      <Address>24F0500AD30</Address>
+    </SymbolEntry>
+  </UserdefinedSymbols>
+  <Structures StructVersion="2">
+    <Structure Name="RiftReader_ActorFacingSource_2026_04_22" AutoFill="0" AutoCreate="1" DefaultHex="0" AutoDestroy="0" DoNotSaveLocal="0" RLECompression="1" AutoCreateStructsize="512">
+      <Elements>
+        <Element Offset="96" Vartype="Float" Bytesize="4" OffsetHex="00000060" Description="primary forward X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="100" Vartype="Float" Bytesize="4" OffsetHex="00000064" Description="primary forward Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="104" Vartype="Float" Bytesize="4" OffsetHex="00000068" Description="primary forward Z" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="108" Vartype="Float" Bytesize="4" OffsetHex="0000006C" Description="primary up X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="112" Vartype="Float" Bytesize="4" OffsetHex="00000070" Description="primary up Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="116" Vartype="Float" Bytesize="4" OffsetHex="00000074" Description="primary up Z" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="120" Vartype="Float" Bytesize="4" OffsetHex="00000078" Description="primary right X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="124" Vartype="Float" Bytesize="4" OffsetHex="0000007C" Description="primary right Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="128" Vartype="Float" Bytesize="4" OffsetHex="00000080" Description="primary right Z" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="148" Vartype="Float" Bytesize="4" OffsetHex="00000094" Description="duplicate forward X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="152" Vartype="Float" Bytesize="4" OffsetHex="00000098" Description="duplicate forward Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="156" Vartype="Float" Bytesize="4" OffsetHex="0000009C" Description="duplicate forward Z" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="160" Vartype="Float" Bytesize="4" OffsetHex="000000A0" Description="duplicate up X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="164" Vartype="Float" Bytesize="4" OffsetHex="000000A4" Description="duplicate up Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="168" Vartype="Float" Bytesize="4" OffsetHex="000000A8" Description="duplicate up Z" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="172" Vartype="Float" Bytesize="4" OffsetHex="000000AC" Description="duplicate right X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="176" Vartype="Float" Bytesize="4" OffsetHex="000000B0" Description="duplicate right Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="180" Vartype="Float" Bytesize="4" OffsetHex="000000B4" Description="duplicate right Z" DisplayMethod="Unsigned Integer"/>
+      </Elements>
+    </Structure>
+    <Structure Name="RiftReader_PlayerCurrentFamily_2026_04_22" AutoFill="0" AutoCreate="1" DefaultHex="0" AutoDestroy="0" DoNotSaveLocal="0" RLECompression="1" AutoCreateStructsize="256">
+      <Elements>
+        <Element Offset="0" Vartype="4 Bytes" Bytesize="4" OffsetHex="00000000" Description="level" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="8" Vartype="4 Bytes" Bytesize="4" OffsetHex="00000008" Description="health copy 1" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="16" Vartype="4 Bytes" Bytesize="4" OffsetHex="00000010" Description="health copy 2" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="24" Vartype="4 Bytes" Bytesize="4" OffsetHex="00000018" Description="health copy 3" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="144" Vartype="Float" Bytesize="4" OffsetHex="00000090" Description="coord X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="148" Vartype="Float" Bytesize="4" OffsetHex="00000094" Description="coord Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="152" Vartype="Float" Bytesize="4" OffsetHex="00000098" Description="coord Z" DisplayMethod="Unsigned Integer"/>
+      </Elements>
+    </Structure>
+    <Structure Name="RiftReader_CoordTraceObject_2026_04_21" AutoFill="0" AutoCreate="1" DefaultHex="0" AutoDestroy="0" DoNotSaveLocal="0" RLECompression="1" AutoCreateStructsize="512">
+      <Elements>
+        <Element Offset="200" Vartype="4 Bytes" Bytesize="4" OffsetHex="000000C8" Description="level" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="208" Vartype="4 Bytes" Bytesize="4" OffsetHex="000000D0" Description="health" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="344" Vartype="Float" Bytesize="4" OffsetHex="00000158" Description="coord X" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="348" Vartype="Float" Bytesize="4" OffsetHex="0000015C" Description="coord Y" DisplayMethod="Unsigned Integer"/>
+        <Element Offset="352" Vartype="Float" Bytesize="4" OffsetHex="00000160" Description="coord Z" DisplayMethod="Unsigned Integer"/>
+      </Elements>
+    </Structure>
+  </Structures>
+</CheatTable>

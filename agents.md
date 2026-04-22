@@ -51,5 +51,19 @@ This file defines the default assistant behavior for work inside
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
 
+## Cheat Engine preservation
+
+- Treat live Cheat Engine work as potentially ephemeral until the repo has a
+  durable copy.
+- When a CE table contains reverse-engineering state that would be expensive to
+  reconstruct, save a `.ct` snapshot before closing CE, restarting Rift, or
+  changing branches.
+- Store durable CE tables under
+  `C:\RIFT MODDING\RiftReader\artifacts\cheat-engine\tables\`, not under
+  `scripts\cheat-engine\`, because the latter is ignored as generated/local
+  helper output.
+- Pair saved `.ct` files with a short note covering date, branch, target
+  process/build, and what the table proves or is still pending.
+
 See `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md` for the
 longer decision tree and examples.
