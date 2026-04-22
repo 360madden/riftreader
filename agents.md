@@ -66,6 +66,11 @@ This file defines the default assistant behavior for work inside
 - Treat `read-player-current.ps1` and any `heuristic` or cached current-player
   anchor as **exploration-only** unless separately re-proven and explicitly
   promoted.
+- For **proof reacquisition**, prefer **last-good trace seeds** and
+  **debug-scanned source-chain seeds** first; do **not** reseed proof tracing
+  from heuristic or cached current-player snapshots.
+- If proof reacquisition fails repeatedly, escalate to **debug scanning**
+  instead of looping the same heuristic/bootstrap trace attempt.
 - Treat selected-source coord lanes and other discovery artifacts as
   **candidate-only** unless they have been re-proven for the current session.
 - If a proof watchset does not include the validated canonical

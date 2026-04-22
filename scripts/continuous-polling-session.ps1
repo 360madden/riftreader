@@ -111,7 +111,33 @@ function Get-ProofCoordAnchorSnapshot {
 $resolvedSessionRoot = [System.IO.Path]::GetFullPath($SessionRoot)
 New-Item -ItemType Directory -Path $resolvedSessionRoot -Force | Out-Null
 
-$proofCoordAnchorSnapshot = Get-ProofCoordAnchorSnapshot -Quiet:$Json
+$proofCoordAnchorSnapshot = $null
+if (-not $Json -and -not $PrepareOnly) {
+    Write-BigPrompt -Color Cyan -Lines @(
+        '🧭 START PRECHECK',
+        '🔎 Proof-anchor validation will run before recording is allowed.',
+        '📣 You will now see a visible countdown before validation begins.'
+    )
+
+    Start-Countdown -Color Cyan -Heading '🧭 VALIDATING PROOF SOURCE' -Detail 'Proof-anchor validation will begin automatically before recording.' -Seconds 5
+}
+
+try {
+    $proofCoordAnchorSnapshot = Get-ProofCoordAnchorSnapshot -Quiet:$Json
+}
+catch {
+    if (-not $Json) {
+        Write-BigPrompt -Color Red -Lines @(
+            '🔴 START BLOCKED',
+            '⚠️ Proof-anchor validation failed before recording could begin.',
+            ("🧾 Error: {0}" -f $_.Exception.Message),
+            '🚫 Recording countdown was not reached because proof mode failed closed.'
+        )
+    }
+
+    throw
+}
+
 $proofCoordObjectAddress = [string]$proofCoordAnchorSnapshot.ObjectBaseAddress
 $proofCoordRegionAddress = [string]$proofCoordAnchorSnapshot.CoordRegionAddress
 $proofCoordTraceFile = [string]$proofCoordAnchorSnapshot.TraceSourceFile

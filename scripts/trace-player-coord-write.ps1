@@ -3,6 +3,7 @@ param(
     [switch]$Json,
     [switch]$SkipRefresh,
     [switch]$SkipCleanup,
+    [switch]$ProofReacquisition,
     [string]$CandidateAddressHex,
     [string]$CandidateSource = 'explicit-candidate',
     [string]$StimulusKey = 'w',
@@ -15,6 +16,7 @@ param(
     [ValidateSet('write', 'access')]
     [string]$WatchMode = 'write',
     [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
+    [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt')
 )
@@ -32,6 +34,7 @@ $sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
 $resolvedConfirmationFile = [System.IO.Path]::GetFullPath($ConfirmationFile)
+$resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($TraceStatusFile)
 
@@ -62,6 +65,55 @@ function Parse-HexAddress {
     }
 
     return [UInt64]::Parse($normalized, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Format-HexAddress {
+    param(
+        [Parameter(Mandatory = $true)]
+        [UInt64]$Value
+    )
+
+    return ('0x{0:X}' -f $Value)
+}
+
+function Try-ConvertToUInt64 {
+    param(
+        [string]$AddressHex
+    )
+
+    if ([string]::IsNullOrWhiteSpace($AddressHex)) {
+        return $null
+    }
+
+    try {
+        return (Parse-HexAddress -AddressHex $AddressHex)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Convert-HexAddressWithOffset {
+    param(
+        [string]$AddressHex,
+        [int]$Offset
+    )
+
+    $baseValue = Try-ConvertToUInt64 -AddressHex $AddressHex
+    if ($null -eq $baseValue) {
+        return $null
+    }
+
+    return Format-HexAddress -Value ([UInt64]($baseValue + [UInt64]$Offset))
+}
+
+function Get-CurrentTargetProcessId {
+    try {
+        return [int](Get-Process -Name 'rift_x64' -ErrorAction Stop | Sort-Object StartTime -Descending | Select-Object -First 1 -ExpandProperty Id)
+    }
+    catch {
+        return $null
+    }
 }
 
 function Convert-ToModulePattern {
@@ -147,6 +199,157 @@ function Get-ObjectValue {
     }
 
     return $property.Value
+}
+
+function Add-UniqueTraceCandidate {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Candidates,
+
+        [Parameter(Mandatory = $true)]
+        $Seen,
+
+        [string]$AddressHex,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Source,
+
+        [string]$FamilyId
+    )
+
+    if ([string]::IsNullOrWhiteSpace($AddressHex)) {
+        return
+    }
+
+    if ($Seen.Add($AddressHex)) {
+        $Candidates.Add([pscustomobject]@{
+                AddressHex = $AddressHex
+                Source = $Source
+                FamilyId = $FamilyId
+            }) | Out-Null
+    }
+}
+
+function Add-ProofReacquisitionSeeds {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Candidates,
+
+        [Parameter(Mandatory = $true)]
+        $Seen,
+
+        [Parameter(Mandatory = $true)]
+        $Notes
+    )
+
+    $currentProcessId = Get-CurrentTargetProcessId
+
+    if (Test-Path -LiteralPath $resolvedOutputFile) {
+        try {
+            $traceDocument = Get-Content -LiteralPath $resolvedOutputFile -Raw | ConvertFrom-Json -Depth 40
+            $documentMode = if ($traceDocument.PSObject.Properties['Mode']) { [string]$traceDocument.Mode } else { $null }
+            $documentStatus = if ($traceDocument.PSObject.Properties['Status']) { [string]$traceDocument.Status } else { $null }
+            if ($documentMode -eq 'player-coord-write-trace' -and $documentStatus -ne 'failed') {
+                $traceProcessId = $null
+                if ($traceDocument.PSObject.Properties['Reader'] -and $traceDocument.Reader -and $traceDocument.Reader.PSObject.Properties['ProcessId']) {
+                    $traceProcessId = [int]$traceDocument.Reader.ProcessId
+                }
+
+                if ($null -ne $currentProcessId -and $null -ne $traceProcessId -and $traceProcessId -ne $currentProcessId) {
+                    $Notes.Add(("Skipped last-good trace seeds because trace PID {0} does not match live PID {1}." -f $traceProcessId, $currentProcessId)) | Out-Null
+                }
+                else {
+                    $sourceObjectAddress = if ($traceDocument.PSObject.Properties['SourceObjectRegisterValue']) {
+                        [string]$traceDocument.SourceObjectRegisterValue
+                    }
+                    elseif ($traceDocument.PSObject.Properties['Trace'] -and $traceDocument.Trace.PSObject.Properties['Registers']) {
+                        [string]$traceDocument.Trace.Registers.RDI
+                    }
+                    else {
+                        $null
+                    }
+
+                    $sourceCoordAddress = Convert-HexAddressWithOffset -AddressHex $sourceObjectAddress -Offset 0x48
+                    Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $sourceCoordAddress -Source 'last-good-trace-source-object-coord-region'
+
+                    $traceTargetAddress = if ($traceDocument.PSObject.Properties['Trace']) { [string]$traceDocument.Trace.TargetAddress } else { $null }
+                    Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $traceTargetAddress -Source 'last-good-trace-target'
+
+                    $traceCandidateAddress = if ($traceDocument.PSObject.Properties['Trace']) { [string]$traceDocument.Trace.CandidateAddress } else { $null }
+                    Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $traceCandidateAddress -Source 'last-good-trace-candidate'
+                }
+            }
+            else {
+                $Notes.Add('Skipped canonical trace seeds because the saved trace artifact is not a successful trace document.') | Out-Null
+            }
+        }
+        catch {
+            $Notes.Add(("Unable to load canonical trace seeds from '{0}': {1}" -f $resolvedOutputFile, $_.Exception.Message)) | Out-Null
+        }
+    }
+    else {
+        $Notes.Add(("Canonical trace artifact not found: {0}" -f $resolvedOutputFile)) | Out-Null
+    }
+
+    if (Test-Path -LiteralPath $resolvedSourceChainFile) {
+        try {
+            $sourceChain = Get-Content -LiteralPath $resolvedSourceChainFile -Raw | ConvertFrom-Json -Depth 30
+            $selectedSourceAddress = if ($sourceChain.PSObject.Properties['SelectedSourceAddress']) {
+                [string]$sourceChain.SelectedSourceAddress
+            }
+            else {
+                [string]$sourceChain.SourceObjectAddress
+            }
+
+            $returnOffset = $null
+            if ($sourceChain.PSObject.Properties['Accessor'] -and $sourceChain.Accessor.PSObject.Properties['ReturnOffset']) {
+                $returnOffset = [int]$sourceChain.Accessor.ReturnOffset
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($selectedSourceAddress) -and $null -ne $returnOffset) {
+                $sourceChainCoordAddress = Convert-HexAddressWithOffset -AddressHex $selectedSourceAddress -Offset $returnOffset
+                Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $sourceChainCoordAddress -Source 'debug-scan-source-chain-coord-region'
+            }
+            else {
+                $Notes.Add(("Skipped debug-scan source-chain seed because '{0}' did not expose SelectedSourceAddress + Accessor.ReturnOffset." -f $resolvedSourceChainFile)) | Out-Null
+            }
+        }
+        catch {
+            $Notes.Add(("Unable to load debug-scan source-chain seeds from '{0}': {1}" -f $resolvedSourceChainFile, $_.Exception.Message)) | Out-Null
+        }
+    }
+    else {
+        $Notes.Add(("Debug-scan source-chain file not found: {0}" -f $resolvedSourceChainFile)) | Out-Null
+    }
+}
+
+function Test-CanUsePlayerReadAsProofSeed {
+    param(
+        $PlayerRead,
+        [ref]$Reason
+    )
+
+    $Reason.Value = $null
+
+    if ($null -eq $PlayerRead -or $null -eq $PlayerRead.Memory -or [string]::IsNullOrWhiteSpace([string]$PlayerRead.Memory.AddressHex)) {
+        $Reason.Value = 'Current-player read did not expose a usable coordinate address.'
+        return $false
+    }
+
+    $selectionSource = if ($PlayerRead.PSObject.Properties['SelectionSource']) { [string]$PlayerRead.SelectionSource } else { $null }
+    $anchorCacheUsed = if ($PlayerRead.PSObject.Properties['AnchorCacheUsed']) { [bool]$PlayerRead.AnchorCacheUsed } else { $false }
+
+    if ($anchorCacheUsed) {
+        $Reason.Value = ("Blocked current-player proof seed because AnchorCacheUsed=true (selection source '{0}')." -f $selectionSource)
+        return $false
+    }
+
+    if ($selectionSource -in @('heuristic', 'cached-anchor')) {
+        $Reason.Value = ("Blocked current-player proof seed because SelectionSource='{0}' is not proof-safe." -f $selectionSource)
+        return $false
+    }
+
+    return $true
 }
 
 function Convert-StatusToTraceAttempt {
@@ -352,7 +555,8 @@ function Test-IsReadLikeCoordTraceAttempt {
 
 function Get-TraceCandidates {
     param(
-        [pscustomobject]$PlayerRead
+        [pscustomobject]$PlayerRead,
+        [System.Collections.Generic.List[string]]$Notes
     )
 
     $candidates = New-Object System.Collections.Generic.List[object]
@@ -368,15 +572,29 @@ function Get-TraceCandidates {
         return @($candidates.ToArray())
     }
 
-    if ($null -ne $PlayerRead -and $null -ne $PlayerRead.Memory) {
-        $currentAddressHex = [string]$PlayerRead.Memory.AddressHex
-        if (-not [string]::IsNullOrWhiteSpace($currentAddressHex) -and $seen.Add($currentAddressHex)) {
-            $candidates.Add([pscustomobject]@{
-                AddressHex = $currentAddressHex
-                Source = 'player-current'
-                FamilyId = [string]$PlayerRead.FamilyId
-            }) | Out-Null
+    if ($ProofReacquisition) {
+        if ($null -eq $Notes) {
+            $Notes = New-Object System.Collections.Generic.List[string]
         }
+
+        Add-ProofReacquisitionSeeds -Candidates $candidates -Seen $seen -Notes $Notes
+
+        if ($null -ne $PlayerRead) {
+            $proofSeedReason = $null
+            if (Test-CanUsePlayerReadAsProofSeed -PlayerRead $PlayerRead -Reason ([ref]$proofSeedReason)) {
+                Add-UniqueTraceCandidate -Candidates $candidates -Seen $seen -AddressHex ([string]$PlayerRead.Memory.AddressHex) -Source 'player-current-proof-safe' -FamilyId ([string]$PlayerRead.FamilyId)
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace($proofSeedReason)) {
+                $Notes.Add($proofSeedReason) | Out-Null
+            }
+        }
+
+        $Notes.Add('Proof reacquisition intentionally skipped CE family scan candidates to prefer non-heuristic last-good trace and debug-scan seeds first.') | Out-Null
+        return @($candidates | Select-Object -First $MaxCandidates)
+    }
+
+    if ($null -ne $PlayerRead -and $null -ne $PlayerRead.Memory) {
+        Add-UniqueTraceCandidate -Candidates $candidates -Seen $seen -AddressHex ([string]$PlayerRead.Memory.AddressHex) -Source 'player-current' -FamilyId ([string]$PlayerRead.FamilyId)
     }
 
     if (Test-Path -LiteralPath $resolvedConfirmationFile) {
@@ -419,18 +637,7 @@ function Get-TraceCandidates {
 
             foreach ($bucket in $candidateBuckets) {
                 foreach ($address in @($bucket.Addresses)) {
-                    $addressHex = [string]$address
-                    if ([string]::IsNullOrWhiteSpace($addressHex)) {
-                        continue
-                    }
-
-                    if ($seen.Add($addressHex)) {
-                        $candidates.Add([pscustomobject]@{
-                                AddressHex = $addressHex
-                                Source = [string]$bucket.Source
-                                FamilyId = [string]$bucket.FamilyId
-                            }) | Out-Null
-                    }
+                    Add-UniqueTraceCandidate -Candidates $candidates -Seen $seen -AddressHex ([string]$address) -Source ([string]$bucket.Source) -FamilyId ([string]$bucket.FamilyId)
                 }
             }
         }
@@ -555,7 +762,10 @@ function Move-CanonicalFailureArtifactAside {
         return
     }
 
-    if ([string]$document.Mode -ne 'player-coord-write-trace' -or [string]$document.Status -ne 'failed') {
+    $documentMode = if ($document.PSObject.Properties['Mode']) { [string]$document.Mode } else { $null }
+    $documentStatus = if ($document.PSObject.Properties['Status']) { [string]$document.Status } else { $null }
+
+    if ($documentMode -ne 'player-coord-write-trace' -or $documentStatus -ne 'failed') {
         return
     }
 
@@ -567,6 +777,7 @@ $playerRead = $null
 $playerReadError = $null
 $traceCandidates = @()
 $attempts = New-Object System.Collections.Generic.List[object]
+$candidateGenerationNotes = New-Object System.Collections.Generic.List[string]
 $traceStatus = $null
 
 Move-CanonicalFailureArtifactAside -CanonicalPath $resolvedOutputFile
@@ -591,8 +802,13 @@ try {
 
     Ensure-CeConfirmation
 
-    $traceCandidates = @(Get-TraceCandidates -PlayerRead $playerRead)
+    $traceCandidates = @(Get-TraceCandidates -PlayerRead $playerRead -Notes $candidateGenerationNotes)
     if ($traceCandidates.Count -le 0) {
+        if ($ProofReacquisition) {
+            $notesText = if ($candidateGenerationNotes.Count -gt 0) { ' ' + (($candidateGenerationNotes.ToArray()) -join ' ') } else { '' }
+            throw ("No proof-safe non-heuristic trace seeds were available for proof reacquisition.{0} Refresh debug-scanned source artifacts (player-source-chain / player-coord-trace-cluster) or supply -CandidateAddressHex explicitly." -f $notesText)
+        }
+
         if (-not [string]::IsNullOrWhiteSpace($playerReadError)) {
             throw "No coord trace candidates were available after the current-player snapshot failed. $playerReadError"
         }
@@ -708,6 +924,8 @@ try {
         SourceObjectRegisterValue = $(if ($null -ne $traceStatus.Registers) { [string]$traceStatus.Registers.RDI } else { $null })
         ReaderError = $playerReadError
         Reader = $playerRead
+        ProofReacquisition = [bool]$ProofReacquisition
+        CandidateGenerationNotes = @($candidateGenerationNotes.ToArray())
         PostTraceReaderCapturedAtUtc = $postTracePlayerReadCapturedAtUtc
         PostTraceReaderError = $postTracePlayerReadError
         PostTraceReader = $postTracePlayerRead
@@ -802,6 +1020,8 @@ catch {
         FailureMessage = $_.Exception.Message
         ReaderError = $playerReadError
         Reader = $playerRead
+        ProofReacquisition = [bool]$ProofReacquisition
+        CandidateGenerationNotes = @($candidateGenerationNotes.ToArray())
         Candidates = [ordered]@{
             ConfirmationFile = $resolvedConfirmationFile
             Count = @($traceCandidates).Count

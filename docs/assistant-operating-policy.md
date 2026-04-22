@@ -67,6 +67,8 @@ navigation proof:
 | Coord-trace selection | Allow the proof resolver to choose either the traced object or the trace-linked source object, whichever still matches live ReaderBridge coordinates |
 | Watchset export | Ensure the proof watchset contains the canonical `coord-trace-coords` region derived from that validated coord-trace anchor |
 | Heuristic current-player reads | Treat `read-player-current.ps1`, cached current-player anchors, and any `heuristic` source as exploration-only unless they have been separately re-proven and explicitly promoted |
+| Proof reacquisition seed order | Prefer **last-good trace seeds** and **debug-scanned source-chain seeds** first; do not reseed proof tracing from heuristic or cached current-player snapshots when stronger seeds exist |
+| Escalation after repeated proof-reacquisition failure | Escalate to **debug scanning** instead of retrying the same heuristic/bootstrap trace loop |
 | Discovery artifacts | Treat selected-source coord lanes, projector traces, stat hubs, and similar discovery artifacts as candidate-only unless they have been re-proven for the current session |
 | Failure policy | If the watchset lacks canonical coord-trace coords or the resolved anchor is not validated, stop and fix the proof source instead of recording stale/candidate/heuristic movement data |
 

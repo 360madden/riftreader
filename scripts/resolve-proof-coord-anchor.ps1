@@ -628,9 +628,9 @@ for ($attempt = 0; $attempt -le $RefreshAttempts; $attempt++) {
         break
     }
 
-    Write-Warning ("Proof coord anchor validation failed: {0} Refreshing coord trace (attempt {1}/{2})..." -f $lastFailureReason, ($attempt + 1), $RefreshAttempts)
+    Write-Warning ("Proof coord anchor validation failed: {0} Refreshing coord trace with proof-safe non-heuristic seeds first (attempt {1}/{2})..." -f $lastFailureReason, ($attempt + 1), $RefreshAttempts)
     try {
-        & $traceScript -Json -MaxCandidates 1 -WatchMode access -StimulusMode AutoHotkey | Out-Null
+        & $traceScript -Json -ProofReacquisition -MaxCandidates 4 -WatchMode access -StimulusMode AutoHotkey | Out-Null
     }
     catch {
         $lastFailureReason = "Coord-trace refresh failed: $($_.Exception.Message)"
