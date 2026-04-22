@@ -253,8 +253,8 @@ function Get-GitWorktrees {
             if ($current.Contains('path')) {
                 $worktrees.Add([pscustomobject]@{
                         path      = (Convert-ToDashboardPath $current.path)
-                        head      = $current.head
-                        branch    = $current.branch
+                        head      = if ($current.Contains('head')) { $current.head } else { $null }
+                        branch    = if ($current.Contains('branch')) { $current.branch } else { $null }
                         isCurrent = ((Convert-ToDashboardPath $current.path) -eq (Convert-ToDashboardPath $RepoRoot))
                     })
             }
@@ -650,7 +650,7 @@ function Build-RichActorBranch {
 
     $truthPath = Join-Path $RepoRoot 'docs\recovery\current-truth.md'
     $workboardPath = Join-Path $RepoRoot 'docs\branch-workboard-codex-actor-yaw-pitch.md'
-    $handoffPath = Join-Path $RepoRoot 'docs\handoffs\2026-04-15-codex-actor-yaw-pitch.md'
+    $handoffPath = Join-Path $RepoRoot 'docs\handoffs\2026-04-22-codex-actor-facing-source-chain-truth.md'
     $offlinePath = Join-Path $RepoRoot 'scripts\captures\actor-orientation-offline-analysis.json'
     $screenPath = Join-Path $RepoRoot 'scripts\captures\actor-orientation-candidate-screen.json'
     $recoveryPath = Join-Path $RepoRoot 'scripts\captures\actor-orientation-recovery.json'
@@ -707,7 +707,16 @@ function Build-RichActorBranch {
     }
 
     $recommendedActions = Get-MarkdownListAfterHeading -Lines $handoffLines -Heading 'Recommended first action in the next conversation'
-    $handoffSummary = if ((Get-ItemCount -Value $recommendedActions) -gt 0) { $recommendedActions[0] } else { 'Handoff doc present; next conversation can start from docs.' }
+    $verdictBullets = Get-MarkdownListAfterHeading -Lines $handoffLines -Heading 'Verdict'
+    $handoffSummary = if ((Get-ItemCount -Value $recommendedActions) -gt 0) {
+        $recommendedActions[0]
+    }
+    elseif ((Get-ItemCount -Value $verdictBullets) -gt 0) {
+        $verdictBullets[0]
+    }
+    else {
+        'Handoff doc present; next conversation can start from docs.'
+    }
 
     if ($offline -and (($offline.Notes | Out-String) -match 'no candidate currently has surviving positive evidence')) {
         $warnings.Add('No candidate currently has surviving positive evidence after the latest merge.')
@@ -741,7 +750,7 @@ function Build-RichActorBranch {
         rows   = $candidateRows
     }
     $branchData.handoff = [ordered]@{
-        ready   = ((Test-Path -LiteralPath $handoffPath) -and (Test-Path -LiteralPath $workboardPath))
+        ready   = (Test-Path -LiteralPath $handoffPath)
         path    = (Convert-ToDashboardPath $handoffPath)
         summary = $handoffSummary
     }

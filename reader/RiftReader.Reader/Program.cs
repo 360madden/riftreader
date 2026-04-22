@@ -1064,19 +1064,70 @@ internal static class Program
 
     private static int RunReadPlayerOrientationMode(ReaderOptions options)
     {
-        var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(options.OwnerComponentsFile, out var artifactError);
-        if (artifactDocument is null)
-        {
-            Console.Error.WriteLine(artifactError ?? "Unable to load the player owner-component artifact.");
-            return 1;
-        }
-
         var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out _);
 
         PlayerOrientationReadResult result;
         try
         {
-            result = PlayerOrientationReader.Read(artifactDocument, snapshotDocument);
+            if (options.ProcessId.HasValue || !string.IsNullOrWhiteSpace(options.ProcessName))
+            {
+                using var process = TryResolveProcess(options, out var resolveError);
+                if (process is null)
+                {
+                    Console.Error.WriteLine(resolveError ?? "Unable to resolve the target process for live player-orientation.");
+                    return 1;
+                }
+
+                var leadDocument = ActorFacingBehaviorBackedLeadLoader.TryLoad(null, out var leadError);
+                if (leadDocument is null)
+                {
+                    Console.Error.WriteLine(leadError ?? "Unable to load the actor-facing behavior-backed lead.");
+                    return 1;
+                }
+
+                DateTimeOffset processStartTimeUtc;
+                try
+                {
+                    processStartTimeUtc = process.StartTime.ToUniversalTime();
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+                {
+                    Console.Error.WriteLine($"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+                    return 1;
+                }
+
+                var leadValidation = ActorFacingBehaviorBackedLeadValidator.Validate(
+                    leadDocument,
+                    process.ProcessName,
+                    process.Id,
+                    processStartTimeUtc);
+                if (!leadValidation.IsValid)
+                {
+                    Console.Error.WriteLine(leadValidation.Error ?? "The actor-facing behavior-backed lead is not valid for the live process.");
+                    return 1;
+                }
+
+                var target = ProcessTarget.FromProcess(process);
+                using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+                if (reader is null)
+                {
+                    Console.Error.WriteLine(openError ?? "Unable to open the target process for live player-orientation.");
+                    return 1;
+                }
+
+                result = PlayerOrientationReader.ReadLive(reader, target, snapshotDocument, leadDocument);
+            }
+            else
+            {
+                var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(options.OwnerComponentsFile, out var artifactError);
+                if (artifactDocument is null)
+                {
+                    Console.Error.WriteLine(artifactError ?? "Unable to load the player owner-component artifact.");
+                    return 1;
+                }
+
+                result = PlayerOrientationReader.Read(artifactDocument, snapshotDocument);
+            }
         }
         catch (Exception ex)
         {
@@ -1095,6 +1146,24 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(PlayerOrientationReadTextFormatter.Format(result));
         return 0;
+    }
+
+    private static Process? TryResolveProcess(ReaderOptions options, out string? error)
+    {
+        var locator = new ProcessLocator();
+
+        if (options.ProcessId.HasValue)
+        {
+            return locator.FindById(options.ProcessId.Value, out error);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ProcessName))
+        {
+            return locator.FindByName(options.ProcessName, out error);
+        }
+
+        error = "A process selector was not provided.";
+        return null;
     }
 
     private static bool TryLoadWaypointNavigationConfiguration(

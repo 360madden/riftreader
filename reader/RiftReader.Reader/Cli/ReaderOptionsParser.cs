@@ -16,7 +16,7 @@ Usage:
   RiftReader.Reader --process-name <name> --cheatengine-probe [--cheatengine-probe-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --rank-owner-components [--owner-components-file <path>] [--json]
   RiftReader.Reader --rank-stat-hubs [--owner-components-file <path>] [--json]
-  RiftReader.Reader --read-player-orientation [--owner-components-file <path>] [--json]
+  RiftReader.Reader [--pid <processId> | --process-name <name>] --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
@@ -48,7 +48,7 @@ Notes:
   - Use --cheatengine-probe to generate a Cheat Engine Lua helper script from the latest ReaderBridge export and the current best grouped player signature families.
   - Use --rank-owner-components to score the current owner-component artifact against the latest ReaderBridge snapshot and rank likely stat-bearing components.
   - Use --rank-stat-hubs to walk the identity-component graph and identify shared memory hubs that store player stats.
-  - Use --read-player-orientation to derive candidate yaw/pitch values from the selected source component's orientation vectors in the latest owner-component artifact.
+  - Use --read-player-orientation to derive candidate yaw/pitch values either from the latest owner-component artifact or, when combined with --pid/--process-name and a valid behavior-backed lead, from the current live actor-facing source.
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --find-player-orientation-candidate to do a single-process read-only search for live actor/source candidates near current player coordinate hits.
@@ -1012,9 +1012,9 @@ Examples:
 
         if (readPlayerOrientation)
         {
-            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            if (address.HasValue || length.HasValue)
             {
-                return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with process attach or memory-read switches.", UsageText);
+                return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with memory-read switches.", UsageText);
             }
 
             if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
@@ -1024,8 +1024,8 @@ Examples:
 
             return ReaderOptionsParseResult.Success(
                 new ReaderOptions(
-                    ProcessId: null,
-                    ProcessName: null,
+                    ProcessId: processId,
+                    ProcessName: processName,
                     Address: null,
                     Length: null,
                     ListModules: false,

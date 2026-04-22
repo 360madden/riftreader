@@ -5,6 +5,24 @@ namespace RiftReader.Reader.Tests.Cli;
 public sealed class ReaderOptionsParserTests
 {
     [Fact]
+    public void Parse_AcceptsReadPlayerOrientationWithProcessAttach()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--read-player-orientation",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.ReadPlayerOrientation);
+        Assert.Equal("rift_x64", options.ProcessName);
+        Assert.Null(options.ProcessId);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
     public void Parse_AcceptsCaptureNavigationWaypointMode()
     {
         var result = ReaderOptionsParser.Parse(

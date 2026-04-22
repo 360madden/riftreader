@@ -11,7 +11,7 @@ _Last updated: April 22, 2026 (fresh CE-assisted source-chain actor-facing reval
 | Player current read | working |
 | Coord-anchor module pattern | working |
 | ReaderBridge orientation probe | still empty on the current client |
-| `--read-player-orientation` reader mode | still historical / stale because it depends on the owner-components artifact |
+| `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
 | Actor yaw / pitch truth | working again on the current live session via source `0x24F595F8D10` and forward basis row `+0x60/+0x64/+0x68` (duplicate `+0x94/+0x98/+0x9C`) |
 | Source-chain refresh | working again through the live coord trace cluster and source-accessor-family rebuild |
@@ -70,6 +70,9 @@ Operational interpretation:
   - `C:\RIFT MODDING\RiftReader_facing\scripts\actor-facing-behavior-backed-lead.json`
 - `capture-actor-orientation.ps1` now prefers that lead when present and fails
   closed if the live basis no longer validates
+- `dotnet run --project ... -- --process-name rift_x64 --read-player-orientation`
+  now uses that same current-session lead when a live process selector is
+  provided; the no-process artifact-only mode remains historical
 
 See the fresh validation note:
 
@@ -94,7 +97,7 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 - `trace-player-selector-owner.ps1` can remain `armed` without a live hit
 - `player-selector-owner-trace.json` is stale until regenerated with a current-process proof
 - `player-owner-components.json` is stale until regenerated with a current-process proof
-- `--read-player-orientation` remains stale until the owner/source artifact path is rebuilt
+- `--read-player-orientation` without `--pid` / `--process-name` remains the historical artifact-only path until the owner/source artifact path is rebuilt
 
 ## Canonical scripts on `main`
 

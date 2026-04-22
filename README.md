@@ -54,7 +54,7 @@ Right now on `main`:
 - `--read-player-current` is still working
 - `--read-player-coord-anchor` still finds the module-local coord pattern
 - ReaderBridge orientation probe is still empty on the current client
-- `--read-player-orientation` is still historical because it depends on the stale owner-components path
+- `--read-player-orientation` live mode is working again when called with `--pid` / `--process-name` through the behavior-backed lead; the no-process artifact-only path remains historical
 - `scripts\capture-player-source-chain.ps1` and `scripts\capture-player-source-accessor-family.ps1` are working again for the current actor-facing source lane
 - `scripts\capture-actor-orientation.ps1` is working again for the current session through the validated behavior-backed lead `0x24F595F8D10 @ +0x60` (duplicate `+0x94`)
 - camera live workflow is currently documented on
@@ -229,7 +229,9 @@ The reader now has two near-term targets:
    - prefers a verified coord-trace object anchor when it belongs to the current process and still matches current exported state
    - reads level / health / coords directly from memory
    - compares them against the latest ReaderBridge export
-  - `--read-player-orientation` *(still historical/stale on the updated client because it depends on the owner/source artifact path)*
+  - `--read-player-orientation`
+    - with `--pid` / `--process-name`, now reads live actor-facing yaw / pitch through the behavior-backed lead
+    - without a live process selector, remains the historical artifact-only path
   - `scripts\capture-actor-orientation.ps1` is the current truth-oriented actor yaw / pitch helper
   - when `scripts\actor-facing-behavior-backed-lead.json` is present and still validates live, the capture helper derives yaw / pitch from the forward basis row at `+0x60/+0x64/+0x68` (duplicate `+0x94/+0x98/+0x9C` on the same source)
   - `--read-player-coord-anchor`

@@ -12,7 +12,7 @@ param(
     [string]$InstructionAddressHex,
     [string]$Pattern = 'F3 0F 10 59 08',
     [string]$ModuleName = 'rift_x64.exe',
-    [string]$BasisOffsetHex = '0xD4',
+    [string]$BasisOffsetHex = '0x60',
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-facing-instruction-trace.json'),
     [string]$StatusFile = (Join-Path $PSScriptRoot 'captures\actor-facing-instruction-trace.status.txt'),
     [string]$HitsFile = (Join-Path $PSScriptRoot 'captures\actor-facing-instruction-trace.hits.tsv')

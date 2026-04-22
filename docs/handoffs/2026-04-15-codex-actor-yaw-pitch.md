@@ -11,7 +11,7 @@ worktree: C:\RIFT MODDING\RiftReader_facing
 > actor-facing is no longer in rebuild state. The current promoted truth is the
 > source-chain/accessor-family lane on `0x24F595F8D10 @ +0x60` (duplicate
 > `+0x94`). Resume from
-> `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-22-codex-actor-facing-source-chain-truth.md`
+> `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-04-22-codex-actor-facing-source-chain-truth.md`
 > unless you are specifically studying the failed no-CE rebuild pass.
 
 ## Scope

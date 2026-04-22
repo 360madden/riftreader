@@ -14,8 +14,10 @@ public static class PlayerOrientationReadTextFormatter
             $"Artifact generated (UTC):     {result.ArtifactGeneratedAtUtc?.ToString("O") ?? "n/a"}",
             $"ReaderBridge snapshot:        {result.SnapshotFile ?? "n/a"}",
             $"Player:                       {FormatPlayer(result)}",
+            $"Resolution mode:              {FormatResolutionMode(result)}",
             $"Selected source address:      {result.SelectedSourceAddress ?? "n/a"}",
             $"Selected entry:               {FormatSelectedEntry(result)}",
+            $"Basis offsets:                {FormatBasisOffsets(result)}",
             $"Preferred estimate:           {FormatEstimate(result.PreferredEstimate)}",
             $"Basis forward rows:           {FormatBasisRows(result)}",
             $"Estimates:                    {result.Estimates.Count}",
@@ -150,6 +152,37 @@ public static class PlayerOrientationReadTextFormatter
 
         return string.Join(" | ", parts);
     }
+
+    private static string FormatBasisOffsets(PlayerOrientationReadResult result)
+    {
+        if (string.IsNullOrWhiteSpace(result.BasisPrimaryForwardOffset) &&
+            string.IsNullOrWhiteSpace(result.BasisDuplicateForwardOffset))
+        {
+            return "n/a";
+        }
+
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(result.BasisPrimaryForwardOffset))
+        {
+            parts.Add($"primary {result.BasisPrimaryForwardOffset}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.BasisDuplicateForwardOffset))
+        {
+            parts.Add($"duplicate {result.BasisDuplicateForwardOffset}");
+        }
+
+        return string.Join(" | ", parts);
+    }
+
+    private static string FormatResolutionMode(PlayerOrientationReadResult result) =>
+        result.ResolutionMode switch
+        {
+            "live-behavior-backed-lead" => "live-behavior-backed-lead (current-session source lead)",
+            "artifact-owner-components" => "artifact-owner-components (historical artifact path)",
+            _ => string.IsNullOrWhiteSpace(result.ResolutionMode) ? "n/a" : result.ResolutionMode
+        };
 
     private static string FormatVector(RiftReader.Reader.AddonSnapshots.ValidatorCoordinateSnapshot? vector)
     {
