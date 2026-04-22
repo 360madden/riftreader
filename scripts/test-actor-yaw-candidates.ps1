@@ -6,13 +6,18 @@ param(
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-yaw-candidate-test.json'),
     [int]$TopCount = 4,
     [string]$StimulusKey = 'Right',
+    [string]$ReverseStimulusKey = '',
     [ValidateSet('PostMessage', 'SendInput', 'AutoHotkey', 'Manual')]
     [string]$StimulusMode = 'PostMessage',
     [int]$HoldMilliseconds = 700,
     [int]$WaitMilliseconds = 250,
+    [int]$RepeatCount = 1,
+    [int]$PostStimulusSampleCount = 1,
+    [int]$PostStimulusSampleIntervalMilliseconds = 0,
     [switch]$SkipStimulus,
     [int]$ManualWindowMilliseconds = 0,
     [double]$MinYawResponseDegrees = 1.0,
+    [double]$MinReversibleYawResponseDegrees = 2.0,
     [double]$MaxCoordDrift = 0.35
 )
 
@@ -21,6 +26,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+$readerDll = Join-Path $repoRoot 'reader\RiftReader.Reader\bin\Debug\net10.0-windows\RiftReader.Reader.dll'
 $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
 $sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
@@ -33,13 +39,19 @@ function Invoke-ReaderJson {
         [string[]]$Arguments
     )
 
-    $output = & dotnet run --project $readerProject -- @Arguments 2>&1
+    if (Test-Path -LiteralPath $readerDll) {
+        $output = & dotnet $readerDll @Arguments 2>&1
+    }
+    else {
+        $output = & dotnet run --project $readerProject -- @Arguments 2>&1
+    }
+
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         throw "Reader command failed (`$LASTEXITCODE=$exitCode): $($output -join [Environment]::NewLine)"
     }
 
-    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
+    return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
 }
 
 function Parse-HexUInt64 {
@@ -292,6 +304,208 @@ function Try-GetCandidateSnapshot {
     }
 }
 
+function Get-YawDeltaDegrees {
+    param($BeforeSnapshotResult, $AfterSnapshotResult)
+
+    if (-not $BeforeSnapshotResult.Success -or -not $AfterSnapshotResult.Success) {
+        return $null
+    }
+
+    if ($null -eq $BeforeSnapshotResult.Snapshot -or $null -eq $AfterSnapshotResult.Snapshot) {
+        return $null
+    }
+
+    if ($null -eq $BeforeSnapshotResult.Snapshot.Estimate.YawRadians -or $null -eq $AfterSnapshotResult.Snapshot.Estimate.YawRadians) {
+        return $null
+    }
+
+    return Convert-RadiansToDegrees -Radians (Normalize-AngleRadians -Radians ([double]$AfterSnapshotResult.Snapshot.Estimate.YawRadians - [double]$BeforeSnapshotResult.Snapshot.Estimate.YawRadians))
+}
+
+function Get-PitchDeltaDegrees {
+    param($BeforeSnapshotResult, $AfterSnapshotResult)
+
+    if (-not $BeforeSnapshotResult.Success -or -not $AfterSnapshotResult.Success) {
+        return $null
+    }
+
+    if ($null -eq $BeforeSnapshotResult.Snapshot -or $null -eq $AfterSnapshotResult.Snapshot) {
+        return $null
+    }
+
+    if ($null -eq $BeforeSnapshotResult.Snapshot.Estimate.PitchRadians -or $null -eq $AfterSnapshotResult.Snapshot.Estimate.PitchRadians) {
+        return $null
+    }
+
+    return Convert-RadiansToDegrees -Radians (Normalize-AngleRadians -Radians ([double]$AfterSnapshotResult.Snapshot.Estimate.PitchRadians - [double]$BeforeSnapshotResult.Snapshot.Estimate.PitchRadians))
+}
+
+function Get-CandidateSnapshotSet {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Rows
+    )
+
+    $snapshotSet = @{}
+    foreach ($row in $Rows) {
+        $snapshotSet[[string]$row.SourceAddress] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
+    }
+
+    return $snapshotSet
+}
+
+function Start-StimulusProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key
+    )
+
+    if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
+        return $null
+    }
+
+    $argumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File')
+    switch ($StimulusMode) {
+        'PostMessage' {
+            $argumentList += @($postKeyScript, '-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+        }
+        'SendInput' {
+            $argumentList += @($sendKeyScript, '-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
+        }
+        'AutoHotkey' {
+            $argumentList += @($sendKeyAhkScript, '-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
+        }
+        default {
+            throw "Unsupported stimulus mode '$StimulusMode'."
+        }
+    }
+
+    return Start-Process -FilePath 'powershell.exe' -ArgumentList $argumentList -PassThru -WindowStyle Hidden
+}
+
+function Wait-StimulusProcess {
+    param($Process)
+
+    if ($null -eq $Process) {
+        return
+    }
+
+    try {
+        if (-not $Process.HasExited) {
+            Wait-Process -Id $Process.Id -ErrorAction Stop
+        }
+    }
+    catch [System.InvalidOperationException] {
+        # The process can finish before Wait-Process observes it; treat that as a normal completion path.
+    }
+
+    $Process.Refresh()
+    if ($Process.ExitCode -ne 0) {
+        throw "Stimulus process failed for mode '$StimulusMode' with exit code $($Process.ExitCode)."
+    }
+}
+
+function Invoke-ValidationPhase {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        [Parameter(Mandatory = $true)]
+        [object[]]$Rows,
+        [Parameter(Mandatory = $true)]
+        [int]$CycleIndex
+    )
+
+    $beforePlayer = Get-PlayerCurrent
+    $beforePlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $beforePlayer
+    $baselineSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+    $sampleSeries = New-Object System.Collections.Generic.List[object]
+
+    if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
+        if ($ManualWindowMilliseconds -gt 0) {
+            Write-Host ("Manual turn window ({0}, cycle {1}): {2} ms" -f $Key, $CycleIndex, $ManualWindowMilliseconds)
+            Write-Host 'Turn the player manually now.' -ForegroundColor Yellow
+            Start-Sleep -Milliseconds $ManualWindowMilliseconds
+        }
+
+        $manualSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+        $sampleSeries.Add([pscustomobject]@{
+                SampleIndex = 1
+                RelativeMilliseconds = $ManualWindowMilliseconds
+                Snapshots = $manualSnapshots
+            }) | Out-Null
+    }
+    else {
+        $effectiveSampleCount = [Math]::Max($PostStimulusSampleCount, 1)
+        if ($StimulusMode -eq 'SendInput') {
+            & $sendKeyScript -Key $Key -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Stimulus key '$Key' failed via mode '$StimulusMode'."
+            }
+
+            $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            for ($sampleIndex = 1; $sampleIndex -le $effectiveSampleCount; $sampleIndex++) {
+                $targetMilliseconds = if ($sampleIndex -eq 1) {
+                    $WaitMilliseconds
+                }
+                else {
+                    $WaitMilliseconds + (($sampleIndex - 1) * $PostStimulusSampleIntervalMilliseconds)
+                }
+
+                while ($stopwatch.ElapsedMilliseconds -lt $targetMilliseconds) {
+                    Start-Sleep -Milliseconds 15
+                }
+
+                $sampleSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+                $sampleSeries.Add([pscustomobject]@{
+                        SampleIndex = $sampleIndex
+                        RelativeMilliseconds = $targetMilliseconds
+                        Snapshots = $sampleSnapshots
+                    }) | Out-Null
+            }
+        }
+        else {
+            $stimulusProcess = Start-StimulusProcess -Key $Key
+            $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            for ($sampleIndex = 1; $sampleIndex -le $effectiveSampleCount; $sampleIndex++) {
+                $targetMilliseconds = if ($sampleIndex -eq 1) {
+                    $WaitMilliseconds
+                }
+                else {
+                    $WaitMilliseconds + (($sampleIndex - 1) * $PostStimulusSampleIntervalMilliseconds)
+                }
+
+                while ($stopwatch.ElapsedMilliseconds -lt $targetMilliseconds) {
+                    Start-Sleep -Milliseconds 15
+                }
+
+                $sampleSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+                $sampleSeries.Add([pscustomobject]@{
+                        SampleIndex = $sampleIndex
+                        RelativeMilliseconds = $targetMilliseconds
+                        Snapshots = $sampleSnapshots
+                    }) | Out-Null
+            }
+
+            Wait-StimulusProcess -Process $stimulusProcess
+        }
+    }
+
+    $afterPlayer = Get-PlayerCurrent
+    $afterPlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $afterPlayer
+
+    return [pscustomobject]@{
+        Key = $Key
+        CycleIndex = $CycleIndex
+        BeforePlayer = $beforePlayer
+        AfterPlayer = $afterPlayer
+        BeforePlayerCoord = $beforePlayerCoord
+        AfterPlayerCoord = $afterPlayerCoord
+        PlayerCoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $beforePlayerCoord -AfterCoord $afterPlayerCoord
+        BaselineSnapshots = $baselineSnapshots
+        Samples = $sampleSeries.ToArray()
+    }
+}
+
 if (-not (Test-Path -LiteralPath $resolvedCandidateScreenFile)) {
     throw "Candidate screen file not found: $resolvedCandidateScreenFile"
 }
@@ -357,123 +571,300 @@ if ($candidateRows.Count -le 0) {
     throw "Candidate input file did not contain any candidate rows."
 }
 
-$beforePlayer = Get-PlayerCurrent
-$beforePlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $beforePlayer
-
-$beforeSnapshots = @{}
-foreach ($row in $candidateRows) {
-    $beforeSnapshots[$row.SourceAddress] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
-}
-
-if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
-    if ($ManualWindowMilliseconds -gt 0) {
-        Write-Host ("Manual turn window:         {0} ms" -f $ManualWindowMilliseconds)
-        Write-Host 'Turn the player manually now.' -ForegroundColor Yellow
-        Start-Sleep -Milliseconds $ManualWindowMilliseconds
-    }
-}
-else {
-    switch ($StimulusMode) {
-        'PostMessage' {
-            & $postKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds *> $null
-        }
-        'SendInput' {
-            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
-        }
-        'AutoHotkey' {
-            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
-        }
-        default {
-            throw "Unsupported stimulus mode '$StimulusMode'."
-        }
-    }
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Stimulus key '$StimulusKey' failed via mode '$StimulusMode'."
-    }
-}
-
-Start-Sleep -Milliseconds $WaitMilliseconds
-
-$afterPlayer = Get-PlayerCurrent
-$afterPlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $afterPlayer
-
+$useAdvancedValidation = ($RepeatCount -gt 1) -or (-not [string]::IsNullOrWhiteSpace($ReverseStimulusKey)) -or ($PostStimulusSampleCount -gt 1)
 $results = New-Object System.Collections.Generic.List[object]
-foreach ($row in $candidateRows) {
-    $address = [string]$row.SourceAddress
-    $beforeSnapshotResult = $beforeSnapshots[$address]
-    $afterSnapshotResult = Try-GetCandidateSnapshot -AddressHex $address -ForwardOffsetHex ([string]$row.BasisForwardOffset)
-
-    $beforeSnapshot = $beforeSnapshotResult.Snapshot
-    $afterSnapshot = $afterSnapshotResult.Snapshot
-
-    $yawDeltaDegrees = $null
-    if ($beforeSnapshotResult.Success -and $afterSnapshotResult.Success -and $null -ne $beforeSnapshot.Estimate.YawRadians -and $null -ne $afterSnapshot.Estimate.YawRadians) {
-        $yawDeltaDegrees = Convert-RadiansToDegrees -Radians (Normalize-AngleRadians -Radians ([double]$afterSnapshot.Estimate.YawRadians - [double]$beforeSnapshot.Estimate.YawRadians))
-    }
-
-    $pitchDeltaDegrees = $null
-    if ($beforeSnapshotResult.Success -and $afterSnapshotResult.Success -and $null -ne $beforeSnapshot.Estimate.PitchRadians -and $null -ne $afterSnapshot.Estimate.PitchRadians) {
-        $pitchDeltaDegrees = Convert-RadiansToDegrees -Radians (Normalize-AngleRadians -Radians ([double]$afterSnapshot.Estimate.PitchRadians - [double]$beforeSnapshot.Estimate.PitchRadians))
-    }
-
-    $coordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $beforePlayerCoord -AfterCoord $afterPlayerCoord
-    $candidateResponsive = ($null -ne $yawDeltaDegrees) -and ([Math]::Abs([double]$yawDeltaDegrees) -ge $MinYawResponseDegrees)
-    $playerStayedMostlyStill = ($null -ne $coordDeltaMagnitude) -and ([double]$coordDeltaMagnitude -le $MaxCoordDrift)
-    $truthLike = $candidateResponsive -and $playerStayedMostlyStill
-
-    $results.Add([pscustomobject]@{
-        Rank = $row.Rank
-        SourceAddress = $address
-        BasisForwardOffset = [string]$row.BasisForwardOffset
-        DiscoveryMode = [string]$row.DiscoveryMode
-        ParentAddress = [string]$row.ParentAddress
-        RootAddress = [string]$row.RootAddress
-        SearchScore = $row.SearchScore
-        BeforeReadSucceeded = $beforeSnapshotResult.Success
-        BeforeReadError = $beforeSnapshotResult.Error
-        AfterReadSucceeded = $afterSnapshotResult.Success
-        AfterReadError = $afterSnapshotResult.Error
-        Before = $beforeSnapshot
-        After = $afterSnapshot
-        YawDeltaDegrees = $yawDeltaDegrees
-        PitchDeltaDegrees = $pitchDeltaDegrees
-        PlayerCoordDeltaMagnitude = $coordDeltaMagnitude
-        CandidateResponsive = $candidateResponsive
-        PlayerStayedMostlyStill = $playerStayedMostlyStill
-        TruthLike = $truthLike
-    }) | Out-Null
-}
-
-$bestTruthLike = $results |
-    Sort-Object @{ Expression = { if ($_.TruthLike) { 0 } else { 1 } } }, @{ Expression = { -(Get-ComparableMagnitude -Value $_.YawDeltaDegrees) } } |
-    Select-Object -First 1
-
-$truthLikeResults = @($results.ToArray() | Where-Object { $_.TruthLike })
-
+$truthLikeResults = @()
+$bestTruthLike = $null
 $document = [ordered]@{}
 $document.Mode = 'actor-yaw-candidate-test'
 $document.GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
 $document.CandidateScreenFile = $resolvedCandidateScreenFile
 $document.ProcessName = $ProcessName
 $document.StimulusKey = $StimulusKey
+$document.ReverseStimulusKey = $ReverseStimulusKey
 $document.StimulusMode = $StimulusMode
 $document.SkipStimulus = ($SkipStimulus -or $StimulusMode -eq 'Manual')
 $document.ManualWindowMilliseconds = $ManualWindowMilliseconds
 $document.HoldMilliseconds = $HoldMilliseconds
 $document.WaitMilliseconds = $WaitMilliseconds
+$document.RepeatCount = $RepeatCount
+$document.PostStimulusSampleCount = $PostStimulusSampleCount
+$document.PostStimulusSampleIntervalMilliseconds = $PostStimulusSampleIntervalMilliseconds
 $document.MinYawResponseDegrees = $MinYawResponseDegrees
+$document.MinReversibleYawResponseDegrees = $MinReversibleYawResponseDegrees
 $document.MaxCoordDrift = $MaxCoordDrift
-$document.PlayerBefore = $beforePlayer
-$document.PlayerAfter = $afterPlayer
-$document.CandidateCount = $results.Count
-$document.TruthLikeCandidateCount = $truthLikeResults.Count
-$document.BestTruthLikeCandidate = $bestTruthLike
-$document.Results = $results.ToArray()
+
+if (-not $useAdvancedValidation) {
+    $beforePlayer = Get-PlayerCurrent
+    $beforePlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $beforePlayer
+    $beforeSnapshots = Get-CandidateSnapshotSet -Rows $candidateRows
+
+    if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
+        if ($ManualWindowMilliseconds -gt 0) {
+            Write-Host ("Manual turn window:         {0} ms" -f $ManualWindowMilliseconds)
+            Write-Host 'Turn the player manually now.' -ForegroundColor Yellow
+            Start-Sleep -Milliseconds $ManualWindowMilliseconds
+        }
+    }
+    else {
+        $stimulusProcess = Start-StimulusProcess -Key $StimulusKey
+        Wait-StimulusProcess -Process $stimulusProcess
+    }
+
+    Start-Sleep -Milliseconds $WaitMilliseconds
+
+    $afterPlayer = Get-PlayerCurrent
+    $afterPlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $afterPlayer
+
+    foreach ($row in $candidateRows) {
+        $address = [string]$row.SourceAddress
+        $beforeSnapshotResult = $beforeSnapshots[$address]
+        $afterSnapshotResult = Try-GetCandidateSnapshot -AddressHex $address -ForwardOffsetHex ([string]$row.BasisForwardOffset)
+        $beforeSnapshot = $beforeSnapshotResult.Snapshot
+        $afterSnapshot = $afterSnapshotResult.Snapshot
+        $yawDeltaDegrees = Get-YawDeltaDegrees -BeforeSnapshotResult $beforeSnapshotResult -AfterSnapshotResult $afterSnapshotResult
+        $pitchDeltaDegrees = Get-PitchDeltaDegrees -BeforeSnapshotResult $beforeSnapshotResult -AfterSnapshotResult $afterSnapshotResult
+        $coordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $beforePlayerCoord -AfterCoord $afterPlayerCoord
+        $candidateResponsive = ($null -ne $yawDeltaDegrees) -and ([Math]::Abs([double]$yawDeltaDegrees) -ge $MinYawResponseDegrees)
+        $playerStayedMostlyStill = ($null -ne $coordDeltaMagnitude) -and ([double]$coordDeltaMagnitude -le $MaxCoordDrift)
+        $truthLike = $candidateResponsive -and $playerStayedMostlyStill
+
+        $results.Add([pscustomobject]@{
+                Rank = $row.Rank
+                SourceAddress = $address
+                BasisForwardOffset = [string]$row.BasisForwardOffset
+                DiscoveryMode = [string]$row.DiscoveryMode
+                ParentAddress = [string]$row.ParentAddress
+                RootAddress = [string]$row.RootAddress
+                SearchScore = $row.SearchScore
+                BeforeReadSucceeded = $beforeSnapshotResult.Success
+                BeforeReadError = $beforeSnapshotResult.Error
+                AfterReadSucceeded = $afterSnapshotResult.Success
+                AfterReadError = $afterSnapshotResult.Error
+                Before = $beforeSnapshot
+                After = $afterSnapshot
+                YawDeltaDegrees = $yawDeltaDegrees
+                PitchDeltaDegrees = $pitchDeltaDegrees
+                PlayerCoordDeltaMagnitude = $coordDeltaMagnitude
+                CandidateResponsive = $candidateResponsive
+                PlayerStayedMostlyStill = $playerStayedMostlyStill
+                TruthLike = $truthLike
+            }) | Out-Null
+    }
+
+    $bestTruthLike = $results |
+        Sort-Object @{ Expression = { if ($_.TruthLike) { 0 } else { 1 } } }, @{ Expression = { -(Get-ComparableMagnitude -Value $_.YawDeltaDegrees) } } |
+        Select-Object -First 1
+
+    $truthLikeResults = @($results.ToArray() | Where-Object { $_.TruthLike })
+    $document.PlayerBefore = $beforePlayer
+    $document.PlayerAfter = $afterPlayer
+    $document.CandidateCount = $results.Count
+    $document.TruthLikeCandidateCount = $truthLikeResults.Count
+    $document.BestTruthLikeCandidate = $bestTruthLike
+    $document.Results = $results.ToArray()
+}
+else {
+    $cycles = New-Object System.Collections.Generic.List[object]
+
+    for ($cycleIndex = 1; $cycleIndex -le [Math]::Max($RepeatCount, 1); $cycleIndex++) {
+        $forwardPhase = Invoke-ValidationPhase -Key $StimulusKey -Rows $candidateRows -CycleIndex $cycleIndex
+        $reversePhase = $null
+        if (-not [string]::IsNullOrWhiteSpace($ReverseStimulusKey)) {
+            Start-Sleep -Milliseconds 400
+            $reversePhase = Invoke-ValidationPhase -Key $ReverseStimulusKey -Rows $candidateRows -CycleIndex $cycleIndex
+        }
+
+        $cycles.Add([pscustomobject]@{
+                CycleIndex = $cycleIndex
+                ForwardPhase = $forwardPhase
+                ReversePhase = $reversePhase
+            }) | Out-Null
+
+        if ($cycleIndex -lt $RepeatCount) {
+            Start-Sleep -Milliseconds 600
+        }
+    }
+
+    foreach ($row in $candidateRows) {
+        $forwardPeaks = New-Object System.Collections.Generic.List[double]
+        $reversePeaks = New-Object System.Collections.Generic.List[double]
+        $forwardCoordDrifts = New-Object System.Collections.Generic.List[double]
+        $reverseCoordDrifts = New-Object System.Collections.Generic.List[double]
+        $cycleSummaries = New-Object System.Collections.Generic.List[object]
+
+        foreach ($cycle in $cycles) {
+            $address = [string]$row.SourceAddress
+            $baselineResult = $cycle.ForwardPhase.BaselineSnapshots[$address]
+            $forwardSamples = New-Object System.Collections.Generic.List[object]
+            $forwardPeakYawDeltaDegrees = $null
+            $forwardPeakPitchDeltaDegrees = $null
+
+            foreach ($sample in @($cycle.ForwardPhase.Samples)) {
+                $snapshotResult = $sample.Snapshots[$address]
+                $yawDeltaDegrees = Get-YawDeltaDegrees -BeforeSnapshotResult $baselineResult -AfterSnapshotResult $snapshotResult
+                $pitchDeltaDegrees = Get-PitchDeltaDegrees -BeforeSnapshotResult $baselineResult -AfterSnapshotResult $snapshotResult
+                if ($null -ne $yawDeltaDegrees -and (($null -eq $forwardPeakYawDeltaDegrees) -or ([Math]::Abs([double]$yawDeltaDegrees) -gt [Math]::Abs([double]$forwardPeakYawDeltaDegrees)))) {
+                    $forwardPeakYawDeltaDegrees = $yawDeltaDegrees
+                    $forwardPeakPitchDeltaDegrees = $pitchDeltaDegrees
+                }
+
+                $forwardSamples.Add([pscustomobject]@{
+                        SampleIndex = $sample.SampleIndex
+                        RelativeMilliseconds = $sample.RelativeMilliseconds
+                        ReadSucceeded = $snapshotResult.Success
+                        ReadError = $snapshotResult.Error
+                        Snapshot = $snapshotResult.Snapshot
+                        YawDeltaDegrees = $yawDeltaDegrees
+                        PitchDeltaDegrees = $pitchDeltaDegrees
+                    }) | Out-Null
+            }
+
+            $forwardPlayerDrift = $cycle.ForwardPhase.PlayerCoordDeltaMagnitude
+            if ($null -ne $forwardPeakYawDeltaDegrees) {
+                $forwardPeaks.Add([double]$forwardPeakYawDeltaDegrees) | Out-Null
+            }
+            if ($null -ne $forwardPlayerDrift) {
+                $forwardCoordDrifts.Add([double]$forwardPlayerDrift) | Out-Null
+            }
+
+            $reversePeakYawDeltaDegrees = $null
+            $reversePeakPitchDeltaDegrees = $null
+            $reverseSamples = New-Object System.Collections.Generic.List[object]
+            $reversePlayerDrift = $null
+
+            if ($null -ne $cycle.ReversePhase) {
+                $reverseBaselineResult = $cycle.ReversePhase.BaselineSnapshots[$address]
+                foreach ($sample in @($cycle.ReversePhase.Samples)) {
+                    $snapshotResult = $sample.Snapshots[$address]
+                    $yawDeltaDegrees = Get-YawDeltaDegrees -BeforeSnapshotResult $reverseBaselineResult -AfterSnapshotResult $snapshotResult
+                    $pitchDeltaDegrees = Get-PitchDeltaDegrees -BeforeSnapshotResult $reverseBaselineResult -AfterSnapshotResult $snapshotResult
+                    if ($null -ne $yawDeltaDegrees -and (($null -eq $reversePeakYawDeltaDegrees) -or ([Math]::Abs([double]$yawDeltaDegrees) -gt [Math]::Abs([double]$reversePeakYawDeltaDegrees)))) {
+                        $reversePeakYawDeltaDegrees = $yawDeltaDegrees
+                        $reversePeakPitchDeltaDegrees = $pitchDeltaDegrees
+                    }
+
+                    $reverseSamples.Add([pscustomobject]@{
+                            SampleIndex = $sample.SampleIndex
+                            RelativeMilliseconds = $sample.RelativeMilliseconds
+                            ReadSucceeded = $snapshotResult.Success
+                            ReadError = $snapshotResult.Error
+                            Snapshot = $snapshotResult.Snapshot
+                            YawDeltaDegrees = $yawDeltaDegrees
+                            PitchDeltaDegrees = $pitchDeltaDegrees
+                        }) | Out-Null
+                }
+
+                $reversePlayerDrift = $cycle.ReversePhase.PlayerCoordDeltaMagnitude
+                if ($null -ne $reversePeakYawDeltaDegrees) {
+                    $reversePeaks.Add([double]$reversePeakYawDeltaDegrees) | Out-Null
+                }
+                if ($null -ne $reversePlayerDrift) {
+                    $reverseCoordDrifts.Add([double]$reversePlayerDrift) | Out-Null
+                }
+            }
+
+            $playerStayedMostlyStill = ($null -ne $forwardPlayerDrift) -and ([double]$forwardPlayerDrift -le $MaxCoordDrift)
+            if ($null -ne $cycle.ReversePhase) {
+                $playerStayedMostlyStill = $playerStayedMostlyStill -and ($null -ne $reversePlayerDrift) -and ([double]$reversePlayerDrift -le $MaxCoordDrift)
+            }
+
+            $reversible = $false
+            if (($null -ne $forwardPeakYawDeltaDegrees) -and ($null -ne $reversePeakYawDeltaDegrees)) {
+                $reversible =
+                    ([Math]::Abs([double]$forwardPeakYawDeltaDegrees) -ge $MinReversibleYawResponseDegrees) -and
+                    ([Math]::Abs([double]$reversePeakYawDeltaDegrees) -ge $MinReversibleYawResponseDegrees) -and
+                    ([Math]::Sign([double]$forwardPeakYawDeltaDegrees) -ne [Math]::Sign([double]$reversePeakYawDeltaDegrees))
+            }
+
+            $cycleSummaries.Add([pscustomobject]@{
+                    CycleIndex = $cycle.CycleIndex
+                    Forward = [pscustomobject]@{
+                        Key = $cycle.ForwardPhase.Key
+                        PlayerCoordDeltaMagnitude = $forwardPlayerDrift
+                        PeakYawDeltaDegrees = $forwardPeakYawDeltaDegrees
+                        PeakPitchDeltaDegrees = $forwardPeakPitchDeltaDegrees
+                        Samples = $forwardSamples.ToArray()
+                    }
+                    Reverse = if ($null -ne $cycle.ReversePhase) {
+                        [pscustomobject]@{
+                            Key = $cycle.ReversePhase.Key
+                            PlayerCoordDeltaMagnitude = $reversePlayerDrift
+                            PeakYawDeltaDegrees = $reversePeakYawDeltaDegrees
+                            PeakPitchDeltaDegrees = $reversePeakPitchDeltaDegrees
+                            Samples = $reverseSamples.ToArray()
+                        }
+                    }
+                    else {
+                        $null
+                    }
+                    Reversible = $reversible
+                    PlayerStayedMostlyStill = $playerStayedMostlyStill
+                }) | Out-Null
+        }
+
+        $reversibleCycleCount = @($cycleSummaries | Where-Object { $_.Reversible -and $_.PlayerStayedMostlyStill }).Count
+        $bestForwardPeak = if ($forwardPeaks.Count -gt 0) {
+            $forwardPeaks | Sort-Object { -[Math]::Abs([double]$_) } | Select-Object -First 1
+        }
+        else {
+            $null
+        }
+        $bestReversePeak = if ($reversePeaks.Count -gt 0) {
+            $reversePeaks | Sort-Object { -[Math]::Abs([double]$_) } | Select-Object -First 1
+        }
+        else {
+            $null
+        }
+        $candidateResponsive = ($null -ne $bestForwardPeak) -and ([Math]::Abs([double]$bestForwardPeak) -ge $MinYawResponseDegrees)
+        $allCoordDrifts = @($forwardCoordDrifts.ToArray() + $reverseCoordDrifts.ToArray())
+        $playerStayedMostlyStill = @($allCoordDrifts | Where-Object { $_ -gt $MaxCoordDrift }).Count -eq 0
+        $truthLike = if (-not [string]::IsNullOrWhiteSpace($ReverseStimulusKey)) {
+            $reversibleCycleCount -gt 0 -and $playerStayedMostlyStill
+        }
+        else {
+            $candidateResponsive -and $playerStayedMostlyStill
+        }
+
+        $results.Add([pscustomobject]@{
+                Rank = $row.Rank
+                SourceAddress = [string]$row.SourceAddress
+                BasisForwardOffset = [string]$row.BasisForwardOffset
+                DiscoveryMode = [string]$row.DiscoveryMode
+                ParentAddress = [string]$row.ParentAddress
+                RootAddress = [string]$row.RootAddress
+                SearchScore = $row.SearchScore
+                RepeatCount = $RepeatCount
+                ForwardPeakYawDeltas = $forwardPeaks.ToArray()
+                ReversePeakYawDeltas = $reversePeaks.ToArray()
+                ReversibleCycleCount = $reversibleCycleCount
+                CycleSummaries = $cycleSummaries.ToArray()
+                YawDeltaDegrees = $bestForwardPeak
+                ReverseYawDeltaDegrees = $bestReversePeak
+                PlayerCoordDeltaMagnitude = if ($forwardCoordDrifts.Count -gt 0) { ($forwardCoordDrifts | Measure-Object -Maximum).Maximum } else { $null }
+                CandidateResponsive = $candidateResponsive
+                PlayerStayedMostlyStill = $playerStayedMostlyStill
+                TruthLike = $truthLike
+            }) | Out-Null
+    }
+
+    $bestTruthLike = $results |
+        Sort-Object @{ Expression = { if ($_.TruthLike) { 0 } else { 1 } } }, @{ Expression = { -[int]$_.ReversibleCycleCount } }, @{ Expression = { -(Get-ComparableMagnitude -Value $_.YawDeltaDegrees) } } |
+        Select-Object -First 1
+
+    $truthLikeResults = @($results.ToArray() | Where-Object { $_.TruthLike })
+    $document.CandidateCount = $results.Count
+    $document.TruthLikeCandidateCount = $truthLikeResults.Count
+    $document.BestTruthLikeCandidate = $bestTruthLike
+    $document.Results = $results.ToArray()
+    $document.Cycles = $cycles.ToArray()
+}
+
 $document.Notes = @(
     $(if ($SkipStimulus -or $StimulusMode -eq 'Manual') { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { "Read-only candidate validation using direct memory reads plus a controlled $StimulusMode turn key stimulus." }),
+    $(if ($useAdvancedValidation) { 'Advanced mode samples candidate yaw repeatedly after each turn and can score reversible sign-consistent D/A-style responses.' } else { 'Single-pass mode performs one before/after comparison per candidate.' }),
     'No debugger attach, breakpoint tracing, or debug scanning was used.',
-    'A candidate is marked truth-like when its yaw changes beyond the configured threshold while player coordinate drift stays under the configured limit.')
+    'A candidate is marked truth-like when its yaw response clears the configured threshold while player coordinate drift stays under the configured limit.')
 
 $outputDirectory = Split-Path -Parent $resolvedOutputFile
 if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
