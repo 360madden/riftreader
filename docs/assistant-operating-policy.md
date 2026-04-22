@@ -51,9 +51,24 @@ table with these columns:
 |---|---|
 | `#` | priority or order |
 | `Action` | concrete next step |
-| `Model` | recommended GPT-5.4 family model |
-| `Reasoning` | `low`, `medium`, `high`, or `xhigh` |
 | `Why` | short justification |
+
+Do **not** include `Model` or `Reasoning` columns unless the user explicitly
+asks for them.
+
+## Live movement / polling invariant
+
+Before any live movement polling, forward-hold capture, or coordinate-driven
+navigation proof:
+
+| Rule | Requirement |
+|---|---|
+| Canonical coord source | Resolve `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` first and use the validated coord-trace anchor as the movement source of truth |
+| Coord-trace selection | Allow the proof resolver to choose either the traced object or the trace-linked source object, whichever still matches live ReaderBridge coordinates |
+| Watchset export | Ensure the proof watchset contains the canonical `coord-trace-coords` region derived from that validated coord-trace anchor |
+| Heuristic current-player reads | Treat `read-player-current.ps1`, cached current-player anchors, and any `heuristic` source as exploration-only unless they have been separately re-proven and explicitly promoted |
+| Discovery artifacts | Treat selected-source coord lanes, projector traces, stat hubs, and similar discovery artifacts as candidate-only unless they have been re-proven for the current session |
+| Failure policy | If the watchset lacks canonical coord-trace coords or the resolved anchor is not validated, stop and fix the proof source instead of recording stale/candidate/heuristic movement data |
 
 ## Example routing
 

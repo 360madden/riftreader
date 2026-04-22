@@ -20,9 +20,9 @@ This file defines the default assistant behavior for work inside
 - Use a table with these columns:
   - `#`
   - `Action`
-  - `Model`
-  - `Reasoning`
   - `Why`
+- Do **not** include `Model` or `Reasoning` columns unless the user explicitly
+  asks for them.
 - Do not pad the list with generic suggestions.
 
 ## Default model-picking policy
@@ -50,6 +50,27 @@ This file defines the default assistant behavior for work inside
 - Preserve existing architecture unless there is a clear reason to change it.
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
+
+## Live movement / polling invariant
+
+- For any **movement polling**, **forward-hold proof**, or other live
+  coordinate-driven capture, resolve a **validated coord-trace anchor** first
+  via `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` and
+  build the proof watchset from that anchor only.
+- Treat the validated coord-trace coordinate triplet as the **canonical**
+  movement source for proof runs.
+- Allow the validated coord-trace proof source to resolve to either the traced
+  object or the trace-linked source object, whichever still matches live
+  ReaderBridge coordinates; do not force the raw traced object when it has
+  drifted.
+- Treat `read-player-current.ps1` and any `heuristic` or cached current-player
+  anchor as **exploration-only** unless separately re-proven and explicitly
+  promoted.
+- Treat selected-source coord lanes and other discovery artifacts as
+  **candidate-only** unless they have been re-proven for the current session.
+- If a proof watchset does not include the validated canonical
+  `coord-trace-coords` region, treat that as a blocker instead of silently
+  recording stale/candidate or heuristic data.
 
 ## Cheat Engine preservation
 

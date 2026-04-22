@@ -1733,6 +1733,7 @@ internal static class Program
             var markerInputProcessedLineCount = 0;
             var cancelRequested = false;
             SessionRecordResult result;
+            DateTimeOffset completedAtUtc = startedAtUtc;
 
             using (var sampleWriter = new StreamWriter(tempSamplesFile, append: false))
             using (var markerWriter = new StreamWriter(tempMarkersFile, append: false))
@@ -1938,7 +1939,7 @@ internal static class Program
                     }
                 }
 
-                var completedAtUtc = DateTimeOffset.UtcNow;
+                completedAtUtc = DateTimeOffset.UtcNow;
                 var terminalSampleIndex = recordedSampleCount > 0
                     ? Math.Max(0, recordedSampleCount - 1)
                     : 0;
@@ -2003,61 +2004,62 @@ internal static class Program
                     warnings.Add($"Required watchset regions had read failures: {string.Join(", ", requiredReadFailures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))}");
                 }
 
-                PromoteTempFile(tempModulesFile, modulesFile);
-                PromoteTempFile(tempSamplesFile, samplesFile);
-                PromoteTempFile(tempMarkersFile, markersFile);
-
-                var missingFiles = BuildMissingSessionFiles(watchsetFile, modulesFile, samplesFile, markersFile);
-                if (missingFiles.Count > 0)
-                {
-                    warnings.Add($"Session output files are missing after recording: {string.Join(", ", missingFiles)}");
-                }
-
-                result = new SessionRecordResult(
-                    SchemaVersion: SessionRecordingSchemaVersion,
-                    Mode: "record-session",
-                    SessionId: sessionId,
-                    OutputDirectory: outputDirectory,
-                    ProcessId: target.ProcessId,
-                    ProcessName: target.ProcessName,
-                    ModuleName: target.ModuleName,
-                    MainWindowTitle: target.MainWindowTitle,
-                    WatchsetFile: watchsetFile,
-                    WatchsetRegionCount: watchset.Regions.Count,
-                    RequestedSampleCount: options.SessionSampleCount,
-                    RecordedSampleCount: recordedSampleCount,
-                    IntervalMilliseconds: options.SessionIntervalMilliseconds,
-                    Label: options.SessionLabel,
-                    StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                    CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                    ManifestFile: manifestFile,
-                    SamplesFile: samplesFile,
-                    MarkersFile: markersFile,
-                    ModulesFile: modulesFile,
-                    Interrupted: interrupted,
-                    SessionMarkerInputFile: sessionMarkerInputFile,
-                    MarkerCount: markerCount,
-                    MarkerKinds: markerKinds.Keys
-                        .OrderBy(static kind => kind, StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
-                    RequestedRegionByteCount: requestedRegionByteCount,
-                    TotalBytesRead: totalBytesRead,
-                    TotalRegionReadFailures: totalRegionReadFailures,
-                    IntegrityStatus: missingFiles.Count > 0 ? "failed" : (!interrupted && requiredReadFailures.Count == 0 && totalRegionReadFailures == 0 ? "ok" : "warning"),
-                    MissingFiles: missingFiles,
-                    RegionSummaries: BuildSessionRegionSummaries(regionAccumulators),
-                    Modules: modules,
-                    WatchsetWarnings: watchsetWarnings,
-                    Warnings: warnings
-                        .Where(static warning => !string.IsNullOrWhiteSpace(warning))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray());
             }
 
             if (cancelHandler is not null)
             {
                 Console.CancelKeyPress -= cancelHandler;
             }
+
+            PromoteTempFile(tempModulesFile, modulesFile);
+            PromoteTempFile(tempSamplesFile, samplesFile);
+            PromoteTempFile(tempMarkersFile, markersFile);
+
+            var missingFiles = BuildMissingSessionFiles(watchsetFile, modulesFile, samplesFile, markersFile);
+            if (missingFiles.Count > 0)
+            {
+                warnings.Add($"Session output files are missing after recording: {string.Join(", ", missingFiles)}");
+            }
+
+            result = new SessionRecordResult(
+                SchemaVersion: SessionRecordingSchemaVersion,
+                Mode: "record-session",
+                SessionId: sessionId,
+                OutputDirectory: outputDirectory,
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                ModuleName: target.ModuleName,
+                MainWindowTitle: target.MainWindowTitle,
+                WatchsetFile: watchsetFile,
+                WatchsetRegionCount: watchset.Regions.Count,
+                RequestedSampleCount: options.SessionSampleCount,
+                RecordedSampleCount: recordedSampleCount,
+                IntervalMilliseconds: options.SessionIntervalMilliseconds,
+                Label: options.SessionLabel,
+                StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                ManifestFile: manifestFile,
+                SamplesFile: samplesFile,
+                MarkersFile: markersFile,
+                ModulesFile: modulesFile,
+                Interrupted: interrupted,
+                SessionMarkerInputFile: sessionMarkerInputFile,
+                MarkerCount: markerCount,
+                MarkerKinds: markerKinds.Keys
+                    .OrderBy(static kind => kind, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                RequestedRegionByteCount: requestedRegionByteCount,
+                TotalBytesRead: totalBytesRead,
+                TotalRegionReadFailures: totalRegionReadFailures,
+                IntegrityStatus: missingFiles.Count > 0 ? "failed" : (!interrupted && requiredReadFailures.Count == 0 && totalRegionReadFailures == 0 ? "ok" : "warning"),
+                MissingFiles: missingFiles,
+                RegionSummaries: BuildSessionRegionSummaries(regionAccumulators),
+                Modules: modules,
+                WatchsetWarnings: watchsetWarnings,
+                Warnings: warnings
+                    .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
 
             File.WriteAllText(tempManifestFile, JsonOutput.Serialize(result));
             PromoteTempFile(tempManifestFile, manifestFile);

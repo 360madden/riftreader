@@ -93,7 +93,28 @@ function Read-KeyValueFile {
     )
 
     $map = [ordered]@{}
-    foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
+    $fileShare = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+    $fileMode = [System.IO.FileMode]::Open
+    $fileAccess = [System.IO.FileAccess]::Read
+    $lines = @()
+
+    $stream = [System.IO.FileStream]::new($Path, $fileMode, $fileAccess, $fileShare)
+    try {
+        $reader = [System.IO.StreamReader]::new($stream)
+        try {
+            while (-not $reader.EndOfStream) {
+                $lines += $reader.ReadLine()
+            }
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+
+    foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) {
             continue
         }
@@ -285,6 +306,50 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$r
     }
 }
 
+function Test-IsReadLikeCoordTraceAttempt {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Attempt,
+
+        [ref]$Reason
+    )
+
+    $Reason.Value = $null
+
+    if ($null -eq $Attempt) {
+        $Reason.Value = 'Trace attempt result was null.'
+        return $false
+    }
+
+    if (-not $Attempt.Success) {
+        $Reason.Value = 'Trace attempt did not succeed.'
+        return $false
+    }
+
+    $opcodeText = [string]$Attempt.InstructionOpcode
+    if ([string]::IsNullOrWhiteSpace($opcodeText)) {
+        $opcodeText = [string]$Attempt.Instruction
+    }
+
+    if ([string]::IsNullOrWhiteSpace($opcodeText)) {
+        $Reason.Value = 'Trace hit did not expose an instruction opcode.'
+        return $false
+    }
+
+    $normalizedOpcode = $opcodeText.Trim().ToLowerInvariant()
+    if ($normalizedOpcode -notmatch '\[[^]]+\]') {
+        $Reason.Value = 'Trace hit did not expose a memory operand.'
+        return $false
+    }
+
+    if ($normalizedOpcode -match '^[a-z0-9]+\s+\[[^]]+\]\s*,') {
+        $Reason.Value = 'Trace hit used a memory-destination/write-like instruction.'
+        return $false
+    }
+
+    return $true
+}
+
 function Get-TraceCandidates {
     param(
         [pscustomobject]$PlayerRead
@@ -437,13 +502,80 @@ function Cleanup-Trace {
     }
 }
 
+function Write-TraceArtifact {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        $Document
+    )
+
+    $outputDirectory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
+        New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+    }
+
+    $jsonText = $Document | ConvertTo-Json -Depth 10
+    Set-Content -Path $Path -Value $jsonText -Encoding UTF8
+    return $jsonText
+}
+
+function Get-FailureTraceArtifactPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $directory = Split-Path -Parent $Path
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($Path)
+    $extension = [System.IO.Path]::GetExtension($Path)
+    if ([string]::IsNullOrWhiteSpace($extension)) {
+        $extension = '.json'
+    }
+
+    return Join-Path $directory ("{0}.failed{1}" -f $fileName, $extension)
+}
+
+function Move-CanonicalFailureArtifactAside {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CanonicalPath
+    )
+
+    if (-not (Test-Path -LiteralPath $CanonicalPath)) {
+        return
+    }
+
+    $document = $null
+    try {
+        $document = Get-Content -LiteralPath $CanonicalPath -Raw | ConvertFrom-Json -Depth 20
+    }
+    catch {
+        return
+    }
+
+    if ([string]$document.Mode -ne 'player-coord-write-trace' -or [string]$document.Status -ne 'failed') {
+        return
+    }
+
+    $failurePath = Get-FailureTraceArtifactPath -Path $CanonicalPath
+    Move-Item -LiteralPath $CanonicalPath -Destination $failurePath -Force
+}
+
+$playerRead = $null
+$playerReadError = $null
+$traceCandidates = @()
+$attempts = New-Object System.Collections.Generic.List[object]
+$traceStatus = $null
+
+Move-CanonicalFailureArtifactAside -CanonicalPath $resolvedOutputFile
+
 try {
     if (-not $SkipRefresh) {
         & $refreshScript -NoReader
     }
 
-    $playerRead = $null
-    $playerReadError = $null
     try {
         $playerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
     }
@@ -468,9 +600,6 @@ try {
         throw "No coord trace candidates were available."
     }
 
-    $attempts = New-Object System.Collections.Generic.List[object]
-    $traceStatus = $null
-
     foreach ($candidate in $traceCandidates) {
         Write-Host ("[CoordTrace] Attempting candidate {0} ({1})..." -f $candidate.AddressHex, $candidate.Source) -ForegroundColor Cyan
         $attempt = $null
@@ -483,6 +612,16 @@ try {
         }
 
         if ($attempt.Success) {
+            $rejectedReason = $null
+            if (-not (Test-IsReadLikeCoordTraceAttempt -Attempt $attempt -Reason ([ref]$rejectedReason))) {
+                $attempt | Add-Member -NotePropertyName 'RejectedReason' -NotePropertyValue $rejectedReason -Force
+                $attempt.Success = $false
+                $attempt.Status = 'rejected'
+                $attempt.Error = $rejectedReason
+                Write-Warning ("Rejected trace hit at {0}: {1}" -f $candidate.AddressHex, $rejectedReason)
+                continue
+            }
+
             $traceStatus = $attempt
             break
         }
@@ -528,6 +667,19 @@ try {
 
     $modulePattern = $null
     $normalizedPattern = $null
+    $postTracePlayerRead = $null
+    $postTracePlayerReadError = $null
+    $postTracePlayerReadCapturedAtUtc = $null
+
+    try {
+        $postTracePlayerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+        $postTracePlayerReadCapturedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        $postTracePlayerReadError = $_.Exception.Message
+        Write-Warning ("Unable to capture a post-trace current-player snapshot immediately after the coord trace hit. {0}" -f $postTracePlayerReadError)
+    }
+
     if (-not [string]::IsNullOrWhiteSpace($traceStatus.ModuleName) -and -not [string]::IsNullOrWhiteSpace($traceStatus.InstructionBytes)) {
         $normalizedPattern = Convert-ToModulePattern -ByteText $traceStatus.InstructionBytes
         try {
@@ -556,6 +708,9 @@ try {
         SourceObjectRegisterValue = $(if ($null -ne $traceStatus.Registers) { [string]$traceStatus.Registers.RDI } else { $null })
         ReaderError = $playerReadError
         Reader = $playerRead
+        PostTraceReaderCapturedAtUtc = $postTracePlayerReadCapturedAtUtc
+        PostTraceReaderError = $postTracePlayerReadError
+        PostTraceReader = $postTracePlayerRead
         Candidates = [ordered]@{
             ConfirmationFile = $resolvedConfirmationFile
             Count = $traceCandidates.Count
@@ -595,13 +750,7 @@ try {
         OutputFile = $resolvedOutputFile
     }
 
-    $outputDirectory = Split-Path -Parent $resolvedOutputFile
-    if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
-        New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-    }
-
-    $jsonText = $result | ConvertTo-Json -Depth 10
-    Set-Content -Path $resolvedOutputFile -Value $jsonText -Encoding UTF8
+    $jsonText = Write-TraceArtifact -Path $resolvedOutputFile -Document $result
 
     if ($Json) {
         Write-Output $jsonText
@@ -643,6 +792,31 @@ try {
             Write-Host "Pattern match:        $($modulePattern.Address) in $($modulePattern.ModuleName)"
         }
     }
+}
+catch {
+    $failureArtifactPath = Get-FailureTraceArtifactPath -Path $resolvedOutputFile
+    $failureDocument = [ordered]@{
+        Mode = 'player-coord-write-trace'
+        Status = 'failed'
+        GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        FailureMessage = $_.Exception.Message
+        ReaderError = $playerReadError
+        Reader = $playerRead
+        Candidates = [ordered]@{
+            ConfirmationFile = $resolvedConfirmationFile
+            Count = @($traceCandidates).Count
+            Attempts = @($attempts.ToArray())
+        }
+        OutputFile = $resolvedOutputFile
+        FailureArtifactFile = $failureArtifactPath
+    }
+
+    $jsonText = Write-TraceArtifact -Path $failureArtifactPath -Document $failureDocument
+    if ($Json) {
+        Write-Output $jsonText
+    }
+
+    throw
 }
 finally {
     Cleanup-Trace
