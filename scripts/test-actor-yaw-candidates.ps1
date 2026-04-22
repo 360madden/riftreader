@@ -159,6 +159,7 @@ function Get-TargetProcessWindowInfo {
     return [pscustomobject]@{
         ProcessId = $targetProcess.Id
         ProcessName = $targetProcess.ProcessName
+        Responding = $targetProcess.Responding
         MainWindowHandleHex = ('0x{0:X}' -f $targetProcess.MainWindowHandle)
         MainWindowTitle = $targetProcess.MainWindowTitle
     }
@@ -196,6 +197,57 @@ function Get-ForegroundWindowInfo {
         MainWindowHandleHex = $mainWindowHandleHex
         MatchesTargetProcess = ($null -ne $TargetWindowInfo -and $null -ne $processName -and [string]::Equals($processName, [string]$TargetWindowInfo.ProcessName, [System.StringComparison]::OrdinalIgnoreCase))
         MatchesTargetMainWindow = ($null -ne $TargetWindowInfo -and $foregroundHandleHex -eq [string]$TargetWindowInfo.MainWindowHandleHex)
+    }
+}
+
+function Assert-LiveSessionHealthy {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Stage,
+        $TargetWindowInfo,
+        $ForegroundWindow,
+        [bool]$RequireForeground
+    )
+
+    $issues = New-Object System.Collections.Generic.List[string]
+    if ($null -eq $TargetWindowInfo) {
+        $issues.Add(("target process '{0}' was not found." -f $ProcessName)) | Out-Null
+    }
+    else {
+        if (-not $TargetWindowInfo.Responding) {
+            $issues.Add(("target process '{0}' (PID {1}) is not responding." -f $TargetWindowInfo.ProcessName, $TargetWindowInfo.ProcessId)) | Out-Null
+        }
+
+        if ([string]$TargetWindowInfo.MainWindowTitle -like '*Not Responding*') {
+            $issues.Add(("target window title indicates a hang: '{0}'." -f $TargetWindowInfo.MainWindowTitle)) | Out-Null
+        }
+    }
+
+    if ($RequireForeground) {
+        if ($null -eq $ForegroundWindow) {
+            $issues.Add('foreground window state was unavailable.') | Out-Null
+        }
+        else {
+            if ([string]$ForegroundWindow.ProcessName -eq 'dwm') {
+                $issues.Add(("foreground was DWM ('{0}')." -f $ForegroundWindow.WindowTitle)) | Out-Null
+            }
+
+            if ([string]$ForegroundWindow.WindowTitle -like '*Not Responding*') {
+                $issues.Add(("foreground window title indicates a hang: '{0}'." -f $ForegroundWindow.WindowTitle)) | Out-Null
+            }
+
+            if (-not $ForegroundWindow.MatchesTargetProcess) {
+                $issues.Add(("foreground process '{0}' did not match target '{1}'." -f $ForegroundWindow.ProcessName, $ProcessName)) | Out-Null
+            }
+
+            if (-not $ForegroundWindow.MatchesTargetMainWindow) {
+                $issues.Add(("foreground window handle '{0}' did not match target main window '{1}'." -f $ForegroundWindow.HandleHex, $TargetWindowInfo.MainWindowHandleHex)) | Out-Null
+            }
+        }
+    }
+
+    if ($issues.Count -gt 0) {
+        throw ("Live session unhealthy at {0}: {1}" -f $Stage, [string]::Join(' ', $issues))
     }
 }
 
@@ -497,6 +549,8 @@ function Invoke-ValidationPhase {
     $sampleSeries = New-Object System.Collections.Generic.List[object]
     $targetWindowInfo = Get-TargetProcessWindowInfo
     $foregroundBeforeStimulus = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+    $requiresForeground = ($StimulusMode -in @('SendInput', 'AutoHotkey'))
+    Assert-LiveSessionHealthy -Stage ("before {0} cycle {1}" -f $Key, $CycleIndex) -TargetWindowInfo $targetWindowInfo -ForegroundWindow $foregroundBeforeStimulus -RequireForeground $requiresForeground
     $foregroundAfterLaunch = $null
 
     if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
@@ -507,13 +561,15 @@ function Invoke-ValidationPhase {
         }
 
         $manualSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+        $manualForeground = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+        Assert-LiveSessionHealthy -Stage ("manual window {0} cycle {1}" -f $Key, $CycleIndex) -TargetWindowInfo $targetWindowInfo -ForegroundWindow $manualForeground -RequireForeground:$false
         $sampleSeries.Add([pscustomobject]@{
                 SampleIndex = 1
                 RelativeMilliseconds = $ManualWindowMilliseconds
                 SamplePhase = 'manual-window'
                 StimulusStillRunning = $null
                 TargetWithinHold = $null
-                ForegroundWindow = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+                ForegroundWindow = $manualForeground
                 Snapshots = $manualSnapshots
             }) | Out-Null
     }
@@ -542,13 +598,15 @@ function Invoke-ValidationPhase {
                 }
 
                 $sampleSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+                $sampleForeground = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+                Assert-LiveSessionHealthy -Stage ("sample {0} for {1} cycle {2}" -f ($sampleIndex + 1), $Key, $CycleIndex) -TargetWindowInfo $targetWindowInfo -ForegroundWindow $sampleForeground -RequireForeground $requiresForeground
                 $sampleSeries.Add([pscustomobject]@{
                         SampleIndex = ($sampleIndex + 1)
                         RelativeMilliseconds = $targetMilliseconds
                         SamplePhase = 'post-stimulus'
                         StimulusStillRunning = $false
                         TargetWithinHold = ($targetMilliseconds -le $HoldMilliseconds)
-                        ForegroundWindow = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+                        ForegroundWindow = $sampleForeground
                         Snapshots = $sampleSnapshots
                     }) | Out-Null
             }
@@ -557,6 +615,7 @@ function Invoke-ValidationPhase {
             $stimulusProcess = Start-StimulusProcess -Key $Key
             Start-Sleep -Milliseconds 35
             $foregroundAfterLaunch = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+            Assert-LiveSessionHealthy -Stage ("after launching {0} cycle {1}" -f $Key, $CycleIndex) -TargetWindowInfo $targetWindowInfo -ForegroundWindow $foregroundAfterLaunch -RequireForeground $requiresForeground
             $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             for ($sampleIndex = 0; $sampleIndex -lt $sampleTargets.Count; $sampleIndex++) {
                 $targetMilliseconds = [int]$sampleTargets[$sampleIndex]
@@ -571,13 +630,15 @@ function Invoke-ValidationPhase {
                 }
 
                 $sampleSnapshots = Get-CandidateSnapshotSet -Rows $Rows
+                $sampleForeground = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+                Assert-LiveSessionHealthy -Stage ("sample {0} for {1} cycle {2}" -f ($sampleIndex + 1), $Key, $CycleIndex) -TargetWindowInfo $targetWindowInfo -ForegroundWindow $sampleForeground -RequireForeground $requiresForeground
                 $sampleSeries.Add([pscustomobject]@{
                         SampleIndex = ($sampleIndex + 1)
                         RelativeMilliseconds = $targetMilliseconds
                         SamplePhase = if ($stimulusStillRunning -or ($targetMilliseconds -le $HoldMilliseconds)) { 'during-stimulus' } else { 'post-stimulus' }
                         StimulusStillRunning = $stimulusStillRunning
                         TargetWithinHold = ($targetMilliseconds -le $HoldMilliseconds)
-                        ForegroundWindow = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+                        ForegroundWindow = $sampleForeground
                         Snapshots = $sampleSnapshots
                     }) | Out-Null
             }
@@ -589,6 +650,7 @@ function Invoke-ValidationPhase {
     $afterPlayer = Get-PlayerCurrent
     $afterPlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $afterPlayer
     $foregroundAfterStimulus = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+    Assert-LiveSessionHealthy -Stage ("after {0} cycle {1}" -f $Key, $CycleIndex) -TargetWindowInfo $targetWindowInfo -ForegroundWindow $foregroundAfterStimulus -RequireForeground $requiresForeground
 
     return [pscustomobject]@{
         Key = $Key

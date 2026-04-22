@@ -3,9 +3,13 @@ param(
     [switch]$Json,
     [switch]$SkipRefresh,
     [switch]$SkipCleanup,
+    [string]$CandidateAddressHex,
+    [string]$CandidateSource = 'explicit-candidate',
+    [string]$StimulusKey = 'w',
     [int]$MovementHoldMilliseconds = 1000,
     [int]$TimeoutSeconds = 8,
     [int]$MaxCandidates = 8,
+    [int]$BreakpointSize = 4,
     [ValidateSet('write', 'access')]
     [string]$WatchMode = 'write',
     [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
@@ -202,11 +206,11 @@ function Get-CoordTraceResult {
 
     $watchModeLiteral = "[[$WatchMode]]"
     $luaCode = @"
-return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]], nil, nil, $watchModeLiteral)
+return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$resolvedStatusFile]], nil, nil, $watchModeLiteral)
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
-    & $postKeyScript -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds
+    & $postKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $lastStatus = $null
@@ -267,6 +271,16 @@ function Get-TraceCandidates {
 
     $candidates = New-Object System.Collections.Generic.List[object]
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    if (-not [string]::IsNullOrWhiteSpace($CandidateAddressHex)) {
+        $candidates.Add([pscustomobject]@{
+                AddressHex = $CandidateAddressHex
+                Source = $CandidateSource
+                FamilyId = $null
+            }) | Out-Null
+
+        return @($candidates.ToArray())
+    }
 
     if ($null -ne $PlayerRead -and $null -ne $PlayerRead.Memory) {
         $currentAddressHex = [string]$PlayerRead.Memory.AddressHex
