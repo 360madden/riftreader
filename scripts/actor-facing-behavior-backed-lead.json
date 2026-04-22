@@ -1,10 +1,11 @@
 {
   "Mode": "actor-facing-behavior-backed-lead",
-  "GeneratedAtUtc": "2026-04-20T09:09:00Z",
-  "ValidatedAtUtc": "2026-04-20T09:09:00Z",
+  "GeneratedAtUtc": "2026-04-22T04:42:25.9986530+00:00",
+  "ValidatedAtUtc": "2026-04-22T04:42:26.0060098+00:00",
   "ProcessName": "rift_x64",
-  "SourceAddress": "0x1B115201EB0",
-  "BasisForwardOffset": "0xD4",
+  "SourceAddress": "0x24F595F8D10",
+  "BasisForwardOffset": "0x60",
+  "BasisDuplicateForwardOffset": "0x94",
   "Status": "preferred-solved-lead",
   "OperationalStatus": "behavior-backed-lead",
   "PreferredLead": true,
@@ -13,9 +14,11 @@
   "CanonicalPitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
   "CanonicalYawFormula": "atan2(forwardZ, forwardX)",
   "Notes": [
-    "Fresh no-CE validation on April 20, 2026 confirmed that the live actor-facing basis is the forward row at +0xD4/+0xD8/+0xDC on source 0x1B115201EB0.",
-    "Fresh focused foreground PostMessage A stimulus changed yaw from -93.2956 degrees to 63.0244 degrees while pitch remained 0.0 degrees.",
-    "Fresh focused foreground PostMessage D stimulus changed yaw from 63.0244 degrees to -92.4286 degrees while pitch remained 0.0 degrees.",
-    "The historical +0x60/+0x94 basis windows on this source are not truth-bearing on the current client and must not be promoted over the validated +0xD4 basis row."
+    "Fresh source-chain/accessor-family validation on April 22, 2026 confirmed that the live actor-facing basis is the forward row at +0x60/+0x64/+0x68 on source 0x24F595F8D10.",
+    "A duplicate truth-bearing forward row at +0x94/+0x98/+0x9C matched the primary basis on the same source.",
+    "Fresh focused foreground AutoHotkey D/A validation produced reversible yaw deltas of about -146.67/+147.92 degrees on +0x60 with 0.0 coord drift across two cycles.",
+    "Fresh focused foreground AutoHotkey D/A validation produced reversible yaw deltas of about -146.67/+147.92 degrees on +0x94 with 0.0 coord drift across two cycles.",
+    "The same current-session validation showed +0xD4 and +0x140 on the same source stayed flat and must not be promoted over the validated +0x60/+0x94 rows.",
+    "This lead replaces the stale April 20, 2026 +0xD4 behavior-backed address that no longer resolved on the current process."
   ]
 }

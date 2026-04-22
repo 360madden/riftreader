@@ -7,6 +7,13 @@ worktree: C:\RIFT MODDING\RiftReader_facing
 
 # Codex Actor Yaw / Pitch No-CE Rebuild Handoff (2026-04-21)
 
+> **Historical handoff note (superseded on April 22, 2026):**
+> actor-facing is no longer in rebuild state. The current promoted truth is the
+> source-chain/accessor-family lane on `0x24F595F8D10 @ +0x60` (duplicate
+> `+0x94`). Resume from
+> `C:\RIFT MODDING\RiftReader_facing\docs\handoffs\2026-04-22-codex-actor-facing-source-chain-truth.md`
+> unless you are specifically studying the failed no-CE rebuild pass.
+
 ## Scope
 
 This handoff freezes the current no-CE rebuild pass for live actor yaw / facing

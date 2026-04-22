@@ -511,14 +511,27 @@ function Test-MeaningfulBasisCandidate {
 }
 
 function Try-ParseDateTimeOffsetValue {
-    param([string]$Value)
+    param($Value)
 
-    if ([string]::IsNullOrWhiteSpace($Value)) {
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -is [DateTimeOffset]) {
+        return $Value.ToUniversalTime()
+    }
+
+    if ($Value -is [DateTime]) {
+        return ([DateTimeOffset]$Value).ToUniversalTime()
+    }
+
+    $stringValue = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($stringValue)) {
         return $null
     }
 
     $parsed = [DateTimeOffset]::MinValue
-    if ([DateTimeOffset]::TryParse($Value, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
+    if ([DateTimeOffset]::TryParse($stringValue, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
         return $parsed.ToUniversalTime()
     }
 
@@ -566,9 +579,9 @@ function Test-BehaviorBackedLeadApplicability {
         }
     }
 
-    $leadTimestamp = Try-ParseDateTimeOffsetValue -Value ([string]$Lead.ValidatedAtUtc)
+    $leadTimestamp = Try-ParseDateTimeOffsetValue -Value $Lead.ValidatedAtUtc
     if ($null -eq $leadTimestamp) {
-        $leadTimestamp = Try-ParseDateTimeOffsetValue -Value ([string]$Lead.GeneratedAtUtc)
+        $leadTimestamp = Try-ParseDateTimeOffsetValue -Value $Lead.GeneratedAtUtc
     }
 
     if ($null -ne $leadTimestamp -and $leadTimestamp.UtcDateTime -lt $ProcessMetadata.StartTimeUtc.AddSeconds(-1)) {
@@ -617,8 +630,8 @@ function Load-BehaviorBackedLead {
         BasisForwardOffset = $basisForwardOffset
         BasisDuplicateForwardOffset = [string](Get-OptionalPropertyValue -Object $document -Name 'BasisDuplicateForwardOffset')
         ProcessName = [string](Get-OptionalPropertyValue -Object $document -Name 'ProcessName')
-        GeneratedAtUtc = [string](Get-OptionalPropertyValue -Object $document -Name 'GeneratedAtUtc')
-        ValidatedAtUtc = [string](Get-OptionalPropertyValue -Object $document -Name 'ValidatedAtUtc')
+        GeneratedAtUtc = Get-OptionalPropertyValue -Object $document -Name 'GeneratedAtUtc'
+        ValidatedAtUtc = Get-OptionalPropertyValue -Object $document -Name 'ValidatedAtUtc'
         Status = [string](Get-OptionalPropertyValue -Object $document -Name 'Status')
         OperationalStatus = [string](Get-OptionalPropertyValue -Object $document -Name 'OperationalStatus')
         PreferredLead = [bool](Get-OptionalPropertyValue -Object $document -Name 'PreferredLead')

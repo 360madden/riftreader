@@ -7,6 +7,8 @@ param(
     [string]$CandidateSource = 'explicit-candidate',
     [string]$StimulusKey = 'w',
     [int]$MovementHoldMilliseconds = 1000,
+    [ValidateSet('PostMessage', 'SendInput', 'AutoHotkey')]
+    [string]$StimulusMode = 'PostMessage',
     [int]$TimeoutSeconds = 8,
     [int]$MaxCandidates = 8,
     [int]$BreakpointSize = 4,
@@ -25,6 +27,8 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $smartCaptureScript = Join-Path $PSScriptRoot 'smart-capture-player-family.ps1'
 $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
+$sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
 $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
 $resolvedConfirmationFile = [System.IO.Path]::GetFullPath($ConfirmationFile)
@@ -210,7 +214,24 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$r
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
-    & $postKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds
+    switch ($StimulusMode) {
+        'PostMessage' {
+            & $postKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds
+        }
+        'SendInput' {
+            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
+        }
+        'AutoHotkey' {
+            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
+        }
+        default {
+            throw "Unsupported stimulus mode '$StimulusMode'."
+        }
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Stimulus key '$StimulusKey' failed via mode '$StimulusMode'."
+    }
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $lastStatus = $null

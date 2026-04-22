@@ -5,9 +5,9 @@ Use this order when you need to reconstruct the active state.
 ## 0. After a game update, triage the surviving baselines first
 
 ```powershell
-dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
-dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
-dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
+dotnet run --project C:\RIFT MODDING\RiftReader_facing\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
+dotnet run --project C:\RIFT MODDING\RiftReader_facing\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+dotnet run --project C:\RIFT MODDING\RiftReader_facing\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
 ```
 
 Expected during the current post-update state:
@@ -23,37 +23,43 @@ owner/source/camera artifact.
 ## 1. Build the repo
 
 ```powershell
-dotnet build C:\RIFT MODDING\RiftReader\RiftReader.slnx
+dotnet build C:\RIFT MODDING\RiftReader_facing\RiftReader.slnx
 ```
 
-## 2. Attempt to rebuild the owner/source chain
+## 2. Attempt to rebuild the live source chain first
 
 ```powershell
-C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
-C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
+C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
+C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-source-accessor-family.ps1 -Json
+C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
 ```
 
 Healthy result:
 
 - `player-source-chain.json`
+- `player-source-accessor-family.json`
 - `player-selector-owner-trace.json`
 - `player-owner-components.json`
 
 Current post-update warning:
 
-- if `capture-player-source-chain.ps1` cannot locate the required
-  source-container load, stop and mark the actor/camera chain stale
+- if `capture-player-source-chain.ps1` or
+  `capture-player-source-accessor-family.ps1` cannot rebuild the live source
+  object, stop and mark the actor-facing chain stale
 - if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
-  mark the actor/camera chain stale
+  mark the selector-owner / owner-components chain stale
 
-Do not promote stale owner/source artifacts as current truth.
+If step 2 succeeds for source-chain + accessor-family but selector-owner still
+fails, actor-facing truth can still be refreshed through the behavior-backed
+lead path. Do not promote stale selector-owner / owner-components artifacts as
+current truth.
 
 ## 3. Refresh the core graph artifacts
 
 ```powershell
-C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1 -Json -RefreshSelectorTrace
-C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1 -Json -RefreshOwnerComponents
-C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1 -Json
+C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-owner-graph.ps1 -Json -RefreshSelectorTrace
+C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-stat-hub-graph.ps1 -Json -RefreshOwnerComponents
+C:\RIFT MODDING\RiftReader_facing\scripts\inspect-capture-consistency.ps1 -Json
 ```
 
 Run this step only after step 2 succeeds on the current game build.

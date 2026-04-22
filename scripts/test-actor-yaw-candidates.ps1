@@ -471,10 +471,22 @@ function Get-CandidateSnapshotSet {
 
     $snapshotSet = @{}
     foreach ($row in $Rows) {
-        $snapshotSet[[string]$row.SourceAddress] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
+        $snapshotKey = Get-CandidateSnapshotKey -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
+        $snapshotSet[$snapshotKey] = Try-GetCandidateSnapshot -AddressHex ([string]$row.SourceAddress) -ForwardOffsetHex ([string]$row.BasisForwardOffset)
     }
 
     return $snapshotSet
+}
+
+function Get-CandidateSnapshotKey {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AddressHex,
+        [Parameter(Mandatory = $true)]
+        [string]$ForwardOffsetHex
+    )
+
+    return ('{0}|{1}' -f $AddressHex, $ForwardOffsetHex)
 }
 
 function Start-StimulusProcess {
@@ -782,7 +794,8 @@ if (-not $useAdvancedValidation) {
 
     foreach ($row in $candidateRows) {
         $address = [string]$row.SourceAddress
-        $beforeSnapshotResult = $beforeSnapshots[$address]
+        $snapshotKey = Get-CandidateSnapshotKey -AddressHex $address -ForwardOffsetHex ([string]$row.BasisForwardOffset)
+        $beforeSnapshotResult = $beforeSnapshots[$snapshotKey]
         $afterSnapshotResult = Try-GetCandidateSnapshot -AddressHex $address -ForwardOffsetHex ([string]$row.BasisForwardOffset)
         $beforeSnapshot = $beforeSnapshotResult.Snapshot
         $afterSnapshot = $afterSnapshotResult.Snapshot
@@ -859,13 +872,14 @@ else {
 
         foreach ($cycle in $cycles) {
             $address = [string]$row.SourceAddress
-            $baselineResult = $cycle.ForwardPhase.BaselineSnapshots[$address]
+            $snapshotKey = Get-CandidateSnapshotKey -AddressHex $address -ForwardOffsetHex ([string]$row.BasisForwardOffset)
+            $baselineResult = $cycle.ForwardPhase.BaselineSnapshots[$snapshotKey]
             $forwardSamples = New-Object System.Collections.Generic.List[object]
             $forwardPeakYawDeltaDegrees = $null
             $forwardPeakPitchDeltaDegrees = $null
 
             foreach ($sample in @($cycle.ForwardPhase.Samples)) {
-                $snapshotResult = $sample.Snapshots[$address]
+                $snapshotResult = $sample.Snapshots[$snapshotKey]
                 $yawDeltaDegrees = Get-YawDeltaDegrees -BeforeSnapshotResult $baselineResult -AfterSnapshotResult $snapshotResult
                 $pitchDeltaDegrees = Get-PitchDeltaDegrees -BeforeSnapshotResult $baselineResult -AfterSnapshotResult $snapshotResult
                 if ($null -ne $yawDeltaDegrees -and (($null -eq $forwardPeakYawDeltaDegrees) -or ([Math]::Abs([double]$yawDeltaDegrees) -gt [Math]::Abs([double]$forwardPeakYawDeltaDegrees)))) {
@@ -902,9 +916,9 @@ else {
             $reversePlayerDrift = $null
 
             if ($null -ne $cycle.ReversePhase) {
-                $reverseBaselineResult = $cycle.ReversePhase.BaselineSnapshots[$address]
+                $reverseBaselineResult = $cycle.ReversePhase.BaselineSnapshots[$snapshotKey]
                 foreach ($sample in @($cycle.ReversePhase.Samples)) {
-                    $snapshotResult = $sample.Snapshots[$address]
+                    $snapshotResult = $sample.Snapshots[$snapshotKey]
                     $yawDeltaDegrees = Get-YawDeltaDegrees -BeforeSnapshotResult $reverseBaselineResult -AfterSnapshotResult $snapshotResult
                     $pitchDeltaDegrees = Get-PitchDeltaDegrees -BeforeSnapshotResult $reverseBaselineResult -AfterSnapshotResult $snapshotResult
                     if ($null -ne $yawDeltaDegrees -and (($null -eq $reversePeakYawDeltaDegrees) -or ([Math]::Abs([double]$yawDeltaDegrees) -gt [Math]::Abs([double]$reversePeakYawDeltaDegrees)))) {

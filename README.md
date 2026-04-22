@@ -42,11 +42,12 @@ RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
 - Windows PowerShell 5.1 (`powershell.exe`) is transitional only and should be
   used only when a script explicitly requires it
 
-## Post-Update Status (April 20, 2026)
+## Post-Update Status (April 22, 2026)
 
-The April 14, 2026 Rift update did **not** break the low-level reader, but it
-**did** break the current source-chain / selector-owner / owner-components
-refresh path.
+The April 14, 2026 Rift update did **not** break the low-level reader. The
+later recovery passes restored the coord/source-chain/accessor-family lane for
+actor-facing truth, but selector-owner / owner-components refresh is still not
+fully rebuilt.
 
 Right now on `main`:
 
@@ -54,15 +55,16 @@ Right now on `main`:
 - `--read-player-coord-anchor` still finds the module-local coord pattern
 - ReaderBridge orientation probe is still empty on the current client
 - `--read-player-orientation` is still historical because it depends on the stale owner-components path
-- `scripts\capture-actor-orientation.ps1` is working again for the current session through the validated behavior-backed lead `0x1B115201EB0 @ +0xD4`
+- `scripts\capture-player-source-chain.ps1` and `scripts\capture-player-source-accessor-family.ps1` are working again for the current actor-facing source lane
+- `scripts\capture-actor-orientation.ps1` is working again for the current session through the validated behavior-backed lead `0x24F595F8D10 @ +0x60` (duplicate `+0x94`)
 - camera live workflow is currently documented on
   `feature/camera-orientation-discovery`, not on the `main` worktree
 
 Use these before trusting older actor/camera claims in this file:
 
-- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
-- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
-- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
 Constraints:
 
@@ -229,7 +231,7 @@ The reader now has two near-term targets:
    - compares them against the latest ReaderBridge export
   - `--read-player-orientation` *(still historical/stale on the updated client because it depends on the owner/source artifact path)*
   - `scripts\capture-actor-orientation.ps1` is the current truth-oriented actor yaw / pitch helper
-  - when `scripts\actor-facing-behavior-backed-lead.json` is present and still validates live, the capture helper derives yaw / pitch from the forward basis row at `+0xD4/+0xD8/+0xDC`
+  - when `scripts\actor-facing-behavior-backed-lead.json` is present and still validates live, the capture helper derives yaw / pitch from the forward basis row at `+0x60/+0x64/+0x68` (duplicate `+0x94/+0x98/+0x9C` on the same source)
   - `--read-player-coord-anchor`
     - loads the latest verified coord-triplet trace artifact
     - validates the traced instruction bytes as a module-local pattern
@@ -509,10 +511,11 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 
 ## Helper Scripts
 
-> **Post-update note:** the owner/source-chain rebuild path is still broken on
-> the updated client, but the actor-yaw / pitch helper has a current
-> behavior-backed lead path again. Camera-specific live helpers currently live
-> on `C:\RIFT MODDING\RiftReader_camera_feature`, not this `main` worktree.
+> **Post-update note:** the source-chain/accessor-family lane is working again
+> for actor-facing truth on the updated client, but selector-owner /
+> owner-components are still historical until rebuilt. Camera-specific live
+> helpers currently live on `C:\RIFT MODDING\RiftReader_camera_feature`, not
+> this `main` worktree.
 
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check all project Lua addons with `luac`
 - `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy all project addons into every detected Rift `Interface\AddOns` folder (supports addons driven by either `main.lua` or `RiftAddon.toc`)
@@ -536,8 +539,8 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` / `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.cmd` - current key-profile harness for actor yaw validation over the lead-backed capture path
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first verified access to the current player coord triplet, tries CE-confirmed candidate addresses when available, captures the instruction and register context, and validates the captured instruction bytes through the reader's module-local pattern scan
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd` - captures a small disassembly window around the latest verified coord trace through Cheat Engine, highlights nearby instructions that reuse the traced base register, and labels offsets that line up with the current derived coord/level/health fields
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - **historical/pre-update until rebuilt** source/destination handoff-chain capture
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function and verifies each accessor pattern against the live module
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - refreshed live source-chain capture; currently strong enough to support actor-facing truth recovery on the updated client
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function, verifies each accessor pattern against the live module, and is part of the current actor-facing truth lane
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.cmd` - **historical/pre-update until rebuilt** selector-owner trace helper
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.cmd` - **historical/pre-update until rebuilt** owner-graph capture helper
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.cmd` - **historical/pre-update until rebuilt** owner/component-table capture helper

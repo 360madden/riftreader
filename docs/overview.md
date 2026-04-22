@@ -71,28 +71,31 @@ That means:
 
 If artifacts or notes are corrupted, start here:
 
-- C:\RIFT MODDING\RiftReader\docs\recovery\README.md
+- C:\RIFT MODDING\RiftReader_facing\docs\recovery\README.md
 
-## Post-Update Status (April 14, 2026)
+## Post-Update Status (April 22, 2026)
 
-The April 14, 2026 Rift update left the reader baseline partially intact but
-drifted the owner/source discovery chain.
+The April 14, 2026 Rift update left the reader baseline partially intact and
+initially drifted the owner/source discovery chain. The later April 22, 2026
+recovery passes restored the source-chain/accessor-family lane for
+actor-facing truth, but selector-owner / owner-components remain stale.
 
 Current short version:
 
 - `player-current` still works
 - the coord-anchor module pattern still works
-- source-chain refresh is broken
+- source-chain refresh is working again for the actor-facing lane
 - selector-owner trace is broken
-- actor-orientation and camera claims below are historical until rebuilt
+- actor-orientation is live again through source `0x24F595F8D10` and basis rows `+0x60/+0x94`
+- camera claims below are historical until rebuilt
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
 
 Use these first:
 
-- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
-- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
-- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
+- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
 ## Immediate Milestones
 
@@ -122,8 +125,8 @@ Post-update note:
 
 - as of April 14, 2026, only the player-current path and coord-anchor module
   pattern are currently revalidated on `main`
-- the selected-source / selector-owner / owner-components / actor-orientation
-  bullets below are historical until the chain is rebuilt on the updated client
+- selector-owner / owner-components bullets below are historical until those
+  lanes are rebuilt on the updated client
 
 - keep artifact freshness and provenance explicit before promoting a new anchor:
   - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
@@ -135,11 +138,10 @@ Post-update note:
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
-  - pre-update, the selected source component yielded the strongest actor-orientation vectors
-  - pre-update, that selected source also exposed duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
-  - pre-update, `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` produced repeatable yaw/pitch captures derived from the forward basis row
-  - pre-update, `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` validated actor-turn stimuli directly
-  - pre-update, `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` classified bindings that produced clean actor yaw changes vs no-turn/movement noise
+  - current live truth uses source `0x24F595F8D10`
+  - current live truth uses duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
+  - current live `C:\RIFT MODDING\RiftReader_facing\scripts\capture-actor-orientation.ps1` derives repeatable yaw/pitch captures from the promoted behavior-backed lead
+  - current live `C:\RIFT MODDING\RiftReader_facing\scripts\test-actor-yaw-candidates.ps1` validated reversible D/A yaw response on `+0x60` and `+0x94`
   - current camera live workflow is branch-specific and lives on `feature/camera-orientation-discovery`, not `main`
 - treat the owner container as a component table, not just a wrapper list:
   - pre-update, entry `6` behaved like the transform/source component
