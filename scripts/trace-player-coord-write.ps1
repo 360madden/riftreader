@@ -17,6 +17,7 @@ param(
     [string]$WatchMode = 'write',
     [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
     [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
+    [string]$SelectorOwnerTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt')
 )
@@ -35,8 +36,13 @@ $ceExecScript = Join-Path $PSScriptRoot 'cheatengine-exec.ps1'
 $traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
 $resolvedConfirmationFile = [System.IO.Path]::GetFullPath($ConfirmationFile)
 $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
+$resolvedSelectorOwnerTraceFile = [System.IO.Path]::GetFullPath($SelectorOwnerTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($TraceStatusFile)
+
+if ($ProofReacquisition -and $WatchMode -eq 'access' -and -not $PSBoundParameters.ContainsKey('BreakpointSize')) {
+    $BreakpointSize = 12
+}
 
 function Invoke-ReaderJson {
     param(
@@ -91,6 +97,27 @@ function Try-ConvertToUInt64 {
     catch {
         return $null
     }
+}
+
+function Test-LikelyPointerHex {
+    param(
+        [string]$AddressHex
+    )
+
+    $value = Try-ConvertToUInt64 -AddressHex $AddressHex
+    if ($null -eq $value) {
+        return $false
+    }
+
+    if ($value -lt 0x0000010000000000) {
+        return $false
+    }
+
+    if ($value -gt 0x00007FFFFFFFFFFF) {
+        return $false
+    }
+
+    return $true
 }
 
 function Convert-HexAddressWithOffset {
@@ -269,8 +296,13 @@ function Add-ProofReacquisitionSeeds {
                         $null
                     }
 
-                    $sourceCoordAddress = Convert-HexAddressWithOffset -AddressHex $sourceObjectAddress -Offset 0x48
-                    Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $sourceCoordAddress -Source 'last-good-trace-source-object-coord-region'
+                    if (Test-LikelyPointerHex -AddressHex $sourceObjectAddress) {
+                        $sourceCoordAddress = Convert-HexAddressWithOffset -AddressHex $sourceObjectAddress -Offset 0x48
+                        Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $sourceCoordAddress -Source 'last-good-trace-source-object-coord-region'
+                    }
+                    else {
+                        $Notes.Add(("Skipped last-good trace source-object seed because source register '{0}' did not look like a valid pointer." -f $sourceObjectAddress)) | Out-Null
+                    }
 
                     $traceTargetAddress = if ($traceDocument.PSObject.Properties['Trace']) { [string]$traceDocument.Trace.TargetAddress } else { $null }
                     Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $traceTargetAddress -Source 'last-good-trace-target'
@@ -320,6 +352,32 @@ function Add-ProofReacquisitionSeeds {
     }
     else {
         $Notes.Add(("Debug-scan source-chain file not found: {0}" -f $resolvedSourceChainFile)) | Out-Null
+    }
+
+    if (Test-Path -LiteralPath $resolvedSelectorOwnerTraceFile) {
+        try {
+            $selectorOwnerTrace = Get-Content -LiteralPath $resolvedSelectorOwnerTraceFile -Raw | ConvertFrom-Json -Depth 30
+            $selectedSourceAddress = if ($selectorOwnerTrace.PSObject.Properties['SelectedSource'] -and $selectorOwnerTrace.SelectedSource.PSObject.Properties['Address']) {
+                [string]$selectorOwnerTrace.SelectedSource.Address
+            }
+            else {
+                $null
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($selectedSourceAddress)) {
+                $selectorCoord48Address = Convert-HexAddressWithOffset -AddressHex $selectedSourceAddress -Offset 0x48
+                Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $selectorCoord48Address -Source 'debug-scan-selector-owner-coord48'
+            }
+            else {
+                $Notes.Add(("Skipped selector-owner debug-scan seed because '{0}' did not expose SelectedSource.Address." -f $resolvedSelectorOwnerTraceFile)) | Out-Null
+            }
+        }
+        catch {
+            $Notes.Add(("Unable to load selector-owner debug-scan seeds from '{0}': {1}" -f $resolvedSelectorOwnerTraceFile, $_.Exception.Message)) | Out-Null
+        }
+    }
+    else {
+        $Notes.Add(("Selector-owner debug-scan file not found: {0}" -f $resolvedSelectorOwnerTraceFile)) | Out-Null
     }
 }
 
@@ -464,12 +522,13 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$r
         if (Test-Path -LiteralPath $resolvedStatusFile) {
             $status = Read-KeyValueFile -Path $resolvedStatusFile
             $lastStatus = $status
+            $statusKind = [string](Get-ObjectValue -Object $status -Name 'status')
 
-            if ($status.status -eq 'hit') {
+            if ($statusKind -eq 'hit') {
                 return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $true
             }
 
-            if ($status.status -eq 'error') {
+            if ($statusKind -eq 'error') {
                 return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false
             }
         }

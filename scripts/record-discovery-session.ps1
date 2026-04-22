@@ -12,6 +12,7 @@ param(
     [switch]$RefreshProjectorTrace,
     [switch]$RefreshReaderBridge,
     [switch]$ProofPolling,
+    [string]$ProofCoordAnchorFile,
     [switch]$NoAhkFallback,
     [switch]$Json
 )
@@ -276,6 +277,17 @@ try {
         }
         if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) {
             $proofWatchsetArguments['ProcessId'] = $ProcessId
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ProofCoordAnchorFile)) {
+            $proofWatchsetArguments['ProofCoordAnchorFile'] = $ProofCoordAnchorFile
+            if (Test-Path -LiteralPath $ProofCoordAnchorFile) {
+                $proofCoordAnchorArtifactFile = Join-Path $artifactDirectory 'proof-coord-anchor.json'
+                Copy-Item -LiteralPath $ProofCoordAnchorFile -Destination $proofCoordAnchorArtifactFile -Force
+                $copiedArtifacts.Add([ordered]@{
+                        Name = 'proof-coord-anchor.json'
+                        File = $proofCoordAnchorArtifactFile
+                    }) | Out-Null
+            }
         }
 
         & $proofWatchsetScript @proofWatchsetArguments | Out-Null

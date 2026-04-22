@@ -67,6 +67,29 @@ function Start-Countdown {
     }
 }
 
+function Write-Utf8TextAtomic {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Content
+    )
+
+    $directory = Split-Path -Path $Path -Parent
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $tempPath = '{0}.{1}.tmp' -f $Path, ([Guid]::NewGuid().ToString('N'))
+    try {
+        [System.IO.File]::WriteAllText($tempPath, $Content, [System.Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $tempPath -Destination $Path -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempPath) {
+            Remove-Item -LiteralPath $tempPath -Force
+        }
+    }
+}
+
 function Get-ProofCoordAnchorSnapshot {
     param(
         [switch]$Quiet
@@ -159,6 +182,9 @@ if (-not (Test-Path -LiteralPath $resolvedMarkerInputFile)) {
     [System.IO.File]::WriteAllText($resolvedMarkerInputFile, '', [System.Text.UTF8Encoding]::new($false))
 }
 
+$proofCoordAnchorFile = Join-Path $resolvedSessionRoot ("{0}-{1}-proof-coord-anchor.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ($Label -replace '[^a-zA-Z0-9_-]+', '-'))
+Write-Utf8TextAtomic -Path $proofCoordAnchorFile -Content ($proofCoordAnchorSnapshot | ConvertTo-Json -Depth 32)
+
 $preflight = [ordered]@{
     Mode = 'continuous-polling-session-preflight'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
@@ -169,6 +195,7 @@ $preflight = [ordered]@{
     IntervalMilliseconds = $IntervalMilliseconds
     SessionRoot = $resolvedSessionRoot
     SessionMarkerInputFile = $resolvedMarkerInputFile
+    ProofCoordAnchorFile = $proofCoordAnchorFile
     ProofCoordObjectAddress = $proofCoordObjectAddress
     ProofCoordRegionAddress = $proofCoordRegionAddress
     ProofCoordTraceFile = $proofCoordTraceFile
@@ -216,6 +243,7 @@ $recordArguments = @{
     SessionRoot = $resolvedSessionRoot
     SessionMarkerInputFile = $resolvedMarkerInputFile
     ProofPolling = $true
+    ProofCoordAnchorFile = $proofCoordAnchorFile
     Json = $true
 }
 

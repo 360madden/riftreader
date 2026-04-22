@@ -3,6 +3,7 @@ param(
     [string]$ProcessName = 'rift_x64',
     [int]$ProcessId,
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\proof-polling-watchset.json'),
+    [string]$ProofCoordAnchorFile,
     [int]$CoordTraceObjectWindowBytes = 384,
     [int]$CandidateSourceWindowBytes = 384,
     [int]$BasisWindowBytes = 36,
@@ -112,7 +113,18 @@ if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) {
     $resolveArguments['ProcessId'] = $ProcessId
 }
 
-$coordAnchor = & $resolveAnchorScript @resolveArguments | ConvertFrom-Json -Depth 32
+if (-not [string]::IsNullOrWhiteSpace($ProofCoordAnchorFile)) {
+    $resolvedProofCoordAnchorFile = [System.IO.Path]::GetFullPath($ProofCoordAnchorFile)
+    if (-not (Test-Path -LiteralPath $resolvedProofCoordAnchorFile)) {
+        throw "Proof coord-anchor file not found: $resolvedProofCoordAnchorFile"
+    }
+
+    $coordAnchor = Get-Content -LiteralPath $resolvedProofCoordAnchorFile -Raw | ConvertFrom-Json -Depth 32
+}
+else {
+    $coordAnchor = & $resolveAnchorScript @resolveArguments | ConvertFrom-Json -Depth 32
+}
+
 if ($coordAnchor.PSObject.Properties['Status'] -and $coordAnchor.Status -eq 'failed') {
     throw [string]$coordAnchor.Error
 }

@@ -4,6 +4,7 @@ param(
     [int]$ProcessId,
     [int]$RefreshAttempts = 2,
     [int]$TraceReferenceMaxAgeSeconds = 15,
+    [string]$PlayerCoordTraceFile,
     [switch]$SkipRefresh,
     [switch]$Json
 )
@@ -42,6 +43,22 @@ function Get-ReaderTargetArguments {
     }
 
     return @('--process-name', $ResolvedProcessName)
+}
+
+function Get-CoordAnchorArguments {
+    param(
+        [int]$ResolvedProcessId,
+        [Parameter(Mandatory = $true)]
+        [string]$ResolvedProcessName,
+        [string]$ResolvedTraceFile
+    )
+
+    $arguments = @((Get-ReaderTargetArguments -ResolvedProcessId $ResolvedProcessId -ResolvedProcessName $ResolvedProcessName) + @('--read-player-coord-anchor', '--json'))
+    if (-not [string]::IsNullOrWhiteSpace($ResolvedTraceFile)) {
+        $arguments += @('--player-coord-trace-file', $ResolvedTraceFile)
+    }
+
+    return $arguments
 }
 
 function Parse-HexUInt64 {
@@ -92,7 +109,6 @@ function Test-IsFiniteNumber {
 
 function Test-IsUsableCoordSample {
     param(
-        [Parameter(Mandatory = $true)]
         $Sample
     )
 
@@ -111,7 +127,6 @@ function Test-IsUsableCoordSample {
 
 function New-ReferenceCoordMatch {
     param(
-        [Parameter(Mandatory = $true)]
         $Sample,
 
         [Parameter(Mandatory = $true)]
@@ -249,7 +264,6 @@ function Get-TraceEpochReference {
 
 function New-TraceEpochMatch {
     param(
-        [Parameter(Mandatory = $true)]
         $Sample,
 
         $TraceReference
@@ -271,7 +285,6 @@ function New-TraceEpochMatch {
 
 function New-LiveReaderMatch {
     param(
-        [Parameter(Mandatory = $true)]
         $Sample,
 
         $Expected
@@ -500,15 +513,17 @@ function Resolve-ProofCoordSelection {
         $sourceReason = 'Coord-trace anchor did not expose a source coord relative offset.'
     }
     else {
+        $sourceObjectSample = if ($Anchor.PSObject.Properties['SourceObjectSample']) { $Anchor.SourceObjectSample } else { $null }
+        $sourceObjectMatch = if ($Anchor.PSObject.Properties['SourceObjectMatch']) { $Anchor.SourceObjectMatch } else { $null }
         $sourceCoordXOffset = [int]$Anchor.SourceCoordRelativeOffset
         $sourceCoordYOffset = $sourceCoordXOffset + 4
         $sourceCoordZOffset = $sourceCoordXOffset + 8
-        $sourceTraceEpochMatch = New-TraceEpochMatch -Sample $Anchor.SourceObjectSample -TraceReference $TraceReference
+        $sourceTraceEpochMatch = New-TraceEpochMatch -Sample $sourceObjectSample -TraceReference $TraceReference
 
-        if (-not (Test-IsUsableCoordSample -Sample $Anchor.SourceObjectSample)) {
+        if (-not (Test-IsUsableCoordSample -Sample $sourceObjectSample)) {
             $sourceReason = 'Coord-trace source object did not expose a finite live coord sample.'
         }
-        elseif ($null -ne $Anchor.SourceObjectMatch -and $Anchor.SourceObjectMatch.CoordMatchesWithinTolerance) {
+        elseif ($null -ne $sourceObjectMatch -and $sourceObjectMatch.CoordMatchesWithinTolerance) {
             return [ordered]@{
                 CoordSourceKind = 'coord-trace-source-object'
                 ObjectBaseAddress = [string]$Anchor.SourceObjectAddress
@@ -517,8 +532,8 @@ function Resolve-ProofCoordSelection {
                 CoordZRelativeOffset = $sourceCoordZOffset
                 LevelRelativeOffset = $null
                 HealthRelativeOffset = $null
-                MemorySample = $Anchor.SourceObjectSample
-                Match = $Anchor.SourceObjectMatch
+                MemorySample = $sourceObjectSample
+                Match = $sourceObjectMatch
                 MatchSource = 'readerbridge-live'
             }
         }
@@ -531,7 +546,7 @@ function Resolve-ProofCoordSelection {
                 CoordZRelativeOffset = $sourceCoordZOffset
                 LevelRelativeOffset = $null
                 HealthRelativeOffset = $null
-                MemorySample = $Anchor.SourceObjectSample
+                MemorySample = $sourceObjectSample
                 Match = $sourceTraceEpochMatch
                 MatchSource = 'trace-epoch'
             }
@@ -565,6 +580,10 @@ function Get-ResolvedProofCoordAnchor {
     $objectBaseAddress = Parse-HexUInt64 -Value ([string]$Selection.ObjectBaseAddress)
     $coordXOffset = [int]$Selection.CoordXRelativeOffset
     $coordRegionAddress = [UInt64]([long]$objectBaseAddress + [long]$coordXOffset)
+    $sourceObjectMatch = if ($Anchor.PSObject.Properties['SourceObjectMatch']) { $Anchor.SourceObjectMatch } else { $null }
+    $sourceObjectSample = if ($Anchor.PSObject.Properties['SourceObjectSample']) { $Anchor.SourceObjectSample } else { $null }
+    $sourceObjectAddress = if ($Anchor.PSObject.Properties['SourceObjectAddress']) { [string]$Anchor.SourceObjectAddress } else { $null }
+    $sourceCoordRelativeOffset = if ($Anchor.PSObject.Properties['SourceCoordRelativeOffset']) { $Anchor.SourceCoordRelativeOffset } else { $null }
 
     return [ordered]@{
         Mode = 'proof-coord-anchor'
@@ -586,15 +605,15 @@ function Get-ResolvedProofCoordAnchor {
         CoordZRelativeOffset = [int]$Selection.CoordZRelativeOffset
         LevelRelativeOffset = $Selection.LevelRelativeOffset
         HealthRelativeOffset = $Selection.HealthRelativeOffset
-        SourceObjectAddress = [string]$Anchor.SourceObjectAddress
-        SourceCoordRelativeOffset = $Anchor.SourceCoordRelativeOffset
+        SourceObjectAddress = $sourceObjectAddress
+        SourceCoordRelativeOffset = $sourceCoordRelativeOffset
         Match = $Selection.Match
         MemorySample = $Selection.MemorySample
         Expected = $Anchor.Expected
         TraceMatch = $Anchor.Match
         TraceMemorySample = $Anchor.MemorySample
-        SourceObjectMatch = $Anchor.SourceObjectMatch
-        SourceObjectSample = $Anchor.SourceObjectSample
+        SourceObjectMatch = $sourceObjectMatch
+        SourceObjectSample = $sourceObjectSample
         Notes = @(
             'This is the proof-grade movement coord source.',
             'Use this validated coord-trace anchor for movement polling and navigation proof.',
@@ -605,9 +624,13 @@ function Get-ResolvedProofCoordAnchor {
 
 $lastAnchor = $null
 $lastFailureReason = $null
+$resolvedPlayerCoordTraceFile = $null
+if (-not [string]::IsNullOrWhiteSpace($PlayerCoordTraceFile)) {
+    $resolvedPlayerCoordTraceFile = [System.IO.Path]::GetFullPath($PlayerCoordTraceFile)
+}
 
 for ($attempt = 0; $attempt -le $RefreshAttempts; $attempt++) {
-    $lastAnchor = Invoke-ReaderJson -Arguments @((Get-ReaderTargetArguments -ResolvedProcessId $ProcessId -ResolvedProcessName $ProcessName) + @('--read-player-coord-anchor', '--json'))
+    $lastAnchor = Invoke-ReaderJson -Arguments (Get-CoordAnchorArguments -ResolvedProcessId $ProcessId -ResolvedProcessName $ProcessName -ResolvedTraceFile $resolvedPlayerCoordTraceFile)
     $traceReference = Get-TraceEpochReference -TraceSourceFile ([string]$lastAnchor.SourceFile)
     $selection = Resolve-ProofCoordSelection -Anchor $lastAnchor -TraceReference $traceReference -Reason ([ref]$lastFailureReason)
     if ($null -ne $selection) {

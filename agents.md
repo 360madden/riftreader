@@ -67,8 +67,11 @@ This file defines the default assistant behavior for work inside
   anchor as **exploration-only** unless separately re-proven and explicitly
   promoted.
 - For **proof reacquisition**, prefer **last-good trace seeds** and
-  **debug-scanned source-chain seeds** first; do **not** reseed proof tracing
-  from heuristic or cached current-player snapshots.
+  **debug-scanned selector/source-chain seeds** first; do **not** reseed proof
+  tracing from heuristic or cached current-player snapshots.
+- In proof reacquisition with access watchpoints, default to a **12-byte
+  coord-triplet watch window** instead of a 4-byte scalar watch so `X/Y/Z`
+  lane accesses can be re-proven from the same live source object.
 - If proof reacquisition fails repeatedly, escalate to **debug scanning**
   instead of looping the same heuristic/bootstrap trace attempt.
 - Treat selected-source coord lanes and other discovery artifacts as
