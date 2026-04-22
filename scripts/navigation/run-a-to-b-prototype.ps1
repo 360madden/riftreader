@@ -45,6 +45,7 @@ else {
 }
 $resolvedLogFile = [System.IO.Path]::GetFullPath($LogFile)
 $actorOrientationScript = Join-Path $repoRoot 'scripts\capture-actor-orientation.ps1'
+$orientationParityScript = Join-Path $PSScriptRoot 'assert-orientation-reader-parity.ps1'
 
 function Get-LastSuccessfulRoute {
     if (-not (Test-Path -LiteralPath $resolvedLogFile)) {
@@ -484,6 +485,163 @@ function Write-NavigationSummary {
     Write-Host ("[NavPrototype] Elapsed ms : {0}" -f [long]$NavigationResult.ElapsedMilliseconds) -ForegroundColor Cyan
 }
 
+function Get-ProcessState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $process = Get-Process -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $process) {
+        return $null
+    }
+
+    $startTimeUtc = $null
+    try {
+        $startTimeUtc = $process.StartTime.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        $startTimeUtc = $null
+    }
+
+    return [pscustomobject]@{
+        Name = $process.ProcessName
+        Id = $process.Id
+        StartTimeUtc = $startTimeUtc
+        Responding = $process.Responding
+        MainWindowTitle = $process.MainWindowTitle
+    }
+}
+
+function Get-ReaderBridgePlayerCoord {
+    $snapshot = Invoke-ReaderJson -Arguments @('--readerbridge-snapshot', '--json') -Step 'player-snapshot'
+    $playerCoord = $snapshot.Output.Current.Player.Coord
+    if ($null -eq $playerCoord -or $null -eq $playerCoord.X -or $null -eq $playerCoord.Z) {
+        throw 'ReaderBridge snapshot did not expose a usable current player coordinate for route validation.'
+    }
+
+    return [pscustomobject]@{
+        X = [double]$playerCoord.X
+        Y = if ($null -ne $playerCoord.Y) { [double]$playerCoord.Y } else { $null }
+        Z = [double]$playerCoord.Z
+        Snapshot = $snapshot.Output
+    }
+}
+
+function Get-WaypointDocument {
+    if (-not (Test-Path -LiteralPath $resolvedWaypointFile)) {
+        throw "Waypoint file not found: $resolvedWaypointFile"
+    }
+
+    return Get-Content -LiteralPath $resolvedWaypointFile -Raw | ConvertFrom-Json -Depth 20
+}
+
+function Get-WaypointById {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Document,
+        [Parameter(Mandatory = $true)]
+        [string]$WaypointId
+    )
+
+    $waypoints = @($Document.waypoints)
+    if ($waypoints.Count -eq 0) {
+        $waypoints = @($Document.Waypoints)
+    }
+
+    foreach ($waypoint in $waypoints) {
+        if ($null -eq $waypoint) {
+            continue
+        }
+
+        $candidateId = if ($null -ne $waypoint.id) { [string]$waypoint.id } else { [string]$waypoint.Id }
+        if ([string]::Equals($candidateId, $WaypointId, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $waypoint
+        }
+    }
+
+    return $null
+}
+
+function Get-PlanarDistance {
+    param(
+        [double]$AX,
+        [double]$AZ,
+        [double]$BX,
+        [double]$BZ
+    )
+
+    return [Math]::Sqrt(([Math]::Pow(($AX - $BX), 2)) + ([Math]::Pow(($AZ - $BZ), 2)))
+}
+
+function Assert-SmokeRouteFreshness {
+    $isSmokeRoute = [string]::Equals(
+        [System.IO.Path]::GetFileName($resolvedWaypointFile),
+        'smoke-test-waypoints.json',
+        [System.StringComparison]::OrdinalIgnoreCase)
+
+    if (-not $isSmokeRoute -or -not (Test-Path -LiteralPath $resolvedWaypointFile)) {
+        return
+    }
+
+    $document = Get-WaypointDocument
+    $startWaypoint = Get-WaypointById -Document $document -WaypointId $StartWaypointId
+    if ($null -eq $startWaypoint -or $null -eq $startWaypoint.x -or $null -eq $startWaypoint.z) {
+        throw "Smoke route file '$resolvedWaypointFile' did not contain a usable start waypoint '$StartWaypointId'."
+    }
+
+    $player = Get-ReaderBridgePlayerCoord
+    $movement = if ($null -ne $document.movement) { $document.movement } else { $document.Movement }
+    $startRadius = if ($null -ne $movement -and $null -ne $movement.startRadius) { [double]$movement.startRadius } else { 1.5 }
+    $planarDistance = Get-PlanarDistance -AX ([double]$startWaypoint.x) -AZ ([double]$startWaypoint.z) -BX $player.X -BZ $player.Z
+
+    $issues = New-Object System.Collections.Generic.List[string]
+    if ($planarDistance -gt ([Math]::Max(($startRadius * 2.0), 6.0))) {
+        $issues.Add(("Current player position is {0:N3} units away from smoke_start; the checked route is stale for this session." -f $planarDistance))
+    }
+
+    $processState = Get-ProcessState -Name $ProcessName
+    $provenance = if ($null -ne $document.provenance) { $document.provenance } else { $document.Provenance }
+    if ($null -ne $processState -and $null -ne $provenance -and -not [string]::IsNullOrWhiteSpace([string]$provenance.processStartTimeUtc)) {
+        try {
+            $routeStartTimeUtc = [DateTimeOffset]::Parse([string]$provenance.processStartTimeUtc, [System.Globalization.CultureInfo]::InvariantCulture)
+            $currentStartTimeUtc = [DateTimeOffset]::Parse([string]$processState.StartTimeUtc, [System.Globalization.CultureInfo]::InvariantCulture)
+            $driftSeconds = [Math]::Abs(($currentStartTimeUtc - $routeStartTimeUtc).TotalSeconds)
+            if ($driftSeconds -gt 1.0) {
+                $issues.Add("Smoke route provenance belongs to a different Rift process start time.")
+            }
+        }
+        catch {
+            $issues.Add("Smoke route provenance contained an unreadable process start time.")
+        }
+    }
+
+    Write-SessionLog -Step 'route-guard' -ExitCode $(if ($issues.Count -eq 0) { 0 } else { 1 }) -Arguments @('smoke-route-check') -Output ("planarDistance={0:N3}" -f $planarDistance) -Metadata @{
+        routeGuard = [ordered]@{
+            waypointFile = $resolvedWaypointFile
+            startWaypointId = $StartWaypointId
+            planarDistanceToStart = $planarDistance
+            startRadius = $startRadius
+            issues = @($issues)
+        }
+    }
+
+    if ($issues.Count -gt 0) {
+        throw ("Smoke route file is stale for the current session. Regenerate it with '{0}' before running movement. {1}" -f (Join-Path $PSScriptRoot 'new-forward-smoke-route.ps1'), ($issues -join ' '))
+    }
+}
+
+function Assert-OrientationReaderParity {
+    $parity = Invoke-ScriptJson -ScriptFile $orientationParityScript -Arguments @('-Json', '-ProcessName', $ProcessName) -Step 'orientation-parity'
+    Write-Host ""
+    Write-Host "[NavPrototype] Orientation parity" -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Status    : {0}" -f [string]$parity.Status) -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Source    : {0}" -f [string]$parity.Native.SelectedSourceAddress) -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Basis     : {0} / {1}" -f [string]$parity.Native.BasisPrimaryForwardOffset, [string]$parity.Native.BasisDuplicateForwardOffset) -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Yaw delta : {0:N6} deg" -f [double]$parity.YawDeltaDegrees) -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Pitch del.: {0:N6} deg" -f [double]$parity.PitchDeltaDegrees) -ForegroundColor Cyan
+}
+
 function Assert-FacingAlignment {
     param($Preflight)
 
@@ -580,6 +738,8 @@ try {
 
     Wait-ForOperator -Prompt "Return to $StartLabel, face roughly toward $DestinationLabel, then press Enter"
     Invoke-Refresh
+    Assert-SmokeRouteFreshness
+    Assert-OrientationReaderParity
 
     $preflightArguments = @(
         '--process-name', $ProcessName,

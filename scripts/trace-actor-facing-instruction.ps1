@@ -145,26 +145,40 @@ function Wait-StimulusProcess {
 function Read-KeyValueFile {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Path
+        [string]$Path,
+        [int]$RetryCount = 8,
+        [int]$RetryDelayMilliseconds = 50
     )
 
     $map = [ordered]@{}
-    foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
-        if ([string]::IsNullOrWhiteSpace($line)) {
-            continue
-        }
+    for ($attempt = 0; $attempt -lt $RetryCount; $attempt++) {
+        try {
+            foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
+                if ([string]::IsNullOrWhiteSpace($line)) {
+                    continue
+                }
 
-        $separator = $line.IndexOf('=')
-        if ($separator -lt 0) {
-            continue
-        }
+                $separator = $line.IndexOf('=')
+                if ($separator -lt 0) {
+                    continue
+                }
 
-        $key = $line.Substring(0, $separator)
-        $value = $line.Substring($separator + 1)
-        $map[$key] = $value
+                $key = $line.Substring(0, $separator)
+                $value = $line.Substring($separator + 1)
+                $map[$key] = $value
+            }
+
+            return [pscustomobject]$map
+        }
+        catch [System.IO.IOException] {
+            if ($attempt -ge ($RetryCount - 1)) {
+                throw
+            }
+
+            Start-Sleep -Milliseconds $RetryDelayMilliseconds
+            $map = [ordered]@{}
+        }
     }
-
-    return [pscustomobject]$map
 }
 
 function Try-ParseDouble {

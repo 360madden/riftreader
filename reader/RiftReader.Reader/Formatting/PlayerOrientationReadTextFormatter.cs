@@ -180,7 +180,7 @@ public static class PlayerOrientationReadTextFormatter
         result.ResolutionMode switch
         {
             "live-behavior-backed-lead" => "live-behavior-backed-lead (current-session source lead)",
-            "artifact-owner-components" => "artifact-owner-components (historical artifact path)",
+            "artifact-owner-components" => "artifact-owner-components (LEGACY historical artifact path; not current live truth)",
             _ => string.IsNullOrWhiteSpace(result.ResolutionMode) ? "n/a" : result.ResolutionMode
         };
 

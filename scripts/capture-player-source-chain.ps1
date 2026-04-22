@@ -75,13 +75,13 @@ function Get-PatternToken {
 
     $bytes = Normalize-Bytes -Bytes ([string]$Instruction.Bytes)
     if ([string]::IsNullOrWhiteSpace($bytes)) {
-        throw "Instruction '$($Instruction.Full)' did not contain byte text."
+        return $null
     }
 
     $opcode = [string]$Instruction.Opcode
     $parts = $bytes.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
     if ($parts.Count -lt 1) {
-        throw "Unable to tokenize instruction '$($Instruction.Full)'."
+        return $null
     }
 
     if ($opcode -like 'call *') {
@@ -212,7 +212,17 @@ $patternInstructions = @(
     $destCoordZWrite
 ) | Where-Object { $null -ne $_ }
 
-$sourceChainPattern = ($patternInstructions | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
+$sourceChainPatternTokens = @(
+    $patternInstructions |
+        ForEach-Object { Get-PatternToken -Instruction $_ } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+)
+
+if ($sourceChainPatternTokens.Count -lt 6) {
+    throw 'Unable to build a stable source-chain pattern from the current disassembly cluster.'
+}
+
+$sourceChainPattern = $sourceChainPatternTokens -join ' '
 $sourceChainScan = Invoke-ReaderJson -Arguments @(
     '--process-name', 'rift_x64',
     '--scan-module-pattern', $sourceChainPattern,
@@ -257,12 +267,20 @@ if (-not [string]::IsNullOrWhiteSpace($sourceResolveTarget)) {
     }
 
     if (@($accessorPatternInstructions).Count -gt 0) {
-        $accessorPattern = (@($accessorPatternInstructions) | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
-        $accessorScan = Invoke-ReaderJson -Arguments @(
-            '--process-name', 'rift_x64',
-            '--scan-module-pattern', $accessorPattern,
-            '--scan-module-name', 'rift_x64.exe',
-            '--json')
+        $accessorPatternTokens = @(
+            @($accessorPatternInstructions) |
+                ForEach-Object { Get-PatternToken -Instruction $_ } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+
+        if ($accessorPatternTokens.Count -gt 0) {
+            $accessorPattern = $accessorPatternTokens -join ' '
+            $accessorScan = Invoke-ReaderJson -Arguments @(
+                '--process-name', 'rift_x64',
+                '--scan-module-pattern', $accessorPattern,
+                '--scan-module-name', 'rift_x64.exe',
+                '--json')
+        }
     }
 
     $accessorSummary = [ordered]@{
@@ -297,12 +315,20 @@ if (-not [string]::IsNullOrWhiteSpace($sourceResolveTarget)) {
         ) | Where-Object { $null -ne $_ }
 
         if (@($preparationPatternInstructions).Count -ge 5) {
-            $preparationPattern = (@($preparationPatternInstructions) | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
-            $preparationScan = Invoke-ReaderJson -Arguments @(
-                '--process-name', 'rift_x64',
-                '--scan-module-pattern', $preparationPattern,
-                '--scan-module-name', 'rift_x64.exe',
-                '--json')
+            $preparationPatternTokens = @(
+                @($preparationPatternInstructions) |
+                    ForEach-Object { Get-PatternToken -Instruction $_ } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+
+            if ($preparationPatternTokens.Count -ge 5) {
+                $preparationPattern = $preparationPatternTokens -join ' '
+                $preparationScan = Invoke-ReaderJson -Arguments @(
+                    '--process-name', 'rift_x64',
+                    '--scan-module-pattern', $preparationPattern,
+                    '--scan-module-name', 'rift_x64.exe',
+                    '--json')
+            }
         }
 
         $preparationSummary = [ordered]@{

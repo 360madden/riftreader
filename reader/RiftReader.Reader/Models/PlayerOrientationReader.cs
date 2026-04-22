@@ -39,6 +39,8 @@ public static class PlayerOrientationReader
 
         var notes = new List<string>();
 
+        notes.Add("LEGACY artifact-only mode: this path reads historical owner/source artifacts and must not be treated as current live truth without a matching live process selector.");
+
         if (selectedEntry is null)
         {
             notes.Add("No owner-component entry with orientation vectors could be selected.");

@@ -71,7 +71,7 @@ That means:
 
 If artifacts or notes are corrupted, start here:
 
-- C:\RIFT MODDING\RiftReader_facing\docs\recovery\README.md
+- C:\RIFT MODDING\RiftReader\docs\recovery\README.md
 
 ## Post-Update Status (April 22, 2026)
 
@@ -93,9 +93,9 @@ Current short version:
 
 Use these first:
 
-- `C:\RIFT MODDING\RiftReader_facing\docs\recovery\current-truth.md`
-- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
-- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
 ## Immediate Milestones
 
@@ -140,8 +140,8 @@ Post-update note:
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
   - current live truth uses source `0x24F595F8D10`
   - current live truth uses duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
-  - current live `C:\RIFT MODDING\RiftReader_facing\scripts\capture-actor-orientation.ps1` derives repeatable yaw/pitch captures from the promoted behavior-backed lead
-  - current live `C:\RIFT MODDING\RiftReader_facing\scripts\test-actor-yaw-candidates.ps1` validated reversible D/A yaw response on `+0x60` and `+0x94`
+  - current live `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` derives repeatable yaw/pitch captures from the promoted behavior-backed lead
+  - current live `C:\RIFT MODDING\RiftReader\scripts\test-actor-yaw-candidates.ps1` validated reversible D/A yaw response on `+0x60` and `+0x94`
   - current camera live workflow is branch-specific and lives on `feature/camera-orientation-discovery`, not `main`
 - treat the owner container as a component table, not just a wrapper list:
   - pre-update, entry `6` behaved like the transform/source component

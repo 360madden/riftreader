@@ -125,6 +125,33 @@ function Try-ParseDouble {
     return $null
 }
 
+function Resolve-LiveInstructionAddress {
+    param(
+        [Parameter(Mandatory = $true)]
+        $SourceChainDocument,
+
+        [Parameter(Mandatory = $true)]
+        $Instruction
+    )
+
+    $instructionAddress = Try-ParseUInt64Hex ([string]$Instruction.Address)
+    if ($null -eq $instructionAddress) {
+        throw 'Source-chain instruction did not contain a parseable address.'
+    }
+
+    $scanAddress = Try-ParseUInt64Hex ([string]$SourceChainDocument.SuggestedSourceChainScan.Address)
+    $anchorAddress = Try-ParseUInt64Hex ([string]$SourceChainDocument.SourceChain.SourceContainerLoad.Address)
+    if ($null -eq $scanAddress -or $null -eq $anchorAddress) {
+        return $instructionAddress
+    }
+
+    if ($instructionAddress -lt $anchorAddress) {
+        return $instructionAddress
+    }
+
+    return $scanAddress + ($instructionAddress - $anchorAddress)
+}
+
 function Get-CoordTripletSample {
     param(
         [string]$Prefix
@@ -158,7 +185,7 @@ $selectorPatternScan = Invoke-ReaderJson -Arguments @(
     '--scan-module-name', 'rift_x64.exe',
     '--json')
 
-$triggerAddress = Parse-HexUInt64 -Value ([string]$triggerInstruction.Address)
+$triggerAddress = Resolve-LiveInstructionAddress -SourceChainDocument $sourceChain -Instruction $triggerInstruction
 $status = $null
 $producedStatusFile = $false
 $movementSequence = @($MovementKeys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
@@ -171,7 +198,17 @@ for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
     & $ceExecScript -LuaFile $selectorLuaFile | Out-Null
 
     $luaCode = @"
-return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], 0x70)
+return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], {
+  ownerObjectRegister = 'RAX',
+  ownerContainerRegister = 'RCX',
+  selectorIndexRegister = 'RDX',
+  selectedSourceRegister = 'RDI',
+  ownerContainerDisplacement = 0x78,
+  selectorScale = 8,
+  selectorDisplacement = 0,
+  sourceCoord48Offset = 0x48,
+  sourceCoord88Offset = 0x88
+})
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 

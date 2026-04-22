@@ -5,9 +5,9 @@ Use this order when you need to reconstruct the active state.
 ## 0. After a game update, triage the surviving baselines first
 
 ```powershell
-dotnet run --project C:\RIFT MODDING\RiftReader_facing\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
-dotnet run --project C:\RIFT MODDING\RiftReader_facing\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
-dotnet run --project C:\RIFT MODDING\RiftReader_facing\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --readerbridge-snapshot --json
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
 ```
 
 Expected during the current post-update state:
@@ -23,15 +23,15 @@ owner/source/camera artifact.
 ## 1. Build the repo
 
 ```powershell
-dotnet build C:\RIFT MODDING\RiftReader_facing\RiftReader.slnx
+dotnet build C:\RIFT MODDING\RiftReader\RiftReader.slnx
 ```
 
 ## 2. Attempt to rebuild the live source chain first
 
 ```powershell
-C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
-C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-source-accessor-family.ps1 -Json
-C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
+C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
+C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1 -Json
+C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
 ```
 
 Healthy result:
@@ -57,9 +57,9 @@ current truth.
 ## 3. Refresh the core graph artifacts
 
 ```powershell
-C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-owner-graph.ps1 -Json -RefreshSelectorTrace
-C:\RIFT MODDING\RiftReader_facing\scripts\capture-player-stat-hub-graph.ps1 -Json -RefreshOwnerComponents
-C:\RIFT MODDING\RiftReader_facing\scripts\inspect-capture-consistency.ps1 -Json
+C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1 -Json -RefreshSelectorTrace
+C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1 -Json -RefreshOwnerComponents
+C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1 -Json
 ```
 
 Run this step only after step 2 succeeds on the current game build.

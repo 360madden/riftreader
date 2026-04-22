@@ -199,7 +199,25 @@ for ($index = 0; $index -lt $MaxEntries; $index++) {
         continue
     }
 
-    $entryBytes = Read-Bytes -Address $entryAddress -Length 0x140
+    $entryBytes = $null
+    $entryReadError = $null
+    try {
+        $entryBytes = Read-Bytes -Address $entryAddress -Length 0x140
+    }
+    catch {
+        $entryReadError = $_.Exception.Message
+    }
+
+    if ($null -ne $entryReadError -or $null -eq $entryBytes) {
+        $entries.Add([ordered]@{
+            Index = $index
+            Address = ('0x{0:X}' -f $entryAddress)
+            RoleHints = @('unreadable-entry')
+            ReadError = $entryReadError
+        })
+        continue
+    }
+
     $q8 = Read-UInt64At -Bytes $entryBytes -Offset 0x8
     $q68 = Read-UInt64At -Bytes $entryBytes -Offset 0x68
     $q100 = Read-UInt64At -Bytes $entryBytes -Offset 0x100
@@ -251,6 +269,7 @@ for ($index = 0; $index -lt $MaxEntries; $index++) {
         Index = $index
         Address = ('0x{0:X}' -f $entryAddress)
         RoleHints = $roleHints.ToArray()
+        ReadError = $null
         Q8 = if ($q8) { ('0x{0:X}' -f $q8) } else { $null }
         Q68 = if ($q68) { ('0x{0:X}' -f $q68) } else { $null }
         Q100 = if ($q100) { ('0x{0:X}' -f $q100) } else { $null }

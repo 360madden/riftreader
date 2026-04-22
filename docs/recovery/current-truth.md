@@ -62,12 +62,12 @@ Operational interpretation:
   source stayed flat and must not be promoted over the validated `+0x60/+0x94`
   rows
 - the earlier all-zero source-chain validation artifact was invalid because
-  `C:\RIFT MODDING\RiftReader_facing\scripts\test-actor-yaw-candidates.ps1`
+  `C:\RIFT MODDING\RiftReader\scripts\test-actor-yaw-candidates.ps1`
   keyed baseline/sample snapshots only by source address; the April 22 fix now
   keys them by `source+offset`, which restored correct same-source multi-offset
   validation
 - the repo now carries a behavior-backed lead file at:
-  - `C:\RIFT MODDING\RiftReader_facing\scripts\actor-facing-behavior-backed-lead.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
 - `capture-actor-orientation.ps1` now prefers that lead when present and fails
   closed if the live basis no longer validates
 - `dotnet run --project ... -- --process-name rift_x64 --read-player-orientation`
@@ -76,7 +76,7 @@ Operational interpretation:
 
 See the fresh validation note:
 
-- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 
 ## ReaderBridge / addon orientation status
 
@@ -101,11 +101,11 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 
 ## Canonical scripts on `main`
 
-- `C:\RIFT MODDING\RiftReader_facing\scripts\capture-actor-orientation.ps1`
-- `C:\RIFT MODDING\RiftReader_facing\scripts\test-actor-orientation-stimulus.ps1`
-- `C:\RIFT MODDING\RiftReader_facing\scripts\profile-actor-orientation-keys.ps1`
-- `C:\RIFT MODDING\RiftReader_facing\scripts\post-rift-key.ps1`
-- `C:\RIFT MODDING\RiftReader_facing\scripts\refresh-readerbridge-export.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1`
 
 ## Camera script location note
 

@@ -63,4 +63,41 @@ public sealed class PlayerOrientationReadTextFormatterTests
         Assert.Contains("Resolution mode:              live-behavior-backed-lead (current-session source lead)", text, StringComparison.Ordinal);
         Assert.Contains("Basis offsets:                primary 0x60 | duplicate 0x94", text, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Format_LabelsArtifactModeAsLegacy()
+    {
+        var result = new PlayerOrientationReadResult(
+            Mode: "player-orientation",
+            ArtifactFile: @"C:\RIFT MODDING\RiftReader\scripts\captures\player-owner-components.json",
+            ArtifactLoadedAtUtc: new DateTimeOffset(2026, 4, 22, 6, 4, 25, TimeSpan.Zero),
+            ArtifactGeneratedAtUtc: new DateTimeOffset(2026, 4, 13, 1, 9, 1, TimeSpan.Zero),
+            SnapshotFile: null,
+            SnapshotLoadedAtUtc: null,
+            PlayerName: null,
+            PlayerLevel: null,
+            PlayerGuild: null,
+            PlayerLocation: null,
+            PlayerCoord: null,
+            SelectedSourceAddress: "0x1FDA0D13170",
+            SelectedEntryAddress: "0x1FDA0D13170",
+            SelectedEntryIndex: 6,
+            SelectedEntryMatchesSelectedSource: true,
+            SelectedEntryRoleHints: Array.Empty<string>(),
+            ResolutionMode: "artifact-owner-components",
+            BasisPrimaryForwardOffset: "0x60",
+            BasisDuplicateForwardOffset: "0x94",
+            PreferredEstimate: null,
+            BasisPrimaryEstimate: null,
+            BasisDuplicateEstimate: null,
+            BasisDuplicateDeltaMagnitude: null,
+            BasisDuplicateAgreementStrong: null,
+            Estimates: Array.Empty<PlayerOrientationVectorEstimate>(),
+            Notes: new[] { "LEGACY artifact-only mode: this path reads historical owner/source artifacts and must not be treated as current live truth without a matching live process selector." });
+
+        var text = PlayerOrientationReadTextFormatter.Format(result);
+
+        Assert.Contains("Resolution mode:              artifact-owner-components (LEGACY historical artifact path; not current live truth)", text, StringComparison.Ordinal);
+        Assert.Contains("LEGACY artifact-only mode", text, StringComparison.Ordinal);
+    }
 }

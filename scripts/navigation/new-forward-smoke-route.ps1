@@ -9,14 +9,14 @@ param(
     [string]$StartLabel = 'Smoke Start',
     [string]$DestinationLabel = 'Smoke Destination',
     [double]$DistanceForward = 3.0,
-    [double]$ArrivalRadius = 1.0,
+    [double]$ArrivalRadius = 5.0,
     [int]$ForwardPulseMilliseconds = 250,
     [int]$PostPulseSampleDelayMilliseconds = 150,
     [double]$StartRadius = 1.5,
-    [int]$NoProgressWindowMilliseconds = 1500,
-    [double]$MinimumProgressDistance = 0.15,
-    [double]$WrongWayToleranceDistance = 0.6,
-    [int]$MaxTravelSeconds = 10,
+    [int]$NoProgressWindowMilliseconds = 3000,
+    [double]$MinimumProgressDistance = 0.1,
+    [double]$WrongWayToleranceDistance = 1.0,
+    [int]$MaxTravelSeconds = 12,
     [int]$ScanContextBytes = 192,
     [int]$MaxHits = 12,
     [switch]$SkipRefresh
@@ -104,6 +104,34 @@ function Invoke-ScriptJson {
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json
 }
 
+function Get-ProcessState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $process = Get-Process -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $process) {
+        return $null
+    }
+
+    $startTimeUtc = $null
+    try {
+        $startTimeUtc = $process.StartTime.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        $startTimeUtc = $null
+    }
+
+    return [pscustomobject]@{
+        Name = $process.ProcessName
+        Id = $process.Id
+        StartTimeUtc = $startTimeUtc
+        Responding = $process.Responding
+        MainWindowTitle = $process.MainWindowTitle
+    }
+}
+
 if ($DistanceForward -le 0) {
     throw "DistanceForward must be positive."
 }
@@ -132,6 +160,7 @@ $orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments 
     '-Json',
     '-ProcessName', $ProcessName
 )
+$processState = Get-ProcessState -Name $ProcessName
 
 $yawRadians = $orientation.ReaderOrientation.PreferredEstimate.YawRadians
 if ($null -eq $yawRadians) {
@@ -144,6 +173,26 @@ $destinationZ = $startZ + ([Math]::Sin([double]$yawRadians) * $DistanceForward)
 
 $document = [ordered]@{
     schemaVersion = 1
+    provenance    = [ordered]@{
+        kind = 'smoke-route'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        processName = $ProcessName
+        processId = $processState.Id
+        processStartTimeUtc = $processState.StartTimeUtc
+        processResponding = $processState.Responding
+        readerBridgeSnapshotSourceFile = [string]$snapshot.SourceFile
+        readerBridgeExportCount = $snapshot.ExportCount
+        orientationResolutionMode = [string]$orientation.ReaderOrientation.ResolutionMode
+        selectedSourceAddress = [string]$orientation.ReaderOrientation.SelectedSourceAddress
+        basisPrimaryForwardOffset = [string]$orientation.ReaderOrientation.BasisPrimaryForwardOffset
+        basisDuplicateForwardOffset = [string]$orientation.ReaderOrientation.BasisDuplicateForwardOffset
+        yawDegrees = [double]$orientation.ReaderOrientation.PreferredEstimate.YawDegrees
+        distanceForward = $DistanceForward
+        notes = @(
+            'Generated from the current live player position and live actor-facing reader.',
+            'Regenerate this smoke route after a Rift restart, zone move, or major position change before treating it as a current-session validation route.'
+        )
+    }
     movement      = [ordered]@{
         forwardKey = 'w'
         runKey = $null
@@ -191,6 +240,8 @@ $json = $document | ConvertTo-Json -Depth 20
 [pscustomobject]@{
     mode = 'new-forward-smoke-route'
     processName = $ProcessName
+    processId = $processState.Id
+    processStartTimeUtc = $processState.StartTimeUtc
     waypointFile = $resolvedWaypointFile
     startWaypointId = $StartWaypointId
     destinationWaypointId = $DestinationWaypointId

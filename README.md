@@ -62,9 +62,9 @@ Right now on `main`:
 
 Use these before trusting older actor/camera claims in this file:
 
-- `C:\RIFT MODDING\RiftReader_facing\docs\recovery\current-truth.md`
-- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
-- `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
 Constraints:
 
