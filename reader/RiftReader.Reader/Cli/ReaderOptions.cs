@@ -67,4 +67,10 @@ public sealed record ReaderOptions(
     string? WaypointLabel = null,
     string? WaypointZone = null,
     double? WaypointArrivalRadius = null,
-    string? WaypointPace = null);
+    string? WaypointPace = null,
+    bool RunTelemetryHost = false,
+    int TelemetryPollIntervalMilliseconds = 100,
+    bool TelemetryDiagnostics = false,
+    string? TelemetryOutputFile = null,
+    string? TelemetryEventLogFile = null,
+    string? TelemetryDiagnosticsLogFile = null);

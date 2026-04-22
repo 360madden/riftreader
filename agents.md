@@ -74,6 +74,11 @@ This file defines the default assistant behavior for work inside
   lane accesses can be re-proven from the same live source object.
 - If proof reacquisition fails repeatedly, escalate to **debug scanning**
   instead of looping the same heuristic/bootstrap trace attempt.
+- Use **debug tracing proactively**, not only after failures. When working on
+  live coords, actor facing, or proof-watchset quality, use breakpoints,
+  trace-cluster inspection, selector/owner tracing, and neighborhood scans to
+  look for related fields, stronger offsets, pointer relationships, and better
+  candidates before settling on a watchset.
 - Treat selected-source coord lanes and other discovery artifacts as
   **candidate-only** unless they have been re-proven for the current session.
 - If a proof watchset does not include the validated canonical

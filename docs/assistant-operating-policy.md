@@ -70,6 +70,7 @@ navigation proof:
 | Proof reacquisition seed order | Prefer **last-good trace seeds** and **debug-scanned selector/source-chain seeds** first; do not reseed proof tracing from heuristic or cached current-player snapshots when stronger seeds exist |
 | Proof access-watch size | In proof reacquisition with access watchpoints, default to a **12-byte coord-triplet watch window** so `X/Y/Z` lane accesses can be re-proven from the same live source object instead of missing non-`X` reads with a 4-byte watch |
 | Escalation after repeated proof-reacquisition failure | Escalate to **debug scanning** instead of retrying the same heuristic/bootstrap trace loop |
+| Proactive debug tracing | Use debug tracing as a **primary discovery method**, not just a recovery tool. For coords, facing, and proof-watchset quality, use breakpoints, trace-cluster inspection, selector/owner tracing, and neighborhood scans to look for related fields, better offsets, pointer relationships, and stronger candidates before locking a watchset |
 | Discovery artifacts | Treat selected-source coord lanes, projector traces, stat hubs, and similar discovery artifacts as candidate-only unless they have been re-proven for the current session |
 | Failure policy | If the watchset lacks canonical coord-trace coords or the resolved anchor is not validated, stop and fix the proof source instead of recording stale/candidate/heuristic movement data |
 

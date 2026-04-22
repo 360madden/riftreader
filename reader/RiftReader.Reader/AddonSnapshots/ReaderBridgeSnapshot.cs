@@ -12,6 +12,7 @@ public sealed record ReaderBridgeSnapshot(
     ReaderBridgeHudSnapshot? Hud,
     ReaderBridgeUnitSnapshot? Player,
     ReaderBridgeUnitSnapshot? Target,
+    ReaderBridgeTelemetrySnapshot? Telemetry,
     IReadOnlyList<string> PlayerBuffLines,
     IReadOnlyList<string> PlayerDebuffLines,
     IReadOnlyList<string> TargetBuffLines,

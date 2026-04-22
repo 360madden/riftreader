@@ -13,6 +13,7 @@ using RiftReader.Reader.Navigation;
 using RiftReader.Reader.Processes;
 using RiftReader.Reader.Scanning;
 using RiftReader.Reader.Sessions;
+using RiftReader.Reader.Telemetry;
 
 namespace RiftReader.Reader;
 
@@ -68,6 +69,11 @@ internal static class Program
         if (options.ReadPlayerOrientation)
         {
             return RunReadPlayerOrientationMode(options);
+        }
+
+        if (options.RunTelemetryHost)
+        {
+            return RunTelemetryHostMode(options);
         }
 
         if (options.RankOwnerComponents)
@@ -159,7 +165,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !options.RunTelemetryHost && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -646,6 +652,7 @@ internal static class Program
                     TtdText: null,
                     Cast: null),
                 Target: null,
+                Telemetry: null,
                 PlayerBuffLines: Array.Empty<string>(),
                 PlayerDebuffLines: Array.Empty<string>(),
                 TargetBuffLines: Array.Empty<string>(),
@@ -1146,6 +1153,121 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(PlayerOrientationReadTextFormatter.Format(result));
         return 0;
+    }
+
+    private static int RunTelemetryHostMode(ReaderOptions options)
+    {
+        using var process = TryResolveProcess(options, out var resolveError);
+        if (process is null)
+        {
+            Console.Error.WriteLine(resolveError ?? "Unable to resolve the target process for telemetry host mode.");
+            return 1;
+        }
+
+        DateTimeOffset processStartTimeUtc;
+        try
+        {
+            processStartTimeUtc = process.StartTime.ToUniversalTime();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            Console.Error.WriteLine($"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+            return 1;
+        }
+
+        var target = ProcessTarget.FromProcess(process);
+        using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+        if (reader is null)
+        {
+            Console.Error.WriteLine(openError ?? "Unable to open the target process for telemetry host mode.");
+            return 1;
+        }
+
+        var repoRoot = RepositoryPathLocator.FindRepoRoot();
+        var latestSnapshotFile = options.TelemetryOutputFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.latest.json");
+        var eventLogFile = options.TelemetryEventLogFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.events.ndjson");
+        var discoveryLogFile = options.TelemetryDiagnosticsLogFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.discovery.ndjson");
+        var proofCoordAnchorScript = Path.Combine(repoRoot, "scripts", "resolve-proof-coord-anchor.ps1");
+
+        var hostOptions = new TelemetryHostOptions(
+            ProcessName: target.ProcessName,
+            ProcessId: target.ProcessId,
+            PollIntervalMilliseconds: options.TelemetryPollIntervalMilliseconds,
+            DiagnosticsEnabled: options.TelemetryDiagnostics,
+            ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
+            PlayerCoordTraceFile: options.PlayerCoordTraceFile,
+            LatestSnapshotFile: latestSnapshotFile,
+            EventLogFile: eventLogFile,
+            DiscoveryLogFile: options.TelemetryDiagnostics ? discoveryLogFile : null,
+            ProofCoordAnchorScript: proofCoordAnchorScript,
+            ProofAnchorRevalidationInterval: TimeSpan.FromSeconds(5),
+            ProofAnchorMaxAge: TimeSpan.FromSeconds(15));
+
+        var logger = new StructuredTelemetryLogger(
+            hostOptions.EventLogFile,
+            hostOptions.DiagnosticsEnabled ? hostOptions.DiscoveryLogFile : null);
+        var publisher = new JsonFileTelemetryPublisher(hostOptions.LatestSnapshotFile);
+        var host = new TelemetryHost(
+            options: hostOptions,
+            process: new TelemetryProcessInfo(
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                ModuleName: target.ModuleName,
+                MainWindowTitle: target.MainWindowTitle,
+                StartedAtUtc: processStartTimeUtc),
+            contextSource: new AddonContextSource(options.ReaderBridgeSnapshotFile),
+            positionSource: new MemoryCoordSource(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                hostOptions.ProofCoordAnchorScript,
+                hostOptions.PlayerCoordTraceFile,
+                hostOptions.ProofAnchorRevalidationInterval,
+                hostOptions.ProofAnchorMaxAge,
+                logger,
+                hostOptions.DiagnosticsEnabled),
+            facingSource: new MemoryFacingSource(reader, target, processStartTimeUtc, hostOptions.DiagnosticsEnabled),
+            merger: new DefaultTelemetryMerger(hostOptions.PollIntervalMilliseconds, hostOptions.DiagnosticsEnabled),
+            publisher: publisher,
+            logger: logger);
+
+        if (!options.JsonOutput)
+        {
+            Console.WriteLine("RiftReader.Reader telemetry host");
+            Console.WriteLine($"Process: {target.ProcessName} ({target.ProcessId})");
+            Console.WriteLine($"Latest snapshot: {hostOptions.LatestSnapshotFile}");
+            Console.WriteLine($"Event log: {hostOptions.EventLogFile}");
+
+            if (hostOptions.DiagnosticsEnabled && !string.IsNullOrWhiteSpace(hostOptions.DiscoveryLogFile))
+            {
+                Console.WriteLine($"Discovery log: {hostOptions.DiscoveryLogFile}");
+            }
+
+            Console.WriteLine("Press Ctrl+C to stop.");
+            Console.WriteLine();
+        }
+
+        using var cancellationSource = new CancellationTokenSource();
+        ConsoleCancelEventHandler? handler = null;
+        handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellationSource.Cancel();
+        };
+
+        Console.CancelKeyPress += handler;
+
+        try
+        {
+            return host.Run(cancellationSource.Token);
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
     }
 
     private static Process? TryResolveProcess(ReaderOptions options, out string? error)

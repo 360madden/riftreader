@@ -74,10 +74,95 @@ public static class ReaderBridgeSnapshotLoader
             Hud: MapHud(table.GetTable("hud")),
             Player: MapUnit(table.GetTable("player")),
             Target: MapUnit(table.GetTable("target")),
+            Telemetry: MapTelemetry(table.GetTable("telemetry")),
             PlayerBuffLines: MapStringList(table.GetTable("playerBuffLines")),
             PlayerDebuffLines: MapStringList(table.GetTable("playerDebuffLines")),
             TargetBuffLines: MapStringList(table.GetTable("targetBuffLines")),
             TargetDebuffLines: MapStringList(table.GetTable("targetDebuffLines")));
+
+    private static ReaderBridgeTelemetrySnapshot? MapTelemetry(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeTelemetrySnapshot(
+            Version: table.GetInt32("version"),
+            Sequence: table.GetInt64("sequence"),
+            GeneratedAtRealtime: table.GetDouble("generatedAtRealtime"),
+            Capabilities: MapTelemetryCapabilities(table.GetTable("capabilities")),
+            Position: MapTelemetryPosition(table.GetTable("position")),
+            Movement: MapTelemetryMovement(table.GetTable("movement")),
+            Context: MapTelemetryContext(table.GetTable("context")));
+    }
+
+    private static ReaderBridgeTelemetryCapabilitiesSnapshot? MapTelemetryCapabilities(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeTelemetryCapabilitiesSnapshot(
+            ApiFacingAvailable: table.GetBoolean("apiFacingAvailable"),
+            ApiYawAvailable: table.GetBoolean("apiYawAvailable"),
+            ReaderBridgeAvailable: table.GetBoolean("readerBridgeAvailable"),
+            DirectApiAvailable: table.GetBoolean("directApiAvailable"),
+            NearbyUnitsAvailable: table.GetBoolean("nearbyUnitsAvailable"),
+            TargetAvailable: table.GetBoolean("targetAvailable"));
+    }
+
+    private static ReaderBridgeTelemetryPositionSnapshot? MapTelemetryPosition(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeTelemetryPositionSnapshot(
+            Coord: MapCoordinate(table.GetTable("coord")),
+            Zone: table.GetString("zone"),
+            LocationName: table.GetString("locationName"),
+            SourceMode: table.GetString("sourceMode"));
+    }
+
+    private static ReaderBridgeTelemetryMovementSnapshot? MapTelemetryMovement(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeTelemetryMovementSnapshot(
+            Dx: table.GetDouble("dx"),
+            Dy: table.GetDouble("dy"),
+            Dz: table.GetDouble("dz"),
+            Distance: table.GetDouble("distance"),
+            Dt: table.GetDouble("dt"),
+            Speed: table.GetDouble("speed"));
+    }
+
+    private static ReaderBridgeTelemetryContextSnapshot? MapTelemetryContext(LuaTable? table)
+    {
+        if (table is null)
+        {
+            return null;
+        }
+
+        return new ReaderBridgeTelemetryContextSnapshot(
+            PlayerId: table.GetString("playerId"),
+            TargetId: table.GetString("targetId"),
+            Combat: table.GetBoolean("combat"),
+            TargetPresent: table.GetBoolean("targetPresent"),
+            Zone: table.GetString("zone"),
+            LocationName: table.GetString("locationName"),
+            SourceAddon: table.GetString("sourceAddon"),
+            SourceMode: table.GetString("sourceMode"),
+            SourceVersion: table.GetString("sourceVersion"),
+            ExportAddon: table.GetString("exportAddon"),
+            ExportVersion: table.GetString("exportVersion"));
+    }
 
     private static ReaderBridgeHudSnapshot? MapHud(LuaTable? table)
     {
