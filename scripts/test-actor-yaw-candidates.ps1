@@ -14,6 +14,7 @@ param(
     [int]$RepeatCount = 1,
     [int]$PostStimulusSampleCount = 1,
     [int]$PostStimulusSampleIntervalMilliseconds = 0,
+    [switch]$SampleDuringStimulus,
     [switch]$SkipStimulus,
     [int]$ManualWindowMilliseconds = 0,
     [double]$MinYawResponseDegrees = 1.0,
@@ -32,6 +33,24 @@ $sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
 $sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
 $resolvedCandidateScreenFile = [System.IO.Path]::GetFullPath($CandidateScreenFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class RiftWindowProbeNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
+}
+"@
 
 function Invoke-ReaderJson {
     param(
@@ -126,6 +145,58 @@ function Normalize-AngleRadians {
 function Convert-RadiansToDegrees {
     param([double]$Radians)
     return $Radians * 180.0 / [Math]::PI
+}
+
+function Get-TargetProcessWindowInfo {
+    $targetProcess = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowHandle -ne 0 } |
+        Select-Object -First 1
+
+    if ($null -eq $targetProcess) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        ProcessId = $targetProcess.Id
+        ProcessName = $targetProcess.ProcessName
+        MainWindowHandleHex = ('0x{0:X}' -f $targetProcess.MainWindowHandle)
+        MainWindowTitle = $targetProcess.MainWindowTitle
+    }
+}
+
+function Get-ForegroundWindowInfo {
+    param($TargetWindowInfo)
+
+    $hwnd = [RiftWindowProbeNative]::GetForegroundWindow()
+    $processId = [uint32]0
+    [void][RiftWindowProbeNative]::GetWindowThreadProcessId($hwnd, [ref]$processId)
+
+    $titleBuilder = New-Object System.Text.StringBuilder 512
+    [void][RiftWindowProbeNative]::GetWindowText($hwnd, $titleBuilder, $titleBuilder.Capacity)
+
+    $process = $null
+    try {
+        if ($processId -ne 0) {
+            $process = Get-Process -Id $processId -ErrorAction Stop
+        }
+    }
+    catch {
+        $process = $null
+    }
+
+    $foregroundHandleHex = if ($hwnd -ne [IntPtr]::Zero) { ('0x{0:X}' -f $hwnd.ToInt64()) } else { '0x0' }
+    $processName = if ($null -ne $process) { $process.ProcessName } else { $null }
+    $mainWindowHandleHex = if ($null -ne $process -and $process.MainWindowHandle -ne 0) { ('0x{0:X}' -f $process.MainWindowHandle) } else { $null }
+
+    return [pscustomobject]@{
+        HandleHex = $foregroundHandleHex
+        ProcessId = if ($processId -ne 0) { [int]$processId } else { $null }
+        ProcessName = $processName
+        WindowTitle = $titleBuilder.ToString()
+        MainWindowHandleHex = $mainWindowHandleHex
+        MatchesTargetProcess = ($null -ne $TargetWindowInfo -and $null -ne $processName -and [string]::Equals($processName, [string]$TargetWindowInfo.ProcessName, [System.StringComparison]::OrdinalIgnoreCase))
+        MatchesTargetMainWindow = ($null -ne $TargetWindowInfo -and $foregroundHandleHex -eq [string]$TargetWindowInfo.MainWindowHandleHex)
+    }
 }
 
 function Get-VectorEstimate {
@@ -364,22 +435,27 @@ function Start-StimulusProcess {
         return $null
     }
 
-    $argumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File')
+    $scriptPath = $null
+    $modeArguments = @()
     switch ($StimulusMode) {
         'PostMessage' {
-            $argumentList += @($postKeyScript, '-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+            $scriptPath = $postKeyScript
+            $modeArguments = @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture))
         }
         'SendInput' {
-            $argumentList += @($sendKeyScript, '-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
+            $scriptPath = $sendKeyScript
+            $modeArguments = @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
         }
         'AutoHotkey' {
-            $argumentList += @($sendKeyAhkScript, '-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
+            $scriptPath = $sendKeyAhkScript
+            $modeArguments = @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
         }
         default {
             throw "Unsupported stimulus mode '$StimulusMode'."
         }
     }
 
+    $argumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $scriptPath)) + $modeArguments
     return Start-Process -FilePath 'powershell.exe' -ArgumentList $argumentList -PassThru -WindowStyle Hidden
 }
 
@@ -419,6 +495,9 @@ function Invoke-ValidationPhase {
     $beforePlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $beforePlayer
     $baselineSnapshots = Get-CandidateSnapshotSet -Rows $Rows
     $sampleSeries = New-Object System.Collections.Generic.List[object]
+    $targetWindowInfo = Get-TargetProcessWindowInfo
+    $foregroundBeforeStimulus = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
+    $foregroundAfterLaunch = $null
 
     if ($SkipStimulus -or $StimulusMode -eq 'Manual') {
         if ($ManualWindowMilliseconds -gt 0) {
@@ -431,57 +510,74 @@ function Invoke-ValidationPhase {
         $sampleSeries.Add([pscustomobject]@{
                 SampleIndex = 1
                 RelativeMilliseconds = $ManualWindowMilliseconds
+                SamplePhase = 'manual-window'
+                StimulusStillRunning = $null
+                TargetWithinHold = $null
+                ForegroundWindow = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
                 Snapshots = $manualSnapshots
             }) | Out-Null
     }
     else {
         $effectiveSampleCount = [Math]::Max($PostStimulusSampleCount, 1)
-        if ($StimulusMode -eq 'SendInput') {
+        $sampleTargets = @(for ($sampleIndex = 1; $sampleIndex -le $effectiveSampleCount; $sampleIndex++) {
+                if ($sampleIndex -eq 1) {
+                    $WaitMilliseconds
+                }
+                else {
+                    $WaitMilliseconds + (($sampleIndex - 1) * $PostStimulusSampleIntervalMilliseconds)
+                }
+            })
+
+        if (($StimulusMode -eq 'SendInput') -and (-not $SampleDuringStimulus)) {
             & $sendKeyScript -Key $Key -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
             if ($LASTEXITCODE -ne 0) {
                 throw "Stimulus key '$Key' failed via mode '$StimulusMode'."
             }
 
             $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            for ($sampleIndex = 1; $sampleIndex -le $effectiveSampleCount; $sampleIndex++) {
-                $targetMilliseconds = if ($sampleIndex -eq 1) {
-                    $WaitMilliseconds
-                }
-                else {
-                    $WaitMilliseconds + (($sampleIndex - 1) * $PostStimulusSampleIntervalMilliseconds)
-                }
-
+            for ($sampleIndex = 0; $sampleIndex -lt $sampleTargets.Count; $sampleIndex++) {
+                $targetMilliseconds = [int]$sampleTargets[$sampleIndex]
                 while ($stopwatch.ElapsedMilliseconds -lt $targetMilliseconds) {
                     Start-Sleep -Milliseconds 15
                 }
 
                 $sampleSnapshots = Get-CandidateSnapshotSet -Rows $Rows
                 $sampleSeries.Add([pscustomobject]@{
-                        SampleIndex = $sampleIndex
+                        SampleIndex = ($sampleIndex + 1)
                         RelativeMilliseconds = $targetMilliseconds
+                        SamplePhase = 'post-stimulus'
+                        StimulusStillRunning = $false
+                        TargetWithinHold = ($targetMilliseconds -le $HoldMilliseconds)
+                        ForegroundWindow = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
                         Snapshots = $sampleSnapshots
                     }) | Out-Null
             }
         }
         else {
             $stimulusProcess = Start-StimulusProcess -Key $Key
+            Start-Sleep -Milliseconds 35
+            $foregroundAfterLaunch = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
             $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            for ($sampleIndex = 1; $sampleIndex -le $effectiveSampleCount; $sampleIndex++) {
-                $targetMilliseconds = if ($sampleIndex -eq 1) {
-                    $WaitMilliseconds
-                }
-                else {
-                    $WaitMilliseconds + (($sampleIndex - 1) * $PostStimulusSampleIntervalMilliseconds)
-                }
-
+            for ($sampleIndex = 0; $sampleIndex -lt $sampleTargets.Count; $sampleIndex++) {
+                $targetMilliseconds = [int]$sampleTargets[$sampleIndex]
                 while ($stopwatch.ElapsedMilliseconds -lt $targetMilliseconds) {
                     Start-Sleep -Milliseconds 15
                 }
 
+                $stimulusStillRunning = $false
+                if ($null -ne $stimulusProcess) {
+                    $stimulusProcess.Refresh()
+                    $stimulusStillRunning = -not $stimulusProcess.HasExited
+                }
+
                 $sampleSnapshots = Get-CandidateSnapshotSet -Rows $Rows
                 $sampleSeries.Add([pscustomobject]@{
-                        SampleIndex = $sampleIndex
+                        SampleIndex = ($sampleIndex + 1)
                         RelativeMilliseconds = $targetMilliseconds
+                        SamplePhase = if ($stimulusStillRunning -or ($targetMilliseconds -le $HoldMilliseconds)) { 'during-stimulus' } else { 'post-stimulus' }
+                        StimulusStillRunning = $stimulusStillRunning
+                        TargetWithinHold = ($targetMilliseconds -le $HoldMilliseconds)
+                        ForegroundWindow = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
                         Snapshots = $sampleSnapshots
                     }) | Out-Null
             }
@@ -492,6 +588,7 @@ function Invoke-ValidationPhase {
 
     $afterPlayer = Get-PlayerCurrent
     $afterPlayerCoord = Get-PlayerCoordSnapshot -PlayerCurrent $afterPlayer
+    $foregroundAfterStimulus = Get-ForegroundWindowInfo -TargetWindowInfo $targetWindowInfo
 
     return [pscustomobject]@{
         Key = $Key
@@ -502,6 +599,10 @@ function Invoke-ValidationPhase {
         AfterPlayerCoord = $afterPlayerCoord
         PlayerCoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $beforePlayerCoord -AfterCoord $afterPlayerCoord
         BaselineSnapshots = $baselineSnapshots
+        TargetWindowInfo = $targetWindowInfo
+        ForegroundBeforeStimulus = $foregroundBeforeStimulus
+        ForegroundAfterLaunch = $foregroundAfterLaunch
+        ForegroundAfterStimulus = $foregroundAfterStimulus
         Samples = $sampleSeries.ToArray()
     }
 }
@@ -590,6 +691,7 @@ $document.WaitMilliseconds = $WaitMilliseconds
 $document.RepeatCount = $RepeatCount
 $document.PostStimulusSampleCount = $PostStimulusSampleCount
 $document.PostStimulusSampleIntervalMilliseconds = $PostStimulusSampleIntervalMilliseconds
+$document.SampleDuringStimulus = $SampleDuringStimulus
 $document.MinYawResponseDegrees = $MinYawResponseDegrees
 $document.MinReversibleYawResponseDegrees = $MinReversibleYawResponseDegrees
 $document.MaxCoordDrift = $MaxCoordDrift
@@ -712,6 +814,10 @@ else {
                 $forwardSamples.Add([pscustomobject]@{
                         SampleIndex = $sample.SampleIndex
                         RelativeMilliseconds = $sample.RelativeMilliseconds
+                        SamplePhase = if ($sample.PSObject.Properties['SamplePhase']) { $sample.SamplePhase } else { $null }
+                        StimulusStillRunning = if ($sample.PSObject.Properties['StimulusStillRunning']) { $sample.StimulusStillRunning } else { $null }
+                        TargetWithinHold = if ($sample.PSObject.Properties['TargetWithinHold']) { $sample.TargetWithinHold } else { $null }
+                        ForegroundWindow = if ($sample.PSObject.Properties['ForegroundWindow']) { $sample.ForegroundWindow } else { $null }
                         ReadSucceeded = $snapshotResult.Success
                         ReadError = $snapshotResult.Error
                         Snapshot = $snapshotResult.Snapshot
@@ -747,6 +853,10 @@ else {
                     $reverseSamples.Add([pscustomobject]@{
                             SampleIndex = $sample.SampleIndex
                             RelativeMilliseconds = $sample.RelativeMilliseconds
+                            SamplePhase = if ($sample.PSObject.Properties['SamplePhase']) { $sample.SamplePhase } else { $null }
+                            StimulusStillRunning = if ($sample.PSObject.Properties['StimulusStillRunning']) { $sample.StimulusStillRunning } else { $null }
+                            TargetWithinHold = if ($sample.PSObject.Properties['TargetWithinHold']) { $sample.TargetWithinHold } else { $null }
+                            ForegroundWindow = if ($sample.PSObject.Properties['ForegroundWindow']) { $sample.ForegroundWindow } else { $null }
                             ReadSucceeded = $snapshotResult.Success
                             ReadError = $snapshotResult.Error
                             Snapshot = $snapshotResult.Snapshot
@@ -781,6 +891,10 @@ else {
                     CycleIndex = $cycle.CycleIndex
                     Forward = [pscustomobject]@{
                         Key = $cycle.ForwardPhase.Key
+                        TargetWindowInfo = $cycle.ForwardPhase.TargetWindowInfo
+                        ForegroundBeforeStimulus = $cycle.ForwardPhase.ForegroundBeforeStimulus
+                        ForegroundAfterLaunch = $cycle.ForwardPhase.ForegroundAfterLaunch
+                        ForegroundAfterStimulus = $cycle.ForwardPhase.ForegroundAfterStimulus
                         PlayerCoordDeltaMagnitude = $forwardPlayerDrift
                         PeakYawDeltaDegrees = $forwardPeakYawDeltaDegrees
                         PeakPitchDeltaDegrees = $forwardPeakPitchDeltaDegrees
@@ -789,6 +903,10 @@ else {
                     Reverse = if ($null -ne $cycle.ReversePhase) {
                         [pscustomobject]@{
                             Key = $cycle.ReversePhase.Key
+                            TargetWindowInfo = $cycle.ReversePhase.TargetWindowInfo
+                            ForegroundBeforeStimulus = $cycle.ReversePhase.ForegroundBeforeStimulus
+                            ForegroundAfterLaunch = $cycle.ReversePhase.ForegroundAfterLaunch
+                            ForegroundAfterStimulus = $cycle.ReversePhase.ForegroundAfterStimulus
                             PlayerCoordDeltaMagnitude = $reversePlayerDrift
                             PeakYawDeltaDegrees = $reversePeakYawDeltaDegrees
                             PeakPitchDeltaDegrees = $reversePeakPitchDeltaDegrees
@@ -862,7 +980,15 @@ else {
 
 $document.Notes = @(
     $(if ($SkipStimulus -or $StimulusMode -eq 'Manual') { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { "Read-only candidate validation using direct memory reads plus a controlled $StimulusMode turn key stimulus." }),
-    $(if ($useAdvancedValidation) { 'Advanced mode samples candidate yaw repeatedly after each turn and can score reversible sign-consistent D/A-style responses.' } else { 'Single-pass mode performs one before/after comparison per candidate.' }),
+    $(if ($useAdvancedValidation) {
+            if (($StimulusMode -eq 'SendInput') -and $SampleDuringStimulus) {
+                'Advanced mode samples candidate yaw during and after each turn and can score reversible sign-consistent D/A-style responses.'
+            }
+            else {
+                'Advanced mode samples candidate yaw repeatedly after each turn and can score reversible sign-consistent D/A-style responses.'
+            }
+        }
+        else { 'Single-pass mode performs one before/after comparison per candidate.' }),
     'No debugger attach, breakpoint tracing, or debug scanning was used.',
     'A candidate is marked truth-like when its yaw response clears the configured threshold while player coordinate drift stays under the configured limit.')
 

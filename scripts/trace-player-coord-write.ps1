@@ -6,6 +6,8 @@ param(
     [int]$MovementHoldMilliseconds = 1000,
     [int]$TimeoutSeconds = 8,
     [int]$MaxCandidates = 8,
+    [ValidateSet('write', 'access')]
+    [string]$WatchMode = 'write',
     [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt')
@@ -139,6 +141,8 @@ function Convert-StatusToTraceAttempt {
         CandidateAddress = $AddressHex
         CandidateSource = $Source
         VerificationMethod = Get-ObjectValue -Object $Status -Name 'verificationMethod'
+        WatchMode = Get-ObjectValue -Object $Status -Name 'watchMode'
+        BreakpointMethod = Get-ObjectValue -Object $Status -Name 'breakpointMethod'
         TargetAddress = Get-ObjectValue -Object $Status -Name 'targetAddress'
         HitCount = if (Get-ObjectValue -Object $Status -Name 'hitCount') { [int](Get-ObjectValue -Object $Status -Name 'hitCount') } else { 0 }
         InstructionAddress = Get-ObjectValue -Object $Status -Name 'rip'
@@ -196,8 +200,9 @@ function Get-CoordTraceResult {
 
     & $ceExecScript -LuaFile $traceLuaFile | Out-Null
 
+    $watchModeLiteral = "[[$WatchMode]]"
     $luaCode = @"
-return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]])
+return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]], nil, nil, $watchModeLiteral)
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
@@ -233,6 +238,8 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
         CandidateAddress = $AddressHex
         CandidateSource = $Source
         VerificationMethod = $null
+        WatchMode = $WatchMode
+        BreakpointMethod = $null
         TargetAddress = $AddressHex
         HitCount = 0
         InstructionAddress = $null
@@ -467,7 +474,7 @@ try {
             $summary
         }
 
-        throw ("Timed out waiting for a verified coord write trace hit across {0} candidates. {1}" -f $traceCandidates.Count, ($attemptSummary -join '; '))
+        throw ("Timed out waiting for a verified coord {0} trace hit across {1} candidates. {2}" -f $WatchMode, $traceCandidates.Count, ($attemptSummary -join '; '))
     }
 
     $modulePattern = $null
@@ -510,6 +517,8 @@ try {
         Trace = [ordered]@{
             Status = $traceStatus.Status
             VerificationMethod = $traceStatus.VerificationMethod
+            WatchMode = $traceStatus.WatchMode
+            BreakpointMethod = $traceStatus.BreakpointMethod
             CandidateAddress = $traceStatus.CandidateAddress
             CandidateSource = $traceStatus.CandidateSource
             TargetAddress = $traceStatus.TargetAddress
@@ -555,6 +564,12 @@ try {
         Write-Host "Coord write target:   $($traceStatus.TargetAddress)"
         if ($traceStatus.VerificationMethod) {
             Write-Host "Verification:         $($traceStatus.VerificationMethod)"
+        }
+        if ($traceStatus.WatchMode) {
+            Write-Host "Watch mode:           $($traceStatus.WatchMode)"
+        }
+        if ($traceStatus.BreakpointMethod) {
+            Write-Host "Breakpoint method:    $($traceStatus.BreakpointMethod)"
         }
         Write-Host "Writer RIP:           $($traceStatus.InstructionAddress)"
         Write-Host "Writer symbol:        $($traceStatus.InstructionSymbol)"
