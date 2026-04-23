@@ -58,10 +58,19 @@ public static class RiftKeyNative
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
@@ -132,9 +141,48 @@ function Get-MainWindowProcess {
 
 function Focus-Window {
     param([System.Diagnostics.Process]$Process)
-    [void][RiftKeyNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
-    [void][RiftKeyNative]::SetForegroundWindow($Process.MainWindowHandle)
-    Start-Sleep -Milliseconds 250
+
+    $targetHandle = $Process.MainWindowHandle
+    if ($targetHandle -eq [IntPtr]::Zero) {
+        return
+    }
+
+    $foregroundHandle = [RiftKeyNative]::GetForegroundWindow()
+    $foregroundProcessId = [uint32]0
+    $foregroundThreadId = if ($foregroundHandle -ne [IntPtr]::Zero) {
+        [RiftKeyNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+    }
+    else {
+        [uint32]0
+    }
+
+    $targetProcessId = [uint32]0
+    $targetThreadId = [RiftKeyNative]::GetWindowThreadProcessId($targetHandle, [ref]$targetProcessId)
+    $currentThreadId = [RiftKeyNative]::GetCurrentThreadId()
+
+    try {
+        if ($foregroundThreadId -ne 0 -and $foregroundThreadId -ne $currentThreadId) {
+            [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
+        }
+
+        if ($targetThreadId -ne 0 -and $targetThreadId -ne $currentThreadId) {
+            [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $true)
+        }
+
+        [void][RiftKeyNative]::ShowWindow($targetHandle, $SW_RESTORE)
+        [void][RiftKeyNative]::BringWindowToTop($targetHandle)
+        [void][RiftKeyNative]::SetForegroundWindow($targetHandle)
+        Start-Sleep -Milliseconds 250
+    }
+    finally {
+        if ($targetThreadId -ne 0 -and $targetThreadId -ne $currentThreadId) {
+            [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $targetThreadId, $false)
+        }
+
+        if ($foregroundThreadId -ne 0 -and $foregroundThreadId -ne $currentThreadId) {
+            [void][RiftKeyNative]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
+        }
+    }
 }
 
 function Test-TargetProcessIsForeground {
@@ -280,14 +328,49 @@ function Invoke-AhkKeyFallback {
         [string]$TargetExe
     )
 
-    $ahkFallbackScript = Join-Path $PSScriptRoot 'post-rift-key-ahk.ps1'
+    function Find-AutoHotkeyExe {
+        $candidates = @(
+            'C:\Users\mrkoo\AppData\Local\Programs\AutoHotkey\v2\AutoHotkey64.exe',
+            'C:\Users\mrkoo\AppData\Local\Programs\AutoHotkey\v2\AutoHotkey32.exe',
+            'C:\Program Files\AutoHotkey\AutoHotkey64.exe',
+            'C:\Program Files\AutoHotkey\AutoHotkey32.exe'
+        )
+
+        foreach ($candidate in $candidates) {
+            if (Test-Path -LiteralPath $candidate) {
+                return $candidate
+            }
+        }
+
+        throw 'AutoHotkey v2 executable was not found.'
+    }
+
+    function Quote-ProcessArgument {
+        param(
+            [Parameter(Mandatory = $true)]
+            [AllowEmptyString()]
+            [string]$Value
+        )
+
+        return '"' + ($Value -replace '"', '\"') + '"'
+    }
+
+    $autoHotkeyExe = Find-AutoHotkeyExe
+    $ahkFallbackScript = Join-Path $PSScriptRoot 'post-rift-key-ahk.ahk'
     if (-not (Test-Path -LiteralPath $ahkFallbackScript)) {
         throw "AutoHotkey fallback script was not found: $ahkFallbackScript"
     }
 
-    & powershell -ExecutionPolicy Bypass -File $ahkFallbackScript -Key $KeyText -HoldMilliseconds $HoldTimeMilliseconds -TargetExe $TargetExe
-    if ($LASTEXITCODE -ne 0) {
-        throw "AutoHotkey fallback exited with code $LASTEXITCODE."
+    $argumentList = @(
+        Quote-ProcessArgument -Value $ahkFallbackScript
+        Quote-ProcessArgument -Value $KeyText
+        Quote-ProcessArgument -Value $HoldTimeMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+        Quote-ProcessArgument -Value $TargetExe
+    ) -join ' '
+
+    $process = Start-Process -FilePath $autoHotkeyExe -ArgumentList $argumentList -PassThru -Wait
+    if ($process.ExitCode -ne 0) {
+        throw "AutoHotkey fallback exited with code $($process.ExitCode)."
     }
 }
 
@@ -334,6 +417,13 @@ if (-not $SkipBackgroundFocus -and -not [string]::IsNullOrWhiteSpace($Background
 }
 
 if ($RequireTargetForeground) {
+    Focus-Window -Process $targetProcess
+
+    if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {
+        Start-Sleep -Milliseconds 100
+        Focus-Window -Process $targetProcess
+    }
+
     if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {
         throw "Rift is not the foreground window. Aborting live key input to preserve focus safety."
     }

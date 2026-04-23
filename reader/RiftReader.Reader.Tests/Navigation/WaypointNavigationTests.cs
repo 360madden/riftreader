@@ -1,7 +1,10 @@
+using System.Text.Json;
+using System.Reflection;
 using RiftReader.Reader.Navigation;
 using RiftReader.Reader.Models;
 using RiftReader.Reader.AddonSnapshots;
 using RiftReader.Reader.Formatting;
+using RiftReader.Reader.Processes;
 
 namespace RiftReader.Reader.Tests.Navigation;
 
@@ -957,6 +960,36 @@ public sealed class NavigationRunResultTextFormatterTests
     }
 
     [Fact]
+    public void Format_AnchorUnavailableShowsTopLevelStopWithoutTurnSection()
+    {
+        var result = BuildNavigationAnchorUnavailableResult();
+
+        var text = NavigationRunResultTextFormatter.Format(result);
+
+        Assert.Contains("Status:               failure", text, StringComparison.Ordinal);
+        Assert.Contains("Stop reason:          anchor-unavailable", text, StringComparison.Ordinal);
+        Assert.Contains("Anchor source:        none", text, StringComparison.Ordinal);
+        Assert.Contains("Event count:          1", text, StringComparison.Ordinal);
+        Assert.Contains("Last event:           t=0ms navigation/stop [anchor-unavailable] pos=0.00000, 0.00000, 0.00000 note=A validated coord-trace navigation anchor was unavailable for this run.", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Turn status:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Turn event count:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Format_AnchorUnavailableVerboseIncludesTopLevelTimeline()
+    {
+        var result = BuildNavigationAnchorUnavailableResult();
+
+        var text = NavigationRunResultTextFormatter.Format(result, includeEventTimeline: true);
+
+        Assert.Contains("Event count:          1", text, StringComparison.Ordinal);
+        Assert.Contains("Last event:           t=0ms navigation/stop [anchor-unavailable] pos=0.00000, 0.00000, 0.00000 note=A validated coord-trace navigation anchor was unavailable for this run.", text, StringComparison.Ordinal);
+        Assert.Contains("Events:", text, StringComparison.Ordinal);
+        Assert.Contains("  - t=0ms navigation/stop [anchor-unavailable] pos=0.00000, 0.00000, 0.00000 note=A validated coord-trace navigation anchor was unavailable for this run.", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Turn events:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Format_IncludesNavigationAndTurnEventTimelinesWhenVerbose()
     {
         var result = CreateResult();
@@ -971,6 +1004,40 @@ public sealed class NavigationRunResultTextFormatterTests
         Assert.Contains("Last event:           t=0ms navigation/stop [auto-turn-worsening] dist=10.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn failed before forward movement could start.", text, StringComparison.Ordinal);
         Assert.Contains("Events:", text, StringComparison.Ordinal);
         Assert.Contains("  - t=0ms navigation/stop [auto-turn-worsening] dist=10.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn failed before forward movement could start.", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Format_SuccessWithTurnResultShowsBothCompactSummaries()
+    {
+        var result = CreateSuccessfulTurnResult();
+
+        var text = NavigationRunResultTextFormatter.Format(result);
+
+        Assert.Contains("Status:               success", text, StringComparison.Ordinal);
+        Assert.Contains("Stop reason:          arrived", text, StringComparison.Ordinal);
+        Assert.Contains("Turn status:          complete", text, StringComparison.Ordinal);
+        Assert.Contains("Turn last event:      t=75ms auto-turn/complete [complete] pulse=1 key=a delta=3.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn reached the alignment threshold.", text, StringComparison.Ordinal);
+        Assert.Contains("Event count:          3", text, StringComparison.Ordinal);
+        Assert.Contains("Last event:           t=150ms navigation/stop [arrived] pulse=2 dist=1.20000 pos=8.80000, 0.00000, 0.00000 note=Destination waypoint reached within the arrival radius.", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Turn events:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Events:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Format_SuccessWithTurnResultVerboseIncludesBothEventTimelines()
+    {
+        var result = CreateSuccessfulTurnResult();
+
+        var text = NavigationRunResultTextFormatter.Format(result, includeEventTimeline: true);
+
+        Assert.Contains("Turn event count:     1", text, StringComparison.Ordinal);
+        Assert.Contains("Turn last event:      t=75ms auto-turn/complete [complete] pulse=1 key=a delta=3.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn reached the alignment threshold.", text, StringComparison.Ordinal);
+        Assert.Contains("Turn events:", text, StringComparison.Ordinal);
+        Assert.Contains("  - t=75ms auto-turn/complete [complete] pulse=1 key=a delta=3.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn reached the alignment threshold.", text, StringComparison.Ordinal);
+        Assert.Contains("Event count:          3", text, StringComparison.Ordinal);
+        Assert.Contains("Events:", text, StringComparison.Ordinal);
+        Assert.Contains("  - t=80ms navigation/progress-reset [observed] pulse=1 dist=6.00000 pos=4.00000, 0.00000, 0.00000 note=Progress window reset after improving distance by 4.", text, StringComparison.Ordinal);
+        Assert.Contains("  - t=150ms navigation/stop [arrived] pulse=2 dist=1.20000 pos=8.80000, 0.00000, 0.00000 note=Destination waypoint reached within the arrival radius.", text, StringComparison.Ordinal);
     }
 
     private static NavigationRunResult CreateResult() =>
@@ -1035,6 +1102,86 @@ public sealed class NavigationRunResultTextFormatterTests
                     Detail: "Auto-turn failed before forward movement could start.")
             });
 
+    private static NavigationRunResult CreateSuccessfulTurnResult() =>
+        new(
+            Mode: "navigate-waypoints",
+            ProcessId: 100,
+            ProcessName: "rift_x64",
+            WaypointFile: "waypoints.json",
+            Status: "success",
+            StartWaypointId: "start",
+            DestinationWaypointId: "destination",
+            Pace: "keep",
+            AnchorSource: "coord-trace-anchor",
+            StartRadius: 2d,
+            ArrivalRadius: 1.5d,
+            InitialPlanarDistance: 10d,
+            FinalPlanarDistance: 1.2d,
+            PulseCount: 2,
+            StopReason: "arrived",
+            InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+            FinalPosition: new NavigationCoordinate(8.8d, 0d, 0d),
+            DestinationPosition: new NavigationCoordinate(10d, 0d, 0d),
+            ElapsedMilliseconds: 150,
+            TurnResult: new NavigationTurnResult(
+                Status: "complete",
+                Succeeded: true,
+                Attempted: true,
+                TurnKey: "a",
+                TurnDirection: "left",
+                ThresholdDegrees: 7.5d,
+                PulseCount: 1,
+                WorseningPulseCount: 0,
+                MaxWorseningPulses: 2,
+                InitialPlan: CreateTurnPlan(deltaDegrees: 25d, turnDirection: "left", thresholdDegrees: 7.5d),
+                FinalPlan: CreateTurnPlan(deltaDegrees: 3d, turnDirection: "aligned", thresholdDegrees: 7.5d),
+                InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+                FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+                Samples: Array.Empty<NavigationTurnSample>(),
+                Reason: null,
+                Events: new[]
+                {
+                    new NavigationEvent(
+                        "auto-turn",
+                        "complete",
+                        75,
+                        Status: "complete",
+                        PulseIndex: 1,
+                        Key: "a",
+                        Position: new NavigationCoordinate(0d, 0d, 0d),
+                        AbsoluteBearingDeltaDegrees: 3d,
+                        Detail: "Auto-turn reached the alignment threshold.")
+                }),
+            Events: new[]
+            {
+                new NavigationEvent(
+                    "navigation",
+                    "initial-sample",
+                    0,
+                    Status: "observed",
+                    Position: new NavigationCoordinate(0d, 0d, 0d),
+                    PlanarDistance: 10d,
+                    Detail: "Captured the initial navigation pose sample."),
+                new NavigationEvent(
+                    "navigation",
+                    "progress-reset",
+                    80,
+                    Status: "observed",
+                    PulseIndex: 1,
+                    Position: new NavigationCoordinate(4d, 0d, 0d),
+                    PlanarDistance: 6d,
+                    Detail: "Progress window reset after improving distance by 4."),
+                new NavigationEvent(
+                    "navigation",
+                    "stop",
+                    150,
+                    Status: "arrived",
+                    PulseIndex: 2,
+                    Position: new NavigationCoordinate(8.8d, 0d, 0d),
+                    PlanarDistance: 1.2d,
+                    Detail: "Destination waypoint reached within the arrival radius.")
+            });
+
     private static NavigationTurnPlan CreateTurnPlan(
         double deltaDegrees,
         string turnDirection,
@@ -1060,4 +1207,463 @@ public sealed class NavigationRunResultTextFormatterTests
             AlignmentThresholdDegrees: thresholdDegrees,
             WithinAlignmentThreshold: string.Equals(turnDirection, "aligned", StringComparison.OrdinalIgnoreCase) || deltaDegrees <= thresholdDegrees,
             Reason: null);
+
+    private static NavigationRunResult BuildNavigationAnchorUnavailableResult()
+    {
+        var programType = typeof(JsonOutput).Assembly.GetType("RiftReader.Reader.Program", throwOnError: true)!;
+        var builder = programType.GetMethod(
+            "BuildNavigationAnchorUnavailableResult",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(builder);
+
+        var result = builder!.Invoke(
+            null,
+            new object?[]
+            {
+                new ProcessTarget(100, "rift_x64", "rift_x64.exe", null),
+                "waypoints.json",
+                new WaypointDefinition("start", "Start", null, 0d, 0d, 0d, 2d, null),
+                new WaypointDefinition("destination", "Destination", null, 10d, 0d, 0d, 1.5d, null),
+                "keep",
+                1.5d,
+                2d,
+                "anchor-unavailable"
+            });
+
+        return Assert.IsType<NavigationRunResult>(result);
+    }
+}
+
+public sealed class NavigationRunResultJsonOutputTests
+{
+    [Fact]
+    public void Serialize_IncludesNavigationAndTurnEventPayloads()
+    {
+        var result = CreateResult();
+
+        var json = JsonOutput.Serialize(result);
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("failure", root.GetProperty("Status").GetString());
+        Assert.Equal("auto-turn-worsening", root.GetProperty("StopReason").GetString());
+
+        var events = root.GetProperty("Events");
+        Assert.Equal(JsonValueKind.Array, events.ValueKind);
+        Assert.Single(events.EnumerateArray());
+        var navigationEvent = events[0];
+        Assert.Equal("navigation", navigationEvent.GetProperty("Stage").GetString());
+        Assert.Equal("stop", navigationEvent.GetProperty("Type").GetString());
+        Assert.Equal("auto-turn-worsening", navigationEvent.GetProperty("Status").GetString());
+        Assert.Equal(10d, navigationEvent.GetProperty("PlanarDistance").GetDouble());
+        Assert.Equal("Auto-turn failed before forward movement could start.", navigationEvent.GetProperty("Detail").GetString());
+
+        var turnResult = root.GetProperty("TurnResult");
+        Assert.Equal("worsening", turnResult.GetProperty("Status").GetString());
+        var turnEvents = turnResult.GetProperty("Events");
+        Assert.Single(turnEvents.EnumerateArray());
+        var turnEvent = turnEvents[0];
+        Assert.Equal("auto-turn", turnEvent.GetProperty("Stage").GetString());
+        Assert.Equal("stop", turnEvent.GetProperty("Type").GetString());
+        Assert.Equal("a", turnEvent.GetProperty("Key").GetString());
+        Assert.Equal(26d, turnEvent.GetProperty("AbsoluteBearingDeltaDegrees").GetDouble());
+        Assert.Equal("Auto-turn worsened for 2 consecutive pulses.", turnEvent.GetProperty("Detail").GetString());
+    }
+
+    [Fact]
+    public void Serialize_AnchorUnavailableFailureIncludesTopLevelStopEvent()
+    {
+        var result = BuildNavigationAnchorUnavailableResult();
+
+        var json = JsonOutput.Serialize(result);
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("failure", root.GetProperty("Status").GetString());
+        Assert.Equal("anchor-unavailable", root.GetProperty("StopReason").GetString());
+        Assert.Equal("none", root.GetProperty("AnchorSource").GetString());
+
+        var events = root.GetProperty("Events");
+        Assert.Single(events.EnumerateArray());
+        var stopEvent = events[0];
+        Assert.Equal("navigation", stopEvent.GetProperty("Stage").GetString());
+        Assert.Equal("stop", stopEvent.GetProperty("Type").GetString());
+        Assert.Equal("anchor-unavailable", stopEvent.GetProperty("Status").GetString());
+        Assert.Equal("A validated coord-trace navigation anchor was unavailable for this run.", stopEvent.GetProperty("Detail").GetString());
+        Assert.False(root.TryGetProperty("TurnResult", out _));
+    }
+
+    [Fact]
+    public void Serialize_SuccessfulNavigationIncludesProgressResetAndArrivalEvents()
+    {
+        var poseSource = new FakePoseSource(
+            Success(0d, 0d, 0d),
+            Success(4.0d, 0d, 0d),
+            Success(8.8d, 0d, 0d));
+        var movementBackend = new FakeMovementBackend();
+
+        var result = WaypointNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(),
+            startWaypoint: StartWaypoint,
+            destinationWaypoint: DestinationWaypoint,
+            poseSource: poseSource,
+            movementBackend: movementBackend,
+            pace: NavigationPace.Keep,
+            arrivalRadius: 1.5d,
+            maxTravelSeconds: 30);
+
+        var json = JsonOutput.Serialize(result);
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("success", root.GetProperty("Status").GetString());
+        Assert.Equal("arrived", root.GetProperty("StopReason").GetString());
+        Assert.Equal(2, root.GetProperty("PulseCount").GetInt32());
+
+        var events = root.GetProperty("Events").EnumerateArray().ToArray();
+        Assert.Contains(events, navigationEvent =>
+            navigationEvent.GetProperty("Type").GetString() == "progress-reset" &&
+            navigationEvent.GetProperty("PulseIndex").GetInt32() == 1);
+        Assert.Contains(events, navigationEvent =>
+            navigationEvent.GetProperty("Type").GetString() == "stop" &&
+            navigationEvent.GetProperty("Status").GetString() == "arrived" &&
+            navigationEvent.GetProperty("PulseIndex").GetInt32() == 2);
+    }
+
+    [Fact]
+    public void Serialize_SuccessWithTurnResultIncludesBothEventStreams()
+    {
+        var result = CreateSuccessfulTurnResult();
+
+        var json = JsonOutput.Serialize(result);
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("success", root.GetProperty("Status").GetString());
+        Assert.Equal("arrived", root.GetProperty("StopReason").GetString());
+
+        var events = root.GetProperty("Events").EnumerateArray().ToArray();
+        Assert.Equal(3, events.Length);
+        Assert.Equal("progress-reset", events[1].GetProperty("Type").GetString());
+        Assert.Equal("arrived", events[2].GetProperty("Status").GetString());
+
+        var turnResult = root.GetProperty("TurnResult");
+        Assert.Equal("complete", turnResult.GetProperty("Status").GetString());
+        var turnEvents = turnResult.GetProperty("Events").EnumerateArray().ToArray();
+        Assert.Single(turnEvents);
+        Assert.Equal("complete", turnEvents[0].GetProperty("Type").GetString());
+        Assert.Equal(3d, turnEvents[0].GetProperty("AbsoluteBearingDeltaDegrees").GetDouble());
+    }
+
+    private static NavigationRunResult CreateResult() =>
+        new(
+            Mode: "navigate-waypoints",
+            ProcessId: 100,
+            ProcessName: "rift_x64",
+            WaypointFile: "waypoints.json",
+            Status: "failure",
+            StartWaypointId: "start",
+            DestinationWaypointId: "destination",
+            Pace: "keep",
+            AnchorSource: "coord-trace-anchor",
+            StartRadius: 2d,
+            ArrivalRadius: 1.5d,
+            InitialPlanarDistance: 10d,
+            FinalPlanarDistance: 10d,
+            PulseCount: 0,
+            StopReason: "auto-turn-worsening",
+            InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+            FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+            DestinationPosition: new NavigationCoordinate(10d, 0d, 0d),
+            ElapsedMilliseconds: 0,
+            TurnResult: new NavigationTurnResult(
+                Status: "worsening",
+                Succeeded: false,
+                Attempted: true,
+                TurnKey: "a",
+                TurnDirection: "left",
+                ThresholdDegrees: 7.5d,
+                PulseCount: 2,
+                WorseningPulseCount: 2,
+                MaxWorseningPulses: 2,
+                InitialPlan: CreateTurnPlan(deltaDegrees: 25d, turnDirection: "left", thresholdDegrees: 7.5d),
+                FinalPlan: CreateTurnPlan(deltaDegrees: 26d, turnDirection: "left", thresholdDegrees: 7.5d),
+                InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+                FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+                Samples: Array.Empty<NavigationTurnSample>(),
+                Reason: "Auto-turn worsened for 2 consecutive pulses.",
+                Events: new[]
+                {
+                    new NavigationEvent(
+                        "auto-turn",
+                        "stop",
+                        120,
+                        Status: "worsening",
+                        PulseIndex: 2,
+                        Key: "a",
+                        Position: new NavigationCoordinate(0d, 0d, 0d),
+                        AbsoluteBearingDeltaDegrees: 26d,
+                        Detail: "Auto-turn worsened for 2 consecutive pulses.")
+                }),
+            Events: new[]
+            {
+                new NavigationEvent(
+                    "navigation",
+                    "stop",
+                    0,
+                    Status: "auto-turn-worsening",
+                    Position: new NavigationCoordinate(0d, 0d, 0d),
+                    PlanarDistance: 10d,
+                    Detail: "Auto-turn failed before forward movement could start.")
+            });
+
+    private static NavigationRunResult CreateSuccessfulTurnResult() =>
+        new(
+            Mode: "navigate-waypoints",
+            ProcessId: 100,
+            ProcessName: "rift_x64",
+            WaypointFile: "waypoints.json",
+            Status: "success",
+            StartWaypointId: "start",
+            DestinationWaypointId: "destination",
+            Pace: "keep",
+            AnchorSource: "coord-trace-anchor",
+            StartRadius: 2d,
+            ArrivalRadius: 1.5d,
+            InitialPlanarDistance: 10d,
+            FinalPlanarDistance: 1.2d,
+            PulseCount: 2,
+            StopReason: "arrived",
+            InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+            FinalPosition: new NavigationCoordinate(8.8d, 0d, 0d),
+            DestinationPosition: new NavigationCoordinate(10d, 0d, 0d),
+            ElapsedMilliseconds: 150,
+            TurnResult: new NavigationTurnResult(
+                Status: "complete",
+                Succeeded: true,
+                Attempted: true,
+                TurnKey: "a",
+                TurnDirection: "left",
+                ThresholdDegrees: 7.5d,
+                PulseCount: 1,
+                WorseningPulseCount: 0,
+                MaxWorseningPulses: 2,
+                InitialPlan: CreateTurnPlan(deltaDegrees: 25d, turnDirection: "left", thresholdDegrees: 7.5d),
+                FinalPlan: CreateTurnPlan(deltaDegrees: 3d, turnDirection: "aligned", thresholdDegrees: 7.5d),
+                InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+                FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+                Samples: Array.Empty<NavigationTurnSample>(),
+                Reason: null,
+                Events: new[]
+                {
+                    new NavigationEvent(
+                        "auto-turn",
+                        "complete",
+                        75,
+                        Status: "complete",
+                        PulseIndex: 1,
+                        Key: "a",
+                        Position: new NavigationCoordinate(0d, 0d, 0d),
+                        AbsoluteBearingDeltaDegrees: 3d,
+                        Detail: "Auto-turn reached the alignment threshold.")
+                }),
+            Events: new[]
+            {
+                new NavigationEvent(
+                    "navigation",
+                    "initial-sample",
+                    0,
+                    Status: "observed",
+                    Position: new NavigationCoordinate(0d, 0d, 0d),
+                    PlanarDistance: 10d,
+                    Detail: "Captured the initial navigation pose sample."),
+                new NavigationEvent(
+                    "navigation",
+                    "progress-reset",
+                    80,
+                    Status: "observed",
+                    PulseIndex: 1,
+                    Position: new NavigationCoordinate(4d, 0d, 0d),
+                    PlanarDistance: 6d,
+                    Detail: "Progress window reset after improving distance by 4."),
+                new NavigationEvent(
+                    "navigation",
+                    "stop",
+                    150,
+                    Status: "arrived",
+                    PulseIndex: 2,
+                    Position: new NavigationCoordinate(8.8d, 0d, 0d),
+                    PlanarDistance: 1.2d,
+                    Detail: "Destination waypoint reached within the arrival radius.")
+            });
+
+    private static NavigationTurnPlan CreateTurnPlan(
+        double deltaDegrees,
+        string turnDirection,
+        double thresholdDegrees) =>
+        new(
+            Status: string.Equals(turnDirection, "aligned", StringComparison.OrdinalIgnoreCase) || deltaDegrees <= thresholdDegrees
+                ? "aligned"
+                : "available",
+            SourceKind: "behavior-backed-memory-facing",
+            ResolutionMode: "live-behavior-backed-lead",
+            SelectedSourceAddress: "0x1234",
+            BasisPrimaryForwardOffset: "0xD4",
+            DestinationBearingDegrees: 90d,
+            CurrentYawDegrees: 45d,
+            SignedBearingDeltaDegrees: turnDirection switch
+            {
+                "right" => -deltaDegrees,
+                "aligned" => 0d,
+                _ => deltaDegrees
+            },
+            AbsoluteBearingDeltaDegrees: deltaDegrees,
+            SuggestedTurnDirection: turnDirection,
+            AlignmentThresholdDegrees: thresholdDegrees,
+            WithinAlignmentThreshold: string.Equals(turnDirection, "aligned", StringComparison.OrdinalIgnoreCase) || deltaDegrees <= thresholdDegrees,
+            Reason: null);
+
+    private static WaypointMovementSettings CreateMovement(
+        string? runKey = null,
+        string? walkKey = null,
+        int forwardPulseMilliseconds = 1,
+        int postPulseSampleDelayMilliseconds = 0,
+        double startRadius = 2d,
+        double defaultArrivalRadius = 1.5d,
+        int noProgressWindowMilliseconds = 1000,
+        double minimumProgressDistance = 0.35d,
+        double wrongWayToleranceDistance = 0.75d,
+        int maxTravelSeconds = 30) =>
+        new(
+            ForwardKey: "w",
+            RunKey: runKey,
+            WalkKey: walkKey,
+            DefaultPace: NavigationPace.Keep,
+            ForwardPulseMilliseconds: forwardPulseMilliseconds,
+            PostPulseSampleDelayMilliseconds: postPulseSampleDelayMilliseconds,
+            StartRadius: startRadius,
+            DefaultArrivalRadius: defaultArrivalRadius,
+            NoProgressWindowMilliseconds: noProgressWindowMilliseconds,
+            MinimumProgressDistance: minimumProgressDistance,
+            WrongWayToleranceDistance: wrongWayToleranceDistance,
+            MaxTravelSeconds: maxTravelSeconds);
+
+    private static readonly WaypointDefinition StartWaypoint = new(
+        Id: "start",
+        Label: "Start",
+        Zone: null,
+        X: 0d,
+        Y: 0d,
+        Z: 0d,
+        ArrivalRadius: 2d,
+        Pace: null);
+
+    private static readonly WaypointDefinition DestinationWaypoint = new(
+        Id: "destination",
+        Label: "Destination",
+        Zone: null,
+        X: 10d,
+        Y: 0d,
+        Z: 0d,
+        ArrivalRadius: 1.5d,
+        Pace: null);
+
+    private static (bool Success, NavigationPoseSample Sample, string? Error) Success(double x, double y, double z) =>
+        (true, new NavigationPoseSample("0x1234", x, y, z), null);
+
+    private static NavigationRunResult BuildNavigationAnchorUnavailableResult()
+    {
+        var programType = typeof(JsonOutput).Assembly.GetType("RiftReader.Reader.Program", throwOnError: true)!;
+        var builder = programType.GetMethod(
+            "BuildNavigationAnchorUnavailableResult",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(builder);
+
+        var target = new ProcessTarget(100, "rift_x64", "rift_x64.exe", null);
+        var startWaypoint = new WaypointDefinition(
+            Id: "start",
+            Label: "Start",
+            Zone: null,
+            X: 0d,
+            Y: 0d,
+            Z: 0d,
+            ArrivalRadius: 2d,
+            Pace: null);
+        var destinationWaypoint = new WaypointDefinition(
+            Id: "destination",
+            Label: "Destination",
+            Zone: null,
+            X: 10d,
+            Y: 0d,
+            Z: 0d,
+            ArrivalRadius: 1.5d,
+            Pace: null);
+
+        var result = builder!.Invoke(
+            null,
+            new object?[]
+            {
+                target,
+                "waypoints.json",
+                startWaypoint,
+                destinationWaypoint,
+                "keep",
+                1.5d,
+                2d,
+                "anchor-unavailable"
+            });
+
+        return Assert.IsType<NavigationRunResult>(result);
+    }
+
+    private sealed class FakePoseSource(
+        params (bool Success, NavigationPoseSample Sample, string? Error)[] steps) : INavigationPoseSource
+    {
+        private readonly Queue<(bool Success, NavigationPoseSample Sample, string? Error)> _steps =
+            new(steps);
+
+        public string AnchorSource => "fake-anchor";
+
+        public string AddressHex => "0x1234";
+
+        public bool TryReadCurrent(out NavigationPoseSample sample, out string? error)
+        {
+            if (_steps.Count == 0)
+            {
+                sample = new NavigationPoseSample(AddressHex, 0d, 0d, 0d);
+                error = "No navigation pose samples remain.";
+                return false;
+            }
+
+            var next = _steps.Dequeue();
+            sample = next.Sample;
+            error = next.Success ? null : next.Error ?? "Navigation pose read failed.";
+            return next.Success;
+        }
+    }
+
+    private sealed class FakeMovementBackend(
+        IEnumerable<MovementCommandResult>? results = null) : IMovementBackend
+    {
+        private readonly Queue<MovementCommandResult> _results =
+            new(results ?? Enumerable.Repeat(new MovementCommandResult(true, null), 32));
+
+        public void PrepareForMovement()
+        {
+        }
+
+        public MovementCommandResult PressKey(string key, int holdMilliseconds) =>
+            _results.Count > 0
+                ? _results.Dequeue()
+                : new MovementCommandResult(true, null);
+    }
 }

@@ -201,6 +201,27 @@ coord-trace anchor for live movement, and it aborts instead of forcing repeated
 turns when heading alignment does not improve or worsens across consecutive
 pulses.
 
+For text output, the reader now has two navigation-result verbosity levels:
+
+| Mode | What you get |
+|---|---|
+| default text output | compact summary, event counts, and the latest navigation / auto-turn event |
+| `--verbose-navigation-events` | the same summary plus the full compact event timeline for navigation and auto-turn |
+
+Example verbose text run:
+
+```powershell
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- `
+  --process-name rift_x64 `
+  --navigate-waypoints `
+  --start-waypoint example_start `
+  --destination-waypoint example_destination `
+  --pace keep `
+  --auto-turn-before-move `
+  --auto-turn-within-degrees 7.5 `
+  --verbose-navigation-events
+```
+
 The prototype wrapper still exists as a higher-level helper, but the current
 reader-core path is now the authoritative auto-turn entrypoint.
 
@@ -222,6 +243,7 @@ reader-core path is now the authoritative auto-turn entrypoint.
 | `--turn-pulse-ms <int>` / `--turn-post-sample-delay-ms <int>` | Tune turn pulse duration and post-pulse re-sample delay |
 | `--turn-max-pulses <int>` | Cap the number of turn attempts before failing closed |
 | `--turn-worsening-tolerance <double>` / `--turn-max-worsening-pulses <int>` | Abort auto-turn if heading gets worse repeatedly |
+| `--verbose-navigation-events` | Print the full text event timeline instead of only the latest event summaries |
 | `--json` | Structured output for either waypoint mode |
 
 ## Movement behavior
