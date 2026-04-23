@@ -143,6 +143,54 @@ function Get-CurrentTargetProcessId {
     }
 }
 
+function Get-ConcurrentDebuggerProcesses {
+    $processNamePattern = '^(windbg|windbgx|x64dbg|x32dbg|ollydbg|ida|ida64|ghidra|processhacker|procexp|procmon)$'
+    return @(
+        Get-Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Id -ne $PID -and
+                $_.ProcessName -match $processNamePattern
+            } |
+            Sort-Object ProcessName, Id |
+            Select-Object ProcessName, Id, Path
+    )
+}
+
+function Add-BreakpointWorkflowNotes {
+    param(
+        $Notes
+    )
+
+    if ($null -eq $Notes) {
+        return
+    }
+
+    $breakpointNote = 'Coord trace proof uses live debugger-backed breakpoints. The current preferred proof path is CE debug-register breakpoints with access watch mode; treat VEH/page-exception as exploratory only.'
+    $Notes.Add($breakpointNote) | Out-Null
+
+    if (-not $Json) {
+        Write-Host "[CoordTrace] $breakpointNote" -ForegroundColor Yellow
+    }
+
+    $concurrentDebuggerProcesses = @(Get-ConcurrentDebuggerProcesses)
+    if ($concurrentDebuggerProcesses.Count -le 0) {
+        return
+    }
+
+    $processSummary = ($concurrentDebuggerProcesses | ForEach-Object {
+            if ([string]::IsNullOrWhiteSpace($_.Path)) {
+                "{0} ({1})" -f $_.ProcessName, $_.Id
+            }
+            else {
+                "{0} ({1}) @ {2}" -f $_.ProcessName, $_.Id, $_.Path
+            }
+        }) -join '; '
+
+    $warningMessage = "Detected other debugger-class tools while arming CE breakpoint tracing: $processSummary. Avoid concurrent debugger attaches during proof runs."
+    $Notes.Add($warningMessage) | Out-Null
+    Write-Warning $warningMessage
+}
+
 function Convert-ToModulePattern {
     param(
         [Parameter(Mandatory = $true)]
@@ -840,6 +888,7 @@ $candidateGenerationNotes = New-Object System.Collections.Generic.List[string]
 $traceStatus = $null
 
 Move-CanonicalFailureArtifactAside -CanonicalPath $resolvedOutputFile
+Add-BreakpointWorkflowNotes -Notes $candidateGenerationNotes
 
 try {
     if (-not $SkipRefresh) {

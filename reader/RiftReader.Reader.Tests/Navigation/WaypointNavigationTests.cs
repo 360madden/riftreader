@@ -147,6 +147,111 @@ public sealed class NavigationMathTests
     }
 }
 
+public sealed class NavigationPoseSourcePolicyTests
+{
+    [Fact]
+    public void TryCreateWithPolicy_StrictCoordTrace_ReturnsTraceResultWithoutFallback()
+    {
+        var traceResult = new NavigationPoseSourceCreationResult(
+            new FakePolicyPoseSource(),
+            new NavigationPoseSample("0xTRACE", 1d, 2d, 3d));
+        var cachedInvoked = false;
+        var reacquiredInvoked = false;
+
+        var result = NavigationPoseSourceFactory.TryCreateWithPolicy(
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            tryTraceAnchor: () => new NavigationPoseSourceResolutionStepResult(traceResult),
+            tryCachedAnchor: () =>
+            {
+                cachedInvoked = true;
+                return new NavigationPoseSourceResolutionStepResult(null);
+            },
+            tryReacquiredAnchor: () =>
+            {
+                reacquiredInvoked = true;
+                return new NavigationPoseSourceResolutionStepResult(null);
+            },
+            out var error);
+
+        Assert.Same(traceResult, result);
+        Assert.Null(error);
+        Assert.False(cachedInvoked);
+        Assert.False(reacquiredInvoked);
+    }
+
+    [Fact]
+    public void TryCreateWithPolicy_StrictCoordTrace_FailsClosedWithoutFallback()
+    {
+        var cachedInvoked = false;
+        var reacquiredInvoked = false;
+
+        var result = NavigationPoseSourceFactory.TryCreateWithPolicy(
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            tryTraceAnchor: () => new NavigationPoseSourceResolutionStepResult(null, "Trace anchor did not match current ReaderBridge coordinates."),
+            tryCachedAnchor: () =>
+            {
+                cachedInvoked = true;
+                return new NavigationPoseSourceResolutionStepResult(
+                    new NavigationPoseSourceCreationResult(
+                        new FakePolicyPoseSource(),
+                        new NavigationPoseSample("0xCACHED", 4d, 5d, 6d)));
+            },
+            tryReacquiredAnchor: () =>
+            {
+                reacquiredInvoked = true;
+                return new NavigationPoseSourceResolutionStepResult(
+                    new NavigationPoseSourceCreationResult(
+                        new FakePolicyPoseSource(),
+                        new NavigationPoseSample("0xREACQUIRED", 7d, 8d, 9d)));
+            },
+            out var error);
+
+        Assert.Null(result);
+        Assert.Contains("coord trace", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cached or reacquired anchors are not allowed", error, StringComparison.OrdinalIgnoreCase);
+        Assert.False(cachedInvoked);
+        Assert.False(reacquiredInvoked);
+    }
+
+    [Fact]
+    public void TryCreateWithPolicy_AllowFallback_UsesCachedAnchorWhenTraceUnavailable()
+    {
+        var cachedResult = new NavigationPoseSourceCreationResult(
+            new FakePolicyPoseSource(),
+            new NavigationPoseSample("0xCACHED", 4d, 5d, 6d));
+        var reacquiredInvoked = false;
+
+        var result = NavigationPoseSourceFactory.TryCreateWithPolicy(
+            NavigationPoseSourcePolicy.AllowFallback,
+            tryTraceAnchor: () => new NavigationPoseSourceResolutionStepResult(null),
+            tryCachedAnchor: () => new NavigationPoseSourceResolutionStepResult(cachedResult),
+            tryReacquiredAnchor: () =>
+            {
+                reacquiredInvoked = true;
+                return new NavigationPoseSourceResolutionStepResult(null);
+            },
+            out var error);
+
+        Assert.Same(cachedResult, result);
+        Assert.Null(error);
+        Assert.False(reacquiredInvoked);
+    }
+
+    private sealed class FakePolicyPoseSource : INavigationPoseSource
+    {
+        public string AnchorSource => "fake-anchor";
+
+        public string AddressHex => "0x1234";
+
+        public bool TryReadCurrent(out NavigationPoseSample sample, out string? error)
+        {
+            sample = new NavigationPoseSample(AddressHex, 0d, 0d, 0d);
+            error = null;
+            return true;
+        }
+    }
+}
+
 public sealed class WaypointNavigatorTests
 {
     [Fact]

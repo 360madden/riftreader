@@ -24,6 +24,16 @@ public sealed record NavigationPoseSourceCreationResult(
     INavigationPoseSource Source,
     NavigationPoseSample InitialSample);
 
+internal enum NavigationPoseSourcePolicy
+{
+    AllowFallback = 0,
+    StrictCoordTrace = 1
+}
+
+internal sealed record NavigationPoseSourceResolutionStepResult(
+    NavigationPoseSourceCreationResult? Result,
+    string? Error = null);
+
 public static class NavigationPoseSourceFactory
 {
     private const float VerificationTolerance = 0.25f;
@@ -31,39 +41,97 @@ public static class NavigationPoseSourceFactory
     private const int DefaultCoordYOffset = 4;
     private const int DefaultCoordZOffset = 8;
 
-    public static NavigationPoseSourceCreationResult? TryCreate(
+    internal static NavigationPoseSourceCreationResult? TryCreate(
         ProcessMemoryReader reader,
         int processId,
         string processName,
         ReaderBridgeSnapshotDocument? snapshotDocument,
         int inspectionRadius,
+        NavigationPoseSourcePolicy policy,
         int maxHits,
         out string? error)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
-        error = null;
-        string? lastReacquireError = null;
+        return TryCreateWithPolicy(
+            policy,
+            tryTraceAnchor: () =>
+            {
+                return TryResolveTraceAnchor(reader, processId, processName, snapshotDocument, out var traceResult)
+                    ? new NavigationPoseSourceResolutionStepResult(traceResult)
+                    : new NavigationPoseSourceResolutionStepResult(null);
+            },
+            tryCachedAnchor: () =>
+            {
+                return TryResolveCachedAnchor(reader, processName, snapshotDocument, out var cachedResult)
+                    ? new NavigationPoseSourceResolutionStepResult(cachedResult)
+                    : new NavigationPoseSourceResolutionStepResult(null);
+            },
+            tryReacquiredAnchor: () =>
+            {
+                if (snapshotDocument?.Current?.Player is null)
+                {
+                    return new NavigationPoseSourceResolutionStepResult(null);
+                }
 
-        if (TryResolveTraceAnchor(reader, processId, processName, snapshotDocument, out var traceResult))
+                return TryResolveReacquiredAnchor(
+                    reader,
+                    processId,
+                    processName,
+                    snapshotDocument,
+                    inspectionRadius,
+                    maxHits,
+                    out var reacquiredResult,
+                    out var reacquireError)
+                    ? new NavigationPoseSourceResolutionStepResult(reacquiredResult)
+                    : new NavigationPoseSourceResolutionStepResult(null, reacquireError);
+            },
+            out error);
+    }
+
+    internal static NavigationPoseSourceCreationResult? TryCreateWithPolicy(
+        NavigationPoseSourcePolicy policy,
+        Func<NavigationPoseSourceResolutionStepResult> tryTraceAnchor,
+        Func<NavigationPoseSourceResolutionStepResult> tryCachedAnchor,
+        Func<NavigationPoseSourceResolutionStepResult> tryReacquiredAnchor,
+        out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(tryTraceAnchor);
+        ArgumentNullException.ThrowIfNull(tryCachedAnchor);
+        ArgumentNullException.ThrowIfNull(tryReacquiredAnchor);
+
+        var traceStep = tryTraceAnchor();
+        if (traceStep.Result is not null)
         {
-            return traceResult;
+            error = null;
+            return traceStep.Result;
         }
 
-        if (TryResolveCachedAnchor(reader, processName, snapshotDocument, out var cachedResult))
+        if (policy == NavigationPoseSourcePolicy.StrictCoordTrace)
         {
-            return cachedResult;
+            error = string.IsNullOrWhiteSpace(traceStep.Error)
+                ? "Unable to resolve a verified navigation pose anchor from the current-process coord trace. Proof-grade movement requires a validated coord-trace anchor; cached or reacquired anchors are not allowed."
+                : $"Unable to resolve a verified navigation pose anchor from the current-process coord trace. {traceStep.Error} Proof-grade movement requires a validated coord-trace anchor; cached or reacquired anchors are not allowed.";
+            return null;
         }
 
-        if (snapshotDocument?.Current?.Player is not null &&
-            TryResolveReacquiredAnchor(reader, processId, processName, snapshotDocument, inspectionRadius, maxHits, out var reacquiredResult, out lastReacquireError))
+        var cachedStep = tryCachedAnchor();
+        if (cachedStep.Result is not null)
         {
-            return reacquiredResult;
+            error = null;
+            return cachedStep.Result;
         }
 
-        error = string.IsNullOrWhiteSpace(lastReacquireError)
+        var reacquiredStep = tryReacquiredAnchor();
+        if (reacquiredStep.Result is not null)
+        {
+            error = null;
+            return reacquiredStep.Result;
+        }
+
+        error = string.IsNullOrWhiteSpace(reacquiredStep.Error)
             ? "Unable to resolve a verified navigation pose anchor from the coord trace, player anchor cache, or player-current reacquisition."
-            : lastReacquireError;
+            : reacquiredStep.Error;
         return null;
     }
 

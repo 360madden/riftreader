@@ -75,6 +75,11 @@ public sealed class AddonContextSource(string? snapshotFile) : IContextSource
 public sealed class MemoryCoordSource : IPositionSource
 {
     private static readonly TimeSpan StaleAnchorGraceWindow = TimeSpan.FromSeconds(10);
+    private static readonly string[] CheatEngineDebuggerModuleNames =
+    [
+        "vehdebug-x86_64.dll",
+        "vehdebug-i386.dll"
+    ];
 
     private readonly ProcessMemoryReader _reader;
     private readonly int _processId;
@@ -394,6 +399,16 @@ public sealed class MemoryCoordSource : IPositionSource
                 FullDocument: null);
         }
 
+        if (TryDetectManualCeDebuggerSession(out var debuggerModuleName))
+        {
+            return new ProofCoordAnchorRefreshResult(
+                Document: null,
+                Error: $"Full proof coord anchor refresh was skipped because the target process already has Cheat Engine debugger module '{debuggerModuleName}' loaded. Stop the manual CE debugger session or restart telemetry with a fresh primed proof cache.",
+                UsedFullRefresh: false,
+                QuickDocument: quick.Document,
+                FullDocument: null);
+        }
+
         var full = TryResolve(skipRefresh: false);
         return new ProofCoordAnchorRefreshResult(
             Document: full.Document is not null && full.Document.MatchIsValid ? full.Document : null,
@@ -443,6 +458,43 @@ public sealed class MemoryCoordSource : IPositionSource
                 },
                 discovery: _diagnosticsEnabled);
         }
+    }
+
+    private bool TryDetectManualCeDebuggerSession(out string? debuggerModuleName)
+    {
+        debuggerModuleName = null;
+
+        try
+        {
+            using var process = Process.GetProcessById(_processId);
+            foreach (ProcessModule module in process.Modules)
+            {
+                if (CheatEngineDebuggerModuleNames.Any(
+                    expectedName => string.Equals(module.ModuleName, expectedName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    debuggerModuleName = module.ModuleName;
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            if (_diagnosticsEnabled)
+            {
+                _logger.LogEvent(
+                    "source.coord",
+                    "Unable to inspect target modules before telemetry proof refresh.",
+                    new
+                    {
+                        ProcessId = _processId,
+                        ProcessName = _processName,
+                        ex.Message
+                    },
+                    discovery: true);
+            }
+        }
+
+        return false;
     }
 
     private ProofCoordAnchorResolveAttempt TryResolve(bool skipRefresh)

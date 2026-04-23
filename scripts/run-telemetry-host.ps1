@@ -32,6 +32,42 @@ function ConvertFrom-JsonCompat {
     return $Json | Microsoft.PowerShell.Utility\ConvertFrom-Json
 }
 
+function Get-TelemetryTargetProcess {
+    param(
+        [string]$ResolvedProcessName,
+        [int]$ResolvedProcessId
+    )
+
+    if ($ResolvedProcessId -gt 0) {
+        return Get-Process -Id $ResolvedProcessId -ErrorAction Stop
+    }
+
+    return Get-Process -Name $ResolvedProcessName -ErrorAction Stop |
+        Sort-Object StartTime -Descending |
+        Select-Object -First 1
+}
+
+function Get-CheatEngineDebuggerModuleName {
+    param(
+        [string]$ResolvedProcessName,
+        [int]$ResolvedProcessId
+    )
+
+    try {
+        $targetProcess = Get-TelemetryTargetProcess -ResolvedProcessName $ResolvedProcessName -ResolvedProcessId $ResolvedProcessId
+        foreach ($module in $targetProcess.Modules) {
+            if ($module.ModuleName -in @('vehdebug-x86_64.dll', 'vehdebug-i386.dll')) {
+                return [string]$module.ModuleName
+            }
+        }
+    }
+    catch {
+        Write-Verbose ("Unable to inspect telemetry target modules before proof prime: {0}" -f $_.Exception.Message)
+    }
+
+    return $null
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $defaultOutputFile = Join-Path $repoRoot 'scripts\captures\readerbridge-telemetry.latest.json'
@@ -88,6 +124,7 @@ if (-not $SkipProofCoordPrime) {
     $proofCoordAnchorScript = Join-Path $repoRoot 'scripts\resolve-proof-coord-anchor.ps1'
     if (Test-Path -LiteralPath $proofCoordAnchorScript) {
         try {
+            $attachedDebuggerModule = Get-CheatEngineDebuggerModuleName -ResolvedProcessName $ProcessName -ResolvedProcessId $ProcessId
             $primeArguments = @(
                 '-NoProfile',
                 '-ExecutionPolicy', 'Bypass',
@@ -99,6 +136,11 @@ if (-not $SkipProofCoordPrime) {
             }
             else {
                 $primeArguments += @('-ProcessName', $ProcessName)
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($attachedDebuggerModule)) {
+                Write-Warning ("Manual Cheat Engine debugger session detected on the target process ({0}); telemetry startup will use validation-only proof priming and will refuse full proof refresh until that debugger session is stopped." -f $attachedDebuggerModule)
+                $primeArguments += '-SkipRefresh'
             }
 
             $primeArguments += '-Json'

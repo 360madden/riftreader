@@ -15,6 +15,12 @@ Read this file at the start of every session. It is the single authoritative ref
 > - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 > - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
 > - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+>
+> **Current live authority index:**
+>
+> - active live truth: `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+> - movement / proof runbook: `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
+> - telemetry bridge contract: `C:\RIFT MODDING\RiftReader\docs\telemetry-bridge-v1.md`
 
 ---
 
@@ -38,7 +44,9 @@ scripts\deploy-addon.cmd
 scripts\sync-cheatengine.cmd
 ```
 
-There is no test project. Validate C# changes by building (`dotnet build RiftReader.slnx`) then running `scripts\read-player-current.cmd`.
+There is a test project at `reader\RiftReader.Reader.Tests`. Validate C#
+changes by building (`dotnet build RiftReader.slnx`) and running targeted or
+full `dotnet test` where relevant.
 
 ---
 

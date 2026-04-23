@@ -1,5 +1,10 @@
 # Handoff - April 22, 2026 - actor-facing source-chain truth promoted
 
+> **Historical / superseded note:** this handoff records the April 22
+> source-chain truth promotion for that session. It is preserved as evidence,
+> but the living current authority now lives in
+> `docs/recovery/current-truth.md` and `docs/recovery/rebuild-runbook.md`.
+
 ## Verdict
 
 Actor-facing is fresh truth again on the current live `rift_x64` session.

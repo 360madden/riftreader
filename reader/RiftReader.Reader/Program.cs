@@ -823,6 +823,7 @@ internal static class Program
             target.ProcessName,
             snapshotDocument,
             inspectionRadius,
+            NavigationPoseSourcePolicy.AllowFallback,
             options.MaxHits,
             out var poseError);
 
@@ -884,6 +885,7 @@ internal static class Program
             target.ProcessName,
             snapshotDocument,
             inspectionRadius,
+            NavigationPoseSourcePolicy.StrictCoordTrace,
             options.MaxHits,
             out var poseError);
 
@@ -952,6 +954,7 @@ internal static class Program
             target.ProcessName,
             snapshotDocument,
             inspectionRadius,
+            NavigationPoseSourcePolicy.AllowFallback,
             options.MaxHits,
             out var poseError);
 

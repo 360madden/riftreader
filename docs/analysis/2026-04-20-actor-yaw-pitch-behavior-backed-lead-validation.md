@@ -1,12 +1,8 @@
 # 2026-04-20 actor-yaw / pitch behavior-backed lead validation
 
-> **Historical note (superseded on April 22, 2026):**
-> this document remains accurate for the April 20 live session, but the current
-> repo truth was later re-promoted on a new source-chain lane:
-> `0x24F595F8D10 @ +0x60` (duplicate `+0x94`).
-> See `C:\RIFT MODDING\RiftReader_facing\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
-> and `C:\RIFT MODDING\RiftReader_facing\docs\recovery\current-truth.md` for the
-> current live truth.
+> **Historical / superseded note:** this April 20 validation is preserved for
+> evidence only. For the living actor-facing truth and recovery workflow, see
+> `docs/recovery/current-truth.md` and `docs/recovery/rebuild-runbook.md`.
 
 ## Scope
 

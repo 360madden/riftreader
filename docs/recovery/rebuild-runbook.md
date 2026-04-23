@@ -17,6 +17,15 @@ Expected during the current post-update state:
 - coord-anchor should still find the module-local pattern, even if the absolute
   instruction address changed
 
+For proof-grade movement / polling on the current process:
+
+- the validated coord-trace anchor remains the required source of truth
+- active movement (`--navigate-waypoints`) now fails closed unless that
+  coord-trace anchor is available for the current process
+- cached player-current / player-signature anchors are no longer accepted as
+  live movement proof, even though read-only helpers may still surface them as
+  fallback anchors
+
 If these fail, stop and fix the reader baseline before trusting any
 owner/source/camera artifact.
 
@@ -26,10 +35,21 @@ When a fresh coord trace is required on the current client, prefer:
 C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1 -Json -WatchMode access -StimulusMode AutoHotkey
 ```
 
+That path is still **debugger-assisted breakpoint tracing**. It currently works
+best with CE `debug-register` breakpoints. Treat VEH/page-exception as an
+exploratory/manual path, not the canonical proof route, and avoid running other
+debugger-class tools against `rift_x64` at the same time.
+
 The default write/PostMessage path can still arm successfully without ever
 producing a verified hit on the current build. If a `/reloadui` refresh just
 ran, wait until `--read-player-current` succeeds again before refreshing the
 coord trace or disassembly cluster.
+
+If the current-process trace artifact still validates but the full
+`resolve-proof-coord-anchor.ps1` refresh path cannot reacquire a fresh trace,
+use `--read-player-coord-anchor` to confirm the live coord-trace anchor first,
+then refresh the proof cache / watchset from that validated current-process
+anchor before any movement-proof run.
 
 ## 1. Build the repo
 

@@ -5,6 +5,11 @@ as_of: 2026-04-22
 
 # Telemetry Bridge v1 Handoff (2026-04-22)
 
+> **Historical / superseded note:** this handoff captures the April 22 bridge
+> session and is kept as evidence of that state. For the living bridge
+> authority, see `docs/telemetry-bridge-v1.md`; for current recovery and truth,
+> also see `docs/recovery/current-truth.md` and `docs/recovery/rebuild-runbook.md`.
+
 ## Scope
 
 This handoff freezes the current state of the **Telemetry Bridge v1** work in:

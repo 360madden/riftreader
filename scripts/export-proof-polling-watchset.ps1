@@ -79,6 +79,26 @@ function Add-Region {
         }) | Out-Null
 }
 
+function Get-OptionalPropertyValue {
+    param(
+        $Object,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
 function Write-Utf8TextAtomic {
     param(
         [Parameter(Mandatory = $true)]
@@ -131,16 +151,18 @@ if ($coordAnchor.PSObject.Properties['Status'] -and $coordAnchor.Status -eq 'fai
 
 $coordRegionAddress = Parse-HexUInt64 -Value ([string]$coordAnchor.CoordRegionAddress)
 $coordTraceObjectAddress = Parse-HexUInt64 -Value ([string]$coordAnchor.ObjectBaseAddress)
+$levelRelativeOffset = Get-OptionalPropertyValue -Object $coordAnchor -Name 'LevelRelativeOffset'
+$healthRelativeOffset = Get-OptionalPropertyValue -Object $coordAnchor -Name 'HealthRelativeOffset'
 
 Add-Region -Name 'coord-trace-coords' -Category 'coord-trace-field' -Address $coordRegionAddress -Length 12 -Required $true -Priority 140 -Notes 'Proof-grade movement coordinate triplet from the validated coord-trace anchor. This is the canonical movement polling source.'
 Add-Region -Name 'coord-trace-object' -Category 'coord-trace-object' -Address $coordTraceObjectAddress -Length $CoordTraceObjectWindowBytes -Required $true -Priority 130 -Notes 'Owning object window for the validated coord-trace anchor.'
 
-if ($null -ne $coordAnchor.LevelRelativeOffset) {
-    Add-Region -Name 'coord-trace-level' -Category 'coord-trace-field' -Address ([UInt64]([long]$coordTraceObjectAddress + [long]$coordAnchor.LevelRelativeOffset)) -Length 4 -Required $false -Priority 90 -Notes 'Level field from the validated coord-trace anchor object.'
+if ($null -ne $levelRelativeOffset) {
+    Add-Region -Name 'coord-trace-level' -Category 'coord-trace-field' -Address ([UInt64]([long]$coordTraceObjectAddress + [long]$levelRelativeOffset)) -Length 4 -Required $false -Priority 90 -Notes 'Level field from the validated coord-trace anchor object.'
 }
 
-if ($null -ne $coordAnchor.HealthRelativeOffset) {
-    Add-Region -Name 'coord-trace-health' -Category 'coord-trace-field' -Address ([UInt64]([long]$coordTraceObjectAddress + [long]$coordAnchor.HealthRelativeOffset)) -Length 4 -Required $false -Priority 90 -Notes 'Health field from the validated coord-trace anchor object.'
+if ($null -ne $healthRelativeOffset) {
+    Add-Region -Name 'coord-trace-health' -Category 'coord-trace-field' -Address ([UInt64]([long]$coordTraceObjectAddress + [long]$healthRelativeOffset)) -Length 4 -Required $false -Priority 90 -Notes 'Health field from the validated coord-trace anchor object.'
 }
 
 if (-not [string]::IsNullOrWhiteSpace([string]$coordAnchor.SourceObjectAddress)) {

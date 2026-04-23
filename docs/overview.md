@@ -84,9 +84,9 @@ Current short version:
 
 - `player-current` still works
 - the coord-anchor module pattern still works
-- source-chain refresh is working again for the actor-facing lane
+- proof-grade movement still uses the validated coord-trace anchor
 - selector-owner trace is broken
-- actor-orientation is live again through source `0x24F595F8D10` and basis rows `+0x60/+0x94`
+- actor-orientation is currently live again through the behavior-backed lead at `0x12CAF6F7080 @ 0xD4`
 - camera claims below are historical until rebuilt
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
@@ -94,6 +94,7 @@ Current short version:
 Use these first:
 
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
@@ -138,10 +139,12 @@ Post-update note:
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
-  - current live truth uses source `0x24F595F8D10`
-  - current live truth uses duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
+  - current live truth uses the validated behavior-backed lead in
+    `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
+  - current live truth currently resolves to `0x12CAF6F7080 @ 0xD4`
   - current live `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` derives repeatable yaw/pitch captures from the promoted behavior-backed lead
-  - current live `C:\RIFT MODDING\RiftReader\scripts\test-actor-yaw-candidates.ps1` validated reversible D/A yaw response on `+0x60` and `+0x94`
+  - treat the earlier April 22 source-chain `+0x60/+0x94` result as
+    historical evidence until it is re-proven again on the current session
   - current camera live workflow is branch-specific and lives on `feature/camera-orientation-discovery`, not `main`
 - treat the owner container as a component table, not just a wrapper list:
   - pre-update, entry `6` behaved like the transform/source component

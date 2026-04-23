@@ -12,7 +12,7 @@ This first slice is intentionally narrow:
 | Control model | **Manual-align first**. The operator faces the character roughly at the destination, then the navigator owns forward movement and optional pace toggles only. |
 | Waypoint source | External tracked JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Movement backend | .NET 10 orchestration with a thin adapter over `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` |
-| Live telemetry | Resolve one verified player coord anchor, then read direct memory coords each loop |
+| Live telemetry | Active movement requires the validated coord-trace anchor; read-only summaries may still surface fallback anchors when they are explicitly labeled by `anchorSource` |
 | Addon boundary | Addon stays telemetry / validation only in v1 |
 | Safety model | Fail closed on bad start, no progress, moving away, anchor loss, input failure, or timeout |
 
@@ -46,28 +46,33 @@ flowchart TD
     A["Waypoint JSON"] --> B["WaypointNavigationConfigurationLoader"]
     B --> C["Resolve destination/start waypoint"]
     C --> D["NavigationPoseSourceFactory"]
-    D --> E["coord-trace anchor"]
-    D --> F["cached player-current anchor"]
-    D --> G["player-current reacquire"]
-    E --> H["Verified live pose source"]
-    F --> H
-    G --> H
-    H --> I["Read-navigation-current summary"]
+    D --> E["coord-trace anchor (proof-grade)"]
+    D --> F["read-only fallback anchors"]
+    E --> H["Proof-grade live pose source"]
+    F --> I["Read-navigation-current summary"]
+    H --> I
     H --> J["WaypointNavigator"]
     J --> K["PowerShellMovementBackend"]
     K --> L["post-rift-key.ps1"]
 ```
 
-### Pose resolution order
+### Pose resolution policy
 
-The reader resolves a live coordinate source in this order:
+`--navigate-waypoints` is now proof-strict:
+
+1. current-process coord-trace anchor
+2. fail closed with `anchor-unavailable`
+
+`--read-navigation-current` remains read-only and may still fall back in this
+order:
 
 1. current-process coord-trace anchor
 2. cached player-current anchor
 3. one-time `PlayerCurrentReader.ReadCurrent(...)` reacquisition
 
-If no verified anchor is available, navigation exits with
-`anchor-unavailable` before sending movement input.
+If the summary output reports any `anchorSource` other than
+`coord-trace-anchor`, treat it as a read-only fallback result rather than
+proof-grade movement truth.
 
 ### State machine
 
@@ -247,6 +252,7 @@ Failure conditions:
 ## Safety rules
 
 - do not send any input until a verified coord anchor is resolved
+- do not start active movement from cached or reacquired fallback anchors
 - do not keep moving if telemetry is lost
 - do not continue if distance is getting worse
 - do not continue if the player is not making measurable progress

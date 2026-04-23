@@ -1,5 +1,9 @@
 # Handoff - April 22, 2026 - navigation coord-trace recovered, actor-facing still blocked
 
+> **Historical / superseded note:** this handoff records the April 22 recovery
+> state only. For the living recovery workflow and current truth, see
+> `docs/recovery/rebuild-runbook.md` and `docs/recovery/current-truth.md`.
+
 ## Verdict
 
 The navigation-side trace stack is working again on the current live `rift_x64`

@@ -1,5 +1,10 @@
 # April 22, 2026 actor-facing source-chain behavior-backed lead
 
+> **Historical / superseded note:** this analysis captures the April 22
+> source-chain-based actor-facing promotion. It is kept as evidence of that
+> session, but the living current authority now lives in
+> `docs/recovery/current-truth.md` and `docs/recovery/rebuild-runbook.md`.
+
 ## Verdict
 
 Actor-facing truth is fresh again on the current `rift_x64` session.

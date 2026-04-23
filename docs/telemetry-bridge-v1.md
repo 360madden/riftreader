@@ -10,6 +10,11 @@ Telemetry Bridge v1 provides an always-on external JSON snapshot that merges:
 
 It is additive. It does **not** modify the fixed-width `ReaderBridge_v3` layout.
 
+For the current live recovery authority, see:
+
+- `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
+
 ## Components
 
 | Layer | Path | Role |
@@ -94,6 +99,12 @@ By default the wrapper tries to pre-resolve a fresh proof coord anchor into:
 
 before starting the reader host.
 
+If the target process already has a manual Cheat Engine debugger session
+attached (for example `vehdebug-x86_64.dll` is already loaded in `rift_x64`),
+telemetry startup now refuses **full** proof refresh. In that case the wrapper
+falls back to validation-only proof priming and the host will degrade instead
+of trying to overlap another debugger-backed proof reacquisition.
+
 ## Default output files
 
 | File | Purpose |
@@ -124,11 +135,16 @@ Top-level JSON sections:
 - `position.addon` comes from ReaderBridgeExport-compatible truth
 - `position.effective` prefers memory when valid, otherwise addon
 - host coord refresh is background/non-blocking; if a fresh validation is still in flight, the host may publish addon fallback temporarily instead of stalling
+- active movement / proof / polling must **not** treat addon fallback or
+  stale-grace host output as proof-grade movement truth; only the validated
+  coord-trace anchor qualifies for movement proof
 
 ### Facing rules
 
 - `facing` uses the live behavior-backed facing lead only
 - if the lead is unavailable or invalid, facing remains `valid=false`
+- the living current-facing authority is the currently validated lead in
+  `docs/recovery/current-truth.md`, not historical handoff snapshots
 
 ### Movement rules
 
@@ -169,6 +185,7 @@ Discovery logs are only written when diagnostics mode is enabled.
 |---|---|
 | Primed wrapper start | best path; usually allows immediate memory-backed coords when the cached anchor is fresh and still valid |
 | Raw host start with stale cache | may begin with addon fallback while coord refresh runs in the background |
+| Manual CE debugger already attached | startup/refresh stays validation-only and refuses full proof reacquisition until the debugger session is stopped |
 | `proofAnchorAgeSeconds` | reported as a non-negative freshness value |
 | stale-grace note in diagnostics | indicates the host is still using the last validated anchor while a background refresh is in flight |
 
