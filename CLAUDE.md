@@ -40,18 +40,6 @@ scripts\sync-cheatengine.cmd
 
 There is no test project. Validate C# changes by building (`dotnet build RiftReader.slnx`) then running `scripts\read-player-current.cmd`.
 
-## 0A. Code review tooling freeze
-
-CodeRabbit is currently **frozen** for this repository.
-
-- Do **not** add new CodeRabbit setup, config, badges, docs, or workflow
-  dependencies.
-- Do **not** spend repo work time expanding CodeRabbit-based local or PR review
-  flows unless the user explicitly reopens that decision.
-- Prefer direct agent review, targeted tests, and normal repo validation.
-- Treat any CodeRabbit-generated local temp output as disposable and
-  non-repo-owned.
-
 ---
 
 ## 1. System Identity
