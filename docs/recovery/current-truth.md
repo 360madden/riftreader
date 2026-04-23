@@ -16,8 +16,8 @@ _Last updated: April 23, 2026 (fresh live coord-anchor validation, agentic actor
 | Navigation preflight (`--read-navigation-current`) | returns a read-only facing-aware turn hint when actor-facing truth is available; this powers operator guidance and reader-core auto-turn planning |
 | Navigation reader-core auto-turn | `--navigate-waypoints` can now opt into pre-movement auto-turn with `--auto-turn-before-move` and related tuning switches; it remains fail-closed if alignment does not improve or worsens repeatedly |
 | Navigation prototype wrapper | `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1` remains an optional higher-level helper for the same facing-aware preflight / auto-turn workflow |
-| Navigation proof suite | `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1` now rechecks the smoke-route, facing-aware preflight, and current auto-turn-preflight path |
-| V3 movement readiness | not ready yet; a deliberately misaligned live route still needs to prove corrective turn pulses plus forward travel end-to-end on the strict coord-trace anchor |
+| Navigation proof suite | `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1` now rechecks the smoke-route, facing-aware preflight, current auto-turn-preflight path, and opt-in active v3-prep proofs via `-IncludeActiveMovement` / `-IncludeMisalignedAutoTurn` |
+| V3 movement readiness | v3-prep blocker cleared for the first deliberately misaligned live route: `navigation-prototype-20260423-195303-923` corrected about `19.9°` of misalignment with one `d` pulse, improved to about `2.7°`, then arrived through strict `coord-trace-anchor` forward travel; still needs repeatability and broader terrain/route-chain decisions before promotion |
 | ReaderBridge orientation probe | still empty on the current client |
 | `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
@@ -102,13 +102,13 @@ Operational interpretation:
   `Coord48` / `Coord88` on this source do **not** match the current player
   coords, so this lead is not a movement coord source
 - `--read-navigation-current` can now reuse the same live behavior-backed lead
-  to report read-only preflight yaw, heading delta, and suggested turn
-  direction, and `--navigate-waypoints` can now opt into pre-movement
-  auto-turn with `--auto-turn-before-move`
-- reader-core auto-turn remains a v2 bridge only: it is still fail-closed,
-  still movement-anchor-strict, and the repo is not v3-ready until a
-  deliberately misaligned live route proves corrective turn pulses and
-  successful forward travel end-to-end
+  to report read-only preflight movement-space yaw, heading delta, and
+  suggested turn direction, and `--navigate-waypoints` can now opt into
+  pre-movement auto-turn with `--auto-turn-before-move`
+- reader-core auto-turn remains fail-closed and movement-anchor-strict; the
+  first deliberately misaligned live route proof now passed end-to-end in
+  `navigation-prototype-20260423-195303-923`, but broader v3 promotion still
+  needs repeatability and route/terrain scope decisions
 - the same-session provenance lane is live again, and the current
   `capture-player-source-chain.ps1` step now rebuilds fresh with
   `Recovery.Mode = rebuild-from-suggested-source-chain-pattern` when the

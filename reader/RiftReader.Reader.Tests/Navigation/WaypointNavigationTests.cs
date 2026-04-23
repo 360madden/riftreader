@@ -156,6 +156,7 @@ public sealed class NavigationMathTests
     [Fact]
     public void BuildFacingSummary_ComputesExpectedHeadingDeltaFields()
     {
+        var component = Math.Sqrt(0.5d);
         var orientation = new PlayerOrientationReadResult(
             Mode: "player-orientation-live",
             ArtifactFile: @"C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json",
@@ -178,7 +179,7 @@ public sealed class NavigationMathTests
             BasisDuplicateForwardOffset: null,
             PreferredEstimate: new PlayerOrientationVectorEstimate(
                 Name: "Basis@0xD4.Forward",
-                Vector: new ValidatorCoordinateSnapshot(1d, 0d, 0d),
+                Vector: new ValidatorCoordinateSnapshot(component, 0d, component),
                 YawRadians: Math.PI / 4d,
                 YawDegrees: 45d,
                 PitchRadians: 0d,
@@ -202,8 +203,55 @@ public sealed class NavigationMathTests
         Assert.Equal(0d, facing.PitchDegrees);
         Assert.Equal(45d, facing.SignedBearingDeltaDegrees);
         Assert.Equal(45d, facing.AbsoluteBearingDeltaDegrees);
-        Assert.Equal("left", facing.SuggestedTurnDirection);
+        Assert.Equal("right", facing.SuggestedTurnDirection);
         Assert.Null(facing.Reason);
+    }
+
+    [Fact]
+    public void BuildFacingSummary_MapsForwardVectorIntoMovementSpaceBearing()
+    {
+        var orientation = new PlayerOrientationReadResult(
+            Mode: "player-orientation-live",
+            ArtifactFile: @"C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json",
+            ArtifactLoadedAtUtc: new DateTimeOffset(2026, 4, 23, 6, 0, 0, TimeSpan.Zero),
+            ArtifactGeneratedAtUtc: new DateTimeOffset(2026, 4, 23, 6, 0, 0, TimeSpan.Zero),
+            SnapshotFile: null,
+            SnapshotLoadedAtUtc: null,
+            PlayerName: "Atank",
+            PlayerLevel: 45,
+            PlayerGuild: null,
+            PlayerLocation: null,
+            PlayerCoord: null,
+            SelectedSourceAddress: "0x1234",
+            SelectedEntryAddress: null,
+            SelectedEntryIndex: null,
+            SelectedEntryMatchesSelectedSource: false,
+            SelectedEntryRoleHints: Array.Empty<string>(),
+            ResolutionMode: "live-behavior-backed-lead",
+            BasisPrimaryForwardOffset: "0xD4",
+            BasisDuplicateForwardOffset: null,
+            PreferredEstimate: new PlayerOrientationVectorEstimate(
+                Name: "Basis@0xD4.Forward",
+                Vector: new ValidatorCoordinateSnapshot(1d, 0d, 0d),
+                YawRadians: 0d,
+                YawDegrees: 0d,
+                PitchRadians: 0d,
+                PitchDegrees: 0d,
+                Magnitude: 1d),
+            BasisPrimaryEstimate: null,
+            BasisDuplicateEstimate: null,
+            BasisDuplicateDeltaMagnitude: null,
+            BasisDuplicateAgreementStrong: null,
+            Estimates: Array.Empty<PlayerOrientationVectorEstimate>(),
+            Notes: Array.Empty<string>());
+
+        var facing = NavigationMath.BuildFacingSummary(orientation, destinationBearingDegrees: 90d);
+
+        Assert.Equal("available", facing.Status);
+        Assert.Equal(90d, facing.YawDegrees);
+        Assert.Equal(0d, facing.SignedBearingDeltaDegrees);
+        Assert.Equal(0d, facing.AbsoluteBearingDeltaDegrees);
+        Assert.Equal("aligned", facing.SuggestedTurnDirection);
     }
 
     [Fact]
@@ -231,12 +279,12 @@ public sealed class NavigationMathTests
             BasisDuplicateForwardOffset: null,
             PreferredEstimate: new PlayerOrientationVectorEstimate(
                 Name: "Basis@0xD4.Forward",
-                Vector: new ValidatorCoordinateSnapshot(1d, 0d, 0d),
+                Vector: null,
                 YawRadians: null,
                 YawDegrees: null,
                 PitchRadians: 0d,
                 PitchDegrees: 0d,
-                Magnitude: 1d),
+                Magnitude: null),
             BasisPrimaryEstimate: null,
             BasisDuplicateEstimate: null,
             BasisDuplicateDeltaMagnitude: null,
@@ -250,7 +298,7 @@ public sealed class NavigationMathTests
         Assert.Equal("behavior-backed-memory-facing", facing.SourceKind);
         Assert.Null(facing.AbsoluteBearingDeltaDegrees);
         Assert.Null(facing.SuggestedTurnDirection);
-        Assert.Contains("usable yaw estimate", facing.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("usable movement-space yaw estimate", facing.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -9,7 +9,7 @@ This first slice is intentionally narrow:
 
 | Area | V1 behavior |
 |---|---|
-| Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`, but active travel still uses the strict coord-trace anchor and fails closed on bad alignment, worsening turns, or input/telemetry failure. |
+| Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`; the April 23 live v3-prep run proved one deliberately misaligned route where corrective turn input improved alignment and strict coord-trace forward travel arrived. |
 | Waypoint source | External tracked JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Movement backend | .NET 10 orchestration with a thin adapter over `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` |
 | Live telemetry | Active movement requires the validated coord-trace anchor; read-only summaries may still surface fallback anchors when they are explicitly labeled by `anchorSource` |
@@ -73,6 +73,21 @@ order:
 If the summary output reports any `anchorSource` other than
 `coord-trace-anchor`, treat it as a read-only fallback result rather than
 proof-grade movement truth.
+
+### Facing / movement bearing policy
+
+Navigation compares destination bearings against the actor-facing **basis
+vector mapped into movement-space bearing**. The raw actor-facing estimate is
+still derived from the `Basis@0xD4.Forward` row, but route generation and
+auto-turn planning must use the movement-space bearing:
+
+- raw basis estimate: `atan2(forwardZ, forwardX)`
+- navigation/movement bearing: `atan2(forwardX, forwardZ)`
+
+This mapping was required by the April 23 active smoke run: using the raw yaw
+as a route bearing sent the character across the destination vector and caused
+`no-progress`; using movement-space bearing aligned forward pulses with the
+strict coord-trace route.
 
 ### State machine
 
@@ -345,6 +360,13 @@ or after changes:
   - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
 - include the current live smoke-route + preflight validation:
   - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -SkipRefresh -ProcessName rift_x64`
+- include live active aligned movement after preflight validation:
+  - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -IncludeActiveMovement -ProcessName rift_x64`
+- include the v3-prep deliberately misaligned auto-turn + active movement proof:
+  - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -IncludeMisalignedAutoTurn -MisalignedBearingOffsetDegrees 20 -ProcessName rift_x64`
+
+The active flags send live input to Rift. Use them only after confirming the
+window/process, terrain, and route are safe.
 
 ## V2 / V3 progression snapshot
 
@@ -353,10 +375,10 @@ Current movement posture:
 - v1 reader movement remains proof-strict and single-segment
 - the current v2 bridge is now the **read-only facing-aware preflight** plus
   opt-in reader-core auto-turn on `--navigate-waypoints`
-- v3 is **not** ready yet; before promoting beyond the prototype bridge, prove
-  one deliberately misaligned live route where corrective turn pulses fire,
-  alignment improves, and forward travel still succeeds through the strict
-  coord-trace anchor
+- v3-prep live proof now exists for one deliberately misaligned route: the
+  `navigation-prototype-20260423-195303-923` run started about `19.9°` off,
+  sent one corrective `d` pulse, improved the delta to about `2.7°`, then
+  arrived through strict `coord-trace-anchor` forward travel
 
 ## Current limitations
 
@@ -366,9 +388,9 @@ As of **April 23, 2026**:
   `--navigate-waypoints` movement is still **single-segment only**
 - the core reader path is still **straight-line, same-segment, and no obstacle
   avoidance**
-- reader-core auto-turn is **opt-in**, fail-closed, and not yet proven on a
-  deliberately misaligned live route end-to-end
-- live corrective turn pulses on a deliberately misaligned route are not yet
-  proven end-to-end
+- reader-core auto-turn is still **opt-in** and fail-closed, but one
+  deliberately misaligned live route is now proven end-to-end
+- movement remains single-segment; broader v3 work still needs repeatability,
+  route chaining decisions, and obstacle/terrain handling before promotion
 - addon work remains minimal in v1
 

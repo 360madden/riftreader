@@ -16,17 +16,18 @@ layer.
 
 | Area | Current v1 behavior |
 |---|---|
-| Control model | Manual-align first, then pulse forward movement |
+| Control model | Manual-align first by default; optional proof-strict pre-movement auto-turn |
 | Waypoints | External JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Telemetry | Verified coord anchor once, then direct memory coord reads during travel |
-| Movement | Forward key pulses plus optional run / walk toggle |
+| Movement | Forward key pulses plus optional run / walk toggle; `--auto-turn-before-move` can align before travel |
 | Safety | Fail closed on anchor loss, no progress, moving away, input failure, or timeout |
-| Non-goals | No auto-turn, no obstacle avoidance, no route graph, no addon waypoint UI |
+| Non-goals | No obstacle avoidance, no route graph, no addon waypoint UI |
 
 Use these waypoint modes:
 
 - `--read-navigation-current` for a read-only destination vector preflight
-- `--navigate-waypoints` for single-segment forward travel
+- `--navigate-waypoints` for single-segment forward travel; add
+  `--auto-turn-before-move` for opt-in pre-movement turn alignment
 
 See:
 

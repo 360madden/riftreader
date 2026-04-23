@@ -15,8 +15,8 @@ After the April 14, 2026 game update:
   owner-graph / stat-hub provenance lane on the same session
 - navigation preflight now reuses that live actor-facing truth for a read-only
   turn hint, and `--navigate-waypoints` can now opt into pre-movement
-  auto-turn, but v3 movement is still pending a deliberately misaligned live
-  correction proof plus forward-travel handoff
+  auto-turn; the first deliberately misaligned live correction proof plus
+  forward-travel handoff passed in `navigation-prototype-20260423-195303-923`
 - camera notes below the recovery layer should still be treated as historical
   until rebuilt
 

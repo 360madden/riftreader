@@ -72,22 +72,22 @@ public static class NavigationMath
     {
         ArgumentNullException.ThrowIfNull(orientation);
 
-        var yawDegrees = orientation.PreferredEstimate?.YawDegrees;
+        var yaw = TryComputeNavigationBearing(orientation.PreferredEstimate);
         var pitchDegrees = orientation.PreferredEstimate?.PitchDegrees;
-        if (!yawDegrees.HasValue)
+        if (!yaw.HasValue)
         {
             return BuildUnavailableFacingSummary(
                 status: "estimate-unavailable",
-                message: "Actor-facing read did not return a usable yaw estimate for navigation alignment.");
+                message: "Actor-facing read did not return a usable movement-space yaw estimate for navigation alignment.");
         }
 
-        var signedDelta = NormalizeDegrees(destinationBearingDegrees - yawDegrees.Value);
+        var signedDelta = NormalizeDegrees(destinationBearingDegrees - yaw.Value.Degrees);
         var absoluteDelta = Math.Abs(signedDelta);
         var direction = absoluteDelta <= 0.0001d
             ? "aligned"
             : signedDelta > 0d
-                ? "left"
-                : "right";
+                ? "right"
+                : "left";
 
         return new NavigationFacingSummary(
             Status: "available",
@@ -96,8 +96,8 @@ public static class NavigationMath
             SelectedSourceAddress: orientation.SelectedSourceAddress,
             BasisPrimaryForwardOffset: orientation.BasisPrimaryForwardOffset,
             BasisDuplicateForwardOffset: orientation.BasisDuplicateForwardOffset,
-            YawRadians: orientation.PreferredEstimate?.YawRadians,
-            YawDegrees: yawDegrees,
+            YawRadians: yaw.Value.Radians,
+            YawDegrees: yaw.Value.Degrees,
             PitchRadians: orientation.PreferredEstimate?.PitchRadians,
             PitchDegrees: pitchDegrees,
             SignedBearingDeltaDegrees: signedDelta,
@@ -105,6 +105,53 @@ public static class NavigationMath
             SuggestedTurnDirection: direction,
             Reason: null);
     }
+
+    private static (double Radians, double Degrees)? TryComputeNavigationBearing(PlayerOrientationVectorEstimate? estimate)
+    {
+        var vector = estimate?.Vector;
+        if (vector?.X is double vectorX &&
+            vector.Z is double vectorZ &&
+            IsFinite(vectorX) &&
+            IsFinite(vectorZ) &&
+            Math.Sqrt((vectorX * vectorX) + (vectorZ * vectorZ)) > double.Epsilon)
+        {
+            var radians = Math.Atan2(vectorX, vectorZ);
+            return (radians, NormalizeDegrees(radians * 180d / Math.PI));
+        }
+
+        if (estimate?.YawRadians is { } yawRadians && IsFinite(yawRadians))
+        {
+            var radians = NormalizeRadians((Math.PI / 2d) - yawRadians);
+            return (radians, NormalizeDegrees(radians * 180d / Math.PI));
+        }
+
+        if (estimate?.YawDegrees is { } yawDegrees && IsFinite(yawDegrees))
+        {
+            var degrees = NormalizeDegrees(90d - yawDegrees);
+            return (degrees * Math.PI / 180d, degrees);
+        }
+
+        return null;
+    }
+
+    private static double NormalizeRadians(double radians)
+    {
+        var normalized = radians;
+        while (normalized > Math.PI)
+        {
+            normalized -= 2d * Math.PI;
+        }
+
+        while (normalized <= -Math.PI)
+        {
+            normalized += 2d * Math.PI;
+        }
+
+        return normalized;
+    }
+
+    private static bool IsFinite(double value) =>
+        !double.IsNaN(value) && !double.IsInfinity(value);
 
     public static NavigationTurnPlan BuildTurnPlan(
         NavigationFacingSummary? facing,

@@ -8,16 +8,16 @@ param(
     [string]$DestinationWaypointId = 'smoke_destination',
     [string]$StartLabel = 'Smoke Start',
     [string]$DestinationLabel = 'Smoke Destination',
-    [double]$DistanceForward = 3.0,
+    [double]$DistanceForward = 2.6,
     [double]$BearingOffsetDegrees = 0.0,
-    [double]$ArrivalRadius = 5.0,
+    [double]$ArrivalRadius = 2.1,
     [int]$ForwardPulseMilliseconds = 250,
     [int]$PostPulseSampleDelayMilliseconds = 150,
     [double]$StartRadius = 1.5,
     [int]$NoProgressWindowMilliseconds = 3000,
-    [double]$MinimumProgressDistance = 0.1,
+    [double]$MinimumProgressDistance = 0.05,
     [double]$WrongWayToleranceDistance = 1.0,
-    [int]$MaxTravelSeconds = 12,
+    [int]$MaxTravelSeconds = 20,
     [int]$ScanContextBytes = 192,
     [int]$MaxHits = 12,
     [switch]$SkipRefresh
@@ -159,6 +159,53 @@ function Get-OrientationOffsetValue {
     return $null
 }
 
+function Normalize-Radians {
+    param([double]$Radians)
+
+    $normalized = $Radians
+    while ($normalized -gt [Math]::PI) {
+        $normalized -= 2.0 * [Math]::PI
+    }
+
+    while ($normalized -le -[Math]::PI) {
+        $normalized += 2.0 * [Math]::PI
+    }
+
+    return $normalized
+}
+
+function Convert-RadiansToDegrees {
+    param([double]$Radians)
+
+    return $Radians * 180.0 / [Math]::PI
+}
+
+function Get-NavigationBearingRadians {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$PreferredEstimate
+    )
+
+    $vector = if ($PreferredEstimate.PSObject.Properties['Vector']) { $PreferredEstimate.Vector } else { $null }
+    if ($null -ne $vector -and
+        $null -ne $vector.X -and
+        $null -ne $vector.Z) {
+        $vectorX = [double]$vector.X
+        $vectorZ = [double]$vector.Z
+        if ([double]::IsFinite($vectorX) -and
+            [double]::IsFinite($vectorZ) -and
+            ([Math]::Sqrt(($vectorX * $vectorX) + ($vectorZ * $vectorZ)) -gt [double]::Epsilon)) {
+            return [Math]::Atan2($vectorX, $vectorZ)
+        }
+    }
+
+    if ($null -ne $PreferredEstimate.YawRadians) {
+        return Normalize-Radians -Radians (([Math]::PI / 2.0) - [double]$PreferredEstimate.YawRadians)
+    }
+
+    throw "Actor orientation did not return a usable movement-space navigation bearing."
+}
+
 if ($DistanceForward -le 0) {
     throw "DistanceForward must be positive."
 }
@@ -192,12 +239,14 @@ $readerOrientation = $orientation.ReaderOrientation
 $basisPrimaryForwardOffset = Get-OrientationOffsetValue -OrientationDocument $readerOrientation -PrimaryPropertyName 'BasisPrimaryForwardOffset' -FallbackPropertyName 'BasisForwardOffset'
 $basisDuplicateForwardOffset = Get-OrientationOffsetValue -OrientationDocument $readerOrientation -PrimaryPropertyName 'BasisDuplicateForwardOffset' -FallbackPropertyName ''
 
-$yawRadians = $readerOrientation.PreferredEstimate.YawRadians
-if ($null -eq $yawRadians) {
-    throw "Actor orientation did not return a usable yaw."
+$preferredEstimate = $readerOrientation.PreferredEstimate
+if ($null -eq $preferredEstimate) {
+    throw "Actor orientation did not return a preferred estimate."
 }
 
-$destinationYawRadians = [double]$yawRadians + ([Math]::PI * ($BearingOffsetDegrees / 180.0))
+$yawRadians = $preferredEstimate.YawRadians
+$navigationBearingRadians = Get-NavigationBearingRadians -PreferredEstimate $preferredEstimate
+$destinationYawRadians = [double]$navigationBearingRadians + ([Math]::PI * ($BearingOffsetDegrees / 180.0))
 $destinationX = $startX + ([Math]::Cos($destinationYawRadians) * $DistanceForward)
 $destinationY = $startY
 $destinationZ = $startZ + ([Math]::Sin($destinationYawRadians) * $DistanceForward)
@@ -218,6 +267,7 @@ $document = [ordered]@{
         basisPrimaryForwardOffset = $basisPrimaryForwardOffset
         basisDuplicateForwardOffset = $basisDuplicateForwardOffset
         yawDegrees = [double]$readerOrientation.PreferredEstimate.YawDegrees
+        navigationBearingDegrees = Convert-RadiansToDegrees -Radians $navigationBearingRadians
         distanceForward = $DistanceForward
         bearingOffsetDegrees = $BearingOffsetDegrees
         notes = @(
@@ -283,8 +333,10 @@ $json = $document | ConvertTo-Json -Depth 20
     coordSource = 'readerbridge-snapshot'
     readerBridgeSnapshotSourceFile = [string]$snapshot.SourceFile
     readerBridgeExportCount = $snapshot.ExportCount
-    yawRadians = [double]$yawRadians
+    yawRadians = if ($null -ne $yawRadians) { [double]$yawRadians } else { $null }
     yawDegrees = [double]$readerOrientation.PreferredEstimate.YawDegrees
+    navigationBearingRadians = [double]$navigationBearingRadians
+    navigationBearingDegrees = Convert-RadiansToDegrees -Radians $navigationBearingRadians
     bearingOffsetDegrees = $BearingOffsetDegrees
     basisPrimaryForwardOffset = $basisPrimaryForwardOffset
     basisDuplicateForwardOffset = $basisDuplicateForwardOffset

@@ -130,10 +130,15 @@ Preferred live-truth flow on the current client:
 - `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
   is now the one-command navigation hardening pass for the smoke-route,
   facing-aware preflight, and current auto-turn-preflight path
-- before calling navigation v3-ready, deliberately validate one live
-  **misaligned** smoke route where reader-core auto-turn actually sends turn
-  pulses, improves the heading delta, and still hands off cleanly to strict
-  coord-trace-based forward movement
+- add `-IncludeActiveMovement` for aligned live movement proof, or
+  `-IncludeMisalignedAutoTurn -MisalignedBearingOffsetDegrees 20` for the
+  v3-prep corrective-turn + forward-travel proof; both flags send live input
+  and require `-IncludeLive`
+- the first deliberately **misaligned** smoke route has now been validated:
+  `navigation-prototype-20260423-195303-923` sent one corrective `d` pulse,
+  improved heading delta from about `19.9°` to about `2.7°`, and handed off
+  cleanly to strict coord-trace-based forward movement; repeat this proof after
+  route/tuning changes before promoting broader v3 behavior
 - Lane A (live truth) may stay green even when the raw source-chain step falls
   back to `rebuild-from-suggested-source-chain-pattern` or, only if that fails,
   same-session recovery-mode reuse; Lane B (provenance) is where that

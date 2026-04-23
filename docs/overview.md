@@ -92,7 +92,7 @@ Current short version:
 - actor-orientation is currently live again through the behavior-backed lead at `0x12CC0FA0F70 @ 0xD4`
 - navigation preflight now surfaces a read-only facing-aware turn hint from that
   live actor-facing lead when it validates on the current process
-- `--navigate-waypoints` can now opt into pre-movement auto-turn, but movement
+- `--navigate-waypoints` can now opt into pre-movement auto-turn; movement
   still stays strict on the coord-trace anchor and fails closed
 - selector-owner / owner-components / owner-graph / stat-hub provenance refreshed again on April 23, 2026
 - current source-chain refresh now rebuilds fresh from the last-good suggested source-chain pattern when the refreshed low-level cluster drops the older signature; same-session `reuse-previous-source-chain` is the last fallback only if that rebuild path fails
@@ -123,9 +123,9 @@ Current v2 / v3 posture:
   auto-turn on `--navigate-waypoints`
 - the prototype wrapper remains useful as a higher-level helper, but it is no
   longer the only auto-turn path worth documenting
-- v3 is **not** ready yet; it still needs a deliberately misaligned live route
-  where corrective turn pulses fire, alignment improves, and forward travel
-  succeeds on the strict coord-trace anchor
+- the first v3-prep deliberately misaligned live route is now proven
+  end-to-end (`navigation-prototype-20260423-195303-923`); broader v3 promotion
+  still needs repeatability and route/terrain scope decisions
 
 ## Immediate Milestones
 

@@ -2,7 +2,10 @@
 param(
     [string]$ProcessName = 'rift_x64',
     [switch]$IncludeLive,
-    [switch]$SkipRefresh
+    [switch]$SkipRefresh,
+    [switch]$IncludeActiveMovement,
+    [switch]$IncludeMisalignedAutoTurn,
+    [double]$MisalignedBearingOffsetDegrees = 20.0
 )
 
 Set-StrictMode -Version Latest
@@ -12,6 +15,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $readerTestsProject = Join-Path $repoRoot 'reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj'
 $smokeRouteScript = Join-Path $PSScriptRoot 'new-forward-smoke-route.ps1'
 $prototypeScript = Join-Path $PSScriptRoot 'run-a-to-b-prototype.ps1'
+
+if (($IncludeActiveMovement -or $IncludeMisalignedAutoTurn) -and -not $IncludeLive) {
+    throw "-IncludeActiveMovement and -IncludeMisalignedAutoTurn require -IncludeLive because they attach to the live Rift process."
+}
 
 $results = New-Object System.Collections.Generic.List[object]
 
@@ -53,7 +60,9 @@ Invoke-SuiteStep -Name 'navigation-dotnet-tests' -ScriptBlock {
 }
 
 if ($IncludeLive) {
-    Invoke-SuiteStep -Name 'navigation-live-smoke-route' -ScriptBlock {
+    function New-SmokeRouteArguments {
+        param([double]$BearingOffsetDegrees = 0.0)
+
         $arguments = @(
             '-NoLogo',
             '-NoProfile',
@@ -62,10 +71,51 @@ if ($IncludeLive) {
             '-ProcessName', $ProcessName
         )
 
+        if ($BearingOffsetDegrees -ne 0.0) {
+            $arguments += @('-BearingOffsetDegrees', $BearingOffsetDegrees.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+        }
+
         if ($SkipRefresh) {
             $arguments += '-SkipRefresh'
         }
 
+        return $arguments
+    }
+
+    function New-PrototypeArguments {
+        param(
+            [switch]$PreflightOnly,
+            [switch]$AutoTurnBeforeMove
+        )
+
+        $arguments = @(
+            '-NoLogo',
+            '-NoProfile',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', $prototypeScript,
+            '-ProcessName', $ProcessName,
+            '-UseSmokeTestFile',
+            '-UseExistingWaypoints',
+            '-AutoConfirm'
+        )
+
+        if ($PreflightOnly) {
+            $arguments += '-PreflightOnly'
+        }
+
+        if ($AutoTurnBeforeMove) {
+            $arguments += '-AutoTurnBeforeMove'
+        }
+
+        if ($SkipRefresh) {
+            $arguments += '-SkipRefresh'
+        }
+
+        return $arguments
+    }
+
+    Invoke-SuiteStep -Name 'navigation-live-smoke-route' -ScriptBlock {
+        $arguments = New-SmokeRouteArguments
         & pwsh @arguments
         if ($LASTEXITCODE -ne 0) {
             throw "new-forward-smoke-route.ps1 failed with exit code $LASTEXITCODE."
@@ -73,22 +123,7 @@ if ($IncludeLive) {
     }
 
     Invoke-SuiteStep -Name 'navigation-live-preflight' -ScriptBlock {
-        $arguments = @(
-            '-NoLogo',
-            '-NoProfile',
-            '-ExecutionPolicy', 'Bypass',
-            '-File', $prototypeScript,
-            '-ProcessName', $ProcessName,
-            '-UseSmokeTestFile',
-            '-UseExistingWaypoints',
-            '-PreflightOnly',
-            '-AutoConfirm'
-        )
-
-        if ($SkipRefresh) {
-            $arguments += '-SkipRefresh'
-        }
-
+        $arguments = New-PrototypeArguments -PreflightOnly
         & pwsh @arguments
         if ($LASTEXITCODE -ne 0) {
             throw "run-a-to-b-prototype.ps1 preflight failed with exit code $LASTEXITCODE."
@@ -96,26 +131,38 @@ if ($IncludeLive) {
     }
 
     Invoke-SuiteStep -Name 'navigation-live-auto-turn-preflight' -ScriptBlock {
-        $arguments = @(
-            '-NoLogo',
-            '-NoProfile',
-            '-ExecutionPolicy', 'Bypass',
-            '-File', $prototypeScript,
-            '-ProcessName', $ProcessName,
-            '-UseSmokeTestFile',
-            '-UseExistingWaypoints',
-            '-PreflightOnly',
-            '-AutoTurnBeforeMove',
-            '-AutoConfirm'
-        )
-
-        if ($SkipRefresh) {
-            $arguments += '-SkipRefresh'
-        }
-
+        $arguments = New-PrototypeArguments -PreflightOnly -AutoTurnBeforeMove
         & pwsh @arguments
         if ($LASTEXITCODE -ne 0) {
             throw "run-a-to-b-prototype.ps1 auto-turn preflight failed with exit code $LASTEXITCODE."
+        }
+    }
+
+    if ($IncludeActiveMovement) {
+        Invoke-SuiteStep -Name 'navigation-live-active-movement' -ScriptBlock {
+            $arguments = New-PrototypeArguments
+            & pwsh @arguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "run-a-to-b-prototype.ps1 active movement failed with exit code $LASTEXITCODE."
+            }
+        }
+    }
+
+    if ($IncludeMisalignedAutoTurn) {
+        Invoke-SuiteStep -Name 'navigation-live-misaligned-smoke-route' -ScriptBlock {
+            $arguments = New-SmokeRouteArguments -BearingOffsetDegrees $MisalignedBearingOffsetDegrees
+            & pwsh @arguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "new-forward-smoke-route.ps1 misaligned route failed with exit code $LASTEXITCODE."
+            }
+        }
+
+        Invoke-SuiteStep -Name 'navigation-live-misaligned-auto-turn' -ScriptBlock {
+            $arguments = New-PrototypeArguments -AutoTurnBeforeMove
+            & pwsh @arguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "run-a-to-b-prototype.ps1 misaligned auto-turn movement failed with exit code $LASTEXITCODE."
+            }
         }
     }
 }
