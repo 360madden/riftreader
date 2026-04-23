@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using RiftReader.Reader.Models;
 
 namespace RiftReader.Reader.Navigation;
 
@@ -13,6 +14,16 @@ internal static class NavigationProofCoordAnchorRefresher
         {
             error = "Navigation proof coord anchor refresh requires a target process name.";
             return false;
+        }
+
+        var cachedProofAnchor = ProofCoordAnchorCacheLoader.TryLoad(null, out _);
+        if (cachedProofAnchor is not null &&
+            !string.IsNullOrWhiteSpace(cachedProofAnchor.CoordRegionAddress) &&
+            string.Equals(cachedProofAnchor.ProcessName, processName, StringComparison.OrdinalIgnoreCase) &&
+            (!processId.Equals(default(int)) ? cachedProofAnchor.ProcessId == processId : true) &&
+            cachedProofAnchor.Match?.CoordMatchesWithinTolerance == true)
+        {
+            return true;
         }
 
         var repoRoot = NavigationPathResolver.TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();

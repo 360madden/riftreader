@@ -2,20 +2,20 @@
   "schemaVersion": 1,
   "provenance": {
     "kind": "smoke-route",
-    "generatedAtUtc": "2026-04-23T15:55:12.9407003+00:00",
+    "generatedAtUtc": "2026-04-23T16:20:35.9589782+00:00",
     "processName": "rift_x64",
     "processId": 63012,
     "processStartTimeUtc": "2026-04-22T07:13:46.8244103Z",
     "processResponding": true,
     "readerBridgeSnapshotSourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
-    "readerBridgeExportCount": 1589,
+    "readerBridgeExportCount": 1597,
     "orientationResolutionMode": "behavior-backed-lead",
     "selectedSourceAddress": "0X12CC0FA0F70",
     "basisPrimaryForwardOffset": "0xD4",
     "basisDuplicateForwardOffset": null,
-    "yawDegrees": 146.4157359881638,
-    "distanceForward": 3.0,
-    "bearingOffsetDegrees": 45.0,
+    "yawDegrees": -68.3536166960677,
+    "distanceForward": 8.0,
+    "bearingOffsetDegrees": 0.0,
     "notes": [
       "Generated from the current live player position and live actor-facing reader.",
       "Regenerate this smoke route after a Rift restart, zone move, or major position change before treating it as a current-session validation route."
@@ -29,7 +29,7 @@
     "forwardPulseMilliseconds": 250,
     "postPulseSampleDelayMilliseconds": 150,
     "startRadius": 1.5,
-    "defaultArrivalRadius": 5.0,
+    "defaultArrivalRadius": 2.0,
     "noProgressWindowMilliseconds": 3000,
     "minimumProgressDistance": 0.1,
     "wrongWayToleranceDistance": 1.0,
@@ -39,19 +39,19 @@
     {
       "id": "smoke_start",
       "label": "Smoke Start",
-      "x": 7424.9296875,
-      "y": 863.58996582031,
-      "z": 3133.1298828125,
-      "arrivalRadius": 5.0,
+      "x": 7415.0400390625,
+      "y": 818.26995849609,
+      "z": 3192.7800292969,
+      "arrivalRadius": 2.0,
       "pace": "keep"
     },
     {
       "id": "smoke_destination",
       "label": "Smoke Destination",
-      "x": 7421.98903694373,
-      "y": 863.58996582031,
-      "z": 3132.5361031345815,
-      "arrivalRadius": 5.0,
+      "x": 7417.99105605856,
+      "y": 818.26995849609,
+      "z": 3185.344203943319,
+      "arrivalRadius": 2.0,
       "pace": "keep"
     }
   ]
