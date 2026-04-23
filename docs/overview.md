@@ -17,20 +17,23 @@ Waypoint navigation v1 is now available as a narrow reader-owned slice.
 
 | Area | Current status |
 |---|---|
-| Movement model | Manual-facing only |
+| Movement model | Core reader path is single-segment forward travel with optional pre-movement auto-turn on `--navigate-waypoints` |
 | Route model | Single-segment start -> destination |
 | Waypoint source | `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Telemetry source | Verified live coord anchor plus direct memory reads |
-| Recovery behavior | Fail closed, not self-correcting |
+| Preflight facing summary | `--read-navigation-current` now surfaces a read-only actor-facing turn hint when the current behavior-backed lead is valid |
+| Reader-core v2 bridge | `--navigate-waypoints --auto-turn-before-move` can consume that turn hint before forward travel |
+| Recovery behavior | Fail closed, not self-correcting; reader-core auto-turn aborts if alignment worsens across pulses |
 
 Use:
 
 - `--read-navigation-current` for a read-only vector summary to a destination waypoint
-- `--navigate-waypoints` for straight-line forward travel after manual alignment
+- `--read-navigation-current` now also reports current yaw, heading delta, and suggested turn direction when actor-facing truth is available
+- `--navigate-waypoints` for straight-line forward travel, with optional `--auto-turn-before-move` when you want pre-movement heading alignment
+- `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1 -AutoTurnBeforeMove` remains an optional higher-level helper around the same facing-aware preflight idea
 
 Constraints:
 
-- no auto-turn
 - no strafe correction
 - no obstacle avoidance
 - no multi-waypoint chaining
@@ -87,6 +90,10 @@ Current short version:
 - the coord-anchor module pattern still works
 - proof-grade movement still uses the validated coord-trace anchor
 - actor-orientation is currently live again through the behavior-backed lead at `0x12CC0FA0F70 @ 0xD4`
+- navigation preflight now surfaces a read-only facing-aware turn hint from that
+  live actor-facing lead when it validates on the current process
+- `--navigate-waypoints` can now opt into pre-movement auto-turn, but movement
+  still stays strict on the coord-trace anchor and fails closed
 - selector-owner / owner-components / owner-graph / stat-hub provenance refreshed again on April 23, 2026
 - current source-chain refresh now rebuilds fresh from the last-good suggested source-chain pattern when the refreshed low-level cluster drops the older signature; same-session `reuse-previous-source-chain` is the last fallback only if that rebuild path fails
 - camera claims below are historical until rebuilt
@@ -100,6 +107,25 @@ Use these first:
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-23-actor-facing-truth-planning-prompt.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+
+Actor-facing proof / hardening commands on the current client:
+
+- `C:\RIFT MODDING\RiftReader\scripts\assert-actor-facing-truth.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-proof-suite.ps1`
+
+Navigation proof / hardening commands on the current client:
+
+- `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
+
+Current v2 / v3 posture:
+
+- v2 is now represented by the facing-aware preflight plus opt-in reader-core
+  auto-turn on `--navigate-waypoints`
+- the prototype wrapper remains useful as a higher-level helper, but it is no
+  longer the only auto-turn path worth documenting
+- v3 is **not** ready yet; it still needs a deliberately misaligned live route
+  where corrective turn pulses fire, alignment improves, and forward travel
+  succeeds on the strict coord-trace anchor
 
 ## Immediate Milestones
 

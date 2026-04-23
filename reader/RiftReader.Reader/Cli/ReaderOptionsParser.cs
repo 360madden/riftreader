@@ -24,7 +24,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-navigation-waypoint <id> [--navigation-waypoint-file <path>] [--waypoint-label <text>] [--waypoint-zone <text>] [--waypoint-arrival-radius <distance>] [--waypoint-pace run|walk|keep] [--scan-context <bytes>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --telemetry-preflight [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics] [--json]
@@ -59,6 +59,7 @@ Notes:
   - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint.
   - Use --capture-navigation-waypoint to record the current live position into the waypoint JSON so point A / point B runs do not require manual coordinate edits.
   - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the manual-facing waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition.
+  - Add --auto-turn-before-move when you want the reader to use current actor-facing truth to align heading before forward movement begins.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
@@ -94,6 +95,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-navigation-waypoint point_a --waypoint-label "Point A" --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --auto-turn-before-move --auto-turn-within-degrees 7.5 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
@@ -146,6 +148,16 @@ Examples:
         string? pace = null;
         double? arrivalRadius = null;
         int? maxTravelSeconds = null;
+        var autoTurnBeforeMove = false;
+        double? autoTurnWithinDegrees = null;
+        string? turnLeftKey = null;
+        string? turnRightKey = null;
+        int? turnPulseMilliseconds = null;
+        int? turnPostSampleDelayMilliseconds = null;
+        int? turnSettleDelayMilliseconds = null;
+        int? turnMaxPulses = null;
+        double? turnWorseningToleranceDegrees = null;
+        int? turnMaxWorseningPulses = null;
         string? waypointLabel = null;
         string? waypointZone = null;
         double? waypointArrivalRadius = null;
@@ -656,6 +668,136 @@ Examples:
                     }
 
                     maxTravelSeconds = parsedMaxTravelSeconds;
+                    break;
+
+                case "--auto-turn-before-move":
+                    autoTurnBeforeMove = true;
+                    break;
+
+                case "--auto-turn-within-degrees":
+                    if (!TryReadNext(args, ref index, out var autoTurnWithinDegreesValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --auto-turn-within-degrees.", UsageText);
+                    }
+
+                    if (!double.TryParse(autoTurnWithinDegreesValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedAutoTurnWithinDegrees))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid auto-turn within degrees '{autoTurnWithinDegreesValue}'.", UsageText);
+                    }
+
+                    autoTurnWithinDegrees = parsedAutoTurnWithinDegrees;
+                    break;
+
+                case "--turn-left-key":
+                    if (!TryReadNext(args, ref index, out var turnLeftKeyValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-left-key.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(turnLeftKeyValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("--turn-left-key must not be blank.", UsageText);
+                    }
+
+                    turnLeftKey = turnLeftKeyValue.Trim();
+                    break;
+
+                case "--turn-right-key":
+                    if (!TryReadNext(args, ref index, out var turnRightKeyValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-right-key.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(turnRightKeyValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("--turn-right-key must not be blank.", UsageText);
+                    }
+
+                    turnRightKey = turnRightKeyValue.Trim();
+                    break;
+
+                case "--turn-pulse-ms":
+                    if (!TryReadNext(args, ref index, out var turnPulseMillisecondsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-pulse-ms.", UsageText);
+                    }
+
+                    if (!int.TryParse(turnPulseMillisecondsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTurnPulseMilliseconds))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid turn pulse milliseconds '{turnPulseMillisecondsValue}'.", UsageText);
+                    }
+
+                    turnPulseMilliseconds = parsedTurnPulseMilliseconds;
+                    break;
+
+                case "--turn-post-sample-delay-ms":
+                    if (!TryReadNext(args, ref index, out var turnPostSampleDelayMillisecondsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-post-sample-delay-ms.", UsageText);
+                    }
+
+                    if (!int.TryParse(turnPostSampleDelayMillisecondsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTurnPostSampleDelayMilliseconds))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid turn post sample delay milliseconds '{turnPostSampleDelayMillisecondsValue}'.", UsageText);
+                    }
+
+                    turnPostSampleDelayMilliseconds = parsedTurnPostSampleDelayMilliseconds;
+                    break;
+
+                case "--turn-settle-delay-ms":
+                    if (!TryReadNext(args, ref index, out var turnSettleDelayMillisecondsValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-settle-delay-ms.", UsageText);
+                    }
+
+                    if (!int.TryParse(turnSettleDelayMillisecondsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTurnSettleDelayMilliseconds))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid turn settle delay milliseconds '{turnSettleDelayMillisecondsValue}'.", UsageText);
+                    }
+
+                    turnSettleDelayMilliseconds = parsedTurnSettleDelayMilliseconds;
+                    break;
+
+                case "--turn-max-pulses":
+                    if (!TryReadNext(args, ref index, out var turnMaxPulsesValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-max-pulses.", UsageText);
+                    }
+
+                    if (!int.TryParse(turnMaxPulsesValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTurnMaxPulses))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid turn max pulses '{turnMaxPulsesValue}'.", UsageText);
+                    }
+
+                    turnMaxPulses = parsedTurnMaxPulses;
+                    break;
+
+                case "--turn-worsening-tolerance":
+                    if (!TryReadNext(args, ref index, out var turnWorseningToleranceDegreesValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-worsening-tolerance.", UsageText);
+                    }
+
+                    if (!double.TryParse(turnWorseningToleranceDegreesValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedTurnWorseningToleranceDegrees))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid turn worsening tolerance '{turnWorseningToleranceDegreesValue}'.", UsageText);
+                    }
+
+                    turnWorseningToleranceDegrees = parsedTurnWorseningToleranceDegrees;
+                    break;
+
+                case "--turn-max-worsening-pulses":
+                    if (!TryReadNext(args, ref index, out var turnMaxWorseningPulsesValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --turn-max-worsening-pulses.", UsageText);
+                    }
+
+                    if (!int.TryParse(turnMaxWorseningPulsesValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTurnMaxWorseningPulses))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid turn max worsening pulses '{turnMaxWorseningPulsesValue}'.", UsageText);
+                    }
+
+                    turnMaxWorseningPulses = parsedTurnMaxWorseningPulses;
                     break;
 
                 case "--session-summary":
@@ -1447,6 +1589,70 @@ Examples:
             return ReaderOptionsParseResult.Fail("--max-travel-seconds can only be used with --navigate-waypoints.", UsageText);
         }
 
+        if (autoTurnBeforeMove && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--auto-turn-before-move can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (autoTurnWithinDegrees.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--auto-turn-within-degrees can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnLeftKey is not null && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-left-key can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnRightKey is not null && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-right-key can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnPulseMilliseconds.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-pulse-ms can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnPostSampleDelayMilliseconds.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-post-sample-delay-ms can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnSettleDelayMilliseconds.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-settle-delay-ms can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnMaxPulses.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-max-pulses can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnWorseningToleranceDegrees.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-worsening-tolerance can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (turnMaxWorseningPulses.HasValue && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--turn-max-worsening-pulses can only be used with --navigate-waypoints.", UsageText);
+        }
+
+        if (!autoTurnBeforeMove &&
+            (autoTurnWithinDegrees.HasValue ||
+             turnLeftKey is not null ||
+             turnRightKey is not null ||
+             turnPulseMilliseconds.HasValue ||
+             turnPostSampleDelayMilliseconds.HasValue ||
+             turnSettleDelayMilliseconds.HasValue ||
+             turnMaxPulses.HasValue ||
+             turnWorseningToleranceDegrees.HasValue ||
+             turnMaxWorseningPulses.HasValue))
+        {
+            return ReaderOptionsParseResult.Fail("Auto-turn tuning switches require --auto-turn-before-move.", UsageText);
+        }
+
         if (waypointLabel is not null && !captureNavigationWaypoint)
         {
             return ReaderOptionsParseResult.Fail("--waypoint-label can only be used with --capture-navigation-waypoint.", UsageText);
@@ -1919,6 +2125,16 @@ Examples:
                     Pace: pace,
                     ArrivalRadius: arrivalRadius,
                     MaxTravelSeconds: maxTravelSeconds,
+                    AutoTurnBeforeMove: autoTurnBeforeMove,
+                    AutoTurnWithinDegrees: autoTurnWithinDegrees,
+                    TurnLeftKey: turnLeftKey,
+                    TurnRightKey: turnRightKey,
+                    TurnPulseMilliseconds: turnPulseMilliseconds,
+                    TurnPostSampleDelayMilliseconds: turnPostSampleDelayMilliseconds,
+                    TurnSettleDelayMilliseconds: turnSettleDelayMilliseconds,
+                    TurnMaxPulses: turnMaxPulses,
+                    TurnWorseningToleranceDegrees: turnWorseningToleranceDegrees,
+                    TurnMaxWorseningPulses: turnMaxWorseningPulses,
                     CaptureNavigationWaypoint: captureNavigationWaypoint,
                     CaptureNavigationWaypointId: captureNavigationWaypointId,
                     WaypointLabel: waypointLabel,

@@ -9,6 +9,7 @@ param(
     [string]$StartLabel = 'Smoke Start',
     [string]$DestinationLabel = 'Smoke Destination',
     [double]$DistanceForward = 3.0,
+    [double]$BearingOffsetDegrees = 0.0,
     [double]$ArrivalRadius = 5.0,
     [int]$ForwardPulseMilliseconds = 250,
     [int]$PostPulseSampleDelayMilliseconds = 150,
@@ -132,6 +133,32 @@ function Get-ProcessState {
     }
 }
 
+function Get-OrientationOffsetValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$OrientationDocument,
+        [Parameter(Mandatory = $true)]
+        [string]$PrimaryPropertyName,
+        [string]$FallbackPropertyName
+    )
+
+    if ($OrientationDocument.PSObject.Properties[$PrimaryPropertyName]) {
+        $value = [string]$OrientationDocument.$PrimaryPropertyName
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($FallbackPropertyName) -and $OrientationDocument.PSObject.Properties[$FallbackPropertyName]) {
+        $value = [string]$OrientationDocument.$FallbackPropertyName
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value
+        }
+    }
+
+    return $null
+}
+
 if ($DistanceForward -le 0) {
     throw "DistanceForward must be positive."
 }
@@ -161,15 +188,19 @@ $orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments 
     '-ProcessName', $ProcessName
 )
 $processState = Get-ProcessState -Name $ProcessName
+$readerOrientation = $orientation.ReaderOrientation
+$basisPrimaryForwardOffset = Get-OrientationOffsetValue -OrientationDocument $readerOrientation -PrimaryPropertyName 'BasisPrimaryForwardOffset' -FallbackPropertyName 'BasisForwardOffset'
+$basisDuplicateForwardOffset = Get-OrientationOffsetValue -OrientationDocument $readerOrientation -PrimaryPropertyName 'BasisDuplicateForwardOffset' -FallbackPropertyName ''
 
-$yawRadians = $orientation.ReaderOrientation.PreferredEstimate.YawRadians
+$yawRadians = $readerOrientation.PreferredEstimate.YawRadians
 if ($null -eq $yawRadians) {
     throw "Actor orientation did not return a usable yaw."
 }
 
-$destinationX = $startX + ([Math]::Cos([double]$yawRadians) * $DistanceForward)
+$destinationYawRadians = [double]$yawRadians + ([Math]::PI * ($BearingOffsetDegrees / 180.0))
+$destinationX = $startX + ([Math]::Cos($destinationYawRadians) * $DistanceForward)
 $destinationY = $startY
-$destinationZ = $startZ + ([Math]::Sin([double]$yawRadians) * $DistanceForward)
+$destinationZ = $startZ + ([Math]::Sin($destinationYawRadians) * $DistanceForward)
 
 $document = [ordered]@{
     schemaVersion = 1
@@ -182,12 +213,13 @@ $document = [ordered]@{
         processResponding = $processState.Responding
         readerBridgeSnapshotSourceFile = [string]$snapshot.SourceFile
         readerBridgeExportCount = $snapshot.ExportCount
-        orientationResolutionMode = [string]$orientation.ReaderOrientation.ResolutionMode
-        selectedSourceAddress = [string]$orientation.ReaderOrientation.SelectedSourceAddress
-        basisPrimaryForwardOffset = [string]$orientation.ReaderOrientation.BasisPrimaryForwardOffset
-        basisDuplicateForwardOffset = [string]$orientation.ReaderOrientation.BasisDuplicateForwardOffset
-        yawDegrees = [double]$orientation.ReaderOrientation.PreferredEstimate.YawDegrees
+        orientationResolutionMode = [string]$readerOrientation.ResolutionMode
+        selectedSourceAddress = [string]$readerOrientation.SelectedSourceAddress
+        basisPrimaryForwardOffset = $basisPrimaryForwardOffset
+        basisDuplicateForwardOffset = $basisDuplicateForwardOffset
+        yawDegrees = [double]$readerOrientation.PreferredEstimate.YawDegrees
         distanceForward = $DistanceForward
+        bearingOffsetDegrees = $BearingOffsetDegrees
         notes = @(
             'Generated from the current live player position and live actor-facing reader.',
             'Regenerate this smoke route after a Rift restart, zone move, or major position change before treating it as a current-session validation route.'
@@ -252,7 +284,10 @@ $json = $document | ConvertTo-Json -Depth 20
     readerBridgeSnapshotSourceFile = [string]$snapshot.SourceFile
     readerBridgeExportCount = $snapshot.ExportCount
     yawRadians = [double]$yawRadians
-    yawDegrees = [double]$orientation.ReaderOrientation.PreferredEstimate.YawDegrees
+    yawDegrees = [double]$readerOrientation.PreferredEstimate.YawDegrees
+    bearingOffsetDegrees = $BearingOffsetDegrees
+    basisPrimaryForwardOffset = $basisPrimaryForwardOffset
+    basisDuplicateForwardOffset = $basisDuplicateForwardOffset
     distanceForward = $DistanceForward
     destinationX = $destinationX
     destinationY = $destinationY

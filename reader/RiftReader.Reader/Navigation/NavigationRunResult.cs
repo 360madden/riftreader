@@ -19,4 +19,5 @@ public sealed record NavigationRunResult(
     NavigationCoordinate InitialPosition,
     NavigationCoordinate FinalPosition,
     NavigationCoordinate DestinationPosition,
-    long ElapsedMilliseconds);
+    long ElapsedMilliseconds,
+    NavigationTurnResult? TurnResult = null);

@@ -144,6 +144,11 @@ public static class NavigationPoseSourceFactory
     {
         result = null;
 
+        if (TryResolveProofCoordAnchorCache(reader, processId, processName, snapshotDocument, out result))
+        {
+            return true;
+        }
+
         var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(null, out _);
         if (traceDocument?.Reader?.ProcessId != processId ||
             !string.Equals(traceDocument.Reader.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
@@ -165,6 +170,46 @@ public static class NavigationPoseSourceFactory
             coordXOffset: resolvedAnchor.CoordXOffset,
             coordYOffset: resolvedAnchor.CoordYOffset,
             coordZOffset: resolvedAnchor.CoordZOffset);
+
+        if (!source.TryReadCurrent(out var sample, out _) || !IsTrustedSample(sample, snapshotDocument))
+        {
+            return false;
+        }
+
+        result = new NavigationPoseSourceCreationResult(source, sample);
+        return true;
+    }
+
+    private static bool TryResolveProofCoordAnchorCache(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        out NavigationPoseSourceCreationResult? result)
+    {
+        result = null;
+
+        var proofAnchor = ProofCoordAnchorCacheLoader.TryLoad(null, out _);
+        if (proofAnchor?.ProcessId != processId ||
+            !string.Equals(proofAnchor.ProcessName, processName, StringComparison.OrdinalIgnoreCase) ||
+            proofAnchor.Match?.CoordMatchesWithinTolerance != true ||
+            !TryParseAddress(proofAnchor.CoordRegionAddress, out var coordRegionAddress))
+        {
+            return false;
+        }
+
+        var coordXOffset = proofAnchor.CoordXRelativeOffset ?? DefaultCoordXOffset;
+        var coordYOffset = proofAnchor.CoordYRelativeOffset ?? DefaultCoordYOffset;
+        var coordZOffset = proofAnchor.CoordZRelativeOffset ?? DefaultCoordZOffset;
+
+        var source = new DirectMemoryNavigationPoseSource(
+            source: "coord-trace-anchor",
+            addressHex: $"0x{coordRegionAddress:X}",
+            reader: reader,
+            baseAddress: coordRegionAddress,
+            coordXOffset: coordXOffset,
+            coordYOffset: coordYOffset,
+            coordZOffset: coordZOffset);
 
         if (!source.TryReadCurrent(out var sample, out _) || !IsTrustedSample(sample, snapshotDocument))
         {
@@ -384,6 +429,24 @@ public static class NavigationPoseSourceFactory
 
         result = new NavigationPoseSourceCreationResult(source, sample);
         return true;
+    }
+
+    private static bool TryParseAddress(string? value, out long address)
+    {
+        address = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var token = value.Trim();
+        if (token.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            token = token[2..];
+        }
+
+        return long.TryParse(token, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out address);
     }
 
     private static bool IsTrustedSample(NavigationPoseSample sample, ReaderBridgeSnapshotDocument? snapshotDocument)

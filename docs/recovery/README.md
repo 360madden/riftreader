@@ -13,6 +13,10 @@ After the April 14, 2026 game update:
 - the April 23, 2026 agentic actor-facing refresh pass promoted the current
   live lead again and refreshed the selector-owner / owner-components /
   owner-graph / stat-hub provenance lane on the same session
+- navigation preflight now reuses that live actor-facing truth for a read-only
+  turn hint, and `--navigate-waypoints` can now opt into pre-movement
+  auto-turn, but v3 movement is still pending a deliberately misaligned live
+  correction proof plus forward-travel handoff
 - camera notes below the recovery layer should still be treated as historical
   until rebuilt
 
@@ -27,6 +31,8 @@ Start with:
 1. `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 2. `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
 3. `C:\RIFT MODDING\RiftReader\docs\recovery\artifact-tiers.md`
+4. `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md` when the task
+   touches movement, preflight, smoke routes, or auto-turn behavior
 
 ## Rules
 

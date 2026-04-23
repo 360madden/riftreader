@@ -110,6 +110,30 @@ Preferred live-truth flow on the current client:
 - `test-actor-facing-proof-suite.ps1` runs the actor-facing truth-proof
   regression checks plus the current source-chain recovery / fresh rebuild
   self-checks in one command
+- once the current actor-facing lead is green, `--read-navigation-current` now
+  returns a read-only facing-aware preflight summary with current yaw, heading
+  delta, and suggested turn direction when the live behavior-backed lead is
+  available; this is still read-only preflight data, but it now also powers
+  opt-in reader-core auto-turn on `--navigate-waypoints`
+- `--navigate-waypoints --auto-turn-before-move` is now the current v2-aligned
+  reader-core path for pre-movement heading alignment; keep it opt-in, keep it
+  strict on the validated coord-trace anchor, and expect it to fail closed if
+  the heading gets worse across consecutive turn pulses
+- the tuning switches (`--auto-turn-within-degrees`, `--turn-left-key`,
+  `--turn-right-key`, `--turn-pulse-ms`, `--turn-post-sample-delay-ms`,
+  `--turn-max-pulses`, `--turn-worsening-tolerance`,
+  `--turn-max-worsening-pulses`) should be treated as refinement knobs, not as
+  permission to weaken the fail-closed behavior
+- the prototype wrapper `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1`
+  remains a higher-level helper around the same facing-aware preflight /
+  auto-turn concept
+- `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
+  is now the one-command navigation hardening pass for the smoke-route,
+  facing-aware preflight, and current auto-turn-preflight path
+- before calling navigation v3-ready, deliberately validate one live
+  **misaligned** smoke route where reader-core auto-turn actually sends turn
+  pulses, improves the heading delta, and still hands off cleanly to strict
+  coord-trace-based forward movement
 - Lane A (live truth) may stay green even when the raw source-chain step falls
   back to `rebuild-from-suggested-source-chain-pattern` or, only if that fails,
   same-session recovery-mode reuse; Lane B (provenance) is where that

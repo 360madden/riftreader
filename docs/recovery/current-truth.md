@@ -12,7 +12,12 @@ _Last updated: April 23, 2026 (fresh live coord-anchor validation, agentic actor
 | Coord-anchor module pattern | working |
 | Proof coord anchor cache | refreshed again for the current live PID via direct `--read-player-coord-anchor` validation |
 | Proof polling watchset | refreshed again and still includes the canonical `coord-trace-coords` region |
-| Active movement (`--navigate-waypoints`) | now requires the validated coord-trace anchor only; cached/reacquired anchors are no longer accepted for live movement |
+| Active movement (`--navigate-waypoints`) | requires the validated coord-trace anchor only; cached/reacquired anchors are no longer accepted for live movement, even when opt-in auto-turn is enabled |
+| Navigation preflight (`--read-navigation-current`) | returns a read-only facing-aware turn hint when actor-facing truth is available; this powers operator guidance and reader-core auto-turn planning |
+| Navigation reader-core auto-turn | `--navigate-waypoints` can now opt into pre-movement auto-turn with `--auto-turn-before-move` and related tuning switches; it remains fail-closed if alignment does not improve or worsens repeatedly |
+| Navigation prototype wrapper | `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1` remains an optional higher-level helper for the same facing-aware preflight / auto-turn workflow |
+| Navigation proof suite | `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1` now rechecks the smoke-route, facing-aware preflight, and current auto-turn-preflight path |
+| V3 movement readiness | not ready yet; a deliberately misaligned live route still needs to prove corrective turn pulses plus forward travel end-to-end on the strict coord-trace anchor |
 | ReaderBridge orientation probe | still empty on the current client |
 | `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
@@ -96,6 +101,14 @@ Operational interpretation:
 - the current lead is facing-only truth; the same capture still showed
   `Coord48` / `Coord88` on this source do **not** match the current player
   coords, so this lead is not a movement coord source
+- `--read-navigation-current` can now reuse the same live behavior-backed lead
+  to report read-only preflight yaw, heading delta, and suggested turn
+  direction, and `--navigate-waypoints` can now opt into pre-movement
+  auto-turn with `--auto-turn-before-move`
+- reader-core auto-turn remains a v2 bridge only: it is still fail-closed,
+  still movement-anchor-strict, and the repo is not v3-ready until a
+  deliberately misaligned live route proves corrective turn pulses and
+  successful forward travel end-to-end
 - the same-session provenance lane is live again, and the current
   `capture-player-source-chain.ps1` step now rebuilds fresh with
   `Recovery.Mode = rebuild-from-suggested-source-chain-pattern` when the
@@ -118,9 +131,15 @@ See the current live lead / proof artifacts:
 - for a one-shot same-session proof that validates the live lead, capture parity,
   reader parity, and current provenance posture together:
   - `C:\RIFT MODDING\RiftReader\scripts\assert-actor-facing-truth.ps1`
+- for the focused actor-facing proof regressions plus current source-chain
+  recovery / fresh rebuild self-checks in one command:
+  - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-proof-suite.ps1`
 - for planning / delegation on how to elevate facing to durable truth without
   regressing the current lead:
   - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-23-actor-facing-truth-planning-prompt.md`
+- for navigation smoke-route, facing-aware preflight, and current auto-turn
+  proof checks in one command:
+  - `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
 
 ## ReaderBridge / addon orientation status
 

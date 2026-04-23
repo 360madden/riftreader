@@ -9,7 +9,7 @@ This first slice is intentionally narrow:
 
 | Area | V1 behavior |
 |---|---|
-| Control model | **Manual-align first**. The operator faces the character roughly at the destination, then the navigator owns forward movement and optional pace toggles only. |
+| Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`, but active travel still uses the strict coord-trace anchor and fails closed on bad alignment, worsening turns, or input/telemetry failure. |
 | Waypoint source | External tracked JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Movement backend | .NET 10 orchestration with a thin adapter over `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` |
 | Live telemetry | Active movement requires the validated coord-trace anchor; read-only summaries may still surface fallback anchors when they are explicitly labeled by `anchorSource` |
@@ -23,6 +23,7 @@ This first slice is intentionally narrow:
 - waypoint-file-backed navigation config
 - `--read-navigation-current` preflight vector summary
 - `--navigate-waypoints` single-segment forward travel
+- opt-in reader-core pre-movement auto-turn
 - optional one-shot run / walk pace toggles
 - verified live coord-anchor resolution before movement
 - direct memory coord reads during movement
@@ -30,7 +31,6 @@ This first slice is intentionally narrow:
 
 ### Explicit non-goals
 
-- auto-turn
 - strafe corrections
 - obstacle avoidance
 - route graphs
@@ -148,7 +148,12 @@ The loader rejects:
 ### Read-only navigation preflight
 
 Returns the current vector from the live player position to the destination
-waypoint.
+waypoint. When the current behavior-backed actor-facing lead is valid for the
+same live process, the summary also surfaces current yaw / pitch plus the
+signed / absolute heading delta to the destination bearing. That facing data is
+manual-alignment guidance and the planning input for opt-in reader-core
+auto-turn;
+it does not change the proof-grade coord-anchor requirement for movement.
 
 ```powershell
 dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- `
@@ -170,6 +175,35 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
   --json
 ```
 
+### Active waypoint travel with opt-in reader-core auto-turn
+
+`--navigate-waypoints` can now opt into pre-movement auto-turn using the live
+actor-facing truth that powers the facing-aware preflight summary:
+
+```powershell
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- `
+  --process-name rift_x64 `
+  --navigate-waypoints `
+  --start-waypoint example_start `
+  --destination-waypoint example_destination `
+  --pace keep `
+  --auto-turn-before-move `
+  --auto-turn-within-degrees 7.5 `
+  --turn-pulse-ms 75 `
+  --turn-max-pulses 12 `
+  --turn-worsening-tolerance 0.5 `
+  --turn-max-worsening-pulses 2 `
+  --json
+```
+
+This remains opt-in and fail-closed. It still depends on the validated
+coord-trace anchor for live movement, and it aborts instead of forcing repeated
+turns when heading alignment does not improve or worsens across consecutive
+pulses.
+
+The prototype wrapper still exists as a higher-level helper, but the current
+reader-core path is now the authoritative auto-turn entrypoint.
+
 ### Supported navigation switches
 
 | Switch | Meaning |
@@ -182,6 +216,12 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
 | `--pace run\|walk\|keep` | Optional pace override |
 | `--arrival-radius <double>` | Override arrival radius |
 | `--max-travel-seconds <int>` | Override movement timeout |
+| `--auto-turn-before-move` | Opt into pre-movement turn alignment before forward travel |
+| `--auto-turn-within-degrees <double>` | Alignment threshold for auto-turn completion |
+| `--turn-left-key <key>` / `--turn-right-key <key>` | Override turn keys for auto-turn |
+| `--turn-pulse-ms <int>` / `--turn-post-sample-delay-ms <int>` | Tune turn pulse duration and post-pulse re-sample delay |
+| `--turn-max-pulses <int>` | Cap the number of turn attempts before failing closed |
+| `--turn-worsening-tolerance <double>` / `--turn-max-worsening-pulses <int>` | Abort auto-turn if heading gets worse repeatedly |
 | `--json` | Structured output for either waypoint mode |
 
 ## Movement behavior
@@ -257,7 +297,8 @@ Failure conditions:
 - do not continue if distance is getting worse
 - do not continue if the player is not making measurable progress
 - do not rely on saved-variable refresh during movement
-- do not attempt turn, strafe, or obstacle-recovery logic in v1
+- do not continue auto-turn if heading worsens repeatedly
+- do not attempt strafe or obstacle-recovery logic in this slice
 
 ## Live testing checklist
 
@@ -266,19 +307,46 @@ Use this checklist before tonight’s first live run:
 | Step | Check |
 |---|---|
 | 1 | Confirm the target process is the intended Rift client |
-| 2 | Confirm the character is manually facing roughly toward the destination |
+| 2 | If you are not using `--auto-turn-before-move`, confirm the character is manually facing roughly toward the destination |
 | 3 | Run `--read-navigation-current` first and verify the destination vector looks sane |
 | 4 | Confirm the current position is inside the start waypoint radius |
 | 5 | Start with `--pace keep` unless run / walk toggles are already validated |
 | 6 | Use open flat terrain for the first travel test |
 | 7 | Expect failure stops instead of recovery behavior when facing or terrain is wrong |
 
+## Navigation proof suite
+
+Use the repo-owned proof suite to recheck the current navigation slice before
+or after changes:
+
+- offline hardening only:
+  - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
+- include the current live smoke-route + preflight validation:
+  - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -SkipRefresh -ProcessName rift_x64`
+
+## V2 / V3 progression snapshot
+
+Current movement posture:
+
+- v1 reader movement remains proof-strict and single-segment
+- the current v2 bridge is now the **read-only facing-aware preflight** plus
+  opt-in reader-core auto-turn on `--navigate-waypoints`
+- v3 is **not** ready yet; before promoting beyond the prototype bridge, prove
+  one deliberately misaligned live route where corrective turn pulses fire,
+  alignment improves, and forward travel still succeeds through the strict
+  coord-trace anchor
+
 ## Current limitations
 
-As of **April 16, 2026**:
+As of **April 23, 2026**:
 
-- actor yaw / turn recovery on `main` is still stale
-- waypoint navigation is **single-segment only**
-- v1 is **straight-line, same-segment, no auto-turn, no obstacle avoidance**
+- current actor-facing truth on `main` is restored, but canonical
+  `--navigate-waypoints` movement is still **single-segment only**
+- the core reader path is still **straight-line, same-segment, and no obstacle
+  avoidance**
+- reader-core auto-turn is **opt-in**, fail-closed, and not yet proven on a
+  deliberately misaligned live route end-to-end
+- live corrective turn pulses on a deliberately misaligned route are not yet
+  proven end-to-end
 - addon work remains minimal in v1
 

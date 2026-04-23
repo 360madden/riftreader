@@ -17,6 +17,15 @@ param(
     [switch]$SkipRefresh,
     [double]$ArrivalRadius,
     [double]$RequireFacingWithinDegrees = 45,
+    [switch]$AutoTurnBeforeMove,
+    [double]$AutoTurnWithinDegrees = 7.5,
+    [string]$TurnLeftKey = 'a',
+    [string]$TurnRightKey = 'd',
+    [int]$TurnPulseMilliseconds = 75,
+    [int]$PostTurnSampleDelayMilliseconds = 150,
+    [int]$MaxTurnPulses = 12,
+    [double]$AutoTurnWorseningToleranceDegrees = 0.5,
+    [int]$AutoTurnMaxWorseningPulses = 2,
     [int]$MaxTravelSeconds,
     [string]$LogFile,
     [int]$ScanContextBytes = 192,
@@ -30,6 +39,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+$postKeyScript = Join-Path $repoRoot 'scripts\post-rift-key.ps1'
 $refreshScript = Join-Path $repoRoot 'scripts\refresh-readerbridge-export.ps1'
 $WaypointFile = if ([string]::IsNullOrWhiteSpace($WaypointFile)) {
     Join-Path $PSScriptRoot 'waypoints.json'
@@ -108,6 +118,30 @@ if ($UseSmokeTestFile -and -not $UseLastSuccessfulRoute) {
 
 $resolvedWaypointFile = [System.IO.Path]::GetFullPath($WaypointFile)
 $sessionRunId = New-LogRunId -Source 'navigation-prototype'
+
+if ($AutoTurnWithinDegrees -lt 0) {
+    throw "AutoTurnWithinDegrees cannot be negative."
+}
+
+if ($TurnPulseMilliseconds -le 0) {
+    throw "TurnPulseMilliseconds must be positive."
+}
+
+if ($PostTurnSampleDelayMilliseconds -lt 0) {
+    throw "PostTurnSampleDelayMilliseconds cannot be negative."
+}
+
+if ($MaxTurnPulses -le 0) {
+    throw "MaxTurnPulses must be positive."
+}
+
+if ($AutoTurnWorseningToleranceDegrees -lt 0) {
+    throw "AutoTurnWorseningToleranceDegrees cannot be negative."
+}
+
+if ($AutoTurnMaxWorseningPulses -le 0) {
+    throw "AutoTurnMaxWorseningPulses must be positive."
+}
 
 function Write-SessionLog {
     param(
@@ -462,6 +496,22 @@ function Normalize-Degrees {
     return $normalized
 }
 
+function Get-OptionalPropertyValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Document,
+        [Parameter(Mandatory = $true)]
+        [string]$PropertyName
+    )
+
+    $property = $Document.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
 function Write-PreflightSummary {
     param($Preflight)
 
@@ -470,6 +520,280 @@ function Write-PreflightSummary {
     Write-Host ("[NavPrototype] Distance: {0:N3}" -f [double]$Preflight.PlanarDistance) -ForegroundColor Cyan
     Write-Host ("[NavPrototype] Bearing : {0:N3} deg" -f [double]$Preflight.WorldBearingDegrees) -ForegroundColor Cyan
     Write-Host ("[NavPrototype] Arrival : {0}" -f ($(if ($Preflight.WithinArrivalRadius) { 'inside radius' } else { 'outside radius' }))) -ForegroundColor Cyan
+    if ($null -ne $Preflight.Facing) {
+        $facingYawDegrees = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'YawDegrees'
+        $facingAbsoluteBearingDeltaDegrees = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'AbsoluteBearingDeltaDegrees'
+        $facingSuggestedTurnDirection = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'SuggestedTurnDirection'
+        $facingReason = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'Reason'
+
+        Write-Host ("[NavPrototype] Facing  : {0}" -f [string]$Preflight.Facing.Status) -ForegroundColor Cyan
+        if ($null -ne $facingYawDegrees) {
+            Write-Host ("[NavPrototype] Yaw     : {0:N3} deg" -f [double]$facingYawDegrees) -ForegroundColor Cyan
+        }
+        if ($null -ne $facingAbsoluteBearingDeltaDegrees) {
+            Write-Host ("[NavPrototype] Heading : {0:N3} deg abs ({1})" -f [double]$facingAbsoluteBearingDeltaDegrees, [string]$facingSuggestedTurnDirection) -ForegroundColor Cyan
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$facingReason)) {
+            Write-Host ("[NavPrototype] Facing note: {0}" -f [string]$facingReason) -ForegroundColor Yellow
+        }
+    }
+}
+
+function Get-FacingAlignmentState {
+    param($Preflight)
+
+    $facingStatus = $null
+    $facingSourceAddress = $null
+    $facingBasisForwardOffset = $null
+    $turnDirection = $null
+
+    $preflightAbsoluteBearingDeltaDegrees = $null
+    $preflightYawDegrees = $null
+    $preflightBasisPrimaryForwardOffset = $null
+    $preflightSuggestedTurnDirection = $null
+    if ($null -ne $Preflight.Facing) {
+        $preflightAbsoluteBearingDeltaDegrees = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'AbsoluteBearingDeltaDegrees'
+        $preflightYawDegrees = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'YawDegrees'
+        $preflightBasisPrimaryForwardOffset = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'BasisPrimaryForwardOffset'
+        $preflightSuggestedTurnDirection = Get-OptionalPropertyValue -Document $Preflight.Facing -PropertyName 'SuggestedTurnDirection'
+    }
+
+    if ($null -ne $Preflight.Facing -and $null -ne $preflightAbsoluteBearingDeltaDegrees) {
+        $yawDegrees = $preflightYawDegrees
+        $bearingDegrees = [double]$Preflight.WorldBearingDegrees
+        $deltaDegrees = [double]$preflightAbsoluteBearingDeltaDegrees
+        $facingStatus = [string]$Preflight.Facing.Status
+        $facingSourceAddress = [string]$Preflight.Facing.SelectedSourceAddress
+        $facingBasisForwardOffset = [string]$preflightBasisPrimaryForwardOffset
+        $turnDirection = [string]$preflightSuggestedTurnDirection
+    }
+    else {
+        $orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments @('-Json', '-ProcessName', $ProcessName) -Step 'actor-orientation'
+        $yawDegrees = $orientation.ReaderOrientation.PreferredEstimate.YawDegrees
+        if ($null -eq $yawDegrees) {
+            throw "Actor orientation did not return a usable yaw for navigation alignment."
+        }
+
+        $bearingDegrees = [double]$Preflight.WorldBearingDegrees
+        $signedDeltaDegrees = Normalize-Degrees -Degrees ([double]$bearingDegrees - [double]$yawDegrees)
+        $deltaDegrees = [Math]::Abs($signedDeltaDegrees)
+        $facingStatus = 'script-fallback'
+        $facingSourceAddress = [string]$orientation.ReaderOrientation.SelectedSourceAddress
+        $facingBasisForwardOffset = if ($null -ne $orientation.ReaderOrientation.BasisPrimaryForwardOffset) {
+            [string]$orientation.ReaderOrientation.BasisPrimaryForwardOffset
+        }
+        else {
+            [string]$orientation.ReaderOrientation.BasisForwardOffset
+        }
+        $turnDirection = if ($deltaDegrees -le 0.0001) {
+            'aligned'
+        }
+        elseif ($signedDeltaDegrees -gt 0) {
+            'left'
+        }
+        else {
+            'right'
+        }
+    }
+
+    return [pscustomobject]@{
+        YawDegrees = [double]$yawDegrees
+        BearingDegrees = [double]$bearingDegrees
+        DeltaDegrees = [double]$deltaDegrees
+        TurnDirection = $turnDirection
+        SourceAddress = $facingSourceAddress
+        BasisForwardOffset = $facingBasisForwardOffset
+        SourceStatus = $facingStatus
+    }
+}
+
+function Invoke-TurnKeyPulse {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        [Parameter(Mandatory = $true)]
+        [int]$HoldMilliseconds,
+        [Parameter(Mandatory = $true)]
+        [int]$PulseIndex,
+        [Parameter(Mandatory = $true)]
+        [string]$Direction
+    )
+
+    if (-not (Test-Path -LiteralPath $postKeyScript)) {
+        throw "Turn helper script was not found: $postKeyScript"
+    }
+
+    $scriptArguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $postKeyScript,
+        '-Key', $Key,
+        '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-TargetProcessName', $ProcessName,
+        '-SkipBackgroundFocus',
+        '-RequireTargetForeground'
+    )
+
+    Write-Host ""
+    Write-Host ("[NavPrototype] Auto-turn pulse {0}: key={1} direction={2} hold={3} ms" -f $PulseIndex, $Key, $Direction, $HoldMilliseconds) -ForegroundColor Yellow
+
+    $nativeResult = Invoke-ProcessText -FilePath 'pwsh' -ArgumentList $scriptArguments
+    Write-SessionLog -Step ("auto-turn-key:{0}" -f $PulseIndex) -ExitCode $nativeResult.ExitCode -Arguments @('-Key', $Key, '-Direction', $Direction, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)) -Output $nativeResult.Text
+
+    if ($nativeResult.ExitCode -ne 0) {
+        if (-not [string]::IsNullOrWhiteSpace($nativeResult.Text)) {
+            Write-Host $nativeResult.Text
+        }
+
+        throw ("Auto-turn key pulse failed with exit code {0}." -f $nativeResult.ExitCode)
+    }
+}
+
+function Invoke-AutoTurnAlignment {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Preflight,
+        [Parameter(Mandatory = $true)]
+        [string[]]$PreflightArguments
+    )
+
+    if (-not $AutoTurnBeforeMove) {
+        return $Preflight
+    }
+
+    $facingState = Get-FacingAlignmentState -Preflight $Preflight
+    $turnSamples = New-Object System.Collections.Generic.List[object]
+    if ($facingState.DeltaDegrees -le $AutoTurnWithinDegrees -or
+        [string]::Equals([string]$facingState.TurnDirection, 'aligned', [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Host ("[NavPrototype] Auto-turn: no turn needed (delta {0:N3} deg, threshold {1:N3} deg)." -f [double]$facingState.DeltaDegrees, [double]$AutoTurnWithinDegrees) -ForegroundColor DarkGray
+        Write-SessionLog -Step 'auto-turn' -ExitCode 0 -Arguments @('noop') -Output ("delta={0:N3}; threshold={1:N3}; turn={2}" -f [double]$facingState.DeltaDegrees, [double]$AutoTurnWithinDegrees, ([string]$facingState.TurnDirection ?? 'n/a')) -Metadata @{
+            autoTurn = [ordered]@{
+                pulses = 0
+                thresholdDegrees = [double]$AutoTurnWithinDegrees
+                deltaDegrees = [double]$facingState.DeltaDegrees
+                turnDirection = $facingState.TurnDirection
+                sourceAddress = $facingState.SourceAddress
+                basisForwardOffset = $facingState.BasisForwardOffset
+                sourceStatus = $facingState.SourceStatus
+                worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
+                maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                samples = @($turnSamples.ToArray())
+            }
+        }
+        return $Preflight
+    }
+
+    $turnDirection = [string]$facingState.TurnDirection
+    $turnKey = switch ($turnDirection) {
+        'left' { $TurnLeftKey }
+        'right' { $TurnRightKey }
+        default {
+            throw ("Auto-turn requested but the current turn direction was not usable: '{0}'." -f $turnDirection)
+        }
+    }
+
+    Write-Host ""
+    Write-Host ("[NavPrototype] Auto-turn enabled: target <= {0:N3} deg using '{1}' for {2}." -f [double]$AutoTurnWithinDegrees, $turnKey, $turnDirection) -ForegroundColor Yellow
+
+    $currentPreflight = $Preflight
+    $previousDeltaDegrees = [double]$facingState.DeltaDegrees
+    $worseningPulseCount = 0
+    for ($pulse = 1; $pulse -le $MaxTurnPulses; $pulse++) {
+        Invoke-TurnKeyPulse -Key $turnKey -HoldMilliseconds $TurnPulseMilliseconds -PulseIndex $pulse -Direction $turnDirection
+        Start-Sleep -Milliseconds $PostTurnSampleDelayMilliseconds
+
+        $updatedPreflightResult = Invoke-ReaderJson -Arguments $PreflightArguments -Step ("auto-turn-preflight:{0}" -f $pulse)
+        $currentPreflight = $updatedPreflightResult.Output
+        $facingState = Get-FacingAlignmentState -Preflight $currentPreflight
+
+        $turnSamples.Add([pscustomobject]@{
+            Pulse = $pulse
+            Key = $turnKey
+            Direction = $turnDirection
+            YawDegrees = [double]$facingState.YawDegrees
+            DeltaDegrees = [double]$facingState.DeltaDegrees
+            SourceAddress = $facingState.SourceAddress
+            BasisForwardOffset = $facingState.BasisForwardOffset
+            SourceStatus = $facingState.SourceStatus
+        }) | Out-Null
+
+        Write-Host ("[NavPrototype] Auto-turn pulse {0}: yaw={1:N3} deg delta={2:N3} deg ({3})" -f $pulse, [double]$facingState.YawDegrees, [double]$facingState.DeltaDegrees, ([string]$facingState.TurnDirection ?? 'n/a')) -ForegroundColor Cyan
+
+        if ($facingState.DeltaDegrees -le $AutoTurnWithinDegrees -or
+            [string]::Equals([string]$facingState.TurnDirection, 'aligned', [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-SessionLog -Step 'auto-turn' -ExitCode 0 -Arguments @('complete') -Output ("pulses={0}; delta={1:N3}; threshold={2:N3}; turn={3}" -f $pulse, [double]$facingState.DeltaDegrees, [double]$AutoTurnWithinDegrees, ([string]$facingState.TurnDirection ?? 'n/a')) -Metadata @{
+                autoTurn = [ordered]@{
+                    pulses = $pulse
+                    thresholdDegrees = [double]$AutoTurnWithinDegrees
+                    deltaDegrees = [double]$facingState.DeltaDegrees
+                    turnDirection = $facingState.TurnDirection
+                    sourceAddress = $facingState.SourceAddress
+                    basisForwardOffset = $facingState.BasisForwardOffset
+                    sourceStatus = $facingState.SourceStatus
+                    worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
+                    maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                    samples = @($turnSamples.ToArray())
+                }
+            }
+
+            return $currentPreflight
+        }
+
+        if ([double]$facingState.DeltaDegrees -gt ($previousDeltaDegrees + [double]$AutoTurnWorseningToleranceDegrees)) {
+            $worseningPulseCount++
+            Write-Host ("[NavPrototype] Auto-turn warning: delta worsened from {0:N3} to {1:N3} deg (worsening {2}/{3})." -f [double]$previousDeltaDegrees, [double]$facingState.DeltaDegrees, $worseningPulseCount, $AutoTurnMaxWorseningPulses) -ForegroundColor Yellow
+        }
+        else {
+            $worseningPulseCount = 0
+        }
+
+        if ($worseningPulseCount -ge $AutoTurnMaxWorseningPulses) {
+            Write-SessionLog -Step 'auto-turn' -ExitCode 1 -Arguments @('worsening') -Output ("delta={0:N3}; previousDelta={1:N3}; tolerance={2:N3}; turn={3}; worsening={4}" -f [double]$facingState.DeltaDegrees, [double]$previousDeltaDegrees, [double]$AutoTurnWorseningToleranceDegrees, ([string]$facingState.TurnDirection ?? 'n/a'), $worseningPulseCount) -Metadata @{
+                autoTurn = [ordered]@{
+                    pulses = $pulse
+                    thresholdDegrees = [double]$AutoTurnWithinDegrees
+                    deltaDegrees = [double]$facingState.DeltaDegrees
+                    previousDeltaDegrees = [double]$previousDeltaDegrees
+                    turnDirection = $facingState.TurnDirection
+                    sourceAddress = $facingState.SourceAddress
+                    basisForwardOffset = $facingState.BasisForwardOffset
+                    sourceStatus = $facingState.SourceStatus
+                    worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
+                    worseningPulseCount = $worseningPulseCount
+                    maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                    samples = @($turnSamples.ToArray())
+                }
+            }
+
+            throw ("Auto-turn worsened for {0} consecutive pulses. Last delta was {1:N3} deg after starting from {2:N3} deg." -f $worseningPulseCount, [double]$facingState.DeltaDegrees, [double]$previousDeltaDegrees)
+        }
+
+        $turnDirection = [string]$facingState.TurnDirection
+        $turnKey = switch ($turnDirection) {
+            'left' { $TurnLeftKey }
+            'right' { $TurnRightKey }
+            default { $turnKey }
+        }
+        $previousDeltaDegrees = [double]$facingState.DeltaDegrees
+    }
+
+    Write-SessionLog -Step 'auto-turn' -ExitCode 1 -Arguments @('incomplete') -Output ("delta={0:N3}; threshold={1:N3}; turn={2}; maxPulses={3}" -f [double]$facingState.DeltaDegrees, [double]$AutoTurnWithinDegrees, ([string]$facingState.TurnDirection ?? 'n/a'), $MaxTurnPulses) -Metadata @{
+        autoTurn = [ordered]@{
+            pulses = $MaxTurnPulses
+            thresholdDegrees = [double]$AutoTurnWithinDegrees
+            deltaDegrees = [double]$facingState.DeltaDegrees
+            turnDirection = $facingState.TurnDirection
+            sourceAddress = $facingState.SourceAddress
+            basisForwardOffset = $facingState.BasisForwardOffset
+            sourceStatus = $facingState.SourceStatus
+            worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
+            worseningPulseCount = $worseningPulseCount
+            maxWorseningPulses = $AutoTurnMaxWorseningPulses
+            samples = @($turnSamples.ToArray())
+        }
+    }
+
+    throw ("Auto-turn failed to reach the {0:N3} degree threshold after {1} pulses. Last delta was {2:N3} deg ({3})." -f [double]$AutoTurnWithinDegrees, $MaxTurnPulses, [double]$facingState.DeltaDegrees, ([string]$facingState.TurnDirection ?? 'n/a'))
 }
 
 function Write-NavigationSummary {
@@ -512,6 +836,36 @@ function Get-ProcessState {
         MainWindowTitle = $process.MainWindowTitle
     }
 }
+
+function Convert-ToUtcDateTimeOffset {
+    param(
+        [Parameter(Mandatory = $false)]
+        [object]$Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -is [DateTimeOffset]) {
+        return ([DateTimeOffset]$Value).ToUniversalTime()
+    }
+
+    if ($Value -is [DateTime]) {
+        $dateTime = [DateTime]$Value
+        if ($dateTime.Kind -eq [System.DateTimeKind]::Unspecified) {
+            return ([DateTimeOffset]::new([DateTime]::SpecifyKind($dateTime, [System.DateTimeKind]::Utc))).ToUniversalTime()
+        }
+
+        return ([DateTimeOffset]$dateTime).ToUniversalTime()
+    }
+
+    return [DateTimeOffset]::Parse(
+        [string]$Value,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+}
+
 
 function Get-ReaderBridgePlayerCoord {
     $snapshot = Invoke-ReaderJson -Arguments @('--readerbridge-snapshot', '--json') -Step 'player-snapshot'
@@ -602,10 +956,10 @@ function Assert-SmokeRouteFreshness {
 
     $processState = Get-ProcessState -Name $ProcessName
     $provenance = if ($null -ne $document.provenance) { $document.provenance } else { $document.Provenance }
-    if ($null -ne $processState -and $null -ne $provenance -and -not [string]::IsNullOrWhiteSpace([string]$provenance.processStartTimeUtc)) {
+    if ($null -ne $processState -and $null -ne $provenance -and $null -ne $provenance.processStartTimeUtc) {
         try {
-            $routeStartTimeUtc = [DateTimeOffset]::Parse([string]$provenance.processStartTimeUtc, [System.Globalization.CultureInfo]::InvariantCulture)
-            $currentStartTimeUtc = [DateTimeOffset]::Parse([string]$processState.StartTimeUtc, [System.Globalization.CultureInfo]::InvariantCulture)
+            $routeStartTimeUtc = Convert-ToUtcDateTimeOffset -Value $provenance.processStartTimeUtc
+            $currentStartTimeUtc = Convert-ToUtcDateTimeOffset -Value $processState.StartTimeUtc
             $driftSeconds = [Math]::Abs(($currentStartTimeUtc - $routeStartTimeUtc).TotalSeconds)
             if ($driftSeconds -gt 1.0) {
                 $issues.Add("Smoke route provenance belongs to a different Rift process start time.")
@@ -649,29 +1003,35 @@ function Assert-FacingAlignment {
         return
     }
 
-    $orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments @('-Json', '-ProcessName', $ProcessName) -Step 'actor-orientation'
-    $yawDegrees = $orientation.ReaderOrientation.PreferredEstimate.YawDegrees
-    if ($null -eq $yawDegrees) {
-        throw "Actor orientation did not return a usable yaw for the facing guard."
-    }
-
-    $bearingDegrees = [double]$Preflight.WorldBearingDegrees
-    $deltaDegrees = [Math]::Abs((Normalize-Degrees -Degrees ([double]$bearingDegrees - [double]$yawDegrees)))
+    $facingState = Get-FacingAlignmentState -Preflight $Preflight
+    $yawDegrees = $facingState.YawDegrees
+    $bearingDegrees = $facingState.BearingDegrees
+    $deltaDegrees = $facingState.DeltaDegrees
+    $turnDirection = $facingState.TurnDirection
+    $facingSourceAddress = $facingState.SourceAddress
+    $facingBasisForwardOffset = $facingState.BasisForwardOffset
+    $facingStatus = $facingState.SourceStatus
 
     Write-Host ("[NavPrototype] Current yaw: {0:N3} deg" -f [double]$yawDegrees) -ForegroundColor Cyan
     Write-Host ("[NavPrototype] Yaw delta : {0:N3} deg" -f [double]$deltaDegrees) -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Turn hint : {0}" -f ($turnDirection ?? 'n/a')) -ForegroundColor Cyan
+    Write-Host ("[NavPrototype] Facing src: {0} / {1} ({2})" -f $facingSourceAddress, $facingBasisForwardOffset, $facingStatus) -ForegroundColor Cyan
 
     Write-SessionLog `
         -Step 'facing-guard' `
         -ExitCode 0 `
         -Arguments @('yaw-check') `
-        -Output ("yaw={0:N3}; bearing={1:N3}; delta={2:N3}; threshold={3:N3}" -f [double]$yawDegrees, [double]$bearingDegrees, [double]$deltaDegrees, [double]$RequireFacingWithinDegrees) `
+        -Output ("yaw={0:N3}; bearing={1:N3}; delta={2:N3}; threshold={3:N3}; turn={4}" -f [double]$yawDegrees, [double]$bearingDegrees, [double]$deltaDegrees, [double]$RequireFacingWithinDegrees, ($turnDirection ?? 'n/a')) `
         -Metadata @{
             facing = [ordered]@{
                 yawDegrees = [double]$yawDegrees
                 bearingDegrees = [double]$bearingDegrees
                 deltaDegrees = [double]$deltaDegrees
                 thresholdDegrees = [double]$RequireFacingWithinDegrees
+                turnDirection = $turnDirection
+                sourceAddress = $facingSourceAddress
+                basisForwardOffset = $facingBasisForwardOffset
+                sourceStatus = $facingStatus
             }
         }
 
@@ -756,6 +1116,7 @@ try {
     $preflightResult = Invoke-ReaderJson -Arguments $preflightArguments -Step 'preflight'
     $preflight = $preflightResult.Output
     Write-PreflightSummary -Preflight $preflight
+    $preflight = Invoke-AutoTurnAlignment -Preflight $preflight -PreflightArguments $preflightArguments
     Assert-FacingAlignment -Preflight $preflight
 
     if ($PreflightOnly) {
@@ -811,3 +1172,4 @@ catch {
 
     throw
 }
+

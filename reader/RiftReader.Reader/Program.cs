@@ -230,7 +230,7 @@ internal static class Program
 
         if (options.ReadNavigationCurrent)
         {
-            return RunReadNavigationCurrentMode(options, target, reader);
+            return RunReadNavigationCurrentMode(options, process, target, reader);
         }
 
         if (options.CaptureNavigationWaypoint)
@@ -240,7 +240,7 @@ internal static class Program
 
         if (options.NavigateWaypoints)
         {
-            return RunNavigateWaypointsMode(options, target, reader);
+            return RunNavigateWaypointsMode(options, process, target, reader);
         }
 
         if (options.ReadPlayerCoordAnchor)
@@ -798,7 +798,7 @@ internal static class Program
         return 0;
     }
 
-    private static int RunReadNavigationCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    private static int RunReadNavigationCurrentMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
         if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
         {
@@ -834,6 +834,13 @@ internal static class Program
         }
 
         var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var facing = TryBuildNavigationFacingSummary(
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            resolvedDestinationWaypoint,
+            poseSource.InitialSample);
         var result = NavigationMath.BuildSummary(
             target.ProcessId,
             target.ProcessName,
@@ -841,7 +848,8 @@ internal static class Program
             resolvedDestinationWaypoint,
             poseSource.InitialSample,
             poseSource.Source.AnchorSource,
-            arrivalRadius);
+            arrivalRadius,
+            facing);
 
         if (options.JsonOutput)
         {
@@ -853,7 +861,63 @@ internal static class Program
         return 0;
     }
 
-    private static int RunNavigateWaypointsMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    private static NavigationFacingSummary TryBuildNavigationFacingSummary(
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        WaypointDefinition destinationWaypoint,
+        NavigationPoseSample currentSample)
+    {
+        try
+        {
+            var leadDocument = ActorFacingBehaviorBackedLeadLoader.TryLoad(null, out var leadError);
+            if (leadDocument is null)
+            {
+                return NavigationMath.BuildUnavailableFacingSummary(
+                    status: "lead-unavailable",
+                    message: leadError ?? "Unable to load the actor-facing behavior-backed lead.");
+            }
+
+            DateTimeOffset processStartTimeUtc;
+            try
+            {
+                processStartTimeUtc = process.StartTime.ToUniversalTime();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                return NavigationMath.BuildUnavailableFacingSummary(
+                    status: "process-start-unavailable",
+                    message: $"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+            }
+
+            var leadValidation = ActorFacingBehaviorBackedLeadValidator.Validate(
+                leadDocument,
+                process.ProcessName,
+                process.Id,
+                processStartTimeUtc);
+            if (!leadValidation.IsValid)
+            {
+                return NavigationMath.BuildUnavailableFacingSummary(
+                    status: "lead-invalid",
+                    message: leadValidation.Error ?? "The actor-facing behavior-backed lead is not valid for the live process.");
+            }
+
+            var orientation = PlayerOrientationReader.ReadLive(reader, target, snapshotDocument, leadDocument);
+            var deltaX = destinationWaypoint.X - currentSample.X;
+            var deltaZ = destinationWaypoint.Z - currentSample.Z;
+            var (_, bearingDegrees) = NavigationMath.ComputeBearing(deltaX, deltaZ);
+            return NavigationMath.BuildFacingSummary(orientation, bearingDegrees);
+        }
+        catch (Exception ex)
+        {
+            return NavigationMath.BuildUnavailableFacingSummary(
+                status: "read-failed",
+                message: $"Unable to read live actor-facing data for navigation alignment: {ex.Message}");
+        }
+    }
+
+    private static int RunNavigateWaypointsMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
     {
         if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
         {
@@ -917,9 +981,130 @@ internal static class Program
         var effectivePace = ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
         var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
         var maxTravelSeconds = options.MaxTravelSeconds ?? resolvedConfiguration.Movement.MaxTravelSeconds;
+        if (!TryResolveNavigationAutoTurnOptions(options, out var autoTurnOptions, out var autoTurnError))
+        {
+            Console.Error.WriteLine(autoTurnError ?? "Unable to resolve navigation auto-turn options.");
+            return 1;
+        }
+
         var movementBackend = new PowerShellMovementBackend(
             NavigationPathResolver.ResolveMovementScriptFile(),
             target.ProcessName);
+        var initialMovementDistance = NavigationMath.ComputePlanarDistance(
+            resolvedDestinationWaypoint.X - poseSource.InitialSample.X,
+            resolvedDestinationWaypoint.Z - poseSource.InitialSample.Z);
+        if (initialMovementDistance > arrivalRadius)
+        {
+            movementBackend.PrepareForMovement();
+
+            if (!NavigationProofCoordAnchorRefresher.TryRefresh(target.ProcessName, target.ProcessId, out var refreshError))
+            {
+                var anchorFailure = BuildNavigationAnchorUnavailableResult(
+                    target,
+                    resolvedConfiguration.SourceFile,
+                    resolvedStartWaypoint,
+                    resolvedDestinationWaypoint,
+                    effectivePace,
+                    arrivalRadius,
+                    resolvedConfiguration.Movement.StartRadius,
+                    "anchor-unavailable");
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+                }
+                else
+                {
+                    Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure));
+                }
+
+                return 1;
+            }
+
+            var refreshedPoseSource = NavigationPoseSourceFactory.TryCreate(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                inspectionRadius,
+                NavigationPoseSourcePolicy.StrictCoordTrace,
+                options.MaxHits,
+                out var refreshPoseError);
+
+            if (refreshedPoseSource is null)
+            {
+                var anchorFailure = BuildNavigationAnchorUnavailableResult(
+                    target,
+                    resolvedConfiguration.SourceFile,
+                    resolvedStartWaypoint,
+                    resolvedDestinationWaypoint,
+                    effectivePace,
+                    arrivalRadius,
+                    resolvedConfiguration.Movement.StartRadius,
+                    "anchor-unavailable");
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+                }
+                else
+                {
+                    Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure));
+                }
+
+                return 1;
+            }
+
+            poseSource = refreshedPoseSource;
+        }
+
+        NavigationTurnResult? turnResult = null;
+
+        if (autoTurnOptions.Enabled)
+        {
+            turnResult = NavigationAutoTurner.Execute(
+                poseSource.InitialSample,
+                poseSource.Source,
+                movementBackend,
+                autoTurnOptions,
+                sample => BuildNavigationTurnPlan(
+                    process,
+                    target,
+                    reader,
+                    snapshotDocument,
+                    resolvedDestinationWaypoint,
+                    sample,
+                    autoTurnOptions.WithinDegrees));
+
+            if (!turnResult.Succeeded)
+            {
+                var turnFailure = BuildNavigationAutoTurnFailureResult(
+                    target,
+                    resolvedConfiguration.SourceFile,
+                    resolvedStartWaypoint,
+                    resolvedDestinationWaypoint,
+                    effectivePace,
+                    arrivalRadius,
+                    resolvedConfiguration.Movement.StartRadius,
+                    poseSource.InitialSample,
+                    poseSource.Source.AnchorSource,
+                    turnResult);
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(turnFailure));
+                }
+                else
+                {
+                    Console.Error.WriteLine(turnResult.Reason ?? "Auto-turn failed before forward movement could start.");
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(turnFailure));
+                }
+
+                return 1;
+            }
+        }
 
         var result = WaypointNavigator.Run(
             target.ProcessId,
@@ -933,6 +1118,11 @@ internal static class Program
             effectivePace,
             arrivalRadius,
             maxTravelSeconds);
+
+        if (turnResult is not null)
+        {
+            result = result with { TurnResult = turnResult };
+        }
 
         if (options.JsonOutput)
         {
@@ -1449,6 +1639,121 @@ internal static class Program
         destinationWaypoint.ArrivalRadius ??
         movement.DefaultArrivalRadius;
 
+    private static bool TryResolveNavigationAutoTurnOptions(
+        ReaderOptions options,
+        out NavigationAutoTurnOptions resolved,
+        out string? error)
+    {
+        var withinDegrees = options.AutoTurnWithinDegrees ?? 7.5d;
+        var turnLeftKey = string.IsNullOrWhiteSpace(options.TurnLeftKey) ? "a" : options.TurnLeftKey.Trim();
+        var turnRightKey = string.IsNullOrWhiteSpace(options.TurnRightKey) ? "d" : options.TurnRightKey.Trim();
+        var turnPulseMilliseconds = options.TurnPulseMilliseconds ?? 75;
+        var postTurnSampleDelayMilliseconds = options.TurnPostSampleDelayMilliseconds ?? 150;
+        var settleDelayMilliseconds = options.TurnSettleDelayMilliseconds ?? 250;
+        var maxTurnPulses = options.TurnMaxPulses ?? 12;
+        var worseningToleranceDegrees = options.TurnWorseningToleranceDegrees ?? 0.5d;
+        var maxWorseningPulses = options.TurnMaxWorseningPulses ?? 2;
+
+        if (withinDegrees < 0d)
+        {
+            resolved = default!;
+            error = "--auto-turn-within-degrees cannot be negative.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(turnLeftKey))
+        {
+            resolved = default!;
+            error = "--turn-left-key must not be blank.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(turnRightKey))
+        {
+            resolved = default!;
+            error = "--turn-right-key must not be blank.";
+            return false;
+        }
+
+        if (turnPulseMilliseconds <= 0)
+        {
+            resolved = default!;
+            error = "--turn-pulse-ms must be positive.";
+            return false;
+        }
+
+        if (postTurnSampleDelayMilliseconds < 0)
+        {
+            resolved = default!;
+            error = "--turn-post-sample-delay-ms cannot be negative.";
+            return false;
+        }
+
+        if (settleDelayMilliseconds < 0)
+        {
+            resolved = default!;
+            error = "--turn-settle-delay-ms cannot be negative.";
+            return false;
+        }
+
+        if (maxTurnPulses <= 0)
+        {
+            resolved = default!;
+            error = "--turn-max-pulses must be positive.";
+            return false;
+        }
+
+        if (worseningToleranceDegrees < 0d)
+        {
+            resolved = default!;
+            error = "--turn-worsening-tolerance cannot be negative.";
+            return false;
+        }
+
+        if (maxWorseningPulses <= 0)
+        {
+            resolved = default!;
+            error = "--turn-max-worsening-pulses must be positive.";
+            return false;
+        }
+
+        resolved = new NavigationAutoTurnOptions(
+            Enabled: options.AutoTurnBeforeMove,
+            WithinDegrees: withinDegrees,
+            TurnLeftKey: turnLeftKey,
+            TurnRightKey: turnRightKey,
+            TurnPulseMilliseconds: turnPulseMilliseconds,
+            PostTurnSampleDelayMilliseconds: postTurnSampleDelayMilliseconds,
+            SettleDelayMilliseconds: settleDelayMilliseconds,
+            MaxTurnPulses: maxTurnPulses,
+            WorseningToleranceDegrees: worseningToleranceDegrees,
+            MaxWorseningPulses: maxWorseningPulses);
+        error = null;
+        return true;
+    }
+
+    private static NavigationTurnPlan BuildNavigationTurnPlan(
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        WaypointDefinition destinationWaypoint,
+        NavigationPoseSample currentSample,
+        double alignmentThresholdDegrees)
+    {
+        var facing = TryBuildNavigationFacingSummary(
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            destinationWaypoint,
+            currentSample);
+        var deltaX = destinationWaypoint.X - currentSample.X;
+        var deltaZ = destinationWaypoint.Z - currentSample.Z;
+        var (_, bearingDegrees) = NavigationMath.ComputeBearing(deltaX, deltaZ);
+        return NavigationMath.BuildTurnPlan(facing, bearingDegrees, alignmentThresholdDegrees);
+    }
+
     private static NavigationRunResult BuildNavigationAnchorUnavailableResult(
         ProcessTarget target,
         string waypointFile,
@@ -1478,6 +1783,52 @@ internal static class Program
             FinalPosition: startWaypoint.Coordinate,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: 0);
+
+    private static NavigationRunResult BuildNavigationAutoTurnFailureResult(
+        ProcessTarget target,
+        string waypointFile,
+        WaypointDefinition startWaypoint,
+        WaypointDefinition destinationWaypoint,
+        string pace,
+        double arrivalRadius,
+        double startRadius,
+        NavigationPoseSample initialSample,
+        string anchorSource,
+        NavigationTurnResult turnResult)
+    {
+        var initialPosition = new NavigationCoordinate(initialSample.X, initialSample.Y, initialSample.Z);
+        var initialPlanarDistance = ComputePlanarDistance(initialPosition, destinationWaypoint);
+        var finalPlanarDistance = ComputePlanarDistance(turnResult.FinalPosition, destinationWaypoint);
+
+        return new NavigationRunResult(
+            Mode: "navigate-waypoints",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            WaypointFile: waypointFile,
+            Status: "failure",
+            StartWaypointId: startWaypoint.Id,
+            DestinationWaypointId: destinationWaypoint.Id,
+            Pace: pace,
+            AnchorSource: anchorSource,
+            StartRadius: startRadius,
+            ArrivalRadius: arrivalRadius,
+            InitialPlanarDistance: initialPlanarDistance,
+            FinalPlanarDistance: finalPlanarDistance,
+            PulseCount: 0,
+            StopReason: $"auto-turn-{turnResult.Status}",
+            InitialPosition: initialPosition,
+            FinalPosition: turnResult.FinalPosition,
+            DestinationPosition: destinationWaypoint.Coordinate,
+            ElapsedMilliseconds: 0,
+            TurnResult: turnResult);
+    }
+
+    private static double ComputePlanarDistance(NavigationCoordinate currentPosition, WaypointDefinition destinationWaypoint)
+    {
+        var deltaX = destinationWaypoint.X - currentPosition.X;
+        var deltaZ = destinationWaypoint.Z - currentPosition.Z;
+        return NavigationMath.ComputePlanarDistance(deltaX, deltaZ);
+    }
 
     private static void WriteUsage(ReaderOptionsParseResult parseResult)
     {
