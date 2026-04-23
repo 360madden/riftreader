@@ -515,6 +515,12 @@ public sealed class WaypointNavigatorTests
         Assert.Equal("arrived", result.StopReason);
         Assert.Equal(2, result.PulseCount);
         Assert.InRange(result.FinalPlanarDistance, 0d, 1.5d);
+        Assert.NotNull(result.Events);
+        Assert.Equal("initial-sample", result.Events![0].Type);
+        Assert.Contains(result.Events!, navigationEvent => navigationEvent.Type == "progress-reset" && navigationEvent.PulseIndex == 1);
+        var stopEvent = Assert.Single(result.Events!, navigationEvent => navigationEvent.Type == "stop");
+        Assert.Equal("arrived", stopEvent.Status);
+        Assert.Equal(2, stopEvent.PulseIndex);
     }
 
     [Fact]
@@ -541,6 +547,10 @@ public sealed class WaypointNavigatorTests
         Assert.Equal("failure", result.Status);
         Assert.Equal("no-progress", result.StopReason);
         Assert.Equal(1, result.PulseCount);
+        Assert.NotNull(result.Events);
+        var stopEvent = Assert.Single(result.Events!, navigationEvent => navigationEvent.Type == "stop");
+        Assert.Equal("no-progress", stopEvent.Status);
+        Assert.Equal(1, stopEvent.PulseIndex);
     }
 
     [Fact]
@@ -748,6 +758,9 @@ public sealed class NavigationAutoTurnerTests
         Assert.False(result.Attempted);
         Assert.Equal("noop", result.Status);
         Assert.Empty(movementBackend.Calls);
+        Assert.NotNull(result.Events);
+        Assert.Equal("initial-plan", result.Events![0].Type);
+        Assert.Equal("noop", result.Events![1].Type);
     }
 
     [Fact]
@@ -773,6 +786,10 @@ public sealed class NavigationAutoTurnerTests
         Assert.True(result.Attempted);
         Assert.Equal("complete", result.Status);
         Assert.Equal(1, result.PulseCount);
+        Assert.NotNull(result.Events);
+        Assert.Contains(result.Events!, navigationEvent => navigationEvent.Type == "pulse-sample" && navigationEvent.PulseIndex == 1);
+        Assert.Equal("complete", result.Events![^1].Type);
+        Assert.True(result.Events![^1].ElapsedMilliseconds >= 0);
         Assert.Collection(
             movementBackend.Calls,
             call =>
@@ -809,6 +826,9 @@ public sealed class NavigationAutoTurnerTests
         Assert.Equal(2, result.PulseCount);
         Assert.Equal(2, result.WorseningPulseCount);
         Assert.Equal(2, movementBackend.Calls.Count);
+        Assert.NotNull(result.Events);
+        Assert.Equal("stop", result.Events![^1].Type);
+        Assert.Equal("worsening", result.Events![^1].Status);
     }
 
     private static NavigationAutoTurnOptions CreateAutoTurnOptions(
@@ -917,4 +937,127 @@ public sealed class NavigationAutoTurnerTests
                 : new MovementCommandResult(true, null);
         }
     }
+}
+
+public sealed class NavigationRunResultTextFormatterTests
+{
+    [Fact]
+    public void Format_DefaultOutputStaysCompact()
+    {
+        var result = CreateResult();
+
+        var text = NavigationRunResultTextFormatter.Format(result);
+
+        Assert.Contains("Turn event count:     1", text, StringComparison.Ordinal);
+        Assert.Contains("Turn last event:      t=120ms auto-turn/stop [worsening] pulse=2 key=a delta=26.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn worsened for 2 consecutive pulses.", text, StringComparison.Ordinal);
+        Assert.Contains("Event count:          1", text, StringComparison.Ordinal);
+        Assert.Contains("Last event:           t=0ms navigation/stop [auto-turn-worsening] dist=10.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn failed before forward movement could start.", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Turn events:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Events:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Format_IncludesNavigationAndTurnEventTimelinesWhenVerbose()
+    {
+        var result = CreateResult();
+
+        var text = NavigationRunResultTextFormatter.Format(result, includeEventTimeline: true);
+
+        Assert.Contains("Turn event count:     1", text, StringComparison.Ordinal);
+        Assert.Contains("Turn last event:      t=120ms auto-turn/stop [worsening] pulse=2 key=a delta=26.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn worsened for 2 consecutive pulses.", text, StringComparison.Ordinal);
+        Assert.Contains("Turn events:", text, StringComparison.Ordinal);
+        Assert.Contains("  - t=120ms auto-turn/stop [worsening] pulse=2 key=a delta=26.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn worsened for 2 consecutive pulses.", text, StringComparison.Ordinal);
+        Assert.Contains("Event count:          1", text, StringComparison.Ordinal);
+        Assert.Contains("Last event:           t=0ms navigation/stop [auto-turn-worsening] dist=10.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn failed before forward movement could start.", text, StringComparison.Ordinal);
+        Assert.Contains("Events:", text, StringComparison.Ordinal);
+        Assert.Contains("  - t=0ms navigation/stop [auto-turn-worsening] dist=10.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn failed before forward movement could start.", text, StringComparison.Ordinal);
+    }
+
+    private static NavigationRunResult CreateResult() =>
+        new(
+            Mode: "navigate-waypoints",
+            ProcessId: 100,
+            ProcessName: "rift_x64",
+            WaypointFile: "waypoints.json",
+            Status: "failure",
+            StartWaypointId: "start",
+            DestinationWaypointId: "destination",
+            Pace: "keep",
+            AnchorSource: "coord-trace-anchor",
+            StartRadius: 2d,
+            ArrivalRadius: 1.5d,
+            InitialPlanarDistance: 10d,
+            FinalPlanarDistance: 10d,
+            PulseCount: 0,
+            StopReason: "auto-turn-worsening",
+            InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+            FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+            DestinationPosition: new NavigationCoordinate(10d, 0d, 0d),
+            ElapsedMilliseconds: 0,
+            TurnResult: new NavigationTurnResult(
+                Status: "worsening",
+                Succeeded: false,
+                Attempted: true,
+                TurnKey: "a",
+                TurnDirection: "left",
+                ThresholdDegrees: 7.5d,
+                PulseCount: 2,
+                WorseningPulseCount: 2,
+                MaxWorseningPulses: 2,
+                InitialPlan: CreateTurnPlan(deltaDegrees: 25d, turnDirection: "left", thresholdDegrees: 7.5d),
+                FinalPlan: CreateTurnPlan(deltaDegrees: 26d, turnDirection: "left", thresholdDegrees: 7.5d),
+                InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+                FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+                Samples: Array.Empty<NavigationTurnSample>(),
+                Reason: "Auto-turn worsened for 2 consecutive pulses.",
+                Events: new[]
+                {
+                    new NavigationEvent(
+                        "auto-turn",
+                        "stop",
+                        120,
+                        Status: "worsening",
+                        PulseIndex: 2,
+                        Key: "a",
+                        Position: new NavigationCoordinate(0d, 0d, 0d),
+                        AbsoluteBearingDeltaDegrees: 26d,
+                        Detail: "Auto-turn worsened for 2 consecutive pulses.")
+                }),
+            Events: new[]
+            {
+                new NavigationEvent(
+                    "navigation",
+                    "stop",
+                    0,
+                    Status: "auto-turn-worsening",
+                    Position: new NavigationCoordinate(0d, 0d, 0d),
+                    PlanarDistance: 10d,
+                    Detail: "Auto-turn failed before forward movement could start.")
+            });
+
+    private static NavigationTurnPlan CreateTurnPlan(
+        double deltaDegrees,
+        string turnDirection,
+        double thresholdDegrees) =>
+        new(
+            Status: string.Equals(turnDirection, "aligned", StringComparison.OrdinalIgnoreCase) || deltaDegrees <= thresholdDegrees
+                ? "aligned"
+                : "available",
+            SourceKind: "behavior-backed-memory-facing",
+            ResolutionMode: "live-behavior-backed-lead",
+            SelectedSourceAddress: "0x1234",
+            BasisPrimaryForwardOffset: "0xD4",
+            DestinationBearingDegrees: 90d,
+            CurrentYawDegrees: 45d,
+            SignedBearingDeltaDegrees: turnDirection switch
+            {
+                "right" => -deltaDegrees,
+                "aligned" => 0d,
+                _ => deltaDegrees
+            },
+            AbsoluteBearingDeltaDegrees: deltaDegrees,
+            SuggestedTurnDirection: turnDirection,
+            AlignmentThresholdDegrees: thresholdDegrees,
+            WithinAlignmentThreshold: string.Equals(turnDirection, "aligned", StringComparison.OrdinalIgnoreCase) || deltaDegrees <= thresholdDegrees,
+            Reason: null);
 }

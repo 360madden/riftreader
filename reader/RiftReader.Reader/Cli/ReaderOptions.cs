@@ -85,4 +85,5 @@ public sealed record ReaderOptions(
     string? TelemetryOutputFile = null,
     string? TelemetryEventLogFile = null,
     string? TelemetryDiagnosticsLogFile = null,
-    string? TelemetryProofAnchorFile = null);
+    string? TelemetryProofAnchorFile = null,
+    bool VerboseNavigationEvents = false);

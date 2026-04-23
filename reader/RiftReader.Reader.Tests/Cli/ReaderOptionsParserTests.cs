@@ -126,6 +126,7 @@ public sealed class ReaderOptionsParserTests
             "--turn-max-pulses", "8",
             "--turn-worsening-tolerance", "0.75",
             "--turn-max-worsening-pulses", "3",
+            "--verbose-navigation-events",
             "--json"
         ]);
 
@@ -142,6 +143,7 @@ public sealed class ReaderOptionsParserTests
         Assert.Equal(8, options.TurnMaxPulses);
         Assert.Equal(0.75d, options.TurnWorseningToleranceDegrees);
         Assert.Equal(3, options.TurnMaxWorseningPulses);
+        Assert.True(options.VerboseNavigationEvents);
     }
 
     [Fact]
@@ -158,5 +160,20 @@ public sealed class ReaderOptionsParserTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("Auto-turn tuning switches require --auto-turn-before-move.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_RejectsVerboseNavigationEventsOutsideWaypointNavigationMode()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--read-navigation-current",
+            "--destination-waypoint", "point_b",
+            "--verbose-navigation-events"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--verbose-navigation-events can only be used with --navigate-waypoints.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 }

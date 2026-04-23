@@ -5,7 +5,7 @@ namespace RiftReader.Reader.Formatting;
 
 public static class NavigationRunResultTextFormatter
 {
-    public static string Format(NavigationRunResult result)
+    public static string Format(NavigationRunResult result, bool includeEventTimeline = false)
     {
         var lines = new List<string>
         {
@@ -51,9 +51,87 @@ public static class NavigationRunResultTextFormatter
             {
                 lines.Add($"Turn note:            {result.TurnResult.Reason}");
             }
+
+            if (result.TurnResult.Events is { Count: > 0 } turnEvents)
+            {
+                lines.Add($"Turn event count:     {turnEvents.Count}");
+                lines.Add($"Turn last event:      {FormatEvent(turnEvents[^1])}");
+
+                if (includeEventTimeline)
+                {
+                    lines.Add("Turn events:");
+
+                    foreach (var turnEvent in turnEvents)
+                    {
+                        lines.Add($"  - {FormatEvent(turnEvent)}");
+                    }
+                }
+            }
+        }
+
+        if (result.Events is { Count: > 0 } events)
+        {
+            lines.Add($"Event count:          {events.Count}");
+            lines.Add($"Last event:           {FormatEvent(events[^1])}");
+
+            if (includeEventTimeline)
+            {
+                lines.Add("Events:");
+
+                foreach (var navigationEvent in events)
+                {
+                    lines.Add($"  - {FormatEvent(navigationEvent)}");
+                }
+            }
         }
 
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatEvent(NavigationEvent navigationEvent)
+    {
+        var parts = new List<string>
+        {
+            $"t={navigationEvent.ElapsedMilliseconds}ms",
+            $"{navigationEvent.Stage}/{navigationEvent.Type}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(navigationEvent.Status))
+        {
+            parts.Add($"[{navigationEvent.Status}]");
+        }
+
+        if (navigationEvent.PulseIndex.HasValue)
+        {
+            parts.Add($"pulse={navigationEvent.PulseIndex.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(navigationEvent.Key))
+        {
+            parts.Add($"key={navigationEvent.Key}");
+        }
+
+        if (navigationEvent.PlanarDistance.HasValue)
+        {
+            parts.Add($"dist={FormatDouble(navigationEvent.PlanarDistance.Value)}");
+        }
+
+        if (navigationEvent.AbsoluteBearingDeltaDegrees.HasValue)
+        {
+            parts.Add($"delta={FormatDouble(navigationEvent.AbsoluteBearingDeltaDegrees.Value)}");
+        }
+
+        if (navigationEvent.Position is not null)
+        {
+            parts.Add($"pos={FormatCoord(navigationEvent.Position)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(navigationEvent.Detail))
+        {
+            parts.Add($"note={navigationEvent.Detail}");
+        }
+
+        return string.Join(" ", parts);
     }
 
     private static string FormatCoord(NavigationCoordinate coordinate) =>

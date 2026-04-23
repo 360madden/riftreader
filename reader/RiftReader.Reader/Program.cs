@@ -972,7 +972,7 @@ internal static class Program
             else
             {
                 Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
-                Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure));
+                Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
             }
 
             return 1;
@@ -1016,7 +1016,7 @@ internal static class Program
                 else
                 {
                     Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
-                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure));
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
                 }
 
                 return 1;
@@ -1051,7 +1051,7 @@ internal static class Program
                 else
                 {
                     Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
-                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure));
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
                 }
 
                 return 1;
@@ -1099,7 +1099,7 @@ internal static class Program
                 else
                 {
                     Console.Error.WriteLine(turnResult.Reason ?? "Auto-turn failed before forward movement could start.");
-                    Console.WriteLine(NavigationRunResultTextFormatter.Format(turnFailure));
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(turnFailure, options.VerboseNavigationEvents));
                 }
 
                 return 1;
@@ -1130,7 +1130,7 @@ internal static class Program
             return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
         }
 
-        Console.WriteLine(NavigationRunResultTextFormatter.Format(result));
+        Console.WriteLine(NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
         return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
     }
 
@@ -1762,8 +1762,18 @@ internal static class Program
         string pace,
         double arrivalRadius,
         double startRadius,
-        string stopReason) =>
-        new(
+        string stopReason)
+    {
+        var events = new[]
+        {
+            CreateNavigationLifecycleEvent(
+                type: "stop",
+                status: stopReason,
+                position: startWaypoint.Coordinate,
+                detail: "A validated coord-trace navigation anchor was unavailable for this run.")
+        };
+
+        return new NavigationRunResult(
             Mode: "navigate-waypoints",
             ProcessId: target.ProcessId,
             ProcessName: target.ProcessName,
@@ -1782,7 +1792,9 @@ internal static class Program
             InitialPosition: startWaypoint.Coordinate,
             FinalPosition: startWaypoint.Coordinate,
             DestinationPosition: destinationWaypoint.Coordinate,
-            ElapsedMilliseconds: 0);
+            ElapsedMilliseconds: 0,
+            Events: events);
+    }
 
     private static NavigationRunResult BuildNavigationAutoTurnFailureResult(
         ProcessTarget target,
@@ -1799,6 +1811,16 @@ internal static class Program
         var initialPosition = new NavigationCoordinate(initialSample.X, initialSample.Y, initialSample.Z);
         var initialPlanarDistance = ComputePlanarDistance(initialPosition, destinationWaypoint);
         var finalPlanarDistance = ComputePlanarDistance(turnResult.FinalPosition, destinationWaypoint);
+        var events = new[]
+        {
+            CreateNavigationLifecycleEvent(
+                type: "stop",
+                status: $"auto-turn-{turnResult.Status}",
+                pulseIndex: turnResult.PulseCount,
+                position: turnResult.FinalPosition,
+                planarDistance: finalPlanarDistance,
+                detail: turnResult.Reason ?? "Auto-turn failed before forward movement could start.")
+        };
 
         return new NavigationRunResult(
             Mode: "navigate-waypoints",
@@ -1820,8 +1842,26 @@ internal static class Program
             FinalPosition: turnResult.FinalPosition,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: 0,
-            TurnResult: turnResult);
+            TurnResult: turnResult,
+            Events: events);
     }
+
+    private static NavigationEvent CreateNavigationLifecycleEvent(
+        string type,
+        string status,
+        NavigationCoordinate position,
+        string detail,
+        int? pulseIndex = null,
+        double? planarDistance = null) =>
+        new(
+            Stage: "navigation",
+            Type: type,
+            ElapsedMilliseconds: 0,
+            Status: status,
+            PulseIndex: pulseIndex,
+            Position: position,
+            PlanarDistance: planarDistance,
+            Detail: detail);
 
     private static double ComputePlanarDistance(NavigationCoordinate currentPosition, WaypointDefinition destinationWaypoint)
     {

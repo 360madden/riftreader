@@ -24,7 +24,7 @@ Usage:
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-navigation-waypoint <id> [--navigation-waypoint-file <path>] [--waypoint-label <text>] [--waypoint-zone <text>] [--waypoint-arrival-radius <distance>] [--waypoint-pace run|walk|keep] [--scan-context <bytes>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--verbose-navigation-events] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --telemetry-preflight [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics] [--json]
@@ -60,6 +60,7 @@ Notes:
   - Use --capture-navigation-waypoint to record the current live position into the waypoint JSON so point A / point B runs do not require manual coordinate edits.
   - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the manual-facing waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition.
   - Add --auto-turn-before-move when you want the reader to use current actor-facing truth to align heading before forward movement begins.
+  - Add --verbose-navigation-events when you want the text formatter to print the full navigation/auto-turn event timeline instead of just the latest summary.
   - Use --read-player-coord-anchor to validate the latest coord-trace artifact against the live process and derive a first code-path-backed coord anchor summary.
   - Use --session-summary to inspect a recorded offline session package without attaching to a live process.
   - Use --record-session to sample named memory regions from a watchset into an owned session folder for offline decoding work.
@@ -95,7 +96,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-navigation-waypoint point_a --waypoint-label "Point A" --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --json
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --auto-turn-before-move --auto-turn-within-degrees 7.5 --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --auto-turn-before-move --auto-turn-within-degrees 7.5 --verbose-navigation-events
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --session-summary --session-directory .\scripts\sessions\20260409-baseline --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --record-session --session-watchset-file .\scripts\sessions\watchset.json --session-output-directory .\scripts\sessions\20260409-baseline --session-marker-input-file .\scripts\sessions\baseline.markers.ndjson --session-sample-count 20 --session-interval-ms 500 --session-label baseline --json
@@ -158,6 +159,7 @@ Examples:
         int? turnMaxPulses = null;
         double? turnWorseningToleranceDegrees = null;
         int? turnMaxWorseningPulses = null;
+        var verboseNavigationEvents = false;
         string? waypointLabel = null;
         string? waypointZone = null;
         double? waypointArrivalRadius = null;
@@ -798,6 +800,10 @@ Examples:
                     }
 
                     turnMaxWorseningPulses = parsedTurnMaxWorseningPulses;
+                    break;
+
+                case "--verbose-navigation-events":
+                    verboseNavigationEvents = true;
                     break;
 
                 case "--session-summary":
@@ -1639,6 +1645,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--turn-max-worsening-pulses can only be used with --navigate-waypoints.", UsageText);
         }
 
+        if (verboseNavigationEvents && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--verbose-navigation-events can only be used with --navigate-waypoints.", UsageText);
+        }
+
         if (!autoTurnBeforeMove &&
             (autoTurnWithinDegrees.HasValue ||
              turnLeftKey is not null ||
@@ -2148,7 +2159,8 @@ Examples:
                     TelemetryOutputFile: telemetryOutputFile,
                     TelemetryEventLogFile: telemetryEventLogFile,
                     TelemetryDiagnosticsLogFile: telemetryDiagnosticsLogFile,
-                    TelemetryProofAnchorFile: telemetryProofAnchorFile),
+                    TelemetryProofAnchorFile: telemetryProofAnchorFile,
+                    VerboseNavigationEvents: verboseNavigationEvents),
             UsageText);
     }
 
