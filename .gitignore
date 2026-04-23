@@ -12,6 +12,7 @@ Thumbs.db
 
 # Logs
 *.log
+.codex/tmp/
 
 # Python
 __pycache__/

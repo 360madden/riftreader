@@ -14,7 +14,7 @@ public sealed class PlayerOrientationReadTextFormatterTests
             ArtifactFile: @"C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json",
             ArtifactLoadedAtUtc: new DateTimeOffset(2026, 4, 22, 6, 4, 25, TimeSpan.Zero),
             ArtifactGeneratedAtUtc: new DateTimeOffset(2026, 4, 22, 4, 42, 26, TimeSpan.Zero),
-            SnapshotFile: @"C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
+            SnapshotFile: @"C:\Users\testuser\OneDrive\Documents\RIFT\Interface\Saved\user@example.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
             SnapshotLoadedAtUtc: new DateTimeOffset(2026, 4, 22, 6, 4, 25, TimeSpan.Zero),
             PlayerName: "Atank",
             PlayerLevel: 45,

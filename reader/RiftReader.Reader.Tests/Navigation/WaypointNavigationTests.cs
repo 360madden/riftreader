@@ -39,7 +39,7 @@ public sealed class WaypointNavigationConfigurationLoaderTests
         }
         finally
         {
-            File.Delete(filePath);
+            DeleteTempWaypointFile(filePath);
         }
     }
 
@@ -76,7 +76,7 @@ public sealed class WaypointNavigationConfigurationLoaderTests
         }
         finally
         {
-            File.Delete(filePath);
+            DeleteTempWaypointFile(filePath);
         }
     }
 
@@ -88,6 +88,25 @@ public sealed class WaypointNavigationConfigurationLoaderTests
         var filePath = Path.Combine(tempDirectory, "waypoints.json");
         File.WriteAllText(filePath, json);
         return filePath;
+    }
+
+    private static void DeleteTempWaypointFile(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return;
+        }
+
+        if (File.Exists(filePath))
+        {
+            File.Delete(filePath);
+        }
+
+        var tempDirectory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(tempDirectory) && Directory.Exists(tempDirectory))
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
     }
 }
 

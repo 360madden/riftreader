@@ -51,6 +51,18 @@ This file defines the default assistant behavior for work inside
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
 
+## Code review tooling freeze
+
+- **CodeRabbit is currently frozen for this repo.**
+- Do **not** add new CodeRabbit config, docs, badges, automation, or workflow
+  dependencies.
+- Do **not** spend repo work time wiring CodeRabbit deeper into local or PR
+  flows unless the user explicitly reopens that decision.
+- Prefer direct agent review, targeted tests, and normal repo validation over
+  CodeRabbit-specific setup.
+- Treat any CodeRabbit-generated local temp output as disposable; it should not
+  become repo-owned state.
+
 ## Live movement / polling invariant
 
 - For any **movement polling**, **forward-hold proof**, or other live
