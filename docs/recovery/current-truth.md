@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: April 23, 2026 (fresh live coord-anchor validation plus actor-facing lead revalidation on the live `rift_x64` session)_
+_Last updated: April 23, 2026 (fresh live coord-anchor validation, agentic actor-facing lead promotion, and same-session provenance refresh on the live `rift_x64` session)_
 
 ## Current status
 
@@ -16,9 +16,10 @@ _Last updated: April 23, 2026 (fresh live coord-anchor validation plus actor-fac
 | ReaderBridge orientation probe | still empty on the current client |
 | `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
-| Actor yaw / pitch truth | working on the current live session via source `0x12CAF6F7080` and forward basis row `+0xD4/+0xD8/+0xDC` |
+| Actor yaw / pitch truth | working on the current live session via source `0x12CC0FA0F70` and forward basis row `+0xD4/+0xD8/+0xDC` |
+| Source-chain / accessor-family provenance | refreshed again on the current live session; the source-chain step can currently enter same-session `reuse-previous-source-chain` recovery when the refreshed low-level trace cluster drops the older signature |
+| Selector-owner / owner-components / owner-graph / stat-hub provenance | refreshed again on the current live session |
 | April 22 source-chain/accessor-family actor-facing result | historical evidence only until separately re-proven on the current session |
-| Selector-owner trace | still broken after the update |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 
@@ -56,9 +57,10 @@ Operational interpretation:
 
 ## Fresh actor yaw / pitch truth
 
-Fresh live revalidation on **April 23, 2026** kept the current promoted lead:
+Fresh live agentic discovery on **April 23, 2026** promoted a new
+current-session lead, and the later provenance-only pass retained it:
 
-- canonical live source address: `0x12CAF6F7080`
+- canonical live source address: `0x12CC0FA0F70`
 - canonical forward basis row:
   - `X = +0xD4`
   - `Y = +0xD8`
@@ -67,8 +69,15 @@ Fresh live revalidation on **April 23, 2026** kept the current promoted lead:
   - yaw = `atan2(forwardZ, forwardX)`
   - pitch = `atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))`
 
-Fresh live checks on the same source:
+Fresh live checks on the promoted lead:
 
+- `refresh-actor-facing-discovery.ps1 -RestartSession -StimulusMode AutoHotkey`
+  promoted `0x12CC0FA0F70 @ +0xD4` from the current-session ranked candidate
+  pool after reversible D/A validation with zero coord drift
+- `refresh-actor-facing-discovery.ps1 -RunProvenance` confirmed the
+  source-chain -> selector-owner -> owner-components -> owner-graph ->
+  accessor-family -> stat-hub provenance lane on the same PID without
+  replacing the promoted live truth
 - `capture-actor-orientation.ps1 -Json -ProcessName rift_x64` resolved the live
   source again through the behavior-backed lead and recomputed yaw/pitch from
   `Basis@0xD4.Forward`
@@ -82,10 +91,15 @@ Operational interpretation:
 - the repo now carries a behavior-backed lead file at:
   - `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
 - the current live actor-facing truth is the validated `0xD4` forward row on
-  `0x12CAF6F7080`, not the older April 22 source-chain `+0x60/+0x94` result
+  `0x12CC0FA0F70`, not the earlier April 23 revalidated lead at
+  `0x12CAF6F7080` or the older April 22 source-chain `+0x60/+0x94` result
 - the current lead is facing-only truth; the same capture still showed
   `Coord48` / `Coord88` on this source do **not** match the current player
   coords, so this lead is not a movement coord source
+- the same-session provenance lane is live again, but the current
+  `capture-player-source-chain.ps1` step can legitimately emit
+  `Recovery.Mode = reuse-previous-source-chain` when the refreshed low-level
+  coord cluster no longer contains the older `mov rcx,[rax+78]` signature
 - the earlier April 22 source-chain/accessor-family result at
   `0x24F595F8D10 @ +0x60/+0x94` remains useful historical evidence, but it is
   no longer the living authority for the current live session
@@ -96,6 +110,7 @@ See the current live lead / proof artifacts:
 
 - `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
 - `C:\RIFT MODDING\RiftReader\scripts\captures\player-actor-orientation.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-discovery\session.json`
 
 ## ReaderBridge / addon orientation status
 
@@ -116,9 +131,9 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 - the April 22 source-chain/accessor-family actor-facing promotion docs are now
   historical-only; do not treat them as the current live authority unless they
   are separately re-proven again
-- `trace-player-selector-owner.ps1` can remain `armed` without a live hit
-- `player-selector-owner-trace.json` is stale until regenerated with a current-process proof
-- `player-owner-components.json` is stale until regenerated with a current-process proof
+- `capture-player-source-chain.ps1` can currently fall back to
+  `Recovery.Mode = reuse-previous-source-chain`; treat that as a same-session
+  provenance aid, not as fresh raw source-chain proof
 - fresh coord-trace reacquisition still depends on a working CE/bootstrap path
   when the current trace artifact no longer validates
 - `--read-player-orientation` without `--pid` / `--process-name` remains the historical artifact-only path until the owner/source artifact path is rebuilt
@@ -126,6 +141,7 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 ## Canonical scripts on `main`
 
 - `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`

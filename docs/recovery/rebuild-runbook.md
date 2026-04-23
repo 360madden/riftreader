@@ -57,12 +57,14 @@ anchor before any movement-proof run.
 dotnet build C:\RIFT MODDING\RiftReader\RiftReader.slnx
 ```
 
-## 2. Attempt to rebuild the live source chain first
+## 2. Refresh actor-facing live truth and provenance
 
 ```powershell
 C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1 -Json -RefreshCluster
 C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1 -Json
 C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
+C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1 -RestartSession -StimulusMode AutoHotkey
+C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1 -RunProvenance
 ```
 
 Healthy result:
@@ -71,12 +73,18 @@ Healthy result:
 - `player-source-accessor-family.json`
 - `player-selector-owner-trace.json`
 - `player-owner-components.json`
+- `scripts\captures\actor-facing-discovery\session.json`
+- promoted/retained `scripts\actor-facing-behavior-backed-lead.json`
 
 Current post-update warning:
 
 - if `capture-player-source-chain.ps1` or
-  `capture-player-source-accessor-family.ps1` cannot rebuild the live source
-  object, stop and mark the actor-facing chain stale
+  `capture-player-source-accessor-family.ps1` cannot emit either a fresh
+  same-session source chain or a same-session recovery-mode reuse, stop and mark
+  provenance stale
+- if `capture-player-source-chain.ps1` emits
+  `Recovery.Mode = reuse-previous-source-chain`, treat that as a same-session
+  provenance fallback, not as fresh raw source-chain proof
 - if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
   mark the selector-owner / owner-components chain stale
 - if `capture-player-trace-cluster.ps1 -RefreshTrace` fails immediately after a
@@ -84,10 +92,19 @@ Current post-update warning:
   refresh now retries briefly, but it still depends on a fully loaded character
   state
 
-If step 2 succeeds for source-chain + accessor-family but selector-owner still
-fails, actor-facing truth can still be refreshed through the behavior-backed
-lead path. Do not promote stale selector-owner / owner-components artifacts as
-current truth.
+Preferred live-truth flow on the current client:
+
+- `refresh-actor-facing-discovery.ps1 -RestartSession -StimulusMode AutoHotkey`
+  is now the single operator-facing conductor for Discover -> Validate ->
+  Promote -> Confirm
+- `refresh-actor-facing-discovery.ps1 -RunProvenance` reuses the current lead,
+  skips fresh stimulus, and refreshes the provenance lane without trying to
+  replace live actor-facing truth
+- Lane A (live truth) may stay green even when the raw source-chain step falls
+  back to same-session recovery-mode reuse; Lane B (provenance) is where that
+  distinction matters
+- do not promote stale selector-owner / owner-components artifacts as current
+  actor-facing truth
 
 ## 3. Refresh the core graph artifacts
 

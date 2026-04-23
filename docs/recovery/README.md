@@ -10,8 +10,11 @@ After the April 14, 2026 game update:
 - the source-chain / selector-owner / owner-components refresh path drifted
 - the April 22, 2026 recovery passes rebuilt the source-chain/accessor-family
   lane strongly enough to restore actor-facing truth
-- selector-owner / owner-components and camera notes below the recovery layer
-  should still be treated as historical until rebuilt
+- the April 23, 2026 agentic actor-facing refresh pass promoted the current
+  live lead again and refreshed the selector-owner / owner-components /
+  owner-graph / stat-hub provenance lane on the same session
+- camera notes below the recovery layer should still be treated as historical
+  until rebuilt
 
 Start with:
 

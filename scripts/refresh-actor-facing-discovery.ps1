@@ -124,7 +124,7 @@ function Convert-ToPlainObject {
             $items.Add((Convert-ToPlainObject -Value $item)) | Out-Null
         }
 
-        return @($items.ToArray())
+        return ,@($items.ToArray())
     }
 
     $properties = $Value.PSObject.Properties
@@ -1002,7 +1002,7 @@ function Build-NextActions {
         $actions.Add('Run -RunProvenance when you want to deepen selector/source-chain evidence behind the confirmed live lead.') | Out-Null
     }
 
-    return @($actions.ToArray())
+    return ,@($actions.ToArray())
 }
 
 function Write-SessionText {
@@ -1097,8 +1097,39 @@ $discoveryDocument = $null
 $validationDocument = $null
 $confirmationResult = $null
 $leadBackup = $null
+$provenanceOnlyMode = ($RunProvenance -and -not $RestartSession -and $null -ne $existingLead)
 
 try {
+    $session['RejectionReasons'] = @()
+    $session['Notes'] = @()
+    $session['NextActions'] = @()
+
+    if ($provenanceOnlyMode) {
+        Set-StageSkipped -Session $session -StageName 'Discover' -Reason 'Using the current behavior-backed lead as live truth for a provenance-only run.' -Summary $session['ExistingLead']
+        Set-StageSkipped -Session $session -StageName 'Validate' -Reason 'Using the current behavior-backed lead as live truth for a provenance-only run.' -Summary $session['ExistingLead']
+        Set-StageSkipped -Session $session -StageName 'Promote' -Reason 'Using the current behavior-backed lead as live truth for a provenance-only run.' -Summary $session['ExistingLead']
+        Save-Session -Session $session
+
+        Set-StageStarted -Session $session -StageName 'Confirm' | Out-Null
+        $confirmationResult = Invoke-Confirmation -ProcessMetadata $processMetadata
+        if (-not $confirmationResult['CaptureMatchesReader']) {
+            throw ("Existing lead confirmation failed before provenance: {0}" -f ([string]::Join(', ', @($confirmationResult['RejectionReasons']))))
+        }
+
+        $session['LiveTruthStatus'] = 'retained-existing'
+        $session['Outcome'] = 'retained-existing'
+        $session['PromotionStatus'] = 'retained-existing'
+        $session['SessionConsistency'] = 'consistent'
+        Set-StageCompleted -Session $session -StageName 'Confirm' -ArtifactFile $resolvedCaptureConfirmationFile -Summary ([ordered]@{
+                CaptureSourceAddress = $confirmationResult['CaptureSourceAddress']
+                CaptureBasisForwardOffset = $confirmationResult['CaptureBasisForwardOffset']
+                ReaderSourceAddress = $confirmationResult['ReaderSourceAddress']
+                ReaderBasisForwardOffset = $confirmationResult['ReaderBasisForwardOffset']
+                CaptureMatchesReader = $confirmationResult['CaptureMatchesReader']
+            })
+        Save-Session -Session $session
+    }
+    else {
     if (Test-StageReusable -Session $session -StageName 'Discover' -ArtifactFile $resolvedDiscoveryOutputFile) {
         $discoveryDocument = Load-JsonDocument -Path $resolvedDiscoveryOutputFile
         Set-StageCompleted -Session $session -StageName 'Discover' -ArtifactFile $resolvedDiscoveryOutputFile -Reused:$true -Notes @('Reused existing discovery artifact for the same process session.') -Summary ([ordered]@{
@@ -1360,6 +1391,7 @@ try {
         }
     }
     Save-Session -Session $session
+    }
 
     if ($RunProvenance) {
         if ([string]$session['LiveTruthStatus'] -eq 'blocked') {

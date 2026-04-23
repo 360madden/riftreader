@@ -77,16 +77,18 @@ If artifacts or notes are corrupted, start here:
 
 The April 14, 2026 Rift update left the reader baseline partially intact and
 initially drifted the owner/source discovery chain. The later April 22, 2026
-recovery passes restored the source-chain/accessor-family lane for
-actor-facing truth, but selector-owner / owner-components remain stale.
+recovery passes restored the source-chain/accessor-family lane strongly enough
+to recover actor-facing truth, and the April 23, 2026 agentic refresh pass
+re-promoted live actor-facing truth plus refreshed the provenance lane again.
 
 Current short version:
 
 - `player-current` still works
 - the coord-anchor module pattern still works
 - proof-grade movement still uses the validated coord-trace anchor
-- selector-owner trace is broken
-- actor-orientation is currently live again through the behavior-backed lead at `0x12CAF6F7080 @ 0xD4`
+- actor-orientation is currently live again through the behavior-backed lead at `0x12CC0FA0F70 @ 0xD4`
+- selector-owner / owner-components / owner-graph / stat-hub provenance refreshed again on April 23, 2026
+- current source-chain refresh can fall back to same-session `reuse-previous-source-chain` recovery when the refreshed low-level cluster drops the older signature
 - camera claims below are historical until rebuilt
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
@@ -141,7 +143,9 @@ Post-update note:
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
   - current live truth uses the validated behavior-backed lead in
     `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
-  - current live truth currently resolves to `0x12CAF6F7080 @ 0xD4`
+  - current live truth currently resolves to `0x12CC0FA0F70 @ 0xD4`
+  - preferred refresh entrypoint is
+    `C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1`
   - current live `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` derives repeatable yaw/pitch captures from the promoted behavior-backed lead
   - treat the earlier April 22 source-chain `+0x60/+0x94` result as
     historical evidence until it is re-proven again on the current session
