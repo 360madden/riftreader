@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "provenance": {
     "kind": "smoke-route",
-    "generatedAtUtc": "2026-04-23T18:31:00.0984963+00:00",
+    "generatedAtUtc": "2026-04-23T18:35:55.4275660+00:00",
     "processName": "rift_x64",
     "processId": 63012,
     "processStartTimeUtc": "2026-04-22T07:13:46.8244103Z",
     "processResponding": true,
     "readerBridgeSnapshotSourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
-    "readerBridgeExportCount": 1603,
+    "readerBridgeExportCount": 1605,
     "orientationResolutionMode": "behavior-backed-lead",
     "selectedSourceAddress": "0X12CC0FA0F70",
     "basisPrimaryForwardOffset": "0xD4",
     "basisDuplicateForwardOffset": null,
     "yawDegrees": 67.65092866820498,
-    "distanceForward": 3.0,
+    "distanceForward": 2.6,
     "bearingOffsetDegrees": 0.0,
     "notes": [
       "Generated from the current live player position and live actor-facing reader.",
@@ -31,26 +31,26 @@
     "startRadius": 1.5,
     "defaultArrivalRadius": 2.1,
     "noProgressWindowMilliseconds": 3000,
-    "minimumProgressDistance": 0.1,
+    "minimumProgressDistance": 0.05,
     "wrongWayToleranceDistance": 1.0,
-    "maxTravelSeconds": 12
+    "maxTravelSeconds": 20
   },
   "waypoints": [
     {
       "id": "smoke_start",
       "label": "Smoke Start",
-      "x": 7419.58984375,
+      "x": 7421.0600585938,
       "y": 818.20001220703,
-      "z": 3198.5598144531,
+      "z": 3199.1599121094,
       "arrivalRadius": 2.1,
       "pace": "keep"
     },
     {
       "id": "smoke_destination",
       "label": "Smoke Destination",
-      "x": 7420.730589015889,
+      "x": 7422.048704490904,
       "y": 818.20001220703,
-      "z": 3201.334467627526,
+      "z": 3201.5646115272357,
       "arrivalRadius": 2.1,
       "pace": "keep"
     }
