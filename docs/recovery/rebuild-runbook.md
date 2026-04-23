@@ -65,6 +65,7 @@ C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1 -Js
 C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1 -Json -RefreshSelectorTrace
 C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1 -RestartSession -StimulusMode AutoHotkey
 C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1 -RunProvenance
+C:\RIFT MODDING\RiftReader\scripts\assert-actor-facing-truth.ps1 -Json
 ```
 
 Healthy result:
@@ -83,8 +84,11 @@ Current post-update warning:
   same-session source chain or a same-session recovery-mode reuse, stop and mark
   provenance stale
 - if `capture-player-source-chain.ps1` emits
+  `Recovery.Mode = rebuild-from-suggested-source-chain-pattern`, treat that as
+  a fresh same-session source-chain rebuild from the last-good suggested pattern
+- if `capture-player-source-chain.ps1` emits
   `Recovery.Mode = reuse-previous-source-chain`, treat that as a same-session
-  provenance fallback, not as fresh raw source-chain proof
+  fallback only after the fresh pattern-scan rebuild path failed
 - if `trace-player-selector-owner.ps1` remains `armed` without a hit, stop and
   mark the selector-owner / owner-components chain stale
 - if `capture-player-trace-cluster.ps1 -RefreshTrace` fails immediately after a
@@ -100,8 +104,15 @@ Preferred live-truth flow on the current client:
 - `refresh-actor-facing-discovery.ps1 -RunProvenance` reuses the current lead,
   skips fresh stimulus, and refreshes the provenance lane without trying to
   replace live actor-facing truth
+- `assert-actor-facing-truth.ps1 -Json` is the one-shot same-session proof check
+  for the current live lead, capture parity, reader parity, and provenance
+  posture
+- `test-actor-facing-proof-suite.ps1` runs the actor-facing truth-proof
+  regression checks plus the current source-chain recovery / fresh rebuild
+  self-checks in one command
 - Lane A (live truth) may stay green even when the raw source-chain step falls
-  back to same-session recovery-mode reuse; Lane B (provenance) is where that
+  back to `rebuild-from-suggested-source-chain-pattern` or, only if that fails,
+  same-session recovery-mode reuse; Lane B (provenance) is where that
   distinction matters
 - do not promote stale selector-owner / owner-components artifacts as current
   actor-facing truth

@@ -88,7 +88,7 @@ Current short version:
 - proof-grade movement still uses the validated coord-trace anchor
 - actor-orientation is currently live again through the behavior-backed lead at `0x12CC0FA0F70 @ 0xD4`
 - selector-owner / owner-components / owner-graph / stat-hub provenance refreshed again on April 23, 2026
-- current source-chain refresh can fall back to same-session `reuse-previous-source-chain` recovery when the refreshed low-level cluster drops the older signature
+- current source-chain refresh now rebuilds fresh from the last-good suggested source-chain pattern when the refreshed low-level cluster drops the older signature; same-session `reuse-previous-source-chain` is the last fallback only if that rebuild path fails
 - camera claims below are historical until rebuilt
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
@@ -97,6 +97,7 @@ Use these first:
 
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 - `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-23-actor-facing-truth-planning-prompt.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 

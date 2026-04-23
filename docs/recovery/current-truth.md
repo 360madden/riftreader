@@ -17,7 +17,7 @@ _Last updated: April 23, 2026 (fresh live coord-anchor validation, agentic actor
 | `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
 | Actor yaw / pitch truth | working on the current live session via source `0x12CC0FA0F70` and forward basis row `+0xD4/+0xD8/+0xDC` |
-| Source-chain / accessor-family provenance | refreshed again on the current live session; the source-chain step can currently enter same-session `reuse-previous-source-chain` recovery when the refreshed low-level trace cluster drops the older signature |
+| Source-chain / accessor-family provenance | refreshed again on the current live session; when the refreshed low-level trace cluster drops the older signature, the source-chain step now rebuilds fresh from the last-good suggested source-chain pattern scan |
 | Selector-owner / owner-components / owner-graph / stat-hub provenance | refreshed again on the current live session |
 | April 22 source-chain/accessor-family actor-facing result | historical evidence only until separately re-proven on the current session |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
@@ -96,10 +96,13 @@ Operational interpretation:
 - the current lead is facing-only truth; the same capture still showed
   `Coord48` / `Coord88` on this source do **not** match the current player
   coords, so this lead is not a movement coord source
-- the same-session provenance lane is live again, but the current
-  `capture-player-source-chain.ps1` step can legitimately emit
-  `Recovery.Mode = reuse-previous-source-chain` when the refreshed low-level
-  coord cluster no longer contains the older `mov rcx,[rax+78]` signature
+- the same-session provenance lane is live again, and the current
+  `capture-player-source-chain.ps1` step now rebuilds fresh with
+  `Recovery.Mode = rebuild-from-suggested-source-chain-pattern` when the
+  refreshed low-level coord cluster no longer contains the older
+  `mov rcx,[rax+78]` signature
+- same-session `reuse-previous-source-chain` remains the last-resort fallback
+  only if that fresh pattern-scan rebuild path fails
 - the earlier April 22 source-chain/accessor-family result at
   `0x24F595F8D10 @ +0x60/+0x94` remains useful historical evidence, but it is
   no longer the living authority for the current live session
@@ -111,6 +114,13 @@ See the current live lead / proof artifacts:
 - `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
 - `C:\RIFT MODDING\RiftReader\scripts\captures\player-actor-orientation.json`
 - `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-discovery\session.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-truth-proof.json`
+- for a one-shot same-session proof that validates the live lead, capture parity,
+  reader parity, and current provenance posture together:
+  - `C:\RIFT MODDING\RiftReader\scripts\assert-actor-facing-truth.ps1`
+- for planning / delegation on how to elevate facing to durable truth without
+  regressing the current lead:
+  - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-23-actor-facing-truth-planning-prompt.md`
 
 ## ReaderBridge / addon orientation status
 
@@ -131,9 +141,10 @@ the validated live memory basis above, not from ReaderBridge orientation fields.
 - the April 22 source-chain/accessor-family actor-facing promotion docs are now
   historical-only; do not treat them as the current live authority unless they
   are separately re-proven again
-- `capture-player-source-chain.ps1` can currently fall back to
-  `Recovery.Mode = reuse-previous-source-chain`; treat that as a same-session
-  provenance aid, not as fresh raw source-chain proof
+- `capture-player-source-chain.ps1` can still fall back to
+  `Recovery.Mode = reuse-previous-source-chain` if the fresh pattern-scan
+  rebuild path fails; treat that as a same-session provenance aid, not as
+  fresh raw source-chain proof
 - fresh coord-trace reacquisition still depends on a working CE/bootstrap path
   when the current trace artifact no longer validates
 - `--read-player-orientation` without `--pid` / `--process-name` remains the historical artifact-only path until the owner/source artifact path is rebuilt
