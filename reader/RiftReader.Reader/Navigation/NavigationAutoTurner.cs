@@ -14,6 +14,8 @@ public static class NavigationAutoTurner
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(turnPlanFactory);
 
+        var events = new List<NavigationEvent>();
+
         if (!options.Enabled)
         {
             var disabledPlan = NavigationMath.BuildUnavailableTurnPlan(
@@ -21,6 +23,12 @@ public static class NavigationAutoTurner
                 alignmentThresholdDegrees: options.WithinDegrees,
                 reason: "Auto-turn was not enabled for this navigation run.");
             var disabledPosition = ToCoordinate(currentSample);
+            events.Add(CreateEvent(
+                type: "disabled",
+                elapsedMilliseconds: 0,
+                status: "disabled",
+                position: disabledPosition,
+                detail: disabledPlan.Reason));
 
             return new NavigationTurnResult(
                 Status: "disabled",
@@ -37,11 +45,21 @@ public static class NavigationAutoTurner
                 InitialPosition: disabledPosition,
                 FinalPosition: disabledPosition,
                 Samples: Array.Empty<NavigationTurnSample>(),
-                Reason: disabledPlan.Reason);
+                Reason: disabledPlan.Reason,
+                Events: events.ToArray());
         }
 
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var initialPlan = turnPlanFactory(currentSample);
         var initialPosition = ToCoordinate(currentSample);
+        events.Add(CreateEvent(
+            type: "initial-plan",
+            elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+            status: initialPlan.Status,
+            position: initialPosition,
+            signedBearingDeltaDegrees: initialPlan.SignedBearingDeltaDegrees,
+            absoluteBearingDeltaDegrees: initialPlan.AbsoluteBearingDeltaDegrees,
+            detail: initialPlan.Reason));
 
         if (!IsPlanUsable(initialPlan))
         {
@@ -59,12 +77,21 @@ public static class NavigationAutoTurner
                 initialPosition: initialPosition,
                 finalPosition: initialPosition,
                 samples: Array.Empty<NavigationTurnSample>(),
-                reason: initialPlan.Reason ?? "Actor-facing truth was unavailable for auto-turn alignment.");
+                reason: initialPlan.Reason ?? "Actor-facing truth was unavailable for auto-turn alignment.",
+                events: events);
         }
 
         if (initialPlan.WithinAlignmentThreshold ||
             string.Equals(initialPlan.SuggestedTurnDirection, "aligned", StringComparison.OrdinalIgnoreCase))
         {
+            events.Add(CreateEvent(
+                type: "noop",
+                elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                status: "aligned",
+                position: initialPosition,
+                signedBearingDeltaDegrees: initialPlan.SignedBearingDeltaDegrees,
+                absoluteBearingDeltaDegrees: initialPlan.AbsoluteBearingDeltaDegrees,
+                detail: "Initial facing was already within the alignment threshold."));
             return new NavigationTurnResult(
                 Status: "noop",
                 Succeeded: true,
@@ -80,10 +107,17 @@ public static class NavigationAutoTurner
                 InitialPosition: initialPosition,
                 FinalPosition: initialPosition,
                 Samples: Array.Empty<NavigationTurnSample>(),
-                Reason: null);
+                Reason: null,
+                Events: events.ToArray());
         }
 
         movementBackend.PrepareForMovement();
+        events.Add(CreateEvent(
+            type: "prepare-for-movement",
+            elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+            status: "complete",
+            position: initialPosition,
+            detail: "Live interaction was armed before auto-turn input."));
 
         var turnPlan = initialPlan;
         var turnDirection = ResolveTurnDirection(turnPlan);
@@ -104,8 +138,19 @@ public static class NavigationAutoTurner
                 initialPosition: initialPosition,
                 finalPosition: initialPosition,
                 samples: Array.Empty<NavigationTurnSample>(),
-                reason: "Auto-turn required a usable left/right turn direction but the current plan was not directional.");
+                reason: "Auto-turn required a usable left/right turn direction but the current plan was not directional.",
+                events: events);
         }
+
+        events.Add(CreateEvent(
+            type: "direction-resolved",
+            elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+            status: turnDirection,
+            key: turnKey,
+            position: initialPosition,
+            signedBearingDeltaDegrees: turnPlan.SignedBearingDeltaDegrees,
+            absoluteBearingDeltaDegrees: turnPlan.AbsoluteBearingDeltaDegrees,
+            detail: "Resolved the first directional turn key for auto-turn."));
 
         var samples = new List<NavigationTurnSample>(capacity: Math.Max(options.MaxTurnPulses, 1));
         var previousDelta = turnPlan.AbsoluteBearingDeltaDegrees ?? double.PositiveInfinity;
@@ -117,6 +162,14 @@ public static class NavigationAutoTurner
             var commandResult = movementBackend.PressKey(turnKey, options.TurnPulseMilliseconds);
             if (!commandResult.IsSuccess)
             {
+                events.Add(CreateEvent(
+                    type: "pulse-input",
+                    elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                    status: "input-failed",
+                    pulseIndex: pulseIndex,
+                    key: turnKey,
+                    position: latestPosition,
+                    detail: commandResult.ErrorMessage ?? "Auto-turn movement input failed."));
                 return BuildFailure(
                     status: "input-failed",
                     attempted: true,
@@ -131,7 +184,8 @@ public static class NavigationAutoTurner
                     initialPosition: initialPosition,
                     finalPosition: latestPosition,
                     samples: samples,
-                    reason: commandResult.ErrorMessage ?? "Auto-turn movement input failed.");
+                    reason: commandResult.ErrorMessage ?? "Auto-turn movement input failed.",
+                    events: events);
             }
 
             if (options.PostTurnSampleDelayMilliseconds > 0)
@@ -141,6 +195,14 @@ public static class NavigationAutoTurner
 
             if (!poseSource.TryReadCurrent(out var updatedSample, out var poseError))
             {
+                events.Add(CreateEvent(
+                    type: "pulse-sample",
+                    elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                    status: "telemetry-lost",
+                    pulseIndex: pulseIndex,
+                    key: turnKey,
+                    position: latestPosition,
+                    detail: poseError ?? "Navigation pose source was unavailable after an auto-turn pulse."));
                 return BuildFailure(
                     status: "telemetry-lost",
                     attempted: true,
@@ -155,7 +217,8 @@ public static class NavigationAutoTurner
                     initialPosition: initialPosition,
                     finalPosition: latestPosition,
                     samples: samples,
-                    reason: poseError ?? "Navigation pose source was unavailable after an auto-turn pulse.");
+                    reason: poseError ?? "Navigation pose source was unavailable after an auto-turn pulse.",
+                    events: events);
             }
 
             latestPosition = ToCoordinate(updatedSample);
@@ -170,6 +233,16 @@ public static class NavigationAutoTurner
                 SuggestedTurnDirection: turnPlan.SuggestedTurnDirection,
                 SelectedSourceAddress: turnPlan.SelectedSourceAddress,
                 BasisPrimaryForwardOffset: turnPlan.BasisPrimaryForwardOffset));
+            events.Add(CreateEvent(
+                type: "pulse-sample",
+                elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                status: turnPlan.Status,
+                pulseIndex: pulseIndex,
+                key: turnKey,
+                position: latestPosition,
+                signedBearingDeltaDegrees: turnPlan.SignedBearingDeltaDegrees,
+                absoluteBearingDeltaDegrees: turnPlan.AbsoluteBearingDeltaDegrees,
+                detail: $"Observed auto-turn pulse {pulseIndex}."));
 
             if (!IsPlanUsable(turnPlan))
             {
@@ -187,7 +260,8 @@ public static class NavigationAutoTurner
                     initialPosition: initialPosition,
                     finalPosition: latestPosition,
                     samples: samples,
-                    reason: turnPlan.Reason ?? "Actor-facing truth became unavailable after an auto-turn pulse.");
+                    reason: turnPlan.Reason ?? "Actor-facing truth became unavailable after an auto-turn pulse.",
+                    events: events);
             }
 
             if (turnPlan.WithinAlignmentThreshold ||
@@ -197,6 +271,17 @@ public static class NavigationAutoTurner
                 {
                     Thread.Sleep(options.SettleDelayMilliseconds);
                 }
+
+                events.Add(CreateEvent(
+                    type: "complete",
+                    elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                    status: "complete",
+                    pulseIndex: pulseIndex,
+                    key: turnKey,
+                    position: latestPosition,
+                    signedBearingDeltaDegrees: turnPlan.SignedBearingDeltaDegrees,
+                    absoluteBearingDeltaDegrees: turnPlan.AbsoluteBearingDeltaDegrees,
+                    detail: "Auto-turn reached the alignment threshold."));
 
                 return new NavigationTurnResult(
                     Status: "complete",
@@ -213,7 +298,8 @@ public static class NavigationAutoTurner
                     InitialPosition: initialPosition,
                     FinalPosition: latestPosition,
                     Samples: samples.ToArray(),
-                    Reason: null);
+                    Reason: null,
+                    Events: events.ToArray());
             }
 
             var currentDelta = turnPlan.AbsoluteBearingDeltaDegrees ?? double.PositiveInfinity;
@@ -228,6 +314,16 @@ public static class NavigationAutoTurner
 
             if (worseningPulseCount >= options.MaxWorseningPulses)
             {
+                events.Add(CreateEvent(
+                    type: "stop",
+                    elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                    status: "worsening",
+                    pulseIndex: pulseIndex,
+                    key: turnKey,
+                    position: latestPosition,
+                    signedBearingDeltaDegrees: turnPlan.SignedBearingDeltaDegrees,
+                    absoluteBearingDeltaDegrees: turnPlan.AbsoluteBearingDeltaDegrees,
+                    detail: $"Auto-turn worsened for {worseningPulseCount} consecutive pulses."));
                 return BuildFailure(
                     status: "worsening",
                     attempted: true,
@@ -242,13 +338,25 @@ public static class NavigationAutoTurner
                     initialPosition: initialPosition,
                     finalPosition: latestPosition,
                     samples: samples,
-                    reason: $"Auto-turn worsened for {worseningPulseCount} consecutive pulses.");
+                    reason: $"Auto-turn worsened for {worseningPulseCount} consecutive pulses.",
+                    events: events);
             }
 
             turnDirection = ResolveTurnDirection(turnPlan) ?? turnDirection;
             turnKey = ResolveTurnKey(turnDirection, options) ?? turnKey;
             previousDelta = currentDelta;
         }
+
+        events.Add(CreateEvent(
+            type: "stop",
+            elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+            status: "incomplete",
+            pulseIndex: options.MaxTurnPulses,
+            key: turnKey,
+            position: latestPosition,
+            signedBearingDeltaDegrees: turnPlan.SignedBearingDeltaDegrees,
+            absoluteBearingDeltaDegrees: turnPlan.AbsoluteBearingDeltaDegrees,
+            detail: $"Auto-turn failed to reach the {options.WithinDegrees:0.###} degree threshold after {options.MaxTurnPulses} pulses."));
 
         return BuildFailure(
             status: "incomplete",
@@ -264,7 +372,8 @@ public static class NavigationAutoTurner
             initialPosition: initialPosition,
             finalPosition: latestPosition,
             samples: samples,
-            reason: $"Auto-turn failed to reach the {options.WithinDegrees:0.###} degree threshold after {options.MaxTurnPulses} pulses.");
+            reason: $"Auto-turn failed to reach the {options.WithinDegrees:0.###} degree threshold after {options.MaxTurnPulses} pulses.",
+            events: events);
     }
 
     private static NavigationTurnResult BuildFailure(
@@ -281,7 +390,8 @@ public static class NavigationAutoTurner
         NavigationCoordinate initialPosition,
         NavigationCoordinate finalPosition,
         IReadOnlyList<NavigationTurnSample> samples,
-        string reason) =>
+        string reason,
+        IReadOnlyList<NavigationEvent> events) =>
         new(
             Status: status,
             Succeeded: false,
@@ -297,7 +407,8 @@ public static class NavigationAutoTurner
             InitialPosition: initialPosition,
             FinalPosition: finalPosition,
             Samples: samples,
-            Reason: reason);
+            Reason: reason,
+            Events: events.ToArray());
 
     private static bool IsPlanUsable(NavigationTurnPlan plan) =>
         string.Equals(plan.Status, "available", StringComparison.OrdinalIgnoreCase) ||
@@ -323,6 +434,28 @@ public static class NavigationAutoTurner
             "right" => options.TurnRightKey,
             _ => null
         };
+
+    private static NavigationEvent CreateEvent(
+        string type,
+        long elapsedMilliseconds,
+        string? status = null,
+        int? pulseIndex = null,
+        string? key = null,
+        NavigationCoordinate? position = null,
+        double? signedBearingDeltaDegrees = null,
+        double? absoluteBearingDeltaDegrees = null,
+        string? detail = null) =>
+        new(
+            Stage: "auto-turn",
+            Type: type,
+            ElapsedMilliseconds: elapsedMilliseconds,
+            Status: status,
+            PulseIndex: pulseIndex,
+            Key: key,
+            Position: position,
+            SignedBearingDeltaDegrees: signedBearingDeltaDegrees,
+            AbsoluteBearingDeltaDegrees: absoluteBearingDeltaDegrees,
+            Detail: detail);
 
     private static NavigationCoordinate ToCoordinate(NavigationPoseSample sample) =>
         new(sample.X, sample.Y, sample.Z);

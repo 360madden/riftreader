@@ -20,4 +20,5 @@ public sealed record NavigationRunResult(
     NavigationCoordinate FinalPosition,
     NavigationCoordinate DestinationPosition,
     long ElapsedMilliseconds,
-    NavigationTurnResult? TurnResult = null);
+    NavigationTurnResult? TurnResult = null,
+    IReadOnlyList<NavigationEvent>? Events = null);

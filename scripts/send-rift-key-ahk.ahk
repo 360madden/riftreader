@@ -13,16 +13,28 @@ NormalizeKey(keyValue) {
 
     upper := StrUpper(trimmed)
     switch upper {
+        case "W":
+            return "sc011"
+        case "A":
+            return "sc01E"
+        case "S":
+            return "sc01F"
+        case "D":
+            return "sc020"
+        case "Q":
+            return "sc010"
+        case "E":
+            return "sc012"
         case "SPACE":
-            return "Space"
+            return "sc039"
         case "LEFT":
-            return "Left"
+            return "sc14B"
         case "RIGHT":
-            return "Right"
+            return "sc14D"
         case "UP":
-            return "Up"
+            return "sc148"
         case "DOWN":
-            return "Down"
+            return "sc150"
         case "ENTER", "RETURN":
             return "Enter"
         case "ESC", "ESCAPE":

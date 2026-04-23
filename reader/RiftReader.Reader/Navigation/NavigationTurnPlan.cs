@@ -41,7 +41,8 @@ public sealed record NavigationTurnResult(
     NavigationCoordinate InitialPosition,
     NavigationCoordinate FinalPosition,
     IReadOnlyList<NavigationTurnSample> Samples,
-    string? Reason);
+    string? Reason,
+    IReadOnlyList<NavigationEvent>? Events = null);
 
 public sealed record NavigationAutoTurnOptions(
     bool Enabled,
