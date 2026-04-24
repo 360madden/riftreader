@@ -8,6 +8,10 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$NameplateText,
     [string[]]$States = @('baseline1', 'zoom1', 'baseline2', 'zoom2'),
+    [int]$MaxHits = 24,
+    [ValidateSet('hoverOnly', 'allHits', 'none')]
+    [string]$TextPointerScanMode = 'allHits',
+    [switch]$SkipPointerScan,
     [int]$ScreenshotAttempts = 3,
     [string]$RunLabel = 'nameplate-baseline-zoom',
     [string]$OutputRoot,
@@ -38,6 +42,10 @@ if ($ScreenshotAttempts -lt 1) {
     throw 'ScreenshotAttempts must be at least 1.'
 }
 
+if ($MaxHits -le 0) {
+    throw 'MaxHits must be greater than zero.'
+}
+
 if ($NonInteractive -and -not $PlanOnly) {
     throw 'Nameplate baseline/zoom proof requires operator confirmation for each visible state. Use -PlanOnly for dry runs; do not use -NonInteractive for live proof capture.'
 }
@@ -62,7 +70,8 @@ $helperArgs = @(
     '-CandidateLength', $CandidateLength.ToString([Globalization.CultureInfo]::InvariantCulture),
     '-TooltipText', $NameplateText,
     '-States', ($States -join ','),
-    '-TextPointerScanMode', 'allHits',
+    '-MaxHits', $MaxHits.ToString([Globalization.CultureInfo]::InvariantCulture),
+    '-TextPointerScanMode', $TextPointerScanMode,
     '-CaptureScreenshot',
     '-RequireUsableScreenshot',
     '-ScreenshotAttempts', $ScreenshotAttempts.ToString([Globalization.CultureInfo]::InvariantCulture),
@@ -91,6 +100,7 @@ if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
 if ($PlanOnly) { $helperArgs += '-PlanOnly' }
 if ($Json) { $helperArgs += '-Json' }
 if ($NonInteractive) { $helperArgs += '-NonInteractive' }
+if ($SkipPointerScan) { $helperArgs += '-SkipPointerScan' }
 
 & pwsh @helperArgs
 exit $LASTEXITCODE

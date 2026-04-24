@@ -177,6 +177,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 
 The wrapper forwards to `capture-tooltip-hover-diff.ps1` with:
 
+- `-MaxHits 24`
 - `-TextPointerScanMode allHits`
 - `-CaptureScreenshot`
 - `-RequireUsableScreenshot`
@@ -187,6 +188,25 @@ The wrapper forwards to `capture-tooltip-hover-diff.ps1` with:
 
 Use `-PlanOnly -Json` first to verify the command shape without attaching to
 Rift or creating artifacts.
+
+For fast candidate reproof after a full pointer-scanned proof already exists,
+keep the same screenshot/sequence gates but skip the expensive text pointer
+scans:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.ps1" `
+  -CandidateAddress 0x12CFC40B7D0 `
+  -NameplateText "Atank of Sanctum" `
+  -MaxHits 4 `
+  -TextPointerScanMode none `
+  -SkipPointerScan `
+  -Json
+```
+
+This is intended for rechecking already-discovered offsets such as the current
+`+0x21D/+0x225/+0x235/+0x23D/+0x24D` flag cluster. Do not use the fast mode as
+the first proof for a new nameplate target; run the default full proof first so
+text/pointer evidence is captured at least once.
 
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
@@ -221,15 +241,18 @@ It checks:
   including duplicate-entry checks
 - `RiftWindowCapture.csproj` build
 - `run-nameplate-projection-proof.ps1 -PlanOnly -Json`, including key-argument
-  preservation and no-artifact behavior
+  preservation, default scan controls, and no-artifact behavior
+- bounded fast-reproof wrapper PlanOnly mode with `-MaxHits 4`,
+  `-TextPointerScanMode none`, and `-SkipPointerScan`
 - `run-nameplate-projection-proof.cmd -PlanOnly -Json`, unless
   `-SkipCmdWrapperSmoke` is set, including key-argument preservation and
-  no-artifact behavior
+  default scan controls and no-artifact behavior
 - `test-projection-screenshot-gate-workflow.cmd` in non-recursive smoke mode,
   unless `-SkipCmdWrapperSmoke` or `-SkipSelfCmdWrapperSmoke` is set, including
   proof that the inner run skipped build, artifact smoke, and recursive CMD
   smoke paths
 - existing screenshot-gated smoke artifact with analyzer `-RequireVisualGate`, if present
+- analyzer handling for offsets whose typed view values are null in every sample
 - fail-closed analyzer behavior when `-RequireVisualGate` is used without
   screenshot captures
 - fail-closed analyzer behavior when usable screenshots are present but the
