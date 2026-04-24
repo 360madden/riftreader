@@ -295,6 +295,14 @@ either artifact is not a captured read-only neighborhood, and reports repeated
 selected roots, root nodes, nodes, and pointer edges. For the current
 single-artifact sanity check, comparing the captured artifact to itself reports
 3 repeated selected roots, 18 repeated nodes, and 15 repeated edges.
+Its `candidateSummary` block is the machine-readable promotion surface:
+
+- `candidateSummary.promotionReady` is `true` only when all comparator checks
+  passed and the repeated-root / repeated-edge thresholds were met.
+- `candidateSummary.recommendedRoots` lists repeated selected roots with their
+  baseline/reproof lead states and source-text addresses.
+- `candidateSummary.recommendedEdges` lists repeated pointer edges by
+  `fromAddress`, `toAddress`, and `sourceOffsetHex`.
 
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
@@ -474,7 +482,7 @@ Result: `ok=true`.
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |
 | Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |
 | Lead-neighborhood plan smoke | Passed with selected pointer-hit root planning, `controlsInput=false`, `attachesToProcess=false`, and no artifact creation. |
-| Lead-neighborhood comparator smoke | Passed with repeated selected-root and pointer-edge reporting. |
+| Lead-neighborhood comparator smoke | Passed with repeated selected-root, pointer-edge, and promotion-candidate summary reporting. |
 
 The aggregate branch validator was also run:
 

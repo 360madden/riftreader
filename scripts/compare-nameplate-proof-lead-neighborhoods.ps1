@@ -90,6 +90,24 @@ function Get-SelectedRootAddresses {
         Sort-Object -Unique)
 }
 
+function Get-SelectedLeadMap {
+    param([object]$Document)
+
+    $map = @{}
+    if ($null -eq $Document.leadSelection -or $null -eq $Document.leadSelection.selectedLeads) {
+        return $map
+    }
+
+    foreach ($lead in @($Document.leadSelection.selectedLeads)) {
+        $address = Normalize-Address -Value $lead.address
+        if (-not [string]::IsNullOrWhiteSpace($address) -and -not $map.ContainsKey($address)) {
+            $map[$address] = $lead
+        }
+    }
+
+    return $map
+}
+
 function Get-RootNodeAddresses {
     param([object]$Document)
 
@@ -206,6 +224,8 @@ foreach ($entry in @(
 
 $baselineSelectedRoots = @(Get-SelectedRootAddresses -Document $baseline)
 $reproofSelectedRoots = @(Get-SelectedRootAddresses -Document $reproof)
+$baselineSelectedLeadMap = Get-SelectedLeadMap -Document $baseline
+$reproofSelectedLeadMap = Get-SelectedLeadMap -Document $reproof
 $baselineRootNodes = @(Get-RootNodeAddresses -Document $baseline)
 $reproofRootNodes = @(Get-RootNodeAddresses -Document $reproof)
 $repeatedSelectedRoots = @(Intersect-Strings -Left $baselineSelectedRoots -Right $reproofSelectedRoots)
@@ -240,6 +260,23 @@ $nodeMatches = @($repeatedNodeAddresses | Select-Object -First $Top | ForEach-Ob
     }
 })
 
+$selectedRootMatches = @($repeatedSelectedRoots | Select-Object -First $Top | ForEach-Object {
+    $address = [string]$_
+    $baselineLead = $baselineSelectedLeadMap[$address]
+    $reproofLead = $reproofSelectedLeadMap[$address]
+    [pscustomobject][ordered]@{
+        address = $address
+        baselineKind = [string](Get-OptionalPropertyValue -InputObject $baselineLead -Name 'kind' -Default '')
+        reproofKind = [string](Get-OptionalPropertyValue -InputObject $reproofLead -Name 'kind' -Default '')
+        baselineStateCount = Get-OptionalPropertyValue -InputObject $baselineLead -Name 'stateCount' -Default $null
+        reproofStateCount = Get-OptionalPropertyValue -InputObject $reproofLead -Name 'stateCount' -Default $null
+        baselineStates = @(Get-OptionalPropertyValue -InputObject $baselineLead -Name 'states' -Default @())
+        reproofStates = @(Get-OptionalPropertyValue -InputObject $reproofLead -Name 'states' -Default @())
+        baselineSourceTextAddresses = @(Get-OptionalPropertyValue -InputObject $baselineLead -Name 'sourceTextAddresses' -Default @())
+        reproofSourceTextAddresses = @(Get-OptionalPropertyValue -InputObject $reproofLead -Name 'sourceTextAddresses' -Default @())
+    }
+})
+
 $edgeMatches = @($repeatedEdgeKeys | Select-Object -First $Top | ForEach-Object {
     $key = [string]$_
     $edge = $baselineEdges[$key]
@@ -252,6 +289,18 @@ $edgeMatches = @($repeatedEdgeKeys | Select-Object -First $Top | ForEach-Object 
 })
 
 $failedChecks = @($checks | Where-Object { $_.status -ne 'passed' })
+$promotionReady = ($failedChecks.Count -eq 0) -and ($repeatedSelectedRoots.Count -ge $MinRepeatedRootCount) -and ($repeatedEdgeKeys.Count -ge $MinRepeatedEdgeCount)
+$promotionBlockers = [System.Collections.Generic.List[string]]::new()
+if ($failedChecks.Count -gt 0) {
+    $promotionBlockers.Add('one-or-more-comparator-checks-failed') | Out-Null
+}
+if ($repeatedSelectedRoots.Count -lt $MinRepeatedRootCount) {
+    $promotionBlockers.Add('insufficient-repeated-selected-roots') | Out-Null
+}
+if ($repeatedEdgeKeys.Count -lt $MinRepeatedEdgeCount) {
+    $promotionBlockers.Add('insufficient-repeated-pointer-edges') | Out-Null
+}
+
 $result = [pscustomobject][ordered]@{
     ok = ($failedChecks.Count -eq 0)
     baselineFile = $baselinePath
@@ -271,7 +320,14 @@ $result = [pscustomobject][ordered]@{
         reproofEdges = $reproofEdges.Count
         repeatedEdges = $repeatedEdgeKeys.Count
     }
+    candidateSummary = [pscustomobject][ordered]@{
+        promotionReady = $promotionReady
+        blockers = @($promotionBlockers.ToArray())
+        recommendedRoots = @($selectedRootMatches)
+        recommendedEdges = @($edgeMatches)
+    }
     repeatedSelectedRoots = @($repeatedSelectedRoots | Select-Object -First $Top)
+    repeatedSelectedRootDetails = @($selectedRootMatches)
     repeatedRootNodes = @($repeatedRootNodes | Select-Object -First $Top)
     repeatedNodes = @($nodeMatches)
     repeatedEdges = @($edgeMatches)

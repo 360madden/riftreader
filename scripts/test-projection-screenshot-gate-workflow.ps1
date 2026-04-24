@@ -867,11 +867,17 @@ try {
         if (-not [bool]$leadNeighborhoodCompare.ok -or [int]$leadNeighborhoodCompare.counts.repeatedSelectedRoots -lt 1 -or [int]$leadNeighborhoodCompare.counts.repeatedEdges -lt 1) {
             throw "Nameplate proof lead-neighborhood comparator did not report repeated roots/edges for identical fixture files.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $leadNeighborhoodCompare.candidateSummary -or -not [bool]$leadNeighborhoodCompare.candidateSummary.promotionReady) {
+            throw "Nameplate proof lead-neighborhood comparator did not report promotion-ready candidate summary for identical fixture files.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($leadNeighborhoodCompare.candidateSummary.recommendedRoots | Where-Object { $_.address -eq '0X9000' })) {
+            throw "Nameplate proof lead-neighborhood comparator candidate summary did not include repeated root 0X9000.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
+        }
         if (-not @($leadNeighborhoodCompare.checks | Where-Object { $_.name -eq 'minimum-repeated-selected-roots' -and $_.status -eq 'passed' })) {
             throw "Nameplate proof lead-neighborhood comparator did not pass minimum-repeated-selected-roots.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-lead-neighborhood-comparator-smoke' -Status 'passed' -Detail 'Lead-neighborhood comparator reports repeated selected roots and pointer edges across captured neighborhood artifacts.' -Data ([ordered]@{ repeatedSelectedRoots = $leadNeighborhoodCompare.counts.repeatedSelectedRoots; repeatedEdges = $leadNeighborhoodCompare.counts.repeatedEdges })
+        Add-Check -Name 'nameplate-proof-lead-neighborhood-comparator-smoke' -Status 'passed' -Detail 'Lead-neighborhood comparator reports repeated selected roots, pointer edges, and promotion candidate summaries across captured neighborhood artifacts.' -Data ([ordered]@{ repeatedSelectedRoots = $leadNeighborhoodCompare.counts.repeatedSelectedRoots; repeatedEdges = $leadNeighborhoodCompare.counts.repeatedEdges; promotionReady = $leadNeighborhoodCompare.candidateSummary.promotionReady })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
