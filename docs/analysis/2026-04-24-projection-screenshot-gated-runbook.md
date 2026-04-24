@@ -193,7 +193,9 @@ It checks:
   `-SkipCmdWrapperSmoke` is set, including key-argument preservation and
   no-artifact behavior
 - `test-projection-screenshot-gate-workflow.cmd` in non-recursive smoke mode,
-  unless `-SkipCmdWrapperSmoke` or `-SkipSelfCmdWrapperSmoke` is set
+  unless `-SkipCmdWrapperSmoke` or `-SkipSelfCmdWrapperSmoke` is set, including
+  proof that the inner run skipped build, artifact smoke, and recursive CMD
+  smoke paths
 - existing screenshot-gated smoke artifact with analyzer `-RequireVisualGate`, if present
 - fail-closed analyzer behavior when `-RequireVisualGate` is used without
   screenshot captures
@@ -278,6 +280,6 @@ Result: `ok=true`.
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
-| Validator CMD wrapper smoke | Passed in non-recursive smoke mode. |
+| Validator CMD wrapper smoke | Passed in bounded non-recursive smoke mode, with expected inner skips verified. |
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |
 | Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |

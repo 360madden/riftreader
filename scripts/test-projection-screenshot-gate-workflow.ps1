@@ -208,6 +208,18 @@ try {
         if (-not @($selfCmdChecks | Where-Object { $_.name -eq 'cmd-wrapper-inspection' -and $_.status -eq 'passed' })) {
             throw "Validator CMD wrapper smoke did not pass cmd-wrapper-inspection.`n$($selfCmdOutput -join [Environment]::NewLine)"
         }
+        if (-not @($selfCmdChecks | Where-Object { $_.name -eq 'capture-project-build' -and $_.status -eq 'skipped' })) {
+            throw "Validator CMD wrapper smoke did not skip capture-project-build as expected.`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($selfCmdChecks | Where-Object { $_.name -eq 'nameplate-cmd-wrapper-plan' -and $_.status -eq 'skipped' })) {
+            throw "Validator CMD wrapper smoke did not skip recursive nameplate CMD wrapper smoke as expected.`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($selfCmdChecks | Where-Object { $_.name -eq 'validator-cmd-wrapper-smoke' -and $_.status -eq 'skipped' })) {
+            throw "Validator CMD wrapper smoke did not skip recursive validator CMD wrapper smoke as expected.`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($selfCmdChecks | Where-Object { $_.name -eq 'analyzer-visual-gate-smoke' -and $_.status -eq 'skipped' })) {
+            throw "Validator CMD wrapper smoke did not skip local artifact smoke as expected.`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
         Add-Check -Name 'validator-cmd-wrapper-smoke' -Status 'passed' -Detail 'Validator CMD wrapper launched successfully in non-recursive smoke mode.' -Data ([ordered]@{ skippedBuild = $true; skippedArtifactSmoke = $true })
     }
     else {
