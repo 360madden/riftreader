@@ -20,6 +20,8 @@ $resultCheckerScript = Join-Path $PSScriptRoot 'check-nameplate-projection-proof
 $resultCheckerCmd = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.cmd'
 $proofCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-projection-proof-runs.ps1'
 $proofCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-projection-proof-runs.cmd'
+$byteWindowCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-proof-byte-windows.ps1'
+$byteWindowCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-proof-byte-windows.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -32,9 +34,10 @@ $psScripts = @(
     'run-nameplate-projection-proof.ps1',
     'check-nameplate-projection-proof-result.ps1',
     'compare-nameplate-projection-proof-runs.ps1',
+    'compare-nameplate-proof-byte-windows.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 9
+$expectedProjectionPsScriptCount = 10
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -44,9 +47,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'run-nameplate-projection-proof.cmd'; Target = 'run-nameplate-projection-proof.ps1' },
     [pscustomobject]@{ Wrapper = 'check-nameplate-projection-proof-result.cmd'; Target = 'check-nameplate-projection-proof-result.ps1' },
     [pscustomobject]@{ Wrapper = 'compare-nameplate-projection-proof-runs.cmd'; Target = 'compare-nameplate-projection-proof-runs.ps1' },
+    [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-byte-windows.cmd'; Target = 'compare-nameplate-proof-byte-windows.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 9
+$expectedProjectionCmdWrapperCount = 10
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -728,6 +732,21 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-comparator-smoke' -Status 'passed' -Detail 'Proof comparator accepts a fully gated fixture and reports a repeated candidate offset across baseline/reproof roots.' -Data ([ordered]@{ repeatedCount = $compare.repeatedCount; candidateOffsets = @($compare.candidateOffsets) })
+
+        $byteWindowOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $byteWindowCompareScript -BaselineRunRoot $resultCheckRoot -ReproofRunRoot $resultCheckRoot -Length 8 -Json 2>&1
+        $byteWindowCode = $LASTEXITCODE
+        if ($byteWindowCode -ne 0) {
+            throw "Nameplate byte-window comparator failed with exit code $byteWindowCode.`n$($byteWindowOutput -join [Environment]::NewLine)"
+        }
+        $byteWindow = ($byteWindowOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        if (-not [bool]$byteWindow.ok -or [int]$byteWindow.counts.repeatedChanging -lt 1) {
+            throw "Nameplate byte-window comparator did not report repeated changing offsets for identical fixture roots.`n$($byteWindowOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($byteWindow.checks | Where-Object { $_.name -eq 'state-sequence-match' -and $_.status -eq 'passed' })) {
+            throw "Nameplate byte-window comparator did not pass state-sequence-match.`n$($byteWindowOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-byte-window-comparator-smoke' -Status 'passed' -Detail 'Byte-window comparator accepts a fully gated fixture and reports repeated changing offsets for identical roots.' -Data ([ordered]@{ repeatedChanging = $byteWindow.counts.repeatedChanging; comparedOffsets = $byteWindow.counts.comparedOffsets })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

@@ -225,6 +225,21 @@ It also includes `baselineByteValues` and `reproofByteValues` per requested
 offset so a non-repeat can be diagnosed without manually decoding
 `samples.ndjson`.
 
+To compare an entire raw byte window between two gated runs:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\compare-nameplate-proof-byte-windows.ps1" `
+  -BaselineRunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom" `
+  -ReproofRunRoot "<fast-reproof-run-root>" `
+  -StartOffset 0 `
+  -Length 1024 `
+  -Json
+```
+
+Use this when a candidate cluster fails to repeat. It separates
+`repeated-changing`, `baseline-only-change`, `reproof-only-change`, and
+`changed-in-both-different` offsets across the same gated state sequence.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -278,6 +293,8 @@ It checks:
   baseline/zoom fixture by explicit `-RunRoot` and `-Latest`
 - `compare-nameplate-projection-proof-runs.ps1` against a generated fully gated
   fixture to verify repeated candidate offset reporting
+- `compare-nameplate-proof-byte-windows.ps1` against a generated fully gated
+  fixture to verify repeated raw byte-window change reporting
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
