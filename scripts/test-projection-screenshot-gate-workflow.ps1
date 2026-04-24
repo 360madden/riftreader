@@ -1010,20 +1010,20 @@ try {
         (Get-Item -LiteralPath $olderLatestPairRunRoot).LastWriteTimeUtc = [datetime]'2026-04-24T01:00:00Z'
         (Get-Item -LiteralPath $newerLatestPairRunRoot).LastWriteTimeUtc = [datetime]'2026-04-24T02:00:00Z'
 
-        $latestPairPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPipelineScript -OutputRoot $latestPairOutputRoot -LatestBaselineZoomPair -PlanOnly -Json 2>&1
+        $latestPairPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPipelineScript -OutputRoot $latestPairOutputRoot -LatestBaselineZoomPair -CaptureMissingNeighborhoods -PlanOnly -Json 2>&1
         $latestPairPlanCode = $LASTEXITCODE
         if ($latestPairPlanCode -ne 0) {
             throw "Nameplate proof promotion pipeline latest-pair PlanOnly failed with exit code $latestPairPlanCode.`n$($latestPairPlanOutput -join [Environment]::NewLine)"
         }
         $latestPairPlan = ($latestPairPlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
-        if (-not [bool]$latestPairPlan.ok -or [string]$latestPairPlan.mode -ne 'plan-only' -or $null -eq $latestPairPlan.selectedPair) {
+        if (-not [bool]$latestPairPlan.ok -or [string]$latestPairPlan.mode -ne 'plan-only' -or [bool]$latestPairPlan.attachesToProcess -or $null -eq $latestPairPlan.selectedPair) {
             throw "Nameplate proof promotion pipeline latest-pair PlanOnly did not report the selected pair.`n$($latestPairPlanOutput -join [Environment]::NewLine)"
         }
         if ([string]$latestPairPlan.selectedPair.baselineRunRoot -ne $olderLatestPairRunRoot -or [string]$latestPairPlan.selectedPair.reproofRunRoot -ne $newerLatestPairRunRoot) {
             throw "Nameplate proof promotion pipeline latest-pair PlanOnly selected the wrong baseline/reproof order.`n$($latestPairPlanOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-pipeline-latest-pair-smoke' -Status 'passed' -Detail 'Promotion pipeline can auto-select the latest two gated baseline/zoom proof roots in baseline-then-reproof order.' -Data ([ordered]@{ baselineRunName = $latestPairPlan.selectedPair.baselineRunName; reproofRunName = $latestPairPlan.selectedPair.reproofRunName; selectedPairMode = $latestPairPlan.selectedPair.mode })
+        Add-Check -Name 'nameplate-proof-promotion-pipeline-latest-pair-smoke' -Status 'passed' -Detail 'Promotion pipeline can auto-select the latest two gated baseline/zoom proof roots in baseline-then-reproof order while preserving PlanOnly no-attach semantics.' -Data ([ordered]@{ baselineRunName = $latestPairPlan.selectedPair.baselineRunName; reproofRunName = $latestPairPlan.selectedPair.reproofRunName; selectedPairMode = $latestPairPlan.selectedPair.mode; planOnlyAttachesToProcess = $false })
 
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1

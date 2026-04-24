@@ -338,10 +338,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 ```
 
 Use `-PlanOnly` first to print the planned capture/packet steps. Plan-only mode
-does not create artifacts. The pipeline keeps `controlsInput=false`; when
+does not create artifacts or attach to the process. The pipeline keeps
+`controlsInput=false`; when
 `-CaptureMissingNeighborhoods` is set it may perform read-only process memory
-capture for missing neighborhood artifacts, but still does not focus, click,
-type, or move.
+capture for missing neighborhood artifacts in run mode, but still does not
+focus, click, type, or move. Plan output includes `wouldAttachToProcessOnRun`
+when missing neighborhoods would require a read-only capture during an actual
+run.
 
 After two gated `nameplate-baseline-zoom` proof roots exist, the same pipeline
 can auto-select the latest pair from inventory:
@@ -460,8 +463,8 @@ It checks:
   neighborhood fixtures to verify plan-only no-side-effect behavior and packet
   creation from existing neighborhood artifacts
 - `run-nameplate-proof-promotion-pipeline.ps1 -LatestBaselineZoomPair` against
-  two generated gated proof roots to verify newest-as-reproof and
-  previous-as-baseline auto-selection
+  two generated gated proof roots to verify newest-as-reproof,
+  previous-as-baseline auto-selection, and plan-only no-attach semantics
 - `list-nameplate-proof-runs.ps1` against a generated gated proof fixture to
   verify proof-run inventory with manifest seed, lead-neighborhood, and
   promotion-packet status
@@ -591,7 +594,7 @@ Result: `ok=true`.
 | Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
 | Promotion-packet negative smoke | Passed by failing closed and leaving no packet when repeated-root thresholds were not met. |
 | Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
-| Promotion-pipeline latest-pair smoke | Passed with newest gated baseline/zoom proof selected as reproof and previous gated baseline/zoom proof selected as baseline. |
+| Promotion-pipeline latest-pair smoke | Passed with newest gated baseline/zoom proof selected as reproof, previous gated baseline/zoom proof selected as baseline, and plan-only no-attach semantics. |
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
 | Promotion-readiness planner smoke | Passed with missing-evidence and manifest-seeded next-command reporting when only one gated baseline/zoom proof exists. |
 

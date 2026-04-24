@@ -142,6 +142,7 @@ else {
 }
 
 $plannedSteps = [System.Collections.Generic.List[object]]::new()
+$plannedCaptureStepCount = 0
 if ($CaptureMissingNeighborhoods) {
     foreach ($captureTarget in @(
         [pscustomobject]@{ Label = 'baseline'; RunRoot = $BaselineRunRoot; File = $baselineNeighborhoodFile },
@@ -152,6 +153,7 @@ if ($CaptureMissingNeighborhoods) {
         }
 
         if (-not (Test-Path -LiteralPath ([string]$captureTarget.File) -PathType Leaf)) {
+            $plannedCaptureStepCount++
             $plannedSteps.Add([pscustomobject][ordered]@{
                 name = "capture-$($captureTarget.Label)-lead-neighborhood"
                 controlsInput = $false
@@ -195,7 +197,8 @@ if ($PlanOnly) {
         mode = 'plan-only'
         ok = $true
         controlsInput = $false
-        attachesToProcess = [bool]$CaptureMissingNeighborhoods
+        attachesToProcess = $false
+        wouldAttachToProcessOnRun = ($plannedCaptureStepCount -gt 0)
         baselineNeighborhoodFile = $baselineNeighborhoodFile
         reproofNeighborhoodFile = $reproofNeighborhoodFile
         outputFile = $resolvedOutputFile
