@@ -208,6 +208,20 @@ This is intended for rechecking already-discovered offsets such as the current
 the first proof for a new nameplate target; run the default full proof first so
 text/pointer evidence is captured at least once.
 
+After a fast reproof run completes, compare it to the full proof with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\compare-nameplate-projection-proof-runs.ps1" `
+  -BaselineRunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom" `
+  -ReproofRunRoot "<fast-reproof-run-root>" `
+  -CandidateOffsets "+0x21D,+0x225,+0x235,+0x23D,+0x24D" `
+  -MinRepeatCount 3 `
+  -Json
+```
+
+The comparator fails closed unless both runs have passed screenshot/sequence
+gates and at least `-MinRepeatCount` requested candidate offsets repeat.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -259,6 +273,8 @@ It checks:
   expected proof state sequence is wrong
 - `check-nameplate-projection-proof-result.ps1` against a generated fully gated
   baseline/zoom fixture by explicit `-RunRoot` and `-Latest`
+- `compare-nameplate-projection-proof-runs.ps1` against a generated fully gated
+  fixture to verify repeated candidate offset reporting
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system

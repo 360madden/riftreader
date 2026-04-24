@@ -18,6 +18,8 @@ $wrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $wrapperCmd = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.cmd'
 $resultCheckerScript = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.ps1'
 $resultCheckerCmd = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.cmd'
+$proofCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-projection-proof-runs.ps1'
+$proofCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-projection-proof-runs.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -29,9 +31,10 @@ $psScripts = @(
     'analyze-tooltip-hover-diff.ps1',
     'run-nameplate-projection-proof.ps1',
     'check-nameplate-projection-proof-result.ps1',
+    'compare-nameplate-projection-proof-runs.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 8
+$expectedProjectionPsScriptCount = 9
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -40,9 +43,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'analyze-tooltip-hover-diff.cmd'; Target = 'analyze-tooltip-hover-diff.ps1' },
     [pscustomobject]@{ Wrapper = 'run-nameplate-projection-proof.cmd'; Target = 'run-nameplate-projection-proof.ps1' },
     [pscustomobject]@{ Wrapper = 'check-nameplate-projection-proof-result.cmd'; Target = 'check-nameplate-projection-proof-result.ps1' },
+    [pscustomobject]@{ Wrapper = 'compare-nameplate-projection-proof-runs.cmd'; Target = 'compare-nameplate-projection-proof-runs.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 8
+$expectedProjectionCmdWrapperCount = 9
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -702,6 +706,28 @@ try {
         if (-not @($resultCheck.checks | Where-Object { $_.name -eq 'expected-state-sequence-passed' -and $_.status -eq 'passed' })) {
             throw "Nameplate proof result checker did not pass expected-state-sequence-passed.`n$($resultCheckOutput -join [Environment]::NewLine)"
         }
+
+        $resultFieldCandidatesPath = Join-Path $resultCheckRoot 'diffs\field-candidates.json'
+        $resultFieldCandidates = Get-Content -LiteralPath $resultFieldCandidatesPath -Raw | ConvertFrom-Json -Depth 40
+        $firstCandidateOffset = [string](@($resultFieldCandidates.candidates)[0].offset)
+        if ([string]::IsNullOrWhiteSpace($firstCandidateOffset)) {
+            throw "Nameplate proof result checker fixture did not produce a candidate offset for comparator smoke."
+        }
+
+        $compareOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofCompareScript -BaselineRunRoot $resultCheckRoot -ReproofRunRoot $resultCheckRoot -CandidateOffsets $firstCandidateOffset -MinRepeatCount 1 -Json 2>&1
+        $compareCode = $LASTEXITCODE
+        if ($compareCode -ne 0) {
+            throw "Nameplate proof comparator failed with exit code $compareCode.`n$($compareOutput -join [Environment]::NewLine)"
+        }
+        $compare = ($compareOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 60
+        if (-not [bool]$compare.ok -or [int]$compare.repeatedCount -lt 1) {
+            throw "Nameplate proof comparator did not report a repeated candidate for identical fixture roots.`n$($compareOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($compare.checks | Where-Object { $_.name -eq 'minimum-repeat-count' -and $_.status -eq 'passed' })) {
+            throw "Nameplate proof comparator did not pass minimum-repeat-count.`n$($compareOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-comparator-smoke' -Status 'passed' -Detail 'Proof comparator accepts a fully gated fixture and reports a repeated candidate offset across baseline/reproof roots.' -Data ([ordered]@{ repeatedCount = $compare.repeatedCount; candidateOffsets = @($compare.candidateOffsets) })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
