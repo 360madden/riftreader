@@ -30,6 +30,8 @@ $leadNeighborhoodCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-proo
 $leadNeighborhoodCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-proof-lead-neighborhoods.cmd'
 $promotionPacketScript = Join-Path $PSScriptRoot 'write-nameplate-proof-promotion-packet.ps1'
 $promotionPacketCmd = Join-Path $PSScriptRoot 'write-nameplate-proof-promotion-packet.cmd'
+$promotionPipelineScript = Join-Path $PSScriptRoot 'run-nameplate-proof-promotion-pipeline.ps1'
+$promotionPipelineCmd = Join-Path $PSScriptRoot 'run-nameplate-proof-promotion-pipeline.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -47,9 +49,10 @@ $psScripts = @(
     'capture-nameplate-proof-lead-neighborhoods.ps1',
     'compare-nameplate-proof-lead-neighborhoods.ps1',
     'write-nameplate-proof-promotion-packet.ps1',
+    'run-nameplate-proof-promotion-pipeline.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 14
+$expectedProjectionPsScriptCount = 15
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -64,9 +67,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-nameplate-proof-lead-neighborhoods.cmd'; Target = 'capture-nameplate-proof-lead-neighborhoods.ps1' },
     [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-lead-neighborhoods.cmd'; Target = 'compare-nameplate-proof-lead-neighborhoods.ps1' },
     [pscustomobject]@{ Wrapper = 'write-nameplate-proof-promotion-packet.cmd'; Target = 'write-nameplate-proof-promotion-packet.ps1' },
+    [pscustomobject]@{ Wrapper = 'run-nameplate-proof-promotion-pipeline.cmd'; Target = 'run-nameplate-proof-promotion-pipeline.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 14
+$expectedProjectionCmdWrapperCount = 15
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -921,6 +925,33 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-promotion-packet-negative-smoke' -Status 'passed' -Detail 'Promotion packet writer fails closed and does not write a packet when repeated-root thresholds are not met.' -Data ([ordered]@{ wrotePacket = $false; expectedBlocker = 'insufficient-repeated-selected-roots'; exitCode = $notReadyPromotionPacketCode })
+
+        $promotionPipelinePlanOutputFile = Join-Path $leadNeighborhoodCompareRoot 'pipeline-plan-packet.json'
+        $promotionPipelinePlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPipelineScript -BaselineFile $baselineNeighborhoodFile -ReproofFile $reproofNeighborhoodFile -OutputFile $promotionPipelinePlanOutputFile -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -PlanOnly -Json 2>&1
+        $promotionPipelinePlanCode = $LASTEXITCODE
+        if ($promotionPipelinePlanCode -ne 0) {
+            throw "Nameplate proof promotion pipeline PlanOnly failed with exit code $promotionPipelinePlanCode.`n$($promotionPipelinePlanOutput -join [Environment]::NewLine)"
+        }
+        $promotionPipelinePlan = ($promotionPipelinePlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        if ([string]$promotionPipelinePlan.mode -ne 'plan-only' -or -not [bool]$promotionPipelinePlan.ok -or [bool]$promotionPipelinePlan.controlsInput -or [bool]$promotionPipelinePlan.attachesToProcess) {
+            throw "Nameplate proof promotion pipeline PlanOnly did not preserve no-input/no-attach semantics.`n$($promotionPipelinePlanOutput -join [Environment]::NewLine)"
+        }
+        if (Test-Path -LiteralPath $promotionPipelinePlanOutputFile -PathType Leaf) {
+            throw "Nameplate proof promotion pipeline PlanOnly unexpectedly created output: $promotionPipelinePlanOutputFile"
+        }
+
+        $promotionPipelineOutputFile = Join-Path $leadNeighborhoodCompareRoot 'pipeline-promotion-packet.json'
+        $promotionPipelineOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPipelineScript -BaselineFile $baselineNeighborhoodFile -ReproofFile $reproofNeighborhoodFile -OutputFile $promotionPipelineOutputFile -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $promotionPipelineCode = $LASTEXITCODE
+        if ($promotionPipelineCode -ne 0) {
+            throw "Nameplate proof promotion pipeline failed with exit code $promotionPipelineCode.`n$($promotionPipelineOutput -join [Environment]::NewLine)"
+        }
+        $promotionPipeline = ($promotionPipelineOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$promotionPipeline.ok -or -not [bool]$promotionPipeline.packet.promotionReady -or -not (Test-Path -LiteralPath $promotionPipelineOutputFile -PathType Leaf)) {
+            throw "Nameplate proof promotion pipeline did not write a promotion-ready packet.`n$($promotionPipelineOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-pipeline-smoke' -Status 'passed' -Detail 'Promotion pipeline plans without input/attach side effects and writes a promotion packet from existing lead-neighborhood artifacts.' -Data ([ordered]@{ planOnlyNoAttach = $true; wrotePacket = $promotionPipeline.packet.wrotePacket; outputFileExists = $true })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

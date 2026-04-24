@@ -324,6 +324,25 @@ The validator also covers the negative path: when the repeated-root threshold is
 higher than the evidence supports, the writer exits non-zero, reports
 `insufficient-repeated-selected-roots`, and leaves no packet file behind.
 
+For the normal post-proof path, the promotion pipeline wrapper runs the packet
+writer against existing neighborhood artifacts and can optionally capture
+missing neighborhoods from proof run roots:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\run-nameplate-proof-promotion-pipeline.ps1" `
+  -BaselineRunRoot "<first-proof-run-root>" `
+  -ReproofRunRoot "<second-proof-run-root>" `
+  -CaptureMissingNeighborhoods `
+  -MinRepeatedRootCount 1 `
+  -Json
+```
+
+Use `-PlanOnly` first to print the planned capture/packet steps. Plan-only mode
+does not create artifacts. The pipeline keeps `controlsInput=false`; when
+`-CaptureMissingNeighborhoods` is set it may perform read-only process memory
+capture for missing neighborhood artifacts, but still does not focus, click,
+type, or move.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -390,6 +409,9 @@ It checks:
 - `write-nameplate-proof-promotion-packet.ps1` against generated captured
   neighborhood fixtures to verify durable promotion-packet creation only after
   comparator gates are promotion-ready
+- `run-nameplate-proof-promotion-pipeline.ps1` against generated captured
+  neighborhood fixtures to verify plan-only no-side-effect behavior and packet
+  creation from existing neighborhood artifacts
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -427,6 +449,7 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | `scripts\capture-nameplate-proof-lead-neighborhoods.cmd` | `capture-nameplate-proof-lead-neighborhoods.ps1` |
 | `scripts\compare-nameplate-proof-lead-neighborhoods.cmd` | `compare-nameplate-proof-lead-neighborhoods.ps1` |
 | `scripts\write-nameplate-proof-promotion-packet.cmd` | `write-nameplate-proof-promotion-packet.ps1` |
+| `scripts\run-nameplate-proof-promotion-pipeline.cmd` | `run-nameplate-proof-promotion-pipeline.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
 | `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
@@ -497,8 +520,8 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for expected 14 scripts with 14 unique entries. |
-| CMD wrapper inspection | Passed for expected 14 projection wrappers with 14 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 15 scripts with 15 unique entries. |
+| CMD wrapper inspection | Passed for expected 15 projection wrappers with 15 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
@@ -509,6 +532,7 @@ Result: `ok=true`.
 | Lead-neighborhood comparator smoke | Passed with repeated selected-root, pointer-edge, and promotion-candidate summary reporting. |
 | Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
 | Promotion-packet negative smoke | Passed by failing closed and leaving no packet when repeated-root thresholds were not met. |
+| Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
 
 The aggregate branch validator was also run:
 
@@ -516,5 +540,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `24/24`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `25/25`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.
