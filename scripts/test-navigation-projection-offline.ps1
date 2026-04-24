@@ -12,10 +12,37 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$aggregateScript = $PSCommandPath
+$aggregateCmd = Join-Path $PSScriptRoot 'test-navigation-projection-offline.cmd'
 $workflowValidator = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.ps1'
 $readerTests = Join-Path $repoRoot 'reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj'
 
 $steps = [System.Collections.Generic.List[object]]::new()
+
+function Add-OfflineStep {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [string]$Status,
+        [int]$ExitCode = 0,
+        [double]$DurationSeconds = 0,
+        [string[]]$Command = @(),
+        [object]$Summary = $null,
+        [string]$OutputTail = ''
+    )
+
+    $steps.Add([pscustomobject][ordered]@{
+        name = $Name
+        status = $Status
+        exitCode = $ExitCode
+        durationSeconds = $DurationSeconds
+        command = @($Command)
+        summary = $Summary
+        outputTail = $OutputTail
+        output = $null
+    }) | Out-Null
+}
 
 function Invoke-OfflineStep {
     param(
@@ -42,7 +69,7 @@ function Invoke-OfflineStep {
         $summary = & $Summarize $text
     }
 
-    $steps.Add([pscustomobject][ordered]@{
+    $step = [pscustomobject][ordered]@{
         name = $Name
         status = if ($exitCode -eq 0) { 'passed' } else { 'failed' }
         exitCode = $exitCode
@@ -51,7 +78,16 @@ function Invoke-OfflineStep {
         summary = $summary
         outputTail = $outputTail
         output = if ($IncludeFullOutput) { $text } else { $null }
-    }) | Out-Null
+    }
+    $steps.Add($step) | Out-Null
+}
+
+if (-not (Test-Path -LiteralPath $aggregateScript -PathType Leaf)) {
+    throw "Missing aggregate validator script: $aggregateScript"
+}
+
+if (-not (Test-Path -LiteralPath $aggregateCmd -PathType Leaf)) {
+    throw "Missing aggregate validator CMD wrapper: $aggregateCmd"
 }
 
 if (-not (Test-Path -LiteralPath $workflowValidator -PathType Leaf)) {
@@ -60,6 +96,39 @@ if (-not (Test-Path -LiteralPath $workflowValidator -PathType Leaf)) {
 
 if (-not (Test-Path -LiteralPath $readerTests -PathType Leaf)) {
     throw "Missing Reader test project: $readerTests"
+}
+
+$tokens = $null
+$parseErrors = $null
+[System.Management.Automation.Language.Parser]::ParseFile($aggregateScript, [ref]$tokens, [ref]$parseErrors) | Out-Null
+if ($parseErrors.Count -gt 0) {
+    Add-OfflineStep -Name 'aggregate-validator-contract' -Status 'failed' -ExitCode 1 -Command @($aggregateScript) -Summary ([pscustomobject][ordered]@{
+        parsed = $false
+        error = $parseErrors[0].Message
+    })
+}
+else {
+    $cmdContent = Get-Content -LiteralPath $aggregateCmd -Raw
+    $wrapperChecks = [ordered]@{
+        parsed = $true
+        cmdWrapper = $aggregateCmd
+        echoOff = ($cmdContent -match '(?m)^@echo off\s*$')
+        setlocalEnableExtensions = ($cmdContent -match '(?m)^setlocal EnableExtensions\s*$')
+        targetsAggregateScript = ($cmdContent -match 'set\s+"RIFTREADER_PS1=%~dp0test-navigation-projection-offline\.ps1"')
+        callsSharedLauncher = ($cmdContent -match '(?m)^call\s+"%~dp0_run-pwsh\.cmd"\s+%\*\s*$')
+        propagatesExitCode = ($cmdContent -match '(?m)^exit /b %errorlevel%\s*$')
+    }
+
+    $failedWrapperChecks = @($wrapperChecks.GetEnumerator() | Where-Object {
+        $_.Value -is [bool] -and -not $_.Value
+    } | ForEach-Object { $_.Key })
+
+    Add-OfflineStep -Name 'aggregate-validator-contract' -Status $(if ($failedWrapperChecks.Count -eq 0) { 'passed' } else { 'failed' }) -ExitCode $(if ($failedWrapperChecks.Count -eq 0) { 0 } else { 1 }) -Command @($aggregateScript, $aggregateCmd) -Summary ([pscustomobject][ordered]@{
+        parsed = $true
+        cmdWrapperShapePassed = ($failedWrapperChecks.Count -eq 0)
+        failedWrapperChecks = @($failedWrapperChecks)
+        wrapper = [pscustomobject]$wrapperChecks
+    })
 }
 
 $workflowArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $workflowValidator, '-Json')
@@ -111,16 +180,7 @@ if (-not $SkipDiffCheck) {
     }
 }
 else {
-    $steps.Add([pscustomobject][ordered]@{
-        name = 'git-diff-check'
-        status = 'skipped'
-        exitCode = 0
-        durationSeconds = 0
-        command = @('git', '-C', $repoRoot, 'diff', '--check')
-        summary = [pscustomobject][ordered]@{ reason = 'SkipDiffCheck was set.' }
-        outputTail = ''
-        output = $null
-    }) | Out-Null
+    Add-OfflineStep -Name 'git-diff-check' -Status 'skipped' -Command @('git', '-C', $repoRoot, 'diff', '--check') -Summary ([pscustomobject][ordered]@{ reason = 'SkipDiffCheck was set.' })
 }
 
 $failedSteps = @($steps | Where-Object { $_.status -eq 'failed' })

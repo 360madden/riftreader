@@ -208,8 +208,9 @@ temp directory and does not depend on local ignored artifacts.
 ## Branch-level offline validation
 
 Use this aggregate check before pushing or handing off the branch. It runs the
-screenshot workflow validator, Reader tests, and `git diff --check` without
-touching the Rift client or creating live artifacts:
+aggregate validator script/CMD-wrapper contract check, screenshot workflow
+validator, Reader tests, and `git diff --check` without touching the Rift client
+or creating live artifacts:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
