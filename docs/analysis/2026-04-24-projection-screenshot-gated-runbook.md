@@ -320,6 +320,9 @@ The writer re-runs the neighborhood comparator, writes
 run by default, and fails closed without writing a packet unless
 `candidateSummary.promotionReady=true`. Use `-AllowNotReady` only when a
 diagnostic not-ready packet is explicitly useful.
+The validator also covers the negative path: when the repeated-root threshold is
+higher than the evidence supports, the writer exits non-zero, reports
+`insufficient-repeated-selected-roots`, and leaves no packet file behind.
 
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
@@ -505,6 +508,7 @@ Result: `ok=true`.
 | Lead-neighborhood plan smoke | Passed with selected pointer-hit root planning, `controlsInput=false`, `attachesToProcess=false`, and no artifact creation. |
 | Lead-neighborhood comparator smoke | Passed with repeated selected-root, pointer-edge, and promotion-candidate summary reporting. |
 | Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
+| Promotion-packet negative smoke | Passed by failing closed and leaving no packet when repeated-root thresholds were not met. |
 
 The aggregate branch validator was also run:
 
@@ -512,5 +516,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `23/23`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `24/24`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

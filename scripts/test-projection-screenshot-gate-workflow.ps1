@@ -903,6 +903,25 @@ try {
 
         Add-Check -Name 'nameplate-proof-promotion-packet-smoke' -Status 'passed' -Detail 'Promotion packet writer emits a durable packet only after comparator candidate-summary gates are promotion-ready.' -Data ([ordered]@{ recommendedRootCount = $promotionPacketResult.recommendedRootCount; recommendedEdgeCount = $promotionPacketResult.recommendedEdgeCount; outputFileExists = $true })
 
+        $notReadyPromotionPacketOutputFile = Join-Path $leadNeighborhoodCompareRoot 'promotion-packet-not-ready.json'
+        $notReadyPromotionPacketOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPacketScript -BaselineFile $baselineNeighborhoodFile -ReproofFile $reproofNeighborhoodFile -OutputFile $notReadyPromotionPacketOutputFile -MinRepeatedRootCount 2 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $notReadyPromotionPacketCode = $LASTEXITCODE
+        if ($notReadyPromotionPacketCode -eq 0) {
+            throw "Nameplate proof promotion packet writer unexpectedly succeeded when MinRepeatedRootCount exceeded fixture evidence.`n$($notReadyPromotionPacketOutput -join [Environment]::NewLine)"
+        }
+        if (Test-Path -LiteralPath $notReadyPromotionPacketOutputFile -PathType Leaf) {
+            throw "Nameplate proof promotion packet writer created a packet despite not-ready gates: $notReadyPromotionPacketOutputFile"
+        }
+        $notReadyPromotionPacketResult = ($notReadyPromotionPacketOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        if ([bool]$notReadyPromotionPacketResult.ok -or [bool]$notReadyPromotionPacketResult.promotionReady -or [bool]$notReadyPromotionPacketResult.wrotePacket) {
+            throw "Nameplate proof promotion packet writer did not report fail-closed not-ready semantics.`n$($notReadyPromotionPacketOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($notReadyPromotionPacketResult.blockers | Where-Object { $_ -eq 'insufficient-repeated-selected-roots' })) {
+            throw "Nameplate proof promotion packet writer did not report the expected insufficient root blocker.`n$($notReadyPromotionPacketOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-packet-negative-smoke' -Status 'passed' -Detail 'Promotion packet writer fails closed and does not write a packet when repeated-root thresholds are not met.' -Data ([ordered]@{ wrotePacket = $false; expectedBlocker = 'insufficient-repeated-selected-roots'; exitCode = $notReadyPromotionPacketCode })
+
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
         $latestCheckCode = $LASTEXITCODE
