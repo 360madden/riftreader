@@ -389,9 +389,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 The planner uses the inventory, selects candidate baseline/reproof proof roots,
 reports missing evidence such as `need-second-gated-nameplate-baseline-zoom-proof`,
 and emits recommended commands for inventory, second proof, neighborhood capture,
-or promotion pipeline execution as appropriate. When at least two gated
-baseline/zoom proofs exist, it treats the newest proof as reproof and the
-previous proof as baseline, then recommends the latest-pair pipeline command.
+or promotion pipeline execution as appropriate. It also exposes a single
+machine-readable `nextAction` with safety flags (`controlsInput`,
+`attachesToProcess`, `createsArtifacts`, and `requiresOperatorConfirmation`) so
+automation can choose the safest immediate command without parsing the whole
+recommendation list. When at least two gated baseline/zoom proofs exist, it
+treats the newest proof as reproof and the previous proof as baseline, then
+recommends the latest-pair pipeline command.
 When only one prior gated baseline/zoom manifest is available, the second-proof
 plan and live commands are both pre-seeded with that manifest's
 candidate/nameplate arguments. Run the planner's
@@ -608,8 +612,8 @@ Result: `ok=true`.
 | Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
 | Promotion-pipeline latest-pair smoke | Passed with newest gated baseline/zoom proof selected as reproof, previous gated baseline/zoom proof selected as baseline, and plan-only no-attach semantics. |
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
-| Promotion-readiness planner smoke | Passed with missing-evidence and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
-| Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, and latest-pair pipeline recommendation. |
+| Promotion-readiness planner smoke | Passed with missing-evidence, safe `nextAction`, and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
+| Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, safe `nextAction`, and latest-pair pipeline recommendation. |
 
 The aggregate branch validator was also run:
 

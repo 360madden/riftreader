@@ -1037,6 +1037,9 @@ try {
         if (-not [bool]$latestPairPlanner.readyForPipeline -or -not [bool]$latestPairPlanner.readyForPromotionCompare) {
             throw "Nameplate proof promotion planner did not mark the two-run latest-pair fixture ready for promotion compare.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $latestPairPlanner.nextAction -or [string]$latestPairPlanner.nextAction.name -ne 'promotion-pipeline-latest-pair-plan' -or [bool]$latestPairPlanner.nextAction.attachesToProcess) {
+            throw "Nameplate proof promotion planner did not expose the expected safe latest-pair nextAction.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+        }
         if ([string]$latestPairPlanner.selectedBaselineRun.runRoot -ne $olderLatestPairRunRoot -or [string]$latestPairPlanner.selectedReproofRun.runRoot -ne $newerLatestPairRunRoot) {
             throw "Nameplate proof promotion planner selected the wrong baseline/reproof order for latest-pair fixture.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
         }
@@ -1044,7 +1047,7 @@ try {
             throw "Nameplate proof promotion planner did not recommend latest-pair pipeline plan for two-run fixture.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-latest-pair-smoke' -Status 'passed' -Detail 'Promotion planner selects previous gated baseline/zoom proof as baseline, newest as reproof, and recommends the latest-pair pipeline when two proofs exist.' -Data ([ordered]@{ readyForPromotionCompare = $latestPairPlanner.readyForPromotionCompare; selectedBaseline = $latestPairPlanner.selectedBaselineRun.name; selectedReproof = $latestPairPlanner.selectedReproofRun.name })
+        Add-Check -Name 'nameplate-proof-promotion-planner-latest-pair-smoke' -Status 'passed' -Detail 'Promotion planner selects previous gated baseline/zoom proof as baseline, newest as reproof, and recommends the latest-pair pipeline when two proofs exist.' -Data ([ordered]@{ readyForPromotionCompare = $latestPairPlanner.readyForPromotionCompare; selectedBaseline = $latestPairPlanner.selectedBaselineRun.name; selectedReproof = $latestPairPlanner.selectedReproofRun.name; nextAction = $latestPairPlanner.nextAction.name })
 
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
@@ -1078,6 +1081,9 @@ try {
         if (-not @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof-plan' })) {
             throw "Nameplate proof promotion planner did not recommend a plan-only second proof check before the live second proof.`n$($promotionPlanOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $promotionPlan.nextAction -or [string]$promotionPlan.nextAction.name -ne 'run-second-baseline-zoom-proof-plan' -or [bool]$promotionPlan.nextAction.attachesToProcess -or [bool]$promotionPlan.nextAction.createsArtifacts) {
+            throw "Nameplate proof promotion planner did not expose the plan-only second proof as the safe nextAction.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
         $secondProofCommand = @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof' }) | Select-Object -First 1
         $secondProofPlanCommand = @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof-plan' }) | Select-Object -First 1
         if ($null -eq $secondProofCommand.seed -or [string]$secondProofCommand.seed.candidateAddress -ne $CandidateAddress -or [string]$secondProofCommand.seed.nameplateText -ne $NameplateText) {
@@ -1090,7 +1096,7 @@ try {
             throw "Nameplate proof promotion planner did not keep plan-only and live second proof commands distinct.`n$($promotionPlanOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded plan-only plus live next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true; hasSecondProofPlanCommand = $true })
+        Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded plan-only plus live next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true; hasSecondProofPlanCommand = $true; nextAction = $promotionPlan.nextAction.name })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

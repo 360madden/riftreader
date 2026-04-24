@@ -62,6 +62,26 @@ function Get-RunProofSeed {
     }
 }
 
+function New-NextAction {
+    param(
+        [Parameter(Mandatory = $true)][object]$Command,
+        [Parameter(Mandatory = $true)][string]$Reason,
+        [bool]$AttachesToProcess = $false,
+        [bool]$CreatesArtifacts = $false,
+        [bool]$RequiresOperatorConfirmation = $false
+    )
+
+    return [pscustomobject][ordered]@{
+        name = [string]$Command.name
+        command = [string]$Command.command
+        reason = $Reason
+        controlsInput = $false
+        attachesToProcess = $AttachesToProcess
+        createsArtifacts = $CreatesArtifacts
+        requiresOperatorConfirmation = $RequiresOperatorConfirmation
+    }
+}
+
 if ($InventoryTop -le 0) {
     throw 'InventoryTop must be greater than zero.'
 }
@@ -190,6 +210,28 @@ else {
     }
 }
 
+$commandsByName = @{}
+foreach ($recommendedCommand in @($recommendedCommands.ToArray())) {
+    $commandsByName[[string]$recommendedCommand.name] = $recommendedCommand
+}
+
+$nextAction = $null
+if (-not $readyForPipeline -and $commandsByName.ContainsKey('run-second-baseline-zoom-proof-plan')) {
+    $nextAction = New-NextAction -Command $commandsByName['run-second-baseline-zoom-proof-plan'] -Reason 'Second gated baseline/zoom proof is missing; run the plan-only command first and inspect operatorChecklist before live capture.'
+}
+elseif ($commandsByName.ContainsKey('capture-baseline-lead-neighborhood')) {
+    $nextAction = New-NextAction -Command $commandsByName['capture-baseline-lead-neighborhood'] -Reason 'Selected baseline proof is missing lead-neighborhood evidence required for promotion comparison.' -AttachesToProcess $true -CreatesArtifacts $true
+}
+elseif ($commandsByName.ContainsKey('capture-reproof-lead-neighborhood')) {
+    $nextAction = New-NextAction -Command $commandsByName['capture-reproof-lead-neighborhood'] -Reason 'Selected reproof is missing lead-neighborhood evidence required for promotion comparison.' -AttachesToProcess $true -CreatesArtifacts $true
+}
+elseif ($readyForPipeline -and $commandsByName.ContainsKey('promotion-pipeline-latest-pair-plan')) {
+    $nextAction = New-NextAction -Command $commandsByName['promotion-pipeline-latest-pair-plan'] -Reason 'Two gated baseline/zoom proofs exist; plan the latest-pair promotion pipeline before any packet write.'
+}
+elseif ($commandsByName.ContainsKey('inventory')) {
+    $nextAction = New-NextAction -Command $commandsByName['inventory'] -Reason 'Refresh gated proof inventory.'
+}
+
 $result = [pscustomobject][ordered]@{
     ok = $true
     outputRoot = $resolvedOutputRoot
@@ -205,6 +247,7 @@ $result = [pscustomobject][ordered]@{
     selectedBaselineRun = $baselineRun
     selectedReproofRun = $reproofRun
     selectedProofSeed = $proofSeed
+    nextAction = $nextAction
     recommendedCommands = @($recommendedCommands.ToArray())
 }
 
