@@ -343,6 +343,23 @@ does not create artifacts. The pipeline keeps `controlsInput=false`; when
 capture for missing neighborhood artifacts, but still does not focus, click,
 type, or move.
 
+After two gated `nameplate-baseline-zoom` proof roots exist, the same pipeline
+can auto-select the latest pair from inventory:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\run-nameplate-proof-promotion-pipeline.ps1" `
+  -LatestBaselineZoomPair `
+  -CaptureMissingNeighborhoods `
+  -MinRepeatedRootCount 1 `
+  -PlanOnly `
+  -Json
+```
+
+`-LatestBaselineZoomPair` picks the newest gated baseline/zoom proof as the
+reproof run and the previous gated baseline/zoom proof as the baseline run. Do
+not combine it with explicit `-BaselineRunRoot`, `-ReproofRunRoot`,
+`-BaselineFile`, or `-ReproofFile`.
+
 To inventory the available nameplate proof roots before choosing baseline and
 reproof inputs:
 
@@ -442,6 +459,9 @@ It checks:
 - `run-nameplate-proof-promotion-pipeline.ps1` against generated captured
   neighborhood fixtures to verify plan-only no-side-effect behavior and packet
   creation from existing neighborhood artifacts
+- `run-nameplate-proof-promotion-pipeline.ps1 -LatestBaselineZoomPair` against
+  two generated gated proof roots to verify newest-as-reproof and
+  previous-as-baseline auto-selection
 - `list-nameplate-proof-runs.ps1` against a generated gated proof fixture to
   verify proof-run inventory with manifest seed, lead-neighborhood, and
   promotion-packet status
@@ -571,6 +591,7 @@ Result: `ok=true`.
 | Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
 | Promotion-packet negative smoke | Passed by failing closed and leaving no packet when repeated-root thresholds were not met. |
 | Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
+| Promotion-pipeline latest-pair smoke | Passed with newest gated baseline/zoom proof selected as reproof and previous gated baseline/zoom proof selected as baseline. |
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
 | Promotion-readiness planner smoke | Passed with missing-evidence and manifest-seeded next-command reporting when only one gated baseline/zoom proof exists. |
 
@@ -580,5 +601,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `27/27`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `28/28`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

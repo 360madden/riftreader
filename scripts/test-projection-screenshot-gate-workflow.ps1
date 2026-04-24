@@ -676,6 +676,7 @@ try {
     }
 
     $resultCheckRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
+    $latestPairOutputRoot = $null
     New-Item -ItemType Directory -Path $resultCheckRoot -Force | Out-Null
     try {
         $resultRows = @()
@@ -984,6 +985,46 @@ try {
             createdUtc = '2026-04-24T00:00:00.0000000Z'
         } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $resultCheckRoot 'manifest.json') -Encoding UTF8
 
+        $latestPairOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-latest-nameplate-pair-{0}' -f ([guid]::NewGuid().ToString('N')))
+        $olderLatestPairRunRoot = Join-Path $latestPairOutputRoot '20260424-010000-nameplate-baseline-zoom'
+        $newerLatestPairRunRoot = Join-Path $latestPairOutputRoot '20260424-020000-nameplate-baseline-zoom'
+        foreach ($latestPairRunRoot in @($olderLatestPairRunRoot, $newerLatestPairRunRoot)) {
+            New-Item -ItemType Directory -Path (Join-Path $latestPairRunRoot 'diffs') -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $latestPairRunRoot 'lead-neighborhoods') -Force | Out-Null
+            Copy-Item -LiteralPath (Join-Path $resultCheckRoot 'samples.ndjson') -Destination (Join-Path $latestPairRunRoot 'samples.ndjson') -Force
+            Copy-Item -LiteralPath (Join-Path $resultCheckRoot 'diffs\screenshot-gate.json') -Destination (Join-Path $latestPairRunRoot 'diffs\screenshot-gate.json') -Force
+            Copy-Item -LiteralPath $defaultLeadNeighborhoodFile -Destination (Join-Path $latestPairRunRoot 'lead-neighborhoods\nameplate-proof-lead-neighborhoods.json') -Force
+            [pscustomobject][ordered]@{
+                mode = 'capture'
+                runLabel = 'nameplate-baseline-zoom'
+                runRoot = $latestPairRunRoot
+                process = [pscustomobject][ordered]@{
+                    name = 'rift_x64'
+                }
+                candidateAddress = $CandidateAddress
+                candidateLength = 1024
+                tooltipText = $NameplateText
+                createdUtc = '2026-04-24T00:00:00.0000000Z'
+            } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $latestPairRunRoot 'manifest.json') -Encoding UTF8
+        }
+        (Get-Item -LiteralPath $olderLatestPairRunRoot).LastWriteTimeUtc = [datetime]'2026-04-24T01:00:00Z'
+        (Get-Item -LiteralPath $newerLatestPairRunRoot).LastWriteTimeUtc = [datetime]'2026-04-24T02:00:00Z'
+
+        $latestPairPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPipelineScript -OutputRoot $latestPairOutputRoot -LatestBaselineZoomPair -PlanOnly -Json 2>&1
+        $latestPairPlanCode = $LASTEXITCODE
+        if ($latestPairPlanCode -ne 0) {
+            throw "Nameplate proof promotion pipeline latest-pair PlanOnly failed with exit code $latestPairPlanCode.`n$($latestPairPlanOutput -join [Environment]::NewLine)"
+        }
+        $latestPairPlan = ($latestPairPlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$latestPairPlan.ok -or [string]$latestPairPlan.mode -ne 'plan-only' -or $null -eq $latestPairPlan.selectedPair) {
+            throw "Nameplate proof promotion pipeline latest-pair PlanOnly did not report the selected pair.`n$($latestPairPlanOutput -join [Environment]::NewLine)"
+        }
+        if ([string]$latestPairPlan.selectedPair.baselineRunRoot -ne $olderLatestPairRunRoot -or [string]$latestPairPlan.selectedPair.reproofRunRoot -ne $newerLatestPairRunRoot) {
+            throw "Nameplate proof promotion pipeline latest-pair PlanOnly selected the wrong baseline/reproof order.`n$($latestPairPlanOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-pipeline-latest-pair-smoke' -Status 'passed' -Detail 'Promotion pipeline can auto-select the latest two gated baseline/zoom proof roots in baseline-then-reproof order.' -Data ([ordered]@{ baselineRunName = $latestPairPlan.selectedPair.baselineRunName; reproofRunName = $latestPairPlan.selectedPair.reproofRunName; selectedPairMode = $latestPairPlan.selectedPair.mode })
+
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
         $proofRunListCode = $LASTEXITCODE
@@ -1039,6 +1080,9 @@ try {
     finally {
         if (Test-Path -LiteralPath $resultCheckRoot) {
             Remove-Item -LiteralPath $resultCheckRoot -Recurse -Force
+        }
+        if (-not [string]::IsNullOrWhiteSpace($latestPairOutputRoot) -and (Test-Path -LiteralPath $latestPairOutputRoot)) {
+            Remove-Item -LiteralPath $latestPairOutputRoot -Recurse -Force
         }
     }
 }
