@@ -107,8 +107,12 @@ try {
     $inspectedCmdWrappers = [System.Collections.Generic.List[object]]::new()
     foreach ($wrapper in $cmdWrappers) {
         $path = Join-Path $PSScriptRoot ([string]$wrapper.Wrapper)
+        $targetPath = Join-Path $PSScriptRoot ([string]$wrapper.Target)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "Missing CMD wrapper: $path"
+        }
+        if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+            throw "CMD wrapper target PowerShell script is missing. Wrapper=$path, Target=$targetPath"
         }
 
         $content = Get-Content -LiteralPath $path -Raw
@@ -135,6 +139,7 @@ try {
         $inspectedCmdWrappers.Add([pscustomobject][ordered]@{
             wrapper = [string]$wrapper.Wrapper
             target = [string]$wrapper.Target
+            targetExists = $true
             echoOff = $true
             setlocalEnableExtensions = $true
             callsSharedLauncher = $true
