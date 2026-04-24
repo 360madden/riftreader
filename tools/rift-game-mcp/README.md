@@ -7,8 +7,10 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `find_game_window`
 - `focus_game_window`
 - `capture_game_window`
+- `capture_inventory_reference`
 - `wait_for_frame_change`
 - `suggest_inventory_region`
+- `validate_config`
 - `click_client`
 - `send_key`
 - `toggle_inventory`
@@ -29,6 +31,8 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - Clicks are **client-area relative**, not desktop-relative.
 - `wait_for_frame_change` can watch the full client area or a narrowed region.
 - Semantic tools read `config/bindings.json` unless you override `keyChord` in the tool call.
+- `validate_config` checks key bindings, inventory reference paths, and whether state-verifying inventory tools are ready.
+- `capture_inventory_reference` saves a visually confirmed bags-open or bags-closed screenshot and can update `bindings.json`.
 - `suggest_inventory_region` can derive the bags-panel region from open/closed reference screenshots and optionally save it back into `config/bindings.json`.
 - `toggle_inventory` verifies that something changed after sending the bags key.
 - `ensure_inventory_open` / `ensure_inventory_closed` only act when inventory state can be verified safely from reference screenshots.
@@ -50,11 +54,10 @@ Edit:
 To use `ensure_inventory_open` / `ensure_inventory_closed`:
 
 1. Bind and focus the Rift window.
-2. Capture one screenshot with bags closed.
-3. Capture one screenshot with bags open.
-4. Save those PNGs somewhere stable.
-5. Set `inventoryVerification.openReferencePath` and `inventoryVerification.closedReferencePath`.
-6. Run `suggest_inventory_region` to derive the exact bags panel area, or set `inventoryVerification.region` manually.
+2. Make sure bags are closed, then run `capture_inventory_reference` with `referenceState: "closed"`.
+3. Open bags, then run `capture_inventory_reference` with `referenceState: "open"`.
+4. Run `suggest_inventory_region` with `saveToBindings: true` to derive the exact bags panel area, or set `inventoryVerification.region` manually.
+5. Run `validate_config` and confirm `canUseInventoryEnsure` is `true`.
 
 The reference screenshots must come from the same client size as the live game window. If the window size changes, capture new references.
 

@@ -13,6 +13,7 @@ Use this skill when the task involves the live Rift client, not static code only
 2. Before any input, call `focus_game_window`.
 3. Call `capture_game_window` to establish a visual baseline.
 4. Prefer semantic tools before raw inputs:
+   - `validate_config` before relying on configured semantic state
    - `ensure_inventory_open`
    - `ensure_inventory_closed`
    - `toggle_inventory`
@@ -30,7 +31,7 @@ Use this skill when the task involves the live Rift client, not static code only
 - Treat semantic bindings as untrusted until confirmed. If `tools/rift-game-mcp/config/bindings.json` is incomplete or likely wrong, pass `keyChord` explicitly.
 - Use client-area coordinates only.
 - Prefer a narrow `wait_for_frame_change` region when the expected change is localized.
-- Use `suggest_inventory_region` after capturing open/closed bags reference screenshots so inventory verification watches only the bags panel.
+- Use `capture_inventory_reference` for clean open/closed bags reference screenshots, then `suggest_inventory_region` so inventory verification watches only the bags panel.
 - If `wait_for_frame_change` returns `changed: false`, stop and inspect before sending more input.
 - If the window title/process looks wrong, re-run `find_game_window` instead of forcing input.
 
@@ -38,6 +39,8 @@ Use this skill when the task involves the live Rift client, not static code only
 
 - Use `capture_game_window` before `click_client` so coordinates are based on the latest screenshot.
 - Use `ensure_inventory_open` or `ensure_inventory_closed` when you need a verified bags state.
+- Use `validate_config` to check whether `ensure_inventory_open` / `ensure_inventory_closed` are ready.
+- Use `capture_inventory_reference` only after visually confirming bags are in the requested open/closed state; it does not toggle bags for you.
 - Use `suggest_inventory_region` before relying on the ensure tools if `inventoryVerification.region` is still null.
 - Use `toggle_inventory` only when the action is intentionally a toggle.
 - Use `open_inventory` or `open_bags` only when you explicitly want the raw key press without state verification.
