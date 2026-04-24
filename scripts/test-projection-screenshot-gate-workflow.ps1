@@ -22,6 +22,8 @@ $proofCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-projection-proo
 $proofCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-projection-proof-runs.cmd'
 $byteWindowCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-proof-byte-windows.ps1'
 $byteWindowCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-proof-byte-windows.cmd'
+$leadExtractorScript = Join-Path $PSScriptRoot 'extract-nameplate-proof-leads.ps1'
+$leadExtractorCmd = Join-Path $PSScriptRoot 'extract-nameplate-proof-leads.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -35,9 +37,10 @@ $psScripts = @(
     'check-nameplate-projection-proof-result.ps1',
     'compare-nameplate-projection-proof-runs.ps1',
     'compare-nameplate-proof-byte-windows.ps1',
+    'extract-nameplate-proof-leads.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 10
+$expectedProjectionPsScriptCount = 11
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -48,9 +51,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'check-nameplate-projection-proof-result.cmd'; Target = 'check-nameplate-projection-proof-result.ps1' },
     [pscustomobject]@{ Wrapper = 'compare-nameplate-projection-proof-runs.cmd'; Target = 'compare-nameplate-projection-proof-runs.ps1' },
     [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-byte-windows.cmd'; Target = 'compare-nameplate-proof-byte-windows.ps1' },
+    [pscustomobject]@{ Wrapper = 'extract-nameplate-proof-leads.cmd'; Target = 'extract-nameplate-proof-leads.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 10
+$expectedProjectionCmdWrapperCount = 11
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -684,6 +688,17 @@ try {
                 candidateAddress = $CandidateAddress
                 windowStart = $CandidateAddress
                 bytesHex = $proofState.Hex
+                tooltipTextHitAddresses = @(
+                    '0X1000',
+                    ('0X{0:X}' -f (0x2000 + $resultRows.Count))
+                )
+                knownTextPointers = @(
+                    [pscustomobject][ordered]@{
+                        tooltipTextAddress = '0X1000'
+                        pointerScanFile = Join-Path $proofStateRoot 'scan-pointer-0x1000.json'
+                        pointerHitAddresses = @('0X9000')
+                    }
+                )
                 files = [pscustomobject][ordered]@{
                     screenshotCapture = $proofCapturePath
                     screenshotOutput = $proofImagePath
@@ -747,6 +762,24 @@ try {
         }
 
         Add-Check -Name 'nameplate-byte-window-comparator-smoke' -Status 'passed' -Detail 'Byte-window comparator accepts a fully gated fixture and reports repeated changing offsets for identical roots.' -Data ([ordered]@{ repeatedChanging = $byteWindow.counts.repeatedChanging; comparedOffsets = $byteWindow.counts.comparedOffsets })
+
+        $leadOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $leadExtractorScript -RunRoot $resultCheckRoot -Json 2>&1
+        $leadCode = $LASTEXITCODE
+        if ($leadCode -ne 0) {
+            throw "Nameplate proof lead extractor failed with exit code $leadCode.`n$($leadOutput -join [Environment]::NewLine)"
+        }
+        $leadResult = ($leadOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        if (-not [bool]$leadResult.ok -or -not [bool]$leadResult.gated.passed) {
+            throw "Nameplate proof lead extractor did not preserve gated proof status.`n$($leadOutput -join [Environment]::NewLine)"
+        }
+        if ([int]$leadResult.textLeadCount -lt 1 -or [int]$leadResult.pointerHitLeadCount -lt 1) {
+            throw "Nameplate proof lead extractor did not report expected text and pointer-hit leads.`n$($leadOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($leadResult.pointerHitLeads | Where-Object { $_.address -eq '0X9000' -and [int]$_.stateCount -eq 4 })) {
+            throw "Nameplate proof lead extractor did not aggregate repeated pointer-hit lead 0X9000 across four states.`n$($leadOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-lead-extractor-smoke' -Status 'passed' -Detail 'Lead extractor aggregates repeated text and pointer-hit leads from a fully gated fixture.' -Data ([ordered]@{ textLeadCount = $leadResult.textLeadCount; pointerHitLeadCount = $leadResult.pointerHitLeadCount })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

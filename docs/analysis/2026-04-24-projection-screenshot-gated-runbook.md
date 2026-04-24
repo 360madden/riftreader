@@ -240,6 +240,19 @@ Use this when a candidate cluster fails to repeat. It separates
 `repeated-changing`, `baseline-only-change`, `reproof-only-change`, and
 `changed-in-both-different` offsets across the same gated state sequence.
 
+To pivot from a failed byte window to text/pointer-owner leads, extract the
+proof's text-hit and pointer-hit roots:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\extract-nameplate-proof-leads.ps1" `
+  -RunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom" `
+  -Json
+```
+
+Use the ranked `pointerHitLeads` and `textLeads` as follow-up roots for owner
+neighborhood or pointer-chain capture. The extractor requires a passed
+screenshot/sequence gate unless `-AllowUngated` is explicitly set.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -295,6 +308,8 @@ It checks:
   fixture to verify repeated candidate offset reporting
 - `compare-nameplate-proof-byte-windows.ps1` against a generated fully gated
   fixture to verify repeated raw byte-window change reporting
+- `extract-nameplate-proof-leads.ps1` against a generated fully gated fixture
+  to verify text-hit and pointer-hit lead aggregation
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
