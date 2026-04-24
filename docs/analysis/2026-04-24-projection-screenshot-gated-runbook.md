@@ -187,11 +187,18 @@ It checks:
 
 - PowerShell parse for the projection helper scripts
 - `RiftWindowCapture.csproj` build
-- `run-nameplate-projection-proof.ps1 -PlanOnly -Json`
+- `run-nameplate-projection-proof.ps1 -PlanOnly -Json`, including key-argument
+  preservation and no-artifact behavior
+- `run-nameplate-projection-proof.cmd -PlanOnly -Json`, unless
+  `-SkipCmdWrapperSmoke` is set, including key-argument preservation and
+  no-artifact behavior
 - existing screenshot-gated smoke artifact with analyzer `-RequireVisualGate`, if present
+- fail-closed analyzer behavior when `-RequireVisualGate` is used without
+  screenshot captures
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
-smoke artifacts.
+smoke artifacts. The fail-closed negative smoke is generated under the system
+temp directory and does not depend on local ignored artifacts.
 
 ## CMD wrappers
 
@@ -215,12 +222,27 @@ Example:
 scripts\run-nameplate-projection-proof.cmd -CandidateAddress 0x12CFC40B7D0 -NameplateText "Atank of Sanctum" -PlanOnly -Json
 ```
 
-## Validator covers CMD wrappers
+The `.cmd` wrapper path is intended for ordinary shell-safe values such as
+addresses and nameplate text with spaces. For unusual literal shell metacharacters
+or embedded quote characters, prefer the `.ps1` wrapper from PowerShell so
+argument boundaries are explicit.
 
-`test-projection-screenshot-gate-workflow.ps1` now also verifies the CMD wrapper layer:
+## Validator covers wrapper arguments
 
+`test-projection-screenshot-gate-workflow.ps1` now also verifies wrapper argument
+preservation:
+
+- runs `run-nameplate-projection-proof.ps1 -PlanOnly -Json`
+- verifies the PowerShell wrapper preserves the planned `CandidateAddress` and
+  `NameplateText` values
+- verifies the PowerShell wrapper keeps `mode=plan-only`, `controlsInput=false`,
+  and creates no run artifacts
 - inspects all seven projection `.cmd` wrappers for the repo-standard `_run-pwsh.cmd` launcher
 - runs `run-nameplate-projection-proof.cmd -PlanOnly -Json` unless `-SkipCmdWrapperSmoke` is set
+- verifies the CMD wrapper preserves the planned `CandidateAddress` and
+  `NameplateText` values for the normal nameplate proof command
+- verifies the CMD wrapper keeps `mode=plan-only`, `controlsInput=false`, and
+  creates no run artifacts
 
 Use `-SkipCmdWrapperSmoke` only when `cmd.exe` is unavailable or when validating purely inside PowerShell-hosted automation.
 
@@ -239,6 +261,7 @@ Result: `ok=true`.
 | PowerShell parse | Passed for 6 scripts. |
 | CMD wrapper inspection | Passed for 7 wrappers. |
 | Capture project build | Passed. |
-| PowerShell nameplate wrapper plan | Passed. |
-| CMD nameplate wrapper plan | Passed. |
+| PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
+| CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |
+| Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |

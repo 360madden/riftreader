@@ -94,7 +94,8 @@ try {
         Add-Check -Name 'capture-project-build' -Status 'skipped' -Detail 'SkipBuild was set.'
     }
 
-    $planOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -PlanOnly -Json 2>&1
+    $planOnlyOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-planonly-{0}' -f ([guid]::NewGuid().ToString('N')))
+    $planOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $planOnlyOutputRoot -PlanOnly -Json 2>&1
     $planCode = $LASTEXITCODE
     if ($planCode -ne 0) {
         throw "Wrapper plan-only failed with exit code $planCode`n$($planOutput -join [Environment]::NewLine)"
@@ -103,12 +104,20 @@ try {
     if (-not [bool]$plan.captureScreenshot -or -not [bool]$plan.requireUsableScreenshot -or -not [bool]$plan.analyzeAfterCapture -or -not [bool]$plan.analyzerRequireVisualGate) {
         throw 'Wrapper plan did not preserve required screenshot/analyzer gates.'
     }
-    Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture and fail-closed analysis defaults.' -Data $plan
+    if ([string]$plan.tooltipText -ne $NameplateText -or [string]$plan.candidateAddress -ne $CandidateAddress) {
+        throw "Wrapper plan did not preserve key arguments. Expected CandidateAddress=$CandidateAddress, NameplateText='$NameplateText'; got CandidateAddress=$($plan.candidateAddress), NameplateText='$($plan.tooltipText)'."
+    }
+    if ([string]$plan.mode -ne 'plan-only' -or [bool]$plan.controlsInput) {
+        throw "Wrapper plan did not preserve plan-only/no-input semantics. mode=$($plan.mode), controlsInput=$($plan.controlsInput)."
+    }
+    if ((Test-Path -LiteralPath $planOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$plan.runRoot))) {
+        throw "Wrapper PlanOnly unexpectedly created artifacts. OutputRoot=$planOnlyOutputRoot, RunRoot=$($plan.runRoot)."
+    }
+    Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture, fail-closed analysis defaults, key arguments, and plan-only no-artifact behavior.' -Data $plan
 
     if (-not $SkipCmdWrapperSmoke) {
-        $escapedNameplateText = $NameplateText.Replace('"', '\"')
-        $cmdLine = '"{0}" -CandidateAddress {1} -NameplateText "{2}" -PlanOnly -Json' -f $wrapperCmd, $CandidateAddress, $escapedNameplateText
-        $cmdOutput = & cmd.exe /d /c $cmdLine 2>&1
+        $cmdPlanOnlyOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-cmd-planonly-{0}' -f ([guid]::NewGuid().ToString('N')))
+        $cmdOutput = & $wrapperCmd -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $cmdPlanOnlyOutputRoot -PlanOnly -Json 2>&1
         $cmdCode = $LASTEXITCODE
         if ($cmdCode -ne 0) {
             throw "CMD wrapper plan-only failed with exit code $cmdCode`n$($cmdOutput -join [Environment]::NewLine)"
@@ -118,7 +127,16 @@ try {
         if (-not [bool]$cmdPlan.captureScreenshot -or -not [bool]$cmdPlan.requireUsableScreenshot -or -not [bool]$cmdPlan.analyzeAfterCapture -or -not [bool]$cmdPlan.analyzerRequireVisualGate) {
             throw 'CMD wrapper plan did not preserve required screenshot/analyzer gates.'
         }
-        Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'passed' -Detail 'CMD wrapper preserved screenshot-gated capture and fail-closed analysis defaults.' -Data $cmdPlan
+        if ([string]$cmdPlan.tooltipText -ne $NameplateText -or [string]$cmdPlan.candidateAddress -ne $CandidateAddress) {
+            throw "CMD wrapper plan did not preserve key arguments. Expected CandidateAddress=$CandidateAddress, NameplateText='$NameplateText'; got CandidateAddress=$($cmdPlan.candidateAddress), NameplateText='$($cmdPlan.tooltipText)'."
+        }
+        if ([string]$cmdPlan.mode -ne 'plan-only' -or [bool]$cmdPlan.controlsInput) {
+            throw "CMD wrapper plan did not preserve plan-only/no-input semantics. mode=$($cmdPlan.mode), controlsInput=$($cmdPlan.controlsInput)."
+        }
+        if ((Test-Path -LiteralPath $cmdPlanOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$cmdPlan.runRoot))) {
+            throw "CMD wrapper PlanOnly unexpectedly created artifacts. OutputRoot=$cmdPlanOnlyOutputRoot, RunRoot=$($cmdPlan.runRoot)."
+        }
+        Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'passed' -Detail 'CMD wrapper preserved screenshot-gated capture, fail-closed analysis defaults, key arguments, and plan-only no-artifact behavior.' -Data $cmdPlan
     }
     else {
         Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'skipped' -Detail 'SkipCmdWrapperSmoke was set.'
@@ -139,6 +157,50 @@ try {
     }
     else {
         Add-Check -Name 'analyzer-visual-gate-smoke' -Status 'skipped' -Detail 'Smoke artifact missing or SkipArtifactSmoke was set.'
+    }
+
+    $negativeSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-no-screenshot-{0}' -f ([guid]::NewGuid().ToString('N')))
+    New-Item -ItemType Directory -Path $negativeSmokeRoot -Force | Out-Null
+    try {
+        $negativeRows = @(
+            [pscustomobject][ordered]@{
+                state = 'baseline'
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0000000000000000'
+            },
+            [pscustomobject][ordered]@{
+                state = 'active'
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0100000000000000'
+            }
+        )
+        $negativeRows | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $negativeSmokeRoot 'samples.ndjson') -Encoding UTF8
+
+        $negativeOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $analyzerScript -InputDirectory $negativeSmokeRoot -BaselineStateRegex '^baseline' -ActiveStateRegex '^active' -BaselineLabel baseline -ActiveLabel active -RequireVisualGate -Json 2>&1
+        $negativeCode = $LASTEXITCODE
+        if ($negativeCode -eq 0) {
+            throw "Analyzer RequireVisualGate unexpectedly passed without screenshot captures.`n$($negativeOutput -join [Environment]::NewLine)"
+        }
+
+        $negativeScreenshotGatePath = Join-Path $negativeSmokeRoot 'diffs\screenshot-gate.json'
+        if (-not (Test-Path -LiteralPath $negativeScreenshotGatePath -PathType Leaf)) {
+            throw "Analyzer RequireVisualGate failed before writing screenshot-gate evidence.`n$($negativeOutput -join [Environment]::NewLine)"
+        }
+
+        $negativeScreenshotGate = Get-Content -LiteralPath $negativeScreenshotGatePath -Raw | ConvertFrom-Json -Depth 32
+        $negativeStatus = [string]$negativeScreenshotGate.screenshotGate.visualGateStatus
+        if ($negativeStatus -ne 'not-captured') {
+            throw "Analyzer RequireVisualGate failed with unexpected visualGateStatus=$negativeStatus.`n$($negativeOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'analyzer-visual-gate-negative-smoke' -Status 'passed' -Detail 'Analyzer RequireVisualGate fails closed when samples do not include screenshot captures.' -Data ([ordered]@{ visualGateStatus = $negativeStatus; screenshotGateEvidenceParsed = $true })
+    }
+    finally {
+        if (Test-Path -LiteralPath $negativeSmokeRoot) {
+            Remove-Item -LiteralPath $negativeSmokeRoot -Recurse -Force
+        }
     }
 }
 catch {

@@ -143,6 +143,7 @@ Start from:
 
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-24-projection-screenshot-gated-runbook.md`
   - screenshot-gated tooltip/nameplate projection capture and fail-closed
-    analyzer flow for the `navigation` branch.
+    analyzer flow for the `navigation` branch, including wrapper argument and
+    plan-only safety validation.
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-24-navigation-projection-branch-review-manifest.md`
   - staging/cleanup manifest for the current projection helper branch work.
