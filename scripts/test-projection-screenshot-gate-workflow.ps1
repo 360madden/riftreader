@@ -74,6 +74,26 @@ try {
         throw "Missing shared CMD launcher: $cmdLauncher"
     }
 
+    $launcherContent = Get-Content -LiteralPath $cmdLauncher -Raw
+    if ($launcherContent -notmatch '(?m)^@echo off\s*$') {
+        throw "Shared CMD launcher is missing '@echo off': $cmdLauncher"
+    }
+    if ($launcherContent -notmatch '(?m)^setlocal EnableExtensions\s*$') {
+        throw "Shared CMD launcher is missing 'setlocal EnableExtensions': $cmdLauncher"
+    }
+    if ($launcherContent -notmatch '(?m)^set\s+"SCRIPT_PATH=%RIFTREADER_PS1%"\s*$') {
+        throw "Shared CMD launcher does not read RIFTREADER_PS1 into SCRIPT_PATH: $cmdLauncher"
+    }
+    if ($launcherContent -notmatch '(?m)^where /q pwsh && set "PWSH_EXE=pwsh"\s*$') {
+        throw "Shared CMD launcher does not prefer pwsh from PATH: $cmdLauncher"
+    }
+    if ($launcherContent -notmatch [regex]::Escape('"%PWSH_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_PATH%" %*')) {
+        throw "Shared CMD launcher does not invoke PowerShell with the expected flags and argument pass-through: $cmdLauncher"
+    }
+    if ($launcherContent -notmatch '(?m)^exit /b %errorlevel%\s*$') {
+        throw "Shared CMD launcher does not propagate PowerShell exit code: $cmdLauncher"
+    }
+
     $inspectedCmdWrappers = [System.Collections.Generic.List[object]]::new()
     foreach ($wrapper in $cmdWrappers) {
         $path = Join-Path $PSScriptRoot ([string]$wrapper.Wrapper)

@@ -239,7 +239,9 @@ preservation:
   `NameplateText` values
 - verifies the PowerShell wrapper keeps `mode=plan-only`, `controlsInput=false`,
   and creates no run artifacts
-- verifies the shared repo-standard `scripts\_run-pwsh.cmd` launcher exists
+- verifies the shared repo-standard `scripts\_run-pwsh.cmd` launcher exists and
+  preserves the expected `RIFTREADER_PS1` handoff, PowerShell 7 discovery,
+  execution flags, argument pass-through, and exit-code propagation
 - inspects all seven projection `.cmd` wrappers for the shared launcher call and
   expected `.ps1` target
 - verifies each projection `.cmd` wrapper preserves the standard wrapper shape:
@@ -272,7 +274,7 @@ Result: `ok=true`.
 | Check | Result |
 |---|---|
 | PowerShell parse | Passed for 7 scripts. |
-| CMD wrapper inspection | Passed for shared launcher plus 7 wrappers, including wrapper-shape, launcher-call, target-script, argument pass-through, and exit-code checks. |
+| CMD wrapper inspection | Passed for shared launcher plus 7 wrappers, including shared launcher contract, wrapper-shape, launcher-call, target-script, argument pass-through, and exit-code checks. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
