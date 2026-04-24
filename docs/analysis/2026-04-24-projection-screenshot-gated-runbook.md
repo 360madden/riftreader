@@ -240,6 +240,9 @@ preservation:
 - verifies the shared repo-standard `scripts\_run-pwsh.cmd` launcher exists
 - inspects all seven projection `.cmd` wrappers for the shared launcher call and
   expected `.ps1` target
+- verifies each projection `.cmd` wrapper preserves the standard wrapper shape:
+  `@echo off`, `setlocal EnableExtensions`, argument pass-through, and launcher
+  exit-code propagation
 - runs `run-nameplate-projection-proof.cmd -PlanOnly -Json` unless `-SkipCmdWrapperSmoke` is set
 - verifies the CMD wrapper preserves the planned `CandidateAddress` and
   `NameplateText` values for the normal nameplate proof command
@@ -261,7 +264,7 @@ Result: `ok=true`.
 | Check | Result |
 |---|---|
 | PowerShell parse | Passed for 7 scripts. |
-| CMD wrapper inspection | Passed for shared launcher plus 7 wrappers, including launcher-call and target-script checks. |
+| CMD wrapper inspection | Passed for shared launcher plus 7 wrappers, including wrapper-shape, launcher-call, target-script, argument pass-through, and exit-code checks. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |

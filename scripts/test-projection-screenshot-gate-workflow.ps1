@@ -80,8 +80,20 @@ try {
         }
 
         $content = Get-Content -LiteralPath $path -Raw
+        if ($content -notmatch '(?m)^@echo off\s*$') {
+            throw "CMD wrapper is missing '@echo off': $path"
+        }
+        if ($content -notmatch '(?m)^setlocal EnableExtensions\s*$') {
+            throw "CMD wrapper is missing 'setlocal EnableExtensions': $path"
+        }
         if ($content -notmatch '_run-pwsh\.cmd') {
             throw "CMD wrapper does not call _run-pwsh.cmd: $path"
+        }
+        if ($content -notmatch '(?m)^call\s+"%~dp0_run-pwsh\.cmd"\s+%\*\s*$') {
+            throw "CMD wrapper does not pass through arguments via the shared launcher: $path"
+        }
+        if ($content -notmatch '(?m)^exit /b %errorlevel%\s*$') {
+            throw "CMD wrapper does not propagate shared launcher exit code: $path"
         }
         $escapedTarget = [regex]::Escape([string]$wrapper.Target)
         if ($content -notmatch ('set\s+"RIFTREADER_PS1=%~dp0{0}"' -f $escapedTarget)) {
