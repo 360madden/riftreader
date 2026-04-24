@@ -15,6 +15,7 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $captureProject = Join-Path $repoRoot 'tools\rift-window-capture\RiftWindowCapture.csproj'
 $wrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $wrapperCmd = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.cmd'
+$cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
 $psScripts = @(
     'capture-rift-window-wgc.ps1',
@@ -66,6 +67,11 @@ try {
     }
     Add-Check -Name 'powershell-parse' -Status 'passed' -Detail ('Parsed {0} scripts.' -f $psScripts.Count)
 
+    if (-not (Test-Path -LiteralPath $cmdLauncher -PathType Leaf)) {
+        throw "Missing shared CMD launcher: $cmdLauncher"
+    }
+
+    $inspectedCmdWrappers = [System.Collections.Generic.List[object]]::new()
     foreach ($wrapper in $cmdWrappers) {
         $path = Join-Path $PSScriptRoot ([string]$wrapper.Wrapper)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -80,8 +86,13 @@ try {
         if ($content -notmatch ('set\s+"RIFTREADER_PS1=%~dp0{0}"' -f $escapedTarget)) {
             throw "CMD wrapper does not target expected PowerShell script. Wrapper=$path, ExpectedTarget=$($wrapper.Target)"
         }
+
+        $inspectedCmdWrappers.Add([pscustomobject][ordered]@{
+            wrapper = [string]$wrapper.Wrapper
+            target = [string]$wrapper.Target
+        }) | Out-Null
     }
-    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers.' -f $cmdWrappers.Count)
+    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; wrappers = @($inspectedCmdWrappers) })
 
     if (-not (Test-Path -LiteralPath $captureProject -PathType Leaf)) {
         throw "Missing capture project: $captureProject"
