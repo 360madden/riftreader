@@ -343,6 +343,20 @@ does not create artifacts. The pipeline keeps `controlsInput=false`; when
 capture for missing neighborhood artifacts, but still does not focus, click,
 type, or move.
 
+To inventory the available nameplate proof roots before choosing baseline and
+reproof inputs:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\list-nameplate-proof-runs.ps1" `
+  -RequireGated `
+  -Top 10 `
+  -Json
+```
+
+The inventory reports each run's screenshot/sequence gate status, sample state
+sequence, lead-neighborhood presence, promotion-packet presence, and
+`promotionReady` value when a packet exists.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -412,6 +426,8 @@ It checks:
 - `run-nameplate-proof-promotion-pipeline.ps1` against generated captured
   neighborhood fixtures to verify plan-only no-side-effect behavior and packet
   creation from existing neighborhood artifacts
+- `list-nameplate-proof-runs.ps1` against a generated gated proof fixture to
+  verify proof-run inventory with lead-neighborhood and promotion-packet status
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -450,6 +466,7 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | `scripts\compare-nameplate-proof-lead-neighborhoods.cmd` | `compare-nameplate-proof-lead-neighborhoods.ps1` |
 | `scripts\write-nameplate-proof-promotion-packet.cmd` | `write-nameplate-proof-promotion-packet.ps1` |
 | `scripts\run-nameplate-proof-promotion-pipeline.cmd` | `run-nameplate-proof-promotion-pipeline.ps1` |
+| `scripts\list-nameplate-proof-runs.cmd` | `list-nameplate-proof-runs.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
 | `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
@@ -520,8 +537,8 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for expected 15 scripts with 15 unique entries. |
-| CMD wrapper inspection | Passed for expected 15 projection wrappers with 15 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 16 scripts with 16 unique entries. |
+| CMD wrapper inspection | Passed for expected 16 projection wrappers with 16 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
@@ -533,6 +550,7 @@ Result: `ok=true`.
 | Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
 | Promotion-packet negative smoke | Passed by failing closed and leaving no packet when repeated-root thresholds were not met. |
 | Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
+| Proof-run inventory smoke | Passed with gated proof root, lead-neighborhood status, and promotion-packet status reporting. |
 
 The aggregate branch validator was also run:
 
@@ -540,5 +558,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `25/25`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `26/26`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

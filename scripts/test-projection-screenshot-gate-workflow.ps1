@@ -32,6 +32,8 @@ $promotionPacketScript = Join-Path $PSScriptRoot 'write-nameplate-proof-promotio
 $promotionPacketCmd = Join-Path $PSScriptRoot 'write-nameplate-proof-promotion-packet.cmd'
 $promotionPipelineScript = Join-Path $PSScriptRoot 'run-nameplate-proof-promotion-pipeline.ps1'
 $promotionPipelineCmd = Join-Path $PSScriptRoot 'run-nameplate-proof-promotion-pipeline.cmd'
+$proofRunListScript = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.ps1'
+$proofRunListCmd = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -50,9 +52,10 @@ $psScripts = @(
     'compare-nameplate-proof-lead-neighborhoods.ps1',
     'write-nameplate-proof-promotion-packet.ps1',
     'run-nameplate-proof-promotion-pipeline.ps1',
+    'list-nameplate-proof-runs.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 15
+$expectedProjectionPsScriptCount = 16
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -68,9 +71,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-lead-neighborhoods.cmd'; Target = 'compare-nameplate-proof-lead-neighborhoods.ps1' },
     [pscustomobject]@{ Wrapper = 'write-nameplate-proof-promotion-packet.cmd'; Target = 'write-nameplate-proof-promotion-packet.ps1' },
     [pscustomobject]@{ Wrapper = 'run-nameplate-proof-promotion-pipeline.cmd'; Target = 'run-nameplate-proof-promotion-pipeline.ps1' },
+    [pscustomobject]@{ Wrapper = 'list-nameplate-proof-runs.cmd'; Target = 'list-nameplate-proof-runs.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 15
+$expectedProjectionCmdWrapperCount = 16
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -952,6 +956,31 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-promotion-pipeline-smoke' -Status 'passed' -Detail 'Promotion pipeline plans without input/attach side effects and writes a promotion packet from existing lead-neighborhood artifacts.' -Data ([ordered]@{ planOnlyNoAttach = $true; wrotePacket = $promotionPipeline.packet.wrotePacket; outputFileExists = $true })
+
+        $defaultLeadNeighborhoodDirectory = Join-Path $resultCheckRoot 'lead-neighborhoods'
+        New-Item -ItemType Directory -Path $defaultLeadNeighborhoodDirectory -Force | Out-Null
+        $defaultLeadNeighborhoodFile = Join-Path $defaultLeadNeighborhoodDirectory 'nameplate-proof-lead-neighborhoods.json'
+        $defaultPromotionPacketFile = Join-Path $defaultLeadNeighborhoodDirectory 'nameplate-proof-promotion-packet.json'
+        $syntheticNeighborhood | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $defaultLeadNeighborhoodFile -Encoding UTF8
+        [pscustomobject][ordered]@{
+            mode = 'nameplate-proof-promotion-packet'
+            ok = $true
+            promotionReady = $true
+        } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $defaultPromotionPacketFile -Encoding UTF8
+
+        $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
+        $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
+        $proofRunListCode = $LASTEXITCODE
+        if ($proofRunListCode -ne 0) {
+            throw "Nameplate proof run inventory failed with exit code $proofRunListCode.`n$($proofRunListOutput -join [Environment]::NewLine)"
+        }
+        $proofRunList = ($proofRunListOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        $listedFixtureRun = @($proofRunList.runs | Where-Object { $_.runRoot -eq $resultCheckRoot }) | Select-Object -First 1
+        if ($null -eq $listedFixtureRun -or -not [bool]$listedFixtureRun.gated.passed -or -not [bool]$listedFixtureRun.hasLeadNeighborhood -or -not [bool]$listedFixtureRun.hasPromotionPacket -or -not [bool]$listedFixtureRun.promotionReady) {
+            throw "Nameplate proof run inventory did not report the gated fixture with lead-neighborhood and promotion packet status.`n$($proofRunListOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-run-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory lists gated nameplate proof roots with lead-neighborhood and promotion-packet status.' -Data ([ordered]@{ returnedRuns = $proofRunList.returnedRuns; fixtureGated = $listedFixtureRun.gated.passed; hasLeadNeighborhood = $listedFixtureRun.hasLeadNeighborhood; promotionReady = $listedFixtureRun.promotionReady })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
