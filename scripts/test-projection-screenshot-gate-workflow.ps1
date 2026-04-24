@@ -1025,6 +1025,24 @@ try {
 
         Add-Check -Name 'nameplate-proof-promotion-pipeline-latest-pair-smoke' -Status 'passed' -Detail 'Promotion pipeline can auto-select the latest two gated baseline/zoom proof roots in baseline-then-reproof order while preserving PlanOnly no-attach semantics.' -Data ([ordered]@{ baselineRunName = $latestPairPlan.selectedPair.baselineRunName; reproofRunName = $latestPairPlan.selectedPair.reproofRunName; selectedPairMode = $latestPairPlan.selectedPair.mode; planOnlyAttachesToProcess = $false })
 
+        $latestPairPlannerOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $latestPairOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $latestPairPlannerCode = $LASTEXITCODE
+        if ($latestPairPlannerCode -ne 0) {
+            throw "Nameplate proof promotion planner latest-pair fixture failed with exit code $latestPairPlannerCode.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+        }
+        $latestPairPlanner = ($latestPairPlannerOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$latestPairPlanner.readyForPipeline -or -not [bool]$latestPairPlanner.readyForPromotionCompare) {
+            throw "Nameplate proof promotion planner did not mark the two-run latest-pair fixture ready for promotion compare.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+        }
+        if ([string]$latestPairPlanner.selectedBaselineRun.runRoot -ne $olderLatestPairRunRoot -or [string]$latestPairPlanner.selectedReproofRun.runRoot -ne $newerLatestPairRunRoot) {
+            throw "Nameplate proof promotion planner selected the wrong baseline/reproof order for latest-pair fixture.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($latestPairPlanner.recommendedCommands | Where-Object { $_.name -eq 'promotion-pipeline-latest-pair-plan' })) {
+            throw "Nameplate proof promotion planner did not recommend latest-pair pipeline plan for two-run fixture.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-planner-latest-pair-smoke' -Status 'passed' -Detail 'Promotion planner selects previous gated baseline/zoom proof as baseline, newest as reproof, and recommends the latest-pair pipeline when two proofs exist.' -Data ([ordered]@{ readyForPromotionCompare = $latestPairPlanner.readyForPromotionCompare; selectedBaseline = $latestPairPlanner.selectedBaselineRun.name; selectedReproof = $latestPairPlanner.selectedReproofRun.name })
+
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
         $proofRunListCode = $LASTEXITCODE

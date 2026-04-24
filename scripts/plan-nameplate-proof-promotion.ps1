@@ -87,13 +87,14 @@ $missingNeighborhoodRuns = @($baselineZoomRuns | Where-Object { -not [bool]$_.ha
 $proofSeedSourceRun = if ($baselineZoomRuns.Count -gt 0) { $baselineZoomRuns[0] } else { $null }
 $proofSeed = Get-RunProofSeed -Run $proofSeedSourceRun
 
-$baselineRun = if ($neighborhoodRuns.Count -gt 0) { $neighborhoodRuns[0] } else { $null }
+$baselineRun = $null
 $reproofRun = $null
-if ($neighborhoodRuns.Count -ge 2) {
-    $reproofRun = $neighborhoodRuns[1]
+if ($baselineZoomRuns.Count -ge 2) {
+    $reproofRun = $baselineZoomRuns[0]
+    $baselineRun = $baselineZoomRuns[1]
 }
-elseif ($missingNeighborhoodRuns.Count -gt 0) {
-    $reproofRun = $missingNeighborhoodRuns[0]
+elseif ($baselineZoomRuns.Count -eq 1) {
+    $baselineRun = $baselineZoomRuns[0]
 }
 
 $readyForPipeline = ($null -ne $baselineRun -and $null -ne $reproofRun)
@@ -104,6 +105,9 @@ if ($baselineZoomRuns.Count -lt 2) {
 }
 if ($null -eq $baselineRun) {
     $missingEvidence.Add('need-at-least-one-gated-nameplate-run-with-lead-neighborhood') | Out-Null
+}
+if ($null -ne $baselineRun -and -not [bool]$baselineRun.hasLeadNeighborhood) {
+    $missingEvidence.Add('baseline-run-needs-lead-neighborhood-capture') | Out-Null
 }
 if ($null -ne $reproofRun -and -not [bool]$reproofRun.hasLeadNeighborhood) {
     $missingEvidence.Add('reproof-run-needs-lead-neighborhood-capture') | Out-Null
@@ -118,14 +122,30 @@ $recommendedCommands.Add([pscustomobject][ordered]@{
     command = New-CommandString -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $inventoryScript, '-OutputRoot', $resolvedOutputRoot, '-RequireGated', '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json')
 }) | Out-Null
 
-if ($null -ne $reproofRun -and -not [bool]$reproofRun.hasLeadNeighborhood) {
-    $recommendedCommands.Add([pscustomobject][ordered]@{
-        name = 'capture-reproof-lead-neighborhood'
-        command = New-CommandString -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $captureNeighborhoodScript, '-RunRoot', [string]$reproofRun.runRoot, '-Json')
-    }) | Out-Null
+foreach ($captureTarget in @(
+    [pscustomobject]@{ Name = 'capture-baseline-lead-neighborhood'; Run = $baselineRun },
+    [pscustomobject]@{ Name = 'capture-reproof-lead-neighborhood'; Run = $reproofRun }
+)) {
+    if ($null -ne $captureTarget.Run -and -not [bool]$captureTarget.Run.hasLeadNeighborhood) {
+        $recommendedCommands.Add([pscustomobject][ordered]@{
+            name = [string]$captureTarget.Name
+            command = New-CommandString -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $captureNeighborhoodScript, '-RunRoot', [string]$captureTarget.Run.runRoot, '-Json')
+        }) | Out-Null
+    }
 }
 
 if ($readyForPipeline) {
+    $latestPairParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $promotionPipelineScript, '-OutputRoot', $resolvedOutputRoot, '-LatestBaselineZoomPair', '-CaptureMissingNeighborhoods', '-MinRepeatedRootCount', $MinRepeatedRootCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-MinRepeatedEdgeCount', $MinRepeatedEdgeCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-PlanOnly', '-Json')
+    $recommendedCommands.Add([pscustomobject][ordered]@{
+        name = 'promotion-pipeline-latest-pair-plan'
+        command = New-CommandString -Parts $latestPairParts
+    }) | Out-Null
+
+    $recommendedCommands.Add([pscustomobject][ordered]@{
+        name = 'promotion-pipeline-latest-pair-run'
+        command = New-CommandString -Parts @($latestPairParts | Where-Object { $_ -ne '-PlanOnly' })
+    }) | Out-Null
+
     $pipelineParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $promotionPipelineScript, '-BaselineRunRoot', [string]$baselineRun.runRoot, '-ReproofRunRoot', [string]$reproofRun.runRoot, '-CaptureMissingNeighborhoods', '-MinRepeatedRootCount', $MinRepeatedRootCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-MinRepeatedEdgeCount', $MinRepeatedEdgeCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-PlanOnly', '-Json')
     $recommendedCommands.Add([pscustomobject][ordered]@{
         name = 'promotion-pipeline-plan'
