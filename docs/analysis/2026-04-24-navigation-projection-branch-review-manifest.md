@@ -153,7 +153,7 @@ Latest checkpoint validation passed with no skips:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1" -Json
 ```
 
-Result: `ok=true`; parser, shared CMD launcher contract, CMD wrapper
+Result: `ok=true`; parser, machine-readable shared CMD launcher contract, CMD wrapper
 shape/launcher/target inspection, capture project build,
 PowerShell wrapper plan, CMD wrapper plan, wrapper key-argument preservation,
 plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed

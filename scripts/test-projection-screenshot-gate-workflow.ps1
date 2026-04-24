@@ -94,6 +94,16 @@ try {
         throw "Shared CMD launcher does not propagate PowerShell exit code: $cmdLauncher"
     }
 
+    $launcherContract = [ordered]@{
+        echoOff = $true
+        setlocalEnableExtensions = $true
+        readsRiftReaderPs1 = $true
+        prefersPwshFromPath = $true
+        usesNoLogoNoProfileExecutionPolicyBypass = $true
+        passesArgumentsThrough = $true
+        propagatesExitCode = $true
+    }
+
     $inspectedCmdWrappers = [System.Collections.Generic.List[object]]::new()
     foreach ($wrapper in $cmdWrappers) {
         $path = Join-Path $PSScriptRoot ([string]$wrapper.Wrapper)
@@ -125,9 +135,14 @@ try {
         $inspectedCmdWrappers.Add([pscustomobject][ordered]@{
             wrapper = [string]$wrapper.Wrapper
             target = [string]$wrapper.Target
+            echoOff = $true
+            setlocalEnableExtensions = $true
+            callsSharedLauncher = $true
+            passesArgumentsThrough = $true
+            propagatesExitCode = $true
         }) | Out-Null
     }
-    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; wrappers = @($inspectedCmdWrappers) })
+    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; wrappers = @($inspectedCmdWrappers) })
 
     if (-not (Test-Path -LiteralPath $captureProject -PathType Leaf)) {
         throw "Missing capture project: $captureProject"
