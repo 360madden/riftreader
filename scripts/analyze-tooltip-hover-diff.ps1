@@ -722,9 +722,9 @@ function Get-ClassificationForView {
     param(
         [Parameter(Mandatory = $true)][string]$View,
         [Parameter(Mandatory = $true)][int]$Offset,
-        [Parameter(Mandatory = $true)][object[]]$HiddenValues,
-        [Parameter(Mandatory = $true)][object[]]$HoverValues,
-        [Parameter(Mandatory = $true)][object[]]$AllValues,
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][object[]]$HiddenValues,
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][object[]]$HoverValues,
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][object[]]$AllValues,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][uint64[]]$KnownTextPointers,
         [Parameter(Mandatory = $true)]$TransitionStats,
         [Parameter(Mandatory = $true)][int]$HiddenCount,
@@ -933,9 +933,23 @@ for ($offset = 0; $offset -lt $windowLength; $offset++) {
         if (($view -eq 'uint16') -and ($offset % 2) -ne 0) { continue }
         if (($view -eq 'int32' -or $view -eq 'float32') -and ($offset % 4) -ne 0) { continue }
 
-        $hiddenValues = @($hiddenSamples | ForEach-Object { Read-ViewValue -Bytes $_.Bytes -Offset $offset -View $view })
-        $hoverValues = @($hoverSamples | ForEach-Object { Read-ViewValue -Bytes $_.Bytes -Offset $offset -View $view })
-        $allValues = @($samples | ForEach-Object { Read-ViewValue -Bytes $_.Bytes -Offset $offset -View $view })
+        $hiddenValueList = [System.Collections.Generic.List[object]]::new()
+        foreach ($sample in $hiddenSamples) {
+            $hiddenValueList.Add((Read-ViewValue -Bytes $sample.Bytes -Offset $offset -View $view)) | Out-Null
+        }
+        [object[]]$hiddenValues = $hiddenValueList.ToArray()
+
+        $hoverValueList = [System.Collections.Generic.List[object]]::new()
+        foreach ($sample in $hoverSamples) {
+            $hoverValueList.Add((Read-ViewValue -Bytes $sample.Bytes -Offset $offset -View $view)) | Out-Null
+        }
+        [object[]]$hoverValues = $hoverValueList.ToArray()
+
+        $allValueList = [System.Collections.Generic.List[object]]::new()
+        foreach ($sample in $samples) {
+            $allValueList.Add((Read-ViewValue -Bytes $sample.Bytes -Offset $offset -View $view)) | Out-Null
+        }
+        [object[]]$allValues = $allValueList.ToArray()
         $transitionStats = Get-TransitionPairCount -Samples @($samples) -Offset $offset -View $view
         $classification = Get-ClassificationForView `
             -View $view `

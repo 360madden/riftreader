@@ -102,6 +102,24 @@ try {
     }
     Add-Check -Name 'nameplate-active-state-classification' -Status 'passed' -Detail 'Capture helper classifies active proof states with AnalyzerActiveStateRegex and records state roles in proof artifacts.'
 
+    $directPlanOnlyOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-direct-planonly-{0}' -f ([guid]::NewGuid().ToString('N')))
+    $directCapturePlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $captureScript -CandidateAddress $CandidateAddress -TooltipText $NameplateText -States baseline1 -OutputRoot $directPlanOnlyOutputRoot -PlanOnly -Json 2>&1
+    $directCapturePlanCode = $LASTEXITCODE
+    if ($directCapturePlanCode -ne 0) {
+        throw "Capture helper direct PlanOnly failed with exit code $directCapturePlanCode`n$($directCapturePlanOutput -join [Environment]::NewLine)"
+    }
+    $directCapturePlan = ($directCapturePlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+    if ((@($directCapturePlan.states) -join ',') -ne 'baseline1') {
+        throw "Capture helper direct PlanOnly did not preserve a single state as a one-item array. States=$(@($directCapturePlan.states) -join ',')"
+    }
+    if (@($directCapturePlan.extraPointerTargets).Count -ne 0 -or @($directCapturePlan.scanInt32Values).Count -ne 0 -or @($directCapturePlan.scanFloatValues).Count -ne 0 -or @($directCapturePlan.scanDoubleValues).Count -ne 0) {
+        throw 'Capture helper direct PlanOnly serialized omitted optional scan lists as non-empty/null placeholders.'
+    }
+    if ((Test-Path -LiteralPath $directPlanOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$directCapturePlan.runRoot))) {
+        throw "Capture helper direct PlanOnly unexpectedly created artifacts. OutputRoot=$directPlanOnlyOutputRoot, RunRoot=$($directCapturePlan.runRoot)."
+    }
+    Add-Check -Name 'capture-helper-planonly-empty-list-guards' -Status 'passed' -Detail 'Capture helper preserves single-state arrays and omitted optional scan lists under StrictMode without creating artifacts.' -Data ([ordered]@{ states = @($directCapturePlan.states); optionalScanListCount = 0 })
+
     if (-not (Test-Path -LiteralPath $cmdLauncher -PathType Leaf)) {
         throw "Missing shared CMD launcher: $cmdLauncher"
     }
@@ -334,6 +352,48 @@ try {
     }
     else {
         Add-Check -Name 'analyzer-visual-gate-smoke' -Status 'skipped' -Detail 'Smoke artifact missing or SkipArtifactSmoke was set.'
+    }
+
+    $nullValueSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-null-view-values-{0}' -f ([guid]::NewGuid().ToString('N')))
+    New-Item -ItemType Directory -Path $nullValueSmokeRoot -Force | Out-Null
+    try {
+        $nullValueRows = @(
+            [pscustomobject][ordered]@{
+                state = 'baseline'
+                stateRole = 'baseline'
+                isActiveState = $false
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0000C07F'
+            },
+            [pscustomobject][ordered]@{
+                state = 'active'
+                stateRole = 'active'
+                isActiveState = $true
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0000C07F'
+            }
+        )
+        $nullValueRows | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $nullValueSmokeRoot 'samples.ndjson') -Encoding UTF8
+
+        $nullValueOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $analyzerScript -InputDirectory $nullValueSmokeRoot -BaselineStateRegex '^baseline' -ActiveStateRegex '^active' -BaselineLabel baseline -ActiveLabel active -Json 2>&1
+        $nullValueCode = $LASTEXITCODE
+        if ($nullValueCode -ne 0) {
+            throw "Analyzer failed when a view returned null values for every sample. ExitCode=$nullValueCode`n$($nullValueOutput -join [Environment]::NewLine)"
+        }
+
+        $nullValueAnalysis = ($nullValueOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+        if ([int]$nullValueAnalysis.sampleCount -ne 2) {
+            throw "Analyzer null-value smoke returned unexpected sampleCount=$($nullValueAnalysis.sampleCount).`n$($nullValueOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'analyzer-null-view-values-smoke' -Status 'passed' -Detail 'Analyzer tolerates offsets whose view value is null for every baseline/active sample.' -Data ([ordered]@{ sampleCount = $nullValueAnalysis.sampleCount; candidateCount = $nullValueAnalysis.candidateCount })
+    }
+    finally {
+        if (Test-Path -LiteralPath $nullValueSmokeRoot) {
+            Remove-Item -LiteralPath $nullValueSmokeRoot -Recurse -Force
+        }
     }
 
     $negativeSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-no-screenshot-{0}' -f ([guid]::NewGuid().ToString('N')))

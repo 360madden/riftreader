@@ -524,12 +524,12 @@ if ($ScanTolerance -le 0) {
     throw 'ScanTolerance must be greater than zero.'
 }
 
-$States = Normalize-StateList -Value $States
-$ExtraPointerTargets = Normalize-CommaList -Value $ExtraPointerTargets
-$ScanInt32Values = Normalize-CommaList -Value $ScanInt32Values
-$ScanFloatValues = Normalize-CommaList -Value $ScanFloatValues
-$ScanDoubleValues = Normalize-CommaList -Value $ScanDoubleValues
-if ($null -eq $States -or $States.Count -eq 0) {
+$States = @(Normalize-StateList -Value $States)
+$ExtraPointerTargets = @(Normalize-CommaList -Value $ExtraPointerTargets)
+$ScanInt32Values = @(Normalize-CommaList -Value $ScanInt32Values)
+$ScanFloatValues = @(Normalize-CommaList -Value $ScanFloatValues)
+$ScanDoubleValues = @(Normalize-CommaList -Value $ScanDoubleValues)
+if (@($States).Count -eq 0) {
     throw 'At least one state is required.'
 }
 
@@ -632,7 +632,7 @@ foreach ($state in $States) {
 
     if (-not $NonInteractive) {
         Write-Host ''
-        Write-Host "Prepare proof state '$state' ($stateRole, $stateIndex/$($States.Count))." -ForegroundColor Cyan
+        Write-Host "Prepare proof state '$state' ($stateRole, $stateIndex/$(@($States).Count))." -ForegroundColor Cyan
         Write-Host 'This script will not touch mouse, keyboard, window focus, movement, or casting.' -ForegroundColor DarkGray
         Read-Host 'Press Enter when the operator-visible state is ready' | Out-Null
     }
@@ -715,7 +715,7 @@ foreach ($state in $States) {
     }
 
     $extraPointerScans = @()
-    if (-not $SkipPointerScan -and $ExtraPointerTargets.Count -gt 0) {
+    if (-not $SkipPointerScan -and @($ExtraPointerTargets).Count -gt 0) {
         foreach ($pointerTarget in $ExtraPointerTargets) {
             $pointerFileSafeAddress = Get-SafeToken -Value $pointerTarget
             $pointerFile = Join-Path $stateRoot ('scan-pointer-extra-{0}.json' -f $pointerFileSafeAddress)
