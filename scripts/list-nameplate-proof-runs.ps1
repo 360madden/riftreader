@@ -72,6 +72,48 @@ function Get-OptionalJsonBool {
     return [bool]$property.Value
 }
 
+function Get-OptionalManifest {
+    param([Parameter(Mandatory = $true)][string]$RunRoot)
+
+    $manifestPath = Join-Path $RunRoot 'manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        return [pscustomobject][ordered]@{
+            path = $manifestPath
+            exists = $false
+            runLabel = $null
+            candidateAddress = $null
+            candidateLength = $null
+            tooltipText = $null
+            processName = $null
+            processId = $null
+            createdUtc = $null
+        }
+    }
+
+    $manifest = Read-JsonFile -Path $manifestPath
+    $createdUtc = $null
+    if ($manifest.PSObject.Properties['createdUtc']) {
+        if ($manifest.createdUtc -is [datetime]) {
+            $createdUtc = $manifest.createdUtc.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        }
+        else {
+            $createdUtc = [string]$manifest.createdUtc
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        path = $manifestPath
+        exists = $true
+        runLabel = if ($manifest.PSObject.Properties['runLabel']) { [string]$manifest.runLabel } else { $null }
+        candidateAddress = if ($manifest.PSObject.Properties['candidateAddress']) { [string]$manifest.candidateAddress } else { $null }
+        candidateLength = if ($manifest.PSObject.Properties['candidateLength']) { [int]$manifest.candidateLength } else { $null }
+        tooltipText = if ($manifest.PSObject.Properties['tooltipText']) { [string]$manifest.tooltipText } else { $null }
+        processName = if ($manifest.PSObject.Properties['process'] -and $manifest.process.PSObject.Properties['name']) { [string]$manifest.process.name } else { $null }
+        processId = if ($manifest.PSObject.Properties['process'] -and $manifest.process.PSObject.Properties['id']) { [int]$manifest.process.id } else { $null }
+        createdUtc = $createdUtc
+    }
+}
+
 if ($Top -le 0) {
     throw 'Top must be greater than zero.'
 }
@@ -87,6 +129,7 @@ foreach ($directory in $directories) {
     $samplesPath = Join-Path $runRoot 'samples.ndjson'
     $samples = @(Read-Samples -Path $samplesPath)
     $gate = Get-GateSummary -RunRoot $runRoot
+    $manifest = Get-OptionalManifest -RunRoot $runRoot
     $leadNeighborhoodFile = Join-Path $runRoot 'lead-neighborhoods\nameplate-proof-lead-neighborhoods.json'
     $promotionPacketFile = Join-Path $runRoot 'lead-neighborhoods\nameplate-proof-promotion-packet.json'
     $hasLeadNeighborhood = Test-Path -LiteralPath $leadNeighborhoodFile -PathType Leaf
@@ -100,6 +143,11 @@ foreach ($directory in $directories) {
         sampleCount = $samples.Count
         states = @($samples | ForEach-Object { [string]$_.state })
         stateRoles = @($samples | ForEach-Object { [string]$_.stateRole })
+        manifest = $manifest
+        candidateAddress = $manifest.candidateAddress
+        candidateLength = $manifest.candidateLength
+        nameplateText = $manifest.tooltipText
+        processName = $manifest.processName
         gated = $gate
         hasLeadNeighborhood = $hasLeadNeighborhood
         leadNeighborhoodFile = if ($hasLeadNeighborhood) { $leadNeighborhoodFile } else { $null }

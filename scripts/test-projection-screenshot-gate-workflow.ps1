@@ -971,6 +971,18 @@ try {
             ok = $true
             promotionReady = $true
         } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $defaultPromotionPacketFile -Encoding UTF8
+        [pscustomobject][ordered]@{
+            mode = 'capture'
+            runLabel = 'nameplate-baseline-zoom'
+            runRoot = $resultCheckRoot
+            process = [pscustomobject][ordered]@{
+                name = 'rift_x64'
+            }
+            candidateAddress = $CandidateAddress
+            candidateLength = 1024
+            tooltipText = $NameplateText
+            createdUtc = '2026-04-24T00:00:00.0000000Z'
+        } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $resultCheckRoot 'manifest.json') -Encoding UTF8
 
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
@@ -983,8 +995,11 @@ try {
         if ($null -eq $listedFixtureRun -or -not [bool]$listedFixtureRun.gated.passed -or -not [bool]$listedFixtureRun.hasLeadNeighborhood -or -not [bool]$listedFixtureRun.hasPromotionPacket -or -not [bool]$listedFixtureRun.promotionReady) {
             throw "Nameplate proof run inventory did not report the gated fixture with lead-neighborhood and promotion packet status.`n$($proofRunListOutput -join [Environment]::NewLine)"
         }
+        if ([string]$listedFixtureRun.candidateAddress -ne $CandidateAddress -or [string]$listedFixtureRun.nameplateText -ne $NameplateText) {
+            throw "Nameplate proof run inventory did not expose manifest proof seed fields.`n$($proofRunListOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-proof-run-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory lists gated nameplate proof roots with lead-neighborhood and promotion-packet status.' -Data ([ordered]@{ returnedRuns = $proofRunList.returnedRuns; fixtureGated = $listedFixtureRun.gated.passed; hasLeadNeighborhood = $listedFixtureRun.hasLeadNeighborhood; promotionReady = $listedFixtureRun.promotionReady })
+        Add-Check -Name 'nameplate-proof-run-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory lists gated nameplate proof roots with lead-neighborhood, promotion-packet, and manifest seed status.' -Data ([ordered]@{ returnedRuns = $proofRunList.returnedRuns; fixtureGated = $listedFixtureRun.gated.passed; hasLeadNeighborhood = $listedFixtureRun.hasLeadNeighborhood; promotionReady = $listedFixtureRun.promotionReady; hasManifestSeed = $true })
 
         $promotionPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
         $promotionPlanCode = $LASTEXITCODE
@@ -998,8 +1013,15 @@ try {
         if (-not @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof' })) {
             throw "Nameplate proof promotion planner did not recommend the second proof when only one baseline/zoom proof was present.`n$($promotionPlanOutput -join [Environment]::NewLine)"
         }
+        $secondProofCommand = @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof' }) | Select-Object -First 1
+        if ($null -eq $secondProofCommand.seed -or [string]$secondProofCommand.seed.candidateAddress -ne $CandidateAddress -or [string]$secondProofCommand.seed.nameplateText -ne $NameplateText) {
+            throw "Nameplate proof promotion planner did not seed the second proof command from manifest evidence.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
+        if ([string]$secondProofCommand.command -notmatch [regex]::Escape($CandidateAddress) -or [string]$secondProofCommand.command -notmatch [regex]::Escape($NameplateText)) {
+            throw "Nameplate proof promotion planner did not include manifest seed arguments in the second proof command.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count })
+        Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

@@ -354,8 +354,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 ```
 
 The inventory reports each run's screenshot/sequence gate status, sample state
-sequence, lead-neighborhood presence, promotion-packet presence, and
-`promotionReady` value when a packet exists.
+sequence, manifest seed fields (`candidateAddress`, `candidateLength`,
+`nameplateText`, and `processName`), lead-neighborhood presence,
+promotion-packet presence, and `promotionReady` value when a packet exists.
 
 To summarize readiness and print the next command to run:
 
@@ -366,7 +367,11 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 The planner uses the inventory, selects candidate baseline/reproof proof roots,
 reports missing evidence such as `need-second-gated-nameplate-baseline-zoom-proof`,
 and emits recommended commands for inventory, second proof, neighborhood capture,
-or promotion pipeline execution as appropriate.
+or promotion pipeline execution as appropriate. When a prior gated baseline/zoom
+manifest is available, the second-proof command is pre-seeded with that manifest's
+candidate/nameplate arguments and includes a `seed.staleRisk` warning; replace
+the candidate address with a freshly resolved live candidate if the process,
+UI object, or hovered nameplate changed.
 
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
@@ -438,10 +443,11 @@ It checks:
   neighborhood fixtures to verify plan-only no-side-effect behavior and packet
   creation from existing neighborhood artifacts
 - `list-nameplate-proof-runs.ps1` against a generated gated proof fixture to
-  verify proof-run inventory with lead-neighborhood and promotion-packet status
+  verify proof-run inventory with manifest seed, lead-neighborhood, and
+  promotion-packet status
 - `plan-nameplate-proof-promotion.ps1` against a generated inventory fixture to
-  verify promotion-readiness planning and next-step command output when a second
-  gated proof is missing
+  verify promotion-readiness planning and manifest-seeded next-step command
+  output when a second gated proof is missing
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -565,8 +571,8 @@ Result: `ok=true`.
 | Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
 | Promotion-packet negative smoke | Passed by failing closed and leaving no packet when repeated-root thresholds were not met. |
 | Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
-| Proof-run inventory smoke | Passed with gated proof root, lead-neighborhood status, and promotion-packet status reporting. |
-| Promotion-readiness planner smoke | Passed with missing-evidence and next-command reporting when only one gated baseline/zoom proof exists. |
+| Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
+| Promotion-readiness planner smoke | Passed with missing-evidence and manifest-seeded next-command reporting when only one gated baseline/zoom proof exists. |
 
 The aggregate branch validator was also run:
 

@@ -38,6 +38,30 @@ function New-CommandString {
     }) -join ' '
 }
 
+function Get-RunProofSeed {
+    param([object]$Run)
+
+    if ($null -eq $Run) {
+        return $null
+    }
+
+    $candidateAddress = [string]$Run.candidateAddress
+    $nameplateText = [string]$Run.nameplateText
+    if ([string]::IsNullOrWhiteSpace($candidateAddress) -or [string]::IsNullOrWhiteSpace($nameplateText)) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        sourceRunRoot = [string]$Run.runRoot
+        sourceRunName = [string]$Run.name
+        candidateAddress = $candidateAddress
+        candidateLength = if ($null -ne $Run.candidateLength) { [int]$Run.candidateLength } else { $null }
+        nameplateText = $nameplateText
+        processName = if ($null -ne $Run.processName) { [string]$Run.processName } else { $null }
+        staleRisk = 'CandidateAddress comes from a prior proof manifest; replace it with a freshly resolved live candidate if the process, UI object, or hovered nameplate changed.'
+    }
+}
+
 if ($InventoryTop -le 0) {
     throw 'InventoryTop must be greater than zero.'
 }
@@ -60,6 +84,8 @@ $baselineZoomRuns = @($runs | Where-Object { [string]$_.name -match 'nameplate-b
 $promotionReadyRuns = @($baselineZoomRuns | Where-Object { [bool]$_.promotionReady })
 $neighborhoodRuns = @($baselineZoomRuns | Where-Object { [bool]$_.hasLeadNeighborhood })
 $missingNeighborhoodRuns = @($baselineZoomRuns | Where-Object { -not [bool]$_.hasLeadNeighborhood })
+$proofSeedSourceRun = if ($baselineZoomRuns.Count -gt 0) { $baselineZoomRuns[0] } else { $null }
+$proofSeed = Get-RunProofSeed -Run $proofSeedSourceRun
 
 $baselineRun = if ($neighborhoodRuns.Count -gt 0) { $neighborhoodRuns[0] } else { $null }
 $reproofRun = $null
@@ -112,10 +138,25 @@ if ($readyForPipeline) {
     }) | Out-Null
 }
 else {
+    if ($null -ne $proofSeed) {
+        $secondProofParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $proofWrapperScript, '-CandidateAddress', $proofSeed.candidateAddress)
+        if ($null -ne $proofSeed.candidateLength -and [int]$proofSeed.candidateLength -gt 0 -and [int]$proofSeed.candidateLength -ne 1024) {
+            $secondProofParts += @('-CandidateLength', ([int]$proofSeed.candidateLength).ToString([System.Globalization.CultureInfo]::InvariantCulture))
+        }
+        $secondProofParts += @('-NameplateText', $proofSeed.nameplateText, '-OutputRoot', $resolvedOutputRoot, '-Json')
+        $recommendedCommands.Add([pscustomobject][ordered]@{
+            name = 'run-second-baseline-zoom-proof'
+            command = New-CommandString -Parts $secondProofParts
+            seed = $proofSeed
+        }) | Out-Null
+    }
+    else {
     $recommendedCommands.Add([pscustomobject][ordered]@{
         name = 'run-second-baseline-zoom-proof'
         command = New-CommandString -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $proofWrapperScript, '-CandidateAddress', '<candidate-address>', '-NameplateText', '<nameplate-text>', '-Json')
+        seed = $null
     }) | Out-Null
+    }
 }
 
 $result = [pscustomobject][ordered]@{
@@ -132,6 +173,7 @@ $result = [pscustomobject][ordered]@{
     missingEvidence = @($missingEvidence.ToArray() | Select-Object -Unique)
     selectedBaselineRun = $baselineRun
     selectedReproofRun = $reproofRun
+    selectedProofSeed = $proofSeed
     recommendedCommands = @($recommendedCommands.ToArray())
 }
 
