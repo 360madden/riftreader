@@ -84,6 +84,20 @@ Pass condition:
 - analyzer exits `0`
 - `screenshotGate.visualGateStatus=passed`
 - `diffs\screenshot-gate.json` shows every analyzed state has `usable=true`
+- for nameplate proof, `expectedStateSequence.passed=true`
+
+Post-run nameplate proof gate check:
+
+```powershell
+scripts\check-nameplate-projection-proof-result.cmd -RunRoot "<run-root>" -Json
+```
+
+If checking immediately after the run and the default artifact directory is not
+mixed with other active captures, use the latest nameplate run:
+
+```powershell
+scripts\check-nameplate-projection-proof-result.cmd -Latest -Json
+```
 
 ## Output files to inspect
 
@@ -174,6 +188,24 @@ The wrapper forwards to `capture-tooltip-hover-diff.ps1` with:
 Use `-PlanOnly -Json` first to verify the command shape without attaching to
 Rift or creating artifacts.
 
+The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
+mode. Baseline/zoom proof requires operator confirmation for every visible
+state so the analyzer does not compare four back-to-back snapshots of the same
+screen state.
+
+The shared capture helper uses the analyzer active-state regex for its
+baseline/active text bookkeeping. For the nameplate wrapper this means `zoom1`
+and `zoom2` are treated as active states even though some legacy output fields
+still use tooltip/hover terminology for compatibility.
+
+Each sample row also records `stateRole` and `isActiveState`; check those fields
+after capture if a run's state labels are in doubt. The analyzer preserves these
+as `originalState`, `stateRole`, and `isActiveState` in
+`diffs\screenshot-gate.json`. The nameplate wrapper also passes an expected
+state sequence audit to the analyzer, so the same file should include
+`expectedStateSequence.passed=true` for the required
+`baseline1,zoom1,baseline2,zoom2` sequence.
+
 ## Offline workflow validation
 
 Use this before staging/checkpointing to validate the screenshot-gated workflow
@@ -200,6 +232,10 @@ It checks:
 - existing screenshot-gated smoke artifact with analyzer `-RequireVisualGate`, if present
 - fail-closed analyzer behavior when `-RequireVisualGate` is used without
   screenshot captures
+- fail-closed analyzer behavior when usable screenshots are present but the
+  expected proof state sequence is wrong
+- `check-nameplate-projection-proof-result.ps1` against a generated fully gated
+  baseline/zoom fixture by explicit `-RunRoot` and `-Latest`
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -229,6 +265,7 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | Wrapper | Target |
 |---|---|
 | `scripts\run-nameplate-projection-proof.cmd` | `run-nameplate-projection-proof.ps1` |
+| `scripts\check-nameplate-projection-proof-result.cmd` | `check-nameplate-projection-proof-result.ps1` |
 | `scripts\test-projection-screenshot-gate-workflow.cmd` | `test-projection-screenshot-gate-workflow.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |

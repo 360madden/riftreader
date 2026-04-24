@@ -12,6 +12,8 @@ param(
     [string]$ActiveLabel = 'hover',
 
     [switch]$RequireVisualGate,
+    [string[]]$ExpectedStates = @(),
+    [string[]]$ExpectedStateRoles = @(),
 
     [switch]$Json
 )
@@ -226,6 +228,8 @@ function Normalize-SampleRow {
     $candidateAddress = Get-JsonPropertyValue -Object $Row -Names @('candidateAddress', 'CandidateAddress')
     $knownTextPointers = Get-JsonPropertyValue -Object $Row -Names @('knownTextPointers', 'KnownTextPointers', 'knownTextPointer', 'tooltipTextPointer')
     $hasTarget = Get-JsonPropertyValue -Object $Row -Names @('hasTarget', 'HasTarget')
+    $stateRole = Get-JsonPropertyValue -Object $Row -Names @('stateRole', 'StateRole')
+    $isActiveState = Get-JsonPropertyValue -Object $Row -Names @('isActiveState', 'IsActiveState')
     $files = Get-JsonPropertyValue -Object $Row -Names @('files', 'Files')
 
     if ($null -eq $bytesHex) {
@@ -269,6 +273,21 @@ function Normalize-SampleRow {
     $stateText = [string]$state
     if ($stateText -notmatch $BaselineStateRegex -and $stateText -notmatch $ActiveStateRegex) { return $null }
     $normalizedState = if ($stateText -match $ActiveStateRegex) { 'hover' } else { 'hidden' }
+    $normalizedStateRole = if ($null -ne $stateRole -and -not [string]::IsNullOrWhiteSpace([string]$stateRole)) {
+        [string]$stateRole
+    }
+    elseif ($normalizedState -eq 'hover') {
+        'active'
+    }
+    else {
+        'baseline'
+    }
+    $normalizedIsActiveState = if ($null -ne $isActiveState) {
+        [bool]$isActiveState
+    }
+    else {
+        $normalizedState -eq 'hover'
+    }
 
     $bytes = Convert-HexStringToBytes -Hex ([string]$bytesHex)
     $parsedWindowStart = ConvertTo-UInt64OrNull -Value $windowStart
@@ -277,6 +296,9 @@ function Normalize-SampleRow {
 
     return [pscustomobject]@{
         State = $normalizedState
+        OriginalState = $stateText
+        StateRole = $normalizedStateRole
+        IsActiveState = $normalizedIsActiveState
         Bytes = $bytes
         WindowStart = $parsedWindowStart
         WindowLength = if ($null -ne $windowLength) { [int]$windowLength } else { $bytes.Length }
@@ -324,6 +346,9 @@ function Get-ScreenshotGateSummary {
 
         $rows.Add([pscustomobject][ordered]@{
             state = $sample.State
+            originalState = $sample.OriginalState
+            stateRole = $sample.StateRole
+            isActiveState = $sample.IsActiveState
             captureRecord = $capturePath
             captureRecordExists = $captureExists
             screenshotOutput = $outputPath
@@ -340,17 +365,110 @@ function Get-ScreenshotGateSummary {
     $rowArray = @($rows.ToArray())
     $withCapture = @($rowArray | Where-Object { $_.captureRecordExists })
     $usableRows = @($rowArray | Where-Object { $_.usable -eq $true })
+    $usableVisualRows = @($rowArray | Where-Object {
+        $_.captureRecordExists -and
+        $_.screenshotOutputExists -and
+        $_.ok -eq $true -and
+        $_.usable -eq $true
+    })
     $unusableRows = @($rowArray | Where-Object { $_.captureRecordExists -and $_.usable -ne $true })
+    $allSamplesHaveUsableCapture = ($rowArray.Count -gt 0 -and $usableVisualRows.Count -eq $rowArray.Count)
 
     return [pscustomobject][ordered]@{
         sampleCount = $rowArray.Count
         captureRecordCount = $withCapture.Count
         usableCount = $usableRows.Count
+        usableVisualCount = $usableVisualRows.Count
         unusableCount = $unusableRows.Count
         allSamplesHaveCapture = ($rowArray.Count -gt 0 -and $withCapture.Count -eq $rowArray.Count)
-        allCapturesUsable = ($withCapture.Count -gt 0 -and $usableRows.Count -eq $withCapture.Count)
-        visualGateStatus = if ($withCapture.Count -eq 0) { 'not-captured' } elseif ($usableRows.Count -eq $withCapture.Count) { 'passed' } else { 'failed-or-partial' }
+        allSamplesHaveUsableCapture = $allSamplesHaveUsableCapture
+        allCapturesUsable = $allSamplesHaveUsableCapture
+        visualGateStatus = if ($withCapture.Count -eq 0) { 'not-captured' } elseif ($allSamplesHaveUsableCapture) { 'passed' } else { 'failed-or-partial' }
         rows = @($rowArray)
+    }
+}
+
+function Normalize-CommaList {
+    param([string[]]$Value)
+
+    if ($null -eq $Value) {
+        return @()
+    }
+
+    $items = [System.Collections.Generic.List[string]]::new()
+    foreach ($item in $Value) {
+        if ($null -eq $item) { continue }
+        foreach ($part in ([string]$item -split ',')) {
+            $trimmed = $part.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+                $items.Add($trimmed) | Out-Null
+            }
+        }
+    }
+
+    return @($items.ToArray())
+}
+
+function Get-ExpectedStateSequenceAudit {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Rows,
+        [string[]]$ExpectedStates,
+        [string[]]$ExpectedStateRoles
+    )
+
+    $normalizedExpectedStates = @(Normalize-CommaList -Value $ExpectedStates)
+    if ($normalizedExpectedStates.Count -eq 0) {
+        return $null
+    }
+
+    $normalizedExpectedRoles = @(Normalize-CommaList -Value $ExpectedStateRoles)
+    if ($normalizedExpectedRoles.Count -gt 0 -and $normalizedExpectedRoles.Count -ne $normalizedExpectedStates.Count) {
+        throw "ExpectedStateRoles count ($($normalizedExpectedRoles.Count)) must match ExpectedStates count ($($normalizedExpectedStates.Count))."
+    }
+
+    $actualStates = @($Rows | ForEach-Object {
+        $originalState = Get-JsonPropertyValue -Object $_ -Names @('originalState', 'OriginalState')
+        if ([string]::IsNullOrWhiteSpace([string]$originalState)) {
+            $originalState = Get-JsonPropertyValue -Object $_ -Names @('state', 'State')
+        }
+        [string]$originalState
+    })
+    $actualRoles = @($Rows | ForEach-Object {
+        $role = Get-JsonPropertyValue -Object $_ -Names @('stateRole', 'StateRole')
+        [string]$role
+    })
+
+    $statesMatch = $actualStates.Count -eq $normalizedExpectedStates.Count
+    if ($statesMatch) {
+        for ($i = 0; $i -lt $normalizedExpectedStates.Count; $i++) {
+            if ($actualStates[$i] -ne $normalizedExpectedStates[$i]) {
+                $statesMatch = $false
+                break
+            }
+        }
+    }
+
+    $rolesMatch = $true
+    if ($normalizedExpectedRoles.Count -gt 0) {
+        $rolesMatch = $actualRoles.Count -eq $normalizedExpectedRoles.Count
+        if ($rolesMatch) {
+            for ($i = 0; $i -lt $normalizedExpectedRoles.Count; $i++) {
+                if ($actualRoles[$i] -ne $normalizedExpectedRoles[$i]) {
+                    $rolesMatch = $false
+                    break
+                }
+            }
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        passed = ($statesMatch -and $rolesMatch)
+        expectedStates = @($normalizedExpectedStates)
+        actualStates = @($actualStates)
+        statesMatch = $statesMatch
+        expectedStateRoles = @($normalizedExpectedRoles)
+        actualStateRoles = @($actualRoles)
+        stateRolesMatch = $rolesMatch
     }
 }
 
@@ -868,6 +986,10 @@ $sortedRejections = @($rejections | Sort-Object -Property @{ Expression = 'score
 $stableHoverFields = @($sortedCandidates | Where-Object { $_.hoverDistinct -le 1 -and $_.classification -ne 'noise-or-static' })
 $scanEvidence = @(Get-ScanEvidenceSummary -Samples @($samples) -HiddenCount $hiddenSamples.Count -HoverCount $hoverSamples.Count)
 $screenshotGate = Get-ScreenshotGateSummary -Samples @($samples)
+$expectedStateSequence = Get-ExpectedStateSequenceAudit -Rows @($screenshotGate.rows) -ExpectedStates $ExpectedStates -ExpectedStateRoles $ExpectedStateRoles
+if ($null -ne $expectedStateSequence) {
+    $screenshotGate | Add-Member -NotePropertyName expectedStateSequence -NotePropertyValue $expectedStateSequence
+}
 
 $diffDirectory = Join-Path $resolvedInputDirectory 'diffs'
 New-Item -ItemType Directory -Path $diffDirectory -Force | Out-Null
@@ -885,6 +1007,7 @@ $common = [ordered]@{
     baselineStateRegex = $BaselineStateRegex
     activeStateRegex = $ActiveStateRegex
     requireVisualGate = [bool]$RequireVisualGate
+    expectedStateSequenceRequired = ($null -ne $expectedStateSequence)
     baseCandidate = if ($baseCandidate -ne 0) { Format-HexAddress -Value $baseCandidate } else { $null }
     windowStart = if ($windowStart -ne 0) { Format-HexAddress -Value $windowStart } else { $null }
     windowLength = [int]$windowLength
@@ -996,6 +1119,10 @@ $result = [ordered]@{
 
 if ($RequireVisualGate -and $screenshotGate.visualGateStatus -ne 'passed') {
     throw "Visual gate requirement failed: screenshotGate.visualGateStatus=$($screenshotGate.visualGateStatus). Wrote $screenshotGatePath"
+}
+
+if ($null -ne $expectedStateSequence -and -not [bool]$expectedStateSequence.passed) {
+    throw "Expected state sequence requirement failed. Wrote $screenshotGatePath"
 }
 
 if ($Json) {

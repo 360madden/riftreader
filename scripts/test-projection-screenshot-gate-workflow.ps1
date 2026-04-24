@@ -16,6 +16,8 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $captureProject = Join-Path $repoRoot 'tools\rift-window-capture\RiftWindowCapture.csproj'
 $wrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $wrapperCmd = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.cmd'
+$resultCheckerScript = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.ps1'
+$resultCheckerCmd = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -26,9 +28,10 @@ $psScripts = @(
     'capture-tooltip-hover-diff.ps1',
     'analyze-tooltip-hover-diff.ps1',
     'run-nameplate-projection-proof.ps1',
+    'check-nameplate-projection-proof-result.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 7
+$expectedProjectionPsScriptCount = 8
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -36,9 +39,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-tooltip-hover-diff.cmd'; Target = 'capture-tooltip-hover-diff.ps1' },
     [pscustomobject]@{ Wrapper = 'analyze-tooltip-hover-diff.cmd'; Target = 'analyze-tooltip-hover-diff.ps1' },
     [pscustomobject]@{ Wrapper = 'run-nameplate-projection-proof.cmd'; Target = 'run-nameplate-projection-proof.ps1' },
+    [pscustomobject]@{ Wrapper = 'check-nameplate-projection-proof-result.cmd'; Target = 'check-nameplate-projection-proof-result.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 7
+$expectedProjectionCmdWrapperCount = 8
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -81,6 +85,22 @@ try {
         }
     }
     Add-Check -Name 'powershell-parse' -Status 'passed' -Detail ('Parsed {0} scripts.' -f $psScripts.Count) -Data ([ordered]@{ expectedScriptCount = $expectedProjectionPsScriptCount; scriptCount = $psScripts.Count; uniqueScriptCount = @($psScriptNames | Select-Object -Unique).Count; scripts = $psScriptNames })
+
+    $captureScript = Join-Path $PSScriptRoot 'capture-tooltip-hover-diff.ps1'
+    $captureScriptContent = Get-Content -LiteralPath $captureScript -Raw
+    if ($captureScriptContent -match "\`$state\s+-match\s+'hover'") {
+        throw 'Capture helper still classifies active states by literal hover instead of AnalyzerActiveStateRegex.'
+    }
+    if ($captureScriptContent -notmatch "\`$isActiveState\s*=\s*\`$state\s+-match\s+\`$AnalyzerActiveStateRegex") {
+        throw 'Capture helper does not classify active states with AnalyzerActiveStateRegex.'
+    }
+    if ($captureScriptContent -notmatch 'stateRole\s*=') {
+        throw 'Capture helper does not record stateRole in proof artifacts.'
+    }
+    if ($captureScriptContent -notmatch "Prepare proof state") {
+        throw 'Capture helper operator prompt still uses legacy tooltip-state wording.'
+    }
+    Add-Check -Name 'nameplate-active-state-classification' -Status 'passed' -Detail 'Capture helper classifies active proof states with AnalyzerActiveStateRegex and records state roles in proof artifacts.'
 
     if (-not (Test-Path -LiteralPath $cmdLauncher -PathType Leaf)) {
         throw "Missing shared CMD launcher: $cmdLauncher"
@@ -214,10 +234,27 @@ try {
     if ([string]$plan.mode -ne 'plan-only' -or [bool]$plan.controlsInput) {
         throw "Wrapper plan did not preserve plan-only/no-input semantics. mode=$($plan.mode), controlsInput=$($plan.controlsInput)."
     }
+    if ((@($plan.analyzerExpectedStates) -join ',') -ne 'baseline1,zoom1,baseline2,zoom2' -or (@($plan.analyzerExpectedStateRoles) -join ',') -ne 'baseline,active,baseline,active') {
+        throw "Wrapper plan did not preserve expected nameplate proof state sequence. States=$(@($plan.analyzerExpectedStates) -join ','), Roles=$(@($plan.analyzerExpectedStateRoles) -join ',')."
+    }
     if ((Test-Path -LiteralPath $planOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$plan.runRoot))) {
         throw "Wrapper PlanOnly unexpectedly created artifacts. OutputRoot=$planOnlyOutputRoot, RunRoot=$($plan.runRoot)."
     }
-    Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture, fail-closed analysis defaults, key arguments, and plan-only no-artifact behavior.' -Data $plan
+    Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture, fail-closed analysis defaults, expected state sequence, key arguments, and plan-only no-artifact behavior.' -Data $plan
+
+    $nonInteractiveOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-noninteractive-{0}' -f ([guid]::NewGuid().ToString('N')))
+    $nonInteractiveOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $nonInteractiveOutputRoot -NonInteractive -Json 2>&1
+    $nonInteractiveCode = $LASTEXITCODE
+    if ($nonInteractiveCode -eq 0) {
+        throw "Wrapper unexpectedly allowed non-interactive live proof capture.`n$($nonInteractiveOutput -join [Environment]::NewLine)"
+    }
+    if (($nonInteractiveOutput -join [Environment]::NewLine) -notmatch 'requires operator confirmation') {
+        throw "Wrapper non-interactive guard failed with an unexpected error.`n$($nonInteractiveOutput -join [Environment]::NewLine)"
+    }
+    if (Test-Path -LiteralPath $nonInteractiveOutputRoot) {
+        throw "Wrapper non-interactive guard unexpectedly created artifacts. OutputRoot=$nonInteractiveOutputRoot."
+    }
+    Add-Check -Name 'nameplate-wrapper-noninteractive-guard' -Status 'passed' -Detail 'Wrapper rejects non-interactive live proof capture before attaching or creating artifacts.'
 
     if (-not $SkipCmdWrapperSmoke) {
         $cmdPlanOnlyOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-cmd-planonly-{0}' -f ([guid]::NewGuid().ToString('N')))
@@ -237,10 +274,13 @@ try {
         if ([string]$cmdPlan.mode -ne 'plan-only' -or [bool]$cmdPlan.controlsInput) {
             throw "CMD wrapper plan did not preserve plan-only/no-input semantics. mode=$($cmdPlan.mode), controlsInput=$($cmdPlan.controlsInput)."
         }
+        if ((@($cmdPlan.analyzerExpectedStates) -join ',') -ne 'baseline1,zoom1,baseline2,zoom2' -or (@($cmdPlan.analyzerExpectedStateRoles) -join ',') -ne 'baseline,active,baseline,active') {
+            throw "CMD wrapper plan did not preserve expected nameplate proof state sequence. States=$(@($cmdPlan.analyzerExpectedStates) -join ','), Roles=$(@($cmdPlan.analyzerExpectedStateRoles) -join ',')."
+        }
         if ((Test-Path -LiteralPath $cmdPlanOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$cmdPlan.runRoot))) {
             throw "CMD wrapper PlanOnly unexpectedly created artifacts. OutputRoot=$cmdPlanOnlyOutputRoot, RunRoot=$($cmdPlan.runRoot)."
         }
-        Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'passed' -Detail 'CMD wrapper preserved screenshot-gated capture, fail-closed analysis defaults, key arguments, and plan-only no-artifact behavior.' -Data $cmdPlan
+        Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'passed' -Detail 'CMD wrapper preserved screenshot-gated capture, fail-closed analysis defaults, expected state sequence, key arguments, and plan-only no-artifact behavior.' -Data $cmdPlan
     }
     else {
         Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'skipped' -Detail 'SkipCmdWrapperSmoke was set.'
@@ -302,12 +342,16 @@ try {
         $negativeRows = @(
             [pscustomobject][ordered]@{
                 state = 'baseline'
+                stateRole = 'baseline'
+                isActiveState = $false
                 candidateAddress = $CandidateAddress
                 windowStart = $CandidateAddress
                 bytesHex = '0000000000000000'
             },
             [pscustomobject][ordered]@{
                 state = 'active'
+                stateRole = 'active'
+                isActiveState = $true
                 candidateAddress = $CandidateAddress
                 windowStart = $CandidateAddress
                 bytesHex = '0100000000000000'
@@ -337,6 +381,260 @@ try {
     finally {
         if (Test-Path -LiteralPath $negativeSmokeRoot) {
             Remove-Item -LiteralPath $negativeSmokeRoot -Recurse -Force
+        }
+    }
+
+    $partialSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-partial-screenshot-{0}' -f ([guid]::NewGuid().ToString('N')))
+    New-Item -ItemType Directory -Path $partialSmokeRoot -Force | Out-Null
+    try {
+        $partialStateRoot = Join-Path $partialSmokeRoot 'states\baseline'
+        $partialScreenshotRoot = Join-Path $partialStateRoot 'screenshots'
+        New-Item -ItemType Directory -Path $partialScreenshotRoot -Force | Out-Null
+        $partialCapturePath = Join-Path $partialScreenshotRoot 'baseline.capture.json'
+        $partialImagePath = Join-Path $partialScreenshotRoot 'baseline.bmp'
+        Set-Content -LiteralPath $partialImagePath -Value 'smoke' -Encoding ASCII
+        [pscustomobject][ordered]@{
+            ok = $true
+            exitCode = 0
+            outputPath = $partialImagePath
+            requiredUsable = $true
+            json = [pscustomobject][ordered]@{
+                Ok = $true
+                Usable = $true
+                CaptureMethod = 'validator-smoke'
+                ContentBlackPixelRatio = 0.01
+                ContentLumaStdDev = 12.0
+            }
+        } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $partialCapturePath -Encoding UTF8
+
+        $partialRows = @(
+            [pscustomobject][ordered]@{
+                state = 'baseline'
+                stateRole = 'baseline'
+                isActiveState = $false
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0000000000000000'
+                files = [pscustomobject][ordered]@{
+                    screenshotCapture = $partialCapturePath
+                    screenshotOutput = $partialImagePath
+                }
+            },
+            [pscustomobject][ordered]@{
+                state = 'active'
+                stateRole = 'active'
+                isActiveState = $true
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0100000000000000'
+            }
+        )
+        $partialRows | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $partialSmokeRoot 'samples.ndjson') -Encoding UTF8
+
+        $partialOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $analyzerScript -InputDirectory $partialSmokeRoot -BaselineStateRegex '^baseline' -ActiveStateRegex '^active' -BaselineLabel baseline -ActiveLabel active -RequireVisualGate -ExpectedStates baseline,active -ExpectedStateRoles baseline,active -Json 2>&1
+        $partialCode = $LASTEXITCODE
+        if ($partialCode -eq 0) {
+            throw "Analyzer RequireVisualGate unexpectedly passed with partial screenshot coverage.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+
+        $partialScreenshotGatePath = Join-Path $partialSmokeRoot 'diffs\screenshot-gate.json'
+        if (-not (Test-Path -LiteralPath $partialScreenshotGatePath -PathType Leaf)) {
+            throw "Analyzer partial screenshot smoke failed before writing screenshot-gate evidence.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+
+        $partialScreenshotGate = Get-Content -LiteralPath $partialScreenshotGatePath -Raw | ConvertFrom-Json -Depth 32
+        $partialStatus = [string]$partialScreenshotGate.screenshotGate.visualGateStatus
+        if ($partialStatus -ne 'failed-or-partial') {
+            throw "Analyzer partial screenshot smoke failed with unexpected visualGateStatus=$partialStatus.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+        if ([bool]$partialScreenshotGate.screenshotGate.allSamplesHaveUsableCapture) {
+            throw "Analyzer partial screenshot smoke unexpectedly reported allSamplesHaveUsableCapture=true.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+        $partialRowsOut = @($partialScreenshotGate.screenshotGate.rows)
+        if (-not @($partialRowsOut | Where-Object { $_.originalState -eq 'baseline' -and $_.stateRole -eq 'baseline' -and $_.isActiveState -eq $false })) {
+            throw "Analyzer screenshot gate did not preserve baseline originalState/stateRole/isActiveState.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($partialRowsOut | Where-Object { $_.originalState -eq 'active' -and $_.stateRole -eq 'active' -and $_.isActiveState -eq $true })) {
+            throw "Analyzer screenshot gate did not preserve active originalState/stateRole/isActiveState.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+        $partialExpectedSequence = $partialScreenshotGate.screenshotGate.expectedStateSequence
+        if ($null -eq $partialExpectedSequence -or -not [bool]$partialExpectedSequence.passed) {
+            throw "Analyzer expected state sequence audit did not pass for matching synthetic states.`n$($partialOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'analyzer-visual-gate-partial-smoke' -Status 'passed' -Detail 'Analyzer RequireVisualGate fails closed when only some samples include usable screenshot captures and preserves proof state labels/roles.' -Data ([ordered]@{ visualGateStatus = $partialStatus; allSamplesHaveUsableCapture = $partialScreenshotGate.screenshotGate.allSamplesHaveUsableCapture; proofStateRolesPreserved = $true; expectedStateSequencePassed = $partialExpectedSequence.passed })
+    }
+    finally {
+        if (Test-Path -LiteralPath $partialSmokeRoot) {
+            Remove-Item -LiteralPath $partialSmokeRoot -Recurse -Force
+        }
+    }
+
+    $sequenceSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-sequence-mismatch-{0}' -f ([guid]::NewGuid().ToString('N')))
+    New-Item -ItemType Directory -Path $sequenceSmokeRoot -Force | Out-Null
+    try {
+        $sequenceRows = @()
+        foreach ($sequenceState in @(
+            [pscustomobject][ordered]@{ Name = 'baseline'; Role = 'baseline'; Active = $false; Hex = '0000000000000000' },
+            [pscustomobject][ordered]@{ Name = 'active'; Role = 'active'; Active = $true; Hex = '0100000000000000' }
+        )) {
+            $sequenceStateRoot = Join-Path $sequenceSmokeRoot ('states\{0}' -f $sequenceState.Name)
+            $sequenceScreenshotRoot = Join-Path $sequenceStateRoot 'screenshots'
+            New-Item -ItemType Directory -Path $sequenceScreenshotRoot -Force | Out-Null
+            $sequenceCapturePath = Join-Path $sequenceScreenshotRoot ('{0}.capture.json' -f $sequenceState.Name)
+            $sequenceImagePath = Join-Path $sequenceScreenshotRoot ('{0}.bmp' -f $sequenceState.Name)
+            Set-Content -LiteralPath $sequenceImagePath -Value 'smoke' -Encoding ASCII
+            [pscustomobject][ordered]@{
+                ok = $true
+                exitCode = 0
+                outputPath = $sequenceImagePath
+                requiredUsable = $true
+                json = [pscustomobject][ordered]@{
+                    Ok = $true
+                    Usable = $true
+                    CaptureMethod = 'validator-smoke'
+                    ContentBlackPixelRatio = 0.01
+                    ContentLumaStdDev = 12.0
+                }
+            } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $sequenceCapturePath -Encoding UTF8
+
+            $sequenceRows += [pscustomobject][ordered]@{
+                state = $sequenceState.Name
+                stateRole = $sequenceState.Role
+                isActiveState = $sequenceState.Active
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = $sequenceState.Hex
+                files = [pscustomobject][ordered]@{
+                    screenshotCapture = $sequenceCapturePath
+                    screenshotOutput = $sequenceImagePath
+                }
+            }
+        }
+        $sequenceRows | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $sequenceSmokeRoot 'samples.ndjson') -Encoding UTF8
+
+        $sequenceOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $analyzerScript -InputDirectory $sequenceSmokeRoot -BaselineStateRegex '^baseline' -ActiveStateRegex '^active' -BaselineLabel baseline -ActiveLabel active -RequireVisualGate -ExpectedStates baseline,zoom -ExpectedStateRoles baseline,active -Json 2>&1
+        $sequenceCode = $LASTEXITCODE
+        if ($sequenceCode -eq 0) {
+            throw "Analyzer expected state sequence gate unexpectedly passed a mismatched sequence.`n$($sequenceOutput -join [Environment]::NewLine)"
+        }
+
+        $sequenceScreenshotGatePath = Join-Path $sequenceSmokeRoot 'diffs\screenshot-gate.json'
+        if (-not (Test-Path -LiteralPath $sequenceScreenshotGatePath -PathType Leaf)) {
+            throw "Analyzer sequence mismatch smoke failed before writing screenshot-gate evidence.`n$($sequenceOutput -join [Environment]::NewLine)"
+        }
+
+        $sequenceScreenshotGate = Get-Content -LiteralPath $sequenceScreenshotGatePath -Raw | ConvertFrom-Json -Depth 32
+        if ([string]$sequenceScreenshotGate.screenshotGate.visualGateStatus -ne 'passed') {
+            throw "Analyzer sequence mismatch smoke should have visualGateStatus=passed, got $($sequenceScreenshotGate.screenshotGate.visualGateStatus).`n$($sequenceOutput -join [Environment]::NewLine)"
+        }
+        if ($null -eq $sequenceScreenshotGate.screenshotGate.expectedStateSequence -or [bool]$sequenceScreenshotGate.screenshotGate.expectedStateSequence.passed) {
+            throw "Analyzer sequence mismatch smoke did not fail the expectedStateSequence audit.`n$($sequenceOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'analyzer-expected-state-sequence-negative-smoke' -Status 'passed' -Detail 'Analyzer fails closed when usable screenshots are present but the expected proof state sequence does not match.' -Data ([ordered]@{ visualGateStatus = $sequenceScreenshotGate.screenshotGate.visualGateStatus; expectedStateSequencePassed = $sequenceScreenshotGate.screenshotGate.expectedStateSequence.passed })
+
+        $sequenceCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -RunRoot $sequenceSmokeRoot -Json 2>&1
+        $sequenceCheckCode = $LASTEXITCODE
+        if ($sequenceCheckCode -eq 0) {
+            throw "Nameplate proof result checker unexpectedly accepted a mismatched proof sequence.`n$($sequenceCheckOutput -join [Environment]::NewLine)"
+        }
+        $sequenceCheck = ($sequenceCheckOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+        if ([bool]$sequenceCheck.ok) {
+            throw "Nameplate proof result checker returned ok=true for a mismatched proof sequence.`n$($sequenceCheckOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($sequenceCheck.checks | Where-Object { $_.name -eq 'expected-state-sequence-passed' -and $_.status -eq 'failed' })) {
+            throw "Nameplate proof result checker did not fail expected-state-sequence-passed for a mismatched proof sequence.`n$($sequenceCheckOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-result-checker-sequence-negative-smoke' -Status 'passed' -Detail 'Post-capture result checker rejects usable screenshot artifacts when the expected proof sequence is wrong.'
+    }
+    finally {
+        if (Test-Path -LiteralPath $sequenceSmokeRoot) {
+            Remove-Item -LiteralPath $sequenceSmokeRoot -Recurse -Force
+        }
+    }
+
+    $resultCheckRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
+    New-Item -ItemType Directory -Path $resultCheckRoot -Force | Out-Null
+    try {
+        $resultRows = @()
+        foreach ($proofState in @(
+            [pscustomobject][ordered]@{ Name = 'baseline1'; Role = 'baseline'; Active = $false; Hex = '0000000000000000' },
+            [pscustomobject][ordered]@{ Name = 'zoom1'; Role = 'active'; Active = $true; Hex = '0100000000000000' },
+            [pscustomobject][ordered]@{ Name = 'baseline2'; Role = 'baseline'; Active = $false; Hex = '0000000000000000' },
+            [pscustomobject][ordered]@{ Name = 'zoom2'; Role = 'active'; Active = $true; Hex = '0100000000000000' }
+        )) {
+            $proofStateRoot = Join-Path $resultCheckRoot ('states\{0}' -f $proofState.Name)
+            $proofScreenshotRoot = Join-Path $proofStateRoot 'screenshots'
+            New-Item -ItemType Directory -Path $proofScreenshotRoot -Force | Out-Null
+            $proofCapturePath = Join-Path $proofScreenshotRoot ('{0}.capture.json' -f $proofState.Name)
+            $proofImagePath = Join-Path $proofScreenshotRoot ('{0}.bmp' -f $proofState.Name)
+            Set-Content -LiteralPath $proofImagePath -Value 'smoke' -Encoding ASCII
+            [pscustomobject][ordered]@{
+                ok = $true
+                exitCode = 0
+                outputPath = $proofImagePath
+                requiredUsable = $true
+                json = [pscustomobject][ordered]@{
+                    Ok = $true
+                    Usable = $true
+                    CaptureMethod = 'validator-smoke'
+                    ContentBlackPixelRatio = 0.01
+                    ContentLumaStdDev = 12.0
+                }
+            } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $proofCapturePath -Encoding UTF8
+
+            $resultRows += [pscustomobject][ordered]@{
+                state = $proofState.Name
+                stateRole = $proofState.Role
+                isActiveState = $proofState.Active
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = $proofState.Hex
+                files = [pscustomobject][ordered]@{
+                    screenshotCapture = $proofCapturePath
+                    screenshotOutput = $proofImagePath
+                }
+            }
+        }
+        $resultRows | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $resultCheckRoot 'samples.ndjson') -Encoding UTF8
+
+        $resultAnalysisOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $analyzerScript -InputDirectory $resultCheckRoot -BaselineStateRegex '^baseline' -ActiveStateRegex '^zoom' -BaselineLabel baseline -ActiveLabel zoom -RequireVisualGate -ExpectedStates baseline1,zoom1,baseline2,zoom2 -ExpectedStateRoles baseline,active,baseline,active -Json 2>&1
+        $resultAnalysisCode = $LASTEXITCODE
+        if ($resultAnalysisCode -ne 0) {
+            throw "Analyzer result-check fixture failed with exit code $resultAnalysisCode.`n$($resultAnalysisOutput -join [Environment]::NewLine)"
+        }
+
+        $resultCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -RunRoot $resultCheckRoot -Json 2>&1
+        $resultCheckCode = $LASTEXITCODE
+        if ($resultCheckCode -ne 0) {
+            throw "Nameplate proof result checker failed with exit code $resultCheckCode.`n$($resultCheckOutput -join [Environment]::NewLine)"
+        }
+        $resultCheck = ($resultCheckOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+        if (-not [bool]$resultCheck.ok) {
+            throw "Nameplate proof result checker returned ok=false.`n$($resultCheckOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($resultCheck.checks | Where-Object { $_.name -eq 'expected-state-sequence-passed' -and $_.status -eq 'passed' })) {
+            throw "Nameplate proof result checker did not pass expected-state-sequence-passed.`n$($resultCheckOutput -join [Environment]::NewLine)"
+        }
+
+        $latestOutputRoot = Split-Path -Parent $resultCheckRoot
+        $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
+        $latestCheckCode = $LASTEXITCODE
+        if ($latestCheckCode -ne 0) {
+            throw "Nameplate proof result checker -Latest failed with exit code $latestCheckCode.`n$($latestCheckOutput -join [Environment]::NewLine)"
+        }
+        $latestCheck = ($latestCheckOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+        if (-not [bool]$latestCheck.ok -or [string]$latestCheck.runRoot -ne [string]$resultCheck.runRoot) {
+            throw "Nameplate proof result checker -Latest did not resolve the expected fully gated run.`n$($latestCheckOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-result-checker-smoke' -Status 'passed' -Detail 'Post-capture nameplate proof result checker accepts a fully gated baseline/zoom fixture by explicit RunRoot and -Latest.' -Data ([ordered]@{ candidateCount = $resultCheck.candidateCount; checkCount = @($resultCheck.checks).Count; latestResolved = $true })
+    }
+    finally {
+        if (Test-Path -LiteralPath $resultCheckRoot) {
+            Remove-Item -LiteralPath $resultCheckRoot -Recurse -Force
         }
     }
 }

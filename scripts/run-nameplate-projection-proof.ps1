@@ -38,6 +38,22 @@ if ($ScreenshotAttempts -lt 1) {
     throw 'ScreenshotAttempts must be at least 1.'
 }
 
+if ($NonInteractive -and -not $PlanOnly) {
+    throw 'Nameplate baseline/zoom proof requires operator confirmation for each visible state. Use -PlanOnly for dry runs; do not use -NonInteractive for live proof capture.'
+}
+
+$expectedStateRoles = @($States | ForEach-Object {
+    if ($_ -match '^zoom') {
+        'active'
+    }
+    elseif ($_ -match '^baseline') {
+        'baseline'
+    }
+    else {
+        throw "Nameplate proof state '$_' must match either '^baseline' or '^zoom' so the post-capture audit can verify the expected proof sequence."
+    }
+})
+
 $helperArgs = @(
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
@@ -56,6 +72,8 @@ $helperArgs = @(
     '-AnalyzerBaselineLabel', 'baseline',
     '-AnalyzerActiveLabel', 'zoom',
     '-AnalyzerRequireVisualGate',
+    '-AnalyzerExpectedStates', ($States -join ','),
+    '-AnalyzerExpectedStateRoles', ($expectedStateRoles -join ','),
     '-RunLabel', $RunLabel
 )
 

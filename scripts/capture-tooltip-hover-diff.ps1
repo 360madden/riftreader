@@ -31,6 +31,8 @@ param(
     [string]$AnalyzerBaselineLabel = 'baseline',
     [string]$AnalyzerActiveLabel = 'active',
     [switch]$AnalyzerRequireVisualGate,
+    [string[]]$AnalyzerExpectedStates = @(),
+    [string[]]$AnalyzerExpectedStateRoles = @(),
     [switch]$PlanOnly,
     [switch]$Json,
     [switch]$NonInteractive
@@ -293,6 +295,16 @@ function Invoke-PostCaptureAnalyzer {
 
     if ($AnalyzerRequireVisualGate) {
         $analyzerArgs += '-RequireVisualGate'
+    }
+
+    $expectedStates = @(Normalize-CommaList -Value $AnalyzerExpectedStates)
+    if ($expectedStates.Count -gt 0) {
+        $analyzerArgs += @('-ExpectedStates', ($expectedStates -join ','))
+    }
+
+    $expectedStateRoles = @(Normalize-CommaList -Value $AnalyzerExpectedStateRoles)
+    if ($expectedStateRoles.Count -gt 0) {
+        $analyzerArgs += @('-ExpectedStateRoles', ($expectedStateRoles -join ','))
     }
 
     $startedUtc = (Get-Date).ToUniversalTime().ToString('o')
@@ -561,6 +573,8 @@ $plan = [ordered]@{
     analyzerBaselineLabel = $AnalyzerBaselineLabel
     analyzerActiveLabel = $AnalyzerActiveLabel
     analyzerRequireVisualGate = [bool]$AnalyzerRequireVisualGate
+    analyzerExpectedStates = @(Normalize-CommaList -Value $AnalyzerExpectedStates)
+    analyzerExpectedStateRoles = @(Normalize-CommaList -Value $AnalyzerExpectedStateRoles)
     nonInteractive = [bool]$NonInteractive
     controlsInput = $false
     notes = @(
@@ -612,12 +626,13 @@ foreach ($state in $States) {
     $stateSafe = $state -replace '[^A-Za-z0-9_.-]', '-'
     $stateRoot = Join-Path $statesRoot $stateSafe
     New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
-    Add-NdjsonEvent -Path $eventsPath -Event 'state-started' -Data @{ state = $state; index = $stateIndex }
-    $isHoverState = $state -match 'hover'
+    $isActiveState = $state -match $AnalyzerActiveStateRegex
+    $stateRole = if ($isActiveState) { 'active' } elseif ($state -match $AnalyzerBaselineStateRegex) { 'baseline' } else { 'other' }
+    Add-NdjsonEvent -Path $eventsPath -Event 'state-started' -Data @{ state = $state; index = $stateIndex; role = $stateRole }
 
     if (-not $NonInteractive) {
         Write-Host ''
-        Write-Host "Prepare tooltip state '$state' ($stateIndex/$($States.Count))." -ForegroundColor Cyan
+        Write-Host "Prepare proof state '$state' ($stateRole, $stateIndex/$($States.Count))." -ForegroundColor Cyan
         Write-Host 'This script will not touch mouse, keyboard, window focus, movement, or casting.' -ForegroundColor DarkGray
         Read-Host 'Press Enter when the operator-visible state is ready' | Out-Null
     }
@@ -656,7 +671,7 @@ foreach ($state in $States) {
         $scanRecord = Invoke-ReaderJson -Arguments $scanArgs -OutFile (Join-Path $stateRoot 'scan-tooltip-text.json')
         $textAddresses = @(Get-ScanHitAddressStrings -Value $scanRecord.json)
 
-        if (-not $isHoverState) {
+        if ($stateRole -eq 'baseline') {
             $hiddenTextAddresses = @($hiddenTextAddresses + $textAddresses | Select-Object -Unique)
         }
     }
@@ -676,7 +691,7 @@ foreach ($state in $States) {
                 break
             }
             'hoverOnly' {
-                if ($isHoverState) {
+                if ($isActiveState) {
                     @($textAddresses | Where-Object { $hiddenTextAddresses -notcontains $_ })
                 }
                 else {
@@ -763,7 +778,7 @@ foreach ($state in $States) {
         $hasTarget = Get-TargetPresence -TargetJson $targetRecord.json
     }
 
-    $hoverOnlyTooltipTextAddresses = if ($isHoverState) {
+    $hoverOnlyTooltipTextAddresses = if ($isActiveState) {
         @($textAddresses | Where-Object { $hiddenTextAddresses -notcontains $_ })
     }
     else {
@@ -772,6 +787,8 @@ foreach ($state in $States) {
 
     $sample = [pscustomobject][ordered]@{
         state = $state
+        stateRole = $stateRole
+        isActiveState = $isActiveState
         timestampUtc = (Get-Date).ToUniversalTime().ToString('o')
         candidateAddress = Format-Address -Value $candidateAddressInt
         baseAddress = Format-Address -Value $windowBaseInt
