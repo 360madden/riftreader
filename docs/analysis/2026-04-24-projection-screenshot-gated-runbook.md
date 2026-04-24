@@ -221,6 +221,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 
 The comparator fails closed unless both runs have passed screenshot/sequence
 gates and at least `-MinRepeatCount` requested candidate offsets repeat.
+It also includes `baselineByteValues` and `reproofByteValues` per requested
+offset so a non-repeat can be diagnosed without manually decoding
+`samples.ndjson`.
 
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
