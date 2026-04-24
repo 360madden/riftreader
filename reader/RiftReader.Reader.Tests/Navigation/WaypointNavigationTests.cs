@@ -474,6 +474,525 @@ public sealed class NavigationVectorSummaryTextFormatterTests
     }
 }
 
+public sealed class WaypointRoutePlannerTests
+{
+    [Fact]
+    public void BuildPlan_CreatesOrderedSegmentsWithWaypointOverrides()
+    {
+        var movement = CreateMovement();
+        var start = CreateWaypoint("point_a", 0d, 0d);
+        var via = CreateWaypoint("point_b", 3d, 4d, arrivalRadius: 2.5d, pace: NavigationPace.Run);
+        var destination = CreateWaypoint("point_c", 6d, 4d);
+
+        var result = WaypointRoutePlanner.BuildPlan(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: movement,
+            routeWaypoints: [start, via, destination]);
+
+        Assert.Equal("success", result.Status);
+        Assert.Empty(result.Issues);
+        Assert.Equal(["point_a", "point_b", "point_c"], result.WaypointIds);
+        Assert.Equal(2, result.SegmentCount);
+        Assert.Equal(8d, result.TotalPlanarDistance, precision: 6);
+        Assert.Collection(
+            result.Segments,
+            segment =>
+            {
+                Assert.Equal(1, segment.SegmentIndex);
+                Assert.Equal("point_a", segment.StartWaypointId);
+                Assert.Equal("point_b", segment.DestinationWaypointId);
+                Assert.Equal(NavigationPace.Run, segment.Pace);
+                Assert.Equal(2.5d, segment.ArrivalRadius);
+                Assert.Equal(5d, segment.PlanarDistance, precision: 6);
+            },
+            segment =>
+            {
+                Assert.Equal(2, segment.SegmentIndex);
+                Assert.Equal("point_b", segment.StartWaypointId);
+                Assert.Equal("point_c", segment.DestinationWaypointId);
+                Assert.Equal(NavigationPace.Keep, segment.Pace);
+                Assert.Equal(1.5d, segment.ArrivalRadius);
+                Assert.Equal(3d, segment.PlanarDistance, precision: 6);
+            });
+    }
+
+    [Fact]
+    public void BuildPlan_FailsClosedForRepeatedOrCrossZoneSegments()
+    {
+        var movement = CreateMovement();
+        var start = CreateWaypoint("point_a", 0d, 0d, zone: "zone_a");
+        var repeated = CreateWaypoint("point_a", 0d, 0d, zone: "zone_a");
+        var destination = CreateWaypoint("point_b", 1d, 0d, zone: "zone_b");
+
+        var result = WaypointRoutePlanner.BuildPlan(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: movement,
+            routeWaypoints: [start, repeated, destination]);
+
+        Assert.Equal("failure", result.Status);
+        Assert.Contains(result.Issues, issue => issue.Contains("repeats waypoint 'point_a'", StringComparison.Ordinal));
+        Assert.Contains(result.Issues, issue => issue.Contains("has no planar distance", StringComparison.Ordinal));
+        Assert.Contains(result.Issues, issue => issue.Contains("crosses zones", StringComparison.Ordinal));
+    }
+
+    private static WaypointMovementSettings CreateMovement() =>
+        new(
+            ForwardKey: "w",
+            RunKey: null,
+            WalkKey: null,
+            DefaultPace: NavigationPace.Keep,
+            ForwardPulseMilliseconds: 250,
+            PostPulseSampleDelayMilliseconds: 150,
+            StartRadius: 1.5d,
+            DefaultArrivalRadius: 1.5d,
+            NoProgressWindowMilliseconds: 3000,
+            MinimumProgressDistance: 0.05d,
+            WrongWayToleranceDistance: 1d,
+            MaxTravelSeconds: 30);
+
+    private static WaypointDefinition CreateWaypoint(
+        string id,
+        double x,
+        double z,
+        double? arrivalRadius = null,
+        string? pace = null,
+        string? zone = null) =>
+        new(
+            Id: id,
+            Label: id,
+            Zone: zone,
+            X: x,
+            Y: 0d,
+            Z: z,
+            ArrivalRadius: arrivalRadius,
+            Pace: pace);
+}
+
+public sealed class WaypointRouteNavigatorTests
+{
+    [Fact]
+    public void Run_CompletesSegmentsAndUsesPreviousArrivalRadiusAsNextStartTolerance()
+    {
+        var routeWaypoints = new[]
+        {
+            CreateWaypoint("point_a", 0d),
+            CreateWaypoint("point_b", 10d, arrivalRadius: 2.5d),
+            CreateWaypoint("point_c", 20d)
+        };
+        var poseSource = new FakePoseSource(
+            Success(0d),
+            Success(8d),
+            Success(8d),
+            Success(18.8d));
+        var movementBackend = new FakeMovementBackend();
+
+        var result = WaypointRouteNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(startRadius: 1d),
+            routeWaypoints: routeWaypoints,
+            poseSource: poseSource,
+            movementBackend: movementBackend);
+
+        Assert.Equal("success", result.Status);
+        Assert.Equal("arrived", result.StopReason);
+        Assert.Equal(2, result.SegmentCount);
+        Assert.Equal(2, result.CompletedSegmentCount);
+        Assert.Null(result.FailedSegmentIndex);
+        Assert.Equal(2, result.TotalPulseCount);
+        Assert.Equal(1.2d, result.FinalPlanarDistance, precision: 6);
+        Assert.Equal(["point_a", "point_b", "point_c"], result.WaypointIds);
+        Assert.Collection(
+            result.SegmentResults,
+            segment =>
+            {
+                Assert.Equal("success", segment.Status);
+                Assert.Equal("point_a", segment.StartWaypointId);
+                Assert.Equal("point_b", segment.DestinationWaypointId);
+                Assert.Equal(1d, segment.StartRadius);
+                Assert.Equal(2.5d, segment.ArrivalRadius);
+            },
+            segment =>
+            {
+                Assert.Equal("success", segment.Status);
+                Assert.Equal("point_b", segment.StartWaypointId);
+                Assert.Equal("point_c", segment.DestinationWaypointId);
+                Assert.Equal(2.5d, segment.StartRadius);
+                Assert.Equal(1.5d, segment.ArrivalRadius);
+            });
+        Assert.Equal(2, movementBackend.Calls.Count);
+        Assert.All(movementBackend.Calls, call => Assert.Equal("w", call.Key));
+    }
+
+    [Fact]
+    public void Run_StopsAfterFirstFailedSegment()
+    {
+        var routeWaypoints = new[]
+        {
+            CreateWaypoint("point_a", 0d),
+            CreateWaypoint("point_b", 10d),
+            CreateWaypoint("point_c", 30d)
+        };
+        var poseSource = new FakePoseSource(
+            Success(0d),
+            Success(9d),
+            Success(20d));
+        var movementBackend = new FakeMovementBackend();
+
+        var result = WaypointRouteNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(),
+            routeWaypoints: routeWaypoints,
+            poseSource: poseSource,
+            movementBackend: movementBackend);
+
+        Assert.Equal("failure", result.Status);
+        Assert.Equal("start-mismatch", result.StopReason);
+        Assert.Equal(1, result.CompletedSegmentCount);
+        Assert.Equal(2, result.FailedSegmentIndex);
+        Assert.Equal(1, result.TotalPulseCount);
+        Assert.Equal(10d, result.FinalPlanarDistance, precision: 6);
+        Assert.Equal(2, result.SegmentResults.Count);
+        Assert.Contains(result.Issues, issue => issue.Contains("Route segment 2 failed", StringComparison.Ordinal));
+        Assert.Single(movementBackend.Calls);
+        Assert.Equal(3, poseSource.ReadCalls);
+    }
+
+    [Fact]
+    public void Run_FailsBeforeInputWhenPlanInvalid()
+    {
+        var routeWaypoints = new[]
+        {
+            CreateWaypoint("point_a", 0d),
+            CreateWaypoint("point_a", 0d)
+        };
+        var poseSource = new FakePoseSource();
+        var movementBackend = new FakeMovementBackend();
+
+        var result = WaypointRouteNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(),
+            routeWaypoints: routeWaypoints,
+            poseSource: poseSource,
+            movementBackend: movementBackend);
+
+        Assert.Equal("failure", result.Status);
+        Assert.Equal("route-plan-invalid", result.StopReason);
+        Assert.Null(result.FailedSegmentIndex);
+        Assert.Equal(0, result.CompletedSegmentCount);
+        Assert.Equal(0, result.TotalPulseCount);
+        Assert.Empty(result.SegmentResults);
+        Assert.Contains(result.Issues, issue => issue.Contains("repeats waypoint 'point_a'", StringComparison.Ordinal));
+        Assert.Contains(result.Issues, issue => issue.Contains("has no planar distance", StringComparison.Ordinal));
+        Assert.Equal(0, poseSource.ReadCalls);
+        Assert.Empty(movementBackend.Calls);
+    }
+
+    [Fact]
+    public void Run_AppliesTurnBeforeEachSegmentAndAttachesTurnResults()
+    {
+        var routeWaypoints = new[]
+        {
+            CreateWaypoint("point_a", 0d),
+            CreateWaypoint("point_b", 10d, arrivalRadius: 2.5d),
+            CreateWaypoint("point_c", 20d)
+        };
+        var poseSource = new FakePoseSource(
+            Success(0d),
+            Success(0d),
+            Success(8d),
+            Success(8d),
+            Success(8d),
+            Success(18.8d));
+        var movementBackend = new FakeMovementBackend();
+        var turnRequests = new List<NavigationRouteSegmentTurnRequest>();
+
+        var result = WaypointRouteNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(startRadius: 1d),
+            routeWaypoints: routeWaypoints,
+            poseSource: poseSource,
+            movementBackend: movementBackend,
+            turnBeforeSegment: request =>
+            {
+                turnRequests.Add(request);
+                return CreateTurnResult("noop", succeeded: true, request.CurrentSample, pulseCount: 0);
+            });
+
+        Assert.Equal("success", result.Status);
+        Assert.Equal(2, result.CompletedSegmentCount);
+        Assert.Equal(["point_b", "point_c"], turnRequests.Select(static request => request.DestinationWaypoint.Id).ToArray());
+        Assert.All(result.SegmentResults, segment =>
+        {
+            Assert.NotNull(segment.TurnResult);
+            Assert.Equal("noop", segment.TurnResult!.Status);
+        });
+        Assert.Equal(2, movementBackend.Calls.Count);
+        Assert.Equal(6, poseSource.ReadCalls);
+    }
+
+    [Fact]
+    public void Run_StopsBeforeForwardMovementWhenSegmentTurnFails()
+    {
+        var routeWaypoints = new[]
+        {
+            CreateWaypoint("point_a", 0d),
+            CreateWaypoint("point_b", 10d),
+            CreateWaypoint("point_c", 20d)
+        };
+        var poseSource = new FakePoseSource(Success(0d));
+        var movementBackend = new FakeMovementBackend();
+
+        var result = WaypointRouteNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(),
+            routeWaypoints: routeWaypoints,
+            poseSource: poseSource,
+            movementBackend: movementBackend,
+            turnBeforeSegment: request => CreateTurnResult(
+                "unavailable",
+                succeeded: false,
+                request.CurrentSample,
+                pulseCount: 0,
+                reason: "Actor-facing truth was unavailable."));
+
+        Assert.Equal("failure", result.Status);
+        Assert.Equal("auto-turn-unavailable", result.StopReason);
+        Assert.Equal(1, result.FailedSegmentIndex);
+        Assert.Equal(0, result.CompletedSegmentCount);
+        Assert.Equal(0, result.TotalPulseCount);
+        Assert.Single(result.SegmentResults);
+        Assert.Equal("auto-turn-unavailable", result.SegmentResults[0].StopReason);
+        Assert.NotNull(result.SegmentResults[0].TurnResult);
+        Assert.Contains(result.Issues, issue => issue.Contains("Route segment 1 failed", StringComparison.Ordinal));
+        Assert.Empty(movementBackend.Calls);
+        Assert.Equal(1, poseSource.ReadCalls);
+    }
+
+    private static WaypointMovementSettings CreateMovement(
+        double startRadius = 2d,
+        double defaultArrivalRadius = 1.5d) =>
+        new(
+            ForwardKey: "w",
+            RunKey: null,
+            WalkKey: null,
+            DefaultPace: NavigationPace.Keep,
+            ForwardPulseMilliseconds: 1,
+            PostPulseSampleDelayMilliseconds: 0,
+            StartRadius: startRadius,
+            DefaultArrivalRadius: defaultArrivalRadius,
+            NoProgressWindowMilliseconds: 1000,
+            MinimumProgressDistance: 0.35d,
+            WrongWayToleranceDistance: 1d,
+            MaxTravelSeconds: 30);
+
+    private static WaypointDefinition CreateWaypoint(
+        string id,
+        double x,
+        double? arrivalRadius = null,
+        string? pace = null) =>
+        new(
+            Id: id,
+            Label: id,
+            Zone: null,
+            X: x,
+            Y: 0d,
+            Z: 0d,
+            ArrivalRadius: arrivalRadius,
+            Pace: pace);
+
+    private static (bool Success, NavigationPoseSample Sample, string? Error) Success(double x) =>
+        (true, new NavigationPoseSample("0x1234", x, 0d, 0d), null);
+
+    private static NavigationTurnResult CreateTurnResult(
+        string status,
+        bool succeeded,
+        NavigationPoseSample sample,
+        int pulseCount,
+        string? reason = null)
+    {
+        var position = new NavigationCoordinate(sample.X, sample.Y, sample.Z);
+        var turnPlan = new NavigationTurnPlan(
+            Status: succeeded ? "aligned" : "estimate-unavailable",
+            SourceKind: "behavior-backed-memory-facing",
+            ResolutionMode: "live-behavior-backed-lead",
+            SelectedSourceAddress: sample.AddressHex,
+            BasisPrimaryForwardOffset: "0xD4",
+            DestinationBearingDegrees: 90d,
+            CurrentYawDegrees: succeeded ? 90d : null,
+            SignedBearingDeltaDegrees: succeeded ? 0d : null,
+            AbsoluteBearingDeltaDegrees: succeeded ? 0d : null,
+            SuggestedTurnDirection: succeeded ? "aligned" : null,
+            AlignmentThresholdDegrees: 7.5d,
+            WithinAlignmentThreshold: succeeded,
+            Reason: reason);
+
+        return new NavigationTurnResult(
+            Status: status,
+            Succeeded: succeeded,
+            Attempted: pulseCount > 0,
+            TurnKey: null,
+            TurnDirection: succeeded ? "aligned" : null,
+            ThresholdDegrees: 7.5d,
+            PulseCount: pulseCount,
+            WorseningPulseCount: 0,
+            MaxWorseningPulses: 2,
+            InitialPlan: turnPlan,
+            FinalPlan: turnPlan,
+            InitialPosition: position,
+            FinalPosition: position,
+            Samples: Array.Empty<NavigationTurnSample>(),
+            Reason: reason,
+            Events: Array.Empty<NavigationEvent>());
+    }
+
+    private sealed class FakePoseSource(
+        params (bool Success, NavigationPoseSample Sample, string? Error)[] steps) : INavigationPoseSource
+    {
+        private readonly Queue<(bool Success, NavigationPoseSample Sample, string? Error)> _steps =
+            new(steps);
+
+        public string AnchorSource => "fake-anchor";
+
+        public string AddressHex => "0x1234";
+
+        public int ReadCalls { get; private set; }
+
+        public bool TryReadCurrent(out NavigationPoseSample sample, out string? error)
+        {
+            ReadCalls++;
+            if (_steps.Count == 0)
+            {
+                sample = new NavigationPoseSample(AddressHex, 0d, 0d, 0d);
+                error = "No navigation pose samples remain.";
+                return false;
+            }
+
+            var next = _steps.Dequeue();
+            sample = next.Sample;
+            error = next.Success ? null : next.Error ?? "Navigation pose read failed.";
+            return next.Success;
+        }
+    }
+
+    private sealed class FakeMovementBackend(
+        IEnumerable<MovementCommandResult>? results = null) : IMovementBackend
+    {
+        private readonly Queue<MovementCommandResult> _results =
+            new(results ?? Enumerable.Repeat(new MovementCommandResult(true, null), 32));
+
+        public List<(string Key, int HoldMilliseconds)> Calls { get; } = [];
+
+        public void PrepareForMovement()
+        {
+        }
+
+        public MovementCommandResult PressKey(string key, int holdMilliseconds)
+        {
+            Calls.Add((key, holdMilliseconds));
+            return _results.Count > 0
+                ? _results.Dequeue()
+                : new MovementCommandResult(true, null);
+        }
+    }
+}
+
+public sealed class NavigationRouteRunResultTextFormatterTests
+{
+    [Fact]
+    public void Format_IncludesRouteAggregateAndSegmentSummaries()
+    {
+        var result = new NavigationRouteRunResult(
+            Mode: "navigate-waypoint-route",
+            ProcessId: 100,
+            ProcessName: "rift_x64",
+            WaypointFile: "waypoints.json",
+            Status: "failure",
+            StartWaypointId: "point_a",
+            DestinationWaypointId: "point_c",
+            WaypointIds: ["point_a", "point_b", "point_c"],
+            SegmentCount: 2,
+            CompletedSegmentCount: 1,
+            FailedSegmentIndex: 2,
+            StopReason: "start-mismatch",
+            AnchorSource: "coord-trace-anchor",
+            TotalPlanarDistance: 30d,
+            FinalPlanarDistance: 10d,
+            TotalPulseCount: 1,
+            InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+            FinalPosition: new NavigationCoordinate(20d, 0d, 0d),
+            DestinationPosition: new NavigationCoordinate(30d, 0d, 0d),
+            ElapsedMilliseconds: 150,
+            SegmentResults:
+            [
+                CreateSegmentResult(
+                    startWaypointId: "point_a",
+                    destinationWaypointId: "point_b",
+                    status: "success",
+                    stopReason: "arrived",
+                    pulseCount: 1,
+                    finalPlanarDistance: 1d),
+                CreateSegmentResult(
+                    startWaypointId: "point_b",
+                    destinationWaypointId: "point_c",
+                    status: "failure",
+                    stopReason: "start-mismatch",
+                    pulseCount: 0,
+                    finalPlanarDistance: 10d)
+            ],
+            Issues: ["Route segment 2 failed with stop reason 'start-mismatch'."]);
+
+        var text = NavigationRouteRunResultTextFormatter.Format(result);
+
+        Assert.Contains("Route:                point_a -> point_b -> point_c", text, StringComparison.Ordinal);
+        Assert.Contains("Failed segment:       2", text, StringComparison.Ordinal);
+        Assert.Contains("Total pulses:         1", text, StringComparison.Ordinal);
+        Assert.Contains("Route segment 2 failed", text, StringComparison.Ordinal);
+        Assert.Contains("2. point_b -> point_c status=failure reason=start-mismatch", text, StringComparison.Ordinal);
+    }
+
+    private static NavigationRunResult CreateSegmentResult(
+        string startWaypointId,
+        string destinationWaypointId,
+        string status,
+        string stopReason,
+        int pulseCount,
+        double finalPlanarDistance) =>
+        new(
+            Mode: "navigate-waypoints",
+            ProcessId: 100,
+            ProcessName: "rift_x64",
+            WaypointFile: "waypoints.json",
+            Status: status,
+            StartWaypointId: startWaypointId,
+            DestinationWaypointId: destinationWaypointId,
+            Pace: NavigationPace.Keep,
+            AnchorSource: "coord-trace-anchor",
+            StartRadius: 2d,
+            ArrivalRadius: 1.5d,
+            InitialPlanarDistance: 10d,
+            FinalPlanarDistance: finalPlanarDistance,
+            PulseCount: pulseCount,
+            StopReason: stopReason,
+            InitialPosition: new NavigationCoordinate(0d, 0d, 0d),
+            FinalPosition: new NavigationCoordinate(0d, 0d, 0d),
+            DestinationPosition: new NavigationCoordinate(10d, 0d, 0d),
+            ElapsedMilliseconds: 75);
+}
+
 public sealed class WaypointNavigatorTests
 {
     [Fact]

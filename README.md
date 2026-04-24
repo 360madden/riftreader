@@ -19,19 +19,27 @@ layer.
 | Control model | Manual-align first by default; optional proof-strict pre-movement auto-turn |
 | Waypoints | External JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Telemetry | Verified coord anchor once, then direct memory coord reads during travel |
-| Movement | Forward key pulses plus optional run / walk toggle; `--auto-turn-before-move` can align before travel |
+| Movement | Forward key pulses plus optional run / walk toggle; `--auto-turn-before-move` can align before single-segment travel or before each active route segment |
+| V3 route chain | `--plan-navigation-route` validates ordered start / via / destination route chains without input; `--navigate-waypoint-route` is the explicit active-input route gate with opt-in per-segment auto-turn |
+| TomTom import | `--import-tomtom-waypoints` converts TomTom saved `coordX/coordZ` waypoint lists into RiftReader waypoint JSON; imported `Y` defaults to `0` unless `--tomtom-default-y` is provided |
 | Safety | Fail closed on anchor loss, no progress, moving away, input failure, or timeout |
 | Non-goals | No obstacle avoidance, no route graph, no addon waypoint UI |
 
 Use these waypoint modes:
 
+- `--import-tomtom-waypoints` for offline TomTom saved-variable import into
+  waypoint JSON
 - `--read-navigation-current` for a read-only destination vector preflight
+- `--plan-navigation-route` for read-only v3 route-chain planning
+- `--navigate-waypoint-route` for active v3 multi-segment route execution; add
+  `--auto-turn-before-move` for opt-in per-segment turn alignment
 - `--navigate-waypoints` for single-segment forward travel; add
   `--auto-turn-before-move` for opt-in pre-movement turn alignment
 
 See:
 
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
+- `C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`
 
 ## Shell Requirements
 

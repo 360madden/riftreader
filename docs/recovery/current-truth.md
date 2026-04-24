@@ -15,9 +15,11 @@ _Last updated: April 23, 2026 (fresh live coord-anchor validation, agentic actor
 | Active movement (`--navigate-waypoints`) | requires the validated coord-trace anchor only; cached/reacquired anchors are no longer accepted for live movement, even when opt-in auto-turn is enabled |
 | Navigation preflight (`--read-navigation-current`) | returns a read-only facing-aware turn hint when actor-facing truth is available; this powers operator guidance and reader-core auto-turn planning |
 | Navigation reader-core auto-turn | `--navigate-waypoints` can now opt into pre-movement auto-turn with `--auto-turn-before-move` and related tuning switches; it remains fail-closed if alignment does not improve or worsens repeatedly |
+| Navigation v3 route planning | `--plan-navigation-route` builds a read-only ordered start / via / destination route plan with per-segment distance, bearing, arrival radius, and pace; it does not send movement input |
+| Navigation v3 active route gate | `--navigate-waypoint-route` is now the explicit active-input route-chain gate; it runs planned segments sequentially, can opt into per-segment auto-turn with `--auto-turn-before-move`, preserves per-segment results, and stops on first failure, but still needs live route proof promotion |
 | Navigation prototype wrapper | `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1` remains an optional higher-level helper for the same facing-aware preflight / auto-turn workflow |
-| Navigation proof suite | `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1` now rechecks the smoke-route, facing-aware preflight, current auto-turn-preflight path, and opt-in active v3-prep proofs via `-IncludeActiveMovement` / `-IncludeMisalignedAutoTurn` |
-| V3 movement readiness | v3-prep blocker cleared for the first deliberately misaligned live route: `navigation-prototype-20260423-195303-923` corrected about `19.9°` of misalignment with one `d` pulse, improved to about `2.7°`, then arrived through strict `coord-trace-anchor` forward travel; still needs repeatability and broader terrain/route-chain decisions before promotion |
+| Navigation proof suite | `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1` now rechecks the smoke-route, asserts v3 route-plan segment metadata, verifies facing-aware preflight, current auto-turn-preflight path, and opt-in active v3-prep proofs via `-IncludeActiveMovement` / `-IncludeMisalignedAutoTurn`; failed steps preserve nested command output for foreground/focus abort diagnosis |
+| V3 movement readiness | v3-prep blocker cleared and repeated for deliberately misaligned live routes: `navigation-prototype-20260423-195303-923` corrected about `19.9°` to about `2.7°`, and `navigation-prototype-20260423-201344-231` corrected about `20.0°` to about `2.1°`; both sent one corrective `d` pulse and arrived through strict `coord-trace-anchor` forward travel; still needs broader terrain/route-chain decisions before promotion |
 | ReaderBridge orientation probe | still empty on the current client |
 | `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
 | `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
@@ -106,9 +108,14 @@ Operational interpretation:
   suggested turn direction, and `--navigate-waypoints` can now opt into
   pre-movement auto-turn with `--auto-turn-before-move`
 - reader-core auto-turn remains fail-closed and movement-anchor-strict; the
-  first deliberately misaligned live route proof now passed end-to-end in
-  `navigation-prototype-20260423-195303-923`, but broader v3 promotion still
-  needs repeatability and route/terrain scope decisions
+  deliberately misaligned live route proof has now passed end-to-end twice
+  (`navigation-prototype-20260423-195303-923` and
+  `navigation-prototype-20260423-201344-231`), but broader v3 promotion still
+  needs route/terrain scope decisions
+- route-chain planning is available as a read-only v3 slice through
+  `--plan-navigation-route`; active multi-segment movement is now explicitly
+  gated through `--navigate-waypoint-route`, but live route proofing and
+  terrain/obstacle scope are still pending
 - the same-session provenance lane is live again, and the current
   `capture-player-source-chain.ps1` step now rebuilds fresh with
   `Recovery.Mode = rebuild-from-suggested-source-chain-pattern` when the

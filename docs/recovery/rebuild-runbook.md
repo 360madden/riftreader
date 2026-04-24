@@ -129,16 +129,28 @@ Preferred live-truth flow on the current client:
   auto-turn concept
 - `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
   is now the one-command navigation hardening pass for the smoke-route,
-  facing-aware preflight, and current auto-turn-preflight path
+  v3 route-plan mode with segment assertions, facing-aware preflight, and
+  current auto-turn-preflight path
+- use `--plan-navigation-route` before v3 route-chain execution work to verify
+  ordered start / via / destination segments without sending movement input
+- use `--navigate-waypoint-route` only as the explicit v3 active route-chain
+  gate after route planning, foreground, terrain, and proof-anchor checks; it
+  can opt into per-segment auto-turn with `--auto-turn-before-move`, but it
+  does not yet have live route proof promotion
 - add `-IncludeActiveMovement` for aligned live movement proof, or
   `-IncludeMisalignedAutoTurn -MisalignedBearingOffsetDegrees 20` for the
   v3-prep corrective-turn + forward-travel proof; both flags send live input
   and require `-IncludeLive`
-- the first deliberately **misaligned** smoke route has now been validated:
+- when running active proofs from automation, keep Rift foreground through the
+  active step; after a fresh smoke-route/preflight, add `-SkipRefresh` to avoid
+  extra `/reloadui` foreground churn
+- deliberately **misaligned** smoke routes have now been validated:
   `navigation-prototype-20260423-195303-923` sent one corrective `d` pulse,
-  improved heading delta from about `19.9°` to about `2.7°`, and handed off
-  cleanly to strict coord-trace-based forward movement; repeat this proof after
-  route/tuning changes before promoting broader v3 behavior
+  improved heading delta from about `19.9°` to about `2.7°`, and
+  `navigation-prototype-20260423-201344-231` repeated the proof through the
+  suite with `-SkipRefresh`, improving about `20.0°` to about `2.1°`; both
+  handed off cleanly to strict coord-trace-based forward movement; repeat this
+  proof after route/tuning changes before promoting broader v3 behavior
 - Lane A (live truth) may stay green even when the raw source-chain step falls
   back to `rebuild-from-suggested-source-chain-pattern` or, only if that fails,
   same-session recovery-mode reuse; Lane B (provenance) is where that

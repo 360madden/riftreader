@@ -23,7 +23,10 @@ Usage:
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --plan-navigation-route --start-waypoint <id> [--via-waypoint <id> ...] --destination-waypoint <id> [--navigation-waypoint-file <path>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoint-route --start-waypoint <id> [--via-waypoint <id> ...] --destination-waypoint <id> [--navigation-waypoint-file <path>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-navigation-waypoint <id> [--navigation-waypoint-file <path>] [--waypoint-label <text>] [--waypoint-zone <text>] [--waypoint-arrival-radius <distance>] [--waypoint-pace run|walk|keep] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --import-tomtom-waypoints --tomtom-saved-variables-file <path> [--navigation-waypoint-file <path>] [--tomtom-list <name> ...] [--tomtom-zone <zoneId>] [--tomtom-default-y <value>] [--tomtom-id-prefix <prefix>] [--tomtom-arrival-radius <distance>] [--tomtom-pace run|walk|keep] [--json]
   RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--verbose-navigation-events] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
@@ -57,7 +60,10 @@ Notes:
   - Use --orientation-candidate-ledger-file to downrank candidates that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint.
+  - Use --plan-navigation-route with --start-waypoint, optional repeated --via-waypoint, and --destination-waypoint to validate a v3 multi-segment route plan without sending movement input.
+  - Use --navigate-waypoint-route with --start-waypoint, optional repeated --via-waypoint, and --destination-waypoint to execute the v3 chained route path with active movement input; add --auto-turn-before-move to align before each segment.
   - Use --capture-navigation-waypoint to record the current live position into the waypoint JSON so point A / point B runs do not require manual coordinate edits.
+  - Use --import-tomtom-waypoints to convert TomTomGlobal.PickupLocations saved variables into RiftReader waypoint JSON. TomTom only stores X/Z; --tomtom-default-y supplies the imported Y value.
   - Use --navigate-waypoints with --start-waypoint and --destination-waypoint to run the manual-facing waypoint navigator that pulses forward movement until arrival or a fail-closed stop condition.
   - Add --auto-turn-before-move when you want the reader to use current actor-facing truth to align heading before forward movement begins.
   - Add --verbose-navigation-events when you want the text formatter to print the full navigation/auto-turn event timeline instead of just the latest summary.
@@ -94,7 +100,10 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-current --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --find-player-orientation-candidate --max-hits 8 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-navigation-current --destination-waypoint example_destination --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --plan-navigation-route --start-waypoint example_start --via-waypoint example_mid --destination-waypoint example_destination --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoint-route --start-waypoint example_start --via-waypoint example_mid --destination-waypoint example_destination --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --capture-navigation-waypoint point_a --waypoint-label "Point A" --json
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --import-tomtom-waypoints --tomtom-saved-variables-file .\TomTom.lua --navigation-waypoint-file .\scripts\navigation\tomtom-waypoints.json --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --navigate-waypoints --start-waypoint example_start --destination-waypoint example_destination --pace keep --auto-turn-before-move --auto-turn-within-degrees 7.5 --verbose-navigation-events
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --read-player-coord-anchor --json
@@ -138,6 +147,8 @@ Examples:
         var findPlayerOrientationCandidate = false;
         var readPlayerCoordAnchor = false;
         var readNavigationCurrent = false;
+        var planNavigationRoute = false;
+        var navigateWaypointRoute = false;
         var captureNavigationWaypoint = false;
         string? captureNavigationWaypointId = null;
         var navigateWaypoints = false;
@@ -145,6 +156,7 @@ Examples:
         var sessionSummary = false;
         string? navigationWaypointFile = null;
         string? startWaypointId = null;
+        var viaWaypointIds = new List<string>();
         string? destinationWaypointId = null;
         string? pace = null;
         double? arrivalRadius = null;
@@ -205,6 +217,14 @@ Examples:
         string? telemetryDiagnosticsLogFile = null;
         string? telemetryProofAnchorFile = null;
         var jsonOutput = false;
+        var importTomTomWaypoints = false;
+        string? tomTomSavedVariablesFile = null;
+        var tomTomListNames = new List<string>();
+        string? tomTomZone = null;
+        double? tomTomDefaultY = null;
+        string? tomTomIdPrefix = null;
+        double? tomTomArrivalRadius = null;
+        string? tomTomPace = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -513,6 +533,14 @@ Examples:
                     readNavigationCurrent = true;
                     break;
 
+                case "--plan-navigation-route":
+                    planNavigationRoute = true;
+                    break;
+
+                case "--navigate-waypoint-route":
+                    navigateWaypointRoute = true;
+                    break;
+
                 case "--capture-navigation-waypoint":
                     if (!TryReadNext(args, ref index, out var captureNavigationWaypointValue))
                     {
@@ -530,6 +558,111 @@ Examples:
 
                 case "--navigate-waypoints":
                     navigateWaypoints = true;
+                    break;
+
+                case "--import-tomtom-waypoints":
+                    importTomTomWaypoints = true;
+                    break;
+
+                case "--tomtom-saved-variables-file":
+                    if (!TryReadNext(args, ref index, out var tomTomSavedVariablesFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-saved-variables-file.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(tomTomSavedVariablesFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("TomTom saved variables file must not be blank.", UsageText);
+                    }
+
+                    tomTomSavedVariablesFile = tomTomSavedVariablesFileValue;
+                    break;
+
+                case "--tomtom-list":
+                    if (!TryReadNext(args, ref index, out var tomTomListValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-list.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(tomTomListValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("TomTom list name must not be blank.", UsageText);
+                    }
+
+                    tomTomListNames.Add(tomTomListValue.Trim());
+                    break;
+
+                case "--tomtom-zone":
+                    if (!TryReadNext(args, ref index, out var tomTomZoneValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-zone.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(tomTomZoneValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("TomTom zone must not be blank.", UsageText);
+                    }
+
+                    tomTomZone = tomTomZoneValue.Trim();
+                    break;
+
+                case "--tomtom-default-y":
+                    if (!TryReadNext(args, ref index, out var tomTomDefaultYValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-default-y.", UsageText);
+                    }
+
+                    if (!double.TryParse(tomTomDefaultYValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedTomTomDefaultY) ||
+                        !double.IsFinite(parsedTomTomDefaultY))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid TomTom default Y '{tomTomDefaultYValue}'.", UsageText);
+                    }
+
+                    tomTomDefaultY = parsedTomTomDefaultY;
+                    break;
+
+                case "--tomtom-id-prefix":
+                    if (!TryReadNext(args, ref index, out var tomTomIdPrefixValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-id-prefix.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(tomTomIdPrefixValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("TomTom id prefix must not be blank.", UsageText);
+                    }
+
+                    tomTomIdPrefix = tomTomIdPrefixValue.Trim();
+                    break;
+
+                case "--tomtom-arrival-radius":
+                    if (!TryReadNext(args, ref index, out var tomTomArrivalRadiusValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-arrival-radius.", UsageText);
+                    }
+
+                    if (!double.TryParse(tomTomArrivalRadiusValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedTomTomArrivalRadius) ||
+                        !double.IsFinite(parsedTomTomArrivalRadius) ||
+                        parsedTomTomArrivalRadius <= 0d)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid TomTom arrival radius '{tomTomArrivalRadiusValue}'.", UsageText);
+                    }
+
+                    tomTomArrivalRadius = parsedTomTomArrivalRadius;
+                    break;
+
+                case "--tomtom-pace":
+                    if (!TryReadNext(args, ref index, out var tomTomPaceValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --tomtom-pace.", UsageText);
+                    }
+
+                    if (!NavigationPace.TryNormalize(tomTomPaceValue, out var normalizedTomTomPace))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Unsupported TomTom pace '{tomTomPaceValue}'. Use run, walk, or keep.", UsageText);
+                    }
+
+                    tomTomPace = normalizedTomTomPace;
                     break;
 
                 case "--navigation-waypoint-file":
@@ -558,6 +691,20 @@ Examples:
                     }
 
                     startWaypointId = startWaypointValue.Trim();
+                    break;
+
+                case "--via-waypoint":
+                    if (!TryReadNext(args, ref index, out var viaWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --via-waypoint.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(viaWaypointValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Via waypoint id must not be blank.", UsageText);
+                    }
+
+                    viaWaypointIds.Add(viaWaypointValue.Trim());
                     break;
 
                 case "--destination-waypoint":
@@ -1068,6 +1215,148 @@ Examples:
             return ReaderOptionsParseResult.Fail("Choose only one scan target: --scan-string, --scan-int32, --scan-float, --scan-double, --scan-readerbridge-player-name, --scan-readerbridge-player-coords, --scan-readerbridge-player-signature, --scan-readerbridge-identity, or --scan-pointer.", UsageText);
         }
 
+        var tomTomImportOptionProvided =
+            tomTomSavedVariablesFile is not null ||
+            tomTomListNames.Count > 0 ||
+            tomTomZone is not null ||
+            tomTomDefaultY.HasValue ||
+            tomTomIdPrefix is not null ||
+            tomTomArrivalRadius.HasValue ||
+            tomTomPace is not null;
+
+        if (tomTomImportOptionProvided && !importTomTomWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("TomTom import switches require --import-tomtom-waypoints.", UsageText);
+        }
+
+        if (importTomTomWaypoints)
+        {
+            if (string.IsNullOrWhiteSpace(tomTomSavedVariablesFile))
+            {
+                return ReaderOptionsParseResult.Fail("--import-tomtom-waypoints requires --tomtom-saved-variables-file.", UsageText);
+            }
+
+            if (processId.HasValue || !string.IsNullOrWhiteSpace(processName) || address.HasValue || length.HasValue)
+            {
+                return ReaderOptionsParseResult.Fail("--import-tomtom-waypoints cannot be combined with process attach or raw memory-read switches.", UsageText);
+            }
+
+            if (sessionSummary ||
+                rankOwnerComponents ||
+                rankStatHubs ||
+                cheatEngineStatHubs ||
+                readPlayerOrientation ||
+                readAddonSnapshot ||
+                readReaderBridgeSnapshot ||
+                captureNavigationWaypoint ||
+                planNavigationRoute ||
+                navigateWaypointRoute ||
+                navigateWaypoints ||
+                readPlayerCurrent ||
+                readPlayerCoordAnchor ||
+                readTargetCurrent ||
+                readNavigationCurrent ||
+                captureReaderBridgeBestFamily ||
+                writeCheatEngineProbe ||
+                recordSession ||
+                listModules ||
+                scanRequested ||
+                telemetryPreflight ||
+                runTelemetryHost)
+            {
+                return ReaderOptionsParseResult.Fail("--import-tomtom-waypoints cannot be combined with other reader, snapshot, scan, navigation movement, telemetry, or session modes.", UsageText);
+            }
+
+            return ReaderOptionsParseResult.Success(
+                new ReaderOptions(
+                    ProcessId: null,
+                    ProcessName: null,
+                    Address: null,
+                    Length: null,
+                    ListModules: false,
+                    ScanModuleName: null,
+                    ScanModulePattern: null,
+                    WriteCheatEngineProbe: false,
+                    CheatEngineProbeFile: null,
+                    RankOwnerComponents: false,
+                    OwnerComponentsFile: null,
+                    RankStatHubs: false,
+                    CheatEngineStatHubs: false,
+                    ReadPlayerOrientation: false,
+                    CaptureReaderBridgeBestFamily: false,
+                    ReadPlayerCurrent: false,
+                    ReadPlayerCoordAnchor: false,
+                    ReadTargetCurrent: false,
+                    SessionSummary: false,
+                    SessionDirectory: null,
+                    RecordSession: false,
+                    SessionWatchsetFile: null,
+                    SessionOutputDirectory: null,
+                    SessionMarkerInputFile: null,
+                    SessionSampleCount: 1,
+                    SessionIntervalMilliseconds: 500,
+                    SessionLabel: null,
+                    PlayerCoordTraceFile: null,
+                    CaptureLabel: null,
+                    CaptureFile: null,
+                    ScanString: null,
+                    ScanPointer: null,
+                    ScanInt32: null,
+                    ScanFloat: null,
+                    ScanDouble: null,
+                    ScanTolerance: scanTolerance,
+                    PointerWidth: IntPtr.Size,
+                    ScanEncoding: StringScanEncoding.Both,
+                    ScanContextBytes: 0,
+                    MaxHits: 16,
+                    ScanReaderBridgePlayerName: false,
+                    ScanReaderBridgePlayerCoords: false,
+                    ScanReaderBridgePlayerSignature: false,
+                    ScanReaderBridgeIdentity: false,
+                    ReadAddonSnapshot: false,
+                    AddonSnapshotFile: null,
+                    ReadReaderBridgeSnapshot: false,
+                    ReaderBridgeSnapshotFile: null,
+                    JsonOutput: jsonOutput,
+                    NavigationWaypointFile: navigationWaypointFile,
+                    ImportTomTomWaypoints: true,
+                    TomTomSavedVariablesFile: tomTomSavedVariablesFile,
+                    TomTomListNames: tomTomListNames.ToArray(),
+                    TomTomZone: tomTomZone,
+                    TomTomDefaultY: tomTomDefaultY,
+                    TomTomIdPrefix: tomTomIdPrefix,
+                    TomTomArrivalRadius: tomTomArrivalRadius,
+                    TomTomPace: tomTomPace),
+                UsageText);
+        }
+
+        if (planNavigationRoute &&
+            (sessionSummary ||
+             rankOwnerComponents ||
+             rankStatHubs ||
+             cheatEngineStatHubs ||
+             readPlayerOrientation ||
+             readAddonSnapshot ||
+             readReaderBridgeSnapshot ||
+             captureNavigationWaypoint ||
+             navigateWaypointRoute || navigateWaypoints ||
+             readPlayerCurrent ||
+             readPlayerCoordAnchor ||
+             readTargetCurrent ||
+             readNavigationCurrent ||
+             captureReaderBridgeBestFamily ||
+             writeCheatEngineProbe ||
+             recordSession ||
+             listModules ||
+             scanRequested ||
+             telemetryPreflight ||
+             runTelemetryHost ||
+             address.HasValue ||
+             length.HasValue))
+        {
+            return ReaderOptionsParseResult.Fail("--plan-navigation-route cannot be combined with other reader, snapshot, scan, navigation movement, telemetry, or raw memory modes.", UsageText);
+        }
+
         if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue)
         {
             return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float or --scan-double.", UsageText);
@@ -1087,7 +1376,7 @@ Examples:
              readAddonSnapshot ||
              readReaderBridgeSnapshot ||
              captureNavigationWaypoint ||
-             navigateWaypoints ||
+             navigateWaypointRoute || navigateWaypoints ||
              readPlayerCurrent ||
              readPlayerCoordAnchor ||
              readTargetCurrent ||
@@ -1148,9 +1437,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --capture-navigation-waypoint.", UsageText);
         }
 
-        if ((readAddonSnapshot || readReaderBridgeSnapshot) && navigateWaypoints)
+        if ((readAddonSnapshot || readReaderBridgeSnapshot) && (navigateWaypointRoute || navigateWaypoints))
         {
-            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("Snapshot modes cannot be combined with navigation movement modes.", UsageText);
         }
 
         if ((readAddonSnapshot || readReaderBridgeSnapshot) && readPlayerCoordAnchor)
@@ -1202,7 +1491,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypointRoute || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs || readPlayerOrientation)
             {
                 return ReaderOptionsParseResult.Fail("--session-summary cannot be combined with scan, snapshot, live reader, or record-session modes.", UsageText);
             }
@@ -1278,7 +1567,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with memory-read switches.", UsageText);
             }
 
-            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
+            if (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypointRoute || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || rankOwnerComponents || rankStatHubs || cheatEngineStatHubs)
             {
                 return ReaderOptionsParseResult.Fail("--read-player-orientation cannot be combined with scan, probe, capture, snapshot, or other reader modes.", UsageText);
             }
@@ -1359,7 +1648,7 @@ Examples:
                 return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with process attach or memory-read switches.", UsageText);
             }
 
-            if (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || readPlayerOrientation)
+            if (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || readPlayerCoordAnchor || readTargetCurrent || readNavigationCurrent || navigateWaypointRoute || navigateWaypoints || recordSession || readAddonSnapshot || readReaderBridgeSnapshot || readPlayerOrientation)
             {
                 return ReaderOptionsParseResult.Fail("--rank-owner-components cannot be combined with scan, probe, capture, snapshot, navigation, or other reader modes.", UsageText);
             }
@@ -1565,19 +1854,24 @@ Examples:
             return ReaderOptionsParseResult.Fail("--session-directory can only be used with --session-summary.", UsageText);
         }
 
-        if (navigationWaypointFile is not null && !readNavigationCurrent && !captureNavigationWaypoint && !navigateWaypoints)
+        if (navigationWaypointFile is not null && !readNavigationCurrent && !planNavigationRoute && !navigateWaypointRoute && !captureNavigationWaypoint && !navigateWaypoints)
         {
-            return ReaderOptionsParseResult.Fail("--navigation-waypoint-file can only be used with --read-navigation-current, --capture-navigation-waypoint, or --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--navigation-waypoint-file can only be used with --read-navigation-current, --plan-navigation-route, --navigate-waypoint-route, --capture-navigation-waypoint, or --navigate-waypoints.", UsageText);
         }
 
-        if (startWaypointId is not null && !navigateWaypoints)
+        if (startWaypointId is not null && !planNavigationRoute && !navigateWaypointRoute && !navigateWaypoints)
         {
-            return ReaderOptionsParseResult.Fail("--start-waypoint can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--start-waypoint can only be used with --plan-navigation-route, --navigate-waypoint-route, or --navigate-waypoints.", UsageText);
         }
 
-        if (destinationWaypointId is not null && !readNavigationCurrent && !navigateWaypoints)
+        if (viaWaypointIds.Count > 0 && !planNavigationRoute && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--destination-waypoint can only be used with --read-navigation-current or --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--via-waypoint can only be used with --plan-navigation-route or --navigate-waypoint-route.", UsageText);
+        }
+
+        if (destinationWaypointId is not null && !readNavigationCurrent && !planNavigationRoute && !navigateWaypointRoute && !navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--destination-waypoint can only be used with --read-navigation-current, --plan-navigation-route, --navigate-waypoint-route, or --navigate-waypoints.", UsageText);
         }
 
         if (pace is not null && !navigateWaypoints)
@@ -1595,54 +1889,54 @@ Examples:
             return ReaderOptionsParseResult.Fail("--max-travel-seconds can only be used with --navigate-waypoints.", UsageText);
         }
 
-        if (autoTurnBeforeMove && !navigateWaypoints)
+        if (autoTurnBeforeMove && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--auto-turn-before-move can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--auto-turn-before-move can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (autoTurnWithinDegrees.HasValue && !navigateWaypoints)
+        if (autoTurnWithinDegrees.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--auto-turn-within-degrees can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--auto-turn-within-degrees can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnLeftKey is not null && !navigateWaypoints)
+        if (turnLeftKey is not null && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-left-key can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-left-key can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnRightKey is not null && !navigateWaypoints)
+        if (turnRightKey is not null && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-right-key can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-right-key can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnPulseMilliseconds.HasValue && !navigateWaypoints)
+        if (turnPulseMilliseconds.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-pulse-ms can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-pulse-ms can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnPostSampleDelayMilliseconds.HasValue && !navigateWaypoints)
+        if (turnPostSampleDelayMilliseconds.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-post-sample-delay-ms can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-post-sample-delay-ms can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnSettleDelayMilliseconds.HasValue && !navigateWaypoints)
+        if (turnSettleDelayMilliseconds.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-settle-delay-ms can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-settle-delay-ms can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnMaxPulses.HasValue && !navigateWaypoints)
+        if (turnMaxPulses.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-max-pulses can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-max-pulses can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnWorseningToleranceDegrees.HasValue && !navigateWaypoints)
+        if (turnWorseningToleranceDegrees.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-worsening-tolerance can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-worsening-tolerance can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
-        if (turnMaxWorseningPulses.HasValue && !navigateWaypoints)
+        if (turnMaxWorseningPulses.HasValue && !navigateWaypoints && !navigateWaypointRoute)
         {
-            return ReaderOptionsParseResult.Fail("--turn-max-worsening-pulses can only be used with --navigate-waypoints.", UsageText);
+            return ReaderOptionsParseResult.Fail("--turn-max-worsening-pulses can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
         }
 
         if (verboseNavigationEvents && !navigateWaypoints)
@@ -1714,6 +2008,26 @@ Examples:
             return ReaderOptionsParseResult.Fail("--read-navigation-current requires --destination-waypoint.", UsageText);
         }
 
+        if (planNavigationRoute && string.IsNullOrWhiteSpace(startWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--plan-navigation-route requires --start-waypoint.", UsageText);
+        }
+
+        if (planNavigationRoute && string.IsNullOrWhiteSpace(destinationWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--plan-navigation-route requires --destination-waypoint.", UsageText);
+        }
+
+        if (navigateWaypointRoute && string.IsNullOrWhiteSpace(startWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoint-route requires --start-waypoint.", UsageText);
+        }
+
+        if (navigateWaypointRoute && string.IsNullOrWhiteSpace(destinationWaypointId))
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoint-route requires --destination-waypoint.", UsageText);
+        }
+
         if (captureNavigationWaypoint && string.IsNullOrWhiteSpace(captureNavigationWaypointId))
         {
             return ReaderOptionsParseResult.Fail("--capture-navigation-waypoint requires a waypoint id.", UsageText);
@@ -1727,6 +2041,29 @@ Examples:
         if (navigateWaypoints && string.IsNullOrWhiteSpace(destinationWaypointId))
         {
             return ReaderOptionsParseResult.Fail("--navigate-waypoints requires --destination-waypoint.", UsageText);
+        }
+
+        if (navigateWaypointRoute && navigateWaypoints)
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoint-route cannot be combined with --navigate-waypoints.", UsageText);
+        }
+
+        if (navigateWaypointRoute &&
+            (scanRequested ||
+             address.HasValue ||
+             length.HasValue ||
+             listModules ||
+             writeCheatEngineProbe ||
+             captureReaderBridgeBestFamily ||
+             readPlayerCurrent ||
+             findPlayerOrientationCandidate ||
+             readTargetCurrent ||
+             readNavigationCurrent ||
+             captureNavigationWaypoint ||
+             readPlayerCoordAnchor ||
+             recordSession))
+        {
+            return ReaderOptionsParseResult.Fail("--navigate-waypoint-route cannot be combined with other reader, scan, navigation, coord-anchor, record-session, or raw memory-read modes.", UsageText);
         }
 
         if (scanRequested && address.HasValue)
@@ -1750,12 +2087,12 @@ Examples:
         }
 
         if (captureNavigationWaypoint &&
-            (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readTargetCurrent || readNavigationCurrent || navigateWaypoints || readPlayerCoordAnchor || recordSession || address.HasValue))
+            (listModules || scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || readPlayerCurrent || findPlayerOrientationCandidate || readTargetCurrent || readNavigationCurrent || navigateWaypointRoute || navigateWaypoints || readPlayerCoordAnchor || recordSession || address.HasValue))
         {
             return ReaderOptionsParseResult.Fail("--capture-navigation-waypoint cannot be combined with list-modules, scan, probe, capture, navigation, coord-anchor, record-session, or raw memory-read switches.", UsageText);
         }
 
-        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || findPlayerOrientationCandidate || readPlayerCoordAnchor || readNavigationCurrent || navigateWaypoints || recordSession || address.HasValue))
+        if (listModules && (scanRequested || writeCheatEngineProbe || captureReaderBridgeBestFamily || findPlayerOrientationCandidate || readPlayerCoordAnchor || readNavigationCurrent || navigateWaypointRoute || navigateWaypoints || recordSession || address.HasValue))
         {
             return ReaderOptionsParseResult.Fail("--list-modules cannot be combined with scan, probe, capture, navigation, coord-anchor, record-session, or raw memory-read switches.", UsageText);
         }
@@ -2129,9 +2466,12 @@ Examples:
                     FindPlayerOrientationCandidate: findPlayerOrientationCandidate,
                     OrientationCandidateLedgerFile: orientationCandidateLedgerFile,
                     ReadNavigationCurrent: readNavigationCurrent,
+                    PlanNavigationRoute: planNavigationRoute,
+                    NavigateWaypointRoute: navigateWaypointRoute,
                     NavigateWaypoints: navigateWaypoints,
                     NavigationWaypointFile: navigationWaypointFile,
                     StartWaypointId: startWaypointId,
+                    ViaWaypointIds: viaWaypointIds.ToArray(),
                     DestinationWaypointId: destinationWaypointId,
                     Pace: pace,
                     ArrivalRadius: arrivalRadius,

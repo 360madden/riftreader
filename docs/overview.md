@@ -18,7 +18,7 @@ Waypoint navigation v1 is now available as a narrow reader-owned slice.
 | Area | Current status |
 |---|---|
 | Movement model | Core reader path is single-segment forward travel with optional pre-movement auto-turn on `--navigate-waypoints` |
-| Route model | Single-segment start -> destination |
+| Route model | v3 route-chain planning exists via `--plan-navigation-route`; active chained execution is explicitly gated behind `--navigate-waypoint-route` with opt-in per-segment auto-turn, but still lacks live route proof promotion |
 | Waypoint source | `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Telemetry source | Verified live coord anchor plus direct memory reads |
 | Preflight facing summary | `--read-navigation-current` now surfaces a read-only actor-facing turn hint when the current behavior-backed lead is valid |
@@ -29,6 +29,8 @@ Use:
 
 - `--read-navigation-current` for a read-only vector summary to a destination waypoint
 - `--read-navigation-current` now also reports current yaw, heading delta, and suggested turn direction when actor-facing truth is available
+- `--plan-navigation-route` for read-only start / via / destination segment planning
+- `--navigate-waypoint-route` for explicit active chained route execution after route planning and foreground/terrain checks; add `--auto-turn-before-move` for per-segment alignment
 - `--navigate-waypoints` for straight-line forward travel, with optional `--auto-turn-before-move` when you want pre-movement heading alignment
 - `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1 -AutoTurnBeforeMove` remains an optional higher-level helper around the same facing-aware preflight idea
 
@@ -36,12 +38,13 @@ Constraints:
 
 - no strafe correction
 - no obstacle avoidance
-- no multi-waypoint chaining
+- no promoted multi-waypoint route proof yet; `--navigate-waypoint-route` is available as a v3-prep active gate, but obstacle handling is still pending
 - no addon waypoint authoring in v1
 
 Full doc:
 
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
+- `C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`
 
 The current prototype should stay focused on:
 
@@ -124,8 +127,14 @@ Current v2 / v3 posture:
 - the prototype wrapper remains useful as a higher-level helper, but it is no
   longer the only auto-turn path worth documenting
 - the first v3-prep deliberately misaligned live route is now proven
-  end-to-end (`navigation-prototype-20260423-195303-923`); broader v3 promotion
-  still needs repeatability and route/terrain scope decisions
+  end-to-end (`navigation-prototype-20260423-195303-923`) and repeated through
+  the proof suite (`navigation-prototype-20260423-201344-231`)
+- v3 route-chain planning is available through `--plan-navigation-route`, and
+  active chained execution is now explicitly gated through
+  `--navigate-waypoint-route` with opt-in per-segment auto-turn; broader v3
+  promotion still needs live route proofing and terrain/obstacle scope decisions
+- the proof suite now asserts the read-only smoke route-plan segment payload;
+  active route-run segment/turn proof assertions are still pending
 
 ## Immediate Milestones
 

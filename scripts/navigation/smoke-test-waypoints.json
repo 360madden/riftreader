@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "provenance": {
     "kind": "smoke-route",
-    "generatedAtUtc": "2026-04-23T20:06:38.7678470+00:00",
+    "generatedAtUtc": "2026-04-23T20:31:39.5974425+00:00",
     "processName": "rift_x64",
     "processId": 63012,
     "processStartTimeUtc": "2026-04-22T07:13:46.8244103Z",
     "processResponding": true,
     "readerBridgeSnapshotSourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
-    "readerBridgeExportCount": 1623,
+    "readerBridgeExportCount": 1629,
     "orientationResolutionMode": "behavior-backed-lead",
     "selectedSourceAddress": "0X12CC0FA0F70",
     "basisPrimaryForwardOffset": "0xD4",
     "basisDuplicateForwardOffset": null,
-    "yawDegrees": 26.013738501321114,
-    "navigationBearingDegrees": 63.98626149867889,
+    "yawDegrees": 8.064226442168291,
+    "navigationBearingDegrees": 81.93577355783171,
     "distanceForward": 2.6,
     "bearingOffsetDegrees": 0.0,
     "notes": [
@@ -40,18 +40,18 @@
     {
       "id": "smoke_start",
       "label": "Smoke Start",
-      "x": 7423.8999023438,
+      "x": 7424.0,
       "y": 818.17999267578,
-      "z": 3205.58984375,
+      "z": 3206.2299804688,
       "arrivalRadius": 2.1,
       "pace": "keep"
     },
     {
       "id": "smoke_destination",
       "label": "Smoke Destination",
-      "x": 7425.040227630921,
+      "x": 7424.364735974296,
       "y": 818.17999267578,
-      "z": 3207.9264349079804,
+      "z": 3208.8042702094963,
       "arrivalRadius": 2.1,
       "pace": "keep"
     }

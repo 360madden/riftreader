@@ -9,7 +9,7 @@ This first slice is intentionally narrow:
 
 | Area | V1 behavior |
 |---|---|
-| Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`; the April 23 live v3-prep run proved one deliberately misaligned route where corrective turn input improved alignment and strict coord-trace forward travel arrived. |
+| Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`; April 23 live v3-prep runs proved deliberately misaligned routes where corrective turn input improved alignment and strict coord-trace forward travel arrived. |
 | Waypoint source | External tracked JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Movement backend | .NET 10 orchestration with a thin adapter over `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` |
 | Live telemetry | Active movement requires the validated coord-trace anchor; read-only summaries may still surface fallback anchors when they are explicitly labeled by `anchorSource` |
@@ -22,6 +22,9 @@ This first slice is intentionally narrow:
 
 - waypoint-file-backed navigation config
 - `--read-navigation-current` preflight vector summary
+- `--plan-navigation-route` read-only v3 route-chain planning
+- `--navigate-waypoint-route` explicit active v3 route-chain execution gate with
+  opt-in per-segment auto-turn
 - `--navigate-waypoints` single-segment forward travel
 - opt-in reader-core pre-movement auto-turn
 - optional one-shot run / walk pace toggles
@@ -34,7 +37,7 @@ This first slice is intentionally narrow:
 - strafe corrections
 - obstacle avoidance
 - route graphs
-- multi-waypoint chaining
+- promoted/proof-suite-active multi-waypoint chaining
 - terrain intelligence
 - addon waypoint UI
 - slash waypoint capture
@@ -190,6 +193,26 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
   --json
 ```
 
+### Active v3 waypoint route travel
+
+`--navigate-waypoint-route` is the explicit active-input gate for chained route
+execution. It runs the ordered start / via / destination route through the
+same proof-strict movement core and stops on the first failed segment. Add
+`--auto-turn-before-move` to run the current proof-strict auto-turn before each
+segment. This path is available for v3 prep, but live two-segment proof-suite
+promotion is still pending.
+
+```powershell
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- `
+  --process-name rift_x64 `
+  --navigate-waypoint-route `
+  --start-waypoint example_start `
+  --via-waypoint example_mid `
+  --destination-waypoint example_destination `
+  --auto-turn-before-move `
+  --json
+```
+
 ### Active waypoint travel with opt-in reader-core auto-turn
 
 `--navigate-waypoints` can now opt into pre-movement auto-turn using the live
@@ -240,19 +263,50 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
 The prototype wrapper still exists as a higher-level helper, but the current
 reader-core path is now the authoritative auto-turn entrypoint.
 
+### TomTom waypoint import
+
+`--import-tomtom-waypoints` converts TomTom saved-variable waypoint lists into
+RiftReader waypoint JSON without attaching to the live process. TomTom stores
+only Rift `coordX` and `coordZ`; imported waypoints use `--tomtom-default-y`
+when provided, otherwise `0`.
+
+```powershell
+dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftReader.Reader.csproj -- `
+  --import-tomtom-waypoints `
+  --tomtom-saved-variables-file C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\TomTom.lua `
+  --navigation-waypoint-file C:\RIFT MODDING\RiftReader\scripts\navigation\tomtom-waypoints.json `
+  --tomtom-id-prefix tomtom `
+  --tomtom-default-y 0 `
+  --json
+```
+
+Use repeated `--tomtom-list <name>` to import only selected TomTom lists, and
+`--tomtom-zone <zoneId>` to keep only entries from one Rift zone id.
+
 ### Supported navigation switches
 
 | Switch | Meaning |
 |---|---|
+| `--import-tomtom-waypoints` | Offline import from `TomTomGlobal.PickupLocations` into waypoint JSON |
+| `--tomtom-saved-variables-file <path>` | TomTom saved variables Lua file to import |
+| `--tomtom-list <name>` | Optional repeated list filter; imports all lists when omitted |
+| `--tomtom-zone <zoneId>` | Optional TomTom/Rift zone id filter |
+| `--tomtom-default-y <double>` | Imported Y/height value because TomTom stores only X/Z; defaults to `0` |
+| `--tomtom-id-prefix <prefix>` | Imported waypoint id prefix; defaults to `tomtom` |
+| `--tomtom-arrival-radius <double>` | Optional arrival radius stamped on imported waypoints |
+| `--tomtom-pace run\|walk\|keep` | Optional pace stamped on imported waypoints |
 | `--navigation-waypoint-file <path>` | Optional override for the default waypoint JSON |
 | `--read-navigation-current` | Read-only waypoint vector summary |
+| `--plan-navigation-route` | Read-only v3 route-chain planning |
+| `--navigate-waypoint-route` | Active v3 route-chain execution gate |
+| `--via-waypoint <id>` | Optional repeated midpoint for route modes |
 | `--navigate-waypoints` | Active waypoint travel |
-| `--start-waypoint <id>` | Required for `--navigate-waypoints` |
-| `--destination-waypoint <id>` | Required for both waypoint modes |
+| `--start-waypoint <id>` | Required for active/route waypoint modes |
+| `--destination-waypoint <id>` | Required for active/route waypoint modes and read-only destination preflight |
 | `--pace run\|walk\|keep` | Optional pace override |
 | `--arrival-radius <double>` | Override arrival radius |
 | `--max-travel-seconds <int>` | Override movement timeout |
-| `--auto-turn-before-move` | Opt into pre-movement turn alignment before forward travel |
+| `--auto-turn-before-move` | Opt into pre-movement turn alignment before single-segment travel or before each active route segment |
 | `--auto-turn-within-degrees <double>` | Alignment threshold for auto-turn completion |
 | `--turn-left-key <key>` / `--turn-right-key <key>` | Override turn keys for auto-turn |
 | `--turn-pulse-ms <int>` / `--turn-post-sample-delay-ms <int>` | Tune turn pulse duration and post-pulse re-sample delay |
@@ -360,13 +414,19 @@ or after changes:
   - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
 - include the current live smoke-route + preflight validation:
   - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -SkipRefresh -ProcessName rift_x64`
+  - this also validates the current smoke route through `--plan-navigation-route`
+    and asserts the route-plan segment payload
 - include live active aligned movement after preflight validation:
   - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -IncludeActiveMovement -ProcessName rift_x64`
 - include the v3-prep deliberately misaligned auto-turn + active movement proof:
   - `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1 -IncludeLive -IncludeMisalignedAutoTurn -MisalignedBearingOffsetDegrees 20 -ProcessName rift_x64`
 
 The active flags send live input to Rift. Use them only after confirming the
-window/process, terrain, and route are safe.
+window/process, terrain, and route are safe. When running the active suite from
+automation, keep Rift foreground through the active step; after a fresh
+smoke-route/preflight, `-SkipRefresh` avoids extra `/reloadui` foreground churn.
+The suite preserves nested script output on failure so foreground/focus aborts
+are visible in the final summary.
 
 ## V2 / V3 progression snapshot
 
@@ -375,10 +435,19 @@ Current movement posture:
 - v1 reader movement remains proof-strict and single-segment
 - the current v2 bridge is now the **read-only facing-aware preflight** plus
   opt-in reader-core auto-turn on `--navigate-waypoints`
-- v3-prep live proof now exists for one deliberately misaligned route: the
+- v3 route-chain planning is available via `--plan-navigation-route`; the
+  active chained route path is explicitly gated behind
+  `--navigate-waypoint-route`, can opt into per-segment auto-turn, preserves
+  per-segment results, and stops on first failed segment
+- the proof suite now asserts read-only smoke route-plan segment metadata; an
+  active multi-segment route proof is still pending
+- v3-prep live proof now exists for deliberately misaligned routes: the first
   `navigation-prototype-20260423-195303-923` run started about `19.9°` off,
   sent one corrective `d` pulse, improved the delta to about `2.7°`, then
-  arrived through strict `coord-trace-anchor` forward travel
+  arrived through strict `coord-trace-anchor` forward travel; the repeat proof
+  `navigation-prototype-20260423-201344-231` ran through the proof suite with
+  `-IncludeLive -IncludeMisalignedAutoTurn -SkipRefresh`, corrected about
+  `20.0°` to about `2.1°`, and arrived in two forward pulses
 
 ## Current limitations
 
@@ -386,11 +455,18 @@ As of **April 23, 2026**:
 
 - current actor-facing truth on `main` is restored, but canonical
   `--navigate-waypoints` movement is still **single-segment only**
+- `--plan-navigation-route` can validate a route chain, and
+  `--navigate-waypoint-route` can execute it as a v3-prep active gate; this
+  route path is not yet promoted through a live two-segment proof
 - the core reader path is still **straight-line, same-segment, and no obstacle
   avoidance**
-- reader-core auto-turn is still **opt-in** and fail-closed, but one
-  deliberately misaligned live route is now proven end-to-end
-- movement remains single-segment; broader v3 work still needs repeatability,
-  route chaining decisions, and obstacle/terrain handling before promotion
+- reader-core auto-turn is still **opt-in** and fail-closed, but deliberately
+  misaligned live routes are now proven end-to-end and repeatable through the
+  proof suite
+- broader v3 work still needs live route proofing and obstacle/terrain handling
+  before promotion
 - addon work remains minimal in v1
+
+For the v3 task plan and current route-chain status, see
+`C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`.
 

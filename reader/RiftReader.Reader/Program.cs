@@ -66,6 +66,11 @@ internal static class Program
             return RunSessionSummaryMode(options);
         }
 
+        if (options.ImportTomTomWaypoints)
+        {
+            return RunImportTomTomWaypointsMode(options);
+        }
+
         if (options.ReadPlayerOrientation)
         {
             return RunReadPlayerOrientationMode(options);
@@ -170,7 +175,12 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !options.RunTelemetryHost && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (options.PlanNavigationRoute)
+        {
+            return RunPlanNavigationRouteMode(options, target);
+        }
+
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypointRoute && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !options.RunTelemetryHost && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -236,6 +246,11 @@ internal static class Program
         if (options.CaptureNavigationWaypoint)
         {
             return RunCaptureNavigationWaypointMode(options, target, reader);
+        }
+
+        if (options.NavigateWaypointRoute)
+        {
+            return RunNavigateWaypointRouteMode(options, process, target, reader);
         }
 
         if (options.NavigateWaypoints)
@@ -861,6 +876,286 @@ internal static class Program
         return 0;
     }
 
+    private static int RunPlanNavigationRouteMode(ReaderOptions options, ProcessTarget target)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        if (!TryResolveRouteWaypoints(resolvedConfiguration, options, out var routeWaypoints, out var routeError))
+        {
+            Console.Error.WriteLine(routeError ?? "Unable to resolve the navigation route.");
+            return 1;
+        }
+
+        var result = WaypointRoutePlanner.BuildPlan(
+            processId: target.ProcessId,
+            processName: target.ProcessName,
+            waypointFile: resolvedConfiguration.SourceFile,
+            movement: resolvedConfiguration.Movement,
+            routeWaypoints: routeWaypoints);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        }
+
+        Console.WriteLine(NavigationRoutePlanTextFormatter.Format(result));
+        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static int RunNavigateWaypointRouteMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        if (!TryResolveRouteWaypoints(resolvedConfiguration, options, out var routeWaypoints, out var routeError))
+        {
+            Console.Error.WriteLine(routeError ?? "Unable to resolve the navigation route.");
+            return 1;
+        }
+
+        var plan = WaypointRoutePlanner.BuildPlan(
+            processId: target.ProcessId,
+            processName: target.ProcessName,
+            waypointFile: resolvedConfiguration.SourceFile,
+            movement: resolvedConfiguration.Movement,
+            routeWaypoints: routeWaypoints);
+
+        if (!string.Equals(plan.Status, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            var planFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: "none",
+                stopReason: "route-plan-invalid",
+                issues: plan.Issues);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(planFailure));
+            }
+            else
+            {
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(planFailure));
+            }
+
+            return 1;
+        }
+
+        if (!TryResolveNavigationAutoTurnOptions(options, out var autoTurnOptions, out var autoTurnError))
+        {
+            Console.Error.WriteLine(autoTurnError ?? "Unable to resolve navigation auto-turn options.");
+            return 1;
+        }
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            var anchorFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: "none",
+                stopReason: "anchor-unavailable",
+                issues: [poseError ?? "Unable to resolve a navigation pose anchor."]);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        var movementBackend = new PowerShellMovementBackend(
+            NavigationPathResolver.ResolveMovementScriptFile(),
+            target.ProcessName);
+        movementBackend.PrepareForMovement();
+
+        if (!NavigationProofCoordAnchorRefresher.TryRefresh(target.ProcessName, target.ProcessId, out var refreshError))
+        {
+            var anchorFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: poseSource.Source.AnchorSource,
+                stopReason: "anchor-unavailable",
+                issues: [refreshError ?? "Unable to refresh the proof coord anchor before live navigation started."]);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        var refreshedPoseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            options.MaxHits,
+            out var refreshPoseError);
+
+        if (refreshedPoseSource is null)
+        {
+            var anchorFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: poseSource.Source.AnchorSource,
+                stopReason: "anchor-unavailable",
+                issues: [refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming."]);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        Func<NavigationRouteSegmentTurnRequest, NavigationTurnResult>? turnBeforeSegment = null;
+        if (autoTurnOptions.Enabled)
+        {
+            turnBeforeSegment = request => NavigationAutoTurner.Execute(
+                request.CurrentSample,
+                refreshedPoseSource.Source,
+                movementBackend,
+                autoTurnOptions,
+                sample => BuildNavigationTurnPlan(
+                    process,
+                    target,
+                    reader,
+                    snapshotDocument,
+                    request.DestinationWaypoint,
+                    sample,
+                    autoTurnOptions.WithinDegrees));
+        }
+
+        var result = WaypointRouteNavigator.Run(
+            target.ProcessId,
+            target.ProcessName,
+            resolvedConfiguration.SourceFile,
+            resolvedConfiguration.Movement,
+            routeWaypoints,
+            refreshedPoseSource.Source,
+            movementBackend,
+            turnBeforeSegment);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        }
+
+        Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(result));
+        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static bool TryResolveRouteWaypoints(
+        WaypointNavigationConfiguration configuration,
+        ReaderOptions options,
+        out IReadOnlyList<WaypointDefinition> routeWaypoints,
+        out string? error)
+    {
+        var waypointIds = new List<string> { options.StartWaypointId! };
+        if (options.ViaWaypointIds is { Count: > 0 } viaWaypointIds)
+        {
+            waypointIds.AddRange(viaWaypointIds);
+        }
+
+        waypointIds.Add(options.DestinationWaypointId!);
+
+        var resolvedWaypoints = new List<WaypointDefinition>();
+        foreach (var waypointId in waypointIds)
+        {
+            if (!TryResolveWaypoint(configuration, waypointId, "route", out var waypoint, out var resolveError))
+            {
+                routeWaypoints = Array.Empty<WaypointDefinition>();
+                error = resolveError ?? $"Unable to resolve route waypoint '{waypointId}'.";
+                return false;
+            }
+
+            resolvedWaypoints.Add(waypoint!);
+        }
+
+        routeWaypoints = resolvedWaypoints;
+        error = null;
+        return true;
+    }
+
+    private static NavigationRouteRunResult BuildNavigationRouteFailureResult(
+        NavigationRoutePlanResult plan,
+        IReadOnlyList<WaypointDefinition> routeWaypoints,
+        string anchorSource,
+        string stopReason,
+        IReadOnlyList<string> issues)
+    {
+        var destinationPosition = routeWaypoints.Count > 0
+            ? routeWaypoints[^1].Coordinate
+            : (NavigationCoordinate?)null;
+
+        return new NavigationRouteRunResult(
+            Mode: "navigate-waypoint-route",
+            ProcessId: plan.ProcessId,
+            ProcessName: plan.ProcessName,
+            WaypointFile: plan.WaypointFile,
+            Status: "failure",
+            StartWaypointId: plan.StartWaypointId,
+            DestinationWaypointId: plan.DestinationWaypointId,
+            WaypointIds: plan.WaypointIds,
+            SegmentCount: plan.SegmentCount,
+            CompletedSegmentCount: 0,
+            FailedSegmentIndex: null,
+            StopReason: stopReason,
+            AnchorSource: anchorSource,
+            TotalPlanarDistance: plan.TotalPlanarDistance,
+            FinalPlanarDistance: 0d,
+            TotalPulseCount: 0,
+            InitialPosition: null,
+            FinalPosition: null,
+            DestinationPosition: destinationPosition,
+            ElapsedMilliseconds: 0,
+            SegmentResults: Array.Empty<NavigationRunResult>(),
+            Issues: issues.ToArray());
+    }
+
     private static NavigationFacingSummary TryBuildNavigationFacingSummary(
         Process process,
         ProcessTarget target,
@@ -1194,6 +1489,65 @@ internal static class Program
         }
 
         Console.WriteLine(WaypointCaptureResultTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunImportTomTomWaypointsMode(ReaderOptions options)
+    {
+        var sourceFile = Path.GetFullPath(options.TomTomSavedVariablesFile!);
+        var destinationFile = NavigationPathResolver.ResolveWaypointFile(options.NavigationWaypointFile);
+
+        var result = TomTomWaypointImporter.TryImport(
+            new TomTomWaypointImportOptions(
+                SourceFile: sourceFile,
+                DestinationFile: destinationFile,
+                ListNames: options.TomTomListNames ?? Array.Empty<string>(),
+                Zone: options.TomTomZone,
+                DefaultY: options.TomTomDefaultY ?? 0d,
+                IdPrefix: options.TomTomIdPrefix ?? "tomtom",
+                ArrivalRadius: options.TomTomArrivalRadius,
+                Pace: options.TomTomPace),
+            out var error);
+
+        if (result is null)
+        {
+            Console.Error.WriteLine(error ?? "Unable to import TomTom waypoints.");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("TomTom waypoint import");
+        Console.WriteLine($"Source:      {result.SourceFile}");
+        Console.WriteLine($"Destination: {result.DestinationFile}");
+        Console.WriteLine($"Imported:    {result.ImportedWaypointCount}");
+        Console.WriteLine($"Preserved:   {result.PreservedWaypointCount}");
+        Console.WriteLine($"Updated:     {result.UpdatedWaypointCount}");
+
+        if (result.Lists.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Lists:");
+            foreach (var list in result.Lists)
+            {
+                Console.WriteLine($"  {list.Name}: imported={list.ImportedWaypointCount}, skipped={list.SkippedWaypointCount}");
+            }
+        }
+
+        if (result.Warnings.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Warnings:");
+            foreach (var warning in result.Warnings)
+            {
+                Console.WriteLine($"  - {warning}");
+            }
+        }
+
         return 0;
     }
 

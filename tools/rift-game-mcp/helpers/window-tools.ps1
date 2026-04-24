@@ -138,7 +138,13 @@ public static class RiftGameWindowNative
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern short VkKeyScan(char ch);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
 }
 "@
 
@@ -148,6 +154,12 @@ $INPUT_KEYBOARD = 1
 $MOUSEEVENTF_LEFTDOWN = 0x0002
 $MOUSEEVENTF_LEFTUP = 0x0004
 $KEYEVENTF_KEYUP = 0x0002
+$KEYEVENTF_SCANCODE = 0x0008
+$MAPVK_VK_TO_VSC = 0
+$WM_KEYDOWN = 0x0100
+$WM_KEYUP = 0x0101
+$WM_SYSKEYDOWN = 0x0104
+$WM_SYSKEYUP = 0x0105
 $MaxComparisonDimension = 160
 $PixelDifferenceThreshold = 24
 
@@ -365,11 +377,19 @@ function New-KeyboardInput {
         [switch]$KeyUp
     )
 
+    $scanCode = [RiftGameWindowNative]::MapVirtualKey([uint32]$VirtualKey, [uint32]$MAPVK_VK_TO_VSC)
+    if ($scanCode -eq 0) {
+        throw "No scan-code mapping was found for virtual key '$VirtualKey'."
+    }
+
     $input = New-Object RiftGameWindowNative+INPUT
     $input.type = $INPUT_KEYBOARD
-    $input.U.ki.wVk = [uint16]$VirtualKey
-    $input.U.ki.wScan = 0
-    $input.U.ki.dwFlags = if ($KeyUp) { $KEYEVENTF_KEYUP } else { 0 }
+    $input.U.ki.wVk = 0
+    $input.U.ki.wScan = [uint16]$scanCode
+    $input.U.ki.dwFlags = $KEYEVENTF_SCANCODE
+    if ($KeyUp) {
+        $input.U.ki.dwFlags = $input.U.ki.dwFlags -bor $KEYEVENTF_KEYUP
+    }
     $input.U.ki.time = 0
     $input.U.ki.dwExtraInfo = [IntPtr]::Zero
     return $input
@@ -396,6 +416,60 @@ function Invoke-SendInput {
     $sent = [RiftGameWindowNative]::SendInput([uint32]$Inputs.Length, $Inputs, $size)
     if ($sent -ne $Inputs.Length) {
         throw "SendInput failed. $(Get-LastWin32ErrorMessage)"
+    }
+}
+
+function Get-KeyScanCode {
+    param([int]$VirtualKey)
+
+    $scanCode = [RiftGameWindowNative]::MapVirtualKey([uint32]$VirtualKey, [uint32]$MAPVK_VK_TO_VSC)
+    if ($scanCode -eq 0) {
+        throw "No scan-code mapping was found for virtual key '$VirtualKey'."
+    }
+
+    return [int]$scanCode
+}
+
+function New-KeyMessageLParam {
+    param(
+        [int]$VirtualKey,
+        [switch]$KeyUp,
+        [switch]$AltContext
+    )
+
+    $scanCode = Get-KeyScanCode -VirtualKey $VirtualKey
+    $value = [int64]1 -bor ([int64]$scanCode -shl 16)
+
+    if ($AltContext) {
+        $value = $value -bor ([int64]1 -shl 29)
+    }
+
+    if ($KeyUp) {
+        $value = $value -bor ([int64]1 -shl 30) -bor ([int64]1 -shl 31)
+    }
+
+    return [IntPtr]$value
+}
+
+function Invoke-KeyMessage {
+    param(
+        [IntPtr]$Handle,
+        [int]$VirtualKey,
+        [switch]$KeyUp,
+        [switch]$AltContext
+    )
+
+    $message = if ($AltContext) {
+        if ($KeyUp) { $WM_SYSKEYUP } else { $WM_SYSKEYDOWN }
+    }
+    else {
+        if ($KeyUp) { $WM_KEYUP } else { $WM_KEYDOWN }
+    }
+
+    $lParam = New-KeyMessageLParam -VirtualKey $VirtualKey -KeyUp:$KeyUp -AltContext:$AltContext
+    $posted = [RiftGameWindowNative]::PostMessage($Handle, [uint32]$message, [IntPtr]$VirtualKey, $lParam)
+    if (-not $posted) {
+        throw "PostMessage failed for virtual key '$VirtualKey'. $(Get-LastWin32ErrorMessage)"
     }
 }
 
@@ -427,9 +501,9 @@ function Resolve-KeyPlan {
         throw "A key chord is required."
     }
 
-    $tokens = $Chord.Split('+', [System.StringSplitOptions]::RemoveEmptyEntries) |
+    $tokens = @($Chord.Split('+', [System.StringSplitOptions]::RemoveEmptyEntries) |
         ForEach-Object { $_.Trim() } |
-        Where-Object { $_ }
+        Where-Object { $_ })
 
     if (-not $tokens -or $tokens.Count -eq 0) {
         throw "A key chord is required."
@@ -516,8 +590,42 @@ function Resolve-KeyPlan {
 function Send-KeyPlan {
     param(
         [psobject]$Plan,
-        [int]$HoldMilliseconds
+        [int]$HoldMilliseconds,
+        [IntPtr]$TargetWindowHandle = [IntPtr]::Zero
     )
+
+    if ($TargetWindowHandle -ne [IntPtr]::Zero) {
+        $hasAltModifier = $false
+        foreach ($modifier in $Plan.modifiers) {
+            if ($modifier -eq 0x12) {
+                $hasAltModifier = $true
+                break
+            }
+        }
+
+        foreach ($modifier in $Plan.modifiers) {
+            Invoke-KeyMessage -Handle $TargetWindowHandle -VirtualKey $modifier -AltContext:($modifier -eq 0x12)
+            Start-Sleep -Milliseconds 10
+        }
+
+        foreach ($key in $Plan.keys) {
+            Invoke-KeyMessage -Handle $TargetWindowHandle -VirtualKey $key.virtualKey -AltContext:$hasAltModifier
+        }
+
+        Start-Sleep -Milliseconds $HoldMilliseconds
+
+        for ($i = $Plan.keys.Count - 1; $i -ge 0; $i--) {
+            Invoke-KeyMessage -Handle $TargetWindowHandle -VirtualKey $Plan.keys[$i].virtualKey -KeyUp -AltContext:$hasAltModifier
+            Start-Sleep -Milliseconds 10
+        }
+
+        for ($i = $Plan.modifiers.Count - 1; $i -ge 0; $i--) {
+            Invoke-KeyMessage -Handle $TargetWindowHandle -VirtualKey $Plan.modifiers[$i] -KeyUp -AltContext:($Plan.modifiers[$i] -eq 0x12)
+            Start-Sleep -Milliseconds 10
+        }
+
+        return
+    }
 
     foreach ($modifier in $Plan.modifiers) {
         Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $modifier))
@@ -1031,13 +1139,15 @@ try {
                 throw "Cannot send keys to a minimized window."
             }
 
+            $handle = ConvertTo-IntPtr -HandleText $window.windowHandle
             $plan = Resolve-KeyPlan -Chord $KeyChord
-            Send-KeyPlan -Plan $plan -HoldMilliseconds $HoldMilliseconds
+            Send-KeyPlan -Plan $plan -HoldMilliseconds $HoldMilliseconds -TargetWindowHandle $handle
 
             [pscustomobject]@{
-                window = (Get-WindowSnapshot -Handle (ConvertTo-IntPtr -HandleText $window.windowHandle))
+                window = (Get-WindowSnapshot -Handle $handle)
                 keyChord = $KeyChord
                 holdMilliseconds = $HoldMilliseconds
+                keyboardInputMethod = "window-message"
             }
             break
         }

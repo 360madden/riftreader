@@ -147,6 +147,97 @@ public sealed class ReaderOptionsParserTests
     }
 
     [Fact]
+    public void Parse_AcceptsNavigationRoutePlanWithViaWaypoints()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--plan-navigation-route",
+            "--start-waypoint", "point_a",
+            "--via-waypoint", "point_b",
+            "--via-waypoint", "point_c",
+            "--destination-waypoint", "point_d",
+            "--navigation-waypoint-file", @"C:\temp\waypoints.json",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.PlanNavigationRoute);
+        Assert.False(options.NavigateWaypointRoute);
+        Assert.False(options.NavigateWaypoints);
+        Assert.Equal("point_a", options.StartWaypointId);
+        Assert.Equal(["point_b", "point_c"], options.ViaWaypointIds);
+        Assert.Equal("point_d", options.DestinationWaypointId);
+        Assert.Equal(@"C:\temp\waypoints.json", options.NavigationWaypointFile);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_AcceptsNavigateWaypointRouteWithViaWaypoints()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--navigate-waypoint-route",
+            "--start-waypoint", "point_a",
+            "--via-waypoint", "point_b",
+            "--destination-waypoint", "point_c",
+            "--navigation-waypoint-file", @"C:\temp\waypoints.json",
+            "--auto-turn-before-move",
+            "--auto-turn-within-degrees", "6.5",
+            "--turn-max-pulses", "4",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.NavigateWaypointRoute);
+        Assert.False(options.PlanNavigationRoute);
+        Assert.False(options.NavigateWaypoints);
+        Assert.Equal("point_a", options.StartWaypointId);
+        Assert.Equal(["point_b"], options.ViaWaypointIds);
+        Assert.Equal("point_c", options.DestinationWaypointId);
+        Assert.Equal(@"C:\temp\waypoints.json", options.NavigationWaypointFile);
+        Assert.True(options.AutoTurnBeforeMove);
+        Assert.Equal(6.5d, options.AutoTurnWithinDegrees);
+        Assert.Equal(4, options.TurnMaxPulses);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_RejectsViaWaypointOutsideRouteModes()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--navigate-waypoints",
+            "--start-waypoint", "point_a",
+            "--via-waypoint", "point_b",
+            "--destination-waypoint", "point_c"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--via-waypoint can only be used with --plan-navigation-route or --navigate-waypoint-route.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_RejectsNavigateWaypointRouteWithSingleSegmentNavigation()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--navigate-waypoint-route",
+            "--navigate-waypoints",
+            "--start-waypoint", "point_a",
+            "--destination-waypoint", "point_c"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--navigate-waypoint-route cannot be combined with --navigate-waypoints.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Parse_RejectsAutoTurnTuningWithoutAutoTurnFlag()
     {
         var result = ReaderOptionsParser.Parse(
@@ -175,5 +266,61 @@ public sealed class ReaderOptionsParserTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("--verbose-navigation-events can only be used with --navigate-waypoints.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_AcceptsTomTomWaypointImportMode()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--import-tomtom-waypoints",
+            "--tomtom-saved-variables-file", @"C:\temp\TomTom.lua",
+            "--navigation-waypoint-file", @"C:\temp\tomtom-waypoints.json",
+            "--tomtom-list", "wood",
+            "--tomtom-list", "Rare Mobs",
+            "--tomtom-zone", "z123",
+            "--tomtom-default-y", "818.25",
+            "--tomtom-id-prefix", "tt",
+            "--tomtom-arrival-radius", "4.5",
+            "--tomtom-pace", "keep",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.ImportTomTomWaypoints);
+        Assert.Equal(@"C:\temp\TomTom.lua", options.TomTomSavedVariablesFile);
+        Assert.Equal(@"C:\temp\tomtom-waypoints.json", options.NavigationWaypointFile);
+        Assert.Equal(["wood", "Rare Mobs"], options.TomTomListNames);
+        Assert.Equal("z123", options.TomTomZone);
+        Assert.Equal(818.25d, options.TomTomDefaultY);
+        Assert.Equal("tt", options.TomTomIdPrefix);
+        Assert.Equal(4.5d, options.TomTomArrivalRadius);
+        Assert.Equal("keep", options.TomTomPace);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_RejectsTomTomImportSwitchesWithoutImportMode()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--tomtom-saved-variables-file", @"C:\temp\TomTom.lua"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("TomTom import switches require --import-tomtom-waypoints.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_RejectsTomTomImportWithoutSavedVariablesFile()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--import-tomtom-waypoints"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--import-tomtom-waypoints requires --tomtom-saved-variables-file.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 }
