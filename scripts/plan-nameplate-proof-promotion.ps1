@@ -71,6 +71,11 @@ function New-NextAction {
         [bool]$RequiresOperatorConfirmation = $false
     )
 
+    $safetyBlockers = [System.Collections.Generic.List[string]]::new()
+    if ($AttachesToProcess) { $safetyBlockers.Add('attaches-to-process') | Out-Null }
+    if ($CreatesArtifacts) { $safetyBlockers.Add('creates-artifacts') | Out-Null }
+    if ($RequiresOperatorConfirmation) { $safetyBlockers.Add('requires-operator-confirmation') | Out-Null }
+
     return [pscustomobject][ordered]@{
         name = [string]$Command.name
         command = [string]$Command.command
@@ -79,6 +84,8 @@ function New-NextAction {
         attachesToProcess = $AttachesToProcess
         createsArtifacts = $CreatesArtifacts
         requiresOperatorConfirmation = $RequiresOperatorConfirmation
+        safeToRunNow = ($safetyBlockers.Count -eq 0)
+        safetyBlockers = @($safetyBlockers.ToArray())
     }
 }
 

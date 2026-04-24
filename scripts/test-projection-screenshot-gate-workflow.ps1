@@ -1037,7 +1037,7 @@ try {
         if (-not [bool]$latestPairPlanner.readyForPipeline -or -not [bool]$latestPairPlanner.readyForPromotionCompare) {
             throw "Nameplate proof promotion planner did not mark the two-run latest-pair fixture ready for promotion compare.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
         }
-        if ($null -eq $latestPairPlanner.nextAction -or [string]$latestPairPlanner.nextAction.name -ne 'promotion-pipeline-latest-pair-plan' -or [bool]$latestPairPlanner.nextAction.attachesToProcess) {
+        if ($null -eq $latestPairPlanner.nextAction -or [string]$latestPairPlanner.nextAction.name -ne 'promotion-pipeline-latest-pair-plan' -or [bool]$latestPairPlanner.nextAction.attachesToProcess -or -not [bool]$latestPairPlanner.nextAction.safeToRunNow) {
             throw "Nameplate proof promotion planner did not expose the expected safe latest-pair nextAction.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
         }
         if ([string]$latestPairPlanner.selectedBaselineRun.runRoot -ne $olderLatestPairRunRoot -or [string]$latestPairPlanner.selectedReproofRun.runRoot -ne $newerLatestPairRunRoot) {
@@ -1081,7 +1081,7 @@ try {
         if (-not @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof-plan' })) {
             throw "Nameplate proof promotion planner did not recommend a plan-only second proof check before the live second proof.`n$($promotionPlanOutput -join [Environment]::NewLine)"
         }
-        if ($null -eq $promotionPlan.nextAction -or [string]$promotionPlan.nextAction.name -ne 'run-second-baseline-zoom-proof-plan' -or [bool]$promotionPlan.nextAction.attachesToProcess -or [bool]$promotionPlan.nextAction.createsArtifacts) {
+        if ($null -eq $promotionPlan.nextAction -or [string]$promotionPlan.nextAction.name -ne 'run-second-baseline-zoom-proof-plan' -or [bool]$promotionPlan.nextAction.attachesToProcess -or [bool]$promotionPlan.nextAction.createsArtifacts -or -not [bool]$promotionPlan.nextAction.safeToRunNow -or @($promotionPlan.nextAction.safetyBlockers).Count -ne 0) {
             throw "Nameplate proof promotion planner did not expose the plan-only second proof as the safe nextAction.`n$($promotionPlanOutput -join [Environment]::NewLine)"
         }
         $secondProofCommand = @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof' }) | Select-Object -First 1
