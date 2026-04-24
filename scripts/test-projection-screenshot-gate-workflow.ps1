@@ -26,6 +26,8 @@ $leadExtractorScript = Join-Path $PSScriptRoot 'extract-nameplate-proof-leads.ps
 $leadExtractorCmd = Join-Path $PSScriptRoot 'extract-nameplate-proof-leads.cmd'
 $leadNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.ps1'
 $leadNeighborhoodCmd = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.cmd'
+$leadNeighborhoodCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-proof-lead-neighborhoods.ps1'
+$leadNeighborhoodCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-proof-lead-neighborhoods.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -41,9 +43,10 @@ $psScripts = @(
     'compare-nameplate-proof-byte-windows.ps1',
     'extract-nameplate-proof-leads.ps1',
     'capture-nameplate-proof-lead-neighborhoods.ps1',
+    'compare-nameplate-proof-lead-neighborhoods.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 12
+$expectedProjectionPsScriptCount = 13
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -56,9 +59,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-byte-windows.cmd'; Target = 'compare-nameplate-proof-byte-windows.ps1' },
     [pscustomobject]@{ Wrapper = 'extract-nameplate-proof-leads.cmd'; Target = 'extract-nameplate-proof-leads.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-nameplate-proof-lead-neighborhoods.cmd'; Target = 'capture-nameplate-proof-lead-neighborhoods.ps1' },
+    [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-lead-neighborhoods.cmd'; Target = 'compare-nameplate-proof-lead-neighborhoods.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 12
+$expectedProjectionCmdWrapperCount = 13
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -807,6 +811,67 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-lead-neighborhood-plan-smoke' -Status 'passed' -Detail 'Lead-neighborhood capture wrapper plans selected pointer-hit roots from a fully gated proof without attaching or creating artifacts.' -Data ([ordered]@{ selectedLeadCount = $leadNeighborhoodPlan.leadSelection.selectedLeadCount; readLength = $leadNeighborhoodPlan.capturePlan.readLength; followPointerDepth = $leadNeighborhoodPlan.capturePlan.followPointerDepth })
+
+        $leadNeighborhoodCompareRoot = Join-Path $resultCheckRoot 'lead-neighborhood-compare-smoke'
+        New-Item -ItemType Directory -Path $leadNeighborhoodCompareRoot -Force | Out-Null
+        $baselineNeighborhoodFile = Join-Path $leadNeighborhoodCompareRoot 'baseline.json'
+        $reproofNeighborhoodFile = Join-Path $leadNeighborhoodCompareRoot 'reproof.json'
+        $syntheticNeighborhood = [pscustomobject][ordered]@{
+            mode = 'capture'
+            ok = $true
+            controlsInput = $false
+            leadSelection = [pscustomobject][ordered]@{
+                selectedLeads = @(
+                    [pscustomobject][ordered]@{
+                        kind = 'pointer-hit-address'
+                        address = '0X9000'
+                        states = @('baseline1', 'zoom1')
+                    }
+                )
+            }
+            pointerSubgraph = [pscustomobject][ordered]@{
+                nodeCount = 2
+                edgeCount = 1
+                nodes = @(
+                    [pscustomobject][ordered]@{
+                        address = '0X9000'
+                        depth = 0
+                        rootLabels = @('pointer-hit-address:0X9000')
+                        asciiPreview = 'root'
+                    },
+                    [pscustomobject][ordered]@{
+                        address = '0X9010'
+                        depth = 1
+                        rootLabels = @('pointer-hit-address:0X9000')
+                        asciiPreview = 'child'
+                    }
+                )
+                edges = @(
+                    [pscustomobject][ordered]@{
+                        fromAddress = '0X9000'
+                        toAddress = '0X9010'
+                        sourceOffsetHex = '0x8'
+                    }
+                )
+            }
+        }
+        $syntheticNeighborhood | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $baselineNeighborhoodFile -Encoding UTF8
+        $syntheticNeighborhood | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $reproofNeighborhoodFile -Encoding UTF8
+
+        $leadNeighborhoodCompareOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $leadNeighborhoodCompareScript -BaselineFile $baselineNeighborhoodFile -ReproofFile $reproofNeighborhoodFile -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $leadNeighborhoodCompareCode = $LASTEXITCODE
+        if ($leadNeighborhoodCompareCode -ne 0) {
+            throw "Nameplate proof lead-neighborhood comparator failed with exit code $leadNeighborhoodCompareCode.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
+        }
+        $leadNeighborhoodCompare = ($leadNeighborhoodCompareOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        if (-not [bool]$leadNeighborhoodCompare.ok -or [int]$leadNeighborhoodCompare.counts.repeatedSelectedRoots -lt 1 -or [int]$leadNeighborhoodCompare.counts.repeatedEdges -lt 1) {
+            throw "Nameplate proof lead-neighborhood comparator did not report repeated roots/edges for identical fixture files.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($leadNeighborhoodCompare.checks | Where-Object { $_.name -eq 'minimum-repeated-selected-roots' -and $_.status -eq 'passed' })) {
+            throw "Nameplate proof lead-neighborhood comparator did not pass minimum-repeated-selected-roots.`n$($leadNeighborhoodCompareOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-lead-neighborhood-comparator-smoke' -Status 'passed' -Detail 'Lead-neighborhood comparator reports repeated selected roots and pointer edges across captured neighborhood artifacts.' -Data ([ordered]@{ repeatedSelectedRoots = $leadNeighborhoodCompare.counts.repeatedSelectedRoots; repeatedEdges = $leadNeighborhoodCompare.counts.repeatedEdges })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

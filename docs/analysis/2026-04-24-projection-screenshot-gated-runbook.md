@@ -279,6 +279,23 @@ Current captured lead-neighborhood artifact:
 | Subgraph | 18 nodes / 15 edges |
 | Controls input | `false` |
 
+After two lead-neighborhood captures exist, compare them with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\compare-nameplate-proof-lead-neighborhoods.ps1" `
+  -BaselineRunRoot "<first-proof-run-root>" `
+  -ReproofRunRoot "<second-proof-run-root>" `
+  -MinRepeatedRootCount 1 `
+  -Json
+```
+
+The comparator resolves each run's default
+`lead-neighborhoods\nameplate-proof-lead-neighborhoods.json`, fails closed if
+either artifact is not a captured read-only neighborhood, and reports repeated
+selected roots, root nodes, nodes, and pointer edges. For the current
+single-artifact sanity check, comparing the captured artifact to itself reports
+3 repeated selected roots, 18 repeated nodes, and 15 repeated edges.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -339,6 +356,9 @@ It checks:
 - `capture-nameplate-proof-lead-neighborhoods.ps1 -PlanOnly` against a
   generated fully gated fixture to verify pointer-hit root planning without
   attaching to the Rift process or creating artifacts
+- `compare-nameplate-proof-lead-neighborhoods.ps1` against generated captured
+  neighborhood fixtures to verify repeated selected-root and pointer-edge
+  reporting
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -374,6 +394,7 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | `scripts\compare-nameplate-proof-byte-windows.cmd` | `compare-nameplate-proof-byte-windows.ps1` |
 | `scripts\extract-nameplate-proof-leads.cmd` | `extract-nameplate-proof-leads.ps1` |
 | `scripts\capture-nameplate-proof-lead-neighborhoods.cmd` | `capture-nameplate-proof-lead-neighborhoods.ps1` |
+| `scripts\compare-nameplate-proof-lead-neighborhoods.cmd` | `compare-nameplate-proof-lead-neighborhoods.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
 | `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
@@ -444,8 +465,8 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for expected 12 scripts with 12 unique entries. |
-| CMD wrapper inspection | Passed for expected 12 projection wrappers with 12 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 13 scripts with 13 unique entries. |
+| CMD wrapper inspection | Passed for expected 13 projection wrappers with 13 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
@@ -453,6 +474,7 @@ Result: `ok=true`.
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |
 | Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |
 | Lead-neighborhood plan smoke | Passed with selected pointer-hit root planning, `controlsInput=false`, `attachesToProcess=false`, and no artifact creation. |
+| Lead-neighborhood comparator smoke | Passed with repeated selected-root and pointer-edge reporting. |
 
 The aggregate branch validator was also run:
 
@@ -460,5 +482,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `21/21`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `22/22`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.
