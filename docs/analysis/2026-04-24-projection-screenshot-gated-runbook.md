@@ -185,7 +185,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 
 It checks:
 
-- PowerShell parse for the projection helper scripts and validator script
+- PowerShell parse for the expected projection helper scripts and validator script,
+  including duplicate-entry checks
 - `RiftWindowCapture.csproj` build
 - `run-nameplate-projection-proof.ps1 -PlanOnly -Json`, including key-argument
   preservation and no-artifact behavior
@@ -256,6 +257,8 @@ preservation:
 - verifies the wrapper manifest has no duplicate wrapper names or target names
   and reports `expectedWrapperCount`, `wrapperCount`, `uniqueWrapperCount`, and
   `uniqueTargetCount`
+- verifies the CMD wrapper target list matches the parsed PowerShell script
+  manifest
 - runs `run-nameplate-projection-proof.cmd -PlanOnly -Json` unless `-SkipCmdWrapperSmoke` is set
 - verifies the CMD wrapper preserves the planned `CandidateAddress` and
   `NameplateText` values for the normal nameplate proof command
@@ -282,8 +285,8 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for 7 scripts. |
-| CMD wrapper inspection | Passed for expected 7 projection wrappers with 7 unique wrappers/targets, including machine-readable launcher/wrapper contract data and `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 7 scripts with 7 unique entries. |
+| CMD wrapper inspection | Passed for expected 7 projection wrappers with 7 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |

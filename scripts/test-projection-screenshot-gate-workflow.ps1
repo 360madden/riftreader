@@ -28,6 +28,7 @@ $psScripts = @(
     'run-nameplate-projection-proof.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
+$expectedProjectionPsScriptCount = 7
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -57,6 +58,16 @@ function Add-Check {
 }
 
 try {
+    $psScriptNames = @($psScripts | ForEach-Object { Split-Path -Leaf $_ })
+    if ($psScriptNames.Count -ne $expectedProjectionPsScriptCount) {
+        throw "Expected $expectedProjectionPsScriptCount projection PowerShell script entries, found $($psScriptNames.Count)."
+    }
+
+    $duplicatePsScriptNames = @($psScriptNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+    if ($duplicatePsScriptNames.Count -gt 0) {
+        throw "Duplicate projection PowerShell script entries in validator manifest: $($duplicatePsScriptNames -join ', ')"
+    }
+
     foreach ($path in $psScripts) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "Missing script: $path"
@@ -69,7 +80,7 @@ try {
             throw "PowerShell parse failed for $path`: $($errors[0].Message)"
         }
     }
-    Add-Check -Name 'powershell-parse' -Status 'passed' -Detail ('Parsed {0} scripts.' -f $psScripts.Count)
+    Add-Check -Name 'powershell-parse' -Status 'passed' -Detail ('Parsed {0} scripts.' -f $psScripts.Count) -Data ([ordered]@{ expectedScriptCount = $expectedProjectionPsScriptCount; scriptCount = $psScripts.Count; uniqueScriptCount = @($psScriptNames | Select-Object -Unique).Count; scripts = $psScriptNames })
 
     if (-not (Test-Path -LiteralPath $cmdLauncher -PathType Leaf)) {
         throw "Missing shared CMD launcher: $cmdLauncher"
@@ -120,6 +131,11 @@ try {
     if ($duplicateTargetNames.Count -gt 0) {
         throw "Duplicate CMD wrapper target entries in validator manifest: $($duplicateTargetNames -join ', ')"
     }
+    $targetDrift = @(Compare-Object -ReferenceObject $psScriptNames -DifferenceObject $targetNames)
+    if ($targetDrift.Count -gt 0) {
+        $targetDriftText = @(($targetDrift | ForEach-Object { '{0}:{1}' -f $_.SideIndicator, $_.InputObject }) | Sort-Object) -join ', '
+        throw "CMD wrapper targets do not match parsed PowerShell script manifest: $targetDriftText"
+    }
 
     $inspectedCmdWrappers = [System.Collections.Generic.List[object]]::new()
     foreach ($wrapper in $cmdWrappers) {
@@ -164,7 +180,7 @@ try {
             propagatesExitCode = $true
         }) | Out-Null
     }
-    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; expectedWrapperCount = $expectedProjectionCmdWrapperCount; wrapperCount = $cmdWrappers.Count; uniqueWrapperCount = @($wrapperNames | Select-Object -Unique).Count; uniqueTargetCount = @($targetNames | Select-Object -Unique).Count; wrappers = @($inspectedCmdWrappers) })
+    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; expectedWrapperCount = $expectedProjectionCmdWrapperCount; wrapperCount = $cmdWrappers.Count; uniqueWrapperCount = @($wrapperNames | Select-Object -Unique).Count; uniqueTargetCount = @($targetNames | Select-Object -Unique).Count; targetsMatchParsedScripts = $true; wrappers = @($inspectedCmdWrappers) })
 
     if (-not (Test-Path -LiteralPath $captureProject -PathType Leaf)) {
         throw "Missing capture project: $captureProject"

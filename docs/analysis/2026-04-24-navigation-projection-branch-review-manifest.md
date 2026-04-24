@@ -35,7 +35,7 @@ patch unless the user explicitly wants durable proof artifacts tracked.
 | `C:\RIFT MODDING\RiftReader\scripts\capture-rift-window-printwindow.cmd` | CMD wrapper for PrintWindow fallback capture. |
 | `C:\RIFT MODDING\RiftReader\scripts\test-rift-window-capture-methods.ps1` | No-input capture-method diagnostic sweep. |
 | `C:\RIFT MODDING\RiftReader\scripts\test-rift-window-capture-methods.cmd` | CMD wrapper for capture-method diagnostics. |
-| `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1` | Offline validation for parser checks, capture helper build, shared CMD launcher contract, CMD wrapper shape/launcher/target inspection, wrapper key-argument preservation, plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed no-screenshot behavior. |
+| `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1` | Offline validation for parser checks, projection script/wrapper manifest parity, capture helper build, shared CMD launcher contract, CMD wrapper shape/launcher/target inspection, wrapper key-argument preservation, plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed no-screenshot behavior. |
 | `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.cmd` | CMD wrapper for offline workflow validation. |
 | `C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.ps1` | Thin wrapper that preserves screenshot-gated capture and fail-closed analyzer defaults for nameplate proof runs. |
 | `C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.cmd` | CMD wrapper for the nameplate proof wrapper. |
@@ -141,7 +141,7 @@ Add this source file to the first review patch as well:
 
 | Path | Reason |
 |---|---|
-| `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1` | Offline validation for parser checks, capture helper build, shared CMD launcher contract, CMD wrapper shape/launcher/target inspection, wrapper key-argument preservation, plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed no-screenshot behavior. |
+| `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1` | Offline validation for parser checks, projection script/wrapper manifest parity, capture helper build, shared CMD launcher contract, CMD wrapper shape/launcher/target inspection, wrapper key-argument preservation, plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed no-screenshot behavior. |
 
 Latest validation passed with `ok=true`.
 
@@ -153,8 +153,9 @@ Latest checkpoint validation passed with no skips:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1" -Json
 ```
 
-Result: `ok=true`; parser, machine-readable shared CMD launcher contract, CMD wrapper
-shape/launcher/target inspection with expected-count, target existence, and uniqueness reporting, capture project build,
+Result: `ok=true`; parser with expected-count/duplicate checks, projection script/wrapper manifest parity,
+machine-readable shared CMD launcher contract, CMD wrapper shape/launcher/target inspection with expected-count,
+target existence, and uniqueness reporting, capture project build,
 PowerShell wrapper plan, CMD wrapper plan, wrapper key-argument preservation,
 plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed
 no-screenshot visual-gate smoke all passed.
