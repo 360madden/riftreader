@@ -393,10 +393,13 @@ or promotion pipeline execution as appropriate. When at least two gated
 baseline/zoom proofs exist, it treats the newest proof as reproof and the
 previous proof as baseline, then recommends the latest-pair pipeline command.
 When only one prior gated baseline/zoom manifest is available, the second-proof
-command is pre-seeded with that manifest's candidate/nameplate arguments and
-includes a `seed.staleRisk` warning; replace the candidate address with a
-freshly resolved live candidate if the process, UI object, or hovered nameplate
-changed.
+plan and live commands are both pre-seeded with that manifest's
+candidate/nameplate arguments. Run the planner's
+`run-second-baseline-zoom-proof-plan` command first and inspect its
+`operatorChecklist`, then run `run-second-baseline-zoom-proof` only after the
+candidate/nameplate are confirmed current. The seed includes a `seed.staleRisk`
+warning; replace the candidate address with a freshly resolved live candidate if
+the process, UI object, or hovered nameplate changed.
 
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
@@ -475,8 +478,8 @@ It checks:
   verify proof-run inventory with manifest seed, lead-neighborhood, and
   promotion-packet status
 - `plan-nameplate-proof-promotion.ps1` against a generated inventory fixture to
-  verify promotion-readiness planning and manifest-seeded next-step command
-  output when a second gated proof is missing
+  verify promotion-readiness planning and manifest-seeded plan-only plus live
+  next-step command output when a second gated proof is missing
 - `plan-nameplate-proof-promotion.ps1` against two generated gated proof roots
   to verify previous-as-baseline, newest-as-reproof ordering and latest-pair
   pipeline recommendations
@@ -605,7 +608,7 @@ Result: `ok=true`.
 | Promotion-pipeline smoke | Passed with plan-only no-attach/no-input behavior and packet creation from existing neighborhood artifacts. |
 | Promotion-pipeline latest-pair smoke | Passed with newest gated baseline/zoom proof selected as reproof, previous gated baseline/zoom proof selected as baseline, and plan-only no-attach semantics. |
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
-| Promotion-readiness planner smoke | Passed with missing-evidence and manifest-seeded next-command reporting when only one gated baseline/zoom proof exists. |
+| Promotion-readiness planner smoke | Passed with missing-evidence and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, and latest-pair pipeline recommendation. |
 
 The aggregate branch validator was also run:

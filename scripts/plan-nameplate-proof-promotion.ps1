@@ -165,17 +165,28 @@ else {
         }
         $secondProofParts += @('-NameplateText', $proofSeed.nameplateText, '-OutputRoot', $resolvedOutputRoot, '-Json')
         $recommendedCommands.Add([pscustomobject][ordered]@{
+            name = 'run-second-baseline-zoom-proof-plan'
+            command = New-CommandString -Parts @($secondProofParts + '-PlanOnly')
+            seed = $proofSeed
+        }) | Out-Null
+        $recommendedCommands.Add([pscustomobject][ordered]@{
             name = 'run-second-baseline-zoom-proof'
             command = New-CommandString -Parts $secondProofParts
             seed = $proofSeed
         }) | Out-Null
     }
     else {
-    $recommendedCommands.Add([pscustomobject][ordered]@{
-        name = 'run-second-baseline-zoom-proof'
-        command = New-CommandString -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $proofWrapperScript, '-CandidateAddress', '<candidate-address>', '-NameplateText', '<nameplate-text>', '-Json')
-        seed = $null
-    }) | Out-Null
+        $secondProofParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $proofWrapperScript, '-CandidateAddress', '<candidate-address>', '-NameplateText', '<nameplate-text>', '-Json')
+        $recommendedCommands.Add([pscustomobject][ordered]@{
+            name = 'run-second-baseline-zoom-proof-plan'
+            command = New-CommandString -Parts @($secondProofParts + '-PlanOnly')
+            seed = $null
+        }) | Out-Null
+        $recommendedCommands.Add([pscustomobject][ordered]@{
+            name = 'run-second-baseline-zoom-proof'
+            command = New-CommandString -Parts $secondProofParts
+            seed = $null
+        }) | Out-Null
     }
 }
 
