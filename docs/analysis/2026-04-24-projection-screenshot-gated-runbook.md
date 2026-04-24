@@ -187,7 +187,9 @@ The wrapper forwards to `capture-tooltip-hover-diff.ps1` with:
 - active states `zoom1,zoom2`
 
 Use `-PlanOnly -Json` first to verify the command shape without attaching to
-Rift or creating artifacts.
+Rift or creating artifacts. The plan includes `operatorChecklist` entries for
+the required `baseline1,zoom1,baseline2,zoom2` sequence so the operator can
+confirm each visible state before starting the real capture.
 
 For fast candidate reproof after a full pointer-scanned proof already exists,
 keep the same screenshot/sequence gates but skip the expensive text pointer
@@ -429,7 +431,8 @@ It checks:
   including duplicate-entry checks
 - `RiftWindowCapture.csproj` build
 - `run-nameplate-projection-proof.ps1 -PlanOnly -Json`, including key-argument
-  preservation, default scan controls, and no-artifact behavior
+  preservation, default scan controls, operator checklist, and no-artifact
+  behavior
 - bounded fast-reproof wrapper PlanOnly mode with `-MaxHits 4`,
   `-TextPointerScanMode none`, and `-SkipPointerScan`
 - `run-nameplate-projection-proof.cmd -PlanOnly -Json`, unless
@@ -590,7 +593,7 @@ Result: `ok=true`.
 | PowerShell parse | Passed for expected 17 scripts with 17 unique entries. |
 | CMD wrapper inspection | Passed for expected 17 projection wrappers with 17 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
-| PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
+| PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation, operator-checklist roles, and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | Validator CMD wrapper smoke | Passed in bounded non-recursive smoke mode, with expected inner skips verified. |
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |

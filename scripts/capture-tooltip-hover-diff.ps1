@@ -539,6 +539,21 @@ $windowEndInt = $windowBaseInt + [long]$CandidateLength - 1L
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $runId = '{0}-{1}' -f $timestamp, ($RunLabel -replace '[^A-Za-z0-9_.-]', '-')
 $runRoot = Join-Path $OutputRoot $runId
+$operatorChecklist = @(
+    for ($stateIndex = 1; $stateIndex -le @($States).Count; $stateIndex++) {
+        $state = [string]$States[$stateIndex - 1]
+        $isActiveState = $state -match $AnalyzerActiveStateRegex
+        $stateRole = if ($isActiveState) { 'active' } elseif ($state -match $AnalyzerBaselineStateRegex) { 'baseline' } else { 'other' }
+        [pscustomobject][ordered]@{
+            index = $stateIndex
+            state = $state
+            stateRole = $stateRole
+            isActiveState = $isActiveState
+            requiresOperatorConfirmation = -not [bool]$NonInteractive
+            instruction = "Prepare proof state '$state' ($stateRole), then press Enter when the operator-visible state is ready."
+        }
+    }
+)
 
 $plan = [ordered]@{
     mode = if ($PlanOnly) { 'plan-only' } else { 'capture' }
@@ -577,6 +592,7 @@ $plan = [ordered]@{
     analyzerExpectedStateRoles = @(Normalize-CommaList -Value $AnalyzerExpectedStateRoles)
     nonInteractive = [bool]$NonInteractive
     controlsInput = $false
+    operatorChecklist = @($operatorChecklist)
     notes = @(
         'This helper only invokes RiftReader.Reader read/scan modes.',
         'It does not move the mouse, click, cast, move, focus a window, or send keyboard input.',

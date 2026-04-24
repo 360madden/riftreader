@@ -291,13 +291,16 @@ try {
     if ((@($plan.analyzerExpectedStates) -join ',') -ne 'baseline1,zoom1,baseline2,zoom2' -or (@($plan.analyzerExpectedStateRoles) -join ',') -ne 'baseline,active,baseline,active') {
         throw "Wrapper plan did not preserve expected nameplate proof state sequence. States=$(@($plan.analyzerExpectedStates) -join ','), Roles=$(@($plan.analyzerExpectedStateRoles) -join ',')."
     }
+    if (@($plan.operatorChecklist).Count -ne 4 -or (@($plan.operatorChecklist | ForEach-Object { [string]$_.stateRole }) -join ',') -ne 'baseline,active,baseline,active') {
+        throw "Wrapper plan did not expose the expected operator checklist. Count=$(@($plan.operatorChecklist).Count), Roles=$(@($plan.operatorChecklist | ForEach-Object { [string]$_.stateRole }) -join ',')."
+    }
     if ([int]$plan.maxHits -ne 24 -or [string]$plan.textPointerScanMode -ne 'allHits' -or [bool]$plan.skipPointerScan) {
         throw "Wrapper default scan plan drifted. maxHits=$($plan.maxHits), textPointerScanMode=$($plan.textPointerScanMode), skipPointerScan=$($plan.skipPointerScan)."
     }
     if ((Test-Path -LiteralPath $planOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$plan.runRoot))) {
         throw "Wrapper PlanOnly unexpectedly created artifacts. OutputRoot=$planOnlyOutputRoot, RunRoot=$($plan.runRoot)."
     }
-    Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture, fail-closed analysis defaults, expected state sequence, key arguments, and plan-only no-artifact behavior.' -Data $plan
+    Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture, fail-closed analysis defaults, expected state sequence, operator checklist, key arguments, and plan-only no-artifact behavior.' -Data $plan
 
     $fastReproofPlanOnlyOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-fast-reproof-planonly-{0}' -f ([guid]::NewGuid().ToString('N')))
     $fastReproofOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $fastReproofPlanOnlyOutputRoot -MaxHits 4 -TextPointerScanMode none -SkipPointerScan -PlanOnly -Json 2>&1
