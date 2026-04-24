@@ -154,7 +154,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 ```
 
 Result: `ok=true`; parser, machine-readable shared CMD launcher contract, CMD wrapper
-shape/launcher/target inspection with target existence reporting, capture project build,
+shape/launcher/target inspection with target existence and uniqueness reporting, capture project build,
 PowerShell wrapper plan, CMD wrapper plan, wrapper key-argument preservation,
 plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed
 no-screenshot visual-gate smoke all passed.

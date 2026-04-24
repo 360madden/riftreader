@@ -104,6 +104,18 @@ try {
         propagatesExitCode = $true
     }
 
+    $wrapperNames = @($cmdWrappers | ForEach-Object { [string]$_.Wrapper })
+    $duplicateWrapperNames = @($wrapperNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+    if ($duplicateWrapperNames.Count -gt 0) {
+        throw "Duplicate CMD wrapper entries in validator manifest: $($duplicateWrapperNames -join ', ')"
+    }
+
+    $targetNames = @($cmdWrappers | ForEach-Object { [string]$_.Target })
+    $duplicateTargetNames = @($targetNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+    if ($duplicateTargetNames.Count -gt 0) {
+        throw "Duplicate CMD wrapper target entries in validator manifest: $($duplicateTargetNames -join ', ')"
+    }
+
     $inspectedCmdWrappers = [System.Collections.Generic.List[object]]::new()
     foreach ($wrapper in $cmdWrappers) {
         $path = Join-Path $PSScriptRoot ([string]$wrapper.Wrapper)
@@ -147,7 +159,7 @@ try {
             propagatesExitCode = $true
         }) | Out-Null
     }
-    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; wrappers = @($inspectedCmdWrappers) })
+    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; wrapperCount = $cmdWrappers.Count; uniqueWrapperCount = @($wrapperNames | Select-Object -Unique).Count; uniqueTargetCount = @($targetNames | Select-Object -Unique).Count; wrappers = @($inspectedCmdWrappers) })
 
     if (-not (Test-Path -LiteralPath $captureProject -PathType Leaf)) {
         throw "Missing capture project: $captureProject"
