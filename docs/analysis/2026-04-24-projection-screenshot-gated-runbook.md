@@ -205,6 +205,20 @@ Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
 temp directory and does not depend on local ignored artifacts.
 
+## Branch-level offline validation
+
+Use this aggregate check before pushing or handing off the branch. It runs the
+screenshot workflow validator, Reader tests, and `git diff --check` without
+touching the Rift client or creating live artifacts:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
+```
+
+Use `-SkipArtifactSmoke` on machines that do not have the ignored local
+`artifacts\tooltip-projection\20260424-095742-screenshot-gate-analyzer-smoke`
+fixture.
+
 ## CMD wrappers
 
 The projection helper scripts now have matching `.cmd` wrappers that use the

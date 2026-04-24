@@ -37,6 +37,8 @@ patch unless the user explicitly wants durable proof artifacts tracked.
 | `C:\RIFT MODDING\RiftReader\scripts\test-rift-window-capture-methods.cmd` | CMD wrapper for capture-method diagnostics. |
 | `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1` | Offline validation for parser checks, projection script/wrapper manifest parity, capture helper build, shared CMD launcher contract, CMD wrapper shape/launcher/target inspection, wrapper key-argument preservation, plan-only no-artifact behavior, bounded validator CMD-wrapper smoke, analyzer visual-gate smoke, and fail-closed no-screenshot behavior. |
 | `C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.cmd` | CMD wrapper for offline workflow validation. |
+| `C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1` | Branch-level offline validation aggregator for the projection workflow validator, Reader tests, and `git diff --check`. |
+| `C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.cmd` | CMD wrapper for the branch-level offline validation aggregator. |
 | `C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.ps1` | Thin wrapper that preserves screenshot-gated capture and fail-closed analyzer defaults for nameplate proof runs. |
 | `C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.cmd` | CMD wrapper for the nameplate proof wrapper. |
 | `C:\RIFT MODDING\RiftReader\tools\rift-window-capture\RiftWindowCapture.csproj` | .NET helper project file. |
@@ -95,6 +97,8 @@ git add -- `
   scripts/capture-rift-window-wgc.ps1 `
   scripts/run-nameplate-projection-proof.cmd `
   scripts/run-nameplate-projection-proof.ps1 `
+  scripts/test-navigation-projection-offline.cmd `
+  scripts/test-navigation-projection-offline.ps1 `
   scripts/test-projection-screenshot-gate-workflow.cmd `
   scripts/test-projection-screenshot-gate-workflow.ps1 `
   scripts/test-rift-window-capture-methods.cmd `
