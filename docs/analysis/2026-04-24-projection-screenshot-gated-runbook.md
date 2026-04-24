@@ -254,7 +254,8 @@ preservation:
 - reports each inspected wrapper's target and wrapper-shape checks in the
   `cmd-wrapper-inspection` JSON, including `targetExists=true`
 - verifies the wrapper manifest has no duplicate wrapper names or target names
-  and reports `wrapperCount`, `uniqueWrapperCount`, and `uniqueTargetCount`
+  and reports `expectedWrapperCount`, `wrapperCount`, `uniqueWrapperCount`, and
+  `uniqueTargetCount`
 - runs `run-nameplate-projection-proof.cmd -PlanOnly -Json` unless `-SkipCmdWrapperSmoke` is set
 - verifies the CMD wrapper preserves the planned `CandidateAddress` and
   `NameplateText` values for the normal nameplate proof command
@@ -282,7 +283,7 @@ Result: `ok=true`.
 | Check | Result |
 |---|---|
 | PowerShell parse | Passed for 7 scripts. |
-| CMD wrapper inspection | Passed for shared launcher plus 7 unique wrappers/targets, including machine-readable launcher/wrapper contract data and `targetExists=true` for each wrapper target. |
+| CMD wrapper inspection | Passed for expected 7 projection wrappers with 7 unique wrappers/targets, including machine-readable launcher/wrapper contract data and `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |

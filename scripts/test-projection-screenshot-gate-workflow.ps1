@@ -37,6 +37,7 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'run-nameplate-projection-proof.cmd'; Target = 'run-nameplate-projection-proof.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
+$expectedProjectionCmdWrapperCount = 7
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -105,6 +106,10 @@ try {
     }
 
     $wrapperNames = @($cmdWrappers | ForEach-Object { [string]$_.Wrapper })
+    if ($wrapperNames.Count -ne $expectedProjectionCmdWrapperCount) {
+        throw "Expected $expectedProjectionCmdWrapperCount projection CMD wrapper entries, found $($wrapperNames.Count)."
+    }
+
     $duplicateWrapperNames = @($wrapperNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
     if ($duplicateWrapperNames.Count -gt 0) {
         throw "Duplicate CMD wrapper entries in validator manifest: $($duplicateWrapperNames -join ', ')"
@@ -159,7 +164,7 @@ try {
             propagatesExitCode = $true
         }) | Out-Null
     }
-    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; wrapperCount = $cmdWrappers.Count; uniqueWrapperCount = @($wrapperNames | Select-Object -Unique).Count; uniqueTargetCount = @($targetNames | Select-Object -Unique).Count; wrappers = @($inspectedCmdWrappers) })
+    Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers and shared launcher.' -f $cmdWrappers.Count) -Data ([ordered]@{ launcher = $cmdLauncher; launcherContract = $launcherContract; expectedWrapperCount = $expectedProjectionCmdWrapperCount; wrapperCount = $cmdWrappers.Count; uniqueWrapperCount = @($wrapperNames | Select-Object -Unique).Count; uniqueTargetCount = @($targetNames | Select-Object -Unique).Count; wrappers = @($inspectedCmdWrappers) })
 
     if (-not (Test-Path -LiteralPath $captureProject -PathType Leaf)) {
         throw "Missing capture project: $captureProject"
