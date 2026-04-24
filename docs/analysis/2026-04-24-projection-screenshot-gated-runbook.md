@@ -192,6 +192,8 @@ It checks:
 - `run-nameplate-projection-proof.cmd -PlanOnly -Json`, unless
   `-SkipCmdWrapperSmoke` is set, including key-argument preservation and
   no-artifact behavior
+- `test-projection-screenshot-gate-workflow.cmd` in non-recursive smoke mode,
+  unless `-SkipCmdWrapperSmoke` or `-SkipSelfCmdWrapperSmoke` is set
 - existing screenshot-gated smoke artifact with analyzer `-RequireVisualGate`, if present
 - fail-closed analyzer behavior when `-RequireVisualGate` is used without
   screenshot captures
@@ -248,8 +250,14 @@ preservation:
   `NameplateText` values for the normal nameplate proof command
 - verifies the CMD wrapper keeps `mode=plan-only`, `controlsInput=false`, and
   creates no run artifacts
+- runs `test-projection-screenshot-gate-workflow.cmd` with build/artifact/CMD
+  recursion skipped, proving the validator CMD entrypoint launches successfully
+  without recursively invoking itself
 
-Use `-SkipCmdWrapperSmoke` only when `cmd.exe` is unavailable or when validating purely inside PowerShell-hosted automation.
+Use `-SkipCmdWrapperSmoke` only when `cmd.exe` is unavailable or when validating
+purely inside PowerShell-hosted automation. `-SkipSelfCmdWrapperSmoke` only
+skips the validator's own CMD-wrapper smoke and is intended for the bounded
+inner self-smoke call.
 
 ## Latest full offline validation
 
@@ -268,5 +276,6 @@ Result: `ok=true`.
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
+| Validator CMD wrapper smoke | Passed in non-recursive smoke mode. |
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |
 | Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |

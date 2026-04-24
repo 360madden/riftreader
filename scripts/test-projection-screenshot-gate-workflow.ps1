@@ -4,6 +4,7 @@ param(
     [string]$NameplateText = 'Atank of Sanctum',
     [switch]$SkipBuild,
     [switch]$SkipCmdWrapperSmoke,
+    [switch]$SkipSelfCmdWrapperSmoke,
     [switch]$SkipArtifactSmoke,
     [switch]$Json
 )
@@ -15,6 +16,7 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $captureProject = Join-Path $repoRoot 'tools\rift-window-capture\RiftWindowCapture.csproj'
 $wrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $wrapperCmd = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.cmd'
+$validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
 $psScripts = @(
@@ -169,6 +171,27 @@ try {
     }
     else {
         Add-Check -Name 'nameplate-cmd-wrapper-plan' -Status 'skipped' -Detail 'SkipCmdWrapperSmoke was set.'
+    }
+
+    if (-not $SkipCmdWrapperSmoke -and -not $SkipSelfCmdWrapperSmoke) {
+        $selfCmdOutput = & $validatorCmd -SkipBuild -SkipCmdWrapperSmoke -SkipSelfCmdWrapperSmoke -SkipArtifactSmoke -Json 2>&1
+        $selfCmdCode = $LASTEXITCODE
+        if ($selfCmdCode -ne 0) {
+            throw "Validator CMD wrapper smoke failed with exit code $selfCmdCode`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
+
+        $selfCmdResult = ($selfCmdOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+        if (-not [bool]$selfCmdResult.ok) {
+            throw "Validator CMD wrapper smoke returned ok=false.`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
+        $selfCmdChecks = @($selfCmdResult.checks)
+        if (-not @($selfCmdChecks | Where-Object { $_.name -eq 'cmd-wrapper-inspection' -and $_.status -eq 'passed' })) {
+            throw "Validator CMD wrapper smoke did not pass cmd-wrapper-inspection.`n$($selfCmdOutput -join [Environment]::NewLine)"
+        }
+        Add-Check -Name 'validator-cmd-wrapper-smoke' -Status 'passed' -Detail 'Validator CMD wrapper launched successfully in non-recursive smoke mode.' -Data ([ordered]@{ skippedBuild = $true; skippedArtifactSmoke = $true })
+    }
+    else {
+        Add-Check -Name 'validator-cmd-wrapper-smoke' -Status 'skipped' -Detail 'SkipCmdWrapperSmoke or SkipSelfCmdWrapperSmoke was set.'
     }
 
     $smokeRun = Join-Path $repoRoot 'artifacts\tooltip-projection\20260424-095742-screenshot-gate-analyzer-smoke'
