@@ -304,6 +304,23 @@ Its `candidateSummary` block is the machine-readable promotion surface:
 - `candidateSummary.recommendedEdges` lists repeated pointer edges by
   `fromAddress`, `toAddress`, and `sourceOffsetHex`.
 
+When the comparator summary is promotion-ready, write a durable promotion
+packet with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\write-nameplate-proof-promotion-packet.ps1" `
+  -BaselineRunRoot "<first-proof-run-root>" `
+  -ReproofRunRoot "<second-proof-run-root>" `
+  -MinRepeatedRootCount 1 `
+  -Json
+```
+
+The writer re-runs the neighborhood comparator, writes
+`lead-neighborhoods\nameplate-proof-promotion-packet.json` under the reproof
+run by default, and fails closed without writing a packet unless
+`candidateSummary.promotionReady=true`. Use `-AllowNotReady` only when a
+diagnostic not-ready packet is explicitly useful.
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -367,6 +384,9 @@ It checks:
 - `compare-nameplate-proof-lead-neighborhoods.ps1` against generated captured
   neighborhood fixtures to verify repeated selected-root and pointer-edge
   reporting
+- `write-nameplate-proof-promotion-packet.ps1` against generated captured
+  neighborhood fixtures to verify durable promotion-packet creation only after
+  comparator gates are promotion-ready
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -403,6 +423,7 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | `scripts\extract-nameplate-proof-leads.cmd` | `extract-nameplate-proof-leads.ps1` |
 | `scripts\capture-nameplate-proof-lead-neighborhoods.cmd` | `capture-nameplate-proof-lead-neighborhoods.ps1` |
 | `scripts\compare-nameplate-proof-lead-neighborhoods.cmd` | `compare-nameplate-proof-lead-neighborhoods.ps1` |
+| `scripts\write-nameplate-proof-promotion-packet.cmd` | `write-nameplate-proof-promotion-packet.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
 | `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
@@ -473,8 +494,8 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for expected 13 scripts with 13 unique entries. |
-| CMD wrapper inspection | Passed for expected 13 projection wrappers with 13 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 14 scripts with 14 unique entries. |
+| CMD wrapper inspection | Passed for expected 14 projection wrappers with 14 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
@@ -483,6 +504,7 @@ Result: `ok=true`.
 | Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |
 | Lead-neighborhood plan smoke | Passed with selected pointer-hit root planning, `controlsInput=false`, `attachesToProcess=false`, and no artifact creation. |
 | Lead-neighborhood comparator smoke | Passed with repeated selected-root, pointer-edge, and promotion-candidate summary reporting. |
+| Promotion-packet smoke | Passed with durable packet creation only after comparator gates were promotion-ready. |
 
 The aggregate branch validator was also run:
 
@@ -490,5 +512,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `22/22`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `23/23`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

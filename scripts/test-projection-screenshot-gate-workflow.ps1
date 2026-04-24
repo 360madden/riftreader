@@ -28,6 +28,8 @@ $leadNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-
 $leadNeighborhoodCmd = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.cmd'
 $leadNeighborhoodCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-proof-lead-neighborhoods.ps1'
 $leadNeighborhoodCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-proof-lead-neighborhoods.cmd'
+$promotionPacketScript = Join-Path $PSScriptRoot 'write-nameplate-proof-promotion-packet.ps1'
+$promotionPacketCmd = Join-Path $PSScriptRoot 'write-nameplate-proof-promotion-packet.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -44,9 +46,10 @@ $psScripts = @(
     'extract-nameplate-proof-leads.ps1',
     'capture-nameplate-proof-lead-neighborhoods.ps1',
     'compare-nameplate-proof-lead-neighborhoods.ps1',
+    'write-nameplate-proof-promotion-packet.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 13
+$expectedProjectionPsScriptCount = 14
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -60,9 +63,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'extract-nameplate-proof-leads.cmd'; Target = 'extract-nameplate-proof-leads.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-nameplate-proof-lead-neighborhoods.cmd'; Target = 'capture-nameplate-proof-lead-neighborhoods.ps1' },
     [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-lead-neighborhoods.cmd'; Target = 'compare-nameplate-proof-lead-neighborhoods.ps1' },
+    [pscustomobject]@{ Wrapper = 'write-nameplate-proof-promotion-packet.cmd'; Target = 'write-nameplate-proof-promotion-packet.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 13
+$expectedProjectionCmdWrapperCount = 14
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -878,6 +882,26 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-lead-neighborhood-comparator-smoke' -Status 'passed' -Detail 'Lead-neighborhood comparator reports repeated selected roots, pointer edges, and promotion candidate summaries across captured neighborhood artifacts.' -Data ([ordered]@{ repeatedSelectedRoots = $leadNeighborhoodCompare.counts.repeatedSelectedRoots; repeatedEdges = $leadNeighborhoodCompare.counts.repeatedEdges; promotionReady = $leadNeighborhoodCompare.candidateSummary.promotionReady })
+
+        $promotionPacketOutputFile = Join-Path $leadNeighborhoodCompareRoot 'promotion-packet.json'
+        $promotionPacketOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPacketScript -BaselineFile $baselineNeighborhoodFile -ReproofFile $reproofNeighborhoodFile -OutputFile $promotionPacketOutputFile -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $promotionPacketCode = $LASTEXITCODE
+        if ($promotionPacketCode -ne 0) {
+            throw "Nameplate proof promotion packet writer failed with exit code $promotionPacketCode.`n$($promotionPacketOutput -join [Environment]::NewLine)"
+        }
+        if (-not (Test-Path -LiteralPath $promotionPacketOutputFile -PathType Leaf)) {
+            throw "Nameplate proof promotion packet writer did not create expected packet: $promotionPacketOutputFile"
+        }
+        $promotionPacketResult = ($promotionPacketOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        $promotionPacket = Get-Content -LiteralPath $promotionPacketOutputFile -Raw | ConvertFrom-Json -Depth 100
+        if (-not [bool]$promotionPacketResult.ok -or -not [bool]$promotionPacketResult.wrotePacket -or -not [bool]$promotionPacket.promotionReady) {
+            throw "Nameplate proof promotion packet writer did not report/write a promotion-ready packet.`n$($promotionPacketOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($promotionPacket.recommendedRoots | Where-Object { $_.address -eq '0X9000' })) {
+            throw "Nameplate proof promotion packet did not include repeated root 0X9000."
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-packet-smoke' -Status 'passed' -Detail 'Promotion packet writer emits a durable packet only after comparator candidate-summary gates are promotion-ready.' -Data ([ordered]@{ recommendedRootCount = $promotionPacketResult.recommendedRootCount; recommendedEdgeCount = $promotionPacketResult.recommendedEdgeCount; outputFileExists = $true })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
