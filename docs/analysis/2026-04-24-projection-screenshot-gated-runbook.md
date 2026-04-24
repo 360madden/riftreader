@@ -185,7 +185,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
 
 It checks:
 
-- PowerShell parse for the projection helper scripts
+- PowerShell parse for the projection helper scripts and validator script
 - `RiftWindowCapture.csproj` build
 - `run-nameplate-projection-proof.ps1 -PlanOnly -Json`, including key-argument
   preservation and no-artifact behavior
@@ -260,7 +260,7 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for 6 scripts. |
+| PowerShell parse | Passed for 7 scripts. |
 | CMD wrapper inspection | Passed for shared launcher plus 7 wrappers, including launcher-call and target-script checks. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |

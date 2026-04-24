@@ -23,7 +23,8 @@ $psScripts = @(
     'test-rift-window-capture-methods.ps1',
     'capture-tooltip-hover-diff.ps1',
     'analyze-tooltip-hover-diff.ps1',
-    'run-nameplate-projection-proof.ps1'
+    'run-nameplate-projection-proof.ps1',
+    'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
