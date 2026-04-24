@@ -25,14 +25,14 @@ $psScripts = @(
     'run-nameplate-projection-proof.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
 $cmdWrappers = @(
-    'capture-rift-window-wgc.cmd',
-    'capture-rift-window-printwindow.cmd',
-    'test-rift-window-capture-methods.cmd',
-    'capture-tooltip-hover-diff.cmd',
-    'analyze-tooltip-hover-diff.cmd',
-    'run-nameplate-projection-proof.cmd',
-    'test-projection-screenshot-gate-workflow.cmd'
-) | ForEach-Object { Join-Path $PSScriptRoot $_ }
+    [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
+    [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
+    [pscustomobject]@{ Wrapper = 'test-rift-window-capture-methods.cmd'; Target = 'test-rift-window-capture-methods.ps1' },
+    [pscustomobject]@{ Wrapper = 'capture-tooltip-hover-diff.cmd'; Target = 'capture-tooltip-hover-diff.ps1' },
+    [pscustomobject]@{ Wrapper = 'analyze-tooltip-hover-diff.cmd'; Target = 'analyze-tooltip-hover-diff.ps1' },
+    [pscustomobject]@{ Wrapper = 'run-nameplate-projection-proof.cmd'; Target = 'run-nameplate-projection-proof.ps1' },
+    [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
+)
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -66,7 +66,8 @@ try {
     }
     Add-Check -Name 'powershell-parse' -Status 'passed' -Detail ('Parsed {0} scripts.' -f $psScripts.Count)
 
-    foreach ($path in $cmdWrappers) {
+    foreach ($wrapper in $cmdWrappers) {
+        $path = Join-Path $PSScriptRoot ([string]$wrapper.Wrapper)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "Missing CMD wrapper: $path"
         }
@@ -74,6 +75,10 @@ try {
         $content = Get-Content -LiteralPath $path -Raw
         if ($content -notmatch '_run-pwsh\.cmd') {
             throw "CMD wrapper does not call _run-pwsh.cmd: $path"
+        }
+        $escapedTarget = [regex]::Escape([string]$wrapper.Target)
+        if ($content -notmatch ('set\s+"RIFTREADER_PS1=%~dp0{0}"' -f $escapedTarget)) {
+            throw "CMD wrapper does not target expected PowerShell script. Wrapper=$path, ExpectedTarget=$($wrapper.Target)"
         }
     }
     Add-Check -Name 'cmd-wrapper-inspection' -Status 'passed' -Detail ('Inspected {0} CMD wrappers.' -f $cmdWrappers.Count)
