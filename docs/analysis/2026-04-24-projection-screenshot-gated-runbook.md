@@ -1,0 +1,244 @@
+---
+state: current
+as_of: 2026-04-24
+---
+
+# Projection Screenshot-Gated Capture Runbook — 2026-04-24
+
+## Scope
+
+This runbook is for the `navigation` branch tooltip/nameplate projection lane in
+`C:\RIFT MODDING\RiftReader`.
+
+Goal: capture memory samples only when each state also has a usable no-input
+screenshot, then analyze with a fail-closed visual gate before treating any
+memory candidate as promotable.
+
+## Snapshot metadata
+
+| Item | Value |
+|---|---|
+| Date | 2026-04-24 |
+| Repo | `C:\RIFT MODDING\RiftReader` |
+| Branch | `navigation` |
+| Input mode | Operator prepares visible state; helper performs read-only capture/scans only |
+| Live safety | No helper mouse movement, clicks, casts, keyboard input, focus changes, or player movement |
+| Visual gate | DXGI Desktop Duplication, multi-attempt, usable-frame required |
+
+## Command order
+
+### 1. Confirm no-input visual capture works
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-rift-window-capture-methods.ps1" `
+  -ProcessName rift_x64 `
+  -DesktopDuplicationAttempts 3 `
+  -Json
+```
+
+Pass condition:
+
+- `usable=true`
+- best method is preferably `DXGIDesktopDuplication`
+- at least one generated screenshot visibly contains Rift game content
+
+If this fails, do **not** run projection sampling.
+
+### 2. Capture screenshot-gated states
+
+Nameplate baseline/zoom example:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-tooltip-hover-diff.ps1" `
+  -ProcessName rift_x64 `
+  -CandidateAddress 0x12CFC40B7D0 `
+  -CandidateLength 1024 `
+  -TooltipText "Atank of Sanctum" `
+  -States baseline1,zoom1,baseline2,zoom2 `
+  -TextPointerScanMode allHits `
+  -CaptureScreenshot `
+  -RequireUsableScreenshot `
+  -ScreenshotAttempts 3 `
+  -RunLabel nameplate-baseline-zoom `
+  -Json
+```
+
+Operator rule: before pressing Enter for each state, visually confirm the exact
+state label is true. The helper will not create the state for you.
+
+### 3. Analyze with fail-closed visual gate
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\analyze-tooltip-hover-diff.ps1" `
+  -InputDirectory "<run-root>" `
+  -BaselineStateRegex "^baseline" `
+  -ActiveStateRegex "^zoom" `
+  -BaselineLabel baseline `
+  -ActiveLabel zoom `
+  -RequireVisualGate `
+  -Json
+```
+
+Pass condition:
+
+- analyzer exits `0`
+- `screenshotGate.visualGateStatus=passed`
+- `diffs\screenshot-gate.json` shows every analyzed state has `usable=true`
+
+## Output files to inspect
+
+| File | Purpose |
+|---|---|
+| `<run-root>\summary.json` | Top-level capture + analysis summary |
+| `<run-root>\samples.ndjson` | Per-state memory sample records |
+| `<run-root>\states\<state>\screenshots\<state>.bmp` | Visual proof for a state |
+| `<run-root>\states\<state>\screenshots\<state>.capture.json` | Raw capture metadata / usability proof |
+| `<run-root>\diffs\screenshot-gate.json` | Analyzer visual-gate rollup |
+| `<run-root>\diffs\field-candidates.json` | Ranked memory field candidates |
+| `<run-root>\diffs\scan-evidence.json` | Explicit pointer/numeric scan evidence |
+
+## Promotion rules
+
+| Condition | Decision |
+|---|---|
+| `visualGateStatus=passed` and repeat memory field candidate exists | Candidate may move to live re-proof / writer tracing |
+| `visualGateStatus=not-captured` | Historical or memory-only; do not promote projection claims |
+| `visualGateStatus=failed-or-partial` | Blocked; rerun capture before interpreting state labels |
+| Any click/cast/mailbox interaction occurred | Stop; label run unsafe for display-only projection proof |
+| State labels were operator-uncertain | Keep as exploratory only |
+
+## Current validated smoke artifacts
+
+| Artifact | Result |
+|---|---|
+| `C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-095742-screenshot-gate-analyzer-smoke` | Analyzer visual gate passed with two usable screenshots |
+| `C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-045239-mailbox-tooltip-live` | Older run analyzes as `visualGateStatus=not-captured` |
+
+## Immediate next step
+
+Run the real operator-confirmed nameplate baseline/zoom capture with
+`-CaptureScreenshot -RequireUsableScreenshot`, then analyze it with
+`-RequireVisualGate` before interpreting any field candidates.
+
+## Optional one-command capture and analysis
+
+`capture-tooltip-hover-diff.ps1` can now run the analyzer automatically after
+capture. Use this when the run should immediately fail if visual proof is
+missing or black.
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-tooltip-hover-diff.ps1" `
+  -ProcessName rift_x64 `
+  -CandidateAddress 0x12CFC40B7D0 `
+  -CandidateLength 1024 `
+  -TooltipText "Atank of Sanctum" `
+  -States baseline1,zoom1,baseline2,zoom2 `
+  -TextPointerScanMode allHits `
+  -CaptureScreenshot `
+  -RequireUsableScreenshot `
+  -ScreenshotAttempts 3 `
+  -AnalyzeAfterCapture `
+  -AnalyzerBaselineStateRegex "^baseline" `
+  -AnalyzerActiveStateRegex "^zoom" `
+  -AnalyzerBaselineLabel baseline `
+  -AnalyzerActiveLabel zoom `
+  -AnalyzerRequireVisualGate `
+  -RunLabel nameplate-baseline-zoom `
+  -Json
+```
+
+The run root will include `post-capture-analysis.json` plus the usual
+`summary.json` and `diffs\*.json` analyzer outputs.
+
+## Thin wrapper for nameplate proof
+
+A wrapper now preserves the recommended fail-closed defaults:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.ps1" `
+  -CandidateAddress 0x12CFC40B7D0 `
+  -NameplateText "Atank of Sanctum" `
+  -Json
+```
+
+The wrapper forwards to `capture-tooltip-hover-diff.ps1` with:
+
+- `-TextPointerScanMode allHits`
+- `-CaptureScreenshot`
+- `-RequireUsableScreenshot`
+- `-AnalyzeAfterCapture`
+- `-AnalyzerRequireVisualGate`
+- baseline states `baseline1,baseline2`
+- active states `zoom1,zoom2`
+
+Use `-PlanOnly -Json` first to verify the command shape without attaching to
+Rift or creating artifacts.
+
+## Offline workflow validation
+
+Use this before staging/checkpointing to validate the screenshot-gated workflow
+without live input:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1" -Json
+```
+
+It checks:
+
+- PowerShell parse for the projection helper scripts
+- `RiftWindowCapture.csproj` build
+- `run-nameplate-projection-proof.ps1 -PlanOnly -Json`
+- existing screenshot-gated smoke artifact with analyzer `-RequireVisualGate`, if present
+
+Use `-SkipArtifactSmoke` when running on a machine without the local ignored
+smoke artifacts.
+
+## CMD wrappers
+
+The projection helper scripts now have matching `.cmd` wrappers that use the
+repo-standard `scripts\_run-pwsh.cmd` launcher. These are useful from CMD,
+Explorer, or tools that should not need to locate `pwsh` manually.
+
+| Wrapper | Target |
+|---|---|
+| `scripts\run-nameplate-projection-proof.cmd` | `run-nameplate-projection-proof.ps1` |
+| `scripts\test-projection-screenshot-gate-workflow.cmd` | `test-projection-screenshot-gate-workflow.ps1` |
+| `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
+| `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
+| `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
+| `scripts\capture-rift-window-printwindow.cmd` | `capture-rift-window-printwindow.ps1` |
+| `scripts\test-rift-window-capture-methods.cmd` | `test-rift-window-capture-methods.ps1` |
+
+Example:
+
+```cmd
+scripts\run-nameplate-projection-proof.cmd -CandidateAddress 0x12CFC40B7D0 -NameplateText "Atank of Sanctum" -PlanOnly -Json
+```
+
+## Validator covers CMD wrappers
+
+`test-projection-screenshot-gate-workflow.ps1` now also verifies the CMD wrapper layer:
+
+- inspects all seven projection `.cmd` wrappers for the repo-standard `_run-pwsh.cmd` launcher
+- runs `run-nameplate-projection-proof.cmd -PlanOnly -Json` unless `-SkipCmdWrapperSmoke` is set
+
+Use `-SkipCmdWrapperSmoke` only when `cmd.exe` is unavailable or when validating purely inside PowerShell-hosted automation.
+
+## Latest full offline validation
+
+Full validation was run without skips:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-projection-screenshot-gate-workflow.ps1" -Json
+```
+
+Result: `ok=true`.
+
+| Check | Result |
+|---|---|
+| PowerShell parse | Passed for 6 scripts. |
+| CMD wrapper inspection | Passed for 7 wrappers. |
+| Capture project build | Passed. |
+| PowerShell nameplate wrapper plan | Passed. |
+| CMD nameplate wrapper plan | Passed. |
+| Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |

@@ -38,6 +38,8 @@ scripts/cheat-engine/*
 !scripts/cheat-engine/RiftReaderFacingInstructionTrace.lua
 scripts/captures/
 scripts/sessions/
+artifacts/tooltip-projection/
+artifacts/window-capture/
 tools/reverse-engineering/downloads/
 tools/reverse-engineering/ReClass.NET/
 tools/reverse-engineering/x64dbg/
