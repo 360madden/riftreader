@@ -253,6 +253,32 @@ Use the ranked `pointerHitLeads` and `textLeads` as follow-up roots for owner
 neighborhood or pointer-chain capture. The extractor requires a passed
 screenshot/sequence gate unless `-AllowUngated` is explicitly set.
 
+To capture the first read-only memory neighborhood from the top repeated
+pointer-hit roots:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-nameplate-proof-lead-neighborhoods.ps1" `
+  -RunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom" `
+  -Json
+```
+
+Use `-PlanOnly` first when you only want root selection and exact Reader
+commands. Plan-only mode sets `controlsInput=false`, does not attach to
+`rift_x64`, and does not create artifacts. Live mode is still read-only: it only
+uses `RiftReader.Reader` memory reads and does not focus, click, type, or move.
+The default output is
+`<RunRoot>\lead-neighborhoods\nameplate-proof-lead-neighborhoods.json`.
+
+Current captured lead-neighborhood artifact:
+
+| Field | Value |
+|---|---|
+| Run root | `artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom` |
+| Output | `artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom\lead-neighborhoods\nameplate-proof-lead-neighborhoods.json` |
+| Selected roots | `0X12CFA406C10`, `0X12CFA5FC070`, `0X12D034C9AE8` |
+| Subgraph | 18 nodes / 15 edges |
+| Controls input | `false` |
+
 The nameplate wrapper intentionally rejects `-NonInteractive` for real capture
 mode. Baseline/zoom proof requires operator confirmation for every visible
 state so the analyzer does not compare four back-to-back snapshots of the same
@@ -310,6 +336,9 @@ It checks:
   fixture to verify repeated raw byte-window change reporting
 - `extract-nameplate-proof-leads.ps1` against a generated fully gated fixture
   to verify text-hit and pointer-hit lead aggregation
+- `capture-nameplate-proof-lead-neighborhoods.ps1 -PlanOnly` against a
+  generated fully gated fixture to verify pointer-hit root planning without
+  attaching to the Rift process or creating artifacts
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -341,6 +370,10 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | `scripts\run-nameplate-projection-proof.cmd` | `run-nameplate-projection-proof.ps1` |
 | `scripts\check-nameplate-projection-proof-result.cmd` | `check-nameplate-projection-proof-result.ps1` |
 | `scripts\test-projection-screenshot-gate-workflow.cmd` | `test-projection-screenshot-gate-workflow.ps1` |
+| `scripts\compare-nameplate-projection-proof-runs.cmd` | `compare-nameplate-projection-proof-runs.ps1` |
+| `scripts\compare-nameplate-proof-byte-windows.cmd` | `compare-nameplate-proof-byte-windows.ps1` |
+| `scripts\extract-nameplate-proof-leads.cmd` | `extract-nameplate-proof-leads.ps1` |
+| `scripts\capture-nameplate-proof-lead-neighborhoods.cmd` | `capture-nameplate-proof-lead-neighborhoods.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
 | `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
@@ -373,7 +406,7 @@ preservation:
   execution flags, argument pass-through, and exit-code propagation
 - reports those shared-launcher contract checks in the `cmd-wrapper-inspection`
   JSON as `launcherContract`
-- inspects all seven projection `.cmd` wrappers for the shared launcher call and
+- inspects all projection `.cmd` wrappers for the shared launcher call and
   expected `.ps1` target
 - verifies each projection `.cmd` wrapper preserves the standard wrapper shape:
   `@echo off`, `setlocal EnableExtensions`, argument pass-through, and launcher
@@ -411,11 +444,21 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for expected 7 scripts with 7 unique entries. |
-| CMD wrapper inspection | Passed for expected 7 projection wrappers with 7 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 12 scripts with 12 unique entries. |
+| CMD wrapper inspection | Passed for expected 12 projection wrappers with 12 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
 | Validator CMD wrapper smoke | Passed in bounded non-recursive smoke mode, with expected inner skips verified. |
 | Analyzer visual-gate smoke | Passed with `visualGateStatus=passed`. |
 | Analyzer visual-gate negative smoke | Passed by failing closed with `visualGateStatus=not-captured`. |
+| Lead-neighborhood plan smoke | Passed with selected pointer-hit root planning, `controlsInput=false`, `attachesToProcess=false`, and no artifact creation. |
+
+The aggregate branch validator was also run:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
+```
+
+Result: `ok=true`; projection workflow validator `21/21`, Reader tests `70/70`,
+and `git diff --check` exited `0` with CRLF normalization warnings only.

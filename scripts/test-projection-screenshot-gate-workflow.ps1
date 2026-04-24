@@ -24,6 +24,8 @@ $byteWindowCompareScript = Join-Path $PSScriptRoot 'compare-nameplate-proof-byte
 $byteWindowCompareCmd = Join-Path $PSScriptRoot 'compare-nameplate-proof-byte-windows.cmd'
 $leadExtractorScript = Join-Path $PSScriptRoot 'extract-nameplate-proof-leads.ps1'
 $leadExtractorCmd = Join-Path $PSScriptRoot 'extract-nameplate-proof-leads.cmd'
+$leadNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.ps1'
+$leadNeighborhoodCmd = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -38,9 +40,10 @@ $psScripts = @(
     'compare-nameplate-projection-proof-runs.ps1',
     'compare-nameplate-proof-byte-windows.ps1',
     'extract-nameplate-proof-leads.ps1',
+    'capture-nameplate-proof-lead-neighborhoods.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 11
+$expectedProjectionPsScriptCount = 12
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -52,9 +55,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'compare-nameplate-projection-proof-runs.cmd'; Target = 'compare-nameplate-projection-proof-runs.ps1' },
     [pscustomobject]@{ Wrapper = 'compare-nameplate-proof-byte-windows.cmd'; Target = 'compare-nameplate-proof-byte-windows.ps1' },
     [pscustomobject]@{ Wrapper = 'extract-nameplate-proof-leads.cmd'; Target = 'extract-nameplate-proof-leads.ps1' },
+    [pscustomobject]@{ Wrapper = 'capture-nameplate-proof-lead-neighborhoods.cmd'; Target = 'capture-nameplate-proof-lead-neighborhoods.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 11
+$expectedProjectionCmdWrapperCount = 12
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -780,6 +784,29 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-lead-extractor-smoke' -Status 'passed' -Detail 'Lead extractor aggregates repeated text and pointer-hit leads from a fully gated fixture.' -Data ([ordered]@{ textLeadCount = $leadResult.textLeadCount; pointerHitLeadCount = $leadResult.pointerHitLeadCount })
+
+        $leadNeighborhoodOutputFile = Join-Path $resultCheckRoot 'lead-neighborhoods\validator-smoke.json'
+        $leadNeighborhoodOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $leadNeighborhoodScript -RunRoot $resultCheckRoot -OutputFile $leadNeighborhoodOutputFile -PlanOnly -Json 2>&1
+        $leadNeighborhoodCode = $LASTEXITCODE
+        if ($leadNeighborhoodCode -ne 0) {
+            throw "Nameplate proof lead-neighborhood PlanOnly failed with exit code $leadNeighborhoodCode.`n$($leadNeighborhoodOutput -join [Environment]::NewLine)"
+        }
+        $leadNeighborhoodPlan = ($leadNeighborhoodOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+        if (-not [bool]$leadNeighborhoodPlan.ok -or [string]$leadNeighborhoodPlan.mode -ne 'plan-only' -or [bool]$leadNeighborhoodPlan.controlsInput -or [bool]$leadNeighborhoodPlan.attachesToProcess) {
+            throw "Nameplate proof lead-neighborhood PlanOnly did not preserve no-input/no-attach semantics.`n$($leadNeighborhoodOutput -join [Environment]::NewLine)"
+        }
+        if ((Test-Path -LiteralPath $leadNeighborhoodOutputFile) -or (Test-Path -LiteralPath (Split-Path -Parent $leadNeighborhoodOutputFile))) {
+            throw "Nameplate proof lead-neighborhood PlanOnly unexpectedly created artifacts. OutputFile=$leadNeighborhoodOutputFile."
+        }
+        $selectedNeighborhoodLeads = @($leadNeighborhoodPlan.leadSelection.selectedLeads)
+        if ($selectedNeighborhoodLeads.Count -lt 1 -or -not @($selectedNeighborhoodLeads | Where-Object { $_.address -eq '0X9000' -and $_.kind -eq 'pointer-hit-address' })) {
+            throw "Nameplate proof lead-neighborhood PlanOnly did not select repeated pointer-hit lead 0X9000.`n$($leadNeighborhoodOutput -join [Environment]::NewLine)"
+        }
+        if ([int]$leadNeighborhoodPlan.capturePlan.readLength -ne 256 -or [int]$leadNeighborhoodPlan.capturePlan.followPointerDepth -ne 1) {
+            throw "Nameplate proof lead-neighborhood PlanOnly defaults drifted. ReadLength=$($leadNeighborhoodPlan.capturePlan.readLength), FollowPointerDepth=$($leadNeighborhoodPlan.capturePlan.followPointerDepth)."
+        }
+
+        Add-Check -Name 'nameplate-proof-lead-neighborhood-plan-smoke' -Status 'passed' -Detail 'Lead-neighborhood capture wrapper plans selected pointer-hit roots from a fully gated proof without attaching or creating artifacts.' -Data ([ordered]@{ selectedLeadCount = $leadNeighborhoodPlan.leadSelection.selectedLeadCount; readLength = $leadNeighborhoodPlan.capturePlan.readLength; followPointerDepth = $leadNeighborhoodPlan.capturePlan.followPointerDepth })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
