@@ -34,6 +34,8 @@ $promotionPipelineScript = Join-Path $PSScriptRoot 'run-nameplate-proof-promotio
 $promotionPipelineCmd = Join-Path $PSScriptRoot 'run-nameplate-proof-promotion-pipeline.cmd'
 $proofRunListScript = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.ps1'
 $proofRunListCmd = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.cmd'
+$promotionPlanScript = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.ps1'
+$promotionPlanCmd = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -53,9 +55,10 @@ $psScripts = @(
     'write-nameplate-proof-promotion-packet.ps1',
     'run-nameplate-proof-promotion-pipeline.ps1',
     'list-nameplate-proof-runs.ps1',
+    'plan-nameplate-proof-promotion.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 16
+$expectedProjectionPsScriptCount = 17
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -72,9 +75,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'write-nameplate-proof-promotion-packet.cmd'; Target = 'write-nameplate-proof-promotion-packet.ps1' },
     [pscustomobject]@{ Wrapper = 'run-nameplate-proof-promotion-pipeline.cmd'; Target = 'run-nameplate-proof-promotion-pipeline.ps1' },
     [pscustomobject]@{ Wrapper = 'list-nameplate-proof-runs.cmd'; Target = 'list-nameplate-proof-runs.ps1' },
+    [pscustomobject]@{ Wrapper = 'plan-nameplate-proof-promotion.cmd'; Target = 'plan-nameplate-proof-promotion.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 16
+$expectedProjectionCmdWrapperCount = 17
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -981,6 +985,21 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-run-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory lists gated nameplate proof roots with lead-neighborhood and promotion-packet status.' -Data ([ordered]@{ returnedRuns = $proofRunList.returnedRuns; fixtureGated = $listedFixtureRun.gated.passed; hasLeadNeighborhood = $listedFixtureRun.hasLeadNeighborhood; promotionReady = $listedFixtureRun.promotionReady })
+
+        $promotionPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $promotionPlanCode = $LASTEXITCODE
+        if ($promotionPlanCode -ne 0) {
+            throw "Nameplate proof promotion planner failed with exit code $promotionPlanCode.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
+        $promotionPlan = ($promotionPlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$promotionPlan.ok -or [int]$promotionPlan.inventory.gatedBaselineZoomRuns -lt 1 -or [int]$promotionPlan.inventory.baselineZoomRunsWithNeighborhood -lt 1) {
+            throw "Nameplate proof promotion planner did not summarize the gated fixture inventory.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($promotionPlan.recommendedCommands | Where-Object { $_.name -eq 'run-second-baseline-zoom-proof' })) {
+            throw "Nameplate proof promotion planner did not recommend the second proof when only one baseline/zoom proof was present.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
