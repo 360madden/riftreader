@@ -222,3 +222,5 @@ When the planner sees a latest ungated baseline/zoom run, it now includes `artif
 The planner also includes `replace-latest-ungated-baseline-zoom-proof-plan` as a safe PlanOnly template with placeholder candidate/nameplate values. It is explicit replacement guidance for incomplete ungated artifacts; the operator must fill in a freshly resolved candidate address and visible nameplate text before any live capture.
 
 `recommendedCommandGroups` now groups planner commands by safety class (`safeNoWrite`, `artifactWriting`, `attachesToProcess`, `requiresOperatorConfirmation`, `unsafe`) so automation does not need to infer risk by scanning every individual command first.
+
+`invoke-nameplate-promotion-next-action.ps1` now passes those same command groups through normal and SummaryOnly responses, including unsafe-next-action refusal responses, so callers can use one compact safety map after planner execution.

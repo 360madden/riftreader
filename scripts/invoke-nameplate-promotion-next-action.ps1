@@ -60,6 +60,7 @@ function ConvertTo-SummaryResult {
         controlsInput = $Result.controlsInput
         nextAction = $Result.nextAction
         recommendedCommandSafety = $Result.recommendedCommandSafety
+        recommendedCommandGroups = $Result.recommendedCommandGroups
         executionSummary = $Result.executionSummary
         operatorChecklist = @($Result.operatorChecklist)
     }
@@ -113,6 +114,7 @@ if ($Execute) {
             controlsInput = $false
             nextAction = $nextAction
             recommendedCommandSafety = $plan.recommendedCommandSafety
+            recommendedCommandGroups = $plan.recommendedCommandGroups
             executionSummary = $null
             operatorChecklist = @()
             execution = $null
@@ -201,6 +203,7 @@ $result = [pscustomobject][ordered]@{
     controlsInput = $false
     nextAction = $nextAction
     recommendedCommandSafety = $plan.recommendedCommandSafety
+    recommendedCommandGroups = $plan.recommendedCommandGroups
     executionSummary = $executionSummary
     operatorChecklist = $operatorChecklistOutput
     execution = $execution
