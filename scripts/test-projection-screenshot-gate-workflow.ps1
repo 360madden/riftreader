@@ -739,12 +739,20 @@ try {
         if ($null -eq $ungatedInspectCommand -or -not [bool]$ungatedInspectCommand.safeToRunNow -or [bool]$ungatedInspectCommand.attachesToProcess -or [bool]$ungatedInspectCommand.createsArtifacts -or [string]$ungatedPlanner.nextAction.name -ne 'inspect-latest-ungated-baseline-zoom-run') {
             throw "Nameplate promotion planner did not recommend safe ungated-run inspection as the next action.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
+        $ungatedArtifactAuditPlanCommand = @($ungatedPlanner.recommendedCommands | Where-Object { $_.name -eq 'artifact-audit-plan' }) | Select-Object -First 1
+        $ungatedArtifactAuditWriteCommand = @($ungatedPlanner.recommendedCommands | Where-Object { $_.name -eq 'artifact-audit-write' }) | Select-Object -First 1
+        if ($null -eq $ungatedArtifactAuditPlanCommand -or -not [bool]$ungatedArtifactAuditPlanCommand.safeToRunNow -or [bool]$ungatedArtifactAuditPlanCommand.attachesToProcess -or [bool]$ungatedArtifactAuditPlanCommand.createsArtifacts) {
+            throw "Nameplate promotion planner did not recommend safe PlanOnly artifact audit for ungated-run state.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
+        if ($null -eq $ungatedArtifactAuditWriteCommand -or [bool]$ungatedArtifactAuditWriteCommand.safeToRunNow -or [bool]$ungatedArtifactAuditWriteCommand.attachesToProcess -or -not [bool]$ungatedArtifactAuditWriteCommand.createsArtifacts) {
+            throw "Nameplate promotion planner did not expose artifact-audit write as artifact-writing/no-attach/unsafe.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
         $ungatedNextActionParts = @($ungatedPlanner.nextAction.commandParts | ForEach-Object { [string]$_ })
         if (-not ($ungatedNextActionParts -contains '-AllowFailed')) {
             throw "Nameplate promotion planner ungated inspection next-action command must include -AllowFailed so failed proof gates are machine-readable without making inspection itself fail.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; latestUngatedFailedChecks = @($ungatedPlanner.promotionBlockerSummary.latestUngatedInspectionSummary.failedCheckNames); nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed') })
+        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection and artifact audit instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; latestUngatedFailedChecks = @($ungatedPlanner.promotionBlockerSummary.latestUngatedInspectionSummary.failedCheckNames); nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed'); auditPlanSafeToRunNow = $ungatedArtifactAuditPlanCommand.safeToRunNow; auditWriteCreatesArtifacts = $ungatedArtifactAuditWriteCommand.createsArtifacts })
 
         $ungatedNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -Execute -SummaryOnly -Json 2>&1
         $ungatedNextActionCode = $LASTEXITCODE

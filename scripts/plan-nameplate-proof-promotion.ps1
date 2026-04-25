@@ -16,6 +16,7 @@ $promotionPipelineScript = Join-Path $PSScriptRoot 'run-nameplate-proof-promotio
 $captureNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.ps1'
 $proofWrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $lightweightReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.ps1'
+$artifactAuditScript = Join-Path $PSScriptRoot 'write-nameplate-artifact-audit-report.ps1'
 $resultCheckerScript = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.ps1'
 
 function Invoke-Inventory {
@@ -237,7 +238,7 @@ if ($MinRepeatedRootCount -lt 0) {
 if ($MinRepeatedEdgeCount -lt 0) {
     throw 'MinRepeatedEdgeCount cannot be negative.'
 }
-foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captureNeighborhoodScript, $proofWrapperScript, $lightweightReportScript, $resultCheckerScript)) {
+foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captureNeighborhoodScript, $proofWrapperScript, $lightweightReportScript, $artifactAuditScript, $resultCheckerScript)) {
     if (-not (Test-Path -LiteralPath $requiredScript -PathType Leaf)) {
         throw "Required script not found: $requiredScript"
     }
@@ -353,6 +354,9 @@ $recommendedCommands.Add((New-RecommendedCommand -Name 'inventory' -Parts @('pws
 
 if ($null -ne $latestUngatedBaselineZoomRun) {
     $recommendedCommands.Add((New-RecommendedCommand -Name 'inspect-latest-ungated-baseline-zoom-run' -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $resultCheckerScript, '-RunRoot', [string]$latestUngatedBaselineZoomRun.runRoot, '-AllowFailed', '-Json'))) | Out-Null
+    $auditParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $artifactAuditScript, '-OutputRoot', $resolvedOutputRoot, '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json')
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'artifact-audit-plan' -Parts @($auditParts + '-PlanOnly'))) | Out-Null
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'artifact-audit-write' -Parts $auditParts -CreatesArtifacts $true)) | Out-Null
 }
 
 foreach ($captureTarget in @(
