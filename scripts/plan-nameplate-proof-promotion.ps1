@@ -4,6 +4,7 @@ param(
     [int]$InventoryTop = 50,
     [int]$MinRepeatedRootCount = 1,
     [int]$MinRepeatedEdgeCount = 0,
+    [switch]$SummaryOnly,
     [switch]$Json
 )
 
@@ -95,6 +96,24 @@ function Get-RunProofSeed {
     }
 }
 
+function ConvertTo-RunSummary {
+    param([object]$Run)
+
+    if ($null -eq $Run) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        name = [string]$Run.name
+        runRoot = [string]$Run.runRoot
+        candidateAddress = if ($null -ne $Run.candidateAddress) { [string]$Run.candidateAddress } else { $null }
+        nameplateText = if ($null -ne $Run.nameplateText) { [string]$Run.nameplateText } else { $null }
+        hasLeadNeighborhood = [bool]$Run.hasLeadNeighborhood
+        hasPromotionPacket = [bool]$Run.hasPromotionPacket
+        promotionReady = if ($null -ne $Run.promotionReady) { [bool]$Run.promotionReady } else { $null }
+    }
+}
+
 function New-NextAction {
     param(
         [Parameter(Mandatory = $true)][object]$Command,
@@ -130,6 +149,35 @@ function New-NextAction {
         requiresOperatorConfirmation = $RequiresOperatorConfirmation
         safeToRunNow = ($safetyBlockers.Count -eq 0)
         safetyBlockers = @($safetyBlockers.ToArray())
+    }
+}
+
+function ConvertTo-PlanSummaryResult {
+    param([Parameter(Mandatory = $true)][object]$Result)
+
+    return [pscustomobject][ordered]@{
+        ok = $Result.ok
+        outputRoot = $Result.outputRoot
+        inventory = $Result.inventory
+        readyForPipeline = $Result.readyForPipeline
+        readyForPromotionCompare = $Result.readyForPromotionCompare
+        missingEvidence = @($Result.missingEvidence)
+        selectedBaselineRun = ConvertTo-RunSummary -Run $Result.selectedBaselineRun
+        selectedReproofRun = ConvertTo-RunSummary -Run $Result.selectedReproofRun
+        selectedProofSeed = $Result.selectedProofSeed
+        nextAction = $Result.nextAction
+        recommendedCommandSafety = $Result.recommendedCommandSafety
+        recommendedCommands = @($Result.recommendedCommands | ForEach-Object {
+            [pscustomobject][ordered]@{
+                name = [string]$_.name
+                controlsInput = [bool]$_.controlsInput
+                attachesToProcess = [bool]$_.attachesToProcess
+                createsArtifacts = [bool]$_.createsArtifacts
+                requiresOperatorConfirmation = [bool]$_.requiresOperatorConfirmation
+                safeToRunNow = [bool]$_.safeToRunNow
+                safetyBlockers = @($_.safetyBlockers)
+            }
+        })
     }
 }
 
@@ -280,6 +328,10 @@ $result = [pscustomobject][ordered]@{
     nextAction = $nextAction
     recommendedCommandSafety = $recommendedCommandSafety
     recommendedCommands = $recommendedCommandItems
+}
+
+if ($SummaryOnly) {
+    $result = ConvertTo-PlanSummaryResult -Result $result
 }
 
 if ($Json) {

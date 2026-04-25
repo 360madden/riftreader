@@ -1206,6 +1206,22 @@ try {
 
         Add-Check -Name 'nameplate-proof-promotion-safety-summary-smoke' -Status 'passed' -Detail 'Promotion planner emits a top-level recommendedCommandSafety summary for quick automation gating.' -Data ([ordered]@{ total = $promotionPlan.recommendedCommandSafety.total; safeToRunNow = $promotionPlan.recommendedCommandSafety.safeToRunNow; unsafe = $promotionPlan.recommendedCommandSafety.unsafe; unsafeNames = @($promotionPlan.recommendedCommandSafety.unsafeNames) })
 
+        $promotionPlanSummaryOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -SummaryOnly -Json 2>&1
+        $promotionPlanSummaryCode = $LASTEXITCODE
+        if ($promotionPlanSummaryCode -ne 0) {
+            throw "Nameplate proof promotion planner SummaryOnly failed with exit code $promotionPlanSummaryCode.`n$($promotionPlanSummaryOutput -join [Environment]::NewLine)"
+        }
+        $promotionPlanSummary = ($promotionPlanSummaryOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$promotionPlanSummary.ok -or [string]$promotionPlanSummary.nextAction.name -ne 'run-second-baseline-zoom-proof-plan' -or [int]$promotionPlanSummary.recommendedCommandSafety.unsafe -ne 1 -or @($promotionPlanSummary.recommendedCommands).Count -ne @($promotionPlan.recommendedCommands).Count) {
+            throw "Nameplate proof promotion planner SummaryOnly did not include expected compact readiness and safety fields.`n$($promotionPlanSummaryOutput -join [Environment]::NewLine)"
+        }
+        $promotionPlanSummaryFirstCommand = @($promotionPlanSummary.recommendedCommands | Select-Object -First 1)[0]
+        if ($null -ne $promotionPlanSummary.selectedBaselineRun.PSObject.Properties['gated'] -or $null -ne $promotionPlanSummaryFirstCommand.PSObject.Properties['commandParts'] -or $null -ne $promotionPlanSummaryFirstCommand.PSObject.Properties['command']) {
+            throw "Nameplate proof promotion planner SummaryOnly included verbose run or command payload fields.`n$($promotionPlanSummaryOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-planner-summary-only-smoke' -Status 'passed' -Detail 'Promotion planner SummaryOnly mode emits compact readiness, selected-run, nextAction, and safety fields without verbose run or command payloads.' -Data ([ordered]@{ nextAction = $promotionPlanSummary.nextAction.name; recommendedCommandCount = @($promotionPlanSummary.recommendedCommands).Count; missingEvidence = @($promotionPlanSummary.missingEvidence) })
+
         $quotedSeedOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-quoted-nameplate-seed-{0}' -f ([guid]::NewGuid().ToString('N')))
         New-Item -ItemType Directory -Path $quotedSeedOutputRoot -Force | Out-Null
         Copy-Item -LiteralPath $resultCheckRoot -Destination $quotedSeedOutputRoot -Recurse -Force
