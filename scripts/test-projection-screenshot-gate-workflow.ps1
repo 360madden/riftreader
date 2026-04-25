@@ -42,6 +42,8 @@ $lightweightReproofReportScript = Join-Path $PSScriptRoot 'write-nameplate-light
 $lightweightReproofReportCmd = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.cmd'
 $artifactAuditReportScript = Join-Path $PSScriptRoot 'write-nameplate-artifact-audit-report.ps1'
 $artifactAuditReportCmd = Join-Path $PSScriptRoot 'write-nameplate-artifact-audit-report.cmd'
+$replacementReadinessScript = Join-Path $PSScriptRoot 'write-nameplate-replacement-readiness-checklist.ps1'
+$replacementReadinessCmd = Join-Path $PSScriptRoot 'write-nameplate-replacement-readiness-checklist.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -65,9 +67,10 @@ $psScripts = @(
     'invoke-nameplate-promotion-next-action.ps1',
     'write-nameplate-lightweight-reproof-report.ps1',
     'write-nameplate-artifact-audit-report.ps1',
+    'write-nameplate-replacement-readiness-checklist.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 20
+$expectedProjectionPsScriptCount = 21
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -88,9 +91,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'invoke-nameplate-promotion-next-action.cmd'; Target = 'invoke-nameplate-promotion-next-action.ps1' },
     [pscustomobject]@{ Wrapper = 'write-nameplate-lightweight-reproof-report.cmd'; Target = 'write-nameplate-lightweight-reproof-report.ps1' },
     [pscustomobject]@{ Wrapper = 'write-nameplate-artifact-audit-report.cmd'; Target = 'write-nameplate-artifact-audit-report.ps1' },
+    [pscustomobject]@{ Wrapper = 'write-nameplate-replacement-readiness-checklist.cmd'; Target = 'write-nameplate-replacement-readiness-checklist.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 20
+$expectedProjectionCmdWrapperCount = 21
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -747,11 +751,15 @@ try {
         if ($null -eq $ungatedArtifactAuditWriteCommand -or [bool]$ungatedArtifactAuditWriteCommand.safeToRunNow -or [bool]$ungatedArtifactAuditWriteCommand.attachesToProcess -or -not [bool]$ungatedArtifactAuditWriteCommand.createsArtifacts) {
             throw "Nameplate promotion planner did not expose artifact-audit write as artifact-writing/no-attach/unsafe.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
+        $ungatedReplacementReadinessCommand = @($ungatedPlanner.recommendedCommands | Where-Object { $_.name -eq 'replacement-readiness-checklist' }) | Select-Object -First 1
+        if ($null -eq $ungatedReplacementReadinessCommand -or -not [bool]$ungatedReplacementReadinessCommand.safeToRunNow -or [bool]$ungatedReplacementReadinessCommand.attachesToProcess -or [bool]$ungatedReplacementReadinessCommand.createsArtifacts) {
+            throw "Nameplate promotion planner did not recommend a safe no-write replacement readiness checklist for ungated-run state.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
         $ungatedReplacementPlanCommand = @($ungatedPlanner.recommendedCommands | Where-Object { $_.name -eq 'replace-latest-ungated-baseline-zoom-proof-plan' }) | Select-Object -First 1
         if ($null -eq $ungatedReplacementPlanCommand -or -not [bool]$ungatedReplacementPlanCommand.safeToRunNow -or [bool]$ungatedReplacementPlanCommand.attachesToProcess -or [bool]$ungatedReplacementPlanCommand.createsArtifacts -or -not (@($ungatedReplacementPlanCommand.commandParts) -contains '-PlanOnly') -or -not (@($ungatedReplacementPlanCommand.commandParts) -contains '-OutputRoot')) {
             throw "Nameplate promotion planner did not recommend safe PlanOnly replacement guidance for latest ungated baseline/zoom run.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
-        if ($null -eq $ungatedPlanner.recommendedCommandGroups -or -not (@($ungatedPlanner.recommendedCommandGroups.safeNoWrite) -contains 'replace-latest-ungated-baseline-zoom-proof-plan') -or -not (@($ungatedPlanner.recommendedCommandGroups.artifactWriting) -contains 'artifact-audit-write') -or -not (@($ungatedPlanner.recommendedCommandGroups.attachesToProcess) -contains 'run-second-baseline-zoom-proof') -or -not (@($ungatedPlanner.recommendedCommandGroups.unsafe) -contains 'artifact-audit-write')) {
+        if ($null -eq $ungatedPlanner.recommendedCommandGroups -or -not (@($ungatedPlanner.recommendedCommandGroups.safeNoWrite) -contains 'replacement-readiness-checklist') -or -not (@($ungatedPlanner.recommendedCommandGroups.safeNoWrite) -contains 'replace-latest-ungated-baseline-zoom-proof-plan') -or -not (@($ungatedPlanner.recommendedCommandGroups.artifactWriting) -contains 'artifact-audit-write') -or -not (@($ungatedPlanner.recommendedCommandGroups.attachesToProcess) -contains 'run-second-baseline-zoom-proof') -or -not (@($ungatedPlanner.recommendedCommandGroups.unsafe) -contains 'artifact-audit-write')) {
             throw "Nameplate promotion planner did not expose recommended command groups by safety class for ungated-run state.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
         $ungatedNextActionParts = @($ungatedPlanner.nextAction.commandParts | ForEach-Object { [string]$_ })
@@ -759,7 +767,7 @@ try {
             throw "Nameplate promotion planner ungated inspection next-action command must include -AllowFailed so failed proof gates are machine-readable without making inspection itself fail.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection, artifact audit, and replacement-plan guidance instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; latestUngatedFailedChecks = @($ungatedPlanner.promotionBlockerSummary.latestUngatedInspectionSummary.failedCheckNames); nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed'); auditPlanSafeToRunNow = $ungatedArtifactAuditPlanCommand.safeToRunNow; auditWriteCreatesArtifacts = $ungatedArtifactAuditWriteCommand.createsArtifacts; replacementPlanSafeToRunNow = $ungatedReplacementPlanCommand.safeToRunNow; safeNoWriteNames = @($ungatedPlanner.recommendedCommandGroups.safeNoWrite); artifactWritingNames = @($ungatedPlanner.recommendedCommandGroups.artifactWriting) })
+        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection, artifact audit, and replacement-plan guidance instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; latestUngatedFailedChecks = @($ungatedPlanner.promotionBlockerSummary.latestUngatedInspectionSummary.failedCheckNames); nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed'); auditPlanSafeToRunNow = $ungatedArtifactAuditPlanCommand.safeToRunNow; auditWriteCreatesArtifacts = $ungatedArtifactAuditWriteCommand.createsArtifacts; replacementReadinessSafeToRunNow = $ungatedReplacementReadinessCommand.safeToRunNow; replacementPlanSafeToRunNow = $ungatedReplacementPlanCommand.safeToRunNow; safeNoWriteNames = @($ungatedPlanner.recommendedCommandGroups.safeNoWrite); artifactWritingNames = @($ungatedPlanner.recommendedCommandGroups.artifactWriting) })
 
         $ungatedNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -Execute -SummaryOnly -Json 2>&1
         $ungatedNextActionCode = $LASTEXITCODE
@@ -804,6 +812,33 @@ try {
         }
 
         Add-Check -Name 'nameplate-artifact-audit-report-smoke' -Status 'passed' -Detail 'Artifact audit reports current ungated baseline/zoom proof state without deleting artifacts and keeps PlanOnly no-write.' -Data ([ordered]@{ planOnlyWroteReport = $artifactAuditPlan.wroteReport; planOnlyCreatesArtifacts = $artifactAuditPlan.createsArtifacts; ungatedBaselineZoomRuns = $artifactAuditPlan.counts.ungatedBaselineZoomRuns; recommendation = $artifactAuditPlan.recommendation; failedCheckNames = @($artifactAuditPlan.latestUngatedInspectionSummary.failedCheckNames); wroteReport = $artifactAuditWrite.wroteReport })
+
+        $replacementReadinessOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $replacementReadinessScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -Json 2>&1
+        $replacementReadinessCode = $LASTEXITCODE
+        if ($replacementReadinessCode -ne 0) {
+            throw "Nameplate replacement readiness checklist failed with exit code $replacementReadinessCode.`n$($replacementReadinessOutput -join [Environment]::NewLine)"
+        }
+        $replacementReadiness = ($replacementReadinessOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$replacementReadiness.ok -or [bool]$replacementReadiness.readyForReplacementPlan -or [bool]$replacementReadiness.readyForLiveReplacement -or [bool]$replacementReadiness.attachesToProcess -or [bool]$replacementReadiness.createsArtifacts -or [bool]$replacementReadiness.deletesArtifacts) {
+            throw "Nameplate replacement readiness checklist did not preserve read-only blocked-until-input semantics.`n$($replacementReadinessOutput -join [Environment]::NewLine)"
+        }
+        if ([string]$replacementReadiness.latestUngatedBaselineZoomRun.name -ne '20260425-010000-nameplate-baseline-zoom' -or -not (@($replacementReadiness.latestUngatedInspectionSummary.failedCheckNames) -contains 'screenshot-gate-file') -or -not (@($replacementReadiness.blockers) -contains 'fresh-candidate-address-provided') -or -not (@($replacementReadiness.blockers) -contains 'visible-nameplate-text-provided')) {
+            throw "Nameplate replacement readiness checklist did not identify latest ungated run, failed gates, and missing live-capture inputs.`n$($replacementReadinessOutput -join [Environment]::NewLine)"
+        }
+        if (-not (@($replacementReadiness.replacementPlanCommandParts) -contains '-PlanOnly') -or -not (@($replacementReadiness.replacementPlanCommandParts) -contains '<fresh-candidate-address>') -or -not (@($replacementReadiness.replacementPlanCommandParts) -contains '<visible-nameplate-text>')) {
+            throw "Nameplate replacement readiness checklist did not emit a placeholder PlanOnly replacement command.`n$($replacementReadinessOutput -join [Environment]::NewLine)"
+        }
+        $replacementReadyOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $replacementReadinessScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -CandidateAddress '0x1234' -NameplateText 'Visible Nameplate' -Json 2>&1
+        $replacementReadyCode = $LASTEXITCODE
+        if ($replacementReadyCode -ne 0) {
+            throw "Nameplate replacement readiness checklist with explicit inputs failed with exit code $replacementReadyCode.`n$($replacementReadyOutput -join [Environment]::NewLine)"
+        }
+        $replacementReady = ($replacementReadyOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$replacementReady.readyForReplacementPlan -or [bool]$replacementReady.readyForLiveReplacement -or @($replacementReady.blockers).Count -ne 0 -or -not (@($replacementReady.replacementPlanCommandParts) -contains '0x1234') -or -not (@($replacementReady.replacementPlanCommandParts) -contains 'Visible Nameplate')) {
+            throw "Nameplate replacement readiness checklist did not mark PlanOnly replacement ready after explicit fresh candidate/text inputs.`n$($replacementReadyOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-replacement-readiness-checklist-smoke' -Status 'passed' -Detail 'Replacement readiness checklist is no-write/no-attach, blocks until fresh candidate and visible nameplate text are provided, and emits a PlanOnly command.' -Data ([ordered]@{ latestUngatedRun = $replacementReadiness.latestUngatedBaselineZoomRun.name; missingInputBlockers = @($replacementReadiness.blockers); readyForReplacementPlanWithInputs = $replacementReady.readyForReplacementPlan; readyForLiveReplacement = $replacementReady.readyForLiveReplacement })
     }
     finally {
         if (Test-Path -LiteralPath $ungatedPlannerOutputRoot) {

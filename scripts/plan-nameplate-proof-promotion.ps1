@@ -17,6 +17,7 @@ $captureNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-le
 $proofWrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $lightweightReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.ps1'
 $artifactAuditScript = Join-Path $PSScriptRoot 'write-nameplate-artifact-audit-report.ps1'
+$replacementReadinessScript = Join-Path $PSScriptRoot 'write-nameplate-replacement-readiness-checklist.ps1'
 $resultCheckerScript = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.ps1'
 
 function Invoke-Inventory {
@@ -358,6 +359,8 @@ if ($null -ne $latestUngatedBaselineZoomRun) {
     $auditParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $artifactAuditScript, '-OutputRoot', $resolvedOutputRoot, '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json')
     $recommendedCommands.Add((New-RecommendedCommand -Name 'artifact-audit-plan' -Parts @($auditParts + '-PlanOnly'))) | Out-Null
     $recommendedCommands.Add((New-RecommendedCommand -Name 'artifact-audit-write' -Parts $auditParts -CreatesArtifacts $true)) | Out-Null
+    $replacementReadinessParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $replacementReadinessScript, '-OutputRoot', $resolvedOutputRoot, '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json')
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'replacement-readiness-checklist' -Parts $replacementReadinessParts)) | Out-Null
     $replacementSeed = [pscustomobject][ordered]@{
         sourceUngatedRunRoot = [string]$latestUngatedBaselineZoomRun.runRoot
         sourceUngatedRunName = [string]$latestUngatedBaselineZoomRun.name
