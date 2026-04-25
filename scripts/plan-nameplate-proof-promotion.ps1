@@ -40,6 +40,36 @@ function Invoke-Inventory {
     return $text | ConvertFrom-Json -Depth 100
 }
 
+function Invoke-ProofResultInspection {
+    param([Parameter(Mandatory = $true)][string]$RunRoot)
+
+    $output = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -RunRoot $RunRoot -AllowFailed -Json 2>&1
+    $exitCode = $LASTEXITCODE
+    $text = $output -join [Environment]::NewLine
+    if ($exitCode -ne 0) {
+        return [pscustomobject][ordered]@{
+            ok = $false
+            runRoot = $RunRoot
+            failedCheckCount = $null
+            failedCheckNames = @()
+            checkerExitCode = $exitCode
+            error = $text
+        }
+    }
+
+    $inspection = $text | ConvertFrom-Json -Depth 100
+    $checks = if ($null -ne $inspection.PSObject.Properties['checks']) { @($inspection.checks) } else { @() }
+    $failedChecks = @($checks | Where-Object { [string]$_.status -ne 'passed' })
+    return [pscustomobject][ordered]@{
+        ok = [bool]$inspection.ok
+        runRoot = if ($null -ne $inspection.PSObject.Properties['runRoot']) { [string]$inspection.runRoot } else { $RunRoot }
+        failedCheckCount = $failedChecks.Count
+        failedCheckNames = @($failedChecks | ForEach-Object { [string]$_.name })
+        checkerExitCode = $exitCode
+        error = $null
+    }
+}
+
 function New-CommandString {
     param([Parameter(Mandatory = $true)][string[]]$Parts)
     return ($Parts | ForEach-Object {
@@ -222,6 +252,7 @@ $baselineZoomRuns = @($runs | Where-Object { [string]$_.name -match 'nameplate-b
 $allBaselineZoomRuns = @($allRuns | Where-Object { [string]$_.name -match 'nameplate-baseline-zoom' })
 $ungatedBaselineZoomRuns = @($allBaselineZoomRuns | Where-Object { -not [bool]$_.gated.passed })
 $latestUngatedBaselineZoomRun = if ($ungatedBaselineZoomRuns.Count -gt 0) { $ungatedBaselineZoomRuns[0] } else { $null }
+$latestUngatedInspectionSummary = if ($null -ne $latestUngatedBaselineZoomRun) { Invoke-ProofResultInspection -RunRoot ([string]$latestUngatedBaselineZoomRun.runRoot) } else { $null }
 $promotionReadyRuns = @($baselineZoomRuns | Where-Object { [bool]$_.promotionReady })
 $neighborhoodRuns = @($baselineZoomRuns | Where-Object { [bool]$_.hasLeadNeighborhood })
 $missingNeighborhoodRuns = @($baselineZoomRuns | Where-Object { -not [bool]$_.hasLeadNeighborhood })
@@ -313,6 +344,7 @@ $promotionBlockerSummary = [pscustomobject][ordered]@{
     selectedReproofLightweightPromotionReadiness = if ($null -ne $selectedReproofDiagnostic -and $null -ne $selectedReproofDiagnostic.PSObject.Properties['promotionReadiness']) { [string]$selectedReproofDiagnostic.promotionReadiness } else { $null }
     selectedReproofLightweightBlockers = @($selectedReproofDiagnosticBlockers)
     latestUngatedBaselineZoomRun = ConvertTo-RunSummary -Run $latestUngatedBaselineZoomRun
+    latestUngatedInspectionSummary = $latestUngatedInspectionSummary
     missingEvidence = @($missingEvidenceSnapshot)
 }
 

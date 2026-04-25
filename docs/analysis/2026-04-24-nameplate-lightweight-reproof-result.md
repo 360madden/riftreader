@@ -209,4 +209,6 @@ When the current local artifact tree contains an ungated `nameplate-baseline-zoo
 
 The next-action helper can also execute this safe inspection path. In summary mode, `executionSummary.parsedOk`, `executionSummary.failedCheckCount`, and `executionSummary.failedCheckNames` carry the proof-gate result, so automation can distinguish "inspection command ran successfully" from "the inspected proof is still blocked."
 
+The planner summary now carries the same current-failure view under `promotionBlockerSummary.latestUngatedInspectionSummary`, including `failedCheckCount` and `failedCheckNames`, so stale handoffs are not needed to identify which gate files are missing.
+
 For the current local tree, the latest ungated run is incomplete and should be inspected or replaced before using older promotion assumptions.
