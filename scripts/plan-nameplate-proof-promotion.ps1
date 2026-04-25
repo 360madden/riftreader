@@ -42,13 +42,27 @@ function New-RecommendedCommand {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string[]]$Parts,
-        [object]$Seed
+        [object]$Seed,
+        [bool]$AttachesToProcess = $false,
+        [bool]$CreatesArtifacts = $false,
+        [bool]$RequiresOperatorConfirmation = $false
     )
+
+    $safetyBlockers = [System.Collections.Generic.List[string]]::new()
+    if ($AttachesToProcess) { $safetyBlockers.Add('attaches-to-process') | Out-Null }
+    if ($CreatesArtifacts) { $safetyBlockers.Add('creates-artifacts') | Out-Null }
+    if ($RequiresOperatorConfirmation) { $safetyBlockers.Add('requires-operator-confirmation') | Out-Null }
 
     $properties = [ordered]@{
         name = $Name
         command = New-CommandString -Parts $Parts
         commandParts = @($Parts)
+        controlsInput = $false
+        attachesToProcess = $AttachesToProcess
+        createsArtifacts = $CreatesArtifacts
+        requiresOperatorConfirmation = $RequiresOperatorConfirmation
+        safeToRunNow = ($safetyBlockers.Count -eq 0)
+        safetyBlockers = @($safetyBlockers.ToArray())
     }
     if ($PSBoundParameters.ContainsKey('Seed')) {
         $properties.seed = $Seed
@@ -171,7 +185,7 @@ foreach ($captureTarget in @(
     [pscustomobject]@{ Name = 'capture-reproof-lead-neighborhood'; Run = $reproofRun }
 )) {
     if ($null -ne $captureTarget.Run -and -not [bool]$captureTarget.Run.hasLeadNeighborhood) {
-        $recommendedCommands.Add((New-RecommendedCommand -Name ([string]$captureTarget.Name) -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $captureNeighborhoodScript, '-RunRoot', [string]$captureTarget.Run.runRoot, '-Json'))) | Out-Null
+        $recommendedCommands.Add((New-RecommendedCommand -Name ([string]$captureTarget.Name) -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $captureNeighborhoodScript, '-RunRoot', [string]$captureTarget.Run.runRoot, '-Json') -AttachesToProcess $true -CreatesArtifacts $true)) | Out-Null
     }
 }
 
@@ -179,12 +193,12 @@ if ($readyForPipeline) {
     $latestPairParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $promotionPipelineScript, '-OutputRoot', $resolvedOutputRoot, '-LatestBaselineZoomPair', '-CaptureMissingNeighborhoods', '-MinRepeatedRootCount', $MinRepeatedRootCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-MinRepeatedEdgeCount', $MinRepeatedEdgeCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-PlanOnly', '-Json')
     $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-latest-pair-plan' -Parts $latestPairParts)) | Out-Null
 
-    $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-latest-pair-run' -Parts @($latestPairParts | Where-Object { $_ -ne '-PlanOnly' }))) | Out-Null
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-latest-pair-run' -Parts @($latestPairParts | Where-Object { $_ -ne '-PlanOnly' }) -AttachesToProcess (-not $readyForPromotionCompare) -CreatesArtifacts $true)) | Out-Null
 
     $pipelineParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $promotionPipelineScript, '-BaselineRunRoot', [string]$baselineRun.runRoot, '-ReproofRunRoot', [string]$reproofRun.runRoot, '-CaptureMissingNeighborhoods', '-MinRepeatedRootCount', $MinRepeatedRootCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-MinRepeatedEdgeCount', $MinRepeatedEdgeCount.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-PlanOnly', '-Json')
     $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-plan' -Parts $pipelineParts)) | Out-Null
 
-    $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-run' -Parts @($pipelineParts | Where-Object { $_ -ne '-PlanOnly' }))) | Out-Null
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-run' -Parts @($pipelineParts | Where-Object { $_ -ne '-PlanOnly' }) -AttachesToProcess (-not $readyForPromotionCompare) -CreatesArtifacts $true)) | Out-Null
 }
 else {
     if ($null -ne $proofSeed) {
@@ -194,12 +208,12 @@ else {
         }
         $secondProofParts += @('-NameplateText', $proofSeed.nameplateText, '-OutputRoot', $resolvedOutputRoot, '-Json')
         $recommendedCommands.Add((New-RecommendedCommand -Name 'run-second-baseline-zoom-proof-plan' -Parts @($secondProofParts + '-PlanOnly') -Seed $proofSeed)) | Out-Null
-        $recommendedCommands.Add((New-RecommendedCommand -Name 'run-second-baseline-zoom-proof' -Parts $secondProofParts -Seed $proofSeed)) | Out-Null
+        $recommendedCommands.Add((New-RecommendedCommand -Name 'run-second-baseline-zoom-proof' -Parts $secondProofParts -Seed $proofSeed -AttachesToProcess $true -CreatesArtifacts $true -RequiresOperatorConfirmation $true)) | Out-Null
     }
     else {
         $secondProofParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $proofWrapperScript, '-CandidateAddress', '<candidate-address>', '-NameplateText', '<nameplate-text>', '-Json')
         $recommendedCommands.Add((New-RecommendedCommand -Name 'run-second-baseline-zoom-proof-plan' -Parts @($secondProofParts + '-PlanOnly') -Seed $null)) | Out-Null
-        $recommendedCommands.Add((New-RecommendedCommand -Name 'run-second-baseline-zoom-proof' -Parts $secondProofParts -Seed $null)) | Out-Null
+        $recommendedCommands.Add((New-RecommendedCommand -Name 'run-second-baseline-zoom-proof' -Parts $secondProofParts -Seed $null -AttachesToProcess $true -CreatesArtifacts $true -RequiresOperatorConfirmation $true)) | Out-Null
     }
 }
 

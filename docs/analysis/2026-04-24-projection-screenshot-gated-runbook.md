@@ -494,8 +494,8 @@ It checks:
   promotion-packet status
 - `plan-nameplate-proof-promotion.ps1` against a generated inventory fixture to
   verify promotion-readiness planning and manifest-seeded plan-only plus live
-  next-step command output, including structured `commandParts`, when a second
-  gated proof is missing
+  next-step command output, including structured `commandParts` and per-command
+  safety metadata, when a second gated proof is missing
 - `plan-nameplate-proof-promotion.ps1` against two generated gated proof roots
   to verify previous-as-baseline, newest-as-reproof ordering and latest-pair
   pipeline recommendations
@@ -638,6 +638,7 @@ Result: `ok=true`.
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
 | Promotion-readiness planner smoke | Passed with missing-evidence, `safeToRunNow=true` `nextAction`, empty `safetyBlockers`, and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
 | Promotion command parts smoke | Passed by emitting structured `commandParts` alongside display command strings for safe execution. |
+| Promotion recommended-command safety smoke | Passed by marking plan-only commands safe and live proof commands unsafe for automation with explicit blockers. |
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, `safeToRunNow=true` `nextAction`, and latest-pair pipeline recommendation. |
 | Promotion command quoting smoke | Passed by preserving manifest-seeded nameplate text containing PowerShell metacharacters through generated `commandParts` execution. |
 | Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded `commandParts` execution of the plan-only next action, and top-level operator checklist surfacing. |
@@ -649,5 +650,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `33/33`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `34/34`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.
