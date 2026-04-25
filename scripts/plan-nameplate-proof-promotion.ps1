@@ -20,10 +20,16 @@ $lightweightReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-
 function Invoke-Inventory {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][int]$Top
+        [Parameter(Mandatory = $true)][int]$Top,
+        [switch]$RequireGated
     )
 
-    $output = & pwsh -NoProfile -ExecutionPolicy Bypass -File $inventoryScript -OutputRoot $Root -Top $Top -RequireGated -Json 2>&1
+    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $inventoryScript, '-OutputRoot', $Root, '-Top', $Top.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json')
+    if ($RequireGated) {
+        $arguments += '-RequireGated'
+    }
+
+    $output = & pwsh @arguments 2>&1
     $exitCode = $LASTEXITCODE
     $text = $output -join [Environment]::NewLine
     if ($exitCode -ne 0) {
@@ -104,6 +110,11 @@ function ConvertTo-RunSummary {
         return $null
     }
 
+    $hasLightweightReport = ($null -ne $Run.PSObject.Properties['hasLightweightReproofReport'] -and [bool]$Run.hasLightweightReproofReport)
+    $lightweightReport = if ($hasLightweightReport -and $null -ne $Run.PSObject.Properties['lightweightReproofReport']) { $Run.lightweightReproofReport } else { $null }
+    $lightweightPromotionReadiness = if ($null -ne $lightweightReport -and $null -ne $lightweightReport.PSObject.Properties['promotionReadiness'] -and $null -ne $lightweightReport.promotionReadiness) { [string]$lightweightReport.promotionReadiness } else { $null }
+    $lightweightBlockers = if ($null -ne $lightweightReport -and $null -ne $lightweightReport.PSObject.Properties['blockers']) { @($lightweightReport.blockers | ForEach-Object { [string]$_ }) } else { @() }
+
     return [pscustomobject][ordered]@{
         name = [string]$Run.name
         runRoot = [string]$Run.runRoot
@@ -112,9 +123,9 @@ function ConvertTo-RunSummary {
         hasLeadNeighborhood = [bool]$Run.hasLeadNeighborhood
         hasPromotionPacket = [bool]$Run.hasPromotionPacket
         promotionReady = if ($null -ne $Run.promotionReady) { [bool]$Run.promotionReady } else { $null }
-        hasLightweightReproofReport = if ($null -ne $Run.PSObject.Properties['hasLightweightReproofReport']) { [bool]$Run.hasLightweightReproofReport } else { $false }
-        lightweightPromotionReadiness = if ($null -ne $Run.PSObject.Properties['lightweightReproofReport'] -and $null -ne $Run.lightweightReproofReport.PSObject.Properties['promotionReadiness']) { [string]$Run.lightweightReproofReport.promotionReadiness } else { $null }
-        lightweightBlockers = if ($null -ne $Run.PSObject.Properties['lightweightReproofReport'] -and $null -ne $Run.lightweightReproofReport.PSObject.Properties['blockers']) { @($Run.lightweightReproofReport.blockers | ForEach-Object { [string]$_ }) } else { @() }
+        hasLightweightReproofReport = $hasLightweightReport
+        lightweightPromotionReadiness = $lightweightPromotionReadiness
+        lightweightBlockers = @($lightweightBlockers)
     }
 }
 
@@ -202,9 +213,14 @@ foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captu
 }
 
 $resolvedOutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
-$inventory = Invoke-Inventory -Root $resolvedOutputRoot -Top $InventoryTop
+$inventory = Invoke-Inventory -Root $resolvedOutputRoot -Top $InventoryTop -RequireGated
+$allInventory = Invoke-Inventory -Root $resolvedOutputRoot -Top $InventoryTop
 $runs = @($inventory.runs)
+$allRuns = @($allInventory.runs)
 $baselineZoomRuns = @($runs | Where-Object { [string]$_.name -match 'nameplate-baseline-zoom' })
+$allBaselineZoomRuns = @($allRuns | Where-Object { [string]$_.name -match 'nameplate-baseline-zoom' })
+$ungatedBaselineZoomRuns = @($allBaselineZoomRuns | Where-Object { -not [bool]$_.gated.passed })
+$latestUngatedBaselineZoomRun = if ($ungatedBaselineZoomRuns.Count -gt 0) { $ungatedBaselineZoomRuns[0] } else { $null }
 $promotionReadyRuns = @($baselineZoomRuns | Where-Object { [bool]$_.promotionReady })
 $neighborhoodRuns = @($baselineZoomRuns | Where-Object { [bool]$_.hasLeadNeighborhood })
 $missingNeighborhoodRuns = @($baselineZoomRuns | Where-Object { -not [bool]$_.hasLeadNeighborhood })
@@ -227,6 +243,9 @@ $readyForPromotionCompare = ($readyForPipeline -and [bool]$baselineRun.hasLeadNe
 $missingEvidence = [System.Collections.Generic.List[string]]::new()
 if ($baselineZoomRuns.Count -lt 2) {
     $missingEvidence.Add('need-second-gated-nameplate-baseline-zoom-proof') | Out-Null
+}
+if ($baselineZoomRuns.Count -eq 0 -and $ungatedBaselineZoomRuns.Count -gt 0) {
+    $missingEvidence.Add('latest-nameplate-baseline-zoom-run-is-not-gated') | Out-Null
 }
 if ($null -eq $baselineRun) {
     $missingEvidence.Add('need-at-least-one-gated-nameplate-run-with-lead-neighborhood') | Out-Null
@@ -255,7 +274,12 @@ elseif ($readyForPipeline -and -not $selectedReproofHasLightweightDiagnostic) {
     'latest-pair-needs-promotion-evidence'
 }
 elseif (-not $readyForPipeline) {
-    'needs-second-gated-baseline-zoom-proof'
+    if ($baselineZoomRuns.Count -eq 0 -and $ungatedBaselineZoomRuns.Count -gt 0) {
+        'latest-nameplate-run-not-gated'
+    }
+    else {
+        'needs-second-gated-baseline-zoom-proof'
+    }
 }
 else {
     'blocked'
@@ -264,6 +288,7 @@ $promotionBlockerMessage = switch ($promotionBlockerStatus) {
     'ready-for-promotion-compare' { 'Lead-neighborhood evidence exists for the selected baseline/reproof pair; run the promotion pipeline plan before writing a packet.' }
     'diagnostic-exists-but-reproof-lead-neighborhood-missing' { 'A lightweight diagnostic report exists for the selected reproof, but promotion remains blocked because the reproof still has no lead-neighborhood evidence.' }
     'latest-pair-needs-promotion-evidence' { 'Two gated baseline/zoom proofs exist, but promotion evidence is still incomplete; create a diagnostic report or capture missing lead-neighborhood evidence.' }
+    'latest-nameplate-run-not-gated' { 'Nameplate baseline/zoom run artifacts exist, but none are fully screenshot/sequence gated; rerun or repair the proof before promotion comparison.' }
     'needs-second-gated-baseline-zoom-proof' { 'A second gated baseline/zoom proof is still required before promotion comparison.' }
     default { 'Promotion is blocked; inspect missingEvidence and recommendedCommands.' }
 }
@@ -286,6 +311,7 @@ $promotionBlockerSummary = [pscustomobject][ordered]@{
     selectedReproofHasLightweightDiagnostic = $selectedReproofHasLightweightDiagnostic
     selectedReproofLightweightPromotionReadiness = if ($null -ne $selectedReproofDiagnostic -and $null -ne $selectedReproofDiagnostic.PSObject.Properties['promotionReadiness']) { [string]$selectedReproofDiagnostic.promotionReadiness } else { $null }
     selectedReproofLightweightBlockers = @($selectedReproofDiagnosticBlockers)
+    latestUngatedBaselineZoomRun = ConvertTo-RunSummary -Run $latestUngatedBaselineZoomRun
     missingEvidence = @($missingEvidenceSnapshot)
 }
 
@@ -376,8 +402,11 @@ $result = [pscustomobject][ordered]@{
     ok = $true
     outputRoot = $resolvedOutputRoot
     inventory = [pscustomobject][ordered]@{
+        totalNameplateRuns = @($allRuns).Count
         totalGatedNameplateRuns = @($runs).Count
+        totalBaselineZoomRuns = $allBaselineZoomRuns.Count
         gatedBaselineZoomRuns = $baselineZoomRuns.Count
+        ungatedBaselineZoomRuns = $ungatedBaselineZoomRuns.Count
         baselineZoomRunsWithNeighborhood = $neighborhoodRuns.Count
         baselineZoomRunsWithLightweightDiagnostic = $lightweightDiagnosticRuns.Count
         promotionReadyRuns = $promotionReadyRuns.Count

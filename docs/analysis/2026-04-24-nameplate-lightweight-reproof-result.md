@@ -187,3 +187,16 @@ The planner now recommends a safe pre-capture command for missing lead-neighborh
 | `plan-reproof-lead-neighborhood` | No attach, no artifacts, uses `-PlanOnly -AllowNoLeads` to report whether artifact leads exist before any capture attempt. |
 
 Current result for the selected reproof is `captureReady=false`, `blocker=no-leads-matched`, `selectedLeadCount=0`, confirming the lightweight run still has no lead source to capture from.
+
+## Current artifact inventory guard
+
+The planner now compares both all nameplate runs and gated-only nameplate runs. If the workspace has nameplate baseline/zoom artifacts but none pass the screenshot/sequence gate, it reports:
+
+| Field | Value |
+|---|---|
+| `promotionBlockerSummary.status` | `latest-nameplate-run-not-gated` |
+| `inventory.totalBaselineZoomRuns` | all baseline/zoom run folders found |
+| `inventory.gatedBaselineZoomRuns` | gated baseline/zoom runs eligible for promotion comparison |
+| `inventory.ungatedBaselineZoomRuns` | baseline/zoom run folders that exist but are not promotion evidence |
+
+This prevents stale handoff assumptions from hiding the current local truth when ignored artifact folders differ between worktrees or branches.

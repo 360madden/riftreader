@@ -686,6 +686,42 @@ try {
         }
     }
 
+    $ungatedPlannerOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-ungated-nameplate-planner-{0}' -f ([guid]::NewGuid().ToString('N')))
+    try {
+        $ungatedRunRoot = Join-Path $ungatedPlannerOutputRoot '20260425-010000-nameplate-baseline-zoom'
+        New-Item -ItemType Directory -Path $ungatedRunRoot -Force | Out-Null
+        @(
+            [pscustomobject][ordered]@{
+                state = 'baseline1'
+                stateRole = 'baseline'
+                isActiveState = $false
+                candidateAddress = $CandidateAddress
+                windowStart = $CandidateAddress
+                bytesHex = '0000000000000000'
+            }
+        ) | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $ungatedRunRoot 'samples.ndjson') -Encoding UTF8
+
+        $ungatedPlannerOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -SummaryOnly -Json 2>&1
+        $ungatedPlannerCode = $LASTEXITCODE
+        if ($ungatedPlannerCode -ne 0) {
+            throw "Nameplate proof promotion planner failed for ungated-only inventory with exit code $ungatedPlannerCode.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
+        $ungatedPlanner = ($ungatedPlannerOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if ([int]$ungatedPlanner.inventory.totalBaselineZoomRuns -ne 1 -or [int]$ungatedPlanner.inventory.gatedBaselineZoomRuns -ne 0 -or [int]$ungatedPlanner.inventory.ungatedBaselineZoomRuns -ne 1 -or [string]$ungatedPlanner.promotionBlockerSummary.status -ne 'latest-nameplate-run-not-gated') {
+            throw "Nameplate promotion planner did not surface ungated-only current inventory state.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
+        if ($null -eq $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun -or [string]$ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name -ne '20260425-010000-nameplate-baseline-zoom') {
+            throw "Nameplate promotion planner did not include latest ungated baseline/zoom run summary.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name })
+    }
+    finally {
+        if (Test-Path -LiteralPath $ungatedPlannerOutputRoot) {
+            Remove-Item -LiteralPath $ungatedPlannerOutputRoot -Recurse -Force
+        }
+    }
+
     $resultCheckOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-output-{0}' -f ([guid]::NewGuid().ToString('N')))
     $resultCheckRoot = Join-Path $resultCheckOutputRoot ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
     $latestPairOutputRoot = $null
