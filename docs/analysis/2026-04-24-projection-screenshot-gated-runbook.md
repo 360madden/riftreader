@@ -397,6 +397,16 @@ immediate command without parsing the whole recommendation list. When at least
 two gated baseline/zoom proofs exist, it
 treats the newest proof as reproof and the previous proof as baseline, then
 recommends the latest-pair pipeline command.
+
+To run only the planner's safe immediate action:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\invoke-nameplate-promotion-next-action.ps1" -Execute -Json
+```
+
+The helper refuses to execute when `nextAction.safeToRunNow=false`. In the
+current one-proof state the safe action is the plan-only second-proof command,
+so `-Execute` still performs no attach and creates no artifacts.
 When only one prior gated baseline/zoom manifest is available, the second-proof
 plan and live commands are both pre-seeded with that manifest's
 candidate/nameplate arguments. Run the planner's
@@ -488,6 +498,9 @@ It checks:
 - `plan-nameplate-proof-promotion.ps1` against two generated gated proof roots
   to verify previous-as-baseline, newest-as-reproof ordering and latest-pair
   pipeline recommendations
+- `invoke-nameplate-promotion-next-action.ps1` against a generated one-proof
+  fixture to verify safe `nextAction` reporting and guarded execution of the
+  plan-only next action
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -528,6 +541,7 @@ Explorer, or tools that should not need to locate `pwsh` manually.
 | `scripts\run-nameplate-proof-promotion-pipeline.cmd` | `run-nameplate-proof-promotion-pipeline.ps1` |
 | `scripts\list-nameplate-proof-runs.cmd` | `list-nameplate-proof-runs.ps1` |
 | `scripts\plan-nameplate-proof-promotion.cmd` | `plan-nameplate-proof-promotion.ps1` |
+| `scripts\invoke-nameplate-promotion-next-action.cmd` | `invoke-nameplate-promotion-next-action.ps1` |
 | `scripts\capture-tooltip-hover-diff.cmd` | `capture-tooltip-hover-diff.ps1` |
 | `scripts\analyze-tooltip-hover-diff.cmd` | `analyze-tooltip-hover-diff.ps1` |
 | `scripts\capture-rift-window-wgc.cmd` | `capture-rift-window-wgc.ps1` |
@@ -598,8 +612,8 @@ Result: `ok=true`.
 
 | Check | Result |
 |---|---|
-| PowerShell parse | Passed for expected 17 scripts with 17 unique entries. |
-| CMD wrapper inspection | Passed for expected 17 projection wrappers with 17 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
+| PowerShell parse | Passed for expected 18 scripts with 18 unique entries. |
+| CMD wrapper inspection | Passed for expected 18 projection wrappers with 18 unique wrappers/targets, matching the parsed PowerShell manifest and including machine-readable launcher/wrapper contract data plus `targetExists=true` for each wrapper target. |
 | Capture project build | Passed. |
 | PowerShell nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation, operator-checklist roles, and plan-only no-artifact behavior. |
 | CMD nameplate wrapper plan | Passed, including `CandidateAddress` / `NameplateText` preservation and plan-only no-artifact behavior. |
@@ -615,6 +629,7 @@ Result: `ok=true`.
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
 | Promotion-readiness planner smoke | Passed with missing-evidence, `safeToRunNow=true` `nextAction`, empty `safetyBlockers`, and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, `safeToRunNow=true` `nextAction`, and latest-pair pipeline recommendation. |
+| Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction` and guarded execution of the plan-only next action. |
 
 The aggregate branch validator was also run:
 
@@ -622,5 +637,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `29/29`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `30/30`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

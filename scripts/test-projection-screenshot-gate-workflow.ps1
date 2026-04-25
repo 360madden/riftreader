@@ -36,6 +36,8 @@ $proofRunListScript = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.ps1'
 $proofRunListCmd = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.cmd'
 $promotionPlanScript = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.ps1'
 $promotionPlanCmd = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.cmd'
+$promotionNextActionScript = Join-Path $PSScriptRoot 'invoke-nameplate-promotion-next-action.ps1'
+$promotionNextActionCmd = Join-Path $PSScriptRoot 'invoke-nameplate-promotion-next-action.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -56,9 +58,10 @@ $psScripts = @(
     'run-nameplate-proof-promotion-pipeline.ps1',
     'list-nameplate-proof-runs.ps1',
     'plan-nameplate-proof-promotion.ps1',
+    'invoke-nameplate-promotion-next-action.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 17
+$expectedProjectionPsScriptCount = 18
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -76,9 +79,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'run-nameplate-proof-promotion-pipeline.cmd'; Target = 'run-nameplate-proof-promotion-pipeline.ps1' },
     [pscustomobject]@{ Wrapper = 'list-nameplate-proof-runs.cmd'; Target = 'list-nameplate-proof-runs.ps1' },
     [pscustomobject]@{ Wrapper = 'plan-nameplate-proof-promotion.cmd'; Target = 'plan-nameplate-proof-promotion.ps1' },
+    [pscustomobject]@{ Wrapper = 'invoke-nameplate-promotion-next-action.cmd'; Target = 'invoke-nameplate-promotion-next-action.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 17
+$expectedProjectionCmdWrapperCount = 18
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -1097,6 +1101,31 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded plan-only plus live next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true; hasSecondProofPlanCommand = $true; nextAction = $promotionPlan.nextAction.name })
+
+        $nextActionPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $nextActionPlanCode = $LASTEXITCODE
+        if ($nextActionPlanCode -ne 0) {
+            throw "Nameplate promotion next-action helper plan failed with exit code $nextActionPlanCode.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
+        }
+        $nextActionPlan = ($nextActionPlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$nextActionPlan.ok -or [string]$nextActionPlan.mode -ne 'plan-only' -or [bool]$nextActionPlan.executed -or [string]$nextActionPlan.nextAction.name -ne 'run-second-baseline-zoom-proof-plan') {
+            throw "Nameplate promotion next-action helper did not expose the safe planner nextAction without executing it.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
+        }
+
+        $nextActionExecuteOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
+        $nextActionExecuteCode = $LASTEXITCODE
+        if ($nextActionExecuteCode -ne 0) {
+            throw "Nameplate promotion next-action helper safe execution failed with exit code $nextActionExecuteCode.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
+        }
+        $nextActionExecute = ($nextActionExecuteOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$nextActionExecute.ok -or -not [bool]$nextActionExecute.executed -or [string]$nextActionExecute.execution.parsedJson.mode -ne 'plan-only') {
+            throw "Nameplate promotion next-action helper did not execute the safe plan-only command as expected.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
+        }
+        if (Test-Path -LiteralPath ([string]$nextActionExecute.execution.parsedJson.runRoot)) {
+            throw "Nameplate promotion next-action helper safe execution unexpectedly created the plan-only run root: $($nextActionExecute.execution.parsedJson.runRoot)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction and only executes it when safeToRunNow is true.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1
