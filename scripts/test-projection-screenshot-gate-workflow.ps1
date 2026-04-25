@@ -1069,11 +1069,14 @@ try {
         if ([bool]$unsafeNextAction.ok -or [bool]$unsafeNextAction.executed -or [string]$unsafeNextAction.blocker -ne 'next-action-not-safe-to-run-now') {
             throw "Nameplate promotion next-action helper did not fail closed on an unsafe nextAction.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
         }
+        if ([bool]$unsafeNextAction.controlsInput -or $null -ne $unsafeNextAction.executionSummary -or $null -ne $unsafeNextAction.execution -or $null -eq $unsafeNextAction.operatorChecklist -or @($unsafeNextAction.operatorChecklist).Count -ne 0) {
+            throw "Nameplate promotion next-action helper unsafe response did not preserve the normalized no-execution result shape.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
+        }
         if (-not @($unsafeNextAction.safetyBlockers | Where-Object { $_ -eq 'attaches-to-process' }) -or -not @($unsafeNextAction.safetyBlockers | Where-Object { $_ -eq 'creates-artifacts' })) {
             throw "Nameplate promotion next-action helper did not report expected unsafe blockers for missing lead-neighborhood capture.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts while preserving the normalized result shape.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed; operatorChecklistCount = @($unsafeNextAction.operatorChecklist).Count })
 
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1

@@ -70,7 +70,11 @@ if ($Execute) {
             ok = $false
             outputRoot = $resolvedOutputRoot
             executed = $false
+            controlsInput = $false
             nextAction = $nextAction
+            executionSummary = $null
+            operatorChecklist = @()
+            execution = $null
             blocker = 'next-action-not-safe-to-run-now'
             safetyBlockers = @($nextAction.safetyBlockers)
             plan = $plan

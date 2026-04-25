@@ -503,7 +503,8 @@ It checks:
   plan-only next action, including top-level operator checklist surfacing
 - `invoke-nameplate-promotion-next-action.ps1 -Execute` against a generated
   unsafe two-proof fixture to verify fail-closed refusal when the next action
-  would attach to the process and create artifacts
+  would attach to the process and create artifacts while preserving the
+  normalized no-execution result shape
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -633,7 +634,7 @@ Result: `ok=true`.
 | Promotion-readiness planner smoke | Passed with missing-evidence, `safeToRunNow=true` `nextAction`, empty `safetyBlockers`, and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, `safeToRunNow=true` `nextAction`, and latest-pair pipeline recommendation. |
 | Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded execution of the plan-only next action, and top-level operator checklist surfacing. |
-| Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts. |
+| Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts while preserving the normalized no-execution result shape. |
 
 The aggregate branch validator was also run:
 
