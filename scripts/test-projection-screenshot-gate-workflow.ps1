@@ -1120,6 +1120,9 @@ try {
         if (-not @($unsafeNextAction.safetyBlockers | Where-Object { $_ -eq 'attaches-to-process' }) -or -not @($unsafeNextAction.safetyBlockers | Where-Object { $_ -eq 'creates-artifacts' })) {
             throw "Nameplate promotion next-action helper did not report expected unsafe blockers for missing lead-neighborhood capture.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $unsafeNextAction.recommendedCommandSafety -or [int]$unsafeNextAction.recommendedCommandSafety.total -ne @($unsafeNextAction.plan.recommendedCommands).Count -or [int]$unsafeNextAction.recommendedCommandSafety.unsafe -lt 1) {
+            throw "Nameplate promotion next-action helper unsafe response did not surface recommendedCommandSafety summary.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
+        }
 
         Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts while preserving the normalized result shape.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed; operatorChecklistCount = @($unsafeNextAction.operatorChecklist).Count })
 
@@ -1237,6 +1240,9 @@ try {
         if ($null -eq $nextActionPlan.operatorChecklist -or @($nextActionPlan.operatorChecklist).Count -ne 0) {
             throw "Nameplate promotion next-action helper plan-only response should expose an empty operatorChecklist array before execution.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $nextActionPlan.recommendedCommandSafety -or [int]$nextActionPlan.recommendedCommandSafety.total -ne @($nextActionPlan.plan.recommendedCommands).Count -or [int]$nextActionPlan.recommendedCommandSafety.unsafe -ne 1) {
+            throw "Nameplate promotion next-action helper plan-only response did not surface recommendedCommandSafety summary.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
+        }
 
         $nextActionExecuteOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
         $nextActionExecuteCode = $LASTEXITCODE
@@ -1257,7 +1263,7 @@ try {
             throw "Nameplate promotion next-action helper safe execution unexpectedly created the plan-only run root: $($nextActionExecute.execution.parsedJson.runRoot)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction, executes only when safeToRunNow is true, and surfaces the plan-only operator checklist.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow; operatorChecklistCount = $nextActionExecute.executionSummary.operatorChecklistCount })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction, executes only when safeToRunNow is true, and surfaces the plan-only operator checklist plus recommended command safety summary.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow; operatorChecklistCount = $nextActionExecute.executionSummary.operatorChecklistCount; unsafeRecommendedCommands = $nextActionPlan.recommendedCommandSafety.unsafe })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

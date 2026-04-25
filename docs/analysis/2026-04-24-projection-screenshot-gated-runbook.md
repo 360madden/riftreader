@@ -504,7 +504,8 @@ It checks:
   when one latest-pair run is still missing lead-neighborhood evidence
 - `invoke-nameplate-promotion-next-action.ps1` against a generated one-proof
   fixture to verify safe `nextAction` reporting and guarded execution of the
-  plan-only next action, including top-level operator checklist surfacing
+  plan-only next action, including top-level operator checklist and
+  recommended-command safety summary surfacing
 - `invoke-nameplate-promotion-next-action.ps1 -Execute` against a generated
   one-proof fixture whose manifest-seeded nameplate text contains PowerShell
   metacharacters, to verify command-string quoting and structured
@@ -648,7 +649,7 @@ Result: `ok=true`.
 | Promotion latest-pair safety summary smoke | Passed by summarizing latest-pair recommended command safety with artifact-writing runs unsafe and no attach required when neighborhoods already exist. |
 | Promotion unsafe next-action safety smoke | Passed by inheriting unsafe recommended command safety onto missing-neighborhood `nextAction` metadata. |
 | Promotion command quoting smoke | Passed by preserving manifest-seeded nameplate text containing PowerShell metacharacters through generated `commandParts` execution. |
-| Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded `commandParts` execution of the plan-only next action, and top-level operator checklist surfacing. |
+| Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded `commandParts` execution of the plan-only next action, and top-level operator checklist plus recommended-command safety summary surfacing. |
 | Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts while preserving the normalized no-execution result shape. |
 
 The aggregate branch validator was also run:

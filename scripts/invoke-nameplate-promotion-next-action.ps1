@@ -72,6 +72,7 @@ if ($Execute) {
             executed = $false
             controlsInput = $false
             nextAction = $nextAction
+            recommendedCommandSafety = $plan.recommendedCommandSafety
             executionSummary = $null
             operatorChecklist = @()
             execution = $null
@@ -147,6 +148,7 @@ $result = [pscustomobject][ordered]@{
     executed = [bool]$Execute
     controlsInput = $false
     nextAction = $nextAction
+    recommendedCommandSafety = $plan.recommendedCommandSafety
     executionSummary = $executionSummary
     operatorChecklist = $operatorChecklistOutput
     execution = $execution
