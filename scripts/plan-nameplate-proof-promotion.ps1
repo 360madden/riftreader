@@ -34,7 +34,7 @@ function Invoke-Inventory {
 function New-CommandString {
     param([Parameter(Mandatory = $true)][string[]]$Parts)
     return ($Parts | ForEach-Object {
-        if ($_ -match '\s') { '"{0}"' -f ($_ -replace '"', '\"') } else { $_ }
+        if ($_ -match '[\s''"`;|&<>(){}\[\]$]') { "'{0}'" -f ($_ -replace "'", "''") } else { $_ }
     }) -join ' '
 }
 

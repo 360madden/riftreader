@@ -685,6 +685,7 @@ try {
     $resultCheckRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
     $latestPairOutputRoot = $null
     $unsafeLatestPairOutputRoot = $null
+    $quotedSeedOutputRoot = $null
     New-Item -ItemType Directory -Path $resultCheckRoot -Force | Out-Null
     try {
         $resultRows = @()
@@ -1127,6 +1128,27 @@ try {
 
         Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded plan-only plus live next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true; hasSecondProofPlanCommand = $true; nextAction = $promotionPlan.nextAction.name })
 
+        $quotedSeedOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-quoted-nameplate-seed-{0}' -f ([guid]::NewGuid().ToString('N')))
+        New-Item -ItemType Directory -Path $quotedSeedOutputRoot -Force | Out-Null
+        Copy-Item -LiteralPath $resultCheckRoot -Destination $quotedSeedOutputRoot -Recurse -Force
+        $quotedRunRoot = Join-Path $quotedSeedOutputRoot (Split-Path -Leaf $resultCheckRoot)
+        $quotedManifestPath = Join-Path $quotedRunRoot 'manifest.json'
+        $quotedNameplateText = 'Atank''s "Sanctum";$(nope)&More'
+        $quotedManifest = Get-Content -LiteralPath $quotedManifestPath -Raw | ConvertFrom-Json
+        $quotedManifest.tooltipText = $quotedNameplateText
+        $quotedManifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $quotedManifestPath -Encoding UTF8
+        $quotedNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $quotedSeedOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
+        $quotedNextActionCode = $LASTEXITCODE
+        if ($quotedNextActionCode -ne 0) {
+            throw "Nameplate promotion next-action helper failed to execute a plan-only command seeded from quoted manifest text with exit code $quotedNextActionCode.`n$($quotedNextActionOutput -join [Environment]::NewLine)"
+        }
+        $quotedNextAction = ($quotedNextActionOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$quotedNextAction.ok -or [string]$quotedNextAction.execution.parsedJson.tooltipText -ne $quotedNameplateText -or [int]$quotedNextAction.executionSummary.operatorChecklistCount -ne 4) {
+            throw "Nameplate promotion next-action helper did not preserve quoted manifest text through the generated PowerShell command.`n$($quotedNextActionOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-command-quoting-smoke' -Status 'passed' -Detail 'Promotion planner command strings preserve manifest-seeded nameplate text containing PowerShell metacharacters.' -Data ([ordered]@{ nextAction = $quotedNextAction.nextAction.name; tooltipText = $quotedNextAction.execution.parsedJson.tooltipText; operatorChecklistCount = $quotedNextAction.executionSummary.operatorChecklistCount })
+
         $nextActionPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
         $nextActionPlanCode = $LASTEXITCODE
         if ($nextActionPlanCode -ne 0) {
@@ -1180,6 +1202,9 @@ try {
         }
         if (-not [string]::IsNullOrWhiteSpace($unsafeLatestPairOutputRoot) -and (Test-Path -LiteralPath $unsafeLatestPairOutputRoot)) {
             Remove-Item -LiteralPath $unsafeLatestPairOutputRoot -Recurse -Force
+        }
+        if (-not [string]::IsNullOrWhiteSpace($quotedSeedOutputRoot) -and (Test-Path -LiteralPath $quotedSeedOutputRoot)) {
+            Remove-Item -LiteralPath $quotedSeedOutputRoot -Recurse -Force
         }
     }
 }
