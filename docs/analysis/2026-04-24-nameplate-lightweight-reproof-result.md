@@ -41,6 +41,15 @@ The older candidate offset cluster did **not** repeat in the lightweight reproof
 | Repeated count | `0` |
 | Result | `ok=false` for promotion of that cluster |
 
+The latest rerun saved the comparator JSON outputs under the ignored live
+artifact tree for resume/debug use:
+
+| Artifact | Path |
+|---|---|
+| Candidate-offset compare | `C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom\diffs\latest-pair-candidate-offset-compare.json` |
+| Byte-window compare | `C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom\diffs\latest-pair-byte-window-compare.json` |
+| Planner summary snapshot | `C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom\diffs\latest-pair-current-planner-summary.json` |
+
 The byte-window comparator also found:
 
 | Metric | Value |
@@ -76,7 +85,26 @@ Do not promote the old `+0x21D/+0x225/+0x235/+0x23D/+0x24D` cluster from this ru
 
 ## Recommended next move
 
-Either:
+Tested bounded targeted lead refresh, not another full process-wide proof:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-nameplate-proof-lead-neighborhoods.ps1" `
+  -RunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom" `
+  -LeadKind both `
+  -MinStateCount 1 `
+  -MaxLeads 3 `
+  -Json
+```
+
+If that still has no leads or is too heavy, do **not** promote by force. Either:
+
+Result: this bounded lead refresh also failed quickly with:
+
+```text
+No nameplate proof leads matched LeadKind=both, MinStateCount=1, MaxLeads=3.
+```
+
+So the practical choices are now:
 
 1. Capture a targeted, less-heavy text/pointer lead pass for the reproof run, or
 2. Add a separate promotion path for screenshot-gated candidate-window byte evidence, with explicit weaker-evidence labeling.
