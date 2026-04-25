@@ -1157,12 +1157,20 @@ try {
                 throw "Nameplate proof promotion planner live second proof command is missing expected safety blocker '$expectedLiveBlocker'.`n$($promotionPlanOutput -join [Environment]::NewLine)"
             }
         }
+        if ([int]$promotionPlan.recommendedCommandSafety.total -ne @($promotionPlan.recommendedCommands).Count -or [int]$promotionPlan.recommendedCommandSafety.safeToRunNow -ne 2 -or [int]$promotionPlan.recommendedCommandSafety.unsafe -ne 1 -or [int]$promotionPlan.recommendedCommandSafety.attachesToProcess -ne 1 -or [int]$promotionPlan.recommendedCommandSafety.createsArtifacts -ne 1 -or [int]$promotionPlan.recommendedCommandSafety.requiresOperatorConfirmation -ne 1) {
+            throw "Nameplate proof promotion planner did not summarize recommended command safety for the one-proof fixture.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($promotionPlan.recommendedCommandSafety.unsafeNames | Where-Object { $_ -eq 'run-second-baseline-zoom-proof' })) {
+            throw "Nameplate proof promotion planner safety summary did not identify the live second proof command as unsafe.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
 
         Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded plan-only plus live next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true; hasSecondProofPlanCommand = $true; nextAction = $promotionPlan.nextAction.name })
 
         Add-Check -Name 'nameplate-proof-promotion-command-parts-smoke' -Status 'passed' -Detail 'Promotion planner emits structured commandParts alongside display command strings for safe execution.' -Data ([ordered]@{ planPartCount = $secondProofPlanParts.Count; livePartCount = $secondProofParts.Count; planOnlyPartPresent = ($secondProofPlanParts -contains '-PlanOnly') })
 
         Add-Check -Name 'nameplate-proof-promotion-recommended-command-safety-smoke' -Status 'passed' -Detail 'Promotion planner labels recommended commands with safety metadata so live proof commands are not automation-safe.' -Data ([ordered]@{ planSafeToRunNow = $secondProofPlanCommand.safeToRunNow; liveSafeToRunNow = $secondProofCommand.safeToRunNow; liveSafetyBlockers = @($secondProofCommand.safetyBlockers) })
+
+        Add-Check -Name 'nameplate-proof-promotion-safety-summary-smoke' -Status 'passed' -Detail 'Promotion planner emits a top-level recommendedCommandSafety summary for quick automation gating.' -Data ([ordered]@{ total = $promotionPlan.recommendedCommandSafety.total; safeToRunNow = $promotionPlan.recommendedCommandSafety.safeToRunNow; unsafe = $promotionPlan.recommendedCommandSafety.unsafe; unsafeNames = @($promotionPlan.recommendedCommandSafety.unsafeNames) })
 
         $quotedSeedOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-quoted-nameplate-seed-{0}' -f ([guid]::NewGuid().ToString('N')))
         New-Item -ItemType Directory -Path $quotedSeedOutputRoot -Force | Out-Null

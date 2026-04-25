@@ -222,6 +222,19 @@ foreach ($recommendedCommand in @($recommendedCommands.ToArray())) {
     $commandsByName[[string]$recommendedCommand.name] = $recommendedCommand
 }
 
+$recommendedCommandItems = @($recommendedCommands.ToArray())
+$unsafeRecommendedCommands = @($recommendedCommandItems | Where-Object { -not [bool]$_.safeToRunNow })
+$recommendedCommandSafety = [pscustomobject][ordered]@{
+    total = $recommendedCommandItems.Count
+    safeToRunNow = @($recommendedCommandItems | Where-Object { [bool]$_.safeToRunNow }).Count
+    unsafe = $unsafeRecommendedCommands.Count
+    controlsInput = @($recommendedCommandItems | Where-Object { [bool]$_.controlsInput }).Count
+    attachesToProcess = @($recommendedCommandItems | Where-Object { [bool]$_.attachesToProcess }).Count
+    createsArtifacts = @($recommendedCommandItems | Where-Object { [bool]$_.createsArtifacts }).Count
+    requiresOperatorConfirmation = @($recommendedCommandItems | Where-Object { [bool]$_.requiresOperatorConfirmation }).Count
+    unsafeNames = @($unsafeRecommendedCommands | ForEach-Object { [string]$_.name })
+}
+
 $nextAction = $null
 if (-not $readyForPipeline -and $commandsByName.ContainsKey('run-second-baseline-zoom-proof-plan')) {
     $nextAction = New-NextAction -Command $commandsByName['run-second-baseline-zoom-proof-plan'] -Reason 'Second gated baseline/zoom proof is missing; run the plan-only command first and inspect operatorChecklist before live capture.'
@@ -255,7 +268,8 @@ $result = [pscustomobject][ordered]@{
     selectedReproofRun = $reproofRun
     selectedProofSeed = $proofSeed
     nextAction = $nextAction
-    recommendedCommands = @($recommendedCommands.ToArray())
+    recommendedCommandSafety = $recommendedCommandSafety
+    recommendedCommands = $recommendedCommandItems
 }
 
 if ($Json) {
