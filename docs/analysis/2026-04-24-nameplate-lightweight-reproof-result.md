@@ -203,6 +203,8 @@ This prevents stale handoff assumptions from hiding the current local truth when
 
 ## Ungated-run inspection next action
 
-When the current local artifact tree contains an ungated `nameplate-baseline-zoom` run, the planner now recommends `inspect-latest-ungated-baseline-zoom-run` as the next action before any rerun. It invokes the proof result checker against the incomplete run and is marked safe because it does not attach to Rift and does not write artifacts.
+When the current local artifact tree contains an ungated `nameplate-baseline-zoom` run, the planner now recommends `inspect-latest-ungated-baseline-zoom-run` as the next action before any rerun. It invokes the proof result checker against the incomplete run with `-AllowFailed -Json` and is marked safe because it does not attach to Rift and does not write artifacts.
+
+`-AllowFailed` preserves the checker output contract (`ok=false` plus failed check details) while returning exit code `0` for explicit inspection workflows. The checker still fails closed by default when `-AllowFailed` is not supplied, so promotion gates remain strict.
 
 For the current local tree, the latest ungated run is incomplete and should be inspected or replaced before using older promotion assumptions.

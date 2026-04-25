@@ -679,6 +679,21 @@ try {
         }
 
         Add-Check -Name 'nameplate-result-checker-sequence-negative-smoke' -Status 'passed' -Detail 'Post-capture result checker rejects usable screenshot artifacts when the expected proof sequence is wrong.'
+
+        $sequenceInspectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -RunRoot $sequenceSmokeRoot -AllowFailed -Json 2>&1
+        $sequenceInspectCode = $LASTEXITCODE
+        if ($sequenceInspectCode -ne 0) {
+            throw "Nameplate proof result checker -AllowFailed should return JSON without a nonzero exit for a mismatched proof sequence; got exit code $sequenceInspectCode.`n$($sequenceInspectOutput -join [Environment]::NewLine)"
+        }
+        $sequenceInspect = ($sequenceInspectOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+        if ([bool]$sequenceInspect.ok) {
+            throw "Nameplate proof result checker -AllowFailed returned ok=true for a mismatched proof sequence.`n$($sequenceInspectOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($sequenceInspect.checks | Where-Object { $_.name -eq 'expected-state-sequence-passed' -and $_.status -eq 'failed' })) {
+            throw "Nameplate proof result checker -AllowFailed did not preserve failed check details for a mismatched proof sequence.`n$($sequenceInspectOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-result-checker-allowfailed-inspection-smoke' -Status 'passed' -Detail 'Post-capture result checker can inspect failed proof gates with ok=false JSON while returning exit code 0 when -AllowFailed is explicit.'
     }
     finally {
         if (Test-Path -LiteralPath $sequenceSmokeRoot) {
@@ -717,8 +732,12 @@ try {
         if ($null -eq $ungatedInspectCommand -or -not [bool]$ungatedInspectCommand.safeToRunNow -or [bool]$ungatedInspectCommand.attachesToProcess -or [bool]$ungatedInspectCommand.createsArtifacts -or [string]$ungatedPlanner.nextAction.name -ne 'inspect-latest-ungated-baseline-zoom-run') {
             throw "Nameplate promotion planner did not recommend safe ungated-run inspection as the next action.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
+        $ungatedNextActionParts = @($ungatedPlanner.nextAction.commandParts | ForEach-Object { [string]$_ })
+        if (-not ($ungatedNextActionParts -contains '-AllowFailed')) {
+            throw "Nameplate promotion planner ungated inspection next-action command must include -AllowFailed so failed proof gates are machine-readable without making inspection itself fail.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; nextAction = $ungatedPlanner.nextAction.name })
+        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed') })
     }
     finally {
         if (Test-Path -LiteralPath $ungatedPlannerOutputRoot) {

@@ -320,7 +320,7 @@ $recommendedCommands = [System.Collections.Generic.List[object]]::new()
 $recommendedCommands.Add((New-RecommendedCommand -Name 'inventory' -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $inventoryScript, '-OutputRoot', $resolvedOutputRoot, '-RequireGated', '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json'))) | Out-Null
 
 if ($null -ne $latestUngatedBaselineZoomRun) {
-    $recommendedCommands.Add((New-RecommendedCommand -Name 'inspect-latest-ungated-baseline-zoom-run' -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $resultCheckerScript, '-RunRoot', [string]$latestUngatedBaselineZoomRun.runRoot, '-Json'))) | Out-Null
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'inspect-latest-ungated-baseline-zoom-run' -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $resultCheckerScript, '-RunRoot', [string]$latestUngatedBaselineZoomRun.runRoot, '-AllowFailed', '-Json'))) | Out-Null
 }
 
 foreach ($captureTarget in @(

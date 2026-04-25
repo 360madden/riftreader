@@ -8,6 +8,8 @@ param(
     [string[]]$ExpectedStates = @('baseline1', 'zoom1', 'baseline2', 'zoom2'),
     [string[]]$ExpectedStateRoles = @('baseline', 'active', 'baseline', 'active'),
 
+    [switch]$AllowFailed,
+
     [switch]$Json
 )
 
@@ -175,6 +177,6 @@ else {
     $result
 }
 
-if (-not [bool]$result.ok) {
+if (-not [bool]$result.ok -and -not $AllowFailed) {
     exit 1
 }
