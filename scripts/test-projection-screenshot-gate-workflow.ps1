@@ -781,8 +781,8 @@ try {
         if ($null -eq $ungatedNextAction.executionSummary -or [bool]$ungatedNextAction.executionSummary.parsedOk -or [int]$ungatedNextAction.executionSummary.failedCheckCount -lt 1 -or -not (@($ungatedNextAction.executionSummary.failedCheckNames) -contains 'screenshot-gate-file')) {
             throw "Nameplate promotion next-action helper did not surface failed proof-gate details from safe ungated-run inspection.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
         }
-        if ($null -eq $ungatedNextAction.actionRouting -or [string]$ungatedNextAction.actionRouting.preferredSafeCommandName -ne 'inspect-latest-ungated-baseline-zoom-run' -or $null -ne $ungatedNextAction.actionRouting.blockedReason) {
-            throw "Nameplate promotion next-action helper did not expose compact safe routing for ungated inspection.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
+        if ($null -eq $ungatedNextAction.actionRouting -or [string]$ungatedNextAction.actionRouting.preferredSafeCommandName -ne 'replacement-readiness-checklist' -or [string]$ungatedNextAction.actionRouting.preferredSafeCommandReason -ne 'ungated-inspection-completed' -or $null -ne $ungatedNextAction.actionRouting.blockedReason) {
+            throw "Nameplate promotion next-action helper did not route from completed ungated inspection to the replacement readiness checklist.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
         }
 
         Add-Check -Name 'nameplate-proof-promotion-next-action-ungated-inspection-smoke' -Status 'passed' -Detail 'Next-action helper executes safe ungated-run inspection and surfaces ok=false proof-gate details without treating inspection itself as failed.' -Data ([ordered]@{ nextAction = $ungatedNextAction.nextAction.name; commandExitCode = $ungatedNextAction.execution.exitCode; parsedOk = $ungatedNextAction.executionSummary.parsedOk; failedCheckNames = @($ungatedNextAction.executionSummary.failedCheckNames); preferredSafeCommandName = $ungatedNextAction.actionRouting.preferredSafeCommandName })

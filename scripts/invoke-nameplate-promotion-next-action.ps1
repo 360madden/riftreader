@@ -122,7 +122,9 @@ function Find-RecommendedCommandByName {
 function New-ActionRouting {
     param(
         [Parameter(Mandatory = $true)][object]$Plan,
-        [Parameter(Mandatory = $true)][object]$NextAction
+        [Parameter(Mandatory = $true)][object]$NextAction,
+        [string]$PreferredSafeCommandName,
+        [string]$PreferredSafeCommandReason
     )
 
     $nextActionSafeToRunNow = [bool](Get-ObjectPropertyValue -Object $NextAction -Name 'safeToRunNow')
@@ -130,11 +132,18 @@ function New-ActionRouting {
     $preferredCommand = $null
     $preferredReason = 'no-safe-no-write-command'
 
-    if ($nextActionSafeToRunNow) {
+    if (-not [string]::IsNullOrWhiteSpace($PreferredSafeCommandName)) {
+        $preferredCommand = Find-RecommendedCommandByName -Plan $Plan -Name $PreferredSafeCommandName
+        if ($null -ne $preferredCommand) {
+            $preferredReason = if ([string]::IsNullOrWhiteSpace($PreferredSafeCommandReason)) { 'explicit-safe-command-preference' } else { $PreferredSafeCommandReason }
+        }
+    }
+
+    if ($null -eq $preferredCommand -and $nextActionSafeToRunNow) {
         $preferredCommand = $NextAction
         $preferredReason = 'next-action-is-safe'
     }
-    else {
+    elseif ($null -eq $preferredCommand) {
         $groups = Get-ObjectPropertyValue -Object $Plan -Name 'recommendedCommandGroups'
         $safeNoWriteNames = @((Get-ObjectPropertyValue -Object $groups -Name 'safeNoWrite') | ForEach-Object { [string]$_ })
         $preferredSafeName = @($safeNoWriteNames | Where-Object { $_ -ne 'inventory' } | Select-Object -First 1)[0]
@@ -267,6 +276,10 @@ if ($null -ne $execution -and $null -ne $execution.parsedJson) {
         operatorChecklistCount = $operatorChecklistOutput.Count
         notes = $notesOutput
     }
+}
+
+if ($Execute -and [string]$nextAction.name -eq 'inspect-latest-ungated-baseline-zoom-run' -and $null -ne $executionSummary -and $false -eq [bool]$executionSummary.parsedOk) {
+    $actionRouting = New-ActionRouting -Plan $plan -NextAction $nextAction -PreferredSafeCommandName 'replacement-readiness-checklist' -PreferredSafeCommandReason 'ungated-inspection-completed'
 }
 
 $result = [pscustomobject][ordered]@{

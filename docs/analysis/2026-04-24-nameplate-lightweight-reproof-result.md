@@ -230,3 +230,5 @@ invoke-nameplate-promotion-next-action.ps1 now also emits compact ctionRouting 
 Added write-nameplate-replacement-readiness-checklist.ps1 as a safe no-write/no-attach readiness command for replacing the latest ungated baseline/zoom artifact. It reports the latest ungated run, failed gates, missing fresh candidate/text inputs, and a PlanOnly replacement command while keeping live replacement explicitly approval-gated.
 
 Artifact audit output now includes `artifactClassifications` for baseline/zoom runs. Gated runs are classified as `keep`, the latest ungated/incomplete run is classified as `replace`, older ungated runs are classified as `inspect`, and every classification remains no-delete (`safeToDelete=false`, `deletesArtifacts=false`).
+
+After a safe ungated inspection has executed and returned `ok=false`, `invoke-nameplate-promotion-next-action.ps1` now routes `actionRouting.preferredSafeCommandName` to `replacement-readiness-checklist` with reason `ungated-inspection-completed` so automation advances toward replacement prep instead of repeatedly inspecting the same failed run.
