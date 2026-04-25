@@ -11,6 +11,7 @@ param(
     [int]$MaxHits = 24,
     [ValidateSet('hoverOnly', 'allHits', 'none')]
     [string]$TextPointerScanMode = 'allHits',
+    [switch]$SkipTextScan,
     [switch]$SkipPointerScan,
     [int]$ScreenshotAttempts = 3,
     [string]$RunLabel = 'nameplate-baseline-zoom',
@@ -100,6 +101,7 @@ if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
 if ($PlanOnly) { $helperArgs += '-PlanOnly' }
 if ($Json) { $helperArgs += '-Json' }
 if ($NonInteractive) { $helperArgs += '-NonInteractive' }
+if ($SkipTextScan) { $helperArgs += '-SkipTextScan' }
 if ($SkipPointerScan) { $helperArgs += '-SkipPointerScan' }
 
 & pwsh @helperArgs

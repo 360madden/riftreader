@@ -307,14 +307,14 @@ try {
     Add-Check -Name 'nameplate-wrapper-plan' -Status 'passed' -Detail 'Wrapper preserved screenshot-gated capture, fail-closed analysis defaults, expected state sequence, operator checklist, key arguments, and plan-only no-artifact behavior.' -Data $plan
 
     $fastReproofPlanOnlyOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-fast-reproof-planonly-{0}' -f ([guid]::NewGuid().ToString('N')))
-    $fastReproofOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $fastReproofPlanOnlyOutputRoot -MaxHits 4 -TextPointerScanMode none -SkipPointerScan -PlanOnly -Json 2>&1
+    $fastReproofOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $fastReproofPlanOnlyOutputRoot -MaxHits 4 -TextPointerScanMode none -SkipTextScan -SkipPointerScan -PlanOnly -Json 2>&1
     $fastReproofCode = $LASTEXITCODE
     if ($fastReproofCode -ne 0) {
         throw "Wrapper fast-reproof PlanOnly failed with exit code $fastReproofCode`n$($fastReproofOutput -join [Environment]::NewLine)"
     }
     $fastReproofPlan = ($fastReproofOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
-    if ([int]$fastReproofPlan.maxHits -ne 4 -or [string]$fastReproofPlan.textPointerScanMode -ne 'none' -or -not [bool]$fastReproofPlan.skipPointerScan) {
-        throw "Wrapper fast-reproof plan did not preserve bounded scan controls. maxHits=$($fastReproofPlan.maxHits), textPointerScanMode=$($fastReproofPlan.textPointerScanMode), skipPointerScan=$($fastReproofPlan.skipPointerScan)."
+    if ([int]$fastReproofPlan.maxHits -ne 4 -or [string]$fastReproofPlan.textPointerScanMode -ne 'none' -or -not [bool]$fastReproofPlan.skipTextScan -or -not [bool]$fastReproofPlan.skipPointerScan) {
+        throw "Wrapper fast-reproof plan did not preserve bounded scan controls. maxHits=$($fastReproofPlan.maxHits), textPointerScanMode=$($fastReproofPlan.textPointerScanMode), skipTextScan=$($fastReproofPlan.skipTextScan), skipPointerScan=$($fastReproofPlan.skipPointerScan)."
     }
     if (-not [bool]$fastReproofPlan.captureScreenshot -or -not [bool]$fastReproofPlan.requireUsableScreenshot -or -not [bool]$fastReproofPlan.analyzerRequireVisualGate) {
         throw 'Wrapper fast-reproof plan did not preserve screenshot-gated proof semantics.'
@@ -322,7 +322,7 @@ try {
     if ((Test-Path -LiteralPath $fastReproofPlanOnlyOutputRoot) -or (Test-Path -LiteralPath ([string]$fastReproofPlan.runRoot))) {
         throw "Wrapper fast-reproof PlanOnly unexpectedly created artifacts. OutputRoot=$fastReproofPlanOnlyOutputRoot, RunRoot=$($fastReproofPlan.runRoot)."
     }
-    Add-Check -Name 'nameplate-wrapper-fast-reproof-plan' -Status 'passed' -Detail 'Wrapper exposes bounded scan controls for faster candidate reproof while preserving screenshot-gated PlanOnly semantics.' -Data ([ordered]@{ maxHits = $fastReproofPlan.maxHits; textPointerScanMode = $fastReproofPlan.textPointerScanMode; skipPointerScan = $fastReproofPlan.skipPointerScan })
+    Add-Check -Name 'nameplate-wrapper-fast-reproof-plan' -Status 'passed' -Detail 'Wrapper exposes bounded scan controls for faster candidate reproof while preserving screenshot-gated PlanOnly semantics.' -Data ([ordered]@{ maxHits = $fastReproofPlan.maxHits; textPointerScanMode = $fastReproofPlan.textPointerScanMode; skipTextScan = $fastReproofPlan.skipTextScan; skipPointerScan = $fastReproofPlan.skipPointerScan })
 
     $nonInteractiveOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-noninteractive-{0}' -f ([guid]::NewGuid().ToString('N')))
     $nonInteractiveOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $wrapperScript -CandidateAddress $CandidateAddress -NameplateText $NameplateText -OutputRoot $nonInteractiveOutputRoot -NonInteractive -Json 2>&1

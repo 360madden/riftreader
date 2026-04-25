@@ -192,8 +192,8 @@ the required `baseline1,zoom1,baseline2,zoom2` sequence so the operator can
 confirm each visible state before starting the real capture.
 
 For fast candidate reproof after a full pointer-scanned proof already exists,
-keep the same screenshot/sequence gates but skip the expensive text pointer
-scans:
+keep the same screenshot/sequence gates but skip the expensive process-wide
+text and pointer scans:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\run-nameplate-projection-proof.ps1" `
@@ -201,6 +201,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\script
   -NameplateText "Atank of Sanctum" `
   -MaxHits 4 `
   -TextPointerScanMode none `
+  -SkipTextScan `
   -SkipPointerScan `
   -Json
 ```
@@ -460,7 +461,7 @@ It checks:
   preservation, default scan controls, operator checklist, and no-artifact
   behavior
 - bounded fast-reproof wrapper PlanOnly mode with `-MaxHits 4`,
-  `-TextPointerScanMode none`, and `-SkipPointerScan`
+  `-TextPointerScanMode none`, `-SkipTextScan`, and `-SkipPointerScan`
 - `run-nameplate-projection-proof.cmd -PlanOnly -Json`, unless
   `-SkipCmdWrapperSmoke` is set, including key-argument preservation and
   default scan controls and no-artifact behavior
