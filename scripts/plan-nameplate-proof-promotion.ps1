@@ -104,6 +104,16 @@ function New-NextAction {
         [bool]$RequiresOperatorConfirmation = $false
     )
 
+    if (-not $PSBoundParameters.ContainsKey('AttachesToProcess') -and $null -ne $Command.PSObject.Properties['attachesToProcess']) {
+        $AttachesToProcess = [bool]$Command.attachesToProcess
+    }
+    if (-not $PSBoundParameters.ContainsKey('CreatesArtifacts') -and $null -ne $Command.PSObject.Properties['createsArtifacts']) {
+        $CreatesArtifacts = [bool]$Command.createsArtifacts
+    }
+    if (-not $PSBoundParameters.ContainsKey('RequiresOperatorConfirmation') -and $null -ne $Command.PSObject.Properties['requiresOperatorConfirmation']) {
+        $RequiresOperatorConfirmation = [bool]$Command.requiresOperatorConfirmation
+    }
+
     $safetyBlockers = [System.Collections.Generic.List[string]]::new()
     if ($AttachesToProcess) { $safetyBlockers.Add('attaches-to-process') | Out-Null }
     if ($CreatesArtifacts) { $safetyBlockers.Add('creates-artifacts') | Out-Null }

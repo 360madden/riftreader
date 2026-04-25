@@ -500,7 +500,8 @@ It checks:
 - `plan-nameplate-proof-promotion.ps1` against two generated gated proof roots
   to verify previous-as-baseline, newest-as-reproof ordering and latest-pair
   pipeline recommendations, including latest-pair command safety metadata and
-  safety-summary counts
+  safety-summary counts, plus inherited unsafe `nextAction` safety metadata
+  when one latest-pair run is still missing lead-neighborhood evidence
 - `invoke-nameplate-promotion-next-action.ps1` against a generated one-proof
   fixture to verify safe `nextAction` reporting and guarded execution of the
   plan-only next action, including top-level operator checklist surfacing
@@ -645,6 +646,7 @@ Result: `ok=true`.
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, `safeToRunNow=true` `nextAction`, and latest-pair pipeline recommendation. |
 | Promotion latest-pair command safety smoke | Passed by marking latest-pair pipeline plan safe and artifact-writing run unsafe without attach when lead-neighborhood evidence already exists. |
 | Promotion latest-pair safety summary smoke | Passed by summarizing latest-pair recommended command safety with artifact-writing runs unsafe and no attach required when neighborhoods already exist. |
+| Promotion unsafe next-action safety smoke | Passed by inheriting unsafe recommended command safety onto missing-neighborhood `nextAction` metadata. |
 | Promotion command quoting smoke | Passed by preserving manifest-seeded nameplate text containing PowerShell metacharacters through generated `commandParts` execution. |
 | Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded `commandParts` execution of the plan-only next action, and top-level operator checklist surfacing. |
 | Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts while preserving the normalized no-execution result shape. |
@@ -655,5 +657,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `37/37`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `38/38`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

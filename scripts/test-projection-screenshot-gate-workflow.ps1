@@ -1084,6 +1084,27 @@ try {
         $unsafeReproofNeighborhoodFile = Join-Path $unsafeLatestPairOutputRoot '20260424-020000-nameplate-baseline-zoom\lead-neighborhoods\nameplate-proof-lead-neighborhoods.json'
         Remove-Item -LiteralPath $unsafeReproofNeighborhoodFile -Force
 
+        $unsafePlannerOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $unsafeLatestPairOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
+        $unsafePlannerCode = $LASTEXITCODE
+        if ($unsafePlannerCode -ne 0) {
+            throw "Nameplate proof promotion planner missing-neighborhood fixture failed with exit code $unsafePlannerCode.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
+        $unsafePlanner = ($unsafePlannerOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        $unsafePlannerRecommendedNextAction = @($unsafePlanner.recommendedCommands | Where-Object { $_.name -eq $unsafePlanner.nextAction.name }) | Select-Object -First 1
+        if ($null -eq $unsafePlanner.nextAction -or [string]$unsafePlanner.nextAction.name -ne 'capture-reproof-lead-neighborhood' -or [bool]$unsafePlanner.nextAction.safeToRunNow -or -not [bool]$unsafePlanner.nextAction.attachesToProcess -or -not [bool]$unsafePlanner.nextAction.createsArtifacts) {
+            throw "Nameplate proof promotion planner did not expose missing reproof lead-neighborhood capture as an unsafe nextAction.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
+        if ($null -eq $unsafePlannerRecommendedNextAction -or [bool]$unsafePlannerRecommendedNextAction.safeToRunNow -or [bool]$unsafePlannerRecommendedNextAction.attachesToProcess -ne [bool]$unsafePlanner.nextAction.attachesToProcess -or [bool]$unsafePlannerRecommendedNextAction.createsArtifacts -ne [bool]$unsafePlanner.nextAction.createsArtifacts) {
+            throw "Nameplate proof promotion planner nextAction safety did not match its recommended command safety metadata.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
+        foreach ($expectedUnsafeNextActionBlocker in @('attaches-to-process', 'creates-artifacts')) {
+            if (-not @($unsafePlanner.nextAction.safetyBlockers | Where-Object { $_ -eq $expectedUnsafeNextActionBlocker })) {
+                throw "Nameplate proof promotion planner unsafe nextAction is missing expected safety blocker '$expectedUnsafeNextActionBlocker'.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+            }
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-unsafe-next-action-safety-smoke' -Status 'passed' -Detail 'Promotion planner inherits unsafe recommended command safety onto missing-neighborhood nextAction metadata.' -Data ([ordered]@{ nextAction = $unsafePlanner.nextAction.name; safeToRunNow = $unsafePlanner.nextAction.safeToRunNow; safetyBlockers = @($unsafePlanner.nextAction.safetyBlockers) })
+
         $unsafeNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $unsafeLatestPairOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
         $unsafeNextActionCode = $LASTEXITCODE
         if ($unsafeNextActionCode -eq 0) {
