@@ -111,6 +111,9 @@ function ConvertTo-RunSummary {
         hasLeadNeighborhood = [bool]$Run.hasLeadNeighborhood
         hasPromotionPacket = [bool]$Run.hasPromotionPacket
         promotionReady = if ($null -ne $Run.promotionReady) { [bool]$Run.promotionReady } else { $null }
+        hasLightweightReproofReport = if ($null -ne $Run.PSObject.Properties['hasLightweightReproofReport']) { [bool]$Run.hasLightweightReproofReport } else { $false }
+        lightweightPromotionReadiness = if ($null -ne $Run.PSObject.Properties['lightweightReproofReport'] -and $null -ne $Run.lightweightReproofReport.PSObject.Properties['promotionReadiness']) { [string]$Run.lightweightReproofReport.promotionReadiness } else { $null }
+        lightweightBlockers = if ($null -ne $Run.PSObject.Properties['lightweightReproofReport'] -and $null -ne $Run.lightweightReproofReport.PSObject.Properties['blockers']) { @($Run.lightweightReproofReport.blockers | ForEach-Object { [string]$_ }) } else { @() }
     }
 }
 
@@ -203,6 +206,7 @@ $baselineZoomRuns = @($runs | Where-Object { [string]$_.name -match 'nameplate-b
 $promotionReadyRuns = @($baselineZoomRuns | Where-Object { [bool]$_.promotionReady })
 $neighborhoodRuns = @($baselineZoomRuns | Where-Object { [bool]$_.hasLeadNeighborhood })
 $missingNeighborhoodRuns = @($baselineZoomRuns | Where-Object { -not [bool]$_.hasLeadNeighborhood })
+$lightweightDiagnosticRuns = @($baselineZoomRuns | Where-Object { [bool]$_.hasLightweightReproofReport })
 $proofSeedSourceRun = if ($baselineZoomRuns.Count -gt 0) { $baselineZoomRuns[0] } else { $null }
 $proofSeed = Get-RunProofSeed -Run $proofSeedSourceRun
 
@@ -317,6 +321,7 @@ $result = [pscustomobject][ordered]@{
         totalGatedNameplateRuns = @($runs).Count
         gatedBaselineZoomRuns = $baselineZoomRuns.Count
         baselineZoomRunsWithNeighborhood = $neighborhoodRuns.Count
+        baselineZoomRunsWithLightweightDiagnostic = $lightweightDiagnosticRuns.Count
         promotionReadyRuns = $promotionReadyRuns.Count
     }
     readyForPipeline = $readyForPipeline

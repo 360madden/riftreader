@@ -142,3 +142,15 @@ Latest report summary:
 | Blockers | `reproof-run-missing-lead-neighborhood`, `insufficient-repeated-candidate-offsets`, `insufficient-repeated-changing-byte-offsets` |
 
 This preserves the lightweight proof as useful negative evidence without weakening the promotion gate.
+
+## Inventory/planner surfacing
+
+The gated-run inventory and promotion planner now surface this report directly:
+
+| Planner field | Current value |
+|---|---|
+| `inventory.baselineZoomRunsWithLightweightDiagnostic` | `1` |
+| `selectedReproofRun.hasLightweightReproofReport` | `true` |
+| `selectedReproofRun.lightweightPromotionReadiness` | `blocked` |
+
+The planner still keeps the next action on lead-neighborhood capture because the diagnostic report is not promotion evidence.

@@ -1169,6 +1169,32 @@ try {
 
         Add-Check -Name 'nameplate-lightweight-reproof-report-smoke' -Status 'passed' -Detail 'Lightweight reproof report writes a diagnostic-only, no-attach artifact and keeps missing lead-neighborhood evidence as an explicit promotion blocker.' -Data ([ordered]@{ wroteReport = $lightweightReport.wroteReport; blocker = 'reproof-run-missing-lead-neighborhood'; repeatedCount = $lightweightReport.candidateOffsetCompare.repeatedCount; repeatedChanging = $lightweightReport.byteWindowCompare.counts.repeatedChanging })
 
+        $lightweightInventoryOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $unsafeLatestPairOutputRoot -RequireGated -Top 5 -Json 2>&1
+        $lightweightInventoryCode = $LASTEXITCODE
+        if ($lightweightInventoryCode -ne 0) {
+            throw "Nameplate proof run inventory failed for lightweight report fixture with exit code $lightweightInventoryCode.`n$($lightweightInventoryOutput -join [Environment]::NewLine)"
+        }
+        $lightweightInventory = ($lightweightInventoryOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        $lightweightInventoryReproof = @($lightweightInventory.runs | Where-Object { [string]$_.runRoot -eq $unsafeNewerLatestPairRunRoot }) | Select-Object -First 1
+        if ($null -eq $lightweightInventoryReproof -or -not [bool]$lightweightInventoryReproof.hasLightweightReproofReport -or [string]$lightweightInventoryReproof.lightweightReproofReport.promotionReadiness -ne 'blocked') {
+            throw "Nameplate proof run inventory did not expose lightweight reproof diagnostic status.`n$($lightweightInventoryOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($lightweightInventoryReproof.lightweightReproofReport.blockers | Where-Object { $_ -eq 'reproof-run-missing-lead-neighborhood' })) {
+            throw "Nameplate proof run inventory did not expose lightweight reproof blockers.`n$($lightweightInventoryOutput -join [Environment]::NewLine)"
+        }
+
+        $lightweightPlannerOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $unsafeLatestPairOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -SummaryOnly -Json 2>&1
+        $lightweightPlannerCode = $LASTEXITCODE
+        if ($lightweightPlannerCode -ne 0) {
+            throw "Nameplate proof promotion planner SummaryOnly failed for lightweight report fixture with exit code $lightweightPlannerCode.`n$($lightweightPlannerOutput -join [Environment]::NewLine)"
+        }
+        $lightweightPlanner = ($lightweightPlannerOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if ([int]$lightweightPlanner.inventory.baselineZoomRunsWithLightweightDiagnostic -ne 1 -or -not [bool]$lightweightPlanner.selectedReproofRun.hasLightweightReproofReport -or [string]$lightweightPlanner.selectedReproofRun.lightweightPromotionReadiness -ne 'blocked') {
+            throw "Nameplate promotion planner summary did not surface lightweight diagnostic report status.`n$($lightweightPlannerOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-lightweight-reproof-report-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory and planner summaries surface lightweight diagnostic report status without treating it as promotion readiness.' -Data ([ordered]@{ diagnosticRunCount = $lightweightPlanner.inventory.baselineZoomRunsWithLightweightDiagnostic; reproofPromotionReadiness = $lightweightPlanner.selectedReproofRun.lightweightPromotionReadiness; hasReport = $lightweightPlanner.selectedReproofRun.hasLightweightReproofReport })
+
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
         $proofRunListCode = $LASTEXITCODE

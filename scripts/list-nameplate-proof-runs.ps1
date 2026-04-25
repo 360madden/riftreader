@@ -72,6 +72,36 @@ function Get-OptionalJsonBool {
     return [bool]$property.Value
 }
 
+function Get-OptionalLightweightReproofReport {
+    param([Parameter(Mandatory = $true)][string]$RunRoot)
+
+    $reportPath = Join-Path $RunRoot 'diffs\nameplate-lightweight-reproof-report.json'
+    if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+        return [pscustomobject][ordered]@{
+            path = $reportPath
+            exists = $false
+            diagnosticOnly = $null
+            promotionReady = $null
+            promotionReadiness = $null
+            blockers = @()
+            candidateRepeatedCount = $null
+            repeatedChangingByteCount = $null
+        }
+    }
+
+    $report = Read-JsonFile -Path $reportPath
+    return [pscustomobject][ordered]@{
+        path = $reportPath
+        exists = $true
+        diagnosticOnly = if ($report.PSObject.Properties['diagnosticOnly']) { [bool]$report.diagnosticOnly } else { $null }
+        promotionReady = if ($report.PSObject.Properties['promotionReady']) { [bool]$report.promotionReady } else { $null }
+        promotionReadiness = if ($report.PSObject.Properties['promotionReadiness']) { [string]$report.promotionReadiness } else { $null }
+        blockers = if ($report.PSObject.Properties['blockers']) { @($report.blockers | ForEach-Object { [string]$_ }) } else { @() }
+        candidateRepeatedCount = if ($report.PSObject.Properties['candidateOffsetCompare'] -and $null -ne $report.candidateOffsetCompare.PSObject.Properties['repeatedCount']) { $report.candidateOffsetCompare.repeatedCount } else { $null }
+        repeatedChangingByteCount = if ($report.PSObject.Properties['byteWindowCompare'] -and $null -ne $report.byteWindowCompare.PSObject.Properties['counts'] -and $null -ne $report.byteWindowCompare.counts.PSObject.Properties['repeatedChanging']) { $report.byteWindowCompare.counts.repeatedChanging } else { $null }
+    }
+}
+
 function Get-OptionalManifest {
     param([Parameter(Mandatory = $true)][string]$RunRoot)
 
@@ -135,6 +165,7 @@ foreach ($directory in $directories) {
     $hasLeadNeighborhood = Test-Path -LiteralPath $leadNeighborhoodFile -PathType Leaf
     $hasPromotionPacket = Test-Path -LiteralPath $promotionPacketFile -PathType Leaf
     $promotionReady = Get-OptionalJsonBool -Path $promotionPacketFile -PropertyName 'promotionReady'
+    $lightweightReproofReport = Get-OptionalLightweightReproofReport -RunRoot $runRoot
 
     $run = [pscustomobject][ordered]@{
         name = $directory.Name
@@ -154,6 +185,9 @@ foreach ($directory in $directories) {
         hasPromotionPacket = $hasPromotionPacket
         promotionPacketFile = if ($hasPromotionPacket) { $promotionPacketFile } else { $null }
         promotionReady = $promotionReady
+        hasLightweightReproofReport = [bool]$lightweightReproofReport.exists
+        lightweightReproofReportFile = if ([bool]$lightweightReproofReport.exists) { [string]$lightweightReproofReport.path } else { $null }
+        lightweightReproofReport = $lightweightReproofReport
     }
 
     if ($RequireGated -and -not [bool]$run.gated.passed) {
