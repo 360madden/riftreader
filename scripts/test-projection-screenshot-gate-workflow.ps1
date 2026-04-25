@@ -40,6 +40,8 @@ $promotionNextActionScript = Join-Path $PSScriptRoot 'invoke-nameplate-promotion
 $promotionNextActionCmd = Join-Path $PSScriptRoot 'invoke-nameplate-promotion-next-action.cmd'
 $lightweightReproofReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.ps1'
 $lightweightReproofReportCmd = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.cmd'
+$artifactAuditReportScript = Join-Path $PSScriptRoot 'write-nameplate-artifact-audit-report.ps1'
+$artifactAuditReportCmd = Join-Path $PSScriptRoot 'write-nameplate-artifact-audit-report.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -62,9 +64,10 @@ $psScripts = @(
     'plan-nameplate-proof-promotion.ps1',
     'invoke-nameplate-promotion-next-action.ps1',
     'write-nameplate-lightweight-reproof-report.ps1',
+    'write-nameplate-artifact-audit-report.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 19
+$expectedProjectionPsScriptCount = 20
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -84,9 +87,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'plan-nameplate-proof-promotion.cmd'; Target = 'plan-nameplate-proof-promotion.ps1' },
     [pscustomobject]@{ Wrapper = 'invoke-nameplate-promotion-next-action.cmd'; Target = 'invoke-nameplate-promotion-next-action.ps1' },
     [pscustomobject]@{ Wrapper = 'write-nameplate-lightweight-reproof-report.cmd'; Target = 'write-nameplate-lightweight-reproof-report.ps1' },
+    [pscustomobject]@{ Wrapper = 'write-nameplate-artifact-audit-report.cmd'; Target = 'write-nameplate-artifact-audit-report.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 19
+$expectedProjectionCmdWrapperCount = 20
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -756,6 +760,32 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-promotion-next-action-ungated-inspection-smoke' -Status 'passed' -Detail 'Next-action helper executes safe ungated-run inspection and surfaces ok=false proof-gate details without treating inspection itself as failed.' -Data ([ordered]@{ nextAction = $ungatedNextAction.nextAction.name; commandExitCode = $ungatedNextAction.execution.exitCode; parsedOk = $ungatedNextAction.executionSummary.parsedOk; failedCheckNames = @($ungatedNextAction.executionSummary.failedCheckNames) })
+
+        $artifactAuditFile = Join-Path $ungatedPlannerOutputRoot 'audit\nameplate-artifact-audit.json'
+        $artifactAuditPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $artifactAuditReportScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -OutputFile $artifactAuditFile -PlanOnly -Json 2>&1
+        $artifactAuditPlanCode = $LASTEXITCODE
+        if ($artifactAuditPlanCode -ne 0) {
+            throw "Nameplate artifact audit PlanOnly failed with exit code $artifactAuditPlanCode.`n$($artifactAuditPlanOutput -join [Environment]::NewLine)"
+        }
+        $artifactAuditPlan = ($artifactAuditPlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$artifactAuditPlan.ok -or -not [bool]$artifactAuditPlan.planOnly -or [bool]$artifactAuditPlan.wroteReport -or [bool]$artifactAuditPlan.createsArtifacts -or [bool]$artifactAuditPlan.deletesArtifacts -or (Test-Path -LiteralPath $artifactAuditFile)) {
+            throw "Nameplate artifact audit PlanOnly did not preserve no-write/no-delete behavior.`n$($artifactAuditPlanOutput -join [Environment]::NewLine)"
+        }
+        if ([int]$artifactAuditPlan.counts.ungatedBaselineZoomRuns -ne 1 -or [string]$artifactAuditPlan.recommendation -ne 'replace-latest-ungated-run-with-new-gated-baseline-zoom-proof' -or -not (@($artifactAuditPlan.latestUngatedInspectionSummary.failedCheckNames) -contains 'screenshot-gate-file')) {
+            throw "Nameplate artifact audit did not summarize ungated proof state and replacement recommendation.`n$($artifactAuditPlanOutput -join [Environment]::NewLine)"
+        }
+
+        $artifactAuditWriteOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $artifactAuditReportScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -OutputFile $artifactAuditFile -Json 2>&1
+        $artifactAuditWriteCode = $LASTEXITCODE
+        if ($artifactAuditWriteCode -ne 0) {
+            throw "Nameplate artifact audit write failed with exit code $artifactAuditWriteCode.`n$($artifactAuditWriteOutput -join [Environment]::NewLine)"
+        }
+        $artifactAuditWrite = ($artifactAuditWriteOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$artifactAuditWrite.ok -or [bool]$artifactAuditWrite.planOnly -or -not [bool]$artifactAuditWrite.wroteReport -or -not [bool]$artifactAuditWrite.createsArtifacts -or [bool]$artifactAuditWrite.deletesArtifacts -or -not (Test-Path -LiteralPath $artifactAuditFile -PathType Leaf)) {
+            throw "Nameplate artifact audit write did not create the requested report without delete behavior.`n$($artifactAuditWriteOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-artifact-audit-report-smoke' -Status 'passed' -Detail 'Artifact audit reports current ungated baseline/zoom proof state without deleting artifacts and keeps PlanOnly no-write.' -Data ([ordered]@{ planOnlyWroteReport = $artifactAuditPlan.wroteReport; planOnlyCreatesArtifacts = $artifactAuditPlan.createsArtifacts; ungatedBaselineZoomRuns = $artifactAuditPlan.counts.ungatedBaselineZoomRuns; recommendation = $artifactAuditPlan.recommendation; failedCheckNames = @($artifactAuditPlan.latestUngatedInspectionSummary.failedCheckNames); wroteReport = $artifactAuditWrite.wroteReport })
     }
     finally {
         if (Test-Path -LiteralPath $ungatedPlannerOutputRoot) {

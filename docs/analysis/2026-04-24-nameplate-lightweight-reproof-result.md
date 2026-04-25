@@ -212,3 +212,7 @@ The next-action helper can also execute this safe inspection path. In summary mo
 The planner summary now carries the same current-failure view under `promotionBlockerSummary.latestUngatedInspectionSummary`, including `failedCheckCount` and `failedCheckNames`, so stale handoffs are not needed to identify which gate files are missing.
 
 For the current local tree, the latest ungated run is incomplete and should be inspected or replaced before using older promotion assumptions.
+
+## No-delete artifact audit report
+
+`write-nameplate-artifact-audit-report.ps1` provides a read-only artifact audit for the local nameplate proof tree. `-PlanOnly` reports the same counts, latest ungated inspection summary, and replacement recommendation without writing a report; normal mode writes a JSON audit report but still never deletes or modifies existing proof artifacts.
