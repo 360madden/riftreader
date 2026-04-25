@@ -1063,10 +1063,20 @@ try {
         if ([bool]$latestPairPipelineRunCommand.safeToRunNow -or [bool]$latestPairPipelineRunCommand.attachesToProcess -or -not [bool]$latestPairPipelineRunCommand.createsArtifacts -or @($latestPairPipelineRunCommand.safetyBlockers | Where-Object { $_ -eq 'creates-artifacts' }).Count -eq 0) {
             throw "Nameplate proof promotion planner did not mark the latest-pair pipeline run command as artifact-writing but no-attach when neighborhoods already exist.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
         }
+        if ([int]$latestPairPlanner.recommendedCommandSafety.total -ne @($latestPairPlanner.recommendedCommands).Count -or [int]$latestPairPlanner.recommendedCommandSafety.safeToRunNow -ne 3 -or [int]$latestPairPlanner.recommendedCommandSafety.unsafe -ne 2 -or [int]$latestPairPlanner.recommendedCommandSafety.attachesToProcess -ne 0 -or [int]$latestPairPlanner.recommendedCommandSafety.createsArtifacts -ne 2) {
+            throw "Nameplate proof promotion planner did not summarize recommended command safety for the latest-pair fixture.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+        }
+        foreach ($expectedUnsafeName in @('promotion-pipeline-latest-pair-run', 'promotion-pipeline-run')) {
+            if (-not @($latestPairPlanner.recommendedCommandSafety.unsafeNames | Where-Object { $_ -eq $expectedUnsafeName })) {
+                throw "Nameplate proof promotion planner latest-pair safety summary is missing unsafe command '$expectedUnsafeName'.`n$($latestPairPlannerOutput -join [Environment]::NewLine)"
+            }
+        }
 
         Add-Check -Name 'nameplate-proof-promotion-planner-latest-pair-smoke' -Status 'passed' -Detail 'Promotion planner selects previous gated baseline/zoom proof as baseline, newest as reproof, and recommends the latest-pair pipeline when two proofs exist.' -Data ([ordered]@{ readyForPromotionCompare = $latestPairPlanner.readyForPromotionCompare; selectedBaseline = $latestPairPlanner.selectedBaselineRun.name; selectedReproof = $latestPairPlanner.selectedReproofRun.name; nextAction = $latestPairPlanner.nextAction.name })
 
         Add-Check -Name 'nameplate-proof-promotion-latest-pair-command-safety-smoke' -Status 'passed' -Detail 'Promotion planner marks latest-pair pipeline plan safe and artifact-writing run unsafe without attach when lead-neighborhood evidence already exists.' -Data ([ordered]@{ planSafeToRunNow = $latestPairPipelinePlanCommand.safeToRunNow; runSafeToRunNow = $latestPairPipelineRunCommand.safeToRunNow; runAttachesToProcess = $latestPairPipelineRunCommand.attachesToProcess; runSafetyBlockers = @($latestPairPipelineRunCommand.safetyBlockers) })
+
+        Add-Check -Name 'nameplate-proof-promotion-latest-pair-safety-summary-smoke' -Status 'passed' -Detail 'Promotion planner summarizes latest-pair recommended command safety with artifact-writing runs unsafe and no attach required when neighborhoods already exist.' -Data ([ordered]@{ total = $latestPairPlanner.recommendedCommandSafety.total; safeToRunNow = $latestPairPlanner.recommendedCommandSafety.safeToRunNow; unsafe = $latestPairPlanner.recommendedCommandSafety.unsafe; attachesToProcess = $latestPairPlanner.recommendedCommandSafety.attachesToProcess; unsafeNames = @($latestPairPlanner.recommendedCommandSafety.unsafeNames) })
 
         $unsafeLatestPairOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-unsafe-latest-nameplate-pair-{0}' -f ([guid]::NewGuid().ToString('N')))
         New-Item -ItemType Directory -Path $unsafeLatestPairOutputRoot -Force | Out-Null
