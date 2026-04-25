@@ -501,6 +501,9 @@ It checks:
 - `invoke-nameplate-promotion-next-action.ps1` against a generated one-proof
   fixture to verify safe `nextAction` reporting and guarded execution of the
   plan-only next action
+- `invoke-nameplate-promotion-next-action.ps1 -Execute` against a generated
+  unsafe two-proof fixture to verify fail-closed refusal when the next action
+  would attach to the process and create artifacts
 
 Use `-SkipArtifactSmoke` when running on a machine without the local ignored
 smoke artifacts. The fail-closed negative smoke is generated under the system
@@ -630,6 +633,7 @@ Result: `ok=true`.
 | Promotion-readiness planner smoke | Passed with missing-evidence, `safeToRunNow=true` `nextAction`, empty `safetyBlockers`, and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, `safeToRunNow=true` `nextAction`, and latest-pair pipeline recommendation. |
 | Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction` and guarded execution of the plan-only next action. |
+| Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts. |
 
 The aggregate branch validator was also run:
 
@@ -637,5 +641,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `30/30`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `31/31`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

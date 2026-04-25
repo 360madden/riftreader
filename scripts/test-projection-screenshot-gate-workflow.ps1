@@ -684,6 +684,7 @@ try {
 
     $resultCheckRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
     $latestPairOutputRoot = $null
+    $unsafeLatestPairOutputRoot = $null
     New-Item -ItemType Directory -Path $resultCheckRoot -Force | Out-Null
     try {
         $resultRows = @()
@@ -1053,6 +1054,27 @@ try {
 
         Add-Check -Name 'nameplate-proof-promotion-planner-latest-pair-smoke' -Status 'passed' -Detail 'Promotion planner selects previous gated baseline/zoom proof as baseline, newest as reproof, and recommends the latest-pair pipeline when two proofs exist.' -Data ([ordered]@{ readyForPromotionCompare = $latestPairPlanner.readyForPromotionCompare; selectedBaseline = $latestPairPlanner.selectedBaselineRun.name; selectedReproof = $latestPairPlanner.selectedReproofRun.name; nextAction = $latestPairPlanner.nextAction.name })
 
+        $unsafeLatestPairOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-unsafe-latest-nameplate-pair-{0}' -f ([guid]::NewGuid().ToString('N')))
+        New-Item -ItemType Directory -Path $unsafeLatestPairOutputRoot -Force | Out-Null
+        Get-ChildItem -LiteralPath $latestPairOutputRoot | Copy-Item -Destination $unsafeLatestPairOutputRoot -Recurse -Force
+        $unsafeReproofNeighborhoodFile = Join-Path $unsafeLatestPairOutputRoot '20260424-020000-nameplate-baseline-zoom\lead-neighborhoods\nameplate-proof-lead-neighborhoods.json'
+        Remove-Item -LiteralPath $unsafeReproofNeighborhoodFile -Force
+
+        $unsafeNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $unsafeLatestPairOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
+        $unsafeNextActionCode = $LASTEXITCODE
+        if ($unsafeNextActionCode -eq 0) {
+            throw "Nameplate promotion next-action helper unexpectedly executed an unsafe nextAction.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
+        }
+        $unsafeNextAction = ($unsafeNextActionOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if ([bool]$unsafeNextAction.ok -or [bool]$unsafeNextAction.executed -or [string]$unsafeNextAction.blocker -ne 'next-action-not-safe-to-run-now') {
+            throw "Nameplate promotion next-action helper did not fail closed on an unsafe nextAction.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
+        }
+        if (-not @($unsafeNextAction.safetyBlockers | Where-Object { $_ -eq 'attaches-to-process' }) -or -not @($unsafeNextAction.safetyBlockers | Where-Object { $_ -eq 'creates-artifacts' })) {
+            throw "Nameplate promotion next-action helper did not report expected unsafe blockers for missing lead-neighborhood capture.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed })
+
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
         $proofRunListCode = $LASTEXITCODE
@@ -1146,6 +1168,9 @@ try {
         }
         if (-not [string]::IsNullOrWhiteSpace($latestPairOutputRoot) -and (Test-Path -LiteralPath $latestPairOutputRoot)) {
             Remove-Item -LiteralPath $latestPairOutputRoot -Recurse -Force
+        }
+        if (-not [string]::IsNullOrWhiteSpace($unsafeLatestPairOutputRoot) -and (Test-Path -LiteralPath $unsafeLatestPairOutputRoot)) {
+            Remove-Item -LiteralPath $unsafeLatestPairOutputRoot -Recurse -Force
         }
     }
 }
