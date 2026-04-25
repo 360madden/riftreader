@@ -103,20 +103,23 @@ if ($Execute) {
 
 $executionSummary = $null
 $operatorChecklist = $null
+$operatorChecklistOutput = @()
 if ($null -ne $execution -and $null -ne $execution.parsedJson) {
     $operatorChecklistValue = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'operatorChecklist'
     if ($null -ne $operatorChecklistValue) {
         $operatorChecklist = @($operatorChecklistValue)
+        $operatorChecklistOutput = @($operatorChecklist)
     }
 
     $notesValue = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'notes'
+    $notesOutput = if ($null -ne $notesValue) { @($notesValue) } else { @() }
     $executionSummary = [pscustomobject][ordered]@{
         mode = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'mode'
         runId = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'runId'
         runRoot = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'runRoot'
         controlsInput = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'controlsInput'
-        operatorChecklistCount = if ($null -ne $operatorChecklist) { @($operatorChecklist).Count } else { 0 }
-        notes = if ($null -ne $notesValue) { @($notesValue) } else { @() }
+        operatorChecklistCount = $operatorChecklistOutput.Count
+        notes = $notesOutput
     }
 }
 
@@ -128,7 +131,7 @@ $result = [pscustomobject][ordered]@{
     controlsInput = $false
     nextAction = $nextAction
     executionSummary = $executionSummary
-    operatorChecklist = if ($null -ne $operatorChecklist) { @($operatorChecklist) } else { @() }
+    operatorChecklist = $operatorChecklistOutput
     execution = $execution
     plan = $plan
 }

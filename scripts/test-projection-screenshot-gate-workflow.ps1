@@ -1133,6 +1133,9 @@ try {
         if (-not [bool]$nextActionPlan.ok -or [string]$nextActionPlan.mode -ne 'plan-only' -or [bool]$nextActionPlan.executed -or [string]$nextActionPlan.nextAction.name -ne 'run-second-baseline-zoom-proof-plan') {
             throw "Nameplate promotion next-action helper did not expose the safe planner nextAction without executing it.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $nextActionPlan.operatorChecklist -or @($nextActionPlan.operatorChecklist).Count -ne 0) {
+            throw "Nameplate promotion next-action helper plan-only response should expose an empty operatorChecklist array before execution.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
+        }
 
         $nextActionExecuteOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
         $nextActionExecuteCode = $LASTEXITCODE
