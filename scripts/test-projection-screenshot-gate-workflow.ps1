@@ -773,8 +773,11 @@ try {
         if ($null -eq $ungatedNextAction.executionSummary -or [bool]$ungatedNextAction.executionSummary.parsedOk -or [int]$ungatedNextAction.executionSummary.failedCheckCount -lt 1 -or -not (@($ungatedNextAction.executionSummary.failedCheckNames) -contains 'screenshot-gate-file')) {
             throw "Nameplate promotion next-action helper did not surface failed proof-gate details from safe ungated-run inspection.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $ungatedNextAction.actionRouting -or [string]$ungatedNextAction.actionRouting.preferredSafeCommandName -ne 'inspect-latest-ungated-baseline-zoom-run' -or $null -ne $ungatedNextAction.actionRouting.blockedReason) {
+            throw "Nameplate promotion next-action helper did not expose compact safe routing for ungated inspection.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-ungated-inspection-smoke' -Status 'passed' -Detail 'Next-action helper executes safe ungated-run inspection and surfaces ok=false proof-gate details without treating inspection itself as failed.' -Data ([ordered]@{ nextAction = $ungatedNextAction.nextAction.name; commandExitCode = $ungatedNextAction.execution.exitCode; parsedOk = $ungatedNextAction.executionSummary.parsedOk; failedCheckNames = @($ungatedNextAction.executionSummary.failedCheckNames) })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-ungated-inspection-smoke' -Status 'passed' -Detail 'Next-action helper executes safe ungated-run inspection and surfaces ok=false proof-gate details without treating inspection itself as failed.' -Data ([ordered]@{ nextAction = $ungatedNextAction.nextAction.name; commandExitCode = $ungatedNextAction.execution.exitCode; parsedOk = $ungatedNextAction.executionSummary.parsedOk; failedCheckNames = @($ungatedNextAction.executionSummary.failedCheckNames); preferredSafeCommandName = $ungatedNextAction.actionRouting.preferredSafeCommandName })
 
         $artifactAuditFile = Join-Path $ungatedPlannerOutputRoot 'audit\nameplate-artifact-audit.json'
         $artifactAuditPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $artifactAuditReportScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -OutputFile $artifactAuditFile -PlanOnly -Json 2>&1
@@ -1275,8 +1278,11 @@ try {
         if ($null -eq $unsafeNextAction.recommendedCommandGroups -or -not (@($unsafeNextAction.recommendedCommandGroups.attachesToProcess) -contains 'capture-reproof-lead-neighborhood') -or -not (@($unsafeNextAction.recommendedCommandGroups.unsafe) -contains 'capture-reproof-lead-neighborhood')) {
             throw "Nameplate promotion next-action helper unsafe response did not surface planner recommendedCommandGroups.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $unsafeNextAction.actionRouting -or [string]$unsafeNextAction.actionRouting.blockedReason -ne 'next-action-not-safe-to-run-now' -or [string]$unsafeNextAction.actionRouting.preferredSafeCommandName -ne 'plan-reproof-lead-neighborhood' -or -not [bool]$unsafeNextAction.actionRouting.preferredSafeCommand.safeToRunNow) {
+            throw "Nameplate promotion next-action helper unsafe response did not expose compact blocked routing to the preferred safe command.`n$($unsafeNextActionOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts while preserving the normalized result shape.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed; operatorChecklistCount = @($unsafeNextAction.operatorChecklist).Count; unsafeCommandNames = @($unsafeNextAction.recommendedCommandGroups.unsafe) })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts while preserving the normalized result shape.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed; operatorChecklistCount = @($unsafeNextAction.operatorChecklist).Count; unsafeCommandNames = @($unsafeNextAction.recommendedCommandGroups.unsafe); preferredSafeCommandName = $unsafeNextAction.actionRouting.preferredSafeCommandName })
 
         $lightweightReportFile = Join-Path $unsafeLatestPairOutputRoot '20260424-020000-nameplate-baseline-zoom\diffs\nameplate-lightweight-reproof-report.json'
         $lightweightReportPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $lightweightReproofReportScript -BaselineRunRoot $unsafeOlderLatestPairRunRoot -ReproofRunRoot $unsafeNewerLatestPairRunRoot -CandidateOffsets $firstCandidateOffset -ByteWindowLength 8 -OutputFile $lightweightReportFile -PlanOnly -Json 2>&1
@@ -1478,6 +1484,9 @@ try {
         if ($null -eq $nextActionPlan.recommendedCommandGroups -or -not (@($nextActionPlan.recommendedCommandGroups.safeNoWrite) -contains 'run-second-baseline-zoom-proof-plan') -or -not (@($nextActionPlan.recommendedCommandGroups.unsafe) -contains 'run-second-baseline-zoom-proof')) {
             throw "Nameplate promotion next-action helper plan-only response did not surface planner recommendedCommandGroups.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $nextActionPlan.actionRouting -or [string]$nextActionPlan.actionRouting.preferredSafeCommandName -ne 'run-second-baseline-zoom-proof-plan' -or $null -ne $nextActionPlan.actionRouting.blockedReason) {
+            throw "Nameplate promotion next-action helper plan-only response did not expose compact safe routing.`n$($nextActionPlanOutput -join [Environment]::NewLine)"
+        }
 
         $nextActionExecuteOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
         $nextActionExecuteCode = $LASTEXITCODE
@@ -1498,7 +1507,7 @@ try {
             throw "Nameplate promotion next-action helper safe execution unexpectedly created the plan-only run root: $($nextActionExecute.execution.parsedJson.runRoot)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction, executes only when safeToRunNow is true, and surfaces the plan-only operator checklist plus recommended command safety summary.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow; operatorChecklistCount = $nextActionExecute.executionSummary.operatorChecklistCount; unsafeRecommendedCommands = $nextActionPlan.recommendedCommandSafety.unsafe; safeNoWriteNames = @($nextActionPlan.recommendedCommandGroups.safeNoWrite) })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction, executes only when safeToRunNow is true, and surfaces the plan-only operator checklist plus recommended command safety summary.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow; operatorChecklistCount = $nextActionExecute.executionSummary.operatorChecklistCount; unsafeRecommendedCommands = $nextActionPlan.recommendedCommandSafety.unsafe; safeNoWriteNames = @($nextActionPlan.recommendedCommandGroups.safeNoWrite); preferredSafeCommandName = $nextActionPlan.actionRouting.preferredSafeCommandName })
 
         $nextActionSummaryOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -SummaryOnly -Json 2>&1
         $nextActionSummaryCode = $LASTEXITCODE
@@ -1506,14 +1515,14 @@ try {
             throw "Nameplate promotion next-action helper summary-only execution failed with exit code $nextActionSummaryCode.`n$($nextActionSummaryOutput -join [Environment]::NewLine)"
         }
         $nextActionSummary = ($nextActionSummaryOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
-        if (-not [bool]$nextActionSummary.ok -or -not [bool]$nextActionSummary.executed -or $null -eq $nextActionSummary.planSummary -or $null -eq $nextActionSummary.recommendedCommandSafety -or $null -eq $nextActionSummary.recommendedCommandGroups -or [int]$nextActionSummary.planSummary.recommendedCommandCount -ne @($nextActionPlan.plan.recommendedCommands).Count) {
+        if (-not [bool]$nextActionSummary.ok -or -not [bool]$nextActionSummary.executed -or $null -eq $nextActionSummary.planSummary -or $null -eq $nextActionSummary.recommendedCommandSafety -or $null -eq $nextActionSummary.recommendedCommandGroups -or $null -eq $nextActionSummary.actionRouting -or [int]$nextActionSummary.planSummary.recommendedCommandCount -ne @($nextActionPlan.plan.recommendedCommands).Count) {
             throw "Nameplate promotion next-action helper summary-only response did not include expected compact plan/safety fields.`n$($nextActionSummaryOutput -join [Environment]::NewLine)"
         }
         if ($null -ne $nextActionSummary.PSObject.Properties['plan'] -or $null -ne $nextActionSummary.execution.PSObject.Properties['output'] -or $null -ne $nextActionSummary.execution.PSObject.Properties['parsedJson']) {
             throw "Nameplate promotion next-action helper summary-only response included verbose plan or execution payload fields.`n$($nextActionSummaryOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-summary-only-smoke' -Status 'passed' -Detail 'Next-action helper SummaryOnly mode emits compact plan and safety fields without verbose plan or raw execution payloads.' -Data ([ordered]@{ nextAction = $nextActionSummary.nextAction.name; recommendedCommandCount = $nextActionSummary.planSummary.recommendedCommandCount; commandSource = $nextActionSummary.execution.commandSource; unsafeCommandNames = @($nextActionSummary.recommendedCommandGroups.unsafe) })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-summary-only-smoke' -Status 'passed' -Detail 'Next-action helper SummaryOnly mode emits compact plan and safety fields without verbose plan or raw execution payloads.' -Data ([ordered]@{ nextAction = $nextActionSummary.nextAction.name; recommendedCommandCount = $nextActionSummary.planSummary.recommendedCommandCount; commandSource = $nextActionSummary.execution.commandSource; unsafeCommandNames = @($nextActionSummary.recommendedCommandGroups.unsafe); preferredSafeCommandName = $nextActionSummary.actionRouting.preferredSafeCommandName })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

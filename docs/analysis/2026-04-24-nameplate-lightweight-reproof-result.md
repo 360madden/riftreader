@@ -224,3 +224,5 @@ The planner also includes `replace-latest-ungated-baseline-zoom-proof-plan` as a
 `recommendedCommandGroups` now groups planner commands by safety class (`safeNoWrite`, `artifactWriting`, `attachesToProcess`, `requiresOperatorConfirmation`, `unsafe`) so automation does not need to infer risk by scanning every individual command first.
 
 `invoke-nameplate-promotion-next-action.ps1` now passes those same command groups through normal and SummaryOnly responses, including unsafe-next-action refusal responses, so callers can use one compact safety map after planner execution.
+
+invoke-nameplate-promotion-next-action.ps1 now also emits compact ctionRouting metadata (lockedReason, preferredSafeCommandName, and compact preferred command safety) so automation can choose the safest next step without walking the full planner payload.

@@ -59,6 +59,7 @@ function ConvertTo-SummaryResult {
         executed = $Result.executed
         controlsInput = $Result.controlsInput
         nextAction = $Result.nextAction
+        actionRouting = $Result.actionRouting
         recommendedCommandSafety = $Result.recommendedCommandSafety
         recommendedCommandGroups = $Result.recommendedCommandGroups
         executionSummary = $Result.executionSummary
@@ -89,6 +90,77 @@ function ConvertTo-SummaryResult {
     return [pscustomobject]$summary
 }
 
+function ConvertTo-CompactRecommendedCommand {
+    param([object]$Command)
+
+    if ($null -eq $Command) { return $null }
+    return [pscustomobject][ordered]@{
+        name = [string](Get-ObjectPropertyValue -Object $Command -Name 'name')
+        safeToRunNow = [bool](Get-ObjectPropertyValue -Object $Command -Name 'safeToRunNow')
+        createsArtifacts = [bool](Get-ObjectPropertyValue -Object $Command -Name 'createsArtifacts')
+        attachesToProcess = [bool](Get-ObjectPropertyValue -Object $Command -Name 'attachesToProcess')
+        requiresOperatorConfirmation = [bool](Get-ObjectPropertyValue -Object $Command -Name 'requiresOperatorConfirmation')
+        safetyBlockers = @((Get-ObjectPropertyValue -Object $Command -Name 'safetyBlockers') | ForEach-Object { [string]$_ })
+    }
+}
+
+function Find-RecommendedCommandByName {
+    param(
+        [Parameter(Mandatory = $true)][object]$Plan,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $commandsValue = Get-ObjectPropertyValue -Object $Plan -Name 'recommendedCommands'
+    foreach ($command in @($commandsValue)) {
+        if ([string](Get-ObjectPropertyValue -Object $command -Name 'name') -eq $Name) {
+            return $command
+        }
+    }
+    return $null
+}
+
+function New-ActionRouting {
+    param(
+        [Parameter(Mandatory = $true)][object]$Plan,
+        [Parameter(Mandatory = $true)][object]$NextAction
+    )
+
+    $nextActionSafeToRunNow = [bool](Get-ObjectPropertyValue -Object $NextAction -Name 'safeToRunNow')
+    $nextActionSafetyBlockers = @((Get-ObjectPropertyValue -Object $NextAction -Name 'safetyBlockers') | ForEach-Object { [string]$_ })
+    $preferredCommand = $null
+    $preferredReason = 'no-safe-no-write-command'
+
+    if ($nextActionSafeToRunNow) {
+        $preferredCommand = $NextAction
+        $preferredReason = 'next-action-is-safe'
+    }
+    else {
+        $groups = Get-ObjectPropertyValue -Object $Plan -Name 'recommendedCommandGroups'
+        $safeNoWriteNames = @((Get-ObjectPropertyValue -Object $groups -Name 'safeNoWrite') | ForEach-Object { [string]$_ })
+        $preferredSafeName = @($safeNoWriteNames | Where-Object { $_ -ne 'inventory' } | Select-Object -First 1)[0]
+        if ([string]::IsNullOrWhiteSpace($preferredSafeName)) {
+            $preferredSafeName = @($safeNoWriteNames | Select-Object -First 1)[0]
+        }
+        if (-not [string]::IsNullOrWhiteSpace($preferredSafeName)) {
+            $preferredCommand = Find-RecommendedCommandByName -Plan $Plan -Name $preferredSafeName
+            if ($null -ne $preferredCommand) {
+                $preferredReason = 'first-safe-no-write-recommended-command'
+            }
+        }
+    }
+
+    $preferredCompact = ConvertTo-CompactRecommendedCommand -Command $preferredCommand
+    return [pscustomobject][ordered]@{
+        nextActionName = [string](Get-ObjectPropertyValue -Object $NextAction -Name 'name')
+        nextActionSafeToRunNow = $nextActionSafeToRunNow
+        blockedReason = if ($nextActionSafeToRunNow) { $null } else { 'next-action-not-safe-to-run-now' }
+        safetyBlockers = $nextActionSafetyBlockers
+        preferredSafeCommandName = if ($null -ne $preferredCompact) { [string]$preferredCompact.name } else { $null }
+        preferredSafeCommandReason = $preferredReason
+        preferredSafeCommand = $preferredCompact
+    }
+}
+
 if ($InventoryTop -le 0) { throw 'InventoryTop must be greater than zero.' }
 if ($MinRepeatedRootCount -lt 0) { throw 'MinRepeatedRootCount cannot be negative.' }
 if ($MinRepeatedEdgeCount -lt 0) { throw 'MinRepeatedEdgeCount cannot be negative.' }
@@ -102,6 +174,7 @@ $nextAction = $plan.nextAction
 if ($null -eq $nextAction) {
     throw 'Planner did not return a nextAction.'
 }
+$actionRouting = New-ActionRouting -Plan $plan -NextAction $nextAction
 
 $execution = $null
 if ($Execute) {
@@ -113,6 +186,7 @@ if ($Execute) {
             executed = $false
             controlsInput = $false
             nextAction = $nextAction
+            actionRouting = $actionRouting
             recommendedCommandSafety = $plan.recommendedCommandSafety
             recommendedCommandGroups = $plan.recommendedCommandGroups
             executionSummary = $null
@@ -202,6 +276,7 @@ $result = [pscustomobject][ordered]@{
     executed = [bool]$Execute
     controlsInput = $false
     nextAction = $nextAction
+    actionRouting = $actionRouting
     recommendedCommandSafety = $plan.recommendedCommandSafety
     recommendedCommandGroups = $plan.recommendedCommandGroups
     executionSummary = $executionSummary
