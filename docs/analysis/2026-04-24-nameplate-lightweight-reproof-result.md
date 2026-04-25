@@ -110,3 +110,35 @@ So the practical choices are now:
 2. Add a separate promotion path for screenshot-gated candidate-window byte evidence, with explicit weaker-evidence labeling.
 
 Do not fake promotion readiness by manually selecting stale pointer-hit roots from the old baseline run.
+
+## Diagnostic report artifact
+
+Added a no-attach diagnostic report writer for lightweight reproofs:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\write-nameplate-lightweight-reproof-report.ps1" `
+  -BaselineRunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-143102-nameplate-baseline-zoom" `
+  -ReproofRunRoot "C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom" `
+  -CandidateOffsets "+0x21D,+0x225,+0x235,+0x23D,+0x24D" `
+  -MinCandidateRepeatCount 3 `
+  -ByteWindowLength 1024 `
+  -Json
+```
+
+The report is explicitly **diagnostic-only** and does not write or imply a promotion packet.
+The current generated report is ignored with the rest of live artifacts at:
+
+`C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom\diffs\nameplate-lightweight-reproof-report.json`
+
+Latest report summary:
+
+| Field | Value |
+|---|---|
+| `diagnosticOnly` | `true` |
+| `promotionReady` | `false` |
+| `promotionReadiness` | `blocked` |
+| Candidate repeat count | `0` |
+| Repeated changing byte offsets | `0` |
+| Blockers | `reproof-run-missing-lead-neighborhood`, `insufficient-repeated-candidate-offsets`, `insufficient-repeated-changing-byte-offsets` |
+
+This preserves the lightweight proof as useful negative evidence without weakening the promotion gate.

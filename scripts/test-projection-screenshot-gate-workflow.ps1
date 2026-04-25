@@ -38,6 +38,8 @@ $promotionPlanScript = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.p
 $promotionPlanCmd = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.cmd'
 $promotionNextActionScript = Join-Path $PSScriptRoot 'invoke-nameplate-promotion-next-action.ps1'
 $promotionNextActionCmd = Join-Path $PSScriptRoot 'invoke-nameplate-promotion-next-action.cmd'
+$lightweightReproofReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.ps1'
+$lightweightReproofReportCmd = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.cmd'
 $validatorCmd = Join-Path $PSScriptRoot 'test-projection-screenshot-gate-workflow.cmd'
 $cmdLauncher = Join-Path $PSScriptRoot '_run-pwsh.cmd'
 $analyzerScript = Join-Path $PSScriptRoot 'analyze-tooltip-hover-diff.ps1'
@@ -59,9 +61,10 @@ $psScripts = @(
     'list-nameplate-proof-runs.ps1',
     'plan-nameplate-proof-promotion.ps1',
     'invoke-nameplate-promotion-next-action.ps1',
+    'write-nameplate-lightweight-reproof-report.ps1',
     'test-projection-screenshot-gate-workflow.ps1'
 ) | ForEach-Object { Join-Path $PSScriptRoot $_ }
-$expectedProjectionPsScriptCount = 18
+$expectedProjectionPsScriptCount = 19
 $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'capture-rift-window-wgc.cmd'; Target = 'capture-rift-window-wgc.ps1' },
     [pscustomobject]@{ Wrapper = 'capture-rift-window-printwindow.cmd'; Target = 'capture-rift-window-printwindow.ps1' },
@@ -80,9 +83,10 @@ $cmdWrappers = @(
     [pscustomobject]@{ Wrapper = 'list-nameplate-proof-runs.cmd'; Target = 'list-nameplate-proof-runs.ps1' },
     [pscustomobject]@{ Wrapper = 'plan-nameplate-proof-promotion.cmd'; Target = 'plan-nameplate-proof-promotion.ps1' },
     [pscustomobject]@{ Wrapper = 'invoke-nameplate-promotion-next-action.cmd'; Target = 'invoke-nameplate-promotion-next-action.ps1' },
+    [pscustomobject]@{ Wrapper = 'write-nameplate-lightweight-reproof-report.cmd'; Target = 'write-nameplate-lightweight-reproof-report.ps1' },
     [pscustomobject]@{ Wrapper = 'test-projection-screenshot-gate-workflow.cmd'; Target = 'test-projection-screenshot-gate-workflow.ps1' }
 )
-$expectedProjectionCmdWrapperCount = 18
+$expectedProjectionCmdWrapperCount = 19
 
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check {
@@ -1002,6 +1006,8 @@ try {
             New-Item -ItemType Directory -Path (Join-Path $latestPairRunRoot 'lead-neighborhoods') -Force | Out-Null
             Copy-Item -LiteralPath (Join-Path $resultCheckRoot 'samples.ndjson') -Destination (Join-Path $latestPairRunRoot 'samples.ndjson') -Force
             Copy-Item -LiteralPath (Join-Path $resultCheckRoot 'diffs\screenshot-gate.json') -Destination (Join-Path $latestPairRunRoot 'diffs\screenshot-gate.json') -Force
+            Copy-Item -LiteralPath (Join-Path $resultCheckRoot 'diffs\field-candidates.json') -Destination (Join-Path $latestPairRunRoot 'diffs\field-candidates.json') -Force
+            Copy-Item -LiteralPath (Join-Path $resultCheckRoot 'diffs\scan-evidence.json') -Destination (Join-Path $latestPairRunRoot 'diffs\scan-evidence.json') -Force
             Copy-Item -LiteralPath $defaultLeadNeighborhoodFile -Destination (Join-Path $latestPairRunRoot 'lead-neighborhoods\nameplate-proof-lead-neighborhoods.json') -Force
             [pscustomobject][ordered]@{
                 mode = 'capture'
@@ -1081,6 +1087,8 @@ try {
         $unsafeLatestPairOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-unsafe-latest-nameplate-pair-{0}' -f ([guid]::NewGuid().ToString('N')))
         New-Item -ItemType Directory -Path $unsafeLatestPairOutputRoot -Force | Out-Null
         Get-ChildItem -LiteralPath $latestPairOutputRoot | Copy-Item -Destination $unsafeLatestPairOutputRoot -Recurse -Force
+        $unsafeOlderLatestPairRunRoot = Join-Path $unsafeLatestPairOutputRoot '20260424-010000-nameplate-baseline-zoom'
+        $unsafeNewerLatestPairRunRoot = Join-Path $unsafeLatestPairOutputRoot '20260424-020000-nameplate-baseline-zoom'
         $unsafeReproofNeighborhoodFile = Join-Path $unsafeLatestPairOutputRoot '20260424-020000-nameplate-baseline-zoom\lead-neighborhoods\nameplate-proof-lead-neighborhoods.json'
         Remove-Item -LiteralPath $unsafeReproofNeighborhoodFile -Force
 
@@ -1125,6 +1133,41 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-promotion-next-action-unsafe-smoke' -Status 'passed' -Detail 'Next-action helper refuses to execute an unsafe action that would attach and create artifacts while preserving the normalized result shape.' -Data ([ordered]@{ blocker = $unsafeNextAction.blocker; safetyBlockers = @($unsafeNextAction.safetyBlockers); executed = $unsafeNextAction.executed; operatorChecklistCount = @($unsafeNextAction.operatorChecklist).Count })
+
+        $lightweightReportFile = Join-Path $unsafeLatestPairOutputRoot '20260424-020000-nameplate-baseline-zoom\diffs\nameplate-lightweight-reproof-report.json'
+        $lightweightReportPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $lightweightReproofReportScript -BaselineRunRoot $unsafeOlderLatestPairRunRoot -ReproofRunRoot $unsafeNewerLatestPairRunRoot -CandidateOffsets $firstCandidateOffset -ByteWindowLength 8 -OutputFile $lightweightReportFile -PlanOnly -Json 2>&1
+        $lightweightReportPlanCode = $LASTEXITCODE
+        if ($lightweightReportPlanCode -ne 0) {
+            throw "Nameplate lightweight reproof report PlanOnly failed with exit code $lightweightReportPlanCode.`n$($lightweightReportPlanOutput -join [Environment]::NewLine)"
+        }
+        $lightweightReportPlan = ($lightweightReportPlanOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$lightweightReportPlan.ok -or -not [bool]$lightweightReportPlan.diagnosticOnly -or [bool]$lightweightReportPlan.promotionReady -or [bool]$lightweightReportPlan.wroteReport -or [bool]$lightweightReportPlan.createsArtifacts -or [bool]$lightweightReportPlan.attachesToProcess) {
+            throw "Nameplate lightweight reproof report PlanOnly did not preserve diagnostic/no-attach/no-write semantics.`n$($lightweightReportPlanOutput -join [Environment]::NewLine)"
+        }
+        if (Test-Path -LiteralPath $lightweightReportFile -PathType Leaf) {
+            throw "Nameplate lightweight reproof report PlanOnly unexpectedly wrote output: $lightweightReportFile"
+        }
+
+        $lightweightReportOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $lightweightReproofReportScript -BaselineRunRoot $unsafeOlderLatestPairRunRoot -ReproofRunRoot $unsafeNewerLatestPairRunRoot -CandidateOffsets $firstCandidateOffset -ByteWindowLength 8 -OutputFile $lightweightReportFile -Json 2>&1
+        $lightweightReportCode = $LASTEXITCODE
+        if ($lightweightReportCode -ne 0) {
+            throw "Nameplate lightweight reproof report write failed with exit code $lightweightReportCode.`n$($lightweightReportOutput -join [Environment]::NewLine)"
+        }
+        $lightweightReport = ($lightweightReportOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$lightweightReport.ok -or -not [bool]$lightweightReport.diagnosticOnly -or [bool]$lightweightReport.promotionReady -or -not [bool]$lightweightReport.wroteReport -or -not [bool]$lightweightReport.createsArtifacts -or [bool]$lightweightReport.attachesToProcess) {
+            throw "Nameplate lightweight reproof report did not preserve diagnostic/no-attach artifact semantics.`n$($lightweightReportOutput -join [Environment]::NewLine)"
+        }
+        if (-not (Test-Path -LiteralPath $lightweightReportFile -PathType Leaf)) {
+            throw "Nameplate lightweight reproof report did not write expected output: $lightweightReportFile"
+        }
+        if (-not @($lightweightReport.blockers | Where-Object { $_ -eq 'reproof-run-missing-lead-neighborhood' })) {
+            throw "Nameplate lightweight reproof report did not report missing reproof lead-neighborhood blocker.`n$($lightweightReportOutput -join [Environment]::NewLine)"
+        }
+        if ($null -eq $lightweightReport.candidateOffsetCompare -or [int]$lightweightReport.candidateOffsetCompare.repeatedCount -lt 1 -or $null -eq $lightweightReport.byteWindowCompare -or [int]$lightweightReport.byteWindowCompare.counts.repeatedChanging -lt 1) {
+            throw "Nameplate lightweight reproof report did not include candidate-offset and byte-window diagnostic summaries.`n$($lightweightReportOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-lightweight-reproof-report-smoke' -Status 'passed' -Detail 'Lightweight reproof report writes a diagnostic-only, no-attach artifact and keeps missing lead-neighborhood evidence as an explicit promotion blocker.' -Data ([ordered]@{ wroteReport = $lightweightReport.wroteReport; blocker = 'reproof-run-missing-lead-neighborhood'; repeatedCount = $lightweightReport.candidateOffsetCompare.repeatedCount; repeatedChanging = $lightweightReport.byteWindowCompare.counts.repeatedChanging })
 
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1
