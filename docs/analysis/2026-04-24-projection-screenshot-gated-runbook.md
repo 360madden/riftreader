@@ -404,6 +404,11 @@ To run only the planner's safe immediate action:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\invoke-nameplate-promotion-next-action.ps1" -Execute -Json
 ```
 
+Use `-SummaryOnly` with the same command when an operator or automation only
+needs the compact status surface. Summary mode preserves `nextAction`,
+`recommendedCommandSafety`, `executionSummary`, `operatorChecklist`, and a
+small `planSummary`, but omits the full planner payload and raw execution JSON.
+
 The helper refuses to execute when `nextAction.safeToRunNow=false`. In the
 current one-proof state the safe action is the plan-only second-proof command,
 so `-Execute` still performs no attach and creates no artifacts.
@@ -505,7 +510,8 @@ It checks:
 - `invoke-nameplate-promotion-next-action.ps1` against a generated one-proof
   fixture to verify safe `nextAction` reporting and guarded execution of the
   plan-only next action, including top-level operator checklist and
-  recommended-command safety summary surfacing
+  recommended-command safety summary surfacing, plus compact `-SummaryOnly`
+  output that omits verbose planner/execution payloads
 - `invoke-nameplate-promotion-next-action.ps1 -Execute` against a generated
   one-proof fixture whose manifest-seeded nameplate text contains PowerShell
   metacharacters, to verify command-string quoting and structured
@@ -650,6 +656,7 @@ Result: `ok=true`.
 | Promotion unsafe next-action safety smoke | Passed by inheriting unsafe recommended command safety onto missing-neighborhood `nextAction` metadata. |
 | Promotion command quoting smoke | Passed by preserving manifest-seeded nameplate text containing PowerShell metacharacters through generated `commandParts` execution. |
 | Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded `commandParts` execution of the plan-only next action, and top-level operator checklist plus recommended-command safety summary surfacing. |
+| Promotion next-action SummaryOnly smoke | Passed by emitting compact plan and safety fields without verbose planner or raw execution payloads. |
 | Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts while preserving the normalized no-execution result shape. |
 
 The aggregate branch validator was also run:
@@ -658,5 +665,5 @@ The aggregate branch validator was also run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-navigation-projection-offline.ps1" -Json
 ```
 
-Result: `ok=true`; projection workflow validator `38/38`, Reader tests `70/70`,
+Result: `ok=true`; projection workflow validator `39/39`, Reader tests `70/70`,
 and `git diff --check` exited `0` with CRLF normalization warnings only.

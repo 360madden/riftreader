@@ -5,6 +5,7 @@ param(
     [int]$MinRepeatedRootCount = 1,
     [int]$MinRepeatedEdgeCount = 0,
     [switch]$Execute,
+    [switch]$SummaryOnly,
     [switch]$Json
 )
 
@@ -48,6 +49,45 @@ function Invoke-Planner {
     }
 }
 
+function ConvertTo-SummaryResult {
+    param([Parameter(Mandatory = $true)][object]$Result)
+
+    $summary = [ordered]@{
+        mode = $Result.mode
+        ok = $Result.ok
+        outputRoot = $Result.outputRoot
+        executed = $Result.executed
+        controlsInput = $Result.controlsInput
+        nextAction = $Result.nextAction
+        recommendedCommandSafety = $Result.recommendedCommandSafety
+        executionSummary = $Result.executionSummary
+        operatorChecklist = @($Result.operatorChecklist)
+    }
+
+    if ($null -ne $Result.PSObject.Properties['blocker']) {
+        $summary.blocker = $Result.blocker
+    }
+    if ($null -ne $Result.PSObject.Properties['safetyBlockers']) {
+        $summary.safetyBlockers = @($Result.safetyBlockers)
+    }
+    if ($null -ne $Result.execution) {
+        $summary.execution = [pscustomobject][ordered]@{
+            commandSource = $Result.execution.commandSource
+            exitCode = $Result.execution.exitCode
+        }
+    }
+    if ($null -ne $Result.plan) {
+        $summary.planSummary = [pscustomobject][ordered]@{
+            readyForPipeline = $Result.plan.readyForPipeline
+            readyForPromotionCompare = $Result.plan.readyForPromotionCompare
+            missingEvidence = @($Result.plan.missingEvidence)
+            recommendedCommandCount = @($Result.plan.recommendedCommands).Count
+        }
+    }
+
+    return [pscustomobject]$summary
+}
+
 if ($InventoryTop -le 0) { throw 'InventoryTop must be greater than zero.' }
 if ($MinRepeatedRootCount -lt 0) { throw 'MinRepeatedRootCount cannot be negative.' }
 if ($MinRepeatedEdgeCount -lt 0) { throw 'MinRepeatedEdgeCount cannot be negative.' }
@@ -79,6 +119,9 @@ if ($Execute) {
             blocker = 'next-action-not-safe-to-run-now'
             safetyBlockers = @($nextAction.safetyBlockers)
             plan = $plan
+        }
+        if ($SummaryOnly) {
+            $result = ConvertTo-SummaryResult -Result $result
         }
         if ($Json) { $result | ConvertTo-Json -Depth 100 } else { $result }
         exit 1
@@ -153,6 +196,10 @@ $result = [pscustomobject][ordered]@{
     operatorChecklist = $operatorChecklistOutput
     execution = $execution
     plan = $plan
+}
+
+if ($SummaryOnly) {
+    $result = ConvertTo-SummaryResult -Result $result
 }
 
 if ($Json) {
