@@ -297,6 +297,8 @@ foreach ($captureTarget in @(
     [pscustomobject]@{ Name = 'capture-reproof-lead-neighborhood'; Run = $reproofRun }
 )) {
     if ($null -ne $captureTarget.Run -and -not [bool]$captureTarget.Run.hasLeadNeighborhood) {
+        $selectionPlanName = ([string]$captureTarget.Name) -replace '^capture-', 'plan-'
+        $recommendedCommands.Add((New-RecommendedCommand -Name $selectionPlanName -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $captureNeighborhoodScript, '-RunRoot', [string]$captureTarget.Run.runRoot, '-LeadKind', 'both', '-MinStateCount', '1', '-MaxLeads', '3', '-PlanOnly', '-AllowNoLeads', '-Json'))) | Out-Null
         $recommendedCommands.Add((New-RecommendedCommand -Name ([string]$captureTarget.Name) -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $captureNeighborhoodScript, '-RunRoot', [string]$captureTarget.Run.runRoot, '-Json') -AttachesToProcess $true -CreatesArtifacts $true)) | Out-Null
     }
 }

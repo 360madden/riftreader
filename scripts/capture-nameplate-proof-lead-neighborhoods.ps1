@@ -17,6 +17,7 @@ param(
     [string]$ProcessName = 'rift_x64',
     [string]$OutputFile,
     [switch]$AllowUngated,
+    [switch]$AllowNoLeads,
     [switch]$PlanOnly,
     [switch]$Json
 )
@@ -462,6 +463,47 @@ else {
 
 $selectedLeadArray = @($selectedLeads.ToArray())
 if ($selectedLeadArray.Count -eq 0) {
+    if ($AllowNoLeads) {
+        $noLeadDocument = [pscustomobject][ordered]@{
+            mode = if ($PlanOnly) { 'plan-only' } else { 'capture' }
+            ok = $true
+            controlsInput = $false
+            attachesToProcess = $false
+            createsArtifacts = $false
+            captureReady = $false
+            blocker = 'no-leads-matched'
+            generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+            runRoot = $resolvedRunRoot
+            outputFile = $resolvedOutputFile
+            leadSelection = [pscustomobject][ordered]@{
+                leadKind = $LeadKind
+                minStateCount = $MinStateCount
+                maxLeads = $MaxLeads
+                manualLeadAddresses = @($normalizedManualAddresses)
+                selectedLeadCount = 0
+                selectedLeads = @()
+                textLeadCount = if ($null -ne $leadResult.PSObject.Properties['textLeadCount']) { [int]$leadResult.textLeadCount } else { @($leadResult.textLeads).Count }
+                pointerHitLeadCount = if ($null -ne $leadResult.PSObject.Properties['pointerHitLeadCount']) { [int]$leadResult.pointerHitLeadCount } else { @($leadResult.pointerHitLeads).Count }
+            }
+            capturePlan = [pscustomobject][ordered]@{
+                processName = $ProcessName
+                readLength = $ReadLength
+                followPointerDepth = $FollowPointerDepth
+                maxPointersPerNode = $MaxPointersPerNode
+                maxNodes = $MaxNodes
+                rootCommands = @()
+            }
+        }
+
+        if ($Json) {
+            $noLeadDocument | ConvertTo-Json -Depth 80
+        }
+        else {
+            $noLeadDocument
+        }
+        exit 0
+    }
+
     throw "No nameplate proof leads matched LeadKind=$LeadKind, MinStateCount=$MinStateCount, MaxLeads=$MaxLeads. RunRoot=$resolvedRunRoot"
 }
 
@@ -490,6 +532,8 @@ $baseDocument = [pscustomobject][ordered]@{
     ok = $true
     controlsInput = $false
     attachesToProcess = -not [bool]$PlanOnly
+    createsArtifacts = -not [bool]$PlanOnly
+    captureReady = $true
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     runRoot = $resolvedRunRoot
     outputFile = $resolvedOutputFile

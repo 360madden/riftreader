@@ -177,3 +177,13 @@ The planner now emits `promotionBlockerSummary` so the current state is explicit
 | `promotionBlockerSummary.selectedReproofHasLightweightDiagnostic` | `true` |
 
 This keeps the diagnostic report visible while making clear it does not satisfy the lead-neighborhood promotion gate.
+
+## Safe lead-selection dry run
+
+The planner now recommends a safe pre-capture command for missing lead-neighborhood evidence:
+
+| Command | Current behavior |
+|---|---|
+| `plan-reproof-lead-neighborhood` | No attach, no artifacts, uses `-PlanOnly -AllowNoLeads` to report whether artifact leads exist before any capture attempt. |
+
+Current result for the selected reproof is `captureReady=false`, `blocker=no-leads-matched`, `selectedLeadCount=0`, confirming the lightweight run still has no lead source to capture from.

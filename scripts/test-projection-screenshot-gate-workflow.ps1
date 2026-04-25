@@ -1106,13 +1106,17 @@ try {
         if ($null -eq $unsafePlannerRecommendedNextAction -or [bool]$unsafePlannerRecommendedNextAction.safeToRunNow -or [bool]$unsafePlannerRecommendedNextAction.attachesToProcess -ne [bool]$unsafePlanner.nextAction.attachesToProcess -or [bool]$unsafePlannerRecommendedNextAction.createsArtifacts -ne [bool]$unsafePlanner.nextAction.createsArtifacts) {
             throw "Nameplate proof promotion planner nextAction safety did not match its recommended command safety metadata.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
         }
+        $unsafeReproofSelectionPlanCommand = @($unsafePlanner.recommendedCommands | Where-Object { $_.name -eq 'plan-reproof-lead-neighborhood' }) | Select-Object -First 1
+        if ($null -eq $unsafeReproofSelectionPlanCommand -or -not [bool]$unsafeReproofSelectionPlanCommand.safeToRunNow -or [bool]$unsafeReproofSelectionPlanCommand.attachesToProcess -or [bool]$unsafeReproofSelectionPlanCommand.createsArtifacts -or -not (@($unsafeReproofSelectionPlanCommand.commandParts) -contains '-AllowNoLeads')) {
+            throw "Nameplate proof promotion planner did not expose a safe no-attach reproof lead-selection plan before unsafe capture.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
         foreach ($expectedUnsafeNextActionBlocker in @('attaches-to-process', 'creates-artifacts')) {
             if (-not @($unsafePlanner.nextAction.safetyBlockers | Where-Object { $_ -eq $expectedUnsafeNextActionBlocker })) {
                 throw "Nameplate proof promotion planner unsafe nextAction is missing expected safety blocker '$expectedUnsafeNextActionBlocker'.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
             }
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-unsafe-next-action-safety-smoke' -Status 'passed' -Detail 'Promotion planner inherits unsafe recommended command safety onto missing-neighborhood nextAction metadata.' -Data ([ordered]@{ nextAction = $unsafePlanner.nextAction.name; safeToRunNow = $unsafePlanner.nextAction.safeToRunNow; safetyBlockers = @($unsafePlanner.nextAction.safetyBlockers) })
+        Add-Check -Name 'nameplate-proof-promotion-unsafe-next-action-safety-smoke' -Status 'passed' -Detail 'Promotion planner inherits unsafe recommended command safety onto missing-neighborhood nextAction metadata while also exposing a safe lead-selection plan.' -Data ([ordered]@{ nextAction = $unsafePlanner.nextAction.name; safeToRunNow = $unsafePlanner.nextAction.safeToRunNow; safetyBlockers = @($unsafePlanner.nextAction.safetyBlockers); safeSelectionPlan = $unsafeReproofSelectionPlanCommand.name })
 
         $unsafeLightweightReportPlanCommand = @($unsafePlanner.recommendedCommands | Where-Object { $_.name -eq 'lightweight-reproof-report-plan' }) | Select-Object -First 1
         $unsafeLightweightReportWriteCommand = @($unsafePlanner.recommendedCommands | Where-Object { $_.name -eq 'lightweight-reproof-report-write' }) | Select-Object -First 1
