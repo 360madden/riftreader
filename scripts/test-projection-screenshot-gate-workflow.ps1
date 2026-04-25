@@ -1125,8 +1125,18 @@ try {
         if ([string]$secondProofPlanCommand.command -notmatch '(?i)(^|\s)-PlanOnly(\s|$)' -or [string]$secondProofCommand.command -match '(?i)(^|\s)-PlanOnly(\s|$)') {
             throw "Nameplate proof promotion planner did not keep plan-only and live second proof commands distinct.`n$($promotionPlanOutput -join [Environment]::NewLine)"
         }
+        $secondProofPlanParts = @($secondProofPlanCommand.commandParts | ForEach-Object { [string]$_ })
+        $secondProofParts = @($secondProofCommand.commandParts | ForEach-Object { [string]$_ })
+        if ($secondProofPlanParts.Count -eq 0 -or $secondProofParts.Count -eq 0 -or -not ($secondProofPlanParts -contains $NameplateText) -or -not ($secondProofParts -contains $NameplateText)) {
+            throw "Nameplate proof promotion planner did not expose structured commandParts with manifest seed arguments.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
+        if (-not ($secondProofPlanParts -contains '-PlanOnly') -or ($secondProofParts -contains '-PlanOnly')) {
+            throw "Nameplate proof promotion planner did not keep structured plan-only and live commandParts distinct.`n$($promotionPlanOutput -join [Environment]::NewLine)"
+        }
 
         Add-Check -Name 'nameplate-proof-promotion-planner-smoke' -Status 'passed' -Detail 'Promotion planner summarizes proof readiness and emits manifest-seeded plan-only plus live next-step commands when a second gated proof is still missing.' -Data ([ordered]@{ readyForPipeline = $promotionPlan.readyForPipeline; missingEvidence = @($promotionPlan.missingEvidence); recommendedCommandCount = @($promotionPlan.recommendedCommands).Count; seededSecondProofCommand = $true; hasSecondProofPlanCommand = $true; nextAction = $promotionPlan.nextAction.name })
+
+        Add-Check -Name 'nameplate-proof-promotion-command-parts-smoke' -Status 'passed' -Detail 'Promotion planner emits structured commandParts alongside display command strings for safe execution.' -Data ([ordered]@{ planPartCount = $secondProofPlanParts.Count; livePartCount = $secondProofParts.Count; planOnlyPartPresent = ($secondProofPlanParts -contains '-PlanOnly') })
 
         $quotedSeedOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-quoted-nameplate-seed-{0}' -f ([guid]::NewGuid().ToString('N')))
         New-Item -ItemType Directory -Path $quotedSeedOutputRoot -Force | Out-Null
@@ -1143,11 +1153,12 @@ try {
             throw "Nameplate promotion next-action helper failed to execute a plan-only command seeded from quoted manifest text with exit code $quotedNextActionCode.`n$($quotedNextActionOutput -join [Environment]::NewLine)"
         }
         $quotedNextAction = ($quotedNextActionOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
-        if (-not [bool]$quotedNextAction.ok -or [string]$quotedNextAction.execution.parsedJson.tooltipText -ne $quotedNameplateText -or [int]$quotedNextAction.executionSummary.operatorChecklistCount -ne 4) {
+        $quotedExecutionParts = @($quotedNextAction.execution.commandParts | ForEach-Object { [string]$_ })
+        if (-not [bool]$quotedNextAction.ok -or [string]$quotedNextAction.execution.parsedJson.tooltipText -ne $quotedNameplateText -or [int]$quotedNextAction.executionSummary.operatorChecklistCount -ne 4 -or -not ($quotedExecutionParts -contains $quotedNameplateText)) {
             throw "Nameplate promotion next-action helper did not preserve quoted manifest text through the generated PowerShell command.`n$($quotedNextActionOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-command-quoting-smoke' -Status 'passed' -Detail 'Promotion planner command strings preserve manifest-seeded nameplate text containing PowerShell metacharacters.' -Data ([ordered]@{ nextAction = $quotedNextAction.nextAction.name; tooltipText = $quotedNextAction.execution.parsedJson.tooltipText; operatorChecklistCount = $quotedNextAction.executionSummary.operatorChecklistCount })
+        Add-Check -Name 'nameplate-proof-promotion-command-quoting-smoke' -Status 'passed' -Detail 'Promotion planner command strings and structured commandParts preserve manifest-seeded nameplate text containing PowerShell metacharacters.' -Data ([ordered]@{ nextAction = $quotedNextAction.nextAction.name; tooltipText = $quotedNextAction.execution.parsedJson.tooltipText; operatorChecklistCount = $quotedNextAction.executionSummary.operatorChecklistCount; commandPartCount = $quotedExecutionParts.Count })
 
         $nextActionPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
         $nextActionPlanCode = $LASTEXITCODE

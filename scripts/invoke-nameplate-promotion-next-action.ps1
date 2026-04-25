@@ -84,7 +84,16 @@ if ($Execute) {
     }
 
     $command = [string]$nextAction.command
-    $commandOutput = & ([scriptblock]::Create($command)) 2>&1
+    $commandPartsValue = Get-ObjectPropertyValue -Object $nextAction -Name 'commandParts'
+    $commandParts = if ($null -ne $commandPartsValue) { @($commandPartsValue) } else { @() }
+    if ($commandParts.Count -gt 0) {
+        $commandExecutable = [string]$commandParts[0]
+        $commandArguments = @($commandParts | Select-Object -Skip 1 | ForEach-Object { [string]$_ })
+        $commandOutput = & $commandExecutable @commandArguments 2>&1
+    }
+    else {
+        $commandOutput = & ([scriptblock]::Create($command)) 2>&1
+    }
     $commandExitCode = $LASTEXITCODE
     $commandText = $commandOutput -join [Environment]::NewLine
     $parsedJson = $null
@@ -99,6 +108,7 @@ if ($Execute) {
 
     $execution = [pscustomobject][ordered]@{
         command = $command
+        commandParts = @($commandParts)
         exitCode = $commandExitCode
         output = $commandText
         parsedJson = $parsedJson
