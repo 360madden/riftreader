@@ -154,3 +154,14 @@ The gated-run inventory and promotion planner now surface this report directly:
 | `selectedReproofRun.lightweightPromotionReadiness` | `blocked` |
 
 The planner still keeps the next action on lead-neighborhood capture because the diagnostic report is not promotion evidence.
+
+## Future missing-diagnostic planner command
+
+When the latest baseline/reproof pair is blocked for promotion and the selected reproof does **not** already have a lightweight diagnostic report, the planner now recommends two diagnostic report commands:
+
+| Command | Safety |
+|---|---|
+| `lightweight-reproof-report-plan` | safe, no attach, no artifacts |
+| `lightweight-reproof-report-write` | no attach, writes diagnostic artifact only |
+
+These commands are not shown for the current latest reproof because it already has `nameplate-lightweight-reproof-report.json`.

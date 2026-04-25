@@ -15,6 +15,7 @@ $inventoryScript = Join-Path $PSScriptRoot 'list-nameplate-proof-runs.ps1'
 $promotionPipelineScript = Join-Path $PSScriptRoot 'run-nameplate-proof-promotion-pipeline.ps1'
 $captureNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.ps1'
 $proofWrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
+$lightweightReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.ps1'
 
 function Invoke-Inventory {
     param(
@@ -193,7 +194,7 @@ if ($MinRepeatedRootCount -lt 0) {
 if ($MinRepeatedEdgeCount -lt 0) {
     throw 'MinRepeatedEdgeCount cannot be negative.'
 }
-foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captureNeighborhoodScript, $proofWrapperScript)) {
+foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captureNeighborhoodScript, $proofWrapperScript, $lightweightReportScript)) {
     if (-not (Test-Path -LiteralPath $requiredScript -PathType Leaf)) {
         throw "Required script not found: $requiredScript"
     }
@@ -261,6 +262,12 @@ if ($readyForPipeline) {
     $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-plan' -Parts $pipelineParts)) | Out-Null
 
     $recommendedCommands.Add((New-RecommendedCommand -Name 'promotion-pipeline-run' -Parts @($pipelineParts | Where-Object { $_ -ne '-PlanOnly' }) -AttachesToProcess (-not $readyForPromotionCompare) -CreatesArtifacts $true)) | Out-Null
+
+    if (-not $readyForPromotionCompare -and -not [bool]$reproofRun.hasLightweightReproofReport) {
+        $lightweightReportParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $lightweightReportScript, '-BaselineRunRoot', [string]$baselineRun.runRoot, '-ReproofRunRoot', [string]$reproofRun.runRoot, '-Json')
+        $recommendedCommands.Add((New-RecommendedCommand -Name 'lightweight-reproof-report-plan' -Parts @($lightweightReportParts + '-PlanOnly'))) | Out-Null
+        $recommendedCommands.Add((New-RecommendedCommand -Name 'lightweight-reproof-report-write' -Parts $lightweightReportParts -CreatesArtifacts $true)) | Out-Null
+    }
 }
 else {
     if ($null -ne $proofSeed) {

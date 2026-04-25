@@ -686,7 +686,8 @@ try {
         }
     }
 
-    $resultCheckRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
+    $resultCheckOutputRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-projection-result-check-output-{0}' -f ([guid]::NewGuid().ToString('N')))
+    $resultCheckRoot = Join-Path $resultCheckOutputRoot ('riftreader-projection-result-check-{0}-nameplate-baseline-zoom' -f ([guid]::NewGuid().ToString('N')))
     $latestPairOutputRoot = $null
     $unsafeLatestPairOutputRoot = $null
     $quotedSeedOutputRoot = $null
@@ -1113,6 +1114,20 @@ try {
 
         Add-Check -Name 'nameplate-proof-promotion-unsafe-next-action-safety-smoke' -Status 'passed' -Detail 'Promotion planner inherits unsafe recommended command safety onto missing-neighborhood nextAction metadata.' -Data ([ordered]@{ nextAction = $unsafePlanner.nextAction.name; safeToRunNow = $unsafePlanner.nextAction.safeToRunNow; safetyBlockers = @($unsafePlanner.nextAction.safetyBlockers) })
 
+        $unsafeLightweightReportPlanCommand = @($unsafePlanner.recommendedCommands | Where-Object { $_.name -eq 'lightweight-reproof-report-plan' }) | Select-Object -First 1
+        $unsafeLightweightReportWriteCommand = @($unsafePlanner.recommendedCommands | Where-Object { $_.name -eq 'lightweight-reproof-report-write' }) | Select-Object -First 1
+        if ($null -eq $unsafeLightweightReportPlanCommand -or $null -eq $unsafeLightweightReportWriteCommand) {
+            throw "Nameplate proof promotion planner did not recommend lightweight diagnostic report commands when the latest pair was blocked and no report existed.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
+        if (-not [bool]$unsafeLightweightReportPlanCommand.safeToRunNow -or [bool]$unsafeLightweightReportPlanCommand.attachesToProcess -or [bool]$unsafeLightweightReportPlanCommand.createsArtifacts -or -not (@($unsafeLightweightReportPlanCommand.commandParts) -contains '-PlanOnly')) {
+            throw "Nameplate proof promotion planner did not mark lightweight diagnostic report PlanOnly as safe/no-attach/no-artifact.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
+        if ([bool]$unsafeLightweightReportWriteCommand.safeToRunNow -or [bool]$unsafeLightweightReportWriteCommand.attachesToProcess -or -not [bool]$unsafeLightweightReportWriteCommand.createsArtifacts -or (@($unsafeLightweightReportWriteCommand.commandParts) -contains '-PlanOnly')) {
+            throw "Nameplate proof promotion planner did not mark lightweight diagnostic report write as artifact-writing but no-attach.`n$($unsafePlannerOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-lightweight-reproof-report-command-safety-smoke' -Status 'passed' -Detail 'Promotion planner recommends safe PlanOnly and artifact-writing no-attach diagnostic report commands for blocked latest-pair proofs without a report.' -Data ([ordered]@{ planSafeToRunNow = $unsafeLightweightReportPlanCommand.safeToRunNow; writeSafeToRunNow = $unsafeLightweightReportWriteCommand.safeToRunNow; writeAttachesToProcess = $unsafeLightweightReportWriteCommand.attachesToProcess; writeSafetyBlockers = @($unsafeLightweightReportWriteCommand.safetyBlockers) })
+
         $unsafeNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $unsafeLatestPairOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Execute -Json 2>&1
         $unsafeNextActionCode = $LASTEXITCODE
         if ($unsafeNextActionCode -eq 0) {
@@ -1381,6 +1396,9 @@ try {
     finally {
         if (Test-Path -LiteralPath $resultCheckRoot) {
             Remove-Item -LiteralPath $resultCheckRoot -Recurse -Force
+        }
+        if (-not [string]::IsNullOrWhiteSpace($resultCheckOutputRoot) -and (Test-Path -LiteralPath $resultCheckOutputRoot)) {
+            Remove-Item -LiteralPath $resultCheckOutputRoot -Recurse -Force
         }
         if (-not [string]::IsNullOrWhiteSpace($latestPairOutputRoot) -and (Test-Path -LiteralPath $latestPairOutputRoot)) {
             Remove-Item -LiteralPath $latestPairOutputRoot -Recurse -Force
