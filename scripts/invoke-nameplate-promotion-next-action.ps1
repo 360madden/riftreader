@@ -13,6 +13,18 @@ $ErrorActionPreference = 'Stop'
 
 $plannerScript = Join-Path $PSScriptRoot 'plan-nameplate-proof-promotion.ps1'
 
+function Get-ObjectPropertyValue {
+    param(
+        [object]$Object,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    if ($null -eq $Object) { return $null }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
 function Invoke-Planner {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
@@ -89,6 +101,25 @@ if ($Execute) {
     }
 }
 
+$executionSummary = $null
+$operatorChecklist = $null
+if ($null -ne $execution -and $null -ne $execution.parsedJson) {
+    $operatorChecklistValue = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'operatorChecklist'
+    if ($null -ne $operatorChecklistValue) {
+        $operatorChecklist = @($operatorChecklistValue)
+    }
+
+    $notesValue = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'notes'
+    $executionSummary = [pscustomobject][ordered]@{
+        mode = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'mode'
+        runId = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'runId'
+        runRoot = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'runRoot'
+        controlsInput = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'controlsInput'
+        operatorChecklistCount = if ($null -ne $operatorChecklist) { @($operatorChecklist).Count } else { 0 }
+        notes = if ($null -ne $notesValue) { @($notesValue) } else { @() }
+    }
+}
+
 $result = [pscustomobject][ordered]@{
     mode = if ($Execute) { 'execute' } else { 'plan-only' }
     ok = (-not $Execute -or ($null -ne $execution -and [int]$execution.exitCode -eq 0))
@@ -96,6 +127,8 @@ $result = [pscustomobject][ordered]@{
     executed = [bool]$Execute
     controlsInput = $false
     nextAction = $nextAction
+    executionSummary = $executionSummary
+    operatorChecklist = if ($null -ne $operatorChecklist) { @($operatorChecklist) } else { @() }
     execution = $execution
     plan = $plan
 }

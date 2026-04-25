@@ -1143,11 +1143,14 @@ try {
         if (-not [bool]$nextActionExecute.ok -or -not [bool]$nextActionExecute.executed -or [string]$nextActionExecute.execution.parsedJson.mode -ne 'plan-only') {
             throw "Nameplate promotion next-action helper did not execute the safe plan-only command as expected.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $nextActionExecute.executionSummary -or [string]$nextActionExecute.executionSummary.mode -ne 'plan-only' -or [int]$nextActionExecute.executionSummary.operatorChecklistCount -ne 4 -or @($nextActionExecute.operatorChecklist).Count -ne 4) {
+            throw "Nameplate promotion next-action helper did not surface the plan-only operator checklist summary.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
+        }
         if (Test-Path -LiteralPath ([string]$nextActionExecute.execution.parsedJson.runRoot)) {
             throw "Nameplate promotion next-action helper safe execution unexpectedly created the plan-only run root: $($nextActionExecute.execution.parsedJson.runRoot)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction and only executes it when safeToRunNow is true.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow })
+        Add-Check -Name 'nameplate-proof-promotion-next-action-smoke' -Status 'passed' -Detail 'Next-action helper reports the safe planner nextAction, executes only when safeToRunNow is true, and surfaces the plan-only operator checklist.' -Data ([ordered]@{ nextAction = $nextActionPlan.nextAction.name; executedMode = $nextActionExecute.execution.parsedJson.mode; safeToRunNow = $nextActionPlan.nextAction.safeToRunNow; operatorChecklistCount = $nextActionExecute.executionSummary.operatorChecklistCount })
 
         $latestOutputRoot = Split-Path -Parent $resultCheckRoot
         $latestCheckOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $resultCheckerScript -Latest -OutputRoot $latestOutputRoot -Json 2>&1

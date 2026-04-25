@@ -500,7 +500,7 @@ It checks:
   pipeline recommendations
 - `invoke-nameplate-promotion-next-action.ps1` against a generated one-proof
   fixture to verify safe `nextAction` reporting and guarded execution of the
-  plan-only next action
+  plan-only next action, including top-level operator checklist surfacing
 - `invoke-nameplate-promotion-next-action.ps1 -Execute` against a generated
   unsafe two-proof fixture to verify fail-closed refusal when the next action
   would attach to the process and create artifacts
@@ -632,7 +632,7 @@ Result: `ok=true`.
 | Proof-run inventory smoke | Passed with gated proof root, manifest seed fields, lead-neighborhood status, and promotion-packet status reporting. |
 | Promotion-readiness planner smoke | Passed with missing-evidence, `safeToRunNow=true` `nextAction`, empty `safetyBlockers`, and manifest-seeded plan-only plus live next-command reporting when only one gated baseline/zoom proof exists. |
 | Promotion-readiness planner latest-pair smoke | Passed with previous gated baseline/zoom proof selected as baseline, newest gated baseline/zoom proof selected as reproof, `safeToRunNow=true` `nextAction`, and latest-pair pipeline recommendation. |
-| Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction` and guarded execution of the plan-only next action. |
+| Promotion next-action helper smoke | Passed by reporting the safe planner `nextAction`, guarded execution of the plan-only next action, and top-level operator checklist surfacing. |
 | Promotion next-action unsafe smoke | Passed by refusing to execute an unsafe next action that would attach to the process and create artifacts. |
 
 The aggregate branch validator was also run:
