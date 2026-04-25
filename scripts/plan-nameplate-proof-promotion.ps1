@@ -166,6 +166,7 @@ function ConvertTo-PlanSummaryResult {
         readyForPipeline = $Result.readyForPipeline
         readyForPromotionCompare = $Result.readyForPromotionCompare
         missingEvidence = @($Result.missingEvidence)
+        promotionBlockerSummary = $Result.promotionBlockerSummary
         selectedBaselineRun = ConvertTo-RunSummary -Run $Result.selectedBaselineRun
         selectedReproofRun = ConvertTo-RunSummary -Run $Result.selectedReproofRun
         selectedProofSeed = $Result.selectedProofSeed
@@ -238,6 +239,54 @@ if ($null -ne $reproofRun -and -not [bool]$reproofRun.hasLeadNeighborhood) {
 }
 if ($promotionReadyRuns.Count -eq 0) {
     $missingEvidence.Add('no-promotion-ready-packet-yet') | Out-Null
+}
+
+$selectedReproofHasLightweightDiagnostic = ($null -ne $reproofRun -and $null -ne $reproofRun.PSObject.Properties['hasLightweightReproofReport'] -and [bool]$reproofRun.hasLightweightReproofReport)
+$selectedReproofDiagnostic = if ($selectedReproofHasLightweightDiagnostic -and $null -ne $reproofRun.PSObject.Properties['lightweightReproofReport']) { $reproofRun.lightweightReproofReport } else { $null }
+$selectedReproofDiagnosticBlockers = if ($null -ne $selectedReproofDiagnostic -and $null -ne $selectedReproofDiagnostic.PSObject.Properties['blockers']) { @($selectedReproofDiagnostic.blockers | ForEach-Object { [string]$_ }) } else { @() }
+$missingEvidenceSnapshot = @($missingEvidence.ToArray() | Select-Object -Unique)
+$promotionBlockerStatus = if ($readyForPromotionCompare) {
+    'ready-for-promotion-compare'
+}
+elseif ($readyForPipeline -and $selectedReproofHasLightweightDiagnostic -and @($missingEvidenceSnapshot | Where-Object { $_ -eq 'reproof-run-needs-lead-neighborhood-capture' }).Count -gt 0) {
+    'diagnostic-exists-but-reproof-lead-neighborhood-missing'
+}
+elseif ($readyForPipeline -and -not $selectedReproofHasLightweightDiagnostic) {
+    'latest-pair-needs-promotion-evidence'
+}
+elseif (-not $readyForPipeline) {
+    'needs-second-gated-baseline-zoom-proof'
+}
+else {
+    'blocked'
+}
+$promotionBlockerMessage = switch ($promotionBlockerStatus) {
+    'ready-for-promotion-compare' { 'Lead-neighborhood evidence exists for the selected baseline/reproof pair; run the promotion pipeline plan before writing a packet.' }
+    'diagnostic-exists-but-reproof-lead-neighborhood-missing' { 'A lightweight diagnostic report exists for the selected reproof, but promotion remains blocked because the reproof still has no lead-neighborhood evidence.' }
+    'latest-pair-needs-promotion-evidence' { 'Two gated baseline/zoom proofs exist, but promotion evidence is still incomplete; create a diagnostic report or capture missing lead-neighborhood evidence.' }
+    'needs-second-gated-baseline-zoom-proof' { 'A second gated baseline/zoom proof is still required before promotion comparison.' }
+    default { 'Promotion is blocked; inspect missingEvidence and recommendedCommands.' }
+}
+$nextRequiredEvidence = if (@($missingEvidenceSnapshot | Where-Object { $_ -eq 'reproof-run-needs-lead-neighborhood-capture' }).Count -gt 0) {
+    'reproof-lead-neighborhood'
+}
+elseif (@($missingEvidenceSnapshot | Where-Object { $_ -eq 'baseline-run-needs-lead-neighborhood-capture' }).Count -gt 0) {
+    'baseline-lead-neighborhood'
+}
+elseif (@($missingEvidenceSnapshot | Where-Object { $_ -eq 'need-second-gated-nameplate-baseline-zoom-proof' }).Count -gt 0) {
+    'second-gated-baseline-zoom-proof'
+}
+else {
+    $null
+}
+$promotionBlockerSummary = [pscustomobject][ordered]@{
+    status = $promotionBlockerStatus
+    message = $promotionBlockerMessage
+    nextRequiredEvidence = $nextRequiredEvidence
+    selectedReproofHasLightweightDiagnostic = $selectedReproofHasLightweightDiagnostic
+    selectedReproofLightweightPromotionReadiness = if ($null -ne $selectedReproofDiagnostic -and $null -ne $selectedReproofDiagnostic.PSObject.Properties['promotionReadiness']) { [string]$selectedReproofDiagnostic.promotionReadiness } else { $null }
+    selectedReproofLightweightBlockers = @($selectedReproofDiagnosticBlockers)
+    missingEvidence = @($missingEvidenceSnapshot)
 }
 
 $recommendedCommands = [System.Collections.Generic.List[object]]::new()
@@ -333,7 +382,8 @@ $result = [pscustomobject][ordered]@{
     }
     readyForPipeline = $readyForPipeline
     readyForPromotionCompare = $readyForPromotionCompare
-    missingEvidence = @($missingEvidence.ToArray() | Select-Object -Unique)
+    missingEvidence = @($missingEvidenceSnapshot)
+    promotionBlockerSummary = $promotionBlockerSummary
     selectedBaselineRun = $baselineRun
     selectedReproofRun = $reproofRun
     selectedProofSeed = $proofSeed

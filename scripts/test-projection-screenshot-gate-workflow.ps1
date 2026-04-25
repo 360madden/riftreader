@@ -1207,8 +1207,11 @@ try {
         if ([int]$lightweightPlanner.inventory.baselineZoomRunsWithLightweightDiagnostic -ne 1 -or -not [bool]$lightweightPlanner.selectedReproofRun.hasLightweightReproofReport -or [string]$lightweightPlanner.selectedReproofRun.lightweightPromotionReadiness -ne 'blocked') {
             throw "Nameplate promotion planner summary did not surface lightweight diagnostic report status.`n$($lightweightPlannerOutput -join [Environment]::NewLine)"
         }
+        if ($null -eq $lightweightPlanner.promotionBlockerSummary -or [string]$lightweightPlanner.promotionBlockerSummary.status -ne 'diagnostic-exists-but-reproof-lead-neighborhood-missing' -or [string]$lightweightPlanner.promotionBlockerSummary.nextRequiredEvidence -ne 'reproof-lead-neighborhood') {
+            throw "Nameplate promotion planner summary did not explain that the diagnostic report exists but promotion is still blocked by missing reproof lead-neighborhood evidence.`n$($lightweightPlannerOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-lightweight-reproof-report-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory and planner summaries surface lightweight diagnostic report status without treating it as promotion readiness.' -Data ([ordered]@{ diagnosticRunCount = $lightweightPlanner.inventory.baselineZoomRunsWithLightweightDiagnostic; reproofPromotionReadiness = $lightweightPlanner.selectedReproofRun.lightweightPromotionReadiness; hasReport = $lightweightPlanner.selectedReproofRun.hasLightweightReproofReport })
+        Add-Check -Name 'nameplate-lightweight-reproof-report-inventory-smoke' -Status 'passed' -Detail 'Proof-run inventory and planner summaries surface lightweight diagnostic report status without treating it as promotion readiness.' -Data ([ordered]@{ diagnosticRunCount = $lightweightPlanner.inventory.baselineZoomRunsWithLightweightDiagnostic; reproofPromotionReadiness = $lightweightPlanner.selectedReproofRun.lightweightPromotionReadiness; hasReport = $lightweightPlanner.selectedReproofRun.hasLightweightReproofReport; blockerStatus = $lightweightPlanner.promotionBlockerSummary.status })
 
         $proofRunListOutputRoot = Split-Path -Parent $resultCheckRoot
         $proofRunListOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $proofRunListScript -OutputRoot $proofRunListOutputRoot -RequireGated -Top 5 -Json 2>&1

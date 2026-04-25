@@ -165,3 +165,15 @@ When the latest baseline/reproof pair is blocked for promotion and the selected 
 | `lightweight-reproof-report-write` | no attach, writes diagnostic artifact only |
 
 These commands are not shown for the current latest reproof because it already has `nameplate-lightweight-reproof-report.json`.
+
+## Non-stale planner blocker summary
+
+The planner now emits `promotionBlockerSummary` so the current state is explicit without rereading historical notes:
+
+| Field | Current value |
+|---|---|
+| `promotionBlockerSummary.status` | `diagnostic-exists-but-reproof-lead-neighborhood-missing` |
+| `promotionBlockerSummary.nextRequiredEvidence` | `reproof-lead-neighborhood` |
+| `promotionBlockerSummary.selectedReproofHasLightweightDiagnostic` | `true` |
+
+This keeps the diagnostic report visible while making clear it does not satisfy the lead-neighborhood promotion gate.
