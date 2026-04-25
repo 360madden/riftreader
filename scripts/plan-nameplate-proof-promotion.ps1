@@ -16,6 +16,7 @@ $promotionPipelineScript = Join-Path $PSScriptRoot 'run-nameplate-proof-promotio
 $captureNeighborhoodScript = Join-Path $PSScriptRoot 'capture-nameplate-proof-lead-neighborhoods.ps1'
 $proofWrapperScript = Join-Path $PSScriptRoot 'run-nameplate-projection-proof.ps1'
 $lightweightReportScript = Join-Path $PSScriptRoot 'write-nameplate-lightweight-reproof-report.ps1'
+$resultCheckerScript = Join-Path $PSScriptRoot 'check-nameplate-projection-proof-result.ps1'
 
 function Invoke-Inventory {
     param(
@@ -206,7 +207,7 @@ if ($MinRepeatedRootCount -lt 0) {
 if ($MinRepeatedEdgeCount -lt 0) {
     throw 'MinRepeatedEdgeCount cannot be negative.'
 }
-foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captureNeighborhoodScript, $proofWrapperScript, $lightweightReportScript)) {
+foreach ($requiredScript in @($inventoryScript, $promotionPipelineScript, $captureNeighborhoodScript, $proofWrapperScript, $lightweightReportScript, $resultCheckerScript)) {
     if (-not (Test-Path -LiteralPath $requiredScript -PathType Leaf)) {
         throw "Required script not found: $requiredScript"
     }
@@ -318,6 +319,10 @@ $promotionBlockerSummary = [pscustomobject][ordered]@{
 $recommendedCommands = [System.Collections.Generic.List[object]]::new()
 $recommendedCommands.Add((New-RecommendedCommand -Name 'inventory' -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $inventoryScript, '-OutputRoot', $resolvedOutputRoot, '-RequireGated', '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json'))) | Out-Null
 
+if ($null -ne $latestUngatedBaselineZoomRun) {
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'inspect-latest-ungated-baseline-zoom-run' -Parts @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $resultCheckerScript, '-RunRoot', [string]$latestUngatedBaselineZoomRun.runRoot, '-Json'))) | Out-Null
+}
+
 foreach ($captureTarget in @(
     [pscustomobject]@{ Name = 'capture-baseline-lead-neighborhood'; Run = $baselineRun },
     [pscustomobject]@{ Name = 'capture-reproof-lead-neighborhood'; Run = $reproofRun }
@@ -382,7 +387,10 @@ $recommendedCommandSafety = [pscustomobject][ordered]@{
 }
 
 $nextAction = $null
-if (-not $readyForPipeline -and $commandsByName.ContainsKey('run-second-baseline-zoom-proof-plan')) {
+if ($promotionBlockerStatus -eq 'latest-nameplate-run-not-gated' -and $commandsByName.ContainsKey('inspect-latest-ungated-baseline-zoom-run')) {
+    $nextAction = New-NextAction -Command $commandsByName['inspect-latest-ungated-baseline-zoom-run'] -Reason 'Latest local nameplate baseline/zoom run is not gated; inspect its failed proof gates before rerunning or replacing artifacts.'
+}
+elseif (-not $readyForPipeline -and $commandsByName.ContainsKey('run-second-baseline-zoom-proof-plan')) {
     $nextAction = New-NextAction -Command $commandsByName['run-second-baseline-zoom-proof-plan'] -Reason 'Second gated baseline/zoom proof is missing; run the plan-only command first and inspect operatorChecklist before live capture.'
 }
 elseif ($commandsByName.ContainsKey('capture-baseline-lead-neighborhood')) {

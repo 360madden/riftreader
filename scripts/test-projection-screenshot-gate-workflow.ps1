@@ -713,8 +713,12 @@ try {
         if ($null -eq $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun -or [string]$ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name -ne '20260425-010000-nameplate-baseline-zoom') {
             throw "Nameplate promotion planner did not include latest ungated baseline/zoom run summary.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
+        $ungatedInspectCommand = @($ungatedPlanner.recommendedCommands | Where-Object { $_.name -eq 'inspect-latest-ungated-baseline-zoom-run' }) | Select-Object -First 1
+        if ($null -eq $ungatedInspectCommand -or -not [bool]$ungatedInspectCommand.safeToRunNow -or [bool]$ungatedInspectCommand.attachesToProcess -or [bool]$ungatedInspectCommand.createsArtifacts -or [string]$ungatedPlanner.nextAction.name -ne 'inspect-latest-ungated-baseline-zoom-run') {
+            throw "Nameplate promotion planner did not recommend safe ungated-run inspection as the next action.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name })
+        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; nextAction = $ungatedPlanner.nextAction.name })
     }
     finally {
         if (Test-Path -LiteralPath $ungatedPlannerOutputRoot) {

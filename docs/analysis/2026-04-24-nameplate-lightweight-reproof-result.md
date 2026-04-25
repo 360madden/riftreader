@@ -200,3 +200,9 @@ The planner now compares both all nameplate runs and gated-only nameplate runs. 
 | `inventory.ungatedBaselineZoomRuns` | baseline/zoom run folders that exist but are not promotion evidence |
 
 This prevents stale handoff assumptions from hiding the current local truth when ignored artifact folders differ between worktrees or branches.
+
+## Ungated-run inspection next action
+
+When the current local artifact tree contains an ungated `nameplate-baseline-zoom` run, the planner now recommends `inspect-latest-ungated-baseline-zoom-run` as the next action before any rerun. It invokes the proof result checker against the incomplete run and is marked safe because it does not attach to Rift and does not write artifacts.
+
+For the current local tree, the latest ungated run is incomplete and should be inspected or replaced before using older promotion assumptions.
