@@ -738,6 +738,21 @@ try {
         }
 
         Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed') })
+
+        $ungatedNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -Execute -SummaryOnly -Json 2>&1
+        $ungatedNextActionCode = $LASTEXITCODE
+        if ($ungatedNextActionCode -ne 0) {
+            throw "Nameplate promotion next-action helper failed to execute safe ungated-run inspection with exit code $ungatedNextActionCode.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
+        }
+        $ungatedNextAction = ($ungatedNextActionOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
+        if (-not [bool]$ungatedNextAction.ok -or -not [bool]$ungatedNextAction.executed -or [string]$ungatedNextAction.nextAction.name -ne 'inspect-latest-ungated-baseline-zoom-run' -or [int]$ungatedNextAction.execution.exitCode -ne 0) {
+            throw "Nameplate promotion next-action helper did not report successful safe execution for ungated-run inspection.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
+        }
+        if ($null -eq $ungatedNextAction.executionSummary -or [bool]$ungatedNextAction.executionSummary.parsedOk -or [int]$ungatedNextAction.executionSummary.failedCheckCount -lt 1 -or -not (@($ungatedNextAction.executionSummary.failedCheckNames) -contains 'screenshot-gate-file')) {
+            throw "Nameplate promotion next-action helper did not surface failed proof-gate details from safe ungated-run inspection.`n$($ungatedNextActionOutput -join [Environment]::NewLine)"
+        }
+
+        Add-Check -Name 'nameplate-proof-promotion-next-action-ungated-inspection-smoke' -Status 'passed' -Detail 'Next-action helper executes safe ungated-run inspection and surfaces ok=false proof-gate details without treating inspection itself as failed.' -Data ([ordered]@{ nextAction = $ungatedNextAction.nextAction.name; commandExitCode = $ungatedNextAction.execution.exitCode; parsedOk = $ungatedNextAction.executionSummary.parsedOk; failedCheckNames = @($ungatedNextAction.executionSummary.failedCheckNames) })
     }
     finally {
         if (Test-Path -LiteralPath $ungatedPlannerOutputRoot) {

@@ -207,4 +207,6 @@ When the current local artifact tree contains an ungated `nameplate-baseline-zoo
 
 `-AllowFailed` preserves the checker output contract (`ok=false` plus failed check details) while returning exit code `0` for explicit inspection workflows. The checker still fails closed by default when `-AllowFailed` is not supplied, so promotion gates remain strict.
 
+The next-action helper can also execute this safe inspection path. In summary mode, `executionSummary.parsedOk`, `executionSummary.failedCheckCount`, and `executionSummary.failedCheckNames` carry the proof-gate result, so automation can distinguish "inspection command ran successfully" from "the inspected proof is still blocked."
+
 For the current local tree, the latest ungated run is incomplete and should be inspected or replaced before using older promotion assumptions.

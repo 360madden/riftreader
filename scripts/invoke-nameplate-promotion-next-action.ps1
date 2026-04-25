@@ -174,11 +174,20 @@ if ($null -ne $execution -and $null -ne $execution.parsedJson) {
 
     $notesValue = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'notes'
     $notesOutput = if ($null -ne $notesValue) { @($notesValue) } else { @() }
+    $parsedOk = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'ok'
+    $checksValue = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'checks'
+    $failedChecks = @()
+    if ($null -ne $checksValue) {
+        $failedChecks = @($checksValue | Where-Object { [string](Get-ObjectPropertyValue -Object $_ -Name 'status') -ne 'passed' })
+    }
     $executionSummary = [pscustomobject][ordered]@{
         mode = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'mode'
         runId = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'runId'
         runRoot = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'runRoot'
         controlsInput = Get-ObjectPropertyValue -Object $execution.parsedJson -Name 'controlsInput'
+        parsedOk = $parsedOk
+        failedCheckCount = $failedChecks.Count
+        failedCheckNames = @($failedChecks | ForEach-Object { [string](Get-ObjectPropertyValue -Object $_ -Name 'name') })
         operatorChecklistCount = $operatorChecklistOutput.Count
         notes = $notesOutput
     }
