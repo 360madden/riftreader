@@ -86,7 +86,9 @@ if ($Execute) {
     $command = [string]$nextAction.command
     $commandPartsValue = Get-ObjectPropertyValue -Object $nextAction -Name 'commandParts'
     $commandParts = if ($null -ne $commandPartsValue) { @($commandPartsValue) } else { @() }
+    $commandSource = 'commandStringFallback'
     if ($commandParts.Count -gt 0) {
+        $commandSource = 'commandParts'
         $commandExecutable = [string]$commandParts[0]
         $commandArguments = @($commandParts | Select-Object -Skip 1 | ForEach-Object { [string]$_ })
         $commandOutput = & $commandExecutable @commandArguments 2>&1
@@ -109,6 +111,7 @@ if ($Execute) {
     $execution = [pscustomobject][ordered]@{
         command = $command
         commandParts = @($commandParts)
+        commandSource = $commandSource
         exitCode = $commandExitCode
         output = $commandText
         parsedJson = $parsedJson

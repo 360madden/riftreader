@@ -1154,11 +1154,11 @@ try {
         }
         $quotedNextAction = ($quotedNextActionOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
         $quotedExecutionParts = @($quotedNextAction.execution.commandParts | ForEach-Object { [string]$_ })
-        if (-not [bool]$quotedNextAction.ok -or [string]$quotedNextAction.execution.parsedJson.tooltipText -ne $quotedNameplateText -or [int]$quotedNextAction.executionSummary.operatorChecklistCount -ne 4 -or -not ($quotedExecutionParts -contains $quotedNameplateText)) {
+        if (-not [bool]$quotedNextAction.ok -or [string]$quotedNextAction.execution.commandSource -ne 'commandParts' -or [string]$quotedNextAction.execution.parsedJson.tooltipText -ne $quotedNameplateText -or [int]$quotedNextAction.executionSummary.operatorChecklistCount -ne 4 -or -not ($quotedExecutionParts -contains $quotedNameplateText)) {
             throw "Nameplate promotion next-action helper did not preserve quoted manifest text through the generated PowerShell command.`n$($quotedNextActionOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-command-quoting-smoke' -Status 'passed' -Detail 'Promotion planner command strings and structured commandParts preserve manifest-seeded nameplate text containing PowerShell metacharacters.' -Data ([ordered]@{ nextAction = $quotedNextAction.nextAction.name; tooltipText = $quotedNextAction.execution.parsedJson.tooltipText; operatorChecklistCount = $quotedNextAction.executionSummary.operatorChecklistCount; commandPartCount = $quotedExecutionParts.Count })
+        Add-Check -Name 'nameplate-proof-promotion-command-quoting-smoke' -Status 'passed' -Detail 'Promotion planner command strings and structured commandParts preserve manifest-seeded nameplate text containing PowerShell metacharacters.' -Data ([ordered]@{ nextAction = $quotedNextAction.nextAction.name; commandSource = $quotedNextAction.execution.commandSource; tooltipText = $quotedNextAction.execution.parsedJson.tooltipText; operatorChecklistCount = $quotedNextAction.executionSummary.operatorChecklistCount; commandPartCount = $quotedExecutionParts.Count })
 
         $nextActionPlanOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $proofRunListOutputRoot -InventoryTop 5 -MinRepeatedRootCount 1 -MinRepeatedEdgeCount 1 -Json 2>&1
         $nextActionPlanCode = $LASTEXITCODE
@@ -1181,6 +1181,9 @@ try {
         $nextActionExecute = ($nextActionExecuteOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100
         if (-not [bool]$nextActionExecute.ok -or -not [bool]$nextActionExecute.executed -or [string]$nextActionExecute.execution.parsedJson.mode -ne 'plan-only') {
             throw "Nameplate promotion next-action helper did not execute the safe plan-only command as expected.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
+        }
+        if ([string]$nextActionExecute.execution.commandSource -ne 'commandParts') {
+            throw "Nameplate promotion next-action helper did not execute the safe plan-only command from structured commandParts.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
         }
         if ($null -eq $nextActionExecute.executionSummary -or [string]$nextActionExecute.executionSummary.mode -ne 'plan-only' -or [int]$nextActionExecute.executionSummary.operatorChecklistCount -ne 4 -or @($nextActionExecute.operatorChecklist).Count -ne 4) {
             throw "Nameplate promotion next-action helper did not surface the plan-only operator checklist summary.`n$($nextActionExecuteOutput -join [Environment]::NewLine)"
