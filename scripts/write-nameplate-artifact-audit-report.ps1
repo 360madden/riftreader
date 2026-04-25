@@ -98,6 +98,47 @@ function ConvertTo-InspectionSummary {
     }
 }
 
+function ConvertTo-ArtifactClassification {
+    param(
+        [Parameter(Mandatory = $true)][object]$Run,
+        [object]$LatestUngatedRun
+    )
+
+    $isGated = ($Run.PSObject.Properties['gated'] -and [bool]$Run.gated.passed)
+    $isLatestUngated = ($null -ne $LatestUngatedRun -and [string]$Run.runRoot -eq [string]$LatestUngatedRun.runRoot)
+    $classification = $null
+    $recommendedAction = $null
+    $reason = $null
+
+    if ($isGated) {
+        $classification = 'keep'
+        $recommendedAction = 'keep-for-promotion-evidence'
+        $reason = 'Run passed screenshot gate and proof-result checks.'
+    }
+    elseif ($isLatestUngated) {
+        $classification = 'replace'
+        $recommendedAction = 'replace-with-new-gated-baseline-zoom-proof'
+        $reason = 'Latest baseline/zoom run is ungated or incomplete and must not be promoted as-is.'
+    }
+    else {
+        $classification = 'inspect'
+        $recommendedAction = 'inspect-before-any-cleanup-or-archive'
+        $reason = 'Older ungated baseline/zoom run is not promotion-ready; preserve until explicitly reviewed.'
+    }
+
+    return [pscustomobject][ordered]@{
+        name = [string]$Run.name
+        runRoot = [string]$Run.runRoot
+        classification = $classification
+        recommendedAction = $recommendedAction
+        reason = $reason
+        gatedPassed = $isGated
+        latestUngated = $isLatestUngated
+        safeToDelete = $false
+        deletesArtifacts = $false
+    }
+}
+
 if ($Top -le 0) {
     throw 'Top must be greater than zero.'
 }
@@ -174,6 +215,7 @@ $report = [pscustomobject][ordered]@{
     }
     latestUngatedBaselineZoomRun = ConvertTo-RunAuditSummary -Run $latestUngated
     latestUngatedInspectionSummary = $latestUngatedInspectionSummary
+    artifactClassifications = @($allBaselineZoomRuns | ForEach-Object { ConvertTo-ArtifactClassification -Run $_ -LatestUngatedRun $latestUngated })
     recommendation = $recommendation
     notes = @(
         'Audit is read-only against existing proof artifacts.',

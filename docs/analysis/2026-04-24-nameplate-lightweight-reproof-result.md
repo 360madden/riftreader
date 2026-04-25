@@ -228,3 +228,5 @@ The planner also includes `replace-latest-ungated-baseline-zoom-proof-plan` as a
 invoke-nameplate-promotion-next-action.ps1 now also emits compact ctionRouting metadata (lockedReason, preferredSafeCommandName, and compact preferred command safety) so automation can choose the safest next step without walking the full planner payload.
 
 Added write-nameplate-replacement-readiness-checklist.ps1 as a safe no-write/no-attach readiness command for replacing the latest ungated baseline/zoom artifact. It reports the latest ungated run, failed gates, missing fresh candidate/text inputs, and a PlanOnly replacement command while keeping live replacement explicitly approval-gated.
+
+Artifact audit output now includes `artifactClassifications` for baseline/zoom runs. Gated runs are classified as `keep`, the latest ungated/incomplete run is classified as `replace`, older ungated runs are classified as `inspect`, and every classification remains no-delete (`safeToDelete=false`, `deletesArtifacts=false`).

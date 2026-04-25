@@ -800,6 +800,10 @@ try {
         if ([int]$artifactAuditPlan.counts.ungatedBaselineZoomRuns -ne 1 -or [string]$artifactAuditPlan.recommendation -ne 'replace-latest-ungated-run-with-new-gated-baseline-zoom-proof' -or -not (@($artifactAuditPlan.latestUngatedInspectionSummary.failedCheckNames) -contains 'screenshot-gate-file')) {
             throw "Nameplate artifact audit did not summarize ungated proof state and replacement recommendation.`n$($artifactAuditPlanOutput -join [Environment]::NewLine)"
         }
+        $artifactAuditReplacementClassification = @($artifactAuditPlan.artifactClassifications | Where-Object { $_.classification -eq 'replace' }) | Select-Object -First 1
+        if ($null -eq $artifactAuditReplacementClassification -or [string]$artifactAuditReplacementClassification.name -ne '20260425-010000-nameplate-baseline-zoom' -or [string]$artifactAuditReplacementClassification.recommendedAction -ne 'replace-with-new-gated-baseline-zoom-proof' -or [bool]$artifactAuditReplacementClassification.safeToDelete -or [bool]$artifactAuditReplacementClassification.deletesArtifacts) {
+            throw "Nameplate artifact audit did not classify the latest ungated run as replace/no-delete.`n$($artifactAuditPlanOutput -join [Environment]::NewLine)"
+        }
 
         $artifactAuditWriteOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $artifactAuditReportScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -OutputFile $artifactAuditFile -Json 2>&1
         $artifactAuditWriteCode = $LASTEXITCODE
@@ -811,7 +815,7 @@ try {
             throw "Nameplate artifact audit write did not create the requested report without delete behavior.`n$($artifactAuditWriteOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-artifact-audit-report-smoke' -Status 'passed' -Detail 'Artifact audit reports current ungated baseline/zoom proof state without deleting artifacts and keeps PlanOnly no-write.' -Data ([ordered]@{ planOnlyWroteReport = $artifactAuditPlan.wroteReport; planOnlyCreatesArtifacts = $artifactAuditPlan.createsArtifacts; ungatedBaselineZoomRuns = $artifactAuditPlan.counts.ungatedBaselineZoomRuns; recommendation = $artifactAuditPlan.recommendation; failedCheckNames = @($artifactAuditPlan.latestUngatedInspectionSummary.failedCheckNames); wroteReport = $artifactAuditWrite.wroteReport })
+        Add-Check -Name 'nameplate-artifact-audit-report-smoke' -Status 'passed' -Detail 'Artifact audit reports current ungated baseline/zoom proof state without deleting artifacts and keeps PlanOnly no-write.' -Data ([ordered]@{ planOnlyWroteReport = $artifactAuditPlan.wroteReport; planOnlyCreatesArtifacts = $artifactAuditPlan.createsArtifacts; ungatedBaselineZoomRuns = $artifactAuditPlan.counts.ungatedBaselineZoomRuns; recommendation = $artifactAuditPlan.recommendation; failedCheckNames = @($artifactAuditPlan.latestUngatedInspectionSummary.failedCheckNames); wroteReport = $artifactAuditWrite.wroteReport; replaceClassifications = @($artifactAuditPlan.artifactClassifications | Where-Object { $_.classification -eq 'replace' } | ForEach-Object { [string]$_.name }) })
 
         $replacementReadinessOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $replacementReadinessScript -OutputRoot $ungatedPlannerOutputRoot -Top 5 -Json 2>&1
         $replacementReadinessCode = $LASTEXITCODE
