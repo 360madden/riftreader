@@ -720,7 +720,7 @@ try {
             }
         ) | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 } | Set-Content -LiteralPath (Join-Path $ungatedRunRoot 'samples.ndjson') -Encoding UTF8
 
-        $ungatedPlannerOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -SummaryOnly -Json 2>&1
+        $ungatedPlannerOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionPlanScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -Json 2>&1
         $ungatedPlannerCode = $LASTEXITCODE
         if ($ungatedPlannerCode -ne 0) {
             throw "Nameplate proof promotion planner failed for ungated-only inventory with exit code $ungatedPlannerCode.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
@@ -747,12 +747,16 @@ try {
         if ($null -eq $ungatedArtifactAuditWriteCommand -or [bool]$ungatedArtifactAuditWriteCommand.safeToRunNow -or [bool]$ungatedArtifactAuditWriteCommand.attachesToProcess -or -not [bool]$ungatedArtifactAuditWriteCommand.createsArtifacts) {
             throw "Nameplate promotion planner did not expose artifact-audit write as artifact-writing/no-attach/unsafe.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
+        $ungatedReplacementPlanCommand = @($ungatedPlanner.recommendedCommands | Where-Object { $_.name -eq 'replace-latest-ungated-baseline-zoom-proof-plan' }) | Select-Object -First 1
+        if ($null -eq $ungatedReplacementPlanCommand -or -not [bool]$ungatedReplacementPlanCommand.safeToRunNow -or [bool]$ungatedReplacementPlanCommand.attachesToProcess -or [bool]$ungatedReplacementPlanCommand.createsArtifacts -or -not (@($ungatedReplacementPlanCommand.commandParts) -contains '-PlanOnly') -or -not (@($ungatedReplacementPlanCommand.commandParts) -contains '-OutputRoot')) {
+            throw "Nameplate promotion planner did not recommend safe PlanOnly replacement guidance for latest ungated baseline/zoom run.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
+        }
         $ungatedNextActionParts = @($ungatedPlanner.nextAction.commandParts | ForEach-Object { [string]$_ })
         if (-not ($ungatedNextActionParts -contains '-AllowFailed')) {
             throw "Nameplate promotion planner ungated inspection next-action command must include -AllowFailed so failed proof gates are machine-readable without making inspection itself fail.`n$($ungatedPlannerOutput -join [Environment]::NewLine)"
         }
 
-        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection and artifact audit instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; latestUngatedFailedChecks = @($ungatedPlanner.promotionBlockerSummary.latestUngatedInspectionSummary.failedCheckNames); nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed'); auditPlanSafeToRunNow = $ungatedArtifactAuditPlanCommand.safeToRunNow; auditWriteCreatesArtifacts = $ungatedArtifactAuditWriteCommand.createsArtifacts })
+        Add-Check -Name 'nameplate-proof-promotion-planner-ungated-inventory-smoke' -Status 'passed' -Detail 'Promotion planner surfaces ungated baseline/zoom run inventory and recommends safe inspection, artifact audit, and replacement-plan guidance instead of hiding it behind the gated-only promotion view.' -Data ([ordered]@{ status = $ungatedPlanner.promotionBlockerSummary.status; ungatedBaselineZoomRuns = $ungatedPlanner.inventory.ungatedBaselineZoomRuns; latestUngatedRun = $ungatedPlanner.promotionBlockerSummary.latestUngatedBaselineZoomRun.name; latestUngatedFailedChecks = @($ungatedPlanner.promotionBlockerSummary.latestUngatedInspectionSummary.failedCheckNames); nextAction = $ungatedPlanner.nextAction.name; inspectUsesAllowFailed = ($ungatedNextActionParts -contains '-AllowFailed'); auditPlanSafeToRunNow = $ungatedArtifactAuditPlanCommand.safeToRunNow; auditWriteCreatesArtifacts = $ungatedArtifactAuditWriteCommand.createsArtifacts; replacementPlanSafeToRunNow = $ungatedReplacementPlanCommand.safeToRunNow })
 
         $ungatedNextActionOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $promotionNextActionScript -OutputRoot $ungatedPlannerOutputRoot -InventoryTop 5 -Execute -SummaryOnly -Json 2>&1
         $ungatedNextActionCode = $LASTEXITCODE

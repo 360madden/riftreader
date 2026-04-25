@@ -218,3 +218,5 @@ For the current local tree, the latest ungated run is incomplete and should be i
 `write-nameplate-artifact-audit-report.ps1` provides a read-only artifact audit for the local nameplate proof tree. `-PlanOnly` reports the same counts, latest ungated inspection summary, and replacement recommendation without writing a report; normal mode writes a JSON audit report but still never deletes or modifies existing proof artifacts.
 
 When the planner sees a latest ungated baseline/zoom run, it now includes `artifact-audit-plan` as a safe recommendation and `artifact-audit-write` as an artifact-writing/no-attach recommendation. The next action remains `inspect-latest-ungated-baseline-zoom-run` so failed gates stay visible before any rerun.
+
+The planner also includes `replace-latest-ungated-baseline-zoom-proof-plan` as a safe PlanOnly template with placeholder candidate/nameplate values. It is explicit replacement guidance for incomplete ungated artifacts; the operator must fill in a freshly resolved candidate address and visible nameplate text before any live capture.

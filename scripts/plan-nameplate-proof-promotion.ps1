@@ -357,6 +357,13 @@ if ($null -ne $latestUngatedBaselineZoomRun) {
     $auditParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $artifactAuditScript, '-OutputRoot', $resolvedOutputRoot, '-Top', $InventoryTop.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-Json')
     $recommendedCommands.Add((New-RecommendedCommand -Name 'artifact-audit-plan' -Parts @($auditParts + '-PlanOnly'))) | Out-Null
     $recommendedCommands.Add((New-RecommendedCommand -Name 'artifact-audit-write' -Parts $auditParts -CreatesArtifacts $true)) | Out-Null
+    $replacementSeed = [pscustomobject][ordered]@{
+        sourceUngatedRunRoot = [string]$latestUngatedBaselineZoomRun.runRoot
+        sourceUngatedRunName = [string]$latestUngatedBaselineZoomRun.name
+        recommendation = 'Replace this ungated/incomplete run with a fresh screenshot-gated baseline/zoom proof; do not promote it as-is.'
+    }
+    $replacementPlanParts = @('pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $proofWrapperScript, '-CandidateAddress', '<fresh-candidate-address>', '-NameplateText', '<visible-nameplate-text>', '-OutputRoot', $resolvedOutputRoot, '-PlanOnly', '-Json')
+    $recommendedCommands.Add((New-RecommendedCommand -Name 'replace-latest-ungated-baseline-zoom-proof-plan' -Parts $replacementPlanParts -Seed $replacementSeed)) | Out-Null
 }
 
 foreach ($captureTarget in @(
