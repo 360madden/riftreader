@@ -1,0 +1,84 @@
+# 2026-04-24 Nameplate lightweight baseline/zoom reproof result
+
+## TL;DR
+
+A lightweight second `nameplate-baseline-zoom` proof completed and passed the screenshot/sequence gate, but it is **not promotion-ready**.
+
+The proof intentionally used `-SkipTextScan -SkipPointerScan` to avoid the process-heavy scans that stalled the default proof. That made the live capture fast enough, but it also means the run has no text/pointer leads for lead-neighborhood promotion.
+
+## Live run
+
+| Field | Value |
+|---|---|
+| Run root | `C:\RIFT MODDING\RiftReader\artifacts\tooltip-projection\20260424-234712-nameplate-baseline-zoom` |
+| Candidate | `0x12CFC40B7D0` |
+| Nameplate text | `Atank of Sanctum` |
+| Mode | Lightweight reproof |
+| Scan controls | `-MaxHits 4 -TextPointerScanMode none -SkipTextScan -SkipPointerScan` |
+| Operator states | `baseline1,zoom1,baseline2,zoom2` |
+
+## Validation evidence
+
+| Check | Result |
+|---|---|
+| `check-nameplate-projection-proof-result.ps1` | `ok=true` |
+| Visual gate | `passed` |
+| Usable screenshots | `4/4` |
+| Expected state sequence | `passed` |
+| Candidate count in new run | `3` |
+| Planner `readyForPipeline` | `true` |
+| Planner `readyForPromotionCompare` | `false` |
+| Missing evidence | `reproof-run-needs-lead-neighborhood-capture`, `no-promotion-ready-packet-yet` |
+
+## Important negative evidence
+
+The older candidate offset cluster did **not** repeat in the lightweight reproof:
+
+| Comparator | Result |
+|---|---|
+| Candidate offsets checked | `+0x21D,+0x225,+0x235,+0x23D,+0x24D` |
+| Required repeat count | `3` |
+| Repeated count | `0` |
+| Result | `ok=false` for promotion of that cluster |
+
+The byte-window comparator also found:
+
+| Metric | Value |
+|---|---:|
+| Compared offsets | `1024` |
+| Repeated changing offsets | `0` |
+| Baseline-only changes | `70` |
+| Reproof-only changes | `4` |
+| Changed in both but different | `37` |
+
+## Promotion status
+
+The latest-pair pipeline plan selected:
+
+| Role | Run |
+|---|---|
+| Baseline | `20260424-143102-nameplate-baseline-zoom` |
+| Reproof | `20260424-234712-nameplate-baseline-zoom` |
+
+The plan is blocked because the reproof has no lead-neighborhood file. Attempting default reproof lead-neighborhood capture failed with:
+
+```text
+No nameplate proof leads matched LeadKind=pointer-hit, MinStateCount=2, MaxLeads=3.
+```
+
+This is expected for the lightweight reproof because text/pointer scans were intentionally skipped.
+
+## Current conclusion
+
+The second proof is good as a **visual/sequence-gated lightweight reproof**, but it does not validate the previous promotion candidate cluster and does not provide the pointer/text lead evidence needed by the existing promotion packet path.
+
+Do not promote the old `+0x21D/+0x225/+0x235/+0x23D/+0x24D` cluster from this run.
+
+## Recommended next move
+
+Either:
+
+1. Capture a targeted, less-heavy text/pointer lead pass for the reproof run, or
+2. Add a separate promotion path for screenshot-gated candidate-window byte evidence, with explicit weaker-evidence labeling.
+
+Do not fake promotion readiness by manually selecting stale pointer-hit roots from the old baseline run.
