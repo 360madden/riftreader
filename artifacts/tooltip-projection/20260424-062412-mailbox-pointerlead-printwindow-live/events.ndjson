@@ -1,0 +1,14 @@
+{"timestampUtc":"2026-04-24T10:24:12.4377352Z","event":"run-started","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\manifest.json","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live"}
+{"timestampUtc":"2026-04-24T10:24:12.4499686Z","event":"state-started","state":"hidden","index":1}
+{"timestampUtc":"2026-04-24T10:31:05.8738587Z","event":"state-completed","index":1,"state":"hidden","numericScanCount":4,"textHitCount":3,"pointerScanCount":1,"hasTarget":false}
+{"timestampUtc":"2026-04-24T10:31:05.8797197Z","event":"state-started","state":"hover","index":2}
+{"timestampUtc":"2026-04-24T10:33:33.0629453Z","event":"state-completed","index":2,"state":"hover","numericScanCount":4,"textHitCount":2,"pointerScanCount":1,"hasTarget":false}
+{"timestampUtc":"2026-04-24T10:33:33.0667415Z","event":"state-started","state":"hidden2","index":3}
+{"timestampUtc":"2026-04-24T10:38:19.9278177Z","event":"state-completed","index":3,"state":"hidden2","numericScanCount":4,"textHitCount":3,"pointerScanCount":1,"hasTarget":false}
+{"timestampUtc":"2026-04-24T10:38:19.9344769Z","event":"state-started","state":"hover2","index":4}
+{"timestampUtc":"2026-04-24T10:42:09.5462603Z","event":"state-completed","index":4,"state":"hover2","numericScanCount":4,"textHitCount":3,"pointerScanCount":2,"hasTarget":false}
+{"timestampUtc":"2026-04-24T10:42:09.5528640Z","event":"state-started","state":"hidden3","index":5}
+{"timestampUtc":"2026-04-24T10:45:52.4176457Z","event":"state-completed","index":5,"state":"hidden3","numericScanCount":4,"textHitCount":3,"pointerScanCount":1,"hasTarget":false}
+{"timestampUtc":"2026-04-24T10:45:52.4249511Z","event":"state-started","state":"hover3","index":6}
+{"timestampUtc":"2026-04-24T10:48:54.5181540Z","event":"state-completed","index":6,"state":"hover3","numericScanCount":4,"textHitCount":3,"pointerScanCount":2,"hasTarget":false}
+{"timestampUtc":"2026-04-24T10:48:54.5362559Z","event":"run-completed","sampleCount":6,"summary":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\summary.json"}

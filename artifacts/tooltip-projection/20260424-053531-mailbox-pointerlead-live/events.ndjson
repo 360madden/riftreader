@@ -1,0 +1,4 @@
+{"timestampUtc":"2026-04-24T09:35:31.8342861Z","event":"run-started","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-053531-mailbox-pointerlead-live","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-053531-mailbox-pointerlead-live\\manifest.json"}
+{"timestampUtc":"2026-04-24T09:35:31.8483746Z","event":"state-started","index":1,"state":"hidden"}
+{"timestampUtc":"2026-04-24T09:38:22.1210186Z","event":"state-completed","state":"hidden","textHitCount":2,"index":1,"pointerScanCount":0,"hasTarget":false}
+{"timestampUtc":"2026-04-24T09:38:22.1308912Z","event":"state-started","index":2,"state":"hover"}

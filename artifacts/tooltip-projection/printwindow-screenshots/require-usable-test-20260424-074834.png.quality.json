@@ -1,0 +1,111 @@
+{
+  "ok": true,
+  "usable": false,
+  "screenshotPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\printwindow-screenshots\\require-usable-test-20260424-074834.png",
+  "processId": 63012,
+  "processName": "rift_x64",
+  "windowTitle": "RIFT",
+  "windowHandle": "0x1B10E00",
+  "isIconic": false,
+  "windowRect": {
+    "left": -3,
+    "top": 27,
+    "right": 1292,
+    "bottom": 1339,
+    "width": 1295,
+    "height": 1312
+  },
+  "method": "PrintWindow",
+  "selectedFlag": 2,
+  "quality": {
+    "width": 1295,
+    "height": 1312,
+    "sampleStep": 16,
+    "contentTop": 40,
+    "totalSamples": 6642,
+    "nonBlackSamples": 162,
+    "nonBlackRatio": 0.02439,
+    "averageBrightness": 5.903,
+    "brightnessStdDev": 37.351,
+    "contentSamples": 6399,
+    "contentNonBlackSamples": 0,
+    "contentNonBlackRatio": 0.0,
+    "contentAverageBrightness": 0.0,
+    "contentBrightnessStdDev": 0.0,
+    "minContentNonBlackRatio": 0.05,
+    "isLikelyBlack": true,
+    "isUsable": false
+  },
+  "attempts": [
+    {
+      "flag": 2,
+      "ok": true,
+      "quality": {
+        "width": 1295,
+        "height": 1312,
+        "sampleStep": 16,
+        "contentTop": 40,
+        "totalSamples": 6642,
+        "nonBlackSamples": 162,
+        "nonBlackRatio": 0.02439,
+        "averageBrightness": 5.903,
+        "brightnessStdDev": 37.351,
+        "contentSamples": 6399,
+        "contentNonBlackSamples": 0,
+        "contentNonBlackRatio": 0.0,
+        "contentAverageBrightness": 0.0,
+        "contentBrightnessStdDev": 0.0,
+        "minContentNonBlackRatio": 0.05,
+        "isLikelyBlack": true,
+        "isUsable": false
+      }
+    },
+    {
+      "flag": 0,
+      "ok": true,
+      "quality": {
+        "width": 1295,
+        "height": 1312,
+        "sampleStep": 16,
+        "contentTop": 40,
+        "totalSamples": 6642,
+        "nonBlackSamples": 161,
+        "nonBlackRatio": 0.02424,
+        "averageBrightness": 2.944,
+        "brightnessStdDev": 21.704,
+        "contentSamples": 6399,
+        "contentNonBlackSamples": 0,
+        "contentNonBlackRatio": 0.0,
+        "contentAverageBrightness": 0.0,
+        "contentBrightnessStdDev": 0.0,
+        "minContentNonBlackRatio": 0.05,
+        "isLikelyBlack": true,
+        "isUsable": false
+      }
+    },
+    {
+      "flag": 1,
+      "ok": true,
+      "quality": {
+        "width": 1295,
+        "height": 1312,
+        "sampleStep": 16,
+        "contentTop": 40,
+        "totalSamples": 6642,
+        "nonBlackSamples": 0,
+        "nonBlackRatio": 0.0,
+        "averageBrightness": 0.0,
+        "brightnessStdDev": 0.0,
+        "contentSamples": 6399,
+        "contentNonBlackSamples": 0,
+        "contentNonBlackRatio": 0.0,
+        "contentAverageBrightness": 0.0,
+        "contentBrightnessStdDev": 0.0,
+        "minContentNonBlackRatio": 0.05,
+        "isLikelyBlack": true,
+        "isUsable": false
+      }
+    }
+  ],
+  "controlsInput": false
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "state": "hidden",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\screenshots\\hidden.png",
+    "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-045445-798.png"
+  },
+  {
+    "state": "hover",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\screenshots\\hover.png",
+    "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-050159-512.png"
+  },
+  {
+    "state": "hidden2",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\screenshots\\hidden2.png",
+    "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-050604-811.png"
+  },
+  {
+    "state": "hover2",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\screenshots\\hover2.png",
+    "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-050858-596.png"
+  },
+  {
+    "state": "hidden3",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\screenshots\\hidden3.png",
+    "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-051115-049.png"
+  },
+  {
+    "state": "hover3",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\screenshots\\hover3.png",
+    "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-051334-475.png"
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "timestampUtc": "2026-04-24T09:53:27.0066996Z",
+  "status": "aborted",
+  "reason": "Live screenshot capture failed while preparing hover state; stopped before recording hover memory sample because visual tooltip state could not be confirmed.",
+  "completedStates": [
+    "hidden"
+  ],
+  "pendingState": "hover",
+  "safetyAction": "Moved cursor off mailbox and interrupted capture helper."
+}

@@ -1,0 +1,26 @@
+{
+  "generatedAtUtc": "2026-04-24T15:50:38.8202939+00:00",
+  "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke",
+  "samplesPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\samples.ndjson",
+  "sampleCount": 2,
+  "hiddenSampleCount": 1,
+  "hoverSampleCount": 1,
+  "baselineLabel": "baseline",
+  "activeLabel": "active",
+  "baselineStateRegex": "^baseline",
+  "activeStateRegex": "^active",
+  "requireVisualGate": true,
+  "baseCandidate": "0x12CFC40B7D0",
+  "windowStart": "0x12CFC40B7C8",
+  "windowLength": 16,
+  "knownTextPointers": [],
+  "hasTargetStates": [
+    false
+  ],
+  "scanEvidenceCount": 0,
+  "screenshotGateStatus": "passed",
+  "warnings": [],
+  "scanEvidence": [],
+  "classificationCounts": []
+}

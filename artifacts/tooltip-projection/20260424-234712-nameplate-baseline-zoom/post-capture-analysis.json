@@ -1,0 +1,221 @@
+{
+  "timestampUtc": "2026-04-25T03:49:20.6177290Z",
+  "exitCode": 0,
+  "command": [
+    "pwsh",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "C:\\RIFT MODDING\\RiftReader\\scripts\\analyze-tooltip-hover-diff.ps1",
+    "-InputDirectory",
+    "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+    "-BaselineStateRegex",
+    "^baseline",
+    "-ActiveStateRegex",
+    "^zoom",
+    "-BaselineLabel",
+    "baseline",
+    "-ActiveLabel",
+    "zoom",
+    "-Json",
+    "-RequireVisualGate",
+    "-ExpectedStates",
+    "baseline1,zoom1,baseline2,zoom2",
+    "-ExpectedStateRoles",
+    "baseline,active,baseline,active"
+  ],
+  "stdout": "{\r\n  \"inputDirectory\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\",\r\n  \"outputFiles\": {\r\n    \"hiddenVsHover\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\diffs\\\\hidden_vs_hover.json\",\r\n    \"stableHoverFields\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\diffs\\\\stable-hover-fields.json\",\r\n    \"fieldCandidates\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\diffs\\\\field-candidates.json\",\r\n    \"scanEvidence\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\diffs\\\\scan-evidence.json\",\r\n    \"screenshotGate\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\diffs\\\\screenshot-gate.json\",\r\n    \"summary\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\summary.json\"\r\n  },\r\n  \"sampleCount\": 4,\r\n  \"hiddenSampleCount\": 2,\r\n  \"hoverSampleCount\": 2,\r\n  \"baselineLabel\": \"baseline\",\r\n  \"activeLabel\": \"zoom\",\r\n  \"candidateCount\": 3,\r\n  \"topCandidates\": [\r\n    {\r\n      \"offset\": \"+0x205\",\r\n      \"offsetDecimal\": 517,\r\n      \"address\": \"0x12CFC40B7D5\",\r\n      \"type\": \"byte\",\r\n      \"subtype\": \"small-state-toggle\",\r\n      \"score\": 65.0,\r\n      \"classification\": \"visibility-flag-candidate\",\r\n      \"evidence\": [\r\n        \"hidden mode 0 differs from hover mode 1\",\r\n        \"small flag-like toggle 0 -> 1\"\r\n      ],\r\n      \"promotionStatus\": \"candidate-needs-live-reproof\",\r\n      \"hiddenMode\": \"0\",\r\n      \"hoverMode\": \"1\",\r\n      \"hiddenDistinct\": 2,\r\n      \"hoverDistinct\": 2,\r\n      \"allDistinct\": 3,\r\n      \"transitionPairs\": 3,\r\n      \"transitionChanges\": 2\r\n    },\r\n    {\r\n      \"offset\": \"+0x200\",\r\n      \"offsetDecimal\": 512,\r\n      \"address\": \"0x12CFC40B7D0\",\r\n      \"type\": \"pointer\",\r\n      \"subtype\": \"pointer-swaps-with-hover-state\",\r\n      \"score\": 55.0,\r\n      \"classification\": \"owner-pointer-candidate\",\r\n      \"evidence\": [\r\n        \"hidden mode 0x440020006F0054 differs from hover mode 0x12D193EB940\",\r\n        \"hover mode is pointer-like 0x12D193EB940\"\r\n      ],\r\n      \"promotionStatus\": \"weak-candidate\",\r\n      \"hiddenMode\": \"0x440020006F0054\",\r\n      \"hoverMode\": \"0x12D193EB940\",\r\n      \"hiddenDistinct\": 2,\r\n      \"hoverDistinct\": 2,\r\n      \"allDistinct\": 3,\r\n      \"transitionPairs\": 3,\r\n      \"transitionChanges\": 2\r\n    },\r\n    {\r\n      \"offset\": \"+0x208\",\r\n      \"offsetDecimal\": 520,\r\n      \"address\": \"0x12CFC40B7D8\",\r\n      \"type\": \"pointer\",\r\n      \"subtype\": \"pointer-swaps-with-hover-state\",\r\n      \"score\": 55.0,\r\n      \"classification\": \"owner-pointer-candidate\",\r\n      \"evidence\": [\r\n        \"hidden mode 0x650076006C0065 differs from hover mode 0x12CE49CC790\",\r\n        \"hover mode is pointer-like 0x12CE49CC790\"\r\n      ],\r\n      \"promotionStatus\": \"weak-candidate\",\r\n      \"hiddenMode\": \"0x650076006C0065\",\r\n      \"hoverMode\": \"0x12CE49CC790\",\r\n      \"hiddenDistinct\": 2,\r\n      \"hoverDistinct\": 2,\r\n      \"allDistinct\": 3,\r\n      \"transitionPairs\": 3,\r\n      \"transitionChanges\": 2\r\n    }\r\n  ],\r\n  \"scanEvidenceCount\": 0,\r\n  \"topScanEvidence\": [],\r\n  \"screenshotGate\": {\r\n    \"sampleCount\": 4,\r\n    \"captureRecordCount\": 4,\r\n    \"usableCount\": 4,\r\n    \"usableVisualCount\": 4,\r\n    \"unusableCount\": 0,\r\n    \"allSamplesHaveCapture\": true,\r\n    \"allSamplesHaveUsableCapture\": true,\r\n    \"allCapturesUsable\": true,\r\n    \"visualGateStatus\": \"passed\",\r\n    \"rows\": [\r\n      {\r\n        \"state\": \"hidden\",\r\n        \"originalState\": \"baseline1\",\r\n        \"stateRole\": \"baseline\",\r\n        \"isActiveState\": false,\r\n        \"captureRecord\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\baseline1\\\\screenshots\\\\baseline1.capture.json\",\r\n        \"captureRecordExists\": true,\r\n        \"screenshotOutput\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\baseline1\\\\screenshots\\\\baseline1.bmp\",\r\n        \"screenshotOutputExists\": true,\r\n        \"ok\": true,\r\n        \"usable\": true,\r\n        \"captureMethod\": \"DXGIDesktopDuplication\",\r\n        \"contentBlackRatio\": 0.001205078125,\r\n        \"contentLumaStdDev\": 98.46412567861422,\r\n        \"parseError\": null\r\n      },\r\n      {\r\n        \"state\": \"hover\",\r\n        \"originalState\": \"zoom1\",\r\n        \"stateRole\": \"active\",\r\n        \"isActiveState\": true,\r\n        \"captureRecord\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\zoom1\\\\screenshots\\\\zoom1.capture.json\",\r\n        \"captureRecordExists\": true,\r\n        \"screenshotOutput\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\zoom1\\\\screenshots\\\\zoom1.bmp\",\r\n        \"screenshotOutputExists\": true,\r\n        \"ok\": true,\r\n        \"usable\": true,\r\n        \"captureMethod\": \"DXGIDesktopDuplication\",\r\n        \"contentBlackRatio\": 0.0012045200892857142,\r\n        \"contentLumaStdDev\": 98.47740532597054,\r\n        \"parseError\": null\r\n      },\r\n      {\r\n        \"state\": \"hidden\",\r\n        \"originalState\": \"baseline2\",\r\n        \"stateRole\": \"baseline\",\r\n        \"isActiveState\": false,\r\n        \"captureRecord\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\baseline2\\\\screenshots\\\\baseline2.capture.json\",\r\n        \"captureRecordExists\": true,\r\n        \"screenshotOutput\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\baseline2\\\\screenshots\\\\baseline2.bmp\",\r\n        \"screenshotOutputExists\": true,\r\n        \"ok\": true,\r\n        \"usable\": true,\r\n        \"captureMethod\": \"DXGIDesktopDuplication\",\r\n        \"contentBlackRatio\": 0.0012042410714285714,\r\n        \"contentLumaStdDev\": 98.45805640716902,\r\n        \"parseError\": null\r\n      },\r\n      {\r\n        \"state\": \"hover\",\r\n        \"originalState\": \"zoom2\",\r\n        \"stateRole\": \"active\",\r\n        \"isActiveState\": true,\r\n        \"captureRecord\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\zoom2\\\\screenshots\\\\zoom2.capture.json\",\r\n        \"captureRecordExists\": true,\r\n        \"screenshotOutput\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-234712-nameplate-baseline-zoom\\\\states\\\\zoom2\\\\screenshots\\\\zoom2.bmp\",\r\n        \"screenshotOutputExists\": true,\r\n        \"ok\": true,\r\n        \"usable\": true,\r\n        \"captureMethod\": \"DXGIDesktopDuplication\",\r\n        \"contentBlackRatio\": 0.001203125,\r\n        \"contentLumaStdDev\": 98.44625400079255,\r\n        \"parseError\": null\r\n      }\r\n    ],\r\n    \"expectedStateSequence\": {\r\n      \"passed\": true,\r\n      \"expectedStates\": [\r\n        \"baseline1\",\r\n        \"zoom1\",\r\n        \"baseline2\",\r\n        \"zoom2\"\r\n      ],\r\n      \"actualStates\": [\r\n        \"baseline1\",\r\n        \"zoom1\",\r\n        \"baseline2\",\r\n        \"zoom2\"\r\n      ],\r\n      \"statesMatch\": true,\r\n      \"expectedStateRoles\": [\r\n        \"baseline\",\r\n        \"active\",\r\n        \"baseline\",\r\n        \"active\"\r\n      ],\r\n      \"actualStateRoles\": [\r\n        \"baseline\",\r\n        \"active\",\r\n        \"baseline\",\r\n        \"active\"\r\n      ],\r\n      \"stateRolesMatch\": true\r\n    }\r\n  },\r\n  \"warnings\": []\r\n}",
+  "json": {
+    "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+    "outputFiles": {
+      "hiddenVsHover": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\hidden_vs_hover.json",
+      "stableHoverFields": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\stable-hover-fields.json",
+      "fieldCandidates": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\field-candidates.json",
+      "scanEvidence": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\scan-evidence.json",
+      "screenshotGate": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\screenshot-gate.json",
+      "summary": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\summary.json"
+    },
+    "sampleCount": 4,
+    "hiddenSampleCount": 2,
+    "hoverSampleCount": 2,
+    "baselineLabel": "baseline",
+    "activeLabel": "zoom",
+    "candidateCount": 3,
+    "topCandidates": [
+      {
+        "offset": "+0x205",
+        "offsetDecimal": 517,
+        "address": "0x12CFC40B7D5",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 65.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden mode 0 differs from hover mode 1",
+          "small flag-like toggle 0 -> 1"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "0",
+        "hoverMode": "1",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x200",
+        "offsetDecimal": 512,
+        "address": "0x12CFC40B7D0",
+        "type": "pointer",
+        "subtype": "pointer-swaps-with-hover-state",
+        "score": 55.0,
+        "classification": "owner-pointer-candidate",
+        "evidence": [
+          "hidden mode 0x440020006F0054 differs from hover mode 0x12D193EB940",
+          "hover mode is pointer-like 0x12D193EB940"
+        ],
+        "promotionStatus": "weak-candidate",
+        "hiddenMode": "0x440020006F0054",
+        "hoverMode": "0x12D193EB940",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x208",
+        "offsetDecimal": 520,
+        "address": "0x12CFC40B7D8",
+        "type": "pointer",
+        "subtype": "pointer-swaps-with-hover-state",
+        "score": 55.0,
+        "classification": "owner-pointer-candidate",
+        "evidence": [
+          "hidden mode 0x650076006C0065 differs from hover mode 0x12CE49CC790",
+          "hover mode is pointer-like 0x12CE49CC790"
+        ],
+        "promotionStatus": "weak-candidate",
+        "hiddenMode": "0x650076006C0065",
+        "hoverMode": "0x12CE49CC790",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      }
+    ],
+    "scanEvidenceCount": 0,
+    "topScanEvidence": [],
+    "screenshotGate": {
+      "sampleCount": 4,
+      "captureRecordCount": 4,
+      "usableCount": 4,
+      "usableVisualCount": 4,
+      "unusableCount": 0,
+      "allSamplesHaveCapture": true,
+      "allSamplesHaveUsableCapture": true,
+      "allCapturesUsable": true,
+      "visualGateStatus": "passed",
+      "rows": [
+        {
+          "state": "hidden",
+          "originalState": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.001205078125,
+          "contentLumaStdDev": 98.46412567861422,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "originalState": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.0012045200892857142,
+          "contentLumaStdDev": 98.47740532597054,
+          "parseError": null
+        },
+        {
+          "state": "hidden",
+          "originalState": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.0012042410714285714,
+          "contentLumaStdDev": 98.45805640716902,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "originalState": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.001203125,
+          "contentLumaStdDev": 98.44625400079255,
+          "parseError": null
+        }
+      ],
+      "expectedStateSequence": {
+        "passed": true,
+        "expectedStates": [
+          "baseline1",
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "actualStates": [
+          "baseline1",
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "statesMatch": true,
+        "expectedStateRoles": [
+          "baseline",
+          "active",
+          "baseline",
+          "active"
+        ],
+        "actualStateRoles": [
+          "baseline",
+          "active",
+          "baseline",
+          "active"
+        ],
+        "stateRolesMatch": true
+      }
+    },
+    "warnings": []
+  },
+  "jsonParseError": null
+}

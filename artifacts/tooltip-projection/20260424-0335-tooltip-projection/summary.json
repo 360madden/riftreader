@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-04-24T03:52:50.0139459-04:00",
+  "classification": "tooltip-ui-anchor-projection-lead-not-yet-arbitrary-xyz",
+  "artifactRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection",
+  "document": "C:\\RIFT MODDING\\RiftReader\\docs\\analysis\\2026-04-24-tooltip-entity-projection-discovery.md",
+  "safe": {
+    "clicks": 0,
+    "casts": 0,
+    "movement": 0,
+    "targetSelected": false
+  },
+  "candidates": [
+    {
+      "address": "0x12CF46CE240",
+      "field": "+0x40 / 0x12CF46CE280",
+      "evidence": "hover pointer to hover-only tooltip text; changed after hidden",
+      "status": "candidate-only"
+    }
+  ]
+}

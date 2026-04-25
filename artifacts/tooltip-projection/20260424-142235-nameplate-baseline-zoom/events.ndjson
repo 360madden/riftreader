@@ -1,0 +1,3 @@
+{"timestampUtc":"2026-04-24T18:22:35.7190460Z","event":"run-started","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-142235-nameplate-baseline-zoom","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-142235-nameplate-baseline-zoom\\manifest.json"}
+{"timestampUtc":"2026-04-24T18:22:35.7331830Z","event":"state-started","role":"baseline","index":1,"state":"baseline1"}
+{"timestampUtc":"2026-04-24T18:23:12.1574232Z","event":"state-screenshot-captured","output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-142235-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.bmp","index":1,"usable":true,"state":"baseline1"}

@@ -1,0 +1,13 @@
+{"timestampUtc":"2026-04-24T08:52:39.2453173Z","event":"run-started","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\manifest.json","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live"}
+{"timestampUtc":"2026-04-24T08:52:39.2588594Z","event":"state-started","state":"hidden","index":1}
+{"timestampUtc":"2026-04-24T09:00:15.0750613Z","event":"state-completed","index":1,"state":"hidden","hasTarget":false,"textHitCount":2,"pointerScanCount":0}
+{"timestampUtc":"2026-04-24T09:00:15.0823102Z","event":"state-started","state":"hover","index":2}
+{"timestampUtc":"2026-04-24T09:03:21.4576433Z","event":"state-completed","index":2,"state":"hover","hasTarget":false,"textHitCount":3,"pointerScanCount":2}
+{"timestampUtc":"2026-04-24T09:03:21.4638837Z","event":"state-started","state":"hidden2","index":3}
+{"timestampUtc":"2026-04-24T09:04:41.5783598Z","event":"state-completed","index":3,"state":"hidden2","hasTarget":false,"textHitCount":3,"pointerScanCount":0}
+{"timestampUtc":"2026-04-24T09:04:41.5844749Z","event":"state-started","state":"hover2","index":4}
+{"timestampUtc":"2026-04-24T09:07:16.8375776Z","event":"state-completed","index":4,"state":"hover2","hasTarget":false,"textHitCount":3,"pointerScanCount":1}
+{"timestampUtc":"2026-04-24T09:07:16.8438278Z","event":"state-started","state":"hidden3","index":5}
+{"timestampUtc":"2026-04-24T09:09:59.7174882Z","event":"state-completed","index":5,"state":"hidden3","hasTarget":false,"textHitCount":4,"pointerScanCount":0}
+{"timestampUtc":"2026-04-24T09:09:59.7262798Z","event":"state-started","state":"hover3","index":6}
+{"timestampUtc":"2026-04-24T09:12:39.2075498Z","event":"state-completed","index":6,"state":"hover3","hasTarget":false,"textHitCount":3,"pointerScanCount":2}

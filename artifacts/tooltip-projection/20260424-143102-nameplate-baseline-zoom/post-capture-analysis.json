@@ -1,0 +1,31 @@
+{
+  "timestampUtc": "2026-04-24T18:45:29.9868463Z",
+  "exitCode": 1,
+  "command": [
+    "pwsh",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "C:\\RIFT MODDING\\RiftReader\\scripts\\analyze-tooltip-hover-diff.ps1",
+    "-InputDirectory",
+    "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom",
+    "-BaselineStateRegex",
+    "^baseline",
+    "-ActiveStateRegex",
+    "^zoom",
+    "-BaselineLabel",
+    "baseline",
+    "-ActiveLabel",
+    "zoom",
+    "-Json",
+    "-RequireVisualGate",
+    "-ExpectedStates",
+    "baseline1,zoom1,baseline2,zoom2",
+    "-ExpectedStateRoles",
+    "baseline,active,baseline,active"
+  ],
+  "stdout": "analyze-tooltip-hover-diff.ps1: Cannot bind argument to parameter 'HiddenValues' because it is null.",
+  "json": null,
+  "jsonParseError": "Conversion from JSON failed with error: Unexpected character encountered while parsing value: a. Path '', line 0, position 0."
+}

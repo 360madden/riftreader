@@ -1,0 +1,566 @@
+{
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom",
+  "manifest": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\manifest.json",
+  "events": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\events.ndjson",
+  "samples": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\samples.ndjson",
+  "states": [
+    {
+      "state": "baseline1",
+      "stateRole": "baseline",
+      "isActiveState": false,
+      "timestampUtc": "2026-04-24T18:34:36.4025183Z",
+      "candidateAddress": "0x12CFC40B7D0",
+      "baseAddress": "0x12CFC40B5D0",
+      "windowEndAddress": "0x12CFC40B9CF",
+      "candidateLength": 1024,
+      "bytesHex": "50010000000000003300000000000000010000002C01000080BB7E992C01000000000000000000000000000000000000000001000020AD444300000000000000010000002C010000F0D7C49D2C01000000000000000000000000000000000000B02E141C0000000010E982072D0100004000000000000000530100000000000070230B0CF77F0000000000000000000001000000000000004D2C0000070000000700000004000000000000007500690000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000000000074006F0088EDCC0AF77F0000877F51120000000028CE340BF77F00008BBF4B0000000000BEBF360BF77F00000000000000000000A0FE87962C01000050F5CF730D000000FFFFFFFFFFFFFFFF200068006100760000000000000000000000000000000000000000000000000000004700000000000000000000000000000000004500530038190B0CF77F0000000000000000000000000000000000000000000000000000D03D2CDE2C010000A09347A02C010000A09347A02C0100000100000000000000C08078972C01000010562A032D0100000100000B00000000330000000000000077006F0072006C0064005F0036003900310032005F0033003300320038002E006300640072000000730000000000000090003FE42C01000070A832852C010000A0A704982C01000020E64CC92C01000010E0480D2D010000502540FA2C010000E06C4DC92C010000F02425AB2C010000806640FA2C0100001007D6E42C01000090CAC2E32C0100000F0000000000000070000000000000004300000000000000010000002C010000F0C6029B2C01000000000000000000000000000000000000301E411C0000000010D910D12C0100004000000000000000C301000000000000000000002C0100000000000000000000000000000000000000000000000000000F000000000000000000803F000000005400200049004E00440045004E0054003D0027003000270020004C004500460054004D0041005200470049004E003D002700300027002000520049004700480054004D0041005200470049004E003D0027003000270020004C0045004100440049004E0047003D002700320027003E003C002F0046004F004E0054003E003C0046004F004E005400200043004F004C004F0052003D002700230066006600660066006600660027003E003C004100200048005200450046003D00270061007300660075006E006300740069006F006E003A005F0072006F006F0074002E004900740065006D004C0069006E006B0043006C00690063006B00650064002C00200031003900370032003900360036003000300031002C0031002C0031002C003100",
+      "tooltipTextHitAddresses": [
+        "0X12C9724E4F0",
+        "0X12CFAEDC460",
+        "0X12CFDF8E050"
+      ],
+      "hoverOnlyTooltipTextAddresses": [],
+      "knownTextPointers": [
+        {
+          "tooltipTextAddress": "0X12C9724E4F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\scan-pointer-0x12C9724E4F0.json",
+          "pointerHitAddresses": [
+            "0X12C83245FC0"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFAEDC460",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\scan-pointer-0x12CFAEDC460.json",
+          "pointerHitAddresses": [
+            "0X12CFA5D3AA0"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFDF8E050",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\scan-pointer-0x12CFDF8E050.json",
+          "pointerHitAddresses": [
+            "0X12D034CC668"
+          ]
+        }
+      ],
+      "extraPointerScans": [],
+      "numericScans": [],
+      "hasTarget": false,
+      "files": {
+        "stateRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1",
+        "screenshotCapture": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.capture.json",
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.bmp",
+        "candidateMemory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\candidate-memory.json",
+        "scanTooltipText": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\scan-tooltip-text.json",
+        "readTargetCurrent": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\read-target-current.json"
+      }
+    },
+    {
+      "state": "zoom1",
+      "stateRole": "active",
+      "isActiveState": true,
+      "timestampUtc": "2026-04-24T18:38:37.039172Z",
+      "candidateAddress": "0x12CFC40B7D0",
+      "baseAddress": "0x12CFC40B5D0",
+      "windowEndAddress": "0x12CFC40B9CF",
+      "candidateLength": 1024,
+      "bytesHex": "50010000000000003100000000000000804894F72C0100009005F3FA2C01000045005200430045004E0054003000000030000000000000004200000000000000010000002C010000F0D7C49D2C01000000000000000000000000000000000000B02E141C0000000010E982072D0100004000000000000000530100000000000070230B0CF77F0000000000000000000001000000000000004D2C0000070000000700000004000000000000007500690000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000000000074006F0088EDCC0AF77F0000877F51120000000028CE340BF77F00008BBF4B0000000000BEBF360BF77F00000000000000000000A0FE87962C01000050F5CF730D000000FFFFFFFFFFFFFFFF200068006100760000000000000000000000000000000000000000000000000000004700000000000000000000000000000000004500530038190B0CF77F0000000000000000000000000000000000000000000000000000D03D2CDE2C010000A09347A02C010000A09347A02C0100000100000000000000C08078972C01000010562A032D0100000100000B00000000330000000000000077006F0072006C0064005F0036003900310032005F0033003300320038002E0063006400720000007300000000000000010000002C01000010260DFC2C010000000000000000000000000000000000005269667400000000000000000000000004000000000000000F0000000000000090BC410D2D010000000000000000000017000000000000001F00000000000000808C3837000000004300000000000000010000002C010000F0C6029B2C01000000000000000000000000000000000000301E411C0000000010D910D12C0100004000000000000000C301000000000000000000002C0100000000000000000000000000000000000000000000000000000F000000000000000000803F000000005400200049004E00440045004E0054003D0027003000270020004C004500460054004D0041005200470049004E003D002700300027002000520049004700480054004D0041005200470049004E003D0027003000270020004C0045004100440049004E0047003D002700320027003E003C002F0046004F004E0054003E003C0046004F004E005400200043004F004C004F0052003D002700230066006600660066006600660027003E003C004100200048005200450046003D00270061007300660075006E006300740069006F006E003A005F0072006F006F0074002E004900740065006D004C0069006E006B0043006C00690063006B00650064002C00200031003900370032003900360036003000300031002C0031002C0031002C003100",
+      "tooltipTextHitAddresses": [
+        "0X12C9724E4F0",
+        "0X12CFAF12C50",
+        "0X12CFE3CB5F0"
+      ],
+      "hoverOnlyTooltipTextAddresses": [
+        "0X12CFAF12C50",
+        "0X12CFE3CB5F0"
+      ],
+      "knownTextPointers": [
+        {
+          "tooltipTextAddress": "0X12C9724E4F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-pointer-0x12C9724E4F0.json",
+          "pointerHitAddresses": [
+            "0X12CFA406C10"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFAF12C50",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-pointer-0x12CFAF12C50.json",
+          "pointerHitAddresses": [
+            "0XD74B2E358",
+            "0XD74B2E450",
+            "0X12CFA5FC070"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFE3CB5F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-pointer-0x12CFE3CB5F0.json",
+          "pointerHitAddresses": [
+            "0X12D034C9AE8"
+          ]
+        }
+      ],
+      "extraPointerScans": [],
+      "numericScans": [],
+      "hasTarget": false,
+      "files": {
+        "stateRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1",
+        "screenshotCapture": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.capture.json",
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.bmp",
+        "candidateMemory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\candidate-memory.json",
+        "scanTooltipText": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-tooltip-text.json",
+        "readTargetCurrent": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\read-target-current.json"
+      }
+    },
+    {
+      "state": "baseline2",
+      "stateRole": "baseline",
+      "isActiveState": false,
+      "timestampUtc": "2026-04-24T18:41:54.1157604Z",
+      "candidateAddress": "0x12CFC40B7D0",
+      "baseAddress": "0x12CFC40B5D0",
+      "windowEndAddress": "0x12CFC40B9CF",
+      "candidateLength": 1024,
+      "bytesHex": "50010000000000003300000000000000756E61726D65645F6D757369635F686F726E5F656E746572000054003000000030000000000000004300000000000000010000002C010000F0D7C49D2C01000000000000000000000000000000000000B02E141C0000000010E982072D0100004000000000000000530100000000000070230B0CF77F0000000000000000000001000000000000004D2C0000070000000700000004000000000000007500690000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000000000074006F0088EDCC0AF77F0000877F51120000000028CE340BF77F00008BBF4B0000000000BEBF360BF77F00000000000000000000A0FE87962C01000050F5CF730D000000FFFFFFFFFFFFFFFF200068006100760000000000000000000000000000000000000000000000000000004700000000000000000000000000000000004500530038190B0CF77F0000000000000000000000000000000000000000000000000000D03D2CDE2C010000A09347A02C010000A09347A02C0100000100000000000000C08078972C01000010562A032D0100000100000B00000000330000000000000077006F0072006C0064005F0036003900310032005F0033003300320038002E006300640072000000730000000000000070190B0CF77F00000000000000000000010000000000000040D561F92C01000010AE0E082D010000000000000000000058D661F92C010000D0B740FC2C01000060A8F90BF77F0000F0C3B09B2C0100007088C50AF77F0000000000000800000001000000000000004300000000000000010000002C010000F0C6029B2C01000000000000000000000000000000000000301E411C0000000010D910D12C0100004000000000000000C301000000000000000000002C0100000000000000000000000000000000000000000000000000000F000000000000000000803F000000005400200049004E00440045004E0054003D0027003000270020004C004500460054004D0041005200470049004E003D002700300027002000520049004700480054004D0041005200470049004E003D0027003000270020004C0045004100440049004E0047003D002700320027003E003C002F0046004F004E0054003E003C0046004F004E005400200043004F004C004F0052003D002700230066006600660066006600660027003E003C004100200048005200450046003D00270061007300660075006E006300740069006F006E003A005F0072006F006F0074002E004900740065006D004C0069006E006B0043006C00690063006B00650064002C00200031003900370032003900360036003000300031002C0031002C0031002C003100",
+      "tooltipTextHitAddresses": [
+        "0X12C9724E4F0",
+        "0X12CFAF12C50",
+        "0X12CFE3CB5F0"
+      ],
+      "hoverOnlyTooltipTextAddresses": [],
+      "knownTextPointers": [
+        {
+          "tooltipTextAddress": "0X12C9724E4F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-pointer-0x12C9724E4F0.json",
+          "pointerHitAddresses": [
+            "0X12CFA406C10"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFAF12C50",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-pointer-0x12CFAF12C50.json",
+          "pointerHitAddresses": [
+            "0X12CFA5FC070"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFE3CB5F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-pointer-0x12CFE3CB5F0.json",
+          "pointerHitAddresses": [
+            "0X12D034C9AE8"
+          ]
+        }
+      ],
+      "extraPointerScans": [],
+      "numericScans": [],
+      "hasTarget": false,
+      "files": {
+        "stateRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2",
+        "screenshotCapture": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.capture.json",
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.bmp",
+        "candidateMemory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\candidate-memory.json",
+        "scanTooltipText": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-tooltip-text.json",
+        "readTargetCurrent": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\read-target-current.json"
+      }
+    },
+    {
+      "state": "zoom2",
+      "stateRole": "active",
+      "isActiveState": true,
+      "timestampUtc": "2026-04-24T18:45:29.8530082Z",
+      "candidateAddress": "0x12CFC40B7D0",
+      "baseAddress": "0x12CFC40B5D0",
+      "windowEndAddress": "0x12CFC40B9CF",
+      "candidateLength": 1024,
+      "bytesHex": "50010000000000003300000000000000756E61726D65645F73637269707465645F70756E745F656E746572003000000030000000000000004300000000000000010000002C010000F0D7C49D2C01000000000000000000000000000000000000B02E141C0000000010E982072D0100004000000000000000530100000000000070230B0CF77F0000000000000000000001000000000000004D2C0000070000000700000004000000000000007500690000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000000000074006F0088EDCC0AF77F0000877F51120000000028CE340BF77F00008BBF4B0000000000BEBF360BF77F00000000000000000000A0FE87962C01000050F5CF730D000000FFFFFFFFFFFFFFFF200068006100760000000000000000000000000000000000000000000000000000004700000000000000000000000000000000004500530038190B0CF77F0000000000000000000000000000000000000000000000000000D03D2CDE2C010000A09347A02C010000A09347A02C0100000100000000000000C08078972C01000010562A032D0100000100000B00000000330000000000000077006F0072006C0064005F0036003900310032005F0033003300320038002E006300640072000000730000000000000070190B0CF77F00000000000000000000010000000000000040D561F92C01000010AE0E082D010000000000000000000058D661F92C010000D0B740FC2C01000060A8F90BF77F0000F0C3B09B2C0100007088C50AF77F0000000000000800000001000000000000004300000000000000010000002C010000F0C6029B2C01000000000000000000000000000000000000301E411C0000000010D910D12C0100004000000000000000C301000000000000000000002C0100000000000000000000000000000000000000000000000000000F000000000000000000803F000000005400200049004E00440045004E0054003D0027003000270020004C004500460054004D0041005200470049004E003D002700300027002000520049004700480054004D0041005200470049004E003D0027003000270020004C0045004100440049004E0047003D002700320027003E003C002F0046004F004E0054003E003C0046004F004E005400200043004F004C004F0052003D002700230066006600660066006600660027003E003C004100200048005200450046003D00270061007300660075006E006300740069006F006E003A005F0072006F006F0074002E004900740065006D004C0069006E006B0043006C00690063006B00650064002C00200031003900370032003900360036003000300031002C0031002C0031002C003100",
+      "tooltipTextHitAddresses": [
+        "0X12C9724E4F0",
+        "0X12CFAF12C50",
+        "0X12CFE3CB5F0"
+      ],
+      "hoverOnlyTooltipTextAddresses": [],
+      "knownTextPointers": [
+        {
+          "tooltipTextAddress": "0X12C9724E4F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-pointer-0x12C9724E4F0.json",
+          "pointerHitAddresses": [
+            "0X12CFA406C10"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFAF12C50",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-pointer-0x12CFAF12C50.json",
+          "pointerHitAddresses": [
+            "0X12CFA5FC070"
+          ]
+        },
+        {
+          "tooltipTextAddress": "0X12CFE3CB5F0",
+          "pointerScanFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-pointer-0x12CFE3CB5F0.json",
+          "pointerHitAddresses": [
+            "0X12D034C9AE8"
+          ]
+        }
+      ],
+      "extraPointerScans": [],
+      "numericScans": [],
+      "hasTarget": false,
+      "files": {
+        "stateRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2",
+        "screenshotCapture": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.capture.json",
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.bmp",
+        "candidateMemory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\candidate-memory.json",
+        "scanTooltipText": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-tooltip-text.json",
+        "readTargetCurrent": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\read-target-current.json"
+      }
+    }
+  ],
+  "tooltipHoverDiffAnalysis": {
+    "generatedAtUtc": "2026-04-24T18:47:31.7986566+00:00",
+    "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+    "sampleCount": 4,
+    "hiddenSampleCount": 2,
+    "hoverSampleCount": 2,
+    "baselineLabel": "baseline",
+    "activeLabel": "zoom",
+    "baselineStateRegex": "baseline",
+    "activeStateRegex": "zoom",
+    "requireVisualGate": true,
+    "baseCandidate": "0x12CFC40B7D0",
+    "windowStart": "0x12CFC40B5D0",
+    "windowLength": 1024,
+    "outputFiles": {
+      "hiddenVsHover": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\hidden_vs_hover.json",
+      "stableHoverFields": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\stable-hover-fields.json",
+      "fieldCandidates": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\field-candidates.json",
+      "scanEvidence": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\scan-evidence.json",
+      "screenshotGate": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\screenshot-gate.json"
+    },
+    "screenshotGate": {
+      "sampleCount": 4,
+      "captureRecordCount": 4,
+      "usableCount": 4,
+      "usableVisualCount": 4,
+      "unusableCount": 0,
+      "allSamplesHaveCapture": true,
+      "allSamplesHaveUsableCapture": true,
+      "allCapturesUsable": true,
+      "visualGateStatus": "passed",
+      "rows": [
+        {
+          "state": "hidden",
+          "originalState": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.0019419642857142858,
+          "contentLumaStdDev": 45.747132260325365,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "originalState": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.0020535714285714285,
+          "contentLumaStdDev": 46.2108875480937,
+          "parseError": null
+        },
+        {
+          "state": "hidden",
+          "originalState": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.00222265625,
+          "contentLumaStdDev": 46.368270370344746,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "originalState": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.0026104910714285713,
+          "contentLumaStdDev": 46.53493654528377,
+          "parseError": null
+        }
+      ],
+      "expectedStateSequence": {
+        "passed": true,
+        "expectedStates": [
+          "baseline1",
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "actualStates": [
+          "baseline1",
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "statesMatch": true,
+        "expectedStateRoles": [
+          "baseline",
+          "active",
+          "baseline",
+          "active"
+        ],
+        "actualStateRoles": [
+          "baseline",
+          "active",
+          "baseline",
+          "active"
+        ],
+        "stateRolesMatch": true
+      }
+    },
+    "topCandidates": [
+      {
+        "offset": "+0x21D",
+        "offsetDecimal": 541,
+        "address": "0x12CFC40B7ED",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden value is stable",
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 1,
+        "hoverDistinct": 2,
+        "allDistinct": 2,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x225",
+        "offsetDecimal": 549,
+        "address": "0x12CFC40B7F5",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden value is stable",
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 1,
+        "hoverDistinct": 2,
+        "allDistinct": 2,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x235",
+        "offsetDecimal": 565,
+        "address": "0x12CFC40B805",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden value is stable",
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 1,
+        "hoverDistinct": 2,
+        "allDistinct": 2,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x23D",
+        "offsetDecimal": 573,
+        "address": "0x12CFC40B80D",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden value is stable",
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 1,
+        "hoverDistinct": 2,
+        "allDistinct": 2,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x24D",
+        "offsetDecimal": 589,
+        "address": "0x12CFC40B81D",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden value is stable",
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 1,
+        "hoverDistinct": 2,
+        "allDistinct": 2,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x210",
+        "offsetDecimal": 528,
+        "address": "0x12CFC40B7E0",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 65.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x210",
+        "offsetDecimal": 528,
+        "address": "0x12CFC40B7E0",
+        "type": "int32",
+        "subtype": "small-state-toggle",
+        "score": 65.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x210",
+        "offsetDecimal": 528,
+        "address": "0x12CFC40B7E0",
+        "type": "uint16",
+        "subtype": "small-state-toggle",
+        "score": 65.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden mode 1 differs from hover mode 0",
+          "small flag-like toggle 1 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x249",
+        "offsetDecimal": 585,
+        "address": "0x12CFC40B819",
+        "type": "byte",
+        "subtype": "small-state-toggle",
+        "score": 65.0,
+        "classification": "visibility-flag-candidate",
+        "evidence": [
+          "hidden mode 7 differs from hover mode 0",
+          "small flag-like toggle 7 -> 0"
+        ],
+        "promotionStatus": "candidate-needs-live-reproof",
+        "hiddenMode": "7",
+        "hoverMode": "0",
+        "hiddenDistinct": 2,
+        "hoverDistinct": 2,
+        "allDistinct": 3,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      },
+      {
+        "offset": "+0x8",
+        "offsetDecimal": 8,
+        "address": "0x12CFC40B5D8",
+        "type": "int32",
+        "subtype": "screen-ish-int32",
+        "score": 55.0,
+        "classification": "ui-rect-candidate",
+        "evidence": [
+          "hidden value is stable",
+          "hidden mode 51 differs from hover mode 49",
+          "int32 modes are in a plausible UI screen-coordinate range"
+        ],
+        "promotionStatus": "weak-candidate",
+        "hiddenMode": "51",
+        "hoverMode": "49",
+        "hiddenDistinct": 1,
+        "hoverDistinct": 2,
+        "allDistinct": 2,
+        "transitionPairs": 3,
+        "transitionChanges": 2
+      }
+    ],
+    "topScanEvidence": [],
+    "rejectionCount": 124,
+    "warnings": []
+  }
+}

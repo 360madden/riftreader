@@ -1,0 +1,38 @@
+{
+  "mode": "capture",
+  "runLabel": "mailbox-pointerlead-live",
+  "runId": "20260424-053531-mailbox-pointerlead-live",
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-053531-mailbox-pointerlead-live",
+  "process": {
+    "name": "rift_x64"
+  },
+  "readerProject": "C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj",
+  "candidateAddress": "0x12CF46C6B80",
+  "candidateLength": 1024,
+  "windowBaseAddress": "0x12CF46C6980",
+  "windowEndAddress": "0x12CF46C6D7F",
+  "tooltipText": "Send and receive mail here.",
+  "states": [
+    "hidden",
+    "hover",
+    "hidden2",
+    "hover2",
+    "hidden3",
+    "hover3"
+  ],
+  "scanContextBytes": 192,
+  "maxHits": 24,
+  "skipTargetRead": false,
+  "skipTextScan": false,
+  "skipPointerScan": true,
+  "nonInteractive": false,
+  "controlsInput": false,
+  "notes": [
+    "This helper only invokes RiftReader.Reader read/scan modes.",
+    "It does not move the mouse, click, cast, move, focus a window, or send keyboard input.",
+    "PlanOnly does not attach to the process and does not create live run artifacts."
+  ],
+  "createdUtc": "2026-04-24T09:35:31.7689001Z",
+  "eventsFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-053531-mailbox-pointerlead-live\\events.ndjson",
+  "samplesFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-053531-mailbox-pointerlead-live\\samples.ndjson"
+}

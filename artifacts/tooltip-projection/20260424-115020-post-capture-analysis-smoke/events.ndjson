@@ -1,0 +1,10 @@
+{"timestampUtc":"2026-04-24T15:50:20.5747318Z","event":"run-started","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\manifest.json"}
+{"timestampUtc":"2026-04-24T15:50:20.5893744Z","event":"state-started","index":1,"state":"baseline1"}
+{"timestampUtc":"2026-04-24T15:50:26.0387572Z","event":"state-screenshot-captured","state":"baseline1","index":1,"usable":true,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\states\\baseline1\\screenshots\\baseline1.bmp"}
+{"timestampUtc":"2026-04-24T15:50:29.3995575Z","event":"state-completed","pointerScanCount":0,"hasTarget":false,"textHitCount":0,"index":1,"state":"baseline1","numericScanCount":0}
+{"timestampUtc":"2026-04-24T15:50:29.4063985Z","event":"state-started","index":2,"state":"active1"}
+{"timestampUtc":"2026-04-24T15:50:34.1502573Z","event":"state-screenshot-captured","state":"active1","index":2,"usable":true,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\states\\active1\\screenshots\\active1.bmp"}
+{"timestampUtc":"2026-04-24T15:50:37.4162921Z","event":"state-completed","pointerScanCount":0,"hasTarget":false,"textHitCount":0,"index":2,"state":"active1","numericScanCount":0}
+{"timestampUtc":"2026-04-24T15:50:37.4264438Z","event":"run-completed","sampleCount":2,"summary":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\summary.json"}
+{"timestampUtc":"2026-04-24T15:50:37.4338232Z","event":"post-capture-analysis-started","analyzerRequireVisualGate":true,"analyzerActiveStateRegex":"^active","analyzerBaselineStateRegex":"^baseline"}
+{"timestampUtc":"2026-04-24T15:50:39.0290235Z","event":"post-capture-analysis-completed","exitCode":0,"outputFile":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\post-capture-analysis.json"}

@@ -1,0 +1,3436 @@
+{
+  "mode": "capture",
+  "ok": true,
+  "controlsInput": false,
+  "attachesToProcess": true,
+  "generatedAtUtc": "2026-04-24T19:26:13.1511105+00:00",
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom",
+  "outputFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\lead-neighborhoods\\nameplate-proof-lead-neighborhoods.json",
+  "leadSelection": {
+    "leadKind": "pointer-hit",
+    "minStateCount": 2,
+    "maxLeads": 3,
+    "manualLeadAddresses": [],
+    "selectedLeadCount": 3,
+    "selectedLeads": [
+      {
+        "kind": "pointer-hit-address",
+        "address": "0X12CFA406C10",
+        "score": 43,
+        "stateCount": 3,
+        "states": [
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "stateRoles": [
+          "active",
+          "baseline"
+        ],
+        "baselineStates": [
+          "baseline2"
+        ],
+        "activeStates": [
+          "zoom1",
+          "zoom2"
+        ],
+        "sourceTextAddresses": [
+          "0X12C9724E4F0"
+        ],
+        "pointerHitAddresses": [],
+        "pointerScanFiles": [
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-pointer-0x12C9724E4F0.json",
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-pointer-0x12C9724E4F0.json",
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-pointer-0x12C9724E4F0.json"
+        ],
+        "selectionReason": "extracted"
+      },
+      {
+        "kind": "pointer-hit-address",
+        "address": "0X12CFA5FC070",
+        "score": 43,
+        "stateCount": 3,
+        "states": [
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "stateRoles": [
+          "active",
+          "baseline"
+        ],
+        "baselineStates": [
+          "baseline2"
+        ],
+        "activeStates": [
+          "zoom1",
+          "zoom2"
+        ],
+        "sourceTextAddresses": [
+          "0X12CFAF12C50"
+        ],
+        "pointerHitAddresses": [],
+        "pointerScanFiles": [
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-pointer-0x12CFAF12C50.json",
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-pointer-0x12CFAF12C50.json",
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-pointer-0x12CFAF12C50.json"
+        ],
+        "selectionReason": "extracted"
+      },
+      {
+        "kind": "pointer-hit-address",
+        "address": "0X12D034C9AE8",
+        "score": 43,
+        "stateCount": 3,
+        "states": [
+          "zoom1",
+          "baseline2",
+          "zoom2"
+        ],
+        "stateRoles": [
+          "active",
+          "baseline"
+        ],
+        "baselineStates": [
+          "baseline2"
+        ],
+        "activeStates": [
+          "zoom1",
+          "zoom2"
+        ],
+        "sourceTextAddresses": [
+          "0X12CFE3CB5F0"
+        ],
+        "pointerHitAddresses": [],
+        "pointerScanFiles": [
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\scan-pointer-0x12CFE3CB5F0.json",
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\scan-pointer-0x12CFE3CB5F0.json",
+          "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\scan-pointer-0x12CFE3CB5F0.json"
+        ],
+        "selectionReason": "extracted"
+      }
+    ]
+  },
+  "capturePlan": {
+    "processName": "rift_x64",
+    "readLength": 256,
+    "followPointerDepth": 1,
+    "maxPointersPerNode": 6,
+    "maxNodes": 24,
+    "rootCommands": [
+      "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --address 0X12CFA406C10 --length 256 --json",
+      "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --address 0X12CFA5FC070 --length 256 --json",
+      "dotnet run --project C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj -- --process-name rift_x64 --address 0X12D034C9AE8 --length 256 --json"
+    ]
+  },
+  "pointerSubgraph": {
+    "maxDepth": 1,
+    "maxNodes": 24,
+    "readLength": 256,
+    "maxPointersPerNode": 6,
+    "nodeCount": 18,
+    "edgeCount": 15,
+    "nodes": [
+      {
+        "address": "0X12CFA406C10",
+        "depth": 0,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [
+          "selected:pointer-hit-address",
+          "state:zoom1",
+          "state:baseline2",
+          "state:zoom2"
+        ],
+        "length": 256,
+        "bytesHex": "7600660078005F0072006F006700750065005F006D0069006E0064007300650074005F0061007500720061005F00300032002E0064006400730030002E00300000000000000000008100000000000000D041F2FA2C010000C027EBB72C01000069636B656E5F65786974000026006C003000000000000000510000000000000070D232852C010000F8002BDE2C0100005F70756E745F656E746572003B0000003000000000000000210000000000000010278DCE2C0100002028EBB72C0100008000000000000000520000000000000065007000690063005F0062006500610072005F00760061007200690061006E0074005F003000300036005F0063002E00",
+        "asciiPreview": "v.f.x._.r.o.g.u.e._.m.i.n.d.s.e.t._.a.u.r.a._.0.2...d.d.s.0...0.........?.......?A??,?..?'??,?..",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X5F007800660076",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X750067006F0072",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X69006D005F0065",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X6500730064006E",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X750061005F0074",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X30005F00610072",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X640064002E0032",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X30002E00300073",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X81",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X12CFAF241D0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X12CB7EB27C0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X78655F6E656B6369",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X6C002600007469",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X51",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X12C8532D270",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X12CDE2B00F8",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X6E655F746E75705F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X3B00726574",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X21",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X12CCE8D2710",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X12CB7EB2820",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X80",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 80,
+            "sourceOffsetHex": "0x50",
+            "address": "0X12CFAF241D0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 88,
+            "sourceOffsetHex": "0x58",
+            "address": "0X12CB7EB27C0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 128,
+            "sourceOffsetHex": "0x80",
+            "address": "0X12C8532D270",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 136,
+            "sourceOffsetHex": "0x88",
+            "address": "0X12CDE2B00F8",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 152,
+            "sourceOffsetHex": "0x98",
+            "address": "0X3B00726574",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 176,
+            "sourceOffsetHex": "0xB0",
+            "address": "0X12CCE8D2710",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CFA5FC070",
+        "depth": 0,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA5FC070"
+        ],
+        "leadLabels": [
+          "selected:pointer-hit-address",
+          "state:zoom1",
+          "state:baseline2",
+          "state:zoom2"
+        ],
+        "length": 256,
+        "bytesHex": "10EDDB082D01000080DA54132D01000000000000000000000000000000000000A07BEFFA2C010000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "asciiPreview": "????-?..??T?-?..................?{??,?..?.......................................................",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X12D08DBED10",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X12D1354DA80",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X12CFAEF7BA0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 0,
+            "sourceOffsetHex": "0x0",
+            "address": "0X12D08DBED10",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 8,
+            "sourceOffsetHex": "0x8",
+            "address": "0X12D1354DA80",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 32,
+            "sourceOffsetHex": "0x20",
+            "address": "0X12CFAEF7BA0",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12D034C9AE8",
+        "depth": 0,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [
+          "selected:pointer-hit-address",
+          "state:zoom1",
+          "state:baseline2",
+          "state:zoom2"
+        ],
+        "length": 256,
+        "bytesHex": "000069FA2C0100000000000000000000000000000000000007000000000000001010F2FF2C010000504ED1AA2C0100004050D1AA2C0100004050D1AA2C0100000000000000000000204B49132D010000104D49132D010000104D49132D0100000000000000000000D0A6BF112D010000B0AABF112D010000B0AABF112D0100000000000000000000D0AC0ABE2C01000044AE0ABE2C01000044AE0ABE2C010000000000000000000000B0114200000000706E5348000000000100000000000000000009FC2C0100000000000000000000000000000000000007000000000000001010F2FF2C010000A0768BFA2C01000000788BFA2C01000000788BFA2C010000",
+        "asciiPreview": "..i?,?..................?.......????,?..PN??,?..@P??,?..@P??,?.......... KI?-?..?MI?-?..?MI?-?..",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X12CFA690000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X7",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X12CFFF21010",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X12CAAD14E50",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X12CAAD15040",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X12CAAD15040",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X12D13494B20",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X12D13494D10",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X12D13494D10",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X12D11BFA6D0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X12D11BFAAB0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X12D11BFAAB0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X12CBE0AACD0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X12CBE0AAE44",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X12CBE0AAE44",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X4211B000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X48536E70",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X12CFC090000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 216,
+            "offsetHex": "0xD8",
+            "value": "0X7",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 224,
+            "offsetHex": "0xE0",
+            "value": "0X12CFFF21010",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 232,
+            "offsetHex": "0xE8",
+            "value": "0X12CFA8B76A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 240,
+            "offsetHex": "0xF0",
+            "value": "0X12CFA8B7800",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 248,
+            "offsetHex": "0xF8",
+            "value": "0X12CFA8B7800",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 0,
+            "sourceOffsetHex": "0x0",
+            "address": "0X12CFA690000",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 32,
+            "sourceOffsetHex": "0x20",
+            "address": "0X12CFFF21010",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 40,
+            "sourceOffsetHex": "0x28",
+            "address": "0X12CAAD14E50",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 48,
+            "sourceOffsetHex": "0x30",
+            "address": "0X12CAAD15040",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 72,
+            "sourceOffsetHex": "0x48",
+            "address": "0X12D13494B20",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 80,
+            "sourceOffsetHex": "0x50",
+            "address": "0X12D13494D10",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12C8532D270",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "3000000000000000510000000000000060106BA02C0100009093F6FD2C010000725F636C61705F6379636C650001000030000000000000002100000000000000A0C3C7AA2C010000207A23A22C01000080000000000000002200000000000000E04C53AF2C01000098002BDE2C01000020000000000000003300000000000000000000002C01000018E32AA02C01000000000000000000000000000000000000A112939501000080130100000000000000C0183F0020D03E00900E3F0020D03E00C0183F0080AC3E00900E3F0080AC3E0000993D00A02E3F0000613D00A02E3F0000993D00101D3F0000613D00101D3F0020393F00F05D3F00502F3F00F05D3F",
+        "asciiPreview": "0.......Q.......`?k?,?..????,?..r_clap_cycle.?..0.......!.......????,?.. z#?,?..?.......\".......",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X51",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12CA06B1060",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12CFDF69390",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X635F70616C635F72",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X100656C6379",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X21",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12CAAC7C3A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X12CA2237A20",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X80",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X22",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X12CAF534CE0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X12CDE2B0098",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X20",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X33",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X12C00000000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X12CA02AE318",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X80000001959312A1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X113",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X3ED020003F18C000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X3ED020003F0E9000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X3EAC80003F18C000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 200,
+            "offsetHex": "0xC8",
+            "value": "0X3EAC80003F0E9000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12CA06B1060",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12CFDF69390",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 40,
+            "sourceOffsetHex": "0x28",
+            "address": "0X100656C6379",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 64,
+            "sourceOffsetHex": "0x40",
+            "address": "0X12CAAC7C3A0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 72,
+            "sourceOffsetHex": "0x48",
+            "address": "0X12CA2237A20",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 96,
+            "sourceOffsetHex": "0x60",
+            "address": "0X12CAF534CE0",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CAAD14E50",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "90DA0CE52C010000209160FA2C010000000000000000000000000000000000000000000000000000020000002C010000B0A377AF2C010000F0E9CBBF2C01000020DBE0D12C01000080477FC22C01000020F573B42C01000060E1BC172D010000F00EDBD12C010000003400C02C010000403117B32C010000209FE0D12C010000F00ADCD12C010000B02BE8D12C010000A000000000000000A20000000000000070190B0CF77F0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000F04ED1AA2C01000060A8F90BF77F000010346AA02C01000010BF0D0AF77F00000000000000000000",
+        "asciiPreview": "????,?.. ?`?,?..........................?...,?..??w?,?..????,?.. ???,?..?G??,?.. ?s?,?..`???-?..",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X12CE50CDA90",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X12CFA609120",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X12C00000002",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X12CAF77A3B0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X12CBFCBE9F0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12CD1E0DB20",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X12CC27F4780",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X12CB473F520",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X12D17BCE160",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X12CD1DB0EF0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X12CC0003400",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X12CB3173140",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X12CD1E09F20",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X12CD1DC0AF0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X12CD1E82BB0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0XA0",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0XA2",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X7FF70C0B1970",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 216,
+            "offsetHex": "0xD8",
+            "value": "0X12CAAD14EF0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 224,
+            "offsetHex": "0xE0",
+            "value": "0X7FF70BF9A860",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 232,
+            "offsetHex": "0xE8",
+            "value": "0X12CA06A3410",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 240,
+            "offsetHex": "0xF0",
+            "value": "0X7FF70A0DBF10",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 0,
+            "sourceOffsetHex": "0x0",
+            "address": "0X12CE50CDA90",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 8,
+            "sourceOffsetHex": "0x8",
+            "address": "0X12CFA609120",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 40,
+            "sourceOffsetHex": "0x28",
+            "address": "0X12C00000002",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 48,
+            "sourceOffsetHex": "0x30",
+            "address": "0X12CAF77A3B0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 56,
+            "sourceOffsetHex": "0x38",
+            "address": "0X12CBFCBE9F0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 64,
+            "sourceOffsetHex": "0x40",
+            "address": "0X12CD1E0DB20",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CAAD15040",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "000200000000000062000000000000006200610068006D0069005F00660065006D0061006C0065005F0068006900640065005F0066006F006F0074005F003100300031005F0063002E0064006400730031002E0030000000310000000000000060000000000000003300000000000000756E61726D65645F737465616C74685F6A756D705F65786974003000000000003000000000000000C30100000000000088210B0CF77F00000000000000000000010000002C01000085580000050000000700000005000000000000006F006E00B065CEE42C01000000000000000000001100000000000000170000000000000058083033243475BDAF110000384D0000",
+        "asciiPreview": ".?......b.......b.a.h.m.i._.f.e.m.a.l.e._.h.i.d.e._.f.o.o.t._.1.0.1._.c...d.d.s.1...0...1.......",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X200",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X62",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X6D006800610062",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X650066005F0069",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X65006C0061006D",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X6400690068005F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X6F0066005F0065",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X31005F0074006F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X63005F00310030",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X7300640064002E",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X30002E0031",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X31",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X60",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X33",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X5F64656D72616E75",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X5F68746C61657473",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X6978655F706D756A",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X300074",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X1C3",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X7FF70C0B2188",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X12C00000001",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X500005885",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X500000007",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 80,
+            "sourceOffsetHex": "0x50",
+            "address": "0X30002E0031",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 176,
+            "sourceOffsetHex": "0xB0",
+            "address": "0X12C00000001",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 184,
+            "sourceOffsetHex": "0xB8",
+            "address": "0X500005885",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 192,
+            "sourceOffsetHex": "0xC0",
+            "address": "0X500000007",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 208,
+            "sourceOffsetHex": "0xD0",
+            "address": "0X12CE4CE65B0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 248,
+            "sourceOffsetHex": "0xF8",
+            "address": "0X4D38000011AF",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CB7EB27C0",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "30000000000000008100000000000000506C40FA2C01000010337F9A2C01000065785F65786974000A0026006C0074003B00440069006D00510000000000000070D232852C010000F8002BDE2C01000065785F656E746572000074003B0000003000000000000000210000000000000010278DCE2C01000080D15FFA2C01000080000000000000003200000000000000417072696C2032342C20323032362031353A35353A3535006F006C0020006B006500790062006F002300000000000000D051F2102D01000098002BDE2C01000020000000000000004300000000000000010000002C01000020DC68E42C010000605A4FC52C0100007027F0FB2C010000",
+        "asciiPreview": "0.......?.......Pl@?,?..?3??,?..ex_exit.?.&.l.t.;.D.i.m.Q.......p?2?,?..?.+?,?..ex_enter..t.;...",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X81",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12CFA406C50",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12C9A7F3310",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X746978655F7865",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X74006C0026000A",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X6D00690044003B",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X51",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12C8532D270",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X12CDE2B00F8",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X7265746E655F7865",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X3B00740000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X21",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X12CCE8D2710",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X12CFA5FD180",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X80",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X32",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X3432206C69727041",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X312036323032202C",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X35353A35353A35",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X6B0020006C006F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X6F006200790065",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X23",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12CFA406C50",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12C9A7F3310",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 64,
+            "sourceOffsetHex": "0x40",
+            "address": "0X12C8532D270",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 72,
+            "sourceOffsetHex": "0x48",
+            "address": "0X12CDE2B00F8",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 88,
+            "sourceOffsetHex": "0x58",
+            "address": "0X3B00740000",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 112,
+            "sourceOffsetHex": "0x70",
+            "address": "0X12CCE8D2710",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CCE8D2710",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "200000000000000021000000000000008029F3C12C010000604942FA2C01000020000000000000003200000000000000756E61726D65645F656D6F74655F6C6F6F6B6F75745F6578697400000000000070022BDE2C0100003300000000000000756E61726D65645F7377696D5F6D6F76655F666F72776172640000000000000030000000000000003300000000000000756E61726D65645F6D757369635F6C7574655F6379636C65000000000000000030000000000000003300000000000000756E61726D65645F656D6F74655F636F7765725F6379636C650000002D01000030000000000000003300000000000000756E61726D65645F686F7665725F6964",
+        "asciiPreview": " .......!.......?)??,?..`IB?,?.. .......2.......unarmed_emote_lookout_exit......p?+?,?..3.......",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X20",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X21",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12CC1F32980",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12CFA424960",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X20",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X32",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X5F64656D72616E75",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X6F6C5F65746F6D65",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X78655F74756F6B6F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X7469",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X12CDE2B0270",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X33",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X5F64656D72616E75",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X766F6D5F6D697773",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X726177726F665F65",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X64",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X33",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X5F64656D72616E75",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X756C5F636973756D",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X656C6379635F6574",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X33",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X5F64656D72616E75",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12CC1F32980",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12CFA424960",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 80,
+            "sourceOffsetHex": "0x50",
+            "address": "0X12CDE2B0270",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 216,
+            "sourceOffsetHex": "0xD8",
+            "address": "0X12D00000065",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CDE2B00F8",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "E8002BDE2C010000E8002BDE2C0100001067169C2C010000A0719D852C01000008012BDE2C01000008012BDE2C010000B03C77A02C010000D079CCE42C01000028012BDE2C01000028012BDE2C010000603AC4112D01000010FB55132D01000048012BDE2C01000048012BDE2C01000000580BE52C01000060C987072D01000068012BDE2C01000068012BDE2C0100001041DE0C2D0100000085EDFA2C01000088012BDE2C01000088012BDE2C010000308768E42C010000D00D7F952C010000A8012BDE2C010000A8012BDE2C010000F0A33CFE2C0100006068CBE42C010000C8012BDE2C010000C8012BDE2C010000D0C290072D01000090E9CDAA2C010000",
+        "asciiPreview": "?.+?,?..?.+?,?..?g??,?..?q??,?..??+?,?..??+?,?..?<w?,?..?y??,?..(?+?,?..(?+?,?..`:??-?..??U?-?..",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X12CDE2B00E8",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X12CDE2B00E8",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12C9C166710",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12C859D71A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X12CDE2B0108",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X12CDE2B0108",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X12CA0773CB0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X12CE4CC79D0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12CDE2B0128",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X12CDE2B0128",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X12D11C43A60",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X12D1355FB10",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X12CDE2B0148",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X12CDE2B0148",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X12CE50B5800",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X12D0787C960",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X12CDE2B0168",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X12CDE2B0168",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X12D0CDE4110",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X12CFAED8500",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X12CDE2B0188",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X12CDE2B0188",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X12CE4688730",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X12C957F0DD0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 0,
+            "sourceOffsetHex": "0x0",
+            "address": "0X12CDE2B00E8",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12C9C166710",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12C859D71A0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 32,
+            "sourceOffsetHex": "0x20",
+            "address": "0X12CDE2B0108",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 48,
+            "sourceOffsetHex": "0x30",
+            "address": "0X12CA0773CB0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 56,
+            "sourceOffsetHex": "0x38",
+            "address": "0X12CE4CC79D0",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CFA690000",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "611442C2492E34C2860926C2768F1FC2A5AC18C283110DC2B8AFF8C1F2B0E1C1CA43D3C123DBD1C13199D6C1C1CACCC1DC57B0C161549EC1576C91C161B29CC1363C94C1B76281C1AB3E4BC1FE7111C1865AEBC0766CB9C006F573C012F704C01C7C893F87A7A64000A9E040BF541E41E2585841E86A7C417DBF9B41910FB6415B53CF41CF77F341C925124234C035423304524227206D429D51834294768E4234119A4275E2A44238B8AE4236BCB642B526B9428EE6BE428144C5429A19CB428D57D54273E8D942560EDE42FC29E14264FBE442912DEA427553F042BEDFF442F813F8422B87F942359EFE42B428024300E00343FCA90543EC7106432D320743",
+        "asciiPreview": "a?B?I.4???&?v????????????????????C??#???1????????W??aT??Wl??a???6<???b???>K??q???Z??vl????s?????",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0XC2342E49C2421461",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0XC21F8F76C2260986",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0XC20D1183C218ACA5",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0XC1E1B0F2C1F8AFB8",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0XC1D1DB23C1D343CA",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0XC1CCCAC1C1D69931",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0XC19E5461C1B057DC",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0XC19CB261C1916C57",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0XC18162B7C1943C36",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0XC11171FEC14B3EAB",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0XC0B96C76C0EB5A86",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0XC004F712C073F506",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X40A6A7873F897C1C",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X411E54BF40E0A900",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X417C6AE8415858E2",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X41B60F91419BBF7D",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X41F377CF41CF535B",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X4235C034421225C9",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X426D202742520433",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X428E76944283519D",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X42A4E275429A1134",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X42B6BC3642AEB838",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X42BEE68E42B926B5",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X42CB199A42C54481",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": []
+      },
+      {
+        "address": "0X12CFAEF7BA0",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA5FC070"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "300000000000000081010000000000008071EEC12C0100005072DC082D010000F0343D192D010000E0F74BE42C01000020635CA02C01000001000000000000006D6F756E745F6A65747061636B5F6A756D705F656E74657200616C6B5F666F727761726400000000720000000000000040000000000000001101000000000000E078EFFA2C01000000B43CFE2C010000000000000000000000000000000000000000000000000000000000002C0100004000000000000000A10000000000000060D9F0982C010000905BF4FA2C01000077696D5F6D6F76655F6261636B776172640040FA2C01000070B099E42C01000040000000000000006100000000000000",
+        "asciiPreview": "0.......??......?q??,?..Pr??-?..?4=?-?..??K?,?.. c\\?,?..?.......mount_jetpack_jump_enter.alk_for",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X181",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12CC1EE7180",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12D08DC7250",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X12D193D34F0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X12CE44BF7E0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X12CA05C6320",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X656A5F746E756F6D",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X756A5F6B63617074",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X7265746E655F706D",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X726F665F6B6C6100",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X64726177",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X72",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X40",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X111",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X12CFAEF78E0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X12CFE3CB400",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X12C00000000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X40",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0XA1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X12C98F0D960",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 200,
+            "offsetHex": "0xC8",
+            "value": "0X12CFAF45B90",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 208,
+            "offsetHex": "0xD0",
+            "value": "0X65766F6D5F6D6977",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12CC1EE7180",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12D08DC7250",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 32,
+            "sourceOffsetHex": "0x20",
+            "address": "0X12D193D34F0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 40,
+            "sourceOffsetHex": "0x28",
+            "address": "0X12CE44BF7E0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 48,
+            "sourceOffsetHex": "0x30",
+            "address": "0X12CA05C6320",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 128,
+            "sourceOffsetHex": "0x80",
+            "address": "0X12CFAEF78E0",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CFAF241D0",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "60000000000000008100000000000000E0C34B132D010000506C40FA2C010000725F6C6F6F6B6F75745F656E7465720061007300740065005100000000000000806C40FA2C010000F8002BDE2C010000725F6C6F6F6B6F75745F6379636C650030000000000000002100000000000000A0D65CFE2C010000A0C3C7AA2C0100008000000000000000220000000000000060AED5E32C010000E055D00C2D010000704186072D0100003300000000000000756E61726D65645F617474726163746F725F636C61705F656E7465720000730030000000000000003107000000000000F00370AB2C010000F00370AB2C01000000000000000000000000000000000000",
+        "asciiPreview": "`.......?.......??K?-?..Pl@?,?..r_lookout_enter.a.s.t.e.Q.......?l@?,?..?.+?,?..r_lookout_cycle.",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X60",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X81",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12D134BC3E0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12CFA406C50",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X756F6B6F6F6C5F72",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X7265746E655F74",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X65007400730061",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X51",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12CFA406C80",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X12CDE2B00F8",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X756F6B6F6F6C5F72",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X656C6379635F74",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X30",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X21",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X12CFE5CD6A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X12CAAC7C3A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X80",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X22",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X12CE3D5AE60",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X12D0CD055E0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X12D07864170",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X33",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X5F64656D72616E75",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X6F74636172747461",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12D134BC3E0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12CFA406C50",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 64,
+            "sourceOffsetHex": "0x40",
+            "address": "0X12CFA406C80",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 72,
+            "sourceOffsetHex": "0x48",
+            "address": "0X12CDE2B00F8",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 112,
+            "sourceOffsetHex": "0x70",
+            "address": "0X12CFE5CD6A0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 120,
+            "sourceOffsetHex": "0x78",
+            "address": "0X12CAAC7C3A0",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12CFFF21010",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "80450B852C0100001800000000000000C60100000000000026010000000000000000403F2C010000D0E9AFA02C01000030F10A852C01000060FCB0A02C01000040B2440D2D0100001000000000000000FB0500000000000056030000000000000000403F2C010000A049BFA02C010000906221B82C010000A080C1A02C010000A09DF1FF2C0100000010000000100000A0000000000000004300000000000000435542455F7A6F6E655F7468655F73696C766572776F6F645F6E696768742E64647300636F72652E6464730073007300650074005C0053006300000000000000435542455F7A6F6E655F667265656D617263685F73756E7365742E6464730065",
+        "asciiPreview": "?E??,?..?.......??......&?........@?,?..????,?..0???,?..`???,?..@?D?-?..?.......??......V?......",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X12C850B4580",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X18",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X1C6",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X126",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X12C3F400000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X12CA0AFE9D0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X12C850AF130",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X12CA0B0FC60",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12D0D44B240",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 72,
+            "offsetHex": "0x48",
+            "value": "0X10",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X5FB",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X356",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X12C3F400000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X12CA0BF49A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X12CB8216290",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X12CA0C180A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X12CFFF19DA0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X100000001000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0XA0",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X43",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X6E6F7A5F45425543",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X69735F6568745F65",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X646F6F777265766C",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0X642E746867696E5F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 0,
+            "sourceOffsetHex": "0x0",
+            "address": "0X12C850B4580",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 32,
+            "sourceOffsetHex": "0x20",
+            "address": "0X12C3F400000",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 40,
+            "sourceOffsetHex": "0x28",
+            "address": "0X12CA0AFE9D0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 48,
+            "sourceOffsetHex": "0x30",
+            "address": "0X12C850AF130",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 56,
+            "sourceOffsetHex": "0x38",
+            "address": "0X12CA0B0FC60",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 64,
+            "sourceOffsetHex": "0x40",
+            "address": "0X12D0D44B240",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12D08DBED10",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA5FC070"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "40000000000000009101000000000000605707082D01000060C05FFA2C0100000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "asciiPreview": "@.......??......`W??-?..`?_?,?..........................?.......................................",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X40",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X191",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12D08075760",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12CFA5FC060",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12D08075760",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12CFA5FC060",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12D13494B20",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "A0669CE42C01000090A896FB2C01000000000000000000000000000000000000000000000000000002000000000000000000803F0000000000000000000000000000803F2C010000000000000000000000439ACE2C0100006F5D98A20100540382001A10FFFFFFFF010100000000000000000000000000000000000000000000000000000000000000000000000000000000803F0000803FD002C2DE2C01000000904F972C010000000000000000000000000000000000000F0000000000000000000000000000000000000000000000000000004C006500F85FF90BF77F00000000000000000000000000000000000000010000000000000201000000000000",
+        "asciiPreview": "?f??,?..????,?..........................?.........??..............??,?...........C??,?..o]???.T?",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X12CE49C66A0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X12CFB96A890",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 40,
+            "offsetHex": "0x28",
+            "value": "0X2",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X3F800000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X12C3F800000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X12CCE9A4300",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X3540001A2985D6F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0XFFFFFFFF101A0082",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 104,
+            "offsetHex": "0x68",
+            "value": "0X101",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X3F8000003F800000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 152,
+            "offsetHex": "0x98",
+            "value": "0X12CDEC202D0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X12C974F9000",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 184,
+            "offsetHex": "0xB8",
+            "value": "0XF",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 208,
+            "offsetHex": "0xD0",
+            "value": "0X65004C00000000",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 216,
+            "offsetHex": "0xD8",
+            "value": "0X7FF70BF95FF8",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 240,
+            "offsetHex": "0xF0",
+            "value": "0X100",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 248,
+            "offsetHex": "0xF8",
+            "value": "0X102",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 0,
+            "sourceOffsetHex": "0x0",
+            "address": "0X12CE49C66A0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 8,
+            "sourceOffsetHex": "0x8",
+            "address": "0X12CFB96A890",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 64,
+            "sourceOffsetHex": "0x40",
+            "address": "0X12C3F800000",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 80,
+            "sourceOffsetHex": "0x50",
+            "address": "0X12CCE9A4300",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 152,
+            "sourceOffsetHex": "0x98",
+            "address": "0X12CDEC202D0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 160,
+            "sourceOffsetHex": "0xA0",
+            "address": "0X12C974F9000",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12D13494D10",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12D034C9AE8"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "00020000000000008200000000000000A03BF5F92C010000E077C1112D010000E0BEEDFA2C0100000000000000000000140000000000000017000000000000003A00500000000000000000000000000002000000000000000700000000000000A0CC08CE2C010000000000000000000017000000000000001F000000000000008000000000000000B30100000000000088210B0CF77F000000000000000000000100000000000000D2300000050000000700000005000000000000000000000080CD25AB2C010000000000000000000011000000000000001700000000000000DFEC0991753A925EF1070000D4200000F1070000503217000100000000000000",
+        "asciiPreview": ".?......?.......?;??,?..?w??-?..????,?..........?.......?.......:.P.............?.......?.......",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X200",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X82",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12CF9F53BA0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12D11C177E0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 32,
+            "offsetHex": "0x20",
+            "value": "0X12CFAEDBEE0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 48,
+            "offsetHex": "0x30",
+            "value": "0X14",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X17",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 64,
+            "offsetHex": "0x40",
+            "value": "0X50003A",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 80,
+            "offsetHex": "0x50",
+            "value": "0X2",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 88,
+            "offsetHex": "0x58",
+            "value": "0X7",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 96,
+            "offsetHex": "0x60",
+            "value": "0X12CCE08CCA0",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 112,
+            "offsetHex": "0x70",
+            "value": "0X17",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 120,
+            "offsetHex": "0x78",
+            "value": "0X1F",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 128,
+            "offsetHex": "0x80",
+            "value": "0X80",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 136,
+            "offsetHex": "0x88",
+            "value": "0X1B3",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 144,
+            "offsetHex": "0x90",
+            "value": "0X7FF70C0B2188",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 160,
+            "offsetHex": "0xA0",
+            "value": "0X1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 168,
+            "offsetHex": "0xA8",
+            "value": "0X5000030D2",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 176,
+            "offsetHex": "0xB0",
+            "value": "0X500000007",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 192,
+            "offsetHex": "0xC0",
+            "value": "0X12CAB25CD80",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 208,
+            "offsetHex": "0xD0",
+            "value": "0X11",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 216,
+            "offsetHex": "0xD8",
+            "value": "0X17",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 224,
+            "offsetHex": "0xE0",
+            "value": "0X5E923A759109ECDF",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 232,
+            "offsetHex": "0xE8",
+            "value": "0X20D4000007F1",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12CF9F53BA0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12D11C177E0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 32,
+            "sourceOffsetHex": "0x20",
+            "address": "0X12CFAEDBEE0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 96,
+            "sourceOffsetHex": "0x60",
+            "address": "0X12CCE08CCA0",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 168,
+            "sourceOffsetHex": "0xA8",
+            "address": "0X5000030D2",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 176,
+            "sourceOffsetHex": "0xB0",
+            "address": "0X500000007",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X12D1354DA80",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA5FC070"
+        ],
+        "leadLabels": [],
+        "length": 256,
+        "bytesHex": "2000000000000000910100000000000060C05FFA2C01000080EFF9FD2C0100000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "asciiPreview": " .......??......`?_?,?..????,?..........................?.......................................",
+        "qwordPreview": [
+          {
+            "offset": 0,
+            "offsetHex": "0x0",
+            "value": "0X20",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 8,
+            "offsetHex": "0x8",
+            "value": "0X191",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          },
+          {
+            "offset": 16,
+            "offsetHex": "0x10",
+            "value": "0X12CFA5FC060",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 24,
+            "offsetHex": "0x18",
+            "value": "0X12CFDF9EF80",
+            "isPlausiblePointer": true,
+            "leadLabels": []
+          },
+          {
+            "offset": 56,
+            "offsetHex": "0x38",
+            "value": "0X1",
+            "isPlausiblePointer": false,
+            "leadLabels": []
+          }
+        ],
+        "pointerCandidates": [
+          {
+            "sourceOffset": 16,
+            "sourceOffsetHex": "0x10",
+            "address": "0X12CFA5FC060",
+            "leadLabels": []
+          },
+          {
+            "sourceOffset": 24,
+            "sourceOffsetHex": "0x18",
+            "address": "0X12CFDF9EF80",
+            "leadLabels": []
+          }
+        ]
+      },
+      {
+        "address": "0X3B00726574",
+        "depth": 1,
+        "rootLabels": [
+          "pointer-hit-address:0X12CFA406C10"
+        ],
+        "leadLabels": [],
+        "error": "Reader command failed ($LASTEXITCODE=1): ReadProcessMemory failed for PID 63012 at 0x3B00726574: Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (Win32: 299)"
+      }
+    ],
+    "edges": [
+      {
+        "fromAddress": "0X12CFA406C10",
+        "toAddress": "0X12CFAF241D0",
+        "sourceOffset": 80,
+        "sourceOffsetHex": "0x50",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA406C10",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA406C10",
+        "toAddress": "0X12CB7EB27C0",
+        "sourceOffset": 88,
+        "sourceOffsetHex": "0x58",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA406C10",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA406C10",
+        "toAddress": "0X12C8532D270",
+        "sourceOffset": 128,
+        "sourceOffsetHex": "0x80",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA406C10",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA406C10",
+        "toAddress": "0X12CDE2B00F8",
+        "sourceOffset": 136,
+        "sourceOffsetHex": "0x88",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA406C10",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA406C10",
+        "toAddress": "0X3B00726574",
+        "sourceOffset": 152,
+        "sourceOffsetHex": "0x98",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA406C10",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA406C10",
+        "toAddress": "0X12CCE8D2710",
+        "sourceOffset": 176,
+        "sourceOffsetHex": "0xB0",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA406C10",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA5FC070",
+        "toAddress": "0X12D08DBED10",
+        "sourceOffset": 0,
+        "sourceOffsetHex": "0x0",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA5FC070",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA5FC070",
+        "toAddress": "0X12D1354DA80",
+        "sourceOffset": 8,
+        "sourceOffsetHex": "0x8",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA5FC070",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12CFA5FC070",
+        "toAddress": "0X12CFAEF7BA0",
+        "sourceOffset": 32,
+        "sourceOffsetHex": "0x20",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12CFA5FC070",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12D034C9AE8",
+        "toAddress": "0X12CFA690000",
+        "sourceOffset": 0,
+        "sourceOffsetHex": "0x0",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12D034C9AE8",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12D034C9AE8",
+        "toAddress": "0X12CFFF21010",
+        "sourceOffset": 32,
+        "sourceOffsetHex": "0x20",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12D034C9AE8",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12D034C9AE8",
+        "toAddress": "0X12CAAD14E50",
+        "sourceOffset": 40,
+        "sourceOffsetHex": "0x28",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12D034C9AE8",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12D034C9AE8",
+        "toAddress": "0X12CAAD15040",
+        "sourceOffset": 48,
+        "sourceOffsetHex": "0x30",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12D034C9AE8",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12D034C9AE8",
+        "toAddress": "0X12D13494B20",
+        "sourceOffset": 72,
+        "sourceOffsetHex": "0x48",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12D034C9AE8",
+        "leadLabels": []
+      },
+      {
+        "fromAddress": "0X12D034C9AE8",
+        "toAddress": "0X12D13494D10",
+        "sourceOffset": 80,
+        "sourceOffsetHex": "0x50",
+        "depth": 1,
+        "rootLabel": "pointer-hit-address:0X12D034C9AE8",
+        "leadLabels": []
+      }
+    ]
+  }
+}

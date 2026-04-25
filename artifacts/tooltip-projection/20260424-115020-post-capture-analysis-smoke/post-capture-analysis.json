@@ -1,0 +1,84 @@
+{
+  "timestampUtc": "2026-04-24T15:50:37.4554037Z",
+  "exitCode": 0,
+  "command": [
+    "pwsh",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "C:\\RIFT MODDING\\RiftReader\\scripts\\analyze-tooltip-hover-diff.ps1",
+    "-InputDirectory",
+    "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke",
+    "-BaselineStateRegex",
+    "^baseline",
+    "-ActiveStateRegex",
+    "^active",
+    "-BaselineLabel",
+    "baseline",
+    "-ActiveLabel",
+    "active",
+    "-Json",
+    "-RequireVisualGate"
+  ],
+  "stdout": "{\r\n  \"inputDirectory\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\",\r\n  \"outputFiles\": {\r\n    \"hiddenVsHover\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\diffs\\\\hidden_vs_hover.json\",\r\n    \"stableHoverFields\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\diffs\\\\stable-hover-fields.json\",\r\n    \"fieldCandidates\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\diffs\\\\field-candidates.json\",\r\n    \"scanEvidence\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\diffs\\\\scan-evidence.json\",\r\n    \"screenshotGate\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\diffs\\\\screenshot-gate.json\",\r\n    \"summary\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\summary.json\"\r\n  },\r\n  \"sampleCount\": 2,\r\n  \"hiddenSampleCount\": 1,\r\n  \"hoverSampleCount\": 1,\r\n  \"baselineLabel\": \"baseline\",\r\n  \"activeLabel\": \"active\",\r\n  \"candidateCount\": 0,\r\n  \"topCandidates\": [],\r\n  \"scanEvidenceCount\": 0,\r\n  \"topScanEvidence\": [],\r\n  \"screenshotGate\": {\r\n    \"sampleCount\": 2,\r\n    \"captureRecordCount\": 2,\r\n    \"usableCount\": 2,\r\n    \"unusableCount\": 0,\r\n    \"allSamplesHaveCapture\": true,\r\n    \"allCapturesUsable\": true,\r\n    \"visualGateStatus\": \"passed\",\r\n    \"rows\": [\r\n      {\r\n        \"state\": \"hidden\",\r\n        \"captureRecord\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\states\\\\baseline1\\\\screenshots\\\\baseline1.capture.json\",\r\n        \"captureRecordExists\": true,\r\n        \"screenshotOutput\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\states\\\\baseline1\\\\screenshots\\\\baseline1.bmp\",\r\n        \"screenshotOutputExists\": true,\r\n        \"ok\": true,\r\n        \"usable\": true,\r\n        \"captureMethod\": \"DXGIDesktopDuplication\",\r\n        \"contentBlackRatio\": 0.001546595982142857,\r\n        \"contentLumaStdDev\": 96.40281840447713,\r\n        \"parseError\": null\r\n      },\r\n      {\r\n        \"state\": \"hover\",\r\n        \"captureRecord\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\states\\\\active1\\\\screenshots\\\\active1.capture.json\",\r\n        \"captureRecordExists\": true,\r\n        \"screenshotOutput\": \"C:\\\\RIFT MODDING\\\\RiftReader\\\\artifacts\\\\tooltip-projection\\\\20260424-115020-post-capture-analysis-smoke\\\\states\\\\active1\\\\screenshots\\\\active1.bmp\",\r\n        \"screenshotOutputExists\": true,\r\n        \"ok\": true,\r\n        \"usable\": true,\r\n        \"captureMethod\": \"DXGIDesktopDuplication\",\r\n        \"contentBlackRatio\": 0.001546595982142857,\r\n        \"contentLumaStdDev\": 96.41529623802565,\r\n        \"parseError\": null\r\n      }\r\n    ]\r\n  },\r\n  \"warnings\": []\r\n}",
+  "json": {
+    "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke",
+    "outputFiles": {
+      "hiddenVsHover": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\diffs\\hidden_vs_hover.json",
+      "stableHoverFields": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\diffs\\stable-hover-fields.json",
+      "fieldCandidates": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\diffs\\field-candidates.json",
+      "scanEvidence": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\diffs\\scan-evidence.json",
+      "screenshotGate": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\diffs\\screenshot-gate.json",
+      "summary": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\summary.json"
+    },
+    "sampleCount": 2,
+    "hiddenSampleCount": 1,
+    "hoverSampleCount": 1,
+    "baselineLabel": "baseline",
+    "activeLabel": "active",
+    "candidateCount": 0,
+    "topCandidates": [],
+    "scanEvidenceCount": 0,
+    "topScanEvidence": [],
+    "screenshotGate": {
+      "sampleCount": 2,
+      "captureRecordCount": 2,
+      "usableCount": 2,
+      "unusableCount": 0,
+      "allSamplesHaveCapture": true,
+      "allCapturesUsable": true,
+      "visualGateStatus": "passed",
+      "rows": [
+        {
+          "state": "hidden",
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\states\\baseline1\\screenshots\\baseline1.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\states\\baseline1\\screenshots\\baseline1.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.001546595982142857,
+          "contentLumaStdDev": 96.40281840447713,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\states\\active1\\screenshots\\active1.capture.json",
+          "captureRecordExists": true,
+          "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\states\\active1\\screenshots\\active1.bmp",
+          "screenshotOutputExists": true,
+          "ok": true,
+          "usable": true,
+          "captureMethod": "DXGIDesktopDuplication",
+          "contentBlackRatio": 0.001546595982142857,
+          "contentLumaStdDev": 96.41529623802565,
+          "parseError": null
+        }
+      ]
+    },
+    "warnings": []
+  },
+  "jsonParseError": null
+}

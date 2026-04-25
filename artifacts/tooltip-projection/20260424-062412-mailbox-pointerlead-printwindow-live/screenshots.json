@@ -1,0 +1,32 @@
+[
+  {
+    "state": "hidden",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\screenshots\\hidden.png",
+    "method": "PrintWindow(PW_RENDERFULLCONTENT)"
+  },
+  {
+    "state": "hover",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\screenshots\\hover.png",
+    "method": "PrintWindow(PW_RENDERFULLCONTENT)"
+  },
+  {
+    "state": "hidden2",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\screenshots\\hidden2.png",
+    "method": "PrintWindow(PW_RENDERFULLCONTENT)"
+  },
+  {
+    "state": "hover2",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\screenshots\\hover2.png",
+    "method": "PrintWindow(PW_RENDERFULLCONTENT)"
+  },
+  {
+    "state": "hidden3",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\screenshots\\hidden3.png",
+    "method": "PrintWindow(PW_RENDERFULLCONTENT)"
+  },
+  {
+    "state": "hover3",
+    "screenshot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-062412-mailbox-pointerlead-printwindow-live\\screenshots\\hover3.png",
+    "method": "PrintWindow(PW_RENDERFULLCONTENT)"
+  }
+]

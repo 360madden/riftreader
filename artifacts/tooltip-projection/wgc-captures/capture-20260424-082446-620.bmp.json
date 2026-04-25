@@ -1,0 +1,22 @@
+{
+  "Ok": true,
+  "Usable": false,
+  "Output": "C:\\Users\\mrkoo\\AppData\\Local\\Temp\\RiftReader-window-capture\\wgc\\capture-20260424-082446-620.bmp",
+  "Message": "Captured a frame, but pixel statistics look black/flat/transparent.",
+  "ErrorType": null,
+  "ProcessName": "rift_x64",
+  "Pid": null,
+  "TitleContains": "RIFT",
+  "WindowProcessName": "rift_x64",
+  "WindowPid": 63012,
+  "WindowTitle": "RIFT",
+  "Hwnd": "0x1B10E00",
+  "Width": 2560,
+  "Height": 1440,
+  "BlackPixelRatio": 1,
+  "TransparentPixelRatio": 0,
+  "LumaStdDev": 0,
+  "ContentBlackPixelRatio": 1,
+  "ContentTransparentPixelRatio": 0,
+  "ContentLumaStdDev": 0
+}

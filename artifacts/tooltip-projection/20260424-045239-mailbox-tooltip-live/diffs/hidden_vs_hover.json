@@ -1,0 +1,2383 @@
+{
+  "generatedAtUtc": "2026-04-24T14:00:15.2351089+00:00",
+  "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live",
+  "samplesPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\samples.ndjson",
+  "sampleCount": 6,
+  "hiddenSampleCount": 3,
+  "hoverSampleCount": 3,
+  "baselineLabel": "hidden",
+  "activeLabel": "hover",
+  "baselineStateRegex": "hidden",
+  "activeStateRegex": "hover",
+  "requireVisualGate": true,
+  "baseCandidate": "0x12CF46C6F80",
+  "windowStart": "0x12CF46C6D80",
+  "windowLength": 1024,
+  "knownTextPointers": [
+    "0x12CF565D27C",
+    "0x12CF88E0A30"
+  ],
+  "hasTargetStates": [
+    false
+  ],
+  "scanEvidenceCount": 0,
+  "screenshotGateStatus": "not-captured",
+  "warnings": [],
+  "candidates": [],
+  "rejections": [
+    {
+      "offset": "+0x0",
+      "offsetDecimal": 0,
+      "address": "0x12CF46C6D80",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x18",
+      "offsetDecimal": 24,
+      "address": "0x12CF46C6D98",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x58",
+      "offsetDecimal": 88,
+      "address": "0x12CF46C6DD8",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x98",
+      "offsetDecimal": 152,
+      "address": "0x12CF46C6E18",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x100",
+      "offsetDecimal": 256,
+      "address": "0x12CF46C6E80",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x140",
+      "offsetDecimal": 320,
+      "address": "0x12CF46C6EC0",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x180",
+      "offsetDecimal": 384,
+      "address": "0x12CF46C6F00",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x198",
+      "offsetDecimal": 408,
+      "address": "0x12CF46C6F18",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x1A0",
+      "offsetDecimal": 416,
+      "address": "0x12CF46C6F20",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x1E0",
+      "offsetDecimal": 480,
+      "address": "0x12CF46C6F60",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x6",
+      "hoverMode": "0x6",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x200",
+      "offsetDecimal": 512,
+      "address": "0x12CF46C6F80",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x218",
+      "offsetDecimal": 536,
+      "address": "0x12CF46C6F98",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x258",
+      "offsetDecimal": 600,
+      "address": "0x12CF46C6FD8",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x288",
+      "offsetDecimal": 648,
+      "address": "0x12CF46C7008",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x298",
+      "offsetDecimal": 664,
+      "address": "0x12CF46C7018",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x2C8",
+      "offsetDecimal": 712,
+      "address": "0x12CF46C7048",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x2D8",
+      "offsetDecimal": 728,
+      "address": "0x12CF46C7058",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x318",
+      "offsetDecimal": 792,
+      "address": "0x12CF46C7098",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x358",
+      "offsetDecimal": 856,
+      "address": "0x12CF46C70D8",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x398",
+      "offsetDecimal": 920,
+      "address": "0x12CF46C7118",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x3A0",
+      "offsetDecimal": 928,
+      "address": "0x12CF46C7120",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1F",
+      "hoverMode": "0x1F",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x3A8",
+      "offsetDecimal": 936,
+      "address": "0x12CF46C7128",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1F4",
+      "hoverMode": "0x1F4",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 5,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    },
+    {
+      "offset": "+0x10",
+      "offsetDecimal": 16,
+      "address": "0x12CF46C6D90",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "8272",
+      "hoverMode": "8272",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x10",
+      "offsetDecimal": 16,
+      "address": "0x12CF46C6D90",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "202645584",
+      "hoverMode": "202645584",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x10",
+      "offsetDecimal": 16,
+      "address": "0x12CF46C6D90",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.1411228960042438E-31",
+      "hoverMode": "1.1411228960042438E-31",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x10",
+      "offsetDecimal": 16,
+      "address": "0x12CF46C6D90",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x7FF70C142050",
+      "hoverMode": "0x7FF70C142050",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x10",
+      "offsetDecimal": 16,
+      "address": "0x12CF46C6D90",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "80",
+      "hoverMode": "80",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x11",
+      "offsetDecimal": 17,
+      "address": "0x12CF46C6D91",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "32",
+      "hoverMode": "32",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x12",
+      "offsetDecimal": 18,
+      "address": "0x12CF46C6D92",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "3092",
+      "hoverMode": "3092",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x12",
+      "offsetDecimal": 18,
+      "address": "0x12CF46C6D92",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "20",
+      "hoverMode": "20",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x20",
+      "offsetDecimal": 32,
+      "address": "0x12CF46C6DA0",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.401298464324817E-45",
+      "hoverMode": "1.401298464324817E-45",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x20",
+      "offsetDecimal": 32,
+      "address": "0x12CF46C6DA0",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x22",
+      "offsetDecimal": 34,
+      "address": "0x12CF46C6DA2",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x23",
+      "offsetDecimal": 35,
+      "address": "0x12CF46C6DA3",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x30",
+      "offsetDecimal": 48,
+      "address": "0x12CF46C6DB0",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x0",
+      "hoverMode": "0x0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x30",
+      "offsetDecimal": 48,
+      "address": "0x12CF46C6DB0",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x30",
+      "offsetDecimal": 48,
+      "address": "0x12CF46C6DB0",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x30",
+      "offsetDecimal": 48,
+      "address": "0x12CF46C6DB0",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x30",
+      "offsetDecimal": 48,
+      "address": "0x12CF46C6DB0",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x31",
+      "offsetDecimal": 49,
+      "address": "0x12CF46C6DB1",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x32",
+      "offsetDecimal": 50,
+      "address": "0x12CF46C6DB2",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x32",
+      "offsetDecimal": 50,
+      "address": "0x12CF46C6DB2",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x33",
+      "offsetDecimal": 51,
+      "address": "0x12CF46C6DB3",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x34",
+      "offsetDecimal": 52,
+      "address": "0x12CF46C6DB4",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x34",
+      "offsetDecimal": 52,
+      "address": "0x12CF46C6DB4",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x34",
+      "offsetDecimal": 52,
+      "address": "0x12CF46C6DB4",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x34",
+      "offsetDecimal": 52,
+      "address": "0x12CF46C6DB4",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x35",
+      "offsetDecimal": 53,
+      "address": "0x12CF46C6DB5",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x38",
+      "offsetDecimal": 56,
+      "address": "0x12CF46C6DB8",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x38",
+      "offsetDecimal": 56,
+      "address": "0x12CF46C6DB8",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x38",
+      "offsetDecimal": 56,
+      "address": "0x12CF46C6DB8",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x38",
+      "offsetDecimal": 56,
+      "address": "0x12CF46C6DB8",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0xFD0911F600000001",
+      "hoverMode": "0xFD0911F600000001",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x38",
+      "offsetDecimal": 56,
+      "address": "0x12CF46C6DB8",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.401298464324817E-45",
+      "hoverMode": "1.401298464324817E-45",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x39",
+      "offsetDecimal": 57,
+      "address": "0x12CF46C6DB9",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3A",
+      "offsetDecimal": 58,
+      "address": "0x12CF46C6DBA",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3A",
+      "offsetDecimal": 58,
+      "address": "0x12CF46C6DBA",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3B",
+      "offsetDecimal": 59,
+      "address": "0x12CF46C6DBB",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3C",
+      "offsetDecimal": 60,
+      "address": "0x12CF46C6DBC",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "-1.1387343371368192E+37",
+      "hoverMode": "-1.1387343371368192E+37",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3C",
+      "offsetDecimal": 60,
+      "address": "0x12CF46C6DBC",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "246",
+      "hoverMode": "246",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3C",
+      "offsetDecimal": 60,
+      "address": "0x12CF46C6DBC",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "4598",
+      "hoverMode": "4598",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3C",
+      "offsetDecimal": 60,
+      "address": "0x12CF46C6DBC",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "-49737226",
+      "hoverMode": "-49737226",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3D",
+      "offsetDecimal": 61,
+      "address": "0x12CF46C6DBD",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "17",
+      "hoverMode": "17",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3E",
+      "offsetDecimal": 62,
+      "address": "0x12CF46C6DBE",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "64777",
+      "hoverMode": "64777",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3E",
+      "offsetDecimal": 62,
+      "address": "0x12CF46C6DBE",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "9",
+      "hoverMode": "9",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x3F",
+      "offsetDecimal": 63,
+      "address": "0x12CF46C6DBF",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "253",
+      "hoverMode": "253",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x40",
+      "offsetDecimal": 64,
+      "address": "0x12CF46C6DC0",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x100000001",
+      "hoverMode": "0x100000001",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x40",
+      "offsetDecimal": 64,
+      "address": "0x12CF46C6DC0",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x40",
+      "offsetDecimal": 64,
+      "address": "0x12CF46C6DC0",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x40",
+      "offsetDecimal": 64,
+      "address": "0x12CF46C6DC0",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x40",
+      "offsetDecimal": 64,
+      "address": "0x12CF46C6DC0",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.401298464324817E-45",
+      "hoverMode": "1.401298464324817E-45",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x41",
+      "offsetDecimal": 65,
+      "address": "0x12CF46C6DC1",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x42",
+      "offsetDecimal": 66,
+      "address": "0x12CF46C6DC2",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x42",
+      "offsetDecimal": 66,
+      "address": "0x12CF46C6DC2",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x43",
+      "offsetDecimal": 67,
+      "address": "0x12CF46C6DC3",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x44",
+      "offsetDecimal": 68,
+      "address": "0x12CF46C6DC4",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x44",
+      "offsetDecimal": 68,
+      "address": "0x12CF46C6DC4",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x44",
+      "offsetDecimal": 68,
+      "address": "0x12CF46C6DC4",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x44",
+      "offsetDecimal": 68,
+      "address": "0x12CF46C6DC4",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.401298464324817E-45",
+      "hoverMode": "1.401298464324817E-45",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x45",
+      "offsetDecimal": 69,
+      "address": "0x12CF46C6DC5",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x48",
+      "offsetDecimal": 72,
+      "address": "0x12CF46C6DC8",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x48",
+      "offsetDecimal": 72,
+      "address": "0x12CF46C6DC8",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x48",
+      "offsetDecimal": 72,
+      "address": "0x12CF46C6DC8",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.401298464324817E-45",
+      "hoverMode": "1.401298464324817E-45",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x48",
+      "offsetDecimal": 72,
+      "address": "0x12CF46C6DC8",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x100000001",
+      "hoverMode": "0x100000001",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x48",
+      "offsetDecimal": 72,
+      "address": "0x12CF46C6DC8",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x49",
+      "offsetDecimal": 73,
+      "address": "0x12CF46C6DC9",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4A",
+      "offsetDecimal": 74,
+      "address": "0x12CF46C6DCA",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4A",
+      "offsetDecimal": 74,
+      "address": "0x12CF46C6DCA",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4B",
+      "offsetDecimal": 75,
+      "address": "0x12CF46C6DCB",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4C",
+      "offsetDecimal": 76,
+      "address": "0x12CF46C6DCC",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1.401298464324817E-45",
+      "hoverMode": "1.401298464324817E-45",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4C",
+      "offsetDecimal": 76,
+      "address": "0x12CF46C6DCC",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4C",
+      "offsetDecimal": 76,
+      "address": "0x12CF46C6DCC",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4C",
+      "offsetDecimal": 76,
+      "address": "0x12CF46C6DCC",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "1",
+      "hoverMode": "1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x4D",
+      "offsetDecimal": 77,
+      "address": "0x12CF46C6DCD",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -10.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0",
+      "hoverMode": "0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x240",
+      "offsetDecimal": 576,
+      "address": "0x12CF46C6FC0",
+      "type": "float32",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "-9.844349727755608E-14",
+      "hoverMode": "-9.844349727755608E-14",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x240",
+      "offsetDecimal": 576,
+      "address": "0x12CF46C6FC0",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x12CA9DDACD0",
+      "hoverMode": "0x12CA9DDACD0",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x240",
+      "offsetDecimal": 576,
+      "address": "0x12CF46C6FC0",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "44240",
+      "hoverMode": "44240",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x240",
+      "offsetDecimal": 576,
+      "address": "0x12CF46C6FC0",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "208",
+      "hoverMode": "208",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x240",
+      "offsetDecimal": 576,
+      "address": "0x12CF46C6FC0",
+      "type": "int32",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "-1445090096",
+      "hoverMode": "-1445090096",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x241",
+      "offsetDecimal": 577,
+      "address": "0x12CF46C6FC1",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "172",
+      "hoverMode": "172",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x242",
+      "offsetDecimal": 578,
+      "address": "0x12CF46C6FC2",
+      "type": "uint16",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "43485",
+      "hoverMode": "43485",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x242",
+      "offsetDecimal": 578,
+      "address": "0x12CF46C6FC2",
+      "type": "byte",
+      "subtype": "static-or-inconclusive",
+      "score": -20.0,
+      "classification": "noise-or-static",
+      "evidence": [],
+      "promotionStatus": "rejected",
+      "hiddenMode": "221",
+      "hoverMode": "221",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 2,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only"
+      ]
+    },
+    {
+      "offset": "+0x20",
+      "offsetDecimal": 32,
+      "address": "0x12CF46C6DA0",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": -30.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x1",
+      "hoverMode": "0x1",
+      "hiddenDistinct": 2,
+      "hoverDistinct": 1,
+      "allDistinct": 2,
+      "transitionPairs": 5,
+      "transitionChanges": 1,
+      "reasons": [
+        "one-cycle change only",
+        "pointer view is not pointer-like"
+      ]
+    }
+  ]
+}

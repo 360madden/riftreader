@@ -1,0 +1,26 @@
+{
+  "Mode": "pointer-scan",
+  "ProcessId": 63012,
+  "ProcessName": "rift_x64",
+  "PointerTarget": "0x12C97BB41B0",
+  "PointerWidth": 8,
+  "ContextBytes": 64,
+  "MaxHits": 24,
+  "HitCount": 1,
+  "Hits": [
+    {
+      "Address": 1292590965376,
+      "AddressHex": "0x12CF46CE280",
+      "RegionBase": 1292590841856,
+      "RegionBaseHex": "0x12CF46B0000",
+      "RegionSize": 131072,
+      "Context": {
+        "WindowStart": "0x12CF46CE240",
+        "WindowLength": 136,
+        "BytesHex": "20 4E 16 82 2C 01 00 00 F0 59 F9 0B F7 7F 00 00 60 96 0F 0C F7 7F 00 00 01 00 00 00 00 00 00 00 01 00 00 80 00 00 00 00 00 00 00 00 00 00 00 00 F0 59 F9 0B F7 7F 00 00 F0 59 F9 0B F7 7F 00 00 B0 41 BB 97 2C 01 00 00 F0 59 F9 0B F7 7F 00 00 30 68 52 0C F7 7F 00 00 01 00 00 00 00 00 00 00 1F 00 00 00 00 00 00 00 F4 01 00 00 00 00 00 00 60 34 C7 F9 2C 01 00 00 68 CB CD F8 2C 01 00 00 80 9C 51 BE 2C 01 00 00",
+        "AsciiPreview": " N..,....Y......\u0060................................Y.......Y.......A..,....Y......0hR.............................\u00604..,...h...,.....Q.,",
+        "Utf16Preview": "\u4E20\u8216\u012C.\u59F0\u0BF9\u7FF7.\u9660\u0C0F\u7FF7......\u8000......\u59F0\u0BF9\u7FF7.\u59F0\u0BF9\u7FF7.\u41B0\u97BB\u012C.\u59F0\u0BF9\u7FF7.\u6830\u0C52\u7FF7.........\u01F4...\u3460\uF9C7\u012C.\uCB68\uF8CD\u012C.\u9C80\uBE51\u012C"
+      }
+    }
+  ]
+}

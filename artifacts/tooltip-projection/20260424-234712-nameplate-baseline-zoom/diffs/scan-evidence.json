@@ -1,0 +1,27 @@
+{
+  "generatedAtUtc": "2026-04-25T03:49:32.4747590+00:00",
+  "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+  "samplesPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\samples.ndjson",
+  "sampleCount": 4,
+  "hiddenSampleCount": 2,
+  "hoverSampleCount": 2,
+  "baselineLabel": "baseline",
+  "activeLabel": "zoom",
+  "baselineStateRegex": "^baseline",
+  "activeStateRegex": "^zoom",
+  "requireVisualGate": true,
+  "expectedStateSequenceRequired": true,
+  "baseCandidate": "0x12CFC40B7D0",
+  "windowStart": "0x12CFC40B5D0",
+  "windowLength": 1024,
+  "knownTextPointers": [],
+  "hasTargetStates": [
+    false
+  ],
+  "scanEvidenceCount": 0,
+  "screenshotGateStatus": "passed",
+  "warnings": [],
+  "scanEvidence": [],
+  "classificationCounts": []
+}

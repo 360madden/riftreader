@@ -1,0 +1,35 @@
+{
+  "timestampUtc": "2026-04-24T09:02:58.0982448Z",
+  "exitCode": 0,
+  "command": [
+    "dotnet",
+    "run",
+    "--project",
+    "C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj",
+    "--",
+    "--process-name",
+    "rift_x64",
+    "--scan-pointer",
+    "0X12CF565D27C",
+    "--pointer-width",
+    "8",
+    "--scan-context",
+    "192",
+    "--max-hits",
+    "24",
+    "--json"
+  ],
+  "stdout": "{\r\n  \"Mode\": \"pointer-scan\",\r\n  \"ProcessId\": 63012,\r\n  \"ProcessName\": \"rift_x64\",\r\n  \"PointerTarget\": \"0x12CF565D27C\",\r\n  \"PointerWidth\": 8,\r\n  \"ContextBytes\": 192,\r\n  \"MaxHits\": 24,\r\n  \"HitCount\": 0,\r\n  \"Hits\": []\r\n}",
+  "json": {
+    "Mode": "pointer-scan",
+    "ProcessId": 63012,
+    "ProcessName": "rift_x64",
+    "PointerTarget": "0x12CF565D27C",
+    "PointerWidth": 8,
+    "ContextBytes": 192,
+    "MaxHits": 24,
+    "HitCount": 0,
+    "Hits": []
+  },
+  "jsonParseError": null
+}

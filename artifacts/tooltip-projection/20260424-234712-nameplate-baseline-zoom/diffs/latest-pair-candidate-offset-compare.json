@@ -1,0 +1,436 @@
+{
+  "ok": false,
+  "baselineRunRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom",
+  "reproofRunRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+  "candidateOffsets": [
+    "+0x21D",
+    "+0x225",
+    "+0x235",
+    "+0x23D",
+    "+0x24D"
+  ],
+  "repeatedCount": 0,
+  "minRepeatCount": 3,
+  "baselineCandidateCount": 20,
+  "reproofCandidateCount": 3,
+  "repeatedCandidates": [
+    {
+      "offset": "+0x21D",
+      "repeated": false,
+      "baselineHitCount": 1,
+      "reproofHitCount": 0,
+      "baselineByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        }
+      ],
+      "reproofByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 0
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 0
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        }
+      ],
+      "baselineBest": {
+        "type": "byte",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "subtype": "small-state-toggle",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "promotionStatus": "candidate-needs-live-reproof"
+      },
+      "reproofBest": null
+    },
+    {
+      "offset": "+0x225",
+      "repeated": false,
+      "baselineHitCount": 1,
+      "reproofHitCount": 0,
+      "baselineByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        }
+      ],
+      "reproofByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 0
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        }
+      ],
+      "baselineBest": {
+        "type": "byte",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "subtype": "small-state-toggle",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "promotionStatus": "candidate-needs-live-reproof"
+      },
+      "reproofBest": null
+    },
+    {
+      "offset": "+0x235",
+      "repeated": false,
+      "baselineHitCount": 1,
+      "reproofHitCount": 0,
+      "baselineByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        }
+      ],
+      "reproofByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 0
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        }
+      ],
+      "baselineBest": {
+        "type": "byte",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "subtype": "small-state-toggle",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "promotionStatus": "candidate-needs-live-reproof"
+      },
+      "reproofBest": null
+    },
+    {
+      "offset": "+0x23D",
+      "repeated": false,
+      "baselineHitCount": 1,
+      "reproofHitCount": 0,
+      "baselineByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        }
+      ],
+      "reproofByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 0
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 0
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        }
+      ],
+      "baselineBest": {
+        "type": "byte",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "subtype": "small-state-toggle",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "promotionStatus": "candidate-needs-live-reproof"
+      },
+      "reproofBest": null
+    },
+    {
+      "offset": "+0x24D",
+      "repeated": false,
+      "baselineHitCount": 1,
+      "reproofHitCount": 0,
+      "baselineByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 0
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        }
+      ],
+      "reproofByteValues": [
+        {
+          "state": "baseline1",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom1",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        },
+        {
+          "state": "baseline2",
+          "stateRole": "baseline",
+          "isActiveState": false,
+          "byte": 1
+        },
+        {
+          "state": "zoom2",
+          "stateRole": "active",
+          "isActiveState": true,
+          "byte": 1
+        }
+      ],
+      "baselineBest": {
+        "type": "byte",
+        "score": 75.0,
+        "classification": "visibility-flag-candidate",
+        "subtype": "small-state-toggle",
+        "hiddenMode": "1",
+        "hoverMode": "0",
+        "promotionStatus": "candidate-needs-live-reproof"
+      },
+      "reproofBest": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "baseline-screenshot-gate-file",
+      "status": "passed",
+      "detail": "Expected screenshot gate file: C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\screenshot-gate.json",
+      "data": null
+    },
+    {
+      "name": "baseline-field-candidates-file",
+      "status": "passed",
+      "detail": "Expected field candidates file: C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\diffs\\field-candidates.json",
+      "data": null
+    },
+    {
+      "name": "baseline-samples-file",
+      "status": "passed",
+      "detail": "Expected samples file: C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\samples.ndjson",
+      "data": null
+    },
+    {
+      "name": "baseline-visual-gate-passed",
+      "status": "passed",
+      "detail": "visualGateStatus=passed",
+      "data": null
+    },
+    {
+      "name": "baseline-sequence-passed",
+      "status": "passed",
+      "detail": "expectedStateSequence.passed=True",
+      "data": null
+    },
+    {
+      "name": "reproof-screenshot-gate-file",
+      "status": "passed",
+      "detail": "Expected screenshot gate file: C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\screenshot-gate.json",
+      "data": null
+    },
+    {
+      "name": "reproof-field-candidates-file",
+      "status": "passed",
+      "detail": "Expected field candidates file: C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\field-candidates.json",
+      "data": null
+    },
+    {
+      "name": "reproof-samples-file",
+      "status": "passed",
+      "detail": "Expected samples file: C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\samples.ndjson",
+      "data": null
+    },
+    {
+      "name": "reproof-visual-gate-passed",
+      "status": "passed",
+      "detail": "visualGateStatus=passed",
+      "data": null
+    },
+    {
+      "name": "reproof-sequence-passed",
+      "status": "passed",
+      "detail": "expectedStateSequence.passed=True",
+      "data": null
+    },
+    {
+      "name": "candidate-offsets-present",
+      "status": "passed",
+      "detail": "candidateOffsets=+0x21D,+0x225,+0x235,+0x23D,+0x24D",
+      "data": null
+    },
+    {
+      "name": "minimum-repeat-count",
+      "status": "failed",
+      "detail": "repeated=0/5, min=3",
+      "data": {
+        "repeated": 0,
+        "total": 5,
+        "minRepeatCount": 3
+      }
+    }
+  ]
+}

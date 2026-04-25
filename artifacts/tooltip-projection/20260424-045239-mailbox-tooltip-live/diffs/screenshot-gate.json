@@ -1,0 +1,116 @@
+{
+  "generatedAtUtc": "2026-04-24T14:00:15.2351089+00:00",
+  "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live",
+  "samplesPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\samples.ndjson",
+  "sampleCount": 6,
+  "hiddenSampleCount": 3,
+  "hoverSampleCount": 3,
+  "baselineLabel": "hidden",
+  "activeLabel": "hover",
+  "baselineStateRegex": "hidden",
+  "activeStateRegex": "hover",
+  "requireVisualGate": true,
+  "baseCandidate": "0x12CF46C6F80",
+  "windowStart": "0x12CF46C6D80",
+  "windowLength": 1024,
+  "knownTextPointers": [
+    "0x12CF565D27C",
+    "0x12CF88E0A30"
+  ],
+  "hasTargetStates": [
+    false
+  ],
+  "scanEvidenceCount": 0,
+  "screenshotGateStatus": "not-captured",
+  "warnings": [],
+  "screenshotGate": {
+    "sampleCount": 6,
+    "captureRecordCount": 0,
+    "usableCount": 0,
+    "unusableCount": 0,
+    "allSamplesHaveCapture": false,
+    "allCapturesUsable": false,
+    "visualGateStatus": "not-captured",
+    "rows": [
+      {
+        "state": "hidden",
+        "captureRecord": null,
+        "captureRecordExists": false,
+        "screenshotOutput": null,
+        "screenshotOutputExists": false,
+        "ok": null,
+        "usable": null,
+        "captureMethod": null,
+        "contentBlackRatio": null,
+        "contentLumaStdDev": null,
+        "parseError": null
+      },
+      {
+        "state": "hover",
+        "captureRecord": null,
+        "captureRecordExists": false,
+        "screenshotOutput": null,
+        "screenshotOutputExists": false,
+        "ok": null,
+        "usable": null,
+        "captureMethod": null,
+        "contentBlackRatio": null,
+        "contentLumaStdDev": null,
+        "parseError": null
+      },
+      {
+        "state": "hidden",
+        "captureRecord": null,
+        "captureRecordExists": false,
+        "screenshotOutput": null,
+        "screenshotOutputExists": false,
+        "ok": null,
+        "usable": null,
+        "captureMethod": null,
+        "contentBlackRatio": null,
+        "contentLumaStdDev": null,
+        "parseError": null
+      },
+      {
+        "state": "hover",
+        "captureRecord": null,
+        "captureRecordExists": false,
+        "screenshotOutput": null,
+        "screenshotOutputExists": false,
+        "ok": null,
+        "usable": null,
+        "captureMethod": null,
+        "contentBlackRatio": null,
+        "contentLumaStdDev": null,
+        "parseError": null
+      },
+      {
+        "state": "hidden",
+        "captureRecord": null,
+        "captureRecordExists": false,
+        "screenshotOutput": null,
+        "screenshotOutputExists": false,
+        "ok": null,
+        "usable": null,
+        "captureMethod": null,
+        "contentBlackRatio": null,
+        "contentLumaStdDev": null,
+        "parseError": null
+      },
+      {
+        "state": "hover",
+        "captureRecord": null,
+        "captureRecordExists": false,
+        "screenshotOutput": null,
+        "screenshotOutputExists": false,
+        "ok": null,
+        "usable": null,
+        "captureMethod": null,
+        "contentBlackRatio": null,
+        "contentLumaStdDev": null,
+        "parseError": null
+      }
+    ]
+  }
+}

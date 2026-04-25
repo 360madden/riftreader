@@ -1,0 +1,26 @@
+{
+  "Mode": "target-current-read",
+  "ProcessId": 63012,
+  "ProcessName": "rift_x64",
+  "ReaderBridgeSourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+  "FamilyId": "n/a",
+  "FamilyNotes": "no target selected",
+  "Signature": "n/a",
+  "SelectionSource": "none",
+  "AnchorProvenance": "none",
+  "AnchorCacheUsed": false,
+  "AnchorCacheUpdated": false,
+  "CeConfirmedSampleCount": 0,
+  "Memory": {
+    "AddressHex": "n/a"
+  },
+  "Expected": {},
+  "Match": {
+    "NameMatches": false,
+    "LevelMatches": false,
+    "HealthMatches": false,
+    "CoordMatchesWithinTolerance": false,
+    "DistanceMatchesWithinTolerance": false
+  },
+  "HasTarget": false
+}

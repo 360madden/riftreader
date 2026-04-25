@@ -1,0 +1,30 @@
+{
+  "timestampUtc": "2026-04-24T15:50:34.1592081Z",
+  "exitCode": 0,
+  "command": [
+    "dotnet",
+    "run",
+    "--project",
+    "C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj",
+    "--",
+    "--process-name",
+    "rift_x64",
+    "--address",
+    "0x12CFC40B7C8",
+    "--length",
+    "16",
+    "--json"
+  ],
+  "stdout": "{\r\n  \"Mode\": \"memory-read\",\r\n  \"ProcessId\": 63012,\r\n  \"ProcessName\": \"rift_x64\",\r\n  \"ModuleName\": \"rift_x64.exe\",\r\n  \"MainWindowTitle\": \"RIFT\",\r\n  \"Address\": \"0x12CFC40B7C8\",\r\n  \"Length\": 16,\r\n  \"BytesHex\": \"730000000000000070190B0CF77F0000\"\r\n}",
+  "json": {
+    "Mode": "memory-read",
+    "ProcessId": 63012,
+    "ProcessName": "rift_x64",
+    "ModuleName": "rift_x64.exe",
+    "MainWindowTitle": "RIFT",
+    "Address": "0x12CFC40B7C8",
+    "Length": 16,
+    "BytesHex": "730000000000000070190B0CF77F0000"
+  },
+  "jsonParseError": null
+}

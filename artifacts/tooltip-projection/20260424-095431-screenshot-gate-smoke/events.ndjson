@@ -1,0 +1,5 @@
+{"timestampUtc":"2026-04-24T13:54:31.6736122Z","event":"run-started","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095431-screenshot-gate-smoke\\manifest.json","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095431-screenshot-gate-smoke"}
+{"timestampUtc":"2026-04-24T13:54:31.6993810Z","event":"state-started","state":"capturetest","index":1}
+{"timestampUtc":"2026-04-24T13:54:39.4640444Z","event":"state-screenshot-captured","index":1,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095431-screenshot-gate-smoke\\states\\capturetest\\screenshots\\capturetest.bmp","usable":true,"state":"capturetest"}
+{"timestampUtc":"2026-04-24T13:54:45.3363063Z","event":"state-completed","state":"capturetest","hasTarget":false,"pointerScanCount":0,"numericScanCount":0,"textHitCount":0,"index":1}
+{"timestampUtc":"2026-04-24T13:54:45.3550885Z","event":"run-completed","sampleCount":1,"summary":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095431-screenshot-gate-smoke\\summary.json"}

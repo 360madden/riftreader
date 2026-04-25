@@ -1,0 +1,81 @@
+{
+  "Mode": "string-scan",
+  "ProcessId": 63012,
+  "ProcessName": "rift_x64",
+  "SearchText": "Send and receive mail here.",
+  "SearchSource": "cli",
+  "Encoding": "both",
+  "ContextBytes": 64,
+  "MaxHits": 24,
+  "HitCount": 4,
+  "Hits": [
+    {
+      "Address": 1291035820464,
+      "AddressHex": "0x12C97BB41B0",
+      "Encoding": "utf16",
+      "RegionBase": 1291035803648,
+      "RegionBaseHex": "0x12C97BB0000",
+      "RegionSize": 65536,
+      "MatchLength": 54,
+      "Classification": "isolated wide string",
+      "Context": {
+        "WindowStart": "0x12C97BB4170",
+        "WindowLength": 182,
+        "BytesHex": "61 00 72 00 64 00 69 00 61 00 6E 00 5F 00 76 00 65 00 6C 00 76 00 65 00 74 00 5F 00 63 00 68 00 61 00 69 00 72 00 5F 00 30 00 31 00 2E 00 68 00 6B 00 78 00 00 00 00 00 43 00 00 00 00 00 00 00 53 00 65 00 6E 00 64 00 20 00 61 00 6E 00 64 00 20 00 72 00 65 00 63 00 65 00 69 00 76 00 65 00 20 00 6D 00 61 00 69 00 6C 00 20 00 68 00 65 00 72 00 65 00 2E 00 00 00 33 00 00 00 00 00 00 00 93 60 CD 10 2C 01 00 00 B8 00 7E E6 2C 01 00 00 35 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 30 00 00 00 00 00 00 00 C1 01 00 00 00 00 00 00 00 FA BC F9 2C 01",
+        "AsciiPreview": "a.r.d.i.a.n._.v.e.l.v.e.t._.c.h.a.i.r._.0.1...h.k.x.....C.......S.e.n.d. .a.n.d. .r.e.c.e.i.v.e. .m.a.i.l. .h.e.r.e.....3........\u0060..,.....~.,...5...............0...................,",
+        "Utf16Preview": "ardian_velvet_chair_01.hkx..C...Send and receive mail here..3...\u6093\u10CD\u012C.\u00B8\uE67E\u012C.5.......0...\u01C1...\uFA00\uF9BC\u012C"
+      }
+    },
+    {
+      "Address": 1291180626240,
+      "AddressHex": "0x12CA05CD140",
+      "Encoding": "utf16",
+      "RegionBase": 1291180572672,
+      "RegionBaseHex": "0x12CA05C0000",
+      "RegionSize": 65536,
+      "MatchLength": 54,
+      "Classification": "isolated wide string",
+      "Context": {
+        "WindowStart": "0x12CA05CD100",
+        "WindowLength": 182,
+        "BytesHex": "00 00 00 00 2C 01 00 00 90 2E 1E 83 2C 01 00 00 50 5C EA FD 2C 01 00 00 00 00 00 00 00 00 00 00 F0 86 14 1C 00 00 00 00 10 5A CC C7 2C 01 00 00 40 00 00 00 00 00 00 00 71 00 00 00 00 00 00 00 F0 23 64 E4 2C 01 00 00 C0 A8 DB FC 2C 01 00 00 6F 00 74 00 68 00 6F 00 6C 00 64 00 00 00 69 00 73 00 68 00 20 00 31 00 2F 00 38 00 00 00 54 00 40 00 00 00 00 00 00 00 32 00 00 00 00 00 00 00 45 00 61 00 72 00 74 00 68 00 20 00 46 00 6F 00 6F 00 74 00 68 00 6F 00 6C 00 64 00 00 00 00 00 70 00 00 00 00 00 00 00 52 00 00 00 00 00 00 00 00 00 00 00 2C 01",
+        "AsciiPreview": ",.......,...P\\..,....................Z..,...@.......q........#d.,.......,...o.t.h.o.l.d...i.s.h. .1./.8...T.@.......2.......E.a.r.t.h. .F.o.o.t.h.o.l.d.....p.......R...........,",
+        "Utf16Preview": "\u012C.\u2E90\u831E\u012C.\u5C50\uFDEA\u012C.....\u86F0\u1C14..\u5A10\uC7CC\u012C.@...q...\u23F0\uE464\u012C.\uA8C0\uFCDB\u012C.othold.ish 1/8.T@...2...Earth Foothold..p...R.....\u012C"
+      }
+    },
+    {
+      "Address": 1292607533824,
+      "AddressHex": "0x12CF569B300",
+      "Encoding": "utf16",
+      "RegionBase": 1292607488000,
+      "RegionBaseHex": "0x12CF5690000",
+      "RegionSize": 65536,
+      "MatchLength": 54,
+      "Classification": "isolated wide string",
+      "Context": {
+        "WindowStart": "0x12CF569B2C0",
+        "WindowLength": 182,
+        "BytesHex": "C0 B6 69 F5 2C 01 00 00 80 B2 69 F5 2C 01 00 00 40 64 2D F5 2C 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 D0 77 65 F5 2C 01 00 00 FF FF FF FF 00 00 00 00 53 00 65 00 6E 00 64 00 20 00 61 00 6E 00 64 00 20 00 72 00 65 00 63 00 65 00 69 00 76 00 65 00 20 00 6D 00 61 00 69 00 6C 00 20 00 68 00 65 00 72 00 65 00 2E 00 00 00 0D 00 FF FF 00 00 00 00 00 B8 69 F5 2C 01 00 00 C0 B6 69 F5 2C 01 00 00 40 64 2D F5 2C 01 00 00 03 00 FE 00 00 28 00 00 28 00 0D 10 00 73 00 00 80 B9 69 F5 2C 01 00 00 FF FF FF FF 95 00",
+        "AsciiPreview": "i.,.....i.,...@d-.,............................we.,...........S.e.n.d. .a.n.d. .r.e.c.e.i.v.e. .m.a.i.l. .h.e.r.e...............i.,.....i.,...@d-.,........(..(....s....i.,",
+        "Utf16Preview": "\uB6C0\uF569\u012C.\uB280\uF569\u012C.\u6440\uF52D\u012C.............\u77D0\uF565\u012C.\uFFFF\uFFFF..Send and receive mail here...\uFFFF..\uB800\uF569\u012C.\uB6C0\uF569\u012C.\u6440\uF52D\u012C..\u00FE\u2800.(\u100D\u7300.\uB980\uF569\u012C.\uFFFF\uFFFF"
+      }
+    },
+    {
+      "Address": 1292608000588,
+      "AddressHex": "0x12CF570D24C",
+      "Encoding": "ascii",
+      "RegionBase": 1292607946752,
+      "RegionBaseHex": "0x12CF5700000",
+      "RegionSize": 65536,
+      "MatchLength": 27,
+      "Classification": "clustered identity record",
+      "Context": {
+        "WindowStart": "0x12CF570D20C",
+        "WindowLength": 155,
+        "BytesHex": "6F 00 6E 00 47 65 74 4C 6F 63 61 6C 69 7A 65 64 4C 69 6E 65 53 70 61 63 69 6E 67 41 64 6A 75 73 74 6D 65 6E 74 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 1B 00 00 00 00 00 00 00 01 00 00 00 53 65 6E 64 20 61 6E 64 20 72 65 63 65 69 76 65 20 6D 61 69 6C 20 68 65 72 65 2E 00 4D 00 0D 00 0D 00 0D 00 98 51 2D F5 2C 01 00 00 A0 D2 70 F5 2C 01 00 00 40 88 2D F5 2C 01 00 00 6D 65 64 69 75 6D 00 69 6C 20 68 65 72 65 2E 00 67 00 69 00 6F 00 6E 00 70 D2 70 F5 2C 01 00",
+        "AsciiPreview": "o.n.GetLocalizedLineSpacingAdjustment...........................Send and receive mail here..M........Q-.,.....p.,...@.-.,...medium.il here..g.i.o.n.p.p.,",
+        "Utf16Preview": "on\u6547\u4C74\u636F\u6C61\u7A69\u6465\u694C\u656E\u7053\u6361\u6E69\u4167\u6A64\u7375\u6D74\u6E65t.............\u6553\u646E\u6120\u646E\u7220\u6365\u6965\u6576\u6D20\u6961\u206C\u6568\u6572.M...\u5198\uF52D\u012C.\uD2A0\uF570\u012C.\u8840\uF52D\u012C.\u656D\u6964\u6D75\u6900\u206C\u6568\u6572.gion\uD270\uF570\u012C"
+      }
+    }
+  ]
+}

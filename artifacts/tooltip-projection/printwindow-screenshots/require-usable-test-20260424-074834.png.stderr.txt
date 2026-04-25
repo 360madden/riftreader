@@ -1,0 +1,6 @@
+Exception: C:\RIFT MODDING\RiftReader\scripts\capture-rift-window-printwindow.ps1:241
+Line |
+ 241 |      throw "PrintWindow capture appears black/unusable. Wrote diagnost …
+     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | PrintWindow capture appears black/unusable. Wrote diagnostic sidecar: C:\RIFT
+     | MODDING\RiftReader\artifacts\tooltip-projection\printwindow-screenshots\require-usable-test-20260424-074834.png.quality.json

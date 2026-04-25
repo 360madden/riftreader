@@ -1,0 +1,396 @@
+{
+  "Mode": "numeric-scan",
+  "ProcessId": 63012,
+  "ProcessName": "rift_x64",
+  "ValueType": "int32",
+  "SearchValue": "631",
+  "ContextBytes": 16,
+  "MaxHits": 24,
+  "HitCount": 24,
+  "Hits": [
+    {
+      "Address": 471393088,
+      "AddressHex": "0x1C18E340",
+      "RegionBase": 469696512,
+      "RegionBaseHex": "0x1BFF0000",
+      "RegionSize": 536870912,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x1C18E330",
+        "WindowLength": 36,
+        "BytesHex": "B0 E4 18 1C B8 E4 18 1C 0D 00 00 00 01 00 00 00 77 02 00 00 04 20 00 00 10 58 16 1C 46 00 00 00 13 00 00 00",
+        "AsciiPreview": "w.... ...X..F",
+        "Utf16Preview": "\uE4B0\u1C18\uE4B8\u1C18....\u0277.\u2004.\u5810\u1C16F"
+      }
+    },
+    {
+      "Address": 1455171411,
+      "AddressHex": "0x56BC2753",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56BC2743",
+        "WindowLength": 36,
+        "BytesHex": "48 89 44 24 28 48 8D 54 24 20 0F 28 44 24 20 B9 77 02 00 00 66 0F 7F 44 24 20 E8 F6 44 07 00 48 83 C4 38 C3",
+        "AsciiPreview": "H.D$(H.T$ .(D$ .w...f..D$ ..D..H..8",
+        "Utf16Preview": "\u8948\u2444\u4828\u548D\u2024\u280F\u2444\uB920\u0277.\u0F66\u447F\u2024\uF6E8\u0744\u4800\uC483\uC338"
+      }
+    },
+    {
+      "Address": 1455233342,
+      "AddressHex": "0x56BD193E",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56BD192E",
+        "WindowLength": 36,
+        "BytesHex": "B9 64 40 53 34 41 BF 51 70 28 10 45 8B C7 41 BE 77 02 00 00 41 8B D6 48 8D 0D 94 76 56 00 E8 2F FD 2C 00 90",
+        "AsciiPreview": "d@S4A.Qp(.E..A.w...A..H...vV../.,",
+        "Utf16Preview": "\u64B9\u5340\u4134\u51BF\u2870\u4510\uC78B\uBE41\u0277.\u8B41\u48D6\u0D8D\u7694V\u2FE8\u2CFD\u9000"
+      }
+    },
+    {
+      "Address": 1455725996,
+      "AddressHex": "0x56C49DAC",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56C49D9C",
+        "WindowLength": 36,
+        "BytesHex": "48 8B C8 48 8D 55 F7 E8 78 1B 03 00 48 C7 45 67 77 02 00 00 48 8D 45 F7 48 89 45 6F 48 8D 15 C1 47 19 00 48",
+        "AsciiPreview": "H..H.U..x...H.Egw...H.E.H.EoH...G..H",
+        "Utf16Preview": "\u8B48\u48C8\u558D\uE8F7\u1B78.\uC748\u6745\u0277.\u8D48\uF745\u8948\u6F45\u8D48\uC115\u1947\u4800"
+      }
+    },
+    {
+      "Address": 1455726080,
+      "AddressHex": "0x56C49E00",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56C49DF0",
+        "WindowLength": 36,
+        "BytesHex": "00 48 8B C8 48 8D 55 F7 E8 B7 1C 03 00 C7 45 67 77 02 00 00 C7 45 6B 01 00 00 00 48 8D 45 F7 48 89 45 6F 48",
+        "AsciiPreview": "H..H.U.......Egw....Ek....H.E.H.EoH",
+        "Utf16Preview": "\u4800\uC88B\u8D48\uF755\uB7E8\u031C\uC700\u6745\u0277.\u45C7\u016B.\u4800\u458D\u48F7\u4589\u486F"
+      }
+    },
+    {
+      "Address": 1456177577,
+      "AddressHex": "0x56CB81A9",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56CB8199",
+        "WindowLength": 36,
+        "BytesHex": "02 00 00 48 89 44 24 20 48 8B D0 48 8D 4D 00 E8 77 02 00 00 48 8B F8 48 89 44 24 28 48 8B C8 E8 1F B6 F7 FF",
+        "AsciiPreview": "H.D$ H..H.M..w...H..H.D$(H",
+        "Utf16Preview": "\u4800\u4489\u2024\u8B48\u48D0\u4D8D\uE800\u0277.\u8B48\u48F8\u4489\u2824\u8B48\uE8C8\uB61F\uFFF7"
+      }
+    },
+    {
+      "Address": 1457382802,
+      "AddressHex": "0x56DDE592",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56DDE582",
+        "WindowLength": 36,
+        "BytesHex": "48 83 EC 20 48 8B DA E8 72 4D 0C 00 48 8B C8 BA 77 02 00 00 E8 91 98 0C 00 0F B6 C0 89 03 33 C0 48 83 C4 20",
+        "AsciiPreview": "H.. H...rM..H...w.............3.H.. ",
+        "Utf16Preview": "\u8348\u20EC\u8B48\uE8DA\u4D72.\u8B48\uBAC8\u0277.\u91E8\u0C98\u0F00\uC0B6\u0389\uC033\u8348\u20C4"
+      }
+    },
+    {
+      "Address": 1457382853,
+      "AddressHex": "0x56DDE5C5",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56DDE5B5",
+        "WindowLength": 36,
+        "BytesHex": "20 83 3A 00 0F 95 C3 E8 3F 4D 0C 00 48 8B C8 BA 77 02 00 00 E8 5E 98 0C 00 3A C3 74 12 E8 29 4D 0C 00 48 8B",
+        "AsciiPreview": " .:.....?M..H...w....^...:.t..)M..H",
+        "Utf16Preview": "\u8320:\u950F\uE8C3\u4D3F.\u8B48\uBAC8\u0277.\u5EE8\u0C98\u3A00\u74C3\uE812\u4D29.\u8B48"
+      }
+    },
+    {
+      "Address": 1457382875,
+      "AddressHex": "0x56DDE5DB",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56DDE5CB",
+        "WindowLength": 36,
+        "BytesHex": "98 0C 00 3A C3 74 12 E8 29 4D 0C 00 48 8B C8 BA 77 02 00 00 E8 D4 AB 0C 00 33 C0 48 83 C4 20 5B C3 CC CC CC",
+        "AsciiPreview": ":.t..)M..H...w........3.H.. [",
+        "Utf16Preview": "\u0C98\u3A00\u74C3\uE812\u4D29.\u8B48\uBAC8\u0277.\uD4E8\u0CAB\u3300\u48C0\uC483\u5B20\uCCC3\uCCCC"
+      }
+    },
+    {
+      "Address": 1457443607,
+      "AddressHex": "0x56DED317",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56DED307",
+        "WindowLength": 36,
+        "BytesHex": "41 B5 01 44 88 AD 30 01 00 00 40 88 74 24 50 E9 77 02 00 00 41 B8 03 00 1D 00 48 8D 95 10 01 00 00 48 8D 8D",
+        "AsciiPreview": "A..D..0...@.t$P.w...A.....H......H",
+        "Utf16Preview": "\uB541\u4401\uAD88\u0130.\u8840\u2474\uE950\u0277.\uB841..\u8D48\u1095.\u4800\u8D8D"
+      }
+    },
+    {
+      "Address": 1458095657,
+      "AddressHex": "0x56E8C629",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56E8C619",
+        "WindowLength": 36,
+        "BytesHex": "44 8A 75 30 48 8B 7D D8 48 8D 53 20 49 8B CD E8 77 02 00 00 84 C0 75 5C 44 88 74 24 20 4C 8D 4B 20 4C 8B C7",
+        "AsciiPreview": "D.u0H.}.H.S I...w.....u\\D.t$ L.K L",
+        "Utf16Preview": "\u8A44\u3075\u8B48\uFFFD\u8D48\u2053\u8B49\uE8CD\u0277.\uC084\u5C75\u8844\u2474\u4C20\u4B8D\u4C20\uC78B"
+      }
+    },
+    {
+      "Address": 1458208334,
+      "AddressHex": "0x56EA7E4E",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56EA7E3E",
+        "WindowLength": 36,
+        "BytesHex": "EC 20 81 FA 9D 02 00 00 8B EA B8 82 55 54 24 BA 77 02 00 00 48 8B D9 41 B8 01 00 00 00 41 8B F0 8B CD 0F 44",
+        "AsciiPreview": " ..........UT$.w...H..A.....A.....D",
+        "Utf16Preview": "\u20EC\uFA81\u029D.\uEA8B\u82B8\u5455\uBA24\u0277.\u8B48\u41D9\u01B8.\u4100\uF08B\uCD8B\u440F"
+      }
+    },
+    {
+      "Address": 1458686869,
+      "AddressHex": "0x56F1CB95",
+      "RegionBase": 1455165440,
+      "RegionBaseHex": "0x56BC1000",
+      "RegionSize": 3735552,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x56F1CB85",
+        "WindowLength": 36,
+        "BytesHex": "00 32 C0 E9 85 02 00 00 44 8B BD 50 01 00 00 E9 77 02 00 00 41 83 FF 01 0F 87 AD 00 00 00 8B 9D 54 01 00 00",
+        "AsciiPreview": "2......D..P....w...A...........T",
+        "Utf16Preview": "\u3200\uE9C0\u0285.\u8B44\u50BD.\uE900\u0277.\u8341\u01FF\u870F\u00AD.\u9D8B\u0154"
+      }
+    },
+    {
+      "Address": 1459816481,
+      "AddressHex": "0x57030821",
+      "RegionBase": 1458900992,
+      "RegionBaseHex": "0x56F51000",
+      "RegionSize": 1732608,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x57030811",
+        "WindowLength": 36,
+        "BytesHex": "76 02 00 02 00 00 00 FF 76 02 00 01 00 00 00 32 77 02 00 00 00 00 00 3F 77 02 00 FF FF FF FF 19 30 09 00 22",
+        "AsciiPreview": "v.......v......2w......?w.......0..\u0022",
+        "Utf16Preview": "\u0276\u0200.\uFF00\u0276\u0100.\u3200\u0277..\u3F00\u0277\uFF00\uFFFF\u19FF\u0930\u2200"
+      }
+    },
+    {
+      "Address": 1460899828,
+      "AddressHex": "0x57138FF4",
+      "RegionBase": 1460850688,
+      "RegionBaseHex": "0x5712D000",
+      "RegionSize": 131072,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x57138FE4",
+        "WindowLength": 36,
+        "BytesHex": "00 00 00 00 00 00 01 00 FF FF FF FF 51 70 28 10 77 02 00 00 FF FF FF FF 64 40 53 34 64 40 53 34 00 00 00 00",
+        "AsciiPreview": "Qp(.w.......d@S4d@S4",
+        "Utf16Preview": "\uFFFF\uFFFF\u7051\u1028\u0277.\uFFFF\uFFFF\u4064\u3453\u4064\u3453"
+      }
+    },
+    {
+      "Address": 1460912892,
+      "AddressHex": "0x5713C2FC",
+      "RegionBase": 1460850688,
+      "RegionBaseHex": "0x5712D000",
+      "RegionSize": 131072,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x5713C2EC",
+        "WindowLength": 36,
+        "BytesHex": "00 00 00 00 00 00 01 00 FF FF FF FF 51 70 28 10 77 02 00 00 FF FF FF FF 64 40 53 34 64 40 53 34 00 00 00 00",
+        "AsciiPreview": "Qp(.w.......d@S4d@S4",
+        "Utf16Preview": "\uFFFF\uFFFF\u7051\u1028\u0277.\uFFFF\uFFFF\u4064\u3453\u4064\u3453"
+      }
+    },
+    {
+      "Address": 4563570689,
+      "AddressHex": "0x110029001",
+      "RegionBase": 4563406848,
+      "RegionBaseHex": "0x110001000",
+      "RegionSize": 262144,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x110028FF1",
+        "WindowLength": 36,
+        "BytesHex": "41 B8 03 00 00 00 48 8B 4D F8 E8 E0 02 00 00 E9 77 02 00 00 0F 1F 00 41 83 FC 01 75 22 48 8B 45 F8 48 8B 40",
+        "AsciiPreview": "A.....H.M.......w......A...u\u0022H.E.H.@",
+        "Utf16Preview": "\uB841..\u8B48\uF84D\uE0E8.\uE900\u0277.\u1F0F\u4100\uFC83\u7501\u4822\u458B\u48F8\u408B"
+      }
+    },
+    {
+      "Address": 4563649573,
+      "AddressHex": "0x11003C425",
+      "RegionBase": 4563406848,
+      "RegionBaseHex": "0x110001000",
+      "RegionSize": 262144,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x11003C415",
+        "WindowLength": 36,
+        "BytesHex": "0F 1F 00 48 8B 4B 08 E8 AF FC FF FF 0F 28 F0 E9 77 02 00 00 0F 1F 00 48 8B 4B 08 E8 3B FD FF FF 0F 28 F0 E9",
+        "AsciiPreview": "H.K.......(..w......H.K..;....(",
+        "Utf16Preview": "\u1F0F\u4800\u4B8B\uE808\uFCAF\uFFFF\u280F\uE9F0\u0277.\u1F0F\u4800\u4B8B\uE808\uFD3B\uFFFF\u280F\uE9F0"
+      }
+    },
+    {
+      "Address": 4563656413,
+      "AddressHex": "0x11003DEDD",
+      "RegionBase": 4563406848,
+      "RegionBaseHex": "0x110001000",
+      "RegionSize": 262144,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x11003DECD",
+        "WindowLength": 36,
+        "BytesHex": "0F 1F 00 48 8B 4B 08 E8 27 FD FF FF 40 88 C6 E9 77 02 00 00 0F 1F 00 48 8B 4B 08 E8 73 FD FF FF 40 88 C6 E9",
+        "AsciiPreview": "H.K..\u0027...@...w......H.K..s...@",
+        "Utf16Preview": "\u1F0F\u4800\u4B8B\uE808\uFD27\uFFFF\u8840\uE9C6\u0277.\u1F0F\u4800\u4B8B\uE808\uFD73\uFFFF\u8840\uE9C6"
+      }
+    },
+    {
+      "Address": 4563658981,
+      "AddressHex": "0x11003E8E5",
+      "RegionBase": 4563406848,
+      "RegionBaseHex": "0x110001000",
+      "RegionSize": 262144,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x11003E8D5",
+        "WindowLength": 36,
+        "BytesHex": "8B 73 08 E9 83 02 00 00 0F 1F 00 48 8B 73 08 E9 77 02 00 00 0F 1F 00 48 8B 4B 08 E8 6B FD FF FF 48 89 C6 E9",
+        "AsciiPreview": "s.........H.s..w......H.K..k...H",
+        "Utf16Preview": "\u738B\uE908\u0283.\u1F0F\u4800\u738B\uE908\u0277.\u1F0F\u4800\u4B8B\uE808\uFD6B\uFFFF\u8948\uE9C6"
+      }
+    },
+    {
+      "Address": 4563660277,
+      "AddressHex": "0x11003EDF5",
+      "RegionBase": 4563406848,
+      "RegionBaseHex": "0x110001000",
+      "RegionSize": 262144,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x11003EDE5",
+        "WindowLength": 36,
+        "BytesHex": "8B 73 08 E9 83 02 00 00 0F 1F 00 48 8B 73 08 E9 77 02 00 00 0F 1F 00 48 8B 4B 08 E8 6B FD FF FF 48 89 C6 E9",
+        "AsciiPreview": "s.........H.s..w......H.K..k...H",
+        "Utf16Preview": "\u738B\uE908\u0283.\u1F0F\u4800\u738B\uE908\u0277.\u1F0F\u4800\u4B8B\uE808\uFD6B\uFFFF\u8948\uE9C6"
+      }
+    },
+    {
+      "Address": 1290642585268,
+      "AddressHex": "0x12C804AF6B4",
+      "RegionBase": 1290641924096,
+      "RegionBaseHex": "0x12C8040E000",
+      "RegionSize": 2347008,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x12C804AF6A4",
+        "WindowLength": 36,
+        "BytesHex": "51 45 12 12 EC 92 A2 49 B5 89 A2 EA 96 79 CB 47 77 02 00 00 89 7A A4 61 20 00 73 55 77 66 11 01 22 00 02 00",
+        "AsciiPreview": "QE.....I.....y.Gw....z.a .sUwf..\u0022",
+        "Utf16Preview": "\u4551\u1212\u92EC\u49A2\u89B5\uEAA2\u7996\u47CB\u0277.\u7A89\u61A4 \u5573\u6677\u0111\u0022"
+      }
+    },
+    {
+      "Address": 1290645941768,
+      "AddressHex": "0x12C807E2E08",
+      "RegionBase": 1290645934080,
+      "RegionBaseHex": "0x12C807E1000",
+      "RegionSize": 1445888,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x12C807E2DF8",
+        "WindowLength": 36,
+        "BytesHex": "00 00 00 00 00 00 00 00 09 00 00 00 04 00 00 00 77 02 00 00 00 00 00 00 40 CF 20 A8 2C 01 00 00 02 00 00 00",
+        "AsciiPreview": "w.......@. .,",
+        "Utf16Preview": "\u0277...\uCF40\uA820\u012C"
+      }
+    },
+    {
+      "Address": 1290648341799,
+      "AddressHex": "0x12C80A2CD27",
+      "RegionBase": 1290647384064,
+      "RegionBaseHex": "0x12C80943000",
+      "RegionSize": 3702784,
+      "ValueType": "int32",
+      "ObservedValue": "631",
+      "Context": {
+        "WindowStart": "0x12C80A2CD17",
+        "WindowLength": 36,
+        "BytesHex": "26 01 00 01 21 01 00 01 0F 01 00 01 29 01 00 01 77 02 00 00 C3 02 00 01 F8 02 00 01 FC 02 00 02 FB 02 00 02",
+        "AsciiPreview": "\u0026...!.......)...w",
+        "Utf16Preview": "\u0126\u0100\u0121\u0100\u010F\u0100\u0129\u0100\u0277.\u02C3\u0100\u02F8\u0100\u02FC\u0200\u02FB\u0200"
+      }
+    }
+  ]
+}

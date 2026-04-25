@@ -1,0 +1,19 @@
+{
+  "Ok": false,
+  "Usable": false,
+  "Output": "C:\\RIFT MODDING\\RiftReader\\artifacts\\window-capture\\wgc\\rift-wgc-live-20260424-081247-203.png",
+  "Message": "Specified cast is not valid.",
+  "ErrorType": "InvalidCastException",
+  "ProcessName": "rift_x64",
+  "Pid": null,
+  "TitleContains": "RIFT",
+  "WindowProcessName": null,
+  "WindowPid": null,
+  "WindowTitle": null,
+  "Hwnd": null,
+  "Width": 0,
+  "Height": 0,
+  "BlackPixelRatio": 1,
+  "TransparentPixelRatio": 1,
+  "LumaStdDev": 0
+}

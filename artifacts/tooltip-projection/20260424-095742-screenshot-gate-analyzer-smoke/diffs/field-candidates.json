@@ -1,0 +1,53 @@
+{
+  "generatedAtUtc": "2026-04-25T06:13:39.1099846+00:00",
+  "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke",
+  "samplesPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke\\samples.ndjson",
+  "sampleCount": 2,
+  "hiddenSampleCount": 1,
+  "hoverSampleCount": 1,
+  "baselineLabel": "baseline",
+  "activeLabel": "active",
+  "baselineStateRegex": "^baseline",
+  "activeStateRegex": "^active",
+  "requireVisualGate": true,
+  "expectedStateSequenceRequired": false,
+  "baseCandidate": "0x12CFC40B7D0",
+  "windowStart": "0x12CFC40B7C8",
+  "windowLength": 16,
+  "knownTextPointers": [],
+  "hasTargetStates": [
+    false
+  ],
+  "scanEvidenceCount": 0,
+  "screenshotGateStatus": "passed",
+  "warnings": [],
+  "candidates": [],
+  "rejections": [
+    {
+      "offset": "+0x0",
+      "offsetDecimal": 0,
+      "address": "0x12CFC40B7C8",
+      "type": "pointer",
+      "subtype": "static-or-inconclusive",
+      "score": 0.0,
+      "classification": "noise-or-static",
+      "evidence": [
+        "hidden value is stable",
+        "hover value is stable"
+      ],
+      "promotionStatus": "rejected",
+      "hiddenMode": "0x73",
+      "hoverMode": "0x73",
+      "hiddenDistinct": 1,
+      "hoverDistinct": 1,
+      "allDistinct": 1,
+      "transitionPairs": 1,
+      "transitionChanges": 0,
+      "reasons": [
+        "pointer view is not pointer-like"
+      ]
+    }
+  ],
+  "classificationCounts": []
+}

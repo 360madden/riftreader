@@ -1,0 +1,47 @@
+{
+  "timestampUtc": "2026-04-24T19:05:25.9653844Z",
+  "exitCode": 0,
+  "command": [
+    "dotnet",
+    "run",
+    "--project",
+    "C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj",
+    "--",
+    "--process-name",
+    "rift_x64",
+    "--read-target-current",
+    "--scan-context",
+    "192",
+    "--max-hits",
+    "4",
+    "--json"
+  ],
+  "stdout": "{\r\n  \"Mode\": \"target-current-read\",\r\n  \"ProcessId\": 63012,\r\n  \"ProcessName\": \"rift_x64\",\r\n  \"ReaderBridgeSourceFile\": \"C:\\\\Users\\\\mrkoo\\\\OneDrive\\\\Documents\\\\RIFT\\\\Interface\\\\Saved\\\\rift315.1@gmail.com\\\\Deepwood\\\\Atank\\\\SavedVariables\\\\ReaderBridgeExport.lua\",\r\n  \"FamilyId\": \"n/a\",\r\n  \"FamilyNotes\": \"no target selected\",\r\n  \"Signature\": \"n/a\",\r\n  \"SelectionSource\": \"none\",\r\n  \"AnchorProvenance\": \"none\",\r\n  \"AnchorCacheUsed\": false,\r\n  \"AnchorCacheUpdated\": false,\r\n  \"CeConfirmedSampleCount\": 0,\r\n  \"Memory\": {\r\n    \"AddressHex\": \"n/a\"\r\n  },\r\n  \"Expected\": {},\r\n  \"Match\": {\r\n    \"NameMatches\": false,\r\n    \"LevelMatches\": false,\r\n    \"HealthMatches\": false,\r\n    \"CoordMatchesWithinTolerance\": false,\r\n    \"DistanceMatchesWithinTolerance\": false\r\n  },\r\n  \"HasTarget\": false\r\n}",
+  "json": {
+    "Mode": "target-current-read",
+    "ProcessId": 63012,
+    "ProcessName": "rift_x64",
+    "ReaderBridgeSourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+    "FamilyId": "n/a",
+    "FamilyNotes": "no target selected",
+    "Signature": "n/a",
+    "SelectionSource": "none",
+    "AnchorProvenance": "none",
+    "AnchorCacheUsed": false,
+    "AnchorCacheUpdated": false,
+    "CeConfirmedSampleCount": 0,
+    "Memory": {
+      "AddressHex": "n/a"
+    },
+    "Expected": {},
+    "Match": {
+      "NameMatches": false,
+      "LevelMatches": false,
+      "HealthMatches": false,
+      "CoordMatchesWithinTolerance": false,
+      "DistanceMatchesWithinTolerance": false
+    },
+    "HasTarget": false
+  },
+  "jsonParseError": null
+}

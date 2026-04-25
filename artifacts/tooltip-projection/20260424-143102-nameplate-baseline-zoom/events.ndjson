@@ -1,0 +1,15 @@
+{"timestampUtc":"2026-04-24T18:31:02.8432896Z","event":"run-started","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\manifest.json","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom"}
+{"timestampUtc":"2026-04-24T18:31:02.8579090Z","event":"state-started","state":"baseline1","index":1,"role":"baseline"}
+{"timestampUtc":"2026-04-24T18:31:20.7032613Z","event":"state-screenshot-captured","usable":true,"state":"baseline1","index":1,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.bmp"}
+{"timestampUtc":"2026-04-24T18:34:36.4279812Z","event":"state-completed","numericScanCount":0,"hasTarget":false,"textHitCount":3,"state":"baseline1","pointerScanCount":3,"index":1}
+{"timestampUtc":"2026-04-24T18:34:36.4365589Z","event":"state-started","state":"zoom1","index":2,"role":"active"}
+{"timestampUtc":"2026-04-24T18:36:18.3979196Z","event":"state-screenshot-captured","usable":true,"state":"zoom1","index":2,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.bmp"}
+{"timestampUtc":"2026-04-24T18:38:37.0610201Z","event":"state-completed","numericScanCount":0,"hasTarget":false,"textHitCount":3,"state":"zoom1","pointerScanCount":3,"index":2}
+{"timestampUtc":"2026-04-24T18:38:37.0696104Z","event":"state-started","state":"baseline2","index":3,"role":"baseline"}
+{"timestampUtc":"2026-04-24T18:39:53.0083191Z","event":"state-screenshot-captured","usable":true,"state":"baseline2","index":3,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.bmp"}
+{"timestampUtc":"2026-04-24T18:41:54.1441036Z","event":"state-completed","numericScanCount":0,"hasTarget":false,"textHitCount":3,"state":"baseline2","pointerScanCount":3,"index":3}
+{"timestampUtc":"2026-04-24T18:41:54.1525011Z","event":"state-started","state":"zoom2","index":4,"role":"active"}
+{"timestampUtc":"2026-04-24T18:43:22.8797649Z","event":"state-screenshot-captured","usable":true,"state":"zoom2","index":4,"output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.bmp"}
+{"timestampUtc":"2026-04-24T18:45:29.8861478Z","event":"state-completed","numericScanCount":0,"hasTarget":false,"textHitCount":3,"state":"zoom2","pointerScanCount":3,"index":4}
+{"timestampUtc":"2026-04-24T18:45:29.9258008Z","event":"run-completed","sampleCount":4,"summary":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\summary.json"}
+{"timestampUtc":"2026-04-24T18:45:29.9282844Z","event":"post-capture-analysis-started","analyzerBaselineStateRegex":"^baseline","analyzerActiveStateRegex":"^zoom","analyzerRequireVisualGate":true}

@@ -1,0 +1,19 @@
+{
+  "Ok": false,
+  "Usable": false,
+  "Output": "C:\\RIFT MODDING\\RiftReader\\artifacts\\window-capture\\wgc\\rift-wgc-live-20260424-080956-515.png",
+  "Message": "Unable to cast COM object of type \u0027System.__ComObject\u0027 to class type \u0027Windows.Graphics.Capture.GraphicsCaptureItem\u0027. Instances of types that represent COM components cannot be cast to types that do not represent COM components; however they can be cast to interfaces as long as the underlying COM component supports QueryInterface calls for the IID of the interface.",
+  "ErrorType": "InvalidCastException",
+  "ProcessName": "rift_x64",
+  "Pid": null,
+  "TitleContains": "RIFT",
+  "WindowProcessName": null,
+  "WindowPid": null,
+  "WindowTitle": null,
+  "Hwnd": null,
+  "Width": 0,
+  "Height": 0,
+  "BlackPixelRatio": 1,
+  "TransparentPixelRatio": 1,
+  "LumaStdDev": 0
+}

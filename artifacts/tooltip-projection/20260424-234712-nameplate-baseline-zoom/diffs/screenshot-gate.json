@@ -1,0 +1,131 @@
+{
+  "generatedAtUtc": "2026-04-25T03:49:32.4747590+00:00",
+  "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+  "samplesPath": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\samples.ndjson",
+  "sampleCount": 4,
+  "hiddenSampleCount": 2,
+  "hoverSampleCount": 2,
+  "baselineLabel": "baseline",
+  "activeLabel": "zoom",
+  "baselineStateRegex": "^baseline",
+  "activeStateRegex": "^zoom",
+  "requireVisualGate": true,
+  "expectedStateSequenceRequired": true,
+  "baseCandidate": "0x12CFC40B7D0",
+  "windowStart": "0x12CFC40B5D0",
+  "windowLength": 1024,
+  "knownTextPointers": [],
+  "hasTargetStates": [
+    false
+  ],
+  "scanEvidenceCount": 0,
+  "screenshotGateStatus": "passed",
+  "warnings": [],
+  "screenshotGate": {
+    "sampleCount": 4,
+    "captureRecordCount": 4,
+    "usableCount": 4,
+    "usableVisualCount": 4,
+    "unusableCount": 0,
+    "allSamplesHaveCapture": true,
+    "allSamplesHaveUsableCapture": true,
+    "allCapturesUsable": true,
+    "visualGateStatus": "passed",
+    "rows": [
+      {
+        "state": "hidden",
+        "originalState": "baseline1",
+        "stateRole": "baseline",
+        "isActiveState": false,
+        "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.capture.json",
+        "captureRecordExists": true,
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline1\\screenshots\\baseline1.bmp",
+        "screenshotOutputExists": true,
+        "ok": true,
+        "usable": true,
+        "captureMethod": "DXGIDesktopDuplication",
+        "contentBlackRatio": 0.001205078125,
+        "contentLumaStdDev": 98.46412567861422,
+        "parseError": null
+      },
+      {
+        "state": "hover",
+        "originalState": "zoom1",
+        "stateRole": "active",
+        "isActiveState": true,
+        "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.capture.json",
+        "captureRecordExists": true,
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom1\\screenshots\\zoom1.bmp",
+        "screenshotOutputExists": true,
+        "ok": true,
+        "usable": true,
+        "captureMethod": "DXGIDesktopDuplication",
+        "contentBlackRatio": 0.0012045200892857142,
+        "contentLumaStdDev": 98.47740532597054,
+        "parseError": null
+      },
+      {
+        "state": "hidden",
+        "originalState": "baseline2",
+        "stateRole": "baseline",
+        "isActiveState": false,
+        "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.capture.json",
+        "captureRecordExists": true,
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\baseline2\\screenshots\\baseline2.bmp",
+        "screenshotOutputExists": true,
+        "ok": true,
+        "usable": true,
+        "captureMethod": "DXGIDesktopDuplication",
+        "contentBlackRatio": 0.0012042410714285714,
+        "contentLumaStdDev": 98.45805640716902,
+        "parseError": null
+      },
+      {
+        "state": "hover",
+        "originalState": "zoom2",
+        "stateRole": "active",
+        "isActiveState": true,
+        "captureRecord": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.capture.json",
+        "captureRecordExists": true,
+        "screenshotOutput": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\states\\zoom2\\screenshots\\zoom2.bmp",
+        "screenshotOutputExists": true,
+        "ok": true,
+        "usable": true,
+        "captureMethod": "DXGIDesktopDuplication",
+        "contentBlackRatio": 0.001203125,
+        "contentLumaStdDev": 98.44625400079255,
+        "parseError": null
+      }
+    ],
+    "expectedStateSequence": {
+      "passed": true,
+      "expectedStates": [
+        "baseline1",
+        "zoom1",
+        "baseline2",
+        "zoom2"
+      ],
+      "actualStates": [
+        "baseline1",
+        "zoom1",
+        "baseline2",
+        "zoom2"
+      ],
+      "statesMatch": true,
+      "expectedStateRoles": [
+        "baseline",
+        "active",
+        "baseline",
+        "active"
+      ],
+      "actualStateRoles": [
+        "baseline",
+        "active",
+        "baseline",
+        "active"
+      ],
+      "stateRolesMatch": true
+    }
+  }
+}

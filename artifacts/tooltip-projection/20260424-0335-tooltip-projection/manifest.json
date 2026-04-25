@@ -1,0 +1,34 @@
+{
+  "createdAt": "2026-04-24T03:34:35.6057228-04:00",
+  "source": "rift-game-mcp runtime captures",
+  "screenshots": {
+    "zoom_hover": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-033343-358.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\zoom_hover.png"
+    },
+    "zoom_hidden": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-033241-780.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\zoom_hidden.png"
+    },
+    "hover_0": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-032807-516.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\hover_0.png"
+    },
+    "hidden_1": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-032908-414.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\hidden_1.png"
+    },
+    "hidden_0": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-032706-990.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\hidden_0.png"
+    },
+    "initial_hover": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-032559-348.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\initial_hover.png"
+    },
+    "hover_1": {
+      "source": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260424-033106-461.png",
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-0335-tooltip-projection\\hover_1.png"
+    }
+  }
+}

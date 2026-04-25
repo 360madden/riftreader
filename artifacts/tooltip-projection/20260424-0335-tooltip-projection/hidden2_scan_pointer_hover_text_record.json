@@ -1,0 +1,11 @@
+{
+  "Mode": "pointer-scan",
+  "ProcessId": 63012,
+  "ProcessName": "rift_x64",
+  "PointerTarget": "0x12CF46CE280",
+  "PointerWidth": 8,
+  "ContextBytes": 64,
+  "MaxHits": 24,
+  "HitCount": 0,
+  "Hits": []
+}

@@ -1,0 +1,19 @@
+{
+  "Ok": false,
+  "Usable": false,
+  "Output": "C:\\RIFT MODDING\\RiftReader\\artifacts\\window-capture\\wgc\\rift-wgc-live-20260424-081709-487.png",
+  "Message": "System.IO.FileNotFoundException: Could not find file \u0027C:\\RIFT MODDING\\RiftReader\\artifacts\\window-capture\\wgc\\rift-wgc-live-20260424-081709-487.bmp\u0027.\r\nFile name: \u0027C:\\RIFT MODDING\\RiftReader\\artifacts\\window-capture\\wgc\\rift-wgc-live-20260424-081709-487.bmp\u0027\r\n   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)\r\n   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable\u00601 unixCreateMode)\r\n   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable\u00601 unixCreateMode)\r\n   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable\u00601 unixCreateMode)\r\n   at System.IO.File.Create(String path)\r\n   at TextureSaver.WriteTopDownBgraBmp(String output, Int32 width, Int32 height, Byte[] bgraPixels) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 565\r\n   at TextureSaver.SaveMappedBgraPng(MappedSubresource mapped, Int32 width, Int32 height, String output) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 546\r\n   at TextureSaver.SaveFrameToImage(D3DObjects d3d, IDirect3DSurface surface, String output) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 499\r\n   at Program.\u003C\u003CMain\u003E$\u003Eg__CaptureOnceAsync|0_0(Options options) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 148\r\n   at Program.\u003C\u003CMain\u003E$\u003Eg__CaptureOnceAsync|0_0(Options options) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 149\r\n   at Program.\u003CMain\u003E$(String[] args) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 33",
+  "ErrorType": "FileNotFoundException",
+  "ProcessName": "rift_x64",
+  "Pid": null,
+  "TitleContains": "RIFT",
+  "WindowProcessName": null,
+  "WindowPid": null,
+  "WindowTitle": null,
+  "Hwnd": null,
+  "Width": 0,
+  "Height": 0,
+  "BlackPixelRatio": 1,
+  "TransparentPixelRatio": 1,
+  "LumaStdDev": 0
+}

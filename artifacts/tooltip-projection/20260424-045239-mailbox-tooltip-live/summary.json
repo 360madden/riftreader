@@ -1,0 +1,117 @@
+{
+  "tooltipHoverDiffAnalysis": {
+    "generatedAtUtc": "2026-04-24T14:00:15.2351089+00:00",
+    "analyzer": "scripts/analyze-tooltip-hover-diff.ps1",
+    "sampleCount": 6,
+    "hiddenSampleCount": 3,
+    "hoverSampleCount": 3,
+    "baselineLabel": "hidden",
+    "activeLabel": "hover",
+    "baselineStateRegex": "hidden",
+    "activeStateRegex": "hover",
+    "requireVisualGate": true,
+    "baseCandidate": "0x12CF46C6F80",
+    "windowStart": "0x12CF46C6D80",
+    "windowLength": 1024,
+    "outputFiles": {
+      "hiddenVsHover": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\hidden_vs_hover.json",
+      "stableHoverFields": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\stable-hover-fields.json",
+      "fieldCandidates": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\field-candidates.json",
+      "scanEvidence": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\scan-evidence.json",
+      "screenshotGate": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\screenshot-gate.json"
+    },
+    "screenshotGate": {
+      "sampleCount": 6,
+      "captureRecordCount": 0,
+      "usableCount": 0,
+      "unusableCount": 0,
+      "allSamplesHaveCapture": false,
+      "allCapturesUsable": false,
+      "visualGateStatus": "not-captured",
+      "rows": [
+        {
+          "state": "hidden",
+          "captureRecord": null,
+          "captureRecordExists": false,
+          "screenshotOutput": null,
+          "screenshotOutputExists": false,
+          "ok": null,
+          "usable": null,
+          "captureMethod": null,
+          "contentBlackRatio": null,
+          "contentLumaStdDev": null,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "captureRecord": null,
+          "captureRecordExists": false,
+          "screenshotOutput": null,
+          "screenshotOutputExists": false,
+          "ok": null,
+          "usable": null,
+          "captureMethod": null,
+          "contentBlackRatio": null,
+          "contentLumaStdDev": null,
+          "parseError": null
+        },
+        {
+          "state": "hidden",
+          "captureRecord": null,
+          "captureRecordExists": false,
+          "screenshotOutput": null,
+          "screenshotOutputExists": false,
+          "ok": null,
+          "usable": null,
+          "captureMethod": null,
+          "contentBlackRatio": null,
+          "contentLumaStdDev": null,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "captureRecord": null,
+          "captureRecordExists": false,
+          "screenshotOutput": null,
+          "screenshotOutputExists": false,
+          "ok": null,
+          "usable": null,
+          "captureMethod": null,
+          "contentBlackRatio": null,
+          "contentLumaStdDev": null,
+          "parseError": null
+        },
+        {
+          "state": "hidden",
+          "captureRecord": null,
+          "captureRecordExists": false,
+          "screenshotOutput": null,
+          "screenshotOutputExists": false,
+          "ok": null,
+          "usable": null,
+          "captureMethod": null,
+          "contentBlackRatio": null,
+          "contentLumaStdDev": null,
+          "parseError": null
+        },
+        {
+          "state": "hover",
+          "captureRecord": null,
+          "captureRecordExists": false,
+          "screenshotOutput": null,
+          "screenshotOutputExists": false,
+          "ok": null,
+          "usable": null,
+          "captureMethod": null,
+          "contentBlackRatio": null,
+          "contentLumaStdDev": null,
+          "parseError": null
+        }
+      ]
+    },
+    "topCandidates": [],
+    "topScanEvidence": [],
+    "rejectionCount": 102,
+    "warnings": []
+  }
+}

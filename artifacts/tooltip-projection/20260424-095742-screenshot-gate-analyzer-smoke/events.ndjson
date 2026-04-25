@@ -1,0 +1,8 @@
+{"timestampUtc":"2026-04-24T13:57:42.2838804Z","event":"run-started","manifest":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke\\manifest.json","runRoot":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke"}
+{"timestampUtc":"2026-04-24T13:57:42.3124074Z","event":"state-started","state":"baseline1","index":1}
+{"timestampUtc":"2026-04-24T13:57:51.1200058Z","event":"state-screenshot-captured","output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke\\states\\baseline1\\screenshots\\baseline1.bmp","usable":true,"state":"baseline1","index":1}
+{"timestampUtc":"2026-04-24T13:57:57.2335016Z","event":"state-completed","index":1,"pointerScanCount":0,"textHitCount":0,"state":"baseline1","hasTarget":false,"numericScanCount":0}
+{"timestampUtc":"2026-04-24T13:57:57.2438523Z","event":"state-started","state":"active1","index":2}
+{"timestampUtc":"2026-04-24T13:58:05.6807526Z","event":"state-screenshot-captured","output":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke\\states\\active1\\screenshots\\active1.bmp","usable":true,"state":"active1","index":2}
+{"timestampUtc":"2026-04-24T13:58:11.2510779Z","event":"state-completed","index":2,"pointerScanCount":0,"textHitCount":0,"state":"active1","hasTarget":false,"numericScanCount":0}
+{"timestampUtc":"2026-04-24T13:58:11.2674164Z","event":"run-completed","summary":"C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-095742-screenshot-gate-analyzer-smoke\\summary.json","sampleCount":2}

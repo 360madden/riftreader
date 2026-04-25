@@ -1,0 +1,18 @@
+{
+  "inputDirectory": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live",
+  "outputFiles": {
+    "hiddenVsHover": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\hidden_vs_hover.json",
+    "stableHoverFields": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\stable-hover-fields.json",
+    "fieldCandidates": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\field-candidates.json",
+    "scanEvidence": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\diffs\\scan-evidence.json",
+    "summary": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-045239-mailbox-tooltip-live\\summary.json"
+  },
+  "sampleCount": 6,
+  "hiddenSampleCount": 3,
+  "hoverSampleCount": 3,
+  "candidateCount": 0,
+  "topCandidates": [],
+  "scanEvidenceCount": 0,
+  "topScanEvidence": [],
+  "warnings": []
+}

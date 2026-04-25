@@ -1,0 +1,97 @@
+{
+  "mode": "capture",
+  "runLabel": "nameplate-baseline-zoom",
+  "runId": "20260424-234108-nameplate-baseline-zoom",
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234108-nameplate-baseline-zoom",
+  "process": {
+    "name": "rift_x64"
+  },
+  "readerProject": "C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj",
+  "candidateAddress": "0x12CFC40B7D0",
+  "candidateLength": 1024,
+  "windowBaseAddress": "0x12CFC40B5D0",
+  "windowEndAddress": "0x12CFC40B9CF",
+  "tooltipText": "Atank of Sanctum",
+  "states": [
+    "baseline1",
+    "zoom1",
+    "baseline2",
+    "zoom2"
+  ],
+  "scanContextBytes": 192,
+  "maxHits": 4,
+  "extraPointerTargets": [],
+  "scanInt32Values": [],
+  "scanFloatValues": [],
+  "scanDoubleValues": [],
+  "scanTolerance": 0.5,
+  "textPointerScanMode": "none",
+  "skipTargetRead": false,
+  "skipTextScan": false,
+  "skipPointerScan": true,
+  "captureScreenshot": true,
+  "requireUsableScreenshot": true,
+  "screenshotAttempts": 3,
+  "analyzeAfterCapture": true,
+  "analyzerBaselineStateRegex": "^baseline",
+  "analyzerActiveStateRegex": "^zoom",
+  "analyzerBaselineLabel": "baseline",
+  "analyzerActiveLabel": "zoom",
+  "analyzerRequireVisualGate": true,
+  "analyzerExpectedStates": [
+    "baseline1",
+    "zoom1",
+    "baseline2",
+    "zoom2"
+  ],
+  "analyzerExpectedStateRoles": [
+    "baseline",
+    "active",
+    "baseline",
+    "active"
+  ],
+  "nonInteractive": false,
+  "controlsInput": false,
+  "operatorChecklist": [
+    {
+      "index": 1,
+      "state": "baseline1",
+      "stateRole": "baseline",
+      "isActiveState": false,
+      "requiresOperatorConfirmation": true,
+      "instruction": "Prepare proof state 'baseline1' (baseline), then press Enter when the operator-visible state is ready."
+    },
+    {
+      "index": 2,
+      "state": "zoom1",
+      "stateRole": "active",
+      "isActiveState": true,
+      "requiresOperatorConfirmation": true,
+      "instruction": "Prepare proof state 'zoom1' (active), then press Enter when the operator-visible state is ready."
+    },
+    {
+      "index": 3,
+      "state": "baseline2",
+      "stateRole": "baseline",
+      "isActiveState": false,
+      "requiresOperatorConfirmation": true,
+      "instruction": "Prepare proof state 'baseline2' (baseline), then press Enter when the operator-visible state is ready."
+    },
+    {
+      "index": 4,
+      "state": "zoom2",
+      "stateRole": "active",
+      "isActiveState": true,
+      "requiresOperatorConfirmation": true,
+      "instruction": "Prepare proof state 'zoom2' (active), then press Enter when the operator-visible state is ready."
+    }
+  ],
+  "notes": [
+    "This helper only invokes RiftReader.Reader read/scan modes.",
+    "It does not move the mouse, click, cast, move, focus a window, or send keyboard input.",
+    "PlanOnly does not attach to the process and does not create live run artifacts."
+  ],
+  "createdUtc": "2026-04-25T03:41:08.6983086Z",
+  "eventsFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234108-nameplate-baseline-zoom\\events.ndjson",
+  "samplesFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234108-nameplate-baseline-zoom\\samples.ndjson"
+}

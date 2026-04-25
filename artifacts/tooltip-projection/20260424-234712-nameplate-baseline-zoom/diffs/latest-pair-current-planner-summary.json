@@ -1,0 +1,147 @@
+{
+  "ok": true,
+  "outputRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection",
+  "inventory": {
+    "totalGatedNameplateRuns": 3,
+    "gatedBaselineZoomRuns": 2,
+    "baselineZoomRunsWithNeighborhood": 1,
+    "promotionReadyRuns": 0
+  },
+  "readyForPipeline": true,
+  "readyForPromotionCompare": false,
+  "missingEvidence": [
+    "reproof-run-needs-lead-neighborhood-capture",
+    "no-promotion-ready-packet-yet"
+  ],
+  "selectedBaselineRun": {
+    "name": "20260424-143102-nameplate-baseline-zoom",
+    "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom",
+    "candidateAddress": "0x12CFC40B7D0",
+    "nameplateText": "Atank of Sanctum",
+    "hasLeadNeighborhood": true,
+    "hasPromotionPacket": false,
+    "promotionReady": null
+  },
+  "selectedReproofRun": {
+    "name": "20260424-234712-nameplate-baseline-zoom",
+    "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+    "candidateAddress": "0x12CFC40B7D0",
+    "nameplateText": "Atank of Sanctum",
+    "hasLeadNeighborhood": false,
+    "hasPromotionPacket": false,
+    "promotionReady": null
+  },
+  "selectedProofSeed": {
+    "sourceRunRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+    "sourceRunName": "20260424-234712-nameplate-baseline-zoom",
+    "candidateAddress": "0x12CFC40B7D0",
+    "candidateLength": 1024,
+    "nameplateText": "Atank of Sanctum",
+    "processName": "rift_x64",
+    "staleRisk": "CandidateAddress comes from a prior proof manifest; replace it with a freshly resolved live candidate if the process, UI object, or hovered nameplate changed."
+  },
+  "nextAction": {
+    "name": "capture-reproof-lead-neighborhood",
+    "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File 'C:\\RIFT MODDING\\RiftReader\\scripts\\capture-nameplate-proof-lead-neighborhoods.ps1' -RunRoot 'C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom' -Json",
+    "commandParts": [
+      "pwsh",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\capture-nameplate-proof-lead-neighborhoods.ps1",
+      "-RunRoot",
+      "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+      "-Json"
+    ],
+    "reason": "Selected reproof is missing lead-neighborhood evidence required for promotion comparison.",
+    "controlsInput": false,
+    "attachesToProcess": true,
+    "createsArtifacts": true,
+    "requiresOperatorConfirmation": false,
+    "safeToRunNow": false,
+    "safetyBlockers": [
+      "attaches-to-process",
+      "creates-artifacts"
+    ]
+  },
+  "recommendedCommandSafety": {
+    "total": 6,
+    "safeToRunNow": 3,
+    "unsafe": 3,
+    "controlsInput": 0,
+    "attachesToProcess": 3,
+    "createsArtifacts": 3,
+    "requiresOperatorConfirmation": 0,
+    "unsafeNames": [
+      "capture-reproof-lead-neighborhood",
+      "promotion-pipeline-latest-pair-run",
+      "promotion-pipeline-run"
+    ]
+  },
+  "recommendedCommands": [
+    {
+      "name": "inventory",
+      "controlsInput": false,
+      "attachesToProcess": false,
+      "createsArtifacts": false,
+      "requiresOperatorConfirmation": false,
+      "safeToRunNow": true,
+      "safetyBlockers": []
+    },
+    {
+      "name": "capture-reproof-lead-neighborhood",
+      "controlsInput": false,
+      "attachesToProcess": true,
+      "createsArtifacts": true,
+      "requiresOperatorConfirmation": false,
+      "safeToRunNow": false,
+      "safetyBlockers": [
+        "attaches-to-process",
+        "creates-artifacts"
+      ]
+    },
+    {
+      "name": "promotion-pipeline-latest-pair-plan",
+      "controlsInput": false,
+      "attachesToProcess": false,
+      "createsArtifacts": false,
+      "requiresOperatorConfirmation": false,
+      "safeToRunNow": true,
+      "safetyBlockers": []
+    },
+    {
+      "name": "promotion-pipeline-latest-pair-run",
+      "controlsInput": false,
+      "attachesToProcess": true,
+      "createsArtifacts": true,
+      "requiresOperatorConfirmation": false,
+      "safeToRunNow": false,
+      "safetyBlockers": [
+        "attaches-to-process",
+        "creates-artifacts"
+      ]
+    },
+    {
+      "name": "promotion-pipeline-plan",
+      "controlsInput": false,
+      "attachesToProcess": false,
+      "createsArtifacts": false,
+      "requiresOperatorConfirmation": false,
+      "safeToRunNow": true,
+      "safetyBlockers": []
+    },
+    {
+      "name": "promotion-pipeline-run",
+      "controlsInput": false,
+      "attachesToProcess": true,
+      "createsArtifacts": true,
+      "requiresOperatorConfirmation": false,
+      "safeToRunNow": false,
+      "safetyBlockers": [
+        "attaches-to-process",
+        "creates-artifacts"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "mode": "nameplate-lightweight-reproof-report",
+  "ok": true,
+  "diagnosticOnly": true,
+  "promotionReady": false,
+  "promotionReadiness": "blocked",
+  "blockers": [
+    "reproof-run-missing-lead-neighborhood",
+    "insufficient-repeated-candidate-offsets",
+    "insufficient-repeated-changing-byte-offsets"
+  ],
+  "createdUtc": "2026-04-25T04:04:13.6641404Z",
+  "wroteReport": true,
+  "planOnly": false,
+  "outputFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\diffs\\nameplate-lightweight-reproof-report.json",
+  "controlsInput": false,
+  "attachesToProcess": false,
+  "createsArtifacts": true,
+  "baselineRunRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom",
+  "reproofRunRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom",
+  "leadNeighborhoods": {
+    "baseline": {
+      "path": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-143102-nameplate-baseline-zoom\\lead-neighborhoods\\nameplate-proof-lead-neighborhoods.json",
+      "exists": true
+    },
+    "reproof": {
+      "path": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-234712-nameplate-baseline-zoom\\lead-neighborhoods\\nameplate-proof-lead-neighborhoods.json",
+      "exists": false
+    }
+  },
+  "proofGates": {
+    "baseline": {
+      "ok": true,
+      "visualGatePassed": true,
+      "expectedStateSequencePassed": true,
+      "allSamplesHaveUsableCapture": true,
+      "candidateCount": 20
+    },
+    "reproof": {
+      "ok": true,
+      "visualGatePassed": true,
+      "expectedStateSequencePassed": true,
+      "allSamplesHaveUsableCapture": true,
+      "candidateCount": 3
+    }
+  },
+  "candidateOffsetCompare": {
+    "exitCode": 1,
+    "parseError": null,
+    "ok": false,
+    "repeatedCount": 0,
+    "minRepeatCount": 3,
+    "candidateOffsets": [
+      "+0x21D",
+      "+0x225",
+      "+0x235",
+      "+0x23D",
+      "+0x24D"
+    ]
+  },
+  "byteWindowCompare": {
+    "exitCode": 0,
+    "parseError": null,
+    "ok": true,
+    "minRepeatedChangingByteCount": 1,
+    "comparedWindow": {
+      "startOffset": "+0x0",
+      "startOffsetDecimal": 0,
+      "length": 1024,
+      "commonSampleLength": 1024
+    },
+    "counts": {
+      "comparedOffsets": 1024,
+      "repeatedChanging": 0,
+      "baselineOnlyChange": 70,
+      "reproofOnlyChange": 4,
+      "changedInBothDifferent": 37
+    }
+  },
+  "evidenceNote": "This report is diagnostic only. It never writes a promotion packet and must not be treated as promotion evidence without lead-neighborhood comparison."
+}

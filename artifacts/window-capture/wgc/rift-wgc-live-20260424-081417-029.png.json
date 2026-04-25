@@ -1,0 +1,19 @@
+{
+  "Ok": false,
+  "Usable": false,
+  "Output": "C:\\RIFT MODDING\\RiftReader\\artifacts\\window-capture\\wgc\\rift-wgc-live-20260424-081417-029.png",
+  "Message": "System.Runtime.InteropServices.ExternalException (0x80004005): A generic error occurred in GDI\u002B.\r\n   at Windows.Win32.Graphics.GdiPlus.StatusExtensions.ThrowIfFailed(Status status)\r\n   at System.Drawing.Image.Save(String filename, Guid encoder, EncoderParameters encoderParams)\r\n   at System.Drawing.Image.Save(String filename, ImageFormat format)\r\n   at TextureSaver.SaveMappedBgraPng(MappedSubresource mapped, Int32 width, Int32 height, String output) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 555\r\n   at TextureSaver.SaveFrameToPng(D3DObjects d3d, IDirect3DSurface surface, String output) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 499\r\n   at Program.\u003C\u003CMain\u003E$\u003Eg__CaptureOnceAsync|0_0(Options options) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 148\r\n   at Program.\u003C\u003CMain\u003E$\u003Eg__CaptureOnceAsync|0_0(Options options) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 149\r\n   at Program.\u003CMain\u003E$(String[] args) in C:\\RIFT MODDING\\RiftReader\\tools\\rift-window-capture\\Program.cs:line 33",
+  "ErrorType": "ExternalException",
+  "ProcessName": "rift_x64",
+  "Pid": null,
+  "TitleContains": "RIFT",
+  "WindowProcessName": null,
+  "WindowPid": null,
+  "WindowTitle": null,
+  "Hwnd": null,
+  "Width": 0,
+  "Height": 0,
+  "BlackPixelRatio": 1,
+  "TransparentPixelRatio": 1,
+  "LumaStdDev": 0
+}

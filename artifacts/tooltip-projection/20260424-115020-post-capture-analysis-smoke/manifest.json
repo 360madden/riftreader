@@ -1,0 +1,49 @@
+{
+  "mode": "capture",
+  "runLabel": "post-capture-analysis-smoke",
+  "runId": "20260424-115020-post-capture-analysis-smoke",
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke",
+  "process": {
+    "name": "rift_x64"
+  },
+  "readerProject": "C:\\RIFT MODDING\\RiftReader\\reader\\RiftReader.Reader\\RiftReader.Reader.csproj",
+  "candidateAddress": "0x12CFC40B7D0",
+  "candidateLength": 16,
+  "windowBaseAddress": "0x12CFC40B7C8",
+  "windowEndAddress": "0x12CFC40B7D7",
+  "tooltipText": "Send and receive mail here.",
+  "states": [
+    "baseline1",
+    "active1"
+  ],
+  "scanContextBytes": 192,
+  "maxHits": 24,
+  "extraPointerTargets": [],
+  "scanInt32Values": [],
+  "scanFloatValues": [],
+  "scanDoubleValues": [],
+  "scanTolerance": 0.5,
+  "textPointerScanMode": "hoverOnly",
+  "skipTargetRead": true,
+  "skipTextScan": true,
+  "skipPointerScan": true,
+  "captureScreenshot": true,
+  "requireUsableScreenshot": true,
+  "screenshotAttempts": 3,
+  "analyzeAfterCapture": true,
+  "analyzerBaselineStateRegex": "^baseline",
+  "analyzerActiveStateRegex": "^active",
+  "analyzerBaselineLabel": "baseline",
+  "analyzerActiveLabel": "active",
+  "analyzerRequireVisualGate": true,
+  "nonInteractive": true,
+  "controlsInput": false,
+  "notes": [
+    "This helper only invokes RiftReader.Reader read/scan modes.",
+    "It does not move the mouse, click, cast, move, focus a window, or send keyboard input.",
+    "PlanOnly does not attach to the process and does not create live run artifacts."
+  ],
+  "createdUtc": "2026-04-24T15:50:20.5257258Z",
+  "eventsFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\events.ndjson",
+  "samplesFile": "C:\\RIFT MODDING\\RiftReader\\artifacts\\tooltip-projection\\20260424-115020-post-capture-analysis-smoke\\samples.ndjson"
+}
