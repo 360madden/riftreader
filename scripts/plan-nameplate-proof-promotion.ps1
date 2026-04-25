@@ -215,6 +215,7 @@ function ConvertTo-PlanSummaryResult {
         selectedProofSeed = $Result.selectedProofSeed
         nextAction = $Result.nextAction
         recommendedCommandSafety = $Result.recommendedCommandSafety
+        recommendedCommandGroups = $Result.recommendedCommandGroups
         recommendedCommands = @($Result.recommendedCommands | ForEach-Object {
             [pscustomobject][ordered]@{
                 name = [string]$_.name
@@ -428,6 +429,13 @@ $recommendedCommandSafety = [pscustomobject][ordered]@{
     requiresOperatorConfirmation = @($recommendedCommandItems | Where-Object { [bool]$_.requiresOperatorConfirmation }).Count
     unsafeNames = @($unsafeRecommendedCommands | ForEach-Object { [string]$_.name })
 }
+$recommendedCommandGroups = [pscustomobject][ordered]@{
+    safeNoWrite = @($recommendedCommandItems | Where-Object { [bool]$_.safeToRunNow -and -not [bool]$_.createsArtifacts } | ForEach-Object { [string]$_.name })
+    artifactWriting = @($recommendedCommandItems | Where-Object { [bool]$_.createsArtifacts } | ForEach-Object { [string]$_.name })
+    attachesToProcess = @($recommendedCommandItems | Where-Object { [bool]$_.attachesToProcess } | ForEach-Object { [string]$_.name })
+    requiresOperatorConfirmation = @($recommendedCommandItems | Where-Object { [bool]$_.requiresOperatorConfirmation } | ForEach-Object { [string]$_.name })
+    unsafe = @($unsafeRecommendedCommands | ForEach-Object { [string]$_.name })
+}
 
 $nextAction = $null
 if ($promotionBlockerStatus -eq 'latest-nameplate-run-not-gated' -and $commandsByName.ContainsKey('inspect-latest-ungated-baseline-zoom-run')) {
@@ -471,6 +479,7 @@ $result = [pscustomobject][ordered]@{
     selectedProofSeed = $proofSeed
     nextAction = $nextAction
     recommendedCommandSafety = $recommendedCommandSafety
+    recommendedCommandGroups = $recommendedCommandGroups
     recommendedCommands = $recommendedCommandItems
 }
 
