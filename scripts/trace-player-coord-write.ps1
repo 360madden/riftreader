@@ -8,8 +8,13 @@ param(
     [int]$MaxCandidates = 8,
     [string]$ConfirmationFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
-    [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt')
+    [string]$TraceStatusFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.status.txt'),
+    [switch]$SkipAttachFailureLedger,
+    [string]$AttachFailureLedgerFile = (Join-Path $PSScriptRoot 'captures\ce-debugger-attach-failures.csv'),
+    [string]$AttachFailureNotes
 )
+
+. (Join-Path $PSScriptRoot 'ce-debugger-attach-helpers.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -24,6 +29,7 @@ $traceLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderWriteTrace.lua'
 $resolvedConfirmationFile = [System.IO.Path]::GetFullPath($ConfirmationFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($TraceStatusFile)
+$resolvedAttachFailureLedgerFile = [System.IO.Path]::GetFullPath($AttachFailureLedgerFile)
 
 function Invoke-ReaderJson {
     param(
@@ -136,6 +142,7 @@ function Convert-StatusToTraceAttempt {
     return [pscustomobject]@{
         Success = $Success
         Status = [string](Get-ObjectValue -Object $Status -Name 'status')
+        Stage = Get-ObjectValue -Object $Status -Name 'stage'
         CandidateAddress = $AddressHex
         CandidateSource = $Source
         VerificationMethod = Get-ObjectValue -Object $Status -Name 'verificationMethod'
@@ -199,7 +206,46 @@ function Get-CoordTraceResult {
     $luaCode = @"
 return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusFile]])
 "@
-    & $ceExecScript -Code $luaCode | Out-Null
+    $armResult = [string]((@(& $ceExecScript -Code $luaCode) | Select-Object -Last 1))
+
+    if (Test-Path -LiteralPath $resolvedStatusFile) {
+        $status = Read-KeyValueFile -Path $resolvedStatusFile
+        $lastStatus = $status
+        if ($status.status -eq 'error') {
+            return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false
+        }
+    }
+
+    if ($armResult -eq '0') {
+        return [pscustomobject]@{
+            Success = $false
+            Status = 'error'
+            Stage = 'debug-attach'
+            CandidateAddress = $AddressHex
+            CandidateSource = $Source
+            VerificationMethod = $null
+            TargetAddress = $AddressHex
+            HitCount = 0
+            InstructionAddress = $null
+            InstructionSymbol = $null
+            Instruction = $null
+            InstructionBytes = $null
+            InstructionOpcode = $null
+            InstructionExtra = $null
+            InstructionSize = $null
+            WriteOperand = $null
+            AccessOperand = $null
+            AccessType = $null
+            EffectiveAddress = $null
+            AccessMatchesTarget = $null
+            MatchedOffset = $null
+            ModuleName = $null
+            ModuleBase = $null
+            ModuleOffset = $null
+            Error = 'CE trace arm failed before movement stimulus.'
+            Registers = [ordered]@{}
+        }
+    }
 
     & $postKeyScript -Key 'w' -HoldMilliseconds $MovementHoldMilliseconds
 
@@ -230,6 +276,7 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, 4, [[$resolvedStatusF
     return [pscustomobject]@{
         Success = $false
         Status = 'timeout'
+        Stage = $null
         CandidateAddress = $AddressHex
         CandidateSource = $Source
         VerificationMethod = $null
@@ -444,6 +491,14 @@ try {
     if ($null -eq $traceStatus) {
         $attemptSummary = $attempts | ForEach-Object {
             $summary = "{0}:{1}" -f $_.CandidateAddress, $_.Status
+            if (-not [string]::IsNullOrWhiteSpace([string]$_.Stage)) {
+                $summary += " [stage=$($_.Stage)]"
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace([string]$_.Error)) {
+                $summary += " [error=$($_.Error)]"
+            }
+
             if ($_.Instruction) {
                 $summary += " -> $($_.Instruction)"
             }
@@ -465,6 +520,27 @@ try {
             }
 
             $summary
+        }
+
+        $attachFailureAttempts = @($attempts | Where-Object { Test-CeDebuggerAttachFailureStatus -Status $_ })
+        if ($attachFailureAttempts.Count -gt 0) {
+            $primaryAttachFailure = $attachFailureAttempts[-1]
+            if (-not $SkipAttachFailureLedger) {
+                Write-CeDebuggerAttachLedgerEntry `
+                    -ScriptPath $PSCommandPath `
+                    -Status $primaryAttachFailure `
+                    -StatusFile $resolvedStatusFile `
+                    -LedgerFile $resolvedAttachFailureLedgerFile `
+                    -Notes (Join-TraceNotes -Parts @(
+                        "candidate=$($primaryAttachFailure.CandidateAddress)",
+                        "candidateSource=$($primaryAttachFailure.CandidateSource)",
+                        "attachFailureCount=$($attachFailureAttempts.Count)",
+                        "candidateCount=$($traceCandidates.Count)",
+                        $AttachFailureNotes
+                    )) | Out-Null
+            }
+
+            throw ("Coord write trace failed during CE debugger attach across {0} candidate(s). Last attach error: {1}. {2}" -f $attachFailureAttempts.Count, $primaryAttachFailure.Error, ($attemptSummary -join '; '))
         }
 
         throw ("Timed out waiting for a verified coord write trace hit across {0} candidates. {1}" -f $traceCandidates.Count, ($attemptSummary -join '; '))
@@ -509,6 +585,8 @@ try {
         }
         Trace = [ordered]@{
             Status = $traceStatus.Status
+            Stage = $traceStatus.Stage
+            Error = $traceStatus.Error
             VerificationMethod = $traceStatus.VerificationMethod
             CandidateAddress = $traceStatus.CandidateAddress
             CandidateSource = $traceStatus.CandidateSource

@@ -79,6 +79,11 @@ internal static class Program
             return RunStatHubRankingMode(options);
         }
 
+        if (options.FindPlayerOrientationCandidate)
+        {
+            // handled after process attach
+        }
+
         if (!options.JsonOutput)
         {
             Console.WriteLine("RiftReader.Reader");
@@ -158,7 +163,7 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadPlayerCoordAnchor && !options.PostUpdateTriage && !options.SampleTriageWatchRegions && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -206,6 +211,11 @@ internal static class Program
             return RunReadPlayerCurrentMode(options, target, reader);
         }
 
+        if (options.FindPlayerOrientationCandidate)
+        {
+            return RunFindPlayerOrientationCandidateMode(options, target, reader);
+        }
+
         if (options.ReadTargetCurrent)
         {
             return RunReadTargetCurrentMode(options, target, reader);
@@ -214,6 +224,16 @@ internal static class Program
         if (options.ReadPlayerCoordAnchor)
         {
             return RunReadPlayerCoordAnchorMode(options, process, target, reader);
+        }
+
+        if (options.PostUpdateTriage)
+        {
+            return RunPostUpdateTriageMode(options, process, target, reader);
+        }
+
+        if (options.SampleTriageWatchRegions)
+        {
+            return RunSampleTriageWatchRegionsMode(options, target, reader);
         }
 
         if (options.RecordSession)
@@ -387,6 +407,48 @@ internal static class Program
         return 0;
     }
 
+    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        if (snapshotDocument?.Current?.Player?.Coord is null)
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player orientation candidate search.");
+            return 1;
+        }
+
+        PlayerOrientationCandidateSearchResult result;
+        try
+        {
+            result = PlayerOrientationCandidateFinder.Find(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                options.MaxHits,
+                orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to find a live player orientation candidate: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine($"Best live orientation candidate: {result.BestCandidate?.Address ?? "n/a"} (score {result.BestCandidate?.Score ?? 0})");
+        Console.WriteLine($"Pointer-hop candidates:          {result.PointerHopCandidateCount}");
+        if (result.BestPointerHopCandidate is not null)
+        {
+            Console.WriteLine($"Best pointer-hop candidate:      {result.BestPointerHopCandidate.Address} via {result.BestPointerHopCandidate.ParentAddress} @ {result.BestPointerHopCandidate.BasisPrimaryForwardOffset} (score {result.BestPointerHopCandidate.Score})");
+        }
+
+        return 0;
+    }
+
     private static int RunReadPlayerCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
     {
         var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
@@ -532,6 +594,179 @@ internal static class Program
         }
 
         Console.WriteLine(PlayerCoordAnchorReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunPostUpdateTriageMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        PostUpdateTriageBundle bundle;
+        try
+        {
+            bundle = PostUpdateTriageBundleBuilder.Build(process, target, reader, options);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to run post-update triage: {ex.Message}");
+            return 1;
+        }
+
+        var outputFile = ResolveRecoveryBundleOutputFile(options.RecoveryBundleFile);
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+            File.WriteAllText(outputFile, JsonOutput.Serialize(bundle with { OutputFile = outputFile }));
+            bundle = bundle with { OutputFile = outputFile };
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to write the recovery bundle: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(bundle));
+            return 0;
+        }
+
+        Console.WriteLine("Post-update triage completed.");
+        if (!string.IsNullOrWhiteSpace(bundle.OutputFile))
+        {
+            Console.WriteLine($"Recovery bundle:              {bundle.OutputFile}");
+        }
+
+        Console.WriteLine($"Player-current usable:        {(bundle.SurvivingAnchors.PlayerCurrentUsable ? "yes" : "no")}");
+        Console.WriteLine($"Coord-anchor pattern matched: {(bundle.SurvivingAnchors.CoordAnchorPatternMatched ? "yes" : "no")}");
+        Console.WriteLine($"Coord-anchor memory matched:  {(bundle.SurvivingAnchors.CoordAnchorMemoryMatched ? "yes" : "no")}");
+        Console.WriteLine($"Structure families:           {bundle.StructureFamilies.Count}");
+        Console.WriteLine($"Local yaw candidates:         {bundle.CoordNeighborhoodProbe.Result?.CandidateCount ?? 0}");
+        Console.WriteLine($"Pointer-hop candidates:       {bundle.CoordNeighborhoodProbe.Result?.PointerHopCandidateCount ?? 0}");
+
+        if (bundle.RankedYawCandidates.Count > 0)
+        {
+            var best = bundle.RankedYawCandidates[0];
+            Console.WriteLine($"Best ranked yaw candidate:    {best.Address} ({best.Kind}, score {best.TotalScore})");
+        }
+
+        if (bundle.SuggestedWatchRegions.Count > 0)
+        {
+            Console.WriteLine($"Suggested watch regions:      {bundle.SuggestedWatchRegions.Count}");
+            foreach (var region in bundle.SuggestedWatchRegions.Take(3))
+            {
+                Console.WriteLine($"  - {region.Name}: {region.Address} len 0x{region.Length:X} ({region.Kind})");
+            }
+        }
+
+        if (bundle.PreviousBundleEvidence.Loaded || !string.IsNullOrWhiteSpace(bundle.PreviousBundleEvidence.Error))
+        {
+            Console.WriteLine("Bundle diff:");
+            if (bundle.PreviousBundleEvidence.Loaded)
+            {
+                Console.WriteLine($"  Prior ranked candidates:    {bundle.PreviousBundleEvidence.RankedYawCandidateCount}");
+                Console.WriteLine($"  Stable current candidates:  {bundle.PreviousBundleEvidence.StableCandidateCount}");
+
+                if (bundle.RankedYawCandidates.Count > 0)
+                {
+                    var best = bundle.RankedYawCandidates[0];
+                    var priorMatch = best.SeenInPreviousBundle
+                        ? $"{best.PreviousMatchKind ?? "match"}{(best.PreviousRank.HasValue ? $" (previous rank {best.PreviousRank.Value})" : string.Empty)}"
+                        : "new candidate";
+                    Console.WriteLine($"  Top candidate prior match:  {priorMatch}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"  Previous bundle status:     {bundle.PreviousBundleEvidence.Error}");
+            }
+        }
+
+        if (bundle.LineageSummaries.Count > 0)
+        {
+            Console.WriteLine($"Lineage summaries:            {bundle.LineageSummaries.Count}");
+            Console.WriteLine($"  - {bundle.LineageSummaries[0].Summary}");
+        }
+
+        if (bundle.Notes.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Notes:");
+            foreach (var note in bundle.Notes)
+            {
+                Console.WriteLine($"- {note}");
+            }
+        }
+
+        return 0;
+    }
+
+    private static int RunSampleTriageWatchRegionsMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var bundleFile = ResolveRecoveryBundleOutputFile(options.RecoveryBundleFile);
+
+        PostUpdateTriageWatchRegionSampleResult result;
+        try
+        {
+            result = PostUpdateTriageWatchRegionSampler.Sample(target, reader, bundleFile, options.MaxHits);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to sample triage watch regions: {ex.Message}");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("Triage watch-region sampling completed.");
+        Console.WriteLine($"Bundle file:                  {result.BundleFile}");
+        if (!string.IsNullOrWhiteSpace(result.BundleGeneratedAtUtc))
+        {
+            Console.WriteLine($"Bundle generated:             {result.BundleGeneratedAtUtc}");
+        }
+
+        Console.WriteLine($"Requested region count:       {result.RequestedRegionCount}");
+        Console.WriteLine($"Sampled region count:         {result.SampledRegionCount}");
+        Console.WriteLine($"Successful reads:             {result.SuccessfulRegionCount}");
+        Console.WriteLine($"Failed reads:                 {result.FailedRegionCount}");
+
+        foreach (var sample in result.Samples)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"{sample.Name}: {sample.Address} len 0x{sample.Length:X} ({sample.Kind})");
+            Console.WriteLine($"  Candidate: {sample.CandidateAddress}{(sample.StableAcrossBundles ? " [stable]" : string.Empty)}");
+            if (!string.IsNullOrWhiteSpace(sample.CandidateLineageSummary))
+            {
+                Console.WriteLine($"  Lineage:   {sample.CandidateLineageSummary}");
+            }
+
+            if (sample.ReadSucceeded)
+            {
+                Console.WriteLine($"  Read:      {sample.BytesRead} bytes");
+                if (!string.IsNullOrWhiteSpace(sample.PreviewHex))
+                {
+                    Console.WriteLine($"  Preview:   {sample.PreviewHex}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"  Error:     {sample.Error}");
+            }
+        }
+
+        if (result.Notes.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Notes:");
+            foreach (var note in result.Notes)
+            {
+                Console.WriteLine($"- {note}");
+            }
+        }
+
         return 0;
     }
 
@@ -1465,6 +1700,17 @@ internal static class Program
 
         var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
         return Path.Combine(repoRoot, "scripts", "cheat-engine", "RiftReaderProbe.lua");
+    }
+
+    private static string ResolveRecoveryBundleOutputFile(string? explicitPath)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            return Path.GetFullPath(explicitPath);
+        }
+
+        var repoRoot = TryFindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
+        return Path.Combine(repoRoot, "scripts", "captures", "post-update-triage-bundle.json");
     }
 
     private static string? TryFindRepoRoot(string startDirectory)

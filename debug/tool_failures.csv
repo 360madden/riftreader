@@ -1,0 +1,2 @@
+Timestamp,Source,Operation,Slot,Context,Detail,ExceptionType,ExceptionMessage
+10:19:37.743,CaptureEngine,BitBlt,,hwnd=0x7001AA x=0 y=0 win32=6,Failed to copy the client pixels into the capture bitmap.,,

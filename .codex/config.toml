@@ -1,6 +1,6 @@
 [mcp_servers.rift_game]
-command = "node"
-args = ["tools/rift-game-mcp/index.mjs"]
+command = 'C:\Program Files\nodejs\node.exe'
+args = ['C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\index.mjs']
 startup_timeout_sec = 20
 tool_timeout_sec = 120
 enabled = true

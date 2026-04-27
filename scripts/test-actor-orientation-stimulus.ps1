@@ -4,11 +4,26 @@ param(
     [string]$Key,
     [switch]$Json,
     [string]$Label,
+    [string]$PinnedSourceAddress,
+    [string]$PinnedBasisForwardOffset,
+    [string]$OrientationCandidateLedgerFile,
     [int]$HoldMilliseconds = 700,
-    [int]$WaitMilliseconds = 250,
+    [int]$WaitMilliseconds = 700,
+    [int]$InterKeyDelayMilliseconds = 60,
+    [int]$FocusSettleMilliseconds = 500,
+    [int]$PostKeySettleMilliseconds = 150,
+    [int]$WarningCountdownSeconds = 3,
+    [double]$MinimumYawResponseDegrees = 1.0,
+    [double]$MaxCoordDrift = 0.25,
+    [int]$PostStimulusSampleCount = 0,
+    [int]$TimelineIntervalMilliseconds = 250,
+    [string]$TimelineOutputFile,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
-    [switch]$SkipBackgroundFocus
+    [switch]$RequireTargetFocus,
+    [switch]$SkipBackgroundFocus,
+    [switch]$SkipUiClearCheck,
+    [switch]$SkipLiveInputWarning
 )
 
 Set-StrictMode -Version Latest
@@ -16,19 +31,60 @@ $ErrorActionPreference = 'Stop'
 
 $captureScript = Join-Path $PSScriptRoot 'capture-actor-orientation.ps1'
 $keyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
+$uiClearCheckScript = Join-Path $PSScriptRoot 'assert-rift-gameplay-ui-clear.ps1'
 $tempPrefix = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('rift-actor-orientation-{0}' -f ([Guid]::NewGuid().ToString('N'))))
 $tempOutputFile = '{0}.json' -f $tempPrefix
 $tempPreviousFile = '{0}.previous.json' -f $tempPrefix
-$backgroundProcessAvailable = $SkipBackgroundFocus.IsPresent
+$backgroundProcessName = $null
+$useBackgroundFocus = (-not $SkipBackgroundFocus.IsPresent) -and (-not $RequireTargetFocus.IsPresent)
+$backgroundProcessAvailable = $false
+$timelineEnabled = $PostStimulusSampleCount -gt 0 -or (-not [string]::IsNullOrWhiteSpace($TimelineOutputFile))
+$resolvedTimelineOutputFile = $null
 
-if (-not $backgroundProcessAvailable) {
-    try {
-        $null = Get-Process -Name 'cheatengine-x86_64-SSE4-AVX2' -ErrorAction Stop | Select-Object -First 1
-        $backgroundProcessAvailable = $true
+if (-not $PSBoundParameters.ContainsKey('RequireTargetFocus') -and -not $PSBoundParameters.ContainsKey('SkipBackgroundFocus')) {
+    $RequireTargetFocus = $true
+    $useBackgroundFocus = $false
+}
+
+if ($PostStimulusSampleCount -lt 0) {
+    throw 'PostStimulusSampleCount must be zero or greater.'
+}
+
+if ($TimelineIntervalMilliseconds -lt 0) {
+    throw 'TimelineIntervalMilliseconds must be zero or greater.'
+}
+
+if ($useBackgroundFocus) {
+    foreach ($candidateProcessName in @('cheatengine-x86_64-SSE4-AVX2', 'Codex')) {
+        try {
+            $null = Get-Process -Name $candidateProcessName -ErrorAction Stop | Select-Object -First 1
+            $backgroundProcessName = $candidateProcessName
+            $backgroundProcessAvailable = $true
+            break
+        }
+        catch {
+        }
     }
-    catch {
-        $backgroundProcessAvailable = $false
+}
+
+if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
+    $OrientationCandidateLedgerFile = Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-ledger.ndjson'
+}
+
+if ($timelineEnabled -and [string]::IsNullOrWhiteSpace($TimelineOutputFile)) {
+    $timelineDirectory = Join-Path $PSScriptRoot 'captures\stimulus-timelines'
+    $timelineStamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMdd-HHmmss')
+    $timelineLabel = if ([string]::IsNullOrWhiteSpace($Label)) { $Key.ToLowerInvariant() } else { $Label }
+    $timelineSlug = ($timelineLabel.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+    if ([string]::IsNullOrWhiteSpace($timelineSlug)) {
+        $timelineSlug = 'stimulus'
     }
+
+    $TimelineOutputFile = Join-Path $timelineDirectory ('{0}-{1}.ndjson' -f $timelineStamp, $timelineSlug)
+}
+
+if ($timelineEnabled -and -not [string]::IsNullOrWhiteSpace($TimelineOutputFile)) {
+    $resolvedTimelineOutputFile = [System.IO.Path]::GetFullPath($TimelineOutputFile)
 }
 
 function Normalize-AngleRadians {
@@ -51,25 +107,97 @@ function Convert-RadiansToDegrees {
     return $Radians * 180.0 / [Math]::PI
 }
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$JsonText,
+        [int]$Depth = 20
+    )
+
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return $JsonText | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $JsonText | ConvertFrom-Json
+}
+
+function Get-OptionalPropertyValue {
+    param(
+        [AllowNull()]
+        $Object,
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
 function Invoke-Capture {
     param([Parameter(Mandatory = $true)][string]$CaptureLabel)
 
+    $captureArguments = @{
+        Json = $true
+        Label = $CaptureLabel
+        OutputFile = $tempOutputFile
+        PreviousFile = $tempPreviousFile
+    }
+
     if ($RefreshReaderBridge) {
-        if ($NoAhkFallback) {
-            $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge -NoAhkFallback
-        }
-        else {
-            $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge
-        }
+        $captureArguments['RefreshReaderBridge'] = $true
     }
-    else {
-        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile
+
+    if ($NoAhkFallback) {
+        $captureArguments['NoAhkFallback'] = $true
     }
+
+    if (-not [string]::IsNullOrWhiteSpace($PinnedSourceAddress)) {
+        $captureArguments['PinnedSourceAddress'] = $PinnedSourceAddress
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($PinnedBasisForwardOffset)) {
+        $captureArguments['PinnedBasisForwardOffset'] = $PinnedBasisForwardOffset
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) {
+        $captureArguments['OrientationCandidateLedgerFile'] = $OrientationCandidateLedgerFile
+    }
+
+    $json = & $captureScript @captureArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Actor orientation capture failed for '$CaptureLabel'."
     }
 
-    return $json | ConvertFrom-Json -Depth 30
+    return ConvertFrom-JsonCompat -JsonText ([string]$json) -Depth 30
+}
+
+function Assert-UiClear {
+    if ($SkipUiClearCheck) {
+        return $null
+    }
+
+    $uiCheckOutput = '{0}.ui-check.json' -f $tempPrefix
+    $json = & $uiClearCheckScript -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Gameplay UI clear-check failed before sending input.'
+    }
+
+    [System.IO.File]::WriteAllText($uiCheckOutput, [string]$json)
+    $document = ConvertFrom-JsonCompat -JsonText ([string]$json) -Depth 20
+    if (-not $document.SafeForGameplayInput) {
+        $screenshot = if ($document.ScreenshotPath) { [string]$document.ScreenshotPath } else { 'n/a' }
+        throw "Blocking gameplay UI detected before stimulus. Screenshot: $screenshot"
+    }
+
+    return $document
 }
 
 function Get-CoordDeltaMagnitude {
@@ -120,6 +248,26 @@ function Get-VectorDeltaMagnitude {
     return [Math]::Sqrt(($dx * $dx) + ($dy * $dy) + ($dz * $dz))
 }
 
+function Get-ElapsedMilliseconds {
+    param(
+        [string]$StartedAtUtc,
+        [string]$CompletedAtUtc
+    )
+
+    if ([string]::IsNullOrWhiteSpace($StartedAtUtc) -or [string]::IsNullOrWhiteSpace($CompletedAtUtc)) {
+        return $null
+    }
+
+    try {
+        $started = [DateTimeOffset]::Parse($StartedAtUtc, [System.Globalization.CultureInfo]::InvariantCulture)
+        $completed = [DateTimeOffset]::Parse($CompletedAtUtc, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [Math]::Round(($completed - $started).TotalMilliseconds)
+    }
+    catch {
+        return $null
+    }
+}
+
 function Format-Nullable {
     param(
         $Value,
@@ -133,41 +281,268 @@ function Format-Nullable {
     return ([double]$Value).ToString($Format, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Show-LiveInputWarning {
+    param([int]$CountdownSeconds)
+
+    if ($SkipLiveInputWarning) {
+        return
+    }
+
+    Write-Host ''
+    Write-Host '■■■ LIVE INPUT WARNING ■■■'
+    Write-Host 'DO NOT TYPE, CLICK, OR PRESS ANYTHING'
+    Write-Host 'WAIT UNTIL I SAY THE TEST IS DONE'
+
+    if ($CountdownSeconds -gt 0) {
+        for ($remaining = $CountdownSeconds; $remaining -ge 1; $remaining--) {
+            Write-Host ("TEST STARTING IN {0}..." -f $remaining)
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    Write-Host 'TEST STARTING NOW'
+    Write-Host ''
+}
+
+function New-TimelineSampleEntry {
+    param(
+        [Parameter(Mandatory = $true)]
+        $CaptureDocument,
+
+        [Parameter(Mandatory = $true)]
+        $BaselineCapture,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Phase,
+
+        [Parameter(Mandatory = $true)]
+        [int]$TimelineSampleIndex,
+
+        $ElapsedFromStimulusEndMilliseconds
+    )
+
+    $readerOrientation = Get-OptionalPropertyValue -Object $CaptureDocument -Name 'ReaderOrientation'
+    $baselineReaderOrientation = Get-OptionalPropertyValue -Object $BaselineCapture -Name 'ReaderOrientation'
+    $estimate = Get-OptionalPropertyValue -Object $readerOrientation -Name 'PreferredEstimate'
+    $baselineEstimate = Get-OptionalPropertyValue -Object $baselineReaderOrientation -Name 'PreferredEstimate'
+    $basis = Get-OptionalPropertyValue -Object $readerOrientation -Name 'PreferredBasis'
+    $duplicateAgreement = Get-OptionalPropertyValue -Object $readerOrientation -Name 'DuplicateBasisAgreement'
+    $sourceAddress = [string](Get-OptionalPropertyValue -Object $readerOrientation -Name 'SelectedSourceAddress')
+    $baselineSourceAddress = [string](Get-OptionalPropertyValue -Object $baselineReaderOrientation -Name 'SelectedSourceAddress')
+    $sourceStableRelativeToBefore =
+        (-not [string]::IsNullOrWhiteSpace($sourceAddress)) -and
+        (-not [string]::IsNullOrWhiteSpace($baselineSourceAddress)) -and
+        [string]::Equals($sourceAddress, $baselineSourceAddress, [System.StringComparison]::OrdinalIgnoreCase)
+
+    $yawDeltaFromBeforeDegrees = $null
+    if ($sourceStableRelativeToBefore -and $estimate -and $baselineEstimate -and $null -ne $estimate.YawRadians -and $null -ne $baselineEstimate.YawRadians) {
+        $yawDeltaFromBeforeDegrees = Convert-RadiansToDegrees -Radians (Normalize-AngleRadians -Radians ([double]$estimate.YawRadians - [double]$baselineEstimate.YawRadians))
+    }
+
+    $pitchDeltaFromBeforeDegrees = $null
+    if ($sourceStableRelativeToBefore -and $estimate -and $baselineEstimate -and $null -ne $estimate.PitchRadians -and $null -ne $baselineEstimate.PitchRadians) {
+        $pitchDeltaFromBeforeDegrees = Convert-RadiansToDegrees -Radians (Normalize-AngleRadians -Radians ([double]$estimate.PitchRadians - [double]$baselineEstimate.PitchRadians))
+    }
+
+    return [pscustomobject]@{
+        TimelineSampleIndex = $TimelineSampleIndex
+        Phase = $Phase
+        CaptureLabel = [string](Get-OptionalPropertyValue -Object $CaptureDocument -Name 'Label')
+        GeneratedAtUtc = [string](Get-OptionalPropertyValue -Object $CaptureDocument -Name 'GeneratedAtUtc')
+        ArtifactGeneratedAtUtc = [string](Get-OptionalPropertyValue -Object $readerOrientation -Name 'ArtifactGeneratedAtUtc')
+        ElapsedFromStimulusEndMilliseconds = $ElapsedFromStimulusEndMilliseconds
+        SourceStableRelativeToBefore = $sourceStableRelativeToBefore
+        SelectedSourceAddress = $sourceAddress
+        SelectedEntryAddress = [string](Get-OptionalPropertyValue -Object $readerOrientation -Name 'SelectedEntryAddress')
+        PinnedBasisForwardOffset = [string](Get-OptionalPropertyValue -Object $readerOrientation -Name 'PinnedBasisForwardOffset')
+        ResolutionMode = [string](Get-OptionalPropertyValue -Object $readerOrientation -Name 'ResolutionMode')
+        PlayerCoord = Get-OptionalPropertyValue -Object $readerOrientation -Name 'PlayerCoord'
+        YawDegrees = Get-OptionalPropertyValue -Object $estimate -Name 'YawDegrees'
+        PitchDegrees = Get-OptionalPropertyValue -Object $estimate -Name 'PitchDegrees'
+        YawDeltaFromBeforeDegrees = $yawDeltaFromBeforeDegrees
+        PitchDeltaFromBeforeDegrees = $pitchDeltaFromBeforeDegrees
+        CoordDeltaFromBeforeMagnitude = Get-CoordDeltaMagnitude -BeforeCoord (Get-OptionalPropertyValue -Object $baselineReaderOrientation -Name 'PlayerCoord') -AfterCoord (Get-OptionalPropertyValue -Object $readerOrientation -Name 'PlayerCoord')
+        VectorDeltaFromBeforeMagnitude = Get-VectorDeltaMagnitude -BeforeVector (Get-OptionalPropertyValue -Object $baselineEstimate -Name 'Vector') -AfterVector (Get-OptionalPropertyValue -Object $estimate -Name 'Vector')
+        BasisDeterminant = Get-OptionalPropertyValue -Object $basis -Name 'Determinant'
+        BasisDuplicateMaxRowDeltaMagnitude = Get-OptionalPropertyValue -Object $duplicateAgreement -Name 'MaxRowDeltaMagnitude'
+    }
+}
+
+function Write-TimelineSamples {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IEnumerable]$Samples
+    )
+
+    $directory = Split-Path -Path $Path -Parent
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+    $writer = [System.IO.StreamWriter]::new($Path, $false, $encoding)
+    try {
+        foreach ($sample in $Samples) {
+            $writer.WriteLine(($sample | ConvertTo-Json -Compress -Depth 20))
+        }
+    }
+    finally {
+        $writer.Dispose()
+    }
+}
+
 $effectiveLabel = if ([string]::IsNullOrWhiteSpace($Label)) { $Key.ToLowerInvariant() } else { $Label }
 $before = Invoke-Capture -CaptureLabel ("before-{0}" -f $effectiveLabel)
+$timelineSamples = New-Object System.Collections.Generic.List[object]
+if ($timelineEnabled) {
+    $timelineSamples.Add((New-TimelineSampleEntry -CaptureDocument $before -BaselineCapture $before -Phase 'before' -TimelineSampleIndex 0 -ElapsedFromStimulusEndMilliseconds $null)) | Out-Null
+}
+$uiClear = Assert-UiClear
+Show-LiveInputWarning -CountdownSeconds $WarningCountdownSeconds
 
 $keyArguments = @{
     Key = $Key
     HoldMilliseconds = $HoldMilliseconds
+    InterKeyDelayMilliseconds = $InterKeyDelayMilliseconds
+    FocusSettleMilliseconds = $FocusSettleMilliseconds
+    PostKeySettleMilliseconds = $PostKeySettleMilliseconds
 }
 
-if (-not $backgroundProcessAvailable) {
-    $keyArguments['SkipBackgroundFocus'] = $true
+if (-not $useBackgroundFocus -or -not $backgroundProcessAvailable) {
+    if ($RequireTargetFocus) {
+        $keyArguments['RequireTargetFocus'] = $true
+    }
+    else {
+        $keyArguments['SkipBackgroundFocus'] = $true
+    }
+}
+elseif (-not [string]::IsNullOrWhiteSpace($backgroundProcessName)) {
+    $keyArguments['BackgroundProcessName'] = $backgroundProcessName
 }
 
-& $keyScript @keyArguments *> $null
+$stimulusStartedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+try {
+    & $keyScript @keyArguments *> $null
+}
+catch {
+    throw "Stimulus key '$Key' failed. Original error: $($_.Exception.Message)"
+}
+
 if ($LASTEXITCODE -ne 0) {
-    throw "Stimulus key '$Key' failed."
+    throw "Stimulus key '$Key' failed (`$LASTEXITCODE=$LASTEXITCODE)."
 }
 
+$stimulusCompletedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
 Start-Sleep -Milliseconds $WaitMilliseconds
 $after = Invoke-Capture -CaptureLabel ("after-{0}" -f $effectiveLabel)
+if ($timelineEnabled) {
+    $timelineSamples.Add((New-TimelineSampleEntry -CaptureDocument $after -BaselineCapture $before -Phase 'after' -TimelineSampleIndex 1 -ElapsedFromStimulusEndMilliseconds (Get-ElapsedMilliseconds -StartedAtUtc $stimulusCompletedAtUtc -CompletedAtUtc $after.GeneratedAtUtc))) | Out-Null
+}
+
+$postStimulusCaptures = New-Object System.Collections.Generic.List[object]
+for ($postStimulusIndex = 1; $postStimulusIndex -le $PostStimulusSampleCount; $postStimulusIndex++) {
+    Start-Sleep -Milliseconds $TimelineIntervalMilliseconds
+    $postCapture = Invoke-Capture -CaptureLabel ("post-{0}-{1}" -f $effectiveLabel, $postStimulusIndex)
+    $postStimulusCaptures.Add($postCapture) | Out-Null
+    if ($timelineEnabled) {
+        $timelineSamples.Add((New-TimelineSampleEntry -CaptureDocument $postCapture -BaselineCapture $before -Phase 'post' -TimelineSampleIndex ($postStimulusIndex + 1) -ElapsedFromStimulusEndMilliseconds (Get-ElapsedMilliseconds -StartedAtUtc $stimulusCompletedAtUtc -CompletedAtUtc $postCapture.GeneratedAtUtc))) | Out-Null
+    }
+}
 
 $beforeEstimate = $before.ReaderOrientation.PreferredEstimate
 $afterEstimate = $after.ReaderOrientation.PreferredEstimate
+$beforeSourceAddress = [string](Get-OptionalPropertyValue -Object $before.ReaderOrientation -Name 'SelectedSourceAddress')
+$afterSourceAddress = [string](Get-OptionalPropertyValue -Object $after.ReaderOrientation -Name 'SelectedSourceAddress')
+$beforeBasisOffset = [string](Get-OptionalPropertyValue -Object $before.ReaderOrientation -Name 'PinnedBasisForwardOffset')
+$afterBasisOffset = [string](Get-OptionalPropertyValue -Object $after.ReaderOrientation -Name 'PinnedBasisForwardOffset')
+$sourceStable =
+    (-not [string]::IsNullOrWhiteSpace($beforeSourceAddress)) -and
+    (-not [string]::IsNullOrWhiteSpace($afterSourceAddress)) -and
+    [string]::Equals($beforeSourceAddress, $afterSourceAddress, [System.StringComparison]::OrdinalIgnoreCase)
 
-$yawDeltaRadians = $null
-$yawDeltaDegrees = $null
+$rawYawDeltaRadians = $null
+$rawYawDeltaDegrees = $null
 if ($null -ne $beforeEstimate.YawRadians -and $null -ne $afterEstimate.YawRadians) {
-    $yawDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.YawRadians - [double]$beforeEstimate.YawRadians)
-    $yawDeltaDegrees = Convert-RadiansToDegrees -Radians $yawDeltaRadians
+    $rawYawDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.YawRadians - [double]$beforeEstimate.YawRadians)
+    $rawYawDeltaDegrees = Convert-RadiansToDegrees -Radians $rawYawDeltaRadians
 }
 
-$pitchDeltaRadians = $null
-$pitchDeltaDegrees = $null
+$rawPitchDeltaRadians = $null
+$rawPitchDeltaDegrees = $null
 if ($null -ne $beforeEstimate.PitchRadians -and $null -ne $afterEstimate.PitchRadians) {
-    $pitchDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.PitchRadians - [double]$beforeEstimate.PitchRadians)
-    $pitchDeltaDegrees = Convert-RadiansToDegrees -Radians $pitchDeltaRadians
+    $rawPitchDeltaRadians = Normalize-AngleRadians -Radians ([double]$afterEstimate.PitchRadians - [double]$beforeEstimate.PitchRadians)
+    $rawPitchDeltaDegrees = Convert-RadiansToDegrees -Radians $rawPitchDeltaRadians
+}
+
+$yawDeltaRadians = if ($sourceStable) { $rawYawDeltaRadians } else { $null }
+$yawDeltaDegrees = if ($sourceStable) { $rawYawDeltaDegrees } else { $null }
+$pitchDeltaRadians = if ($sourceStable) { $rawPitchDeltaRadians } else { $null }
+$pitchDeltaDegrees = if ($sourceStable) { $rawPitchDeltaDegrees } else { $null }
+$coordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
+$vectorDeltaMagnitude = Get-VectorDeltaMagnitude -BeforeVector $beforeEstimate.Vector -AfterVector $afterEstimate.Vector
+$candidateResponsive = $false
+$candidateRejectedReason = $null
+$comparisonNotes = New-Object System.Collections.Generic.List[string]
+if (-not $sourceStable) {
+    $comparisonNotes.Add("Source changed across stimulus capture: before=$beforeSourceAddress after=$afterSourceAddress")
+    $candidateRejectedReason = 'source_drift'
+}
+elseif (-not [string]::IsNullOrWhiteSpace($PinnedSourceAddress)) {
+    $comparisonNotes.Add("Pinned live source remained stable across stimulus: $beforeSourceAddress")
+}
+
+if ($null -eq $candidateRejectedReason) {
+    if ($null -eq $yawDeltaDegrees) {
+        $candidateRejectedReason = 'no_yaw_measurement'
+    }
+    elseif ($null -ne $coordDeltaMagnitude -and [double]$coordDeltaMagnitude -gt $MaxCoordDrift) {
+        $candidateRejectedReason = 'coord_drift'
+    }
+    elseif ([Math]::Abs([double]$yawDeltaDegrees) -lt $MinimumYawResponseDegrees) {
+        $candidateRejectedReason = 'stable_but_nonresponsive'
+    }
+    else {
+        $candidateResponsive = $true
+    }
+}
+
+if ($candidateResponsive) {
+    $comparisonNotes.Add(("Stimulus produced a stable yaw response of {0} deg." -f (Format-Nullable $yawDeltaDegrees '0.000')))
+}
+elseif (-not [string]::IsNullOrWhiteSpace($candidateRejectedReason)) {
+    $comparisonNotes.Add("Candidate rejected after single-stimulus probe: $candidateRejectedReason")
+}
+
+$timelineSummary = $null
+if ($timelineEnabled) {
+    $yawTimelineValues = @(
+        $timelineSamples |
+            ForEach-Object {
+                if ($null -ne $_.YawDeltaFromBeforeDegrees) { [double]$_.YawDeltaFromBeforeDegrees }
+            })
+    $coordTimelineValues = @(
+        $timelineSamples |
+            ForEach-Object {
+                if ($null -ne $_.CoordDeltaFromBeforeMagnitude) { [double]$_.CoordDeltaFromBeforeMagnitude }
+            })
+
+    if ($resolvedTimelineOutputFile) {
+        Write-TimelineSamples -Path $resolvedTimelineOutputFile -Samples $timelineSamples
+    }
+
+    $timelineSummary = [pscustomobject]@{
+        Enabled = $true
+        OutputFile = $resolvedTimelineOutputFile
+        AdditionalPostStimulusSampleCount = $PostStimulusSampleCount
+        IntervalMilliseconds = $TimelineIntervalMilliseconds
+        SampleCount = $timelineSamples.Count
+        Samples = @($timelineSamples.ToArray())
+        MaxAbsYawDeltaFromBeforeDegrees = if ($yawTimelineValues.Count -gt 0) { ($yawTimelineValues | ForEach-Object { [Math]::Abs($_) } | Measure-Object -Maximum).Maximum } else { $null }
+        MaxCoordDeltaFromBeforeMagnitude = if ($coordTimelineValues.Count -gt 0) { ($coordTimelineValues | Measure-Object -Maximum).Maximum } else { $null }
+    }
 }
 
 $result = [pscustomobject]@{
@@ -177,16 +552,48 @@ $result = [pscustomobject]@{
     Key = $Key
     HoldMilliseconds = $HoldMilliseconds
     WaitMilliseconds = $WaitMilliseconds
+    InterKeyDelayMilliseconds = $InterKeyDelayMilliseconds
+    FocusSettleMilliseconds = $FocusSettleMilliseconds
+    PostKeySettleMilliseconds = $PostKeySettleMilliseconds
+    MinimumYawResponseDegrees = $MinimumYawResponseDegrees
+    MaxCoordDrift = $MaxCoordDrift
+    StimulusStartedAtUtc = $stimulusStartedAtUtc
+    StimulusCompletedAtUtc = $stimulusCompletedAtUtc
+    OrientationCandidateLedgerFile = [System.IO.Path]::GetFullPath($OrientationCandidateLedgerFile)
+    UiClearCheck = $uiClear
     Before = $before
     After = $after
+    PostStimulusCaptures = @($postStimulusCaptures.ToArray())
+    Timeline = $timelineSummary
     Comparison = [pscustomobject]@{
+        SourceStable = $sourceStable
+        BeforeSourceAddress = $beforeSourceAddress
+        AfterSourceAddress = $afterSourceAddress
+        BeforeBasisForwardOffset = $beforeBasisOffset
+        AfterBasisForwardOffset = $afterBasisOffset
+        RawYawDeltaRadians = $rawYawDeltaRadians
+        RawYawDeltaDegrees = $rawYawDeltaDegrees
         YawDeltaRadians = $yawDeltaRadians
         YawDeltaDegrees = $yawDeltaDegrees
+        RawPitchDeltaRadians = $rawPitchDeltaRadians
+        RawPitchDeltaDegrees = $rawPitchDeltaDegrees
         PitchDeltaRadians = $pitchDeltaRadians
         PitchDeltaDegrees = $pitchDeltaDegrees
-        CoordDeltaMagnitude = Get-CoordDeltaMagnitude -BeforeCoord $before.ReaderOrientation.PlayerCoord -AfterCoord $after.ReaderOrientation.PlayerCoord
-        VectorDeltaMagnitude = Get-VectorDeltaMagnitude -BeforeVector $beforeEstimate.Vector -AfterVector $afterEstimate.Vector
+        CoordDeltaMagnitude = $coordDeltaMagnitude
+        VectorDeltaMagnitude = $vectorDeltaMagnitude
+        Notes = @($comparisonNotes.ToArray())
     }
+    CandidateEvaluation = [pscustomobject]@{
+        Responsive = $candidateResponsive
+        CandidateRejectedReason = $candidateRejectedReason
+    }
+    PinnedSourceAddress = $PinnedSourceAddress
+    PinnedBasisForwardOffset = $PinnedBasisForwardOffset
+    RequireTargetFocus = [bool]$RequireTargetFocus
+    SkipUiClearCheck = [bool]$SkipUiClearCheck
+    KeyDeliveryMode = if ($RequireTargetFocus) { 'focused-postmessage' } elseif ($useBackgroundFocus -and $backgroundProcessAvailable) { 'background-postmessage' } else { 'foreground-sendinput' }
+    KeyDeliveryBackgroundProcess = if ($useBackgroundFocus -and $backgroundProcessAvailable) { $backgroundProcessName } else { $null }
+    UsedForegroundSendInput = (-not $RequireTargetFocus) -and ((-not $useBackgroundFocus) -or (-not $backgroundProcessAvailable))
 }
 
 try {
@@ -203,6 +610,12 @@ try {
     Write-Host ("Yaw/pitch delta (deg):       {0} / {1}" -f (Format-Nullable $result.Comparison.YawDeltaDegrees '0.000'), (Format-Nullable $result.Comparison.PitchDeltaDegrees '0.000'))
     Write-Host ("Vector delta magnitude:      {0}" -f (Format-Nullable $result.Comparison.VectorDeltaMagnitude '0.000000'))
     Write-Host ("Coord delta magnitude:       {0}" -f (Format-Nullable $result.Comparison.CoordDeltaMagnitude '0.000000'))
+    if ($result.Timeline) {
+        Write-Host ("Timeline samples:            {0}" -f $result.Timeline.SampleCount)
+        Write-Host ("Timeline max yaw abs (deg):  {0}" -f (Format-Nullable $result.Timeline.MaxAbsYawDeltaFromBeforeDegrees '0.000'))
+        Write-Host ("Timeline max coord drift:    {0}" -f (Format-Nullable $result.Timeline.MaxCoordDeltaFromBeforeMagnitude '0.000000'))
+        Write-Host ("Timeline output:             {0}" -f $(if ($result.Timeline.OutputFile) { $result.Timeline.OutputFile } else { 'n/a' }))
+    }
 }
 finally {
     Remove-Item -LiteralPath $tempOutputFile, $tempPreviousFile -ErrorAction SilentlyContinue

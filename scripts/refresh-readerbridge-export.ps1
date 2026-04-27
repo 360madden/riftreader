@@ -13,17 +13,17 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $postCommandScript = Join-Path $PSScriptRoot 'post-rift-command.ps1'
 $postCommandAhkScript = Join-Path $PSScriptRoot 'post-rift-command-ahk.ps1'
 
-Write-Host "[RiftRefresh] Forcing a Rift UI reload via the native no-focus PostMessage helper..." -ForegroundColor Cyan
+Write-Host "[RiftRefresh] Forcing a Rift UI reload via the focused PostMessage helper..." -ForegroundColor Cyan
 try {
-    & $postCommandScript -Command '/reloadui'
+    & $postCommandScript -Command '/reloadui' -RequireTargetFocus
 }
 catch {
     if ($NoAhkFallback) {
         throw
     }
 
-    Write-Warning ("Native no-focus reload failed: {0}" -f $_.Exception.Message)
-    Write-Host "[RiftRefresh] Falling back to the known-good AutoHotkey helper..." -ForegroundColor Yellow
+    Write-Warning ("Focused native reload failed: {0}" -f $_.Exception.Message)
+    Write-Host "[RiftRefresh] Falling back to the legacy AutoHotkey helper..." -ForegroundColor Yellow
     & $postCommandAhkScript -Command '/reloadui'
 }
 

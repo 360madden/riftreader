@@ -79,6 +79,11 @@ public static class ReaderBridgeSnapshotTextFormatter
             lines.Add($"Target buffs:            {string.Join(" | ", snapshot.TargetBuffLines)}");
         }
 
+        if (snapshot.OrientationProbe is not null)
+        {
+            lines.Add($"Orientation probe:       {FormatOrientationProbe(snapshot.OrientationProbe)}");
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -100,6 +105,65 @@ public static class ReaderBridgeSnapshotTextFormatter
         }
 
         return "n/a";
+    }
+
+    private static string FormatOrientationProbe(ReaderBridgeOrientationProbeSnapshot snapshot)
+    {
+        var parts = new List<string>();
+
+        if (snapshot.Player is not null)
+        {
+            parts.Add($"player {FormatOrientationProbeUnit(snapshot.Player)}");
+        }
+
+        if (snapshot.Target is not null)
+        {
+            parts.Add($"target {FormatOrientationProbeUnit(snapshot.Target)}");
+        }
+
+        if (snapshot.StatCandidates.Count > 0)
+        {
+            parts.Add($"stat {snapshot.StatCandidates.Count}");
+        }
+
+        return parts.Count > 0 ? string.Join(" | ", parts) : "n/a";
+    }
+
+    private static string FormatOrientationProbeUnit(ReaderBridgeOrientationProbeUnitSnapshot snapshot)
+    {
+        var parts = new List<string>();
+
+        if (snapshot.DirectHeading.HasValue)
+        {
+            parts.Add($"heading {snapshot.DirectHeading.Value:0.####}");
+        }
+
+        if (snapshot.DirectPitch.HasValue)
+        {
+            parts.Add($"pitch {snapshot.DirectPitch.Value:0.####}");
+        }
+
+        if (snapshot.Yaw.HasValue)
+        {
+            parts.Add($"yaw {snapshot.Yaw.Value:0.####}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Facing))
+        {
+            parts.Add($"facing {snapshot.Facing}");
+        }
+
+        if (snapshot.DetailCandidates.Count > 0)
+        {
+            parts.Add($"detail {snapshot.DetailCandidates.Count}");
+        }
+
+        if (snapshot.StateCandidates.Count > 0)
+        {
+            parts.Add($"state {snapshot.StateCandidates.Count}");
+        }
+
+        return parts.Count > 0 ? string.Join(", ", parts) : "n/a";
     }
 
     private static string? FormatCoord(ValidatorCoordinateSnapshot? coord)

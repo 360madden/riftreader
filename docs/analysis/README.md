@@ -123,6 +123,38 @@ Use this order unless the investigation needs something narrower:
 9. `## Input mode and safety notes`
 10. `## Immediate next step`
 
+## Live-run framing rule
+
+For live-input, recovery, or discovery passes, do **not** collapse procedure
+health and signal quality into one vague result line.
+
+At minimum, explicitly separate:
+
+1. `## Purpose`
+   - what this run was actually trying to prove
+2. `## Harness status`
+   - did the mechanism itself work
+   - examples: process found, window found, focus verified, input delivered,
+     readback completed
+3. `## Signal status`
+   - did the targeted regions or candidates produce a useful signal
+   - examples: strong, weak, ambiguous, empty
+4. `## Safe interpretation`
+   - what the result means
+   - what it does **not** mean
+5. `## Next decision`
+   - what action should follow from this result
+
+Example:
+
+- harness status: success
+- signal status: empty
+- safe interpretation: the procedure worked, but the sampled regions were not
+  useful candidates; do not treat this as a harness failure
+
+Use this framing whenever a vague summary could trigger the wrong next repair
+or discovery decision.
+
 ## Editing rules
 
 - Prefer adding a new dated report over rewriting history.

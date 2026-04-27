@@ -292,7 +292,7 @@ function Get-WindowSnapshot {
         title = (Get-WindowTitle -Handle $Handle)
         isForeground = ($foregroundHandle -eq $Handle)
         isVisible = [RiftGameWindowNative]::IsWindowVisible($Handle)
-        isMinimized = [RiftGameWindowNative]::IsIconic($Handle)
+        isMinimized = [RiftGameWindowNative]::IsIconic([IntPtr]$Handle)
         windowRect = (Convert-RectToObject -Rect $windowRect)
         clientRect = (Get-ClientRectOnScreen -Handle $Handle)
     }
@@ -427,9 +427,11 @@ function Resolve-KeyPlan {
         throw "A key chord is required."
     }
 
-    $tokens = $Chord.Split('+', [System.StringSplitOptions]::RemoveEmptyEntries) |
-        ForEach-Object { $_.Trim() } |
-        Where-Object { $_ }
+    $tokens = @(
+        $Chord.Split('+', [System.StringSplitOptions]::RemoveEmptyEntries) |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ }
+    )
 
     if (-not $tokens -or $tokens.Count -eq 0) {
         throw "A key chord is required."
@@ -530,12 +532,14 @@ function Send-KeyPlan {
 
     Start-Sleep -Milliseconds $HoldMilliseconds
 
-    for ($i = $Plan.keys.Count - 1; $i -ge 0; $i--) {
+    $keyCount = @($Plan.keys).Count
+    for ($i = $keyCount - 1; $i -ge 0; $i--) {
         Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $Plan.keys[$i].virtualKey -KeyUp))
         Start-Sleep -Milliseconds 10
     }
 
-    for ($i = $Plan.modifiers.Count - 1; $i -ge 0; $i--) {
+    $modifierCount = @($Plan.modifiers).Count
+    for ($i = $modifierCount - 1; $i -ge 0; $i--) {
         Invoke-SendInput -Inputs @((New-KeyboardInput -VirtualKey $Plan.modifiers[$i] -KeyUp))
         Start-Sleep -Milliseconds 10
     }
@@ -952,10 +956,20 @@ try {
         }
         "focus" {
             $window = Resolve-WindowSnapshot
-            [void][RiftGameWindowNative]::ShowWindow((ConvertTo-IntPtr -HandleText $window.windowHandle), $SW_RESTORE)
-            [void][RiftGameWindowNative]::SetForegroundWindow((ConvertTo-IntPtr -HandleText $window.windowHandle))
+            $windowHandleText = if (-not [string]::IsNullOrWhiteSpace([string]$window.windowHandleHex)) {
+                [string]$window.windowHandleHex
+            }
+            else {
+                [string]$window.windowHandle
+            }
+
+            $windowHandle = ConvertTo-IntPtr -HandleText $windowHandleText
+            if ([RiftGameWindowNative]::IsIconic([IntPtr]$windowHandle)) {
+                [void][RiftGameWindowNative]::ShowWindow([IntPtr]$windowHandle, $SW_RESTORE)
+            }
+            [void][RiftGameWindowNative]::SetForegroundWindow([IntPtr]$windowHandle)
             Start-Sleep -Milliseconds 250
-            Get-WindowSnapshot -Handle (ConvertTo-IntPtr -HandleText $window.windowHandle)
+            Get-WindowSnapshot -Handle ([IntPtr]$windowHandle)
             break
         }
         "capture" {

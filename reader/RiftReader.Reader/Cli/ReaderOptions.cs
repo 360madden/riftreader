@@ -19,6 +19,7 @@ public sealed record ReaderOptions(
     bool ReadPlayerOrientation,
     bool CaptureReaderBridgeBestFamily,
     bool ReadPlayerCurrent,
+    bool FindPlayerOrientationCandidate,
     bool ReadPlayerCoordAnchor,
     bool ReadTargetCurrent,
     bool SessionSummary,
@@ -51,4 +52,8 @@ public sealed record ReaderOptions(
     string? AddonSnapshotFile,
     bool ReadReaderBridgeSnapshot,
     string? ReaderBridgeSnapshotFile,
-    bool JsonOutput);
+    bool JsonOutput,
+    bool PostUpdateTriage = false,
+    string? RecoveryBundleFile = null,
+    bool SampleTriageWatchRegions = false,
+    string? OrientationCandidateLedgerFile = null);
