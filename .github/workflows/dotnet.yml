@@ -1,0 +1,37 @@
+name: .NET build and test
+
+on:
+  pull_request:
+    branches:
+      - main
+      - navigation
+  push:
+    branches:
+      - main
+      - navigation
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_NOLOGO: "true"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore .\RiftReader.slnx
+
+      - name: Build
+        run: dotnet build .\RiftReader.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test .\RiftReader.slnx --configuration Release --no-build --verbosity normal
