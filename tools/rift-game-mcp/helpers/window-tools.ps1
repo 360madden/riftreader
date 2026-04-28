@@ -5,6 +5,7 @@ param(
     [string]$Operation,
 
     [string]$ProcessName,
+    [int]$ProcessId = 0,
     [string]$TitleContains,
     [string]$WindowHandle,
     [string]$OutputPath,
@@ -347,7 +348,30 @@ function Resolve-WindowSnapshot {
     }
 
     if ([string]::IsNullOrWhiteSpace($ProcessName)) {
-        throw "Either WindowHandle or ProcessName is required."
+        if ($ProcessId -le 0) {
+            throw "Either WindowHandle, ProcessId, or ProcessName is required."
+        }
+    }
+
+    if ($ProcessId -gt 0) {
+        $candidateById = Get-Process -Id $ProcessId -ErrorAction Stop
+        if ($candidateById.MainWindowHandle -eq 0) {
+            throw "Process id '$ProcessId' does not have a main window."
+        }
+
+        $snapshotById = Get-WindowSnapshot -Handle ([IntPtr]$candidateById.MainWindowHandle)
+        if (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
+            $expectedName = [System.IO.Path]::GetFileNameWithoutExtension($ProcessName)
+            if (-not [string]::Equals($snapshotById.processName, $expectedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Process id '$ProcessId' is '$($snapshotById.processName)', not '$expectedName'."
+            }
+        }
+
+        if (-not (Test-TitleContains -Title $snapshotById.title -ExpectedText $TitleContains)) {
+            throw "Window for process id '$ProcessId' did not have a title containing '$TitleContains'."
+        }
+
+        return $snapshotById
     }
 
     $candidates = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
@@ -359,7 +383,13 @@ function Resolve-WindowSnapshot {
         }
     }
 
-    $candidate = $candidates | Select-Object -First 1
+    $candidateList = @($candidates)
+    if ($candidateList.Count -gt 1) {
+        $ids = ($candidateList | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+        throw "Process name '$ProcessName' matched multiple windowed processes ($ids). Use processId or windowHandle for exact binding."
+    }
+
+    $candidate = $candidateList | Select-Object -First 1
     if (-not $candidate) {
         if ([string]::IsNullOrWhiteSpace($TitleContains)) {
             throw "No windowed process named '$ProcessName' was found."

@@ -1343,8 +1343,18 @@ server.registerTool(
   {
     title: 'Find and bind game window',
     description:
-      'Finds the Rift game window by process name and optional title filter, then binds it for later focus/capture/input tools.',
+      'Finds the Rift game window by exact process id/window handle or by process name and optional title filter, then binds it for later focus/capture/input tools.',
     inputSchema: {
+      processId: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Exact target process id. Prefer this when more than one Rift client is running.'),
+      windowHandle: z
+        .string()
+        .optional()
+        .describe('Exact target window handle, decimal or hex like 0x109126C. Strongest binding selector.'),
       processName: z
         .string()
         .default('rift_x64')
@@ -1355,9 +1365,11 @@ server.registerTool(
         .describe('Optional substring that must appear in the window title.'),
     },
   },
-  async ({ processName, titleContains }) =>
+  async ({ processId, windowHandle, processName, titleContains }) =>
     runLoggedTool('find_game_window', async () => {
       const raw = await runPowerShell('find', {
+        ProcessId: processId,
+        WindowHandle: windowHandle,
         ProcessName: processName,
         TitleContains: titleContains,
       });

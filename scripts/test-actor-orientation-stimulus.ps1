@@ -8,7 +8,10 @@ param(
     [int]$WaitMilliseconds = 250,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle
 )
 
 Set-StrictMode -Version Latest
@@ -56,12 +59,22 @@ function Convert-RadiansToDegrees {
 function Invoke-Capture {
     param([Parameter(Mandatory = $true)][string]$CaptureLabel)
 
+    $captureArguments = @{
+        Json = $true
+        Label = $CaptureLabel
+        OutputFile = $tempOutputFile
+        PreviousFile = $tempPreviousFile
+        RefreshReaderBridge = $true
+        ProcessName = $ProcessName
+    }
+    if ($ProcessId -gt 0) {
+        $captureArguments['ProcessId'] = $ProcessId
+    }
     if ($NoAhkFallback) {
-        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge -NoAhkFallback
+        $captureArguments['NoAhkFallback'] = $true
     }
-    else {
-        $json = & $captureScript -Json -Label $CaptureLabel -OutputFile $tempOutputFile -PreviousFile $tempPreviousFile -RefreshReaderBridge
-    }
+
+    $json = & $captureScript @captureArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Actor orientation capture failed for '$CaptureLabel'."
     }
@@ -184,14 +197,28 @@ function Format-Nullable {
     return ([double]$Value).ToString($Format, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Assert-ExactStimulusTarget {
+    if ($ProcessId -le 0 -and [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        throw "Actor orientation stimulus uses live input and requires -ProcessId or -TargetWindowHandle. Refusing name-only '$ProcessName' targeting."
+    }
+}
+
 $effectiveLabel = if ([string]::IsNullOrWhiteSpace($Label)) { $Key.ToLowerInvariant() } else { $Label }
 $before = Invoke-Capture -CaptureLabel ("before-{0}" -f $effectiveLabel)
 
+Assert-ExactStimulusTarget
 $keyArguments = @{
     Key = $Key
     HoldMilliseconds = $HoldMilliseconds
+    TargetProcessName = $ProcessName
 }
 
+if ($ProcessId -gt 0) {
+    $keyArguments['TargetProcessId'] = $ProcessId
+}
+if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+    $keyArguments['TargetWindowHandle'] = $TargetWindowHandle
+}
 if ($useSkipBackgroundFocus -or -not $backgroundProcessAvailable) {
     $keyArguments['SkipBackgroundFocus'] = $true
 }
@@ -224,6 +251,9 @@ if ($null -ne $beforeEstimate.PitchRadians -and $null -ne $afterEstimate.PitchRa
 $result = [pscustomobject]@{
     Mode = 'actor-orientation-stimulus'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    ProcessName = $ProcessName
+    ProcessId = if ($ProcessId -gt 0) { $ProcessId } else { $null }
+    TargetWindowHandle = $TargetWindowHandle
     Label = $effectiveLabel
     Key = $Key
     HoldMilliseconds = $HoldMilliseconds

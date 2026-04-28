@@ -14,7 +14,11 @@ public sealed record MovementCommandResult(
     bool IsSuccess,
     string? ErrorMessage);
 
-public sealed class PowerShellMovementBackend(string scriptFile, string targetProcessName) : IMovementBackend
+public sealed class PowerShellMovementBackend(
+    string scriptFile,
+    string targetProcessName,
+    int? targetProcessId = null,
+    string? targetWindowHandle = null) : IMovementBackend
 {
     private const int MinimumCommandTimeoutMilliseconds = 5000;
     private const int LiveInteractionCountdownSeconds = 10;
@@ -118,6 +122,18 @@ public sealed class PowerShellMovementBackend(string scriptFile, string targetPr
         startInfo.ArgumentList.Add(holdMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
         startInfo.ArgumentList.Add("-TargetProcessName");
         startInfo.ArgumentList.Add(targetProcessName);
+        if (targetProcessId is > 0)
+        {
+            startInfo.ArgumentList.Add("-TargetProcessId");
+            startInfo.ArgumentList.Add(targetProcessId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetWindowHandle))
+        {
+            startInfo.ArgumentList.Add("-TargetWindowHandle");
+            startInfo.ArgumentList.Add(targetWindowHandle);
+        }
+
         startInfo.ArgumentList.Add("-SkipBackgroundFocus");
         startInfo.ArgumentList.Add("-RequireTargetForeground");
 

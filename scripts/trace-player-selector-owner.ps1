@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshSourceChain,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [int]$TimeoutSeconds = 8,
     [int]$MaxArmAttempts = 2,
     [int]$MovementHoldMilliseconds = 750,
@@ -26,6 +29,20 @@ $resolvedCoordTraceFile = [System.IO.Path]::GetFullPath($CoordTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($StatusFile)
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftSelectorTraceTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -39,6 +56,89 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftSelectorTraceTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftSelectorTraceTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-PostKeyTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    $arguments = @{
+        TargetProcessName = $ProcessName
+    }
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $arguments['TargetProcessId'] = $effectiveProcessId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $arguments
+}
+
+function Get-LuaProcessSelectorLiteral {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    return "'$($ProcessName.Replace('\', '\\').Replace("'", "\\'"))'"
+}
+
+function Assert-ExactStimulusTarget {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -eq $effectiveProcessId -or $effectiveProcessId -le 0) {
+        throw "Selector-owner trace stimulus uses live movement/input and requires -ProcessId or -TargetWindowHandle. Refusing name-only '$ProcessName' targeting."
+    }
 }
 
 function Read-KeyValueFile {
@@ -165,7 +265,18 @@ function Get-CoordTripletSample {
 }
 
 if ($RefreshSourceChain -or -not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
-    & $sourceChainScript -Json | Out-Null
+    $sourceChainArguments = @{
+        Json = $true
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $sourceChainArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $sourceChainArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+    & $sourceChainScript @sourceChainArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
@@ -179,16 +290,17 @@ if ($null -eq $triggerInstruction -or [string]::IsNullOrWhiteSpace([string]$trig
 }
 
 $selectorPattern = '0F B6 54 01 18 80 FA FF 0F 84 ?? ?? ?? ?? 48 8B 48 78 48 8B 3C D1 48 85 FF'
-$selectorPatternScan = Invoke-ReaderJson -Arguments @(
-    '--process-name', 'rift_x64',
+$selectorPatternArguments = @(Get-ReaderTargetArguments) + @(
     '--scan-module-pattern', $selectorPattern,
     '--scan-module-name', 'rift_x64.exe',
     '--json')
+$selectorPatternScan = Invoke-ReaderJson -Arguments $selectorPatternArguments
 
 $triggerAddress = Resolve-LiveInstructionAddress -SourceChainDocument $sourceChain -Instruction $triggerInstruction
 $status = $null
 $producedStatusFile = $false
 $movementSequence = @($MovementKeys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+Assert-ExactStimulusTarget
 
 for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
     if (Test-Path -LiteralPath $resolvedStatusFile) {
@@ -197,8 +309,9 @@ for ($armAttempt = 1; $armAttempt -le $MaxArmAttempts; $armAttempt++) {
 
     & $ceExecScript -LuaFile $selectorLuaFile | Out-Null
 
+    $processSelectorLiteral = Get-LuaProcessSelectorLiteral
     $luaCode = @"
-return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatusFile]], {
+return RiftReaderSelectorTrace.arm($processSelectorLiteral, $triggerAddress, [[$resolvedStatusFile]], {
   ownerObjectRegister = 'RAX',
   ownerContainerRegister = 'RCX',
   selectorIndexRegister = 'RDX',
@@ -219,8 +332,12 @@ return RiftReaderSelectorTrace.arm('rift_x64', $triggerAddress, [[$resolvedStatu
             break
         }
 
+        Assert-ExactStimulusTarget
         try {
-            & $postKeyScript -Key $movementKey -HoldMilliseconds $MovementHoldMilliseconds | Out-Null
+            $postKeyArguments = Get-PostKeyTargetArguments
+            $postKeyArguments['Key'] = $movementKey
+            $postKeyArguments['HoldMilliseconds'] = $MovementHoldMilliseconds
+            & $postKeyScript @postKeyArguments | Out-Null
         }
         catch {
         }
@@ -314,6 +431,9 @@ $ownerCoord48 = [ordered]@{
 $result = [ordered]@{
     Mode = 'player-selector-owner-trace'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    ProcessName = $ProcessName
+    ProcessId = Get-EffectiveTargetProcessId
+    TargetWindowHandle = $TargetWindowHandle
     SourceChainFile = $resolvedSourceChainFile
     CoordTraceFile = if (Test-Path -LiteralPath $resolvedCoordTraceFile) { $resolvedCoordTraceFile } else { $null }
     TriggerInstruction = $triggerInstruction

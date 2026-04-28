@@ -23,6 +23,8 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 ## Safety model
 
 - `find_game_window` binds the active target window for the session.
+  When multiple Rift clients are running, pass `processId` or `windowHandle`
+  instead of relying on the first `processName` match.
 - Every other tool uses that bound window.
 - Input tools reject execution if:
   - no window is bound,

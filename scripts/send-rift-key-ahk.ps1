@@ -4,6 +4,8 @@ param(
     [string]$Key,
     [int]$HoldMilliseconds = 250,
     [string]$TargetExe = "rift_x64.exe",
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle,
     [switch]$NoRefocus
 )
 
@@ -48,6 +50,8 @@ $autoHotkeyExe = Find-AutoHotkeyExe
 Write-Host "[RiftAhkKey] AutoHotkey : $autoHotkeyExe"
 Write-Host "[RiftAhkKey] Script     : $scriptPath"
 Write-Host "[RiftAhkKey] Target EXE : $TargetExe"
+Write-Host "[RiftAhkKey] Target PID : $TargetProcessId"
+Write-Host "[RiftAhkKey] Target HWND: $TargetWindowHandle"
 Write-Host "[RiftAhkKey] Key        : $Key"
 Write-Host "[RiftAhkKey] Hold ms    : $HoldMilliseconds"
 Write-Host "[RiftAhkKey] NoRefocus  : $NoRefocus"
@@ -58,6 +62,8 @@ $argumentList = @(
     Quote-ProcessArgument -Value ([string]$HoldMilliseconds)
     Quote-ProcessArgument -Value $TargetExe
     Quote-ProcessArgument -Value $(if ($NoRefocus) { "1" } else { "0" })
+    Quote-ProcessArgument -Value $TargetWindowHandle
+    Quote-ProcessArgument -Value ([string]$TargetProcessId)
 ) -join ' '
 
 $process = Start-Process -FilePath $autoHotkeyExe -ArgumentList $argumentList -PassThru -Wait

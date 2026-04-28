@@ -2,6 +2,8 @@
 param(
     [string]$Command = "/reloadui",
     [string]$TargetProcessName = "rift_x64",
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle,
     [string]$VerifyFilePath = "C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
     [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
     [int]$AttemptTimeoutSeconds = 10,
@@ -37,6 +39,9 @@ public static class RiftPostThreadNative
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 }
 "@
@@ -69,6 +74,107 @@ function Get-MainWindowProcess {
     }
 
     return $candidate
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-NormalizedProcessName {
+    param([string]$ProcessName)
+
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) {
+        return $ProcessName
+    }
+
+    $trimmed = $ProcessName.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed.Substring(0, $trimmed.Length - 4)
+    }
+
+    return $trimmed
+}
+
+function Resolve-TargetProcess {
+    param(
+        [string]$ProcessName,
+        [int]$ProcessId,
+        [string]$WindowHandle
+    )
+
+    $normalizedName = Get-NormalizedProcessName -ProcessName $ProcessName
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftPostThreadNative]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftPostThreadNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$WindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        $process = Get-Process -Id ([int]$ownerProcessId) -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target window handle '$WindowHandle' belongs to '$($process.ProcessName)' [PID $ownerProcessId], not '$ProcessName'."
+        }
+
+        return [pscustomobject]@{
+            Process = $process
+            WindowHandle = $handle
+        }
+    }
+
+    if ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target PID $ProcessId is '$($process.ProcessName)', not '$ProcessName'."
+        }
+
+        if ($process.MainWindowHandle -eq 0 -or -not [RiftPostThreadNative]::IsWindow($process.MainWindowHandle)) {
+            throw "Target PID $ProcessId does not expose a valid main window handle."
+        }
+
+        return [pscustomobject]@{
+            Process = $process
+            WindowHandle = [IntPtr]$process.MainWindowHandle
+        }
+    }
+
+    $matches = @(Get-Process -Name $normalizedName -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+    if ($matches.Count -gt 1) {
+        $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+        throw "Process name '$normalizedName' matched multiple windowed processes ($ids). Use -TargetProcessId or -TargetWindowHandle to avoid cross-window thread posting."
+    }
+
+    $process = $matches | Select-Object -First 1
+    if (-not $process) {
+        throw "No process named '$normalizedName' with a main window was found."
+    }
+
+    return [pscustomobject]@{
+        Process = $process
+        WindowHandle = [IntPtr]$process.MainWindowHandle
+    }
 }
 
 function Focus-Window {
@@ -306,8 +412,9 @@ function Wait-ForTimestampAdvance {
     return $null
 }
 
-$targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
-$targetHandle = [IntPtr]$targetProcess.MainWindowHandle
+$target = Resolve-TargetProcess -ProcessName $TargetProcessName -ProcessId $TargetProcessId -WindowHandle $TargetWindowHandle
+$targetProcess = $target.Process
+$targetHandle = [IntPtr]$target.WindowHandle
 
 $targetOwnerProcessId = 0
 $targetThreadId = [RiftPostThreadNative]::GetWindowThreadProcessId($targetHandle, [ref]$targetOwnerProcessId)

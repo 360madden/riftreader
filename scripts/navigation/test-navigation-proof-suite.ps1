@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [switch]$IncludeLive,
     [switch]$SkipRefresh,
     [switch]$IncludeActiveMovement,
@@ -50,6 +52,29 @@ function ConvertFrom-CommandJsonObject {
     }
 
     return $text.Substring($jsonStart) | ConvertFrom-Json
+}
+
+function Get-ReaderTargetArguments {
+    if ($ProcessId -gt 0) {
+        return @('--pid', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-ScriptTargetArguments {
+    $arguments = @()
+    if ($ProcessId -gt 0) {
+        $arguments += @('-ProcessId', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+    else {
+        $arguments += @('-ProcessName', $ProcessName)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
 }
 
 function Assert-SmokeRoutePlanResult {
@@ -123,9 +148,8 @@ if ($IncludeLive) {
             '-NoLogo',
             '-NoProfile',
             '-ExecutionPolicy', 'Bypass',
-            '-File', $smokeRouteScript,
-            '-ProcessName', $ProcessName
-        )
+            '-File', $smokeRouteScript
+        ) + (Get-ScriptTargetArguments)
 
         if ($BearingOffsetDegrees -ne 0.0) {
             $arguments += @('-BearingOffsetDegrees', $BearingOffsetDegrees.ToString([System.Globalization.CultureInfo]::InvariantCulture))
@@ -148,8 +172,8 @@ if ($IncludeLive) {
             '-NoLogo',
             '-NoProfile',
             '-ExecutionPolicy', 'Bypass',
-            '-File', $prototypeScript,
-            '-ProcessName', $ProcessName,
+            '-File', $prototypeScript
+        ) + (Get-ScriptTargetArguments) + @(
             '-UseSmokeTestFile',
             '-UseExistingWaypoints',
             '-AutoConfirm'
@@ -179,13 +203,14 @@ if ($IncludeLive) {
     }
 
     Invoke-SuiteStep -Name 'navigation-live-route-plan' -ScriptBlock {
-        $routePlanOutput = & dotnet run --project $readerProject -- `
-            --process-name $ProcessName `
-            --plan-navigation-route `
-            --start-waypoint smoke_start `
-            --destination-waypoint smoke_destination `
-            --navigation-waypoint-file $smokeRouteFile `
-            --json
+        $routePlanArguments = @(Get-ReaderTargetArguments) + @(
+            '--plan-navigation-route',
+            '--start-waypoint', 'smoke_start',
+            '--destination-waypoint', 'smoke_destination',
+            '--navigation-waypoint-file', $smokeRouteFile,
+            '--json'
+        )
+        $routePlanOutput = & dotnet run --project $readerProject -- @routePlanArguments
         if ($LASTEXITCODE -ne 0) {
             throw "navigation route planning failed with exit code $LASTEXITCODE."
         }

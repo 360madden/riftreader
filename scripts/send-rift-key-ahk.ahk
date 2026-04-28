@@ -5,6 +5,8 @@ keyText := A_Args.Length >= 1 ? A_Args[1] : ""
 holdMilliseconds := A_Args.Length >= 2 ? Integer(A_Args[2]) : 250
 targetExe := A_Args.Length >= 3 ? A_Args[3] : "rift_x64.exe"
 noRefocus := A_Args.Length >= 4 ? (A_Args[4] = "1") : false
+targetWindowHandle := A_Args.Length >= 5 ? A_Args[5] : ""
+targetProcessId := A_Args.Length >= 6 ? Integer(A_Args[6]) : 0
 
 NormalizeKey(keyValue) {
     trimmed := Trim(keyValue)
@@ -57,11 +59,35 @@ SendHeldKey(keyName, holdMs) {
 if (keyText = "")
     ExitApp(1)
 
-targetWindows := WinGetList("ahk_exe " targetExe)
-if (targetWindows.Length < 1)
-    ExitApp(2)
+if (targetWindowHandle != "") {
+    targetHwnd := targetWindowHandle
+    if (!WinExist("ahk_id " targetHwnd))
+        ExitApp(2)
+} else {
+    targetWindows := WinGetList("ahk_exe " targetExe)
+    if (targetWindows.Length < 1)
+        ExitApp(2)
 
-targetHwnd := targetWindows[1]
+    if (targetWindows.Length > 1 && targetProcessId <= 0)
+        ExitApp(6)
+
+    targetHwnd := targetWindows[1]
+    if (targetProcessId > 0) {
+        targetHwnd := 0
+        for hwnd in targetWindows {
+            if (WinGetPID("ahk_id " hwnd) = targetProcessId) {
+                targetHwnd := hwnd
+                break
+            }
+        }
+        if (!targetHwnd)
+            ExitApp(7)
+    }
+}
+
+if (targetProcessId > 0 && WinGetPID("ahk_id " targetHwnd) != targetProcessId)
+    ExitApp(8)
+
 previousHwnd := WinExist("A")
 keyName := NormalizeKey(keyText)
 if (keyName = "")

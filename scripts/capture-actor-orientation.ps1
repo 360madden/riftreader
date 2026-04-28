@@ -6,6 +6,8 @@ param(
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$BehaviorBackedLeadFile = (Join-Path $PSScriptRoot 'actor-facing-behavior-backed-lead.json'),
     [switch]$IgnoreBehaviorBackedLead,
     [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
@@ -22,6 +24,20 @@ $ownerComponentScript = Join-Path $PSScriptRoot 'capture-player-owner-components
 $refreshReaderBridgeScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $coordTolerance = 0.75
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftActorOrientationTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -35,6 +51,57 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftActorOrientationTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftActorOrientationTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
 }
 
 function Normalize-AngleRadians {
@@ -539,15 +606,55 @@ function Try-ParseDateTimeOffsetValue {
 }
 
 function Get-TargetProcessMetadata {
-    param([Parameter(Mandatory = $true)][string]$Name)
+    param(
+        [string]$Name,
+        [int]$Id,
+        [string]$WindowHandle
+    )
 
-    $process = Get-Process -Name $Name -ErrorAction Stop |
-        Where-Object { $_.MainWindowHandle -ne 0 } |
-        Sort-Object StartTime |
-        Select-Object -First 1
+    $effectiveId = $Id
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftActorOrientationTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftActorOrientationTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$WindowHandle' did not resolve to a process id."
+        }
+
+        if ($Id -gt 0 -and [int]$ownerProcessId -ne $Id) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not PID $Id."
+        }
+
+        $effectiveId = [int]$ownerProcessId
+    }
+
+    $process = if ($effectiveId -gt 0) {
+        Get-Process -Id $effectiveId -ErrorAction Stop
+    }
+    else {
+        $matches = @(Get-Process -Name $Name -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+            throw "Process name '$Name' matched multiple windowed processes ($ids). Use -ProcessId for actor-orientation capture."
+        }
+
+        $matches | Select-Object -First 1
+    }
 
     if ($null -eq $process) {
         throw "No process named '$Name' with a main window was found."
+    }
+
+    if ($process.MainWindowHandle -eq [IntPtr]::Zero) {
+        throw "Target process '$($process.ProcessName)' [$($process.Id)] does not expose a main window."
+    }
+
+    if ($handle -ne [IntPtr]::Zero -and [Int64]$process.MainWindowHandle -ne $handle.ToInt64()) {
+        throw ("Target PID $($process.Id) main window 0x{0:X} does not match requested window '$WindowHandle'." -f ([Int64]$process.MainWindowHandle))
     }
 
     return [pscustomobject]@{
@@ -660,17 +767,19 @@ function Get-ReaderBridgePlayerMetadata {
 function Get-LiveSourceSample {
     param(
         [Parameter(Mandatory = $true)][string]$SelectedSourceAddress,
-        [Parameter(Mandatory = $true)][string]$ProcessName,
+        [Parameter(Mandatory = $true)][string[]]$TargetArguments,
         [string]$BasisForwardOffset,
         [string]$DuplicateBasisForwardOffset
     )
 
     $address = Parse-HexUInt64 -Value $SelectedSourceAddress
-    $memoryRead = Invoke-ReaderJson -Arguments @(
-        '--process-name', $ProcessName,
+    $memoryReadArguments = @(
+        @($TargetArguments) +
+        @(
         '--address', ('0x{0:X}' -f $address),
         '--length', '256',
-        '--json')
+        '--json'))
+    $memoryRead = Invoke-ReaderJson -Arguments $memoryReadArguments
 
     $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
     $coord48 = Read-TripletAt -Bytes $bytes -Offset 0x48
@@ -782,7 +891,7 @@ function Resolve-LiveOrientation {
 
         $liveSample = Get-LiveSourceSample `
             -SelectedSourceAddress $BehaviorBackedLead.SourceAddress `
-            -ProcessName $ProcessName `
+            -TargetArguments (Get-ReaderTargetArguments) `
             -BasisForwardOffset $BehaviorBackedLead.BasisForwardOffset `
             -DuplicateBasisForwardOffset $BehaviorBackedLead.BasisDuplicateForwardOffset
 
@@ -841,16 +950,19 @@ function Resolve-LiveOrientation {
         }
     }
 
-    $metadata = Invoke-ReaderJson -Arguments @(
+    $metadataArguments = @(
+        @(Get-ReaderTargetArguments) +
+        @(
         '--read-player-orientation',
         '--owner-components-file', $resolvedOwnerComponentsFile,
-        '--json')
+        '--json'))
+    $metadata = Invoke-ReaderJson -Arguments $metadataArguments
 
     if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {
         throw 'The player-orientation reader did not resolve a selected source address.'
     }
 
-    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -TargetArguments (Get-ReaderTargetArguments)
     $playerCoord = $metadata.PlayerCoord
     $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
     $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
@@ -870,7 +982,7 @@ $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
 $resolvedBehaviorBackedLeadFile = [System.IO.Path]::GetFullPath($BehaviorBackedLeadFile)
 $behaviorBackedLead = $null
-$targetProcessMetadata = Get-TargetProcessMetadata -Name $ProcessName
+$targetProcessMetadata = Get-TargetProcessMetadata -Name $ProcessName -Id $ProcessId -WindowHandle $TargetWindowHandle
 
 if (-not $IgnoreBehaviorBackedLead -and (Test-Path -LiteralPath $resolvedBehaviorBackedLeadFile)) {
     $behaviorBackedLead = Load-BehaviorBackedLead -Path $resolvedBehaviorBackedLeadFile
@@ -881,7 +993,17 @@ if (-not $IgnoreBehaviorBackedLead -and (Test-Path -LiteralPath $resolvedBehavio
 }
 
 if ($RefreshReaderBridge) {
-    $refreshArguments = @{ 'NoReader' = $true }
+    $refreshArguments = @{
+        'NoReader' = $true
+        'ProcessName' = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $refreshArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $refreshArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
     if ($NoAhkFallback) {
         $refreshArguments['NoAhkFallback'] = $true
     }
@@ -895,7 +1017,21 @@ if ($RefreshReaderBridge) {
 }
 
 if ($null -eq $behaviorBackedLead -and ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile))) {
-    & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
+    $ownerComponentArguments = @{
+        RefreshSelectorTrace = $true
+        OutputFile = $resolvedOwnerComponentsFile
+        Json = $true
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $ownerComponentArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $ownerComponentArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    & $ownerComponentScript @ownerComponentArguments | Out-Null
 }
 
 $liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents -BehaviorBackedLead $behaviorBackedLead

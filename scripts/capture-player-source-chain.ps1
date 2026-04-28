@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshCluster,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$ClusterFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json')
 )
@@ -17,6 +20,20 @@ $clusterLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderDisasmCluster.
 $resolvedClusterFile = [System.IO.Path]::GetFullPath($ClusterFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftSourceChainTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -30,6 +47,57 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftSourceChainTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftSourceChainTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
 }
 
 function Get-RequiredInstruction {
@@ -332,11 +400,11 @@ function Build-SourceChainArtifacts {
     }
 
     $sourceChainPattern = $sourceChainPatternTokens -join ' '
-    $sourceChainScan = Invoke-ReaderJson -Arguments @(
-        '--process-name', $ProcessName,
+    $sourceChainScanArguments = @(Get-ReaderTargetArguments) + @(
         '--scan-module-pattern', $sourceChainPattern,
         '--scan-module-name', 'rift_x64.exe',
         '--json')
+    $sourceChainScan = Invoke-ReaderJson -Arguments $sourceChainScanArguments
 
     $sourceResolveTarget = $null
     if ([string]$sourceResolveCall.Opcode -match '^call\s+(?<target>[0-9A-Fa-f`]+)$') {
@@ -384,11 +452,11 @@ function Build-SourceChainArtifacts {
 
             if ($accessorPatternTokens.Count -gt 0) {
                 $accessorPattern = $accessorPatternTokens -join ' '
-                $accessorScan = Invoke-ReaderJson -Arguments @(
-                    '--process-name', $ProcessName,
+                $accessorScanArguments = @(Get-ReaderTargetArguments) + @(
                     '--scan-module-pattern', $accessorPattern,
                     '--scan-module-name', 'rift_x64.exe',
                     '--json')
+                $accessorScan = Invoke-ReaderJson -Arguments $accessorScanArguments
             }
         }
 
@@ -432,11 +500,11 @@ function Build-SourceChainArtifacts {
 
                 if ($preparationPatternTokens.Count -ge 5) {
                     $preparationPattern = $preparationPatternTokens -join ' '
-                    $preparationScan = Invoke-ReaderJson -Arguments @(
-                        '--process-name', $ProcessName,
+                    $preparationScanArguments = @(Get-ReaderTargetArguments) + @(
                         '--scan-module-pattern', $preparationPattern,
                         '--scan-module-name', 'rift_x64.exe',
                         '--json')
+                    $preparationScan = Invoke-ReaderJson -Arguments $preparationScanArguments
                 }
             }
 
@@ -494,7 +562,20 @@ function Build-SourceChainArtifacts {
 }
 
 if ($RefreshCluster -or -not (Test-Path -LiteralPath $resolvedClusterFile)) {
-    & $clusterScript -Json -InstructionsBefore 40 -InstructionsAfter 24 | Out-Null
+    $clusterArguments = @{
+        Json = $true
+        InstructionsBefore = 40
+        InstructionsAfter = 24
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $clusterArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $clusterArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+    & $clusterScript @clusterArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
@@ -593,11 +674,11 @@ if ($null -ne $sourceChainBuildError) {
         $previousSourceChainPattern = Get-PreviousSourceChainPattern -Document $previousSourceChain
         if (-not [string]::IsNullOrWhiteSpace($previousSourceChainPattern)) {
             try {
-                $freshSourceChainScan = Invoke-ReaderJson -Arguments @(
-                    '--process-name', [string]$cluster.Anchor.ProcessName,
+                $freshSourceChainArguments = @(Get-ReaderTargetArguments) + @(
                     '--scan-module-pattern', $previousSourceChainPattern,
                     '--scan-module-name', 'rift_x64.exe',
                     '--json')
+                $freshSourceChainScan = Invoke-ReaderJson -Arguments $freshSourceChainArguments
 
                 if ($freshSourceChainScan.Found -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$freshSourceChainScan.Address)) {
                     $freshSourceChainClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.fresh-source-chain.tsv')

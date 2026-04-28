@@ -34,25 +34,31 @@ function RiftReaderFloatScan.clear()
   return 1
 end
 
-function RiftReaderFloatScan.attach(processName)
-  local pid = getProcessIDFromProcessName(processName)
+function RiftReaderFloatScan.attach(processTarget)
+  local pid = nil
+  if type(processTarget) == "number" then
+    pid = processTarget
+  else
+    pid = getProcessIDFromProcessName(processTarget)
+  end
+
   if pid == nil or pid == 0 then
     return 0
   end
 
   openProcess(pid)
-  state.processName = processName
+  state.processName = tostring(processTarget)
   return pid
 end
 
-function RiftReaderFloatScan.startExactFloat(processName, value)
-  local pid = RiftReaderFloatScan.attach(processName)
+function RiftReaderFloatScan.startExactFloat(processTarget, value)
+  local pid = RiftReaderFloatScan.attach(processTarget)
   if pid == nil or pid == 0 then
     return 0
   end
 
   RiftReaderFloatScan.clear()
-  state.processName = processName
+  state.processName = tostring(processTarget)
   state.memscan = createMemScan()
   state.memscan.firstScan(
     soExactValue,

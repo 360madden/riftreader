@@ -2,6 +2,8 @@
 param(
     [switch]$Json,
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [double]$MaxYawDeltaDegrees = 0.05,
     [double]$MaxPitchDeltaDegrees = 0.05
 )
@@ -43,6 +45,29 @@ function Invoke-ScriptJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function Get-ReaderTargetArguments {
+    if ($ProcessId -gt 0) {
+        return @('--pid', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-ScriptTargetArguments {
+    $arguments = @()
+    if ($ProcessId -gt 0) {
+        $arguments += @('-ProcessId', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+    else {
+        $arguments += @('-ProcessName', $ProcessName)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
 }
 
 function Get-OrientationSummary {
@@ -90,8 +115,8 @@ function Get-OrientationSummary {
     }
 }
 
-$captureDocument = Invoke-ScriptJson -ScriptFile $captureScript -Arguments @('-Json', '-ProcessName', $ProcessName)
-$nativeDocument = Invoke-ReaderJson -Arguments @('--process-name', $ProcessName, '--read-player-orientation', '--json')
+$captureDocument = Invoke-ScriptJson -ScriptFile $captureScript -Arguments (@('-Json') + (Get-ScriptTargetArguments))
+$nativeDocument = Invoke-ReaderJson -Arguments (@(Get-ReaderTargetArguments) + @('--read-player-orientation', '--json'))
 
 $captureOrientation = Get-OrientationSummary -Document $captureDocument.ReaderOrientation
 $nativeOrientation = Get-OrientationSummary -Document $nativeDocument
@@ -136,6 +161,8 @@ $result = [ordered]@{
     Mode = 'orientation-reader-parity'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     ProcessName = $ProcessName
+    ProcessId = if ($ProcessId -gt 0) { $ProcessId } else { $null }
+    TargetWindowHandle = $TargetWindowHandle
     Status = if ($issues.Count -eq 0) { 'pass' } else { 'fail' }
     Capture = $captureOrientation
     Native = $nativeOrientation

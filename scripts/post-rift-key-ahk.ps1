@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Key,
     [int]$HoldMilliseconds = 250,
-    [string]$TargetExe = 'rift_x64.exe'
+    [string]$TargetExe = 'rift_x64.exe',
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle
 )
 
 Set-StrictMode -Version Latest
@@ -47,6 +49,8 @@ $argumentList = @(
     Quote-ProcessArgument -Value $Key
     Quote-ProcessArgument -Value $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
     Quote-ProcessArgument -Value $TargetExe
+    Quote-ProcessArgument -Value $TargetWindowHandle
+    Quote-ProcessArgument -Value ([string]$TargetProcessId)
 ) -join ' '
 
 $process = Start-Process -FilePath $autoHotkeyExe -ArgumentList $argumentList -PassThru -Wait

@@ -2,6 +2,7 @@
 param(
     [switch]$Json,
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
     [int]$MaxHits = 8,
     [string]$OrientationCandidateLedgerFile,
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-orientation-candidate-search.json')
@@ -34,8 +35,15 @@ function Invoke-ReaderJson {
     return ($jsonText | Microsoft.PowerShell.Utility\ConvertFrom-Json)
 }
 
-$arguments = @(
-    '--process-name', $ProcessName,
+$arguments = @()
+if ($ProcessId -gt 0) {
+    $arguments += @('--pid', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+}
+else {
+    $arguments += @('--process-name', $ProcessName)
+}
+
+$arguments += @(
     '--find-player-orientation-candidate',
     '--max-hits', $MaxHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
     '--json')

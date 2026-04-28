@@ -2,6 +2,8 @@
 
 Start here if artifacts, notes, or workflow state drift or get corrupted.
 
+Last reviewed: April 26, 2026.
+
 ## Current post-update note
 
 After the April 14, 2026 game update:

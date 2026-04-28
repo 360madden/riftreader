@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshOwnerGraph,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [int]$TimeoutSeconds = 10,
     [int]$RepeatCount = 3,
     [int]$MoveHoldMilliseconds = 800,
@@ -23,6 +26,20 @@ $resolvedOwnerGraphFile = [System.IO.Path]::GetFullPath($OwnerGraphFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($StatusFile)
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftProjectorTraceTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -36,6 +53,89 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftProjectorTraceTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftProjectorTraceTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-PostKeyTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    $arguments = @{
+        TargetProcessName = $ProcessName
+    }
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $arguments['TargetProcessId'] = $effectiveProcessId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $arguments
+}
+
+function Get-LuaProcessSelectorLiteral {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    return "'$($ProcessName.Replace('\', '\\').Replace("'", "\\'"))'"
+}
+
+function Assert-ExactStimulusTarget {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -eq $effectiveProcessId -or $effectiveProcessId -le 0) {
+        throw "Projector trace stimulus uses live movement/input and requires -ProcessId or -TargetWindowHandle. Refusing name-only '$ProcessName' targeting."
+    }
 }
 
 function Read-KeyValueFile {
@@ -150,11 +250,11 @@ function Read-Bytes {
         [int]$Length
     )
 
-    $result = Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+    $arguments = @(Get-ReaderTargetArguments) + @(
         '--address', ('0x{0:X}' -f $Address),
         '--length', $Length.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--json')
+    $result = Invoke-ReaderJson -Arguments $arguments
 
     return Convert-HexToBytes -Hex ([string]$result.BytesHex)
 }
@@ -180,8 +280,21 @@ function Read-FloatObjectSnapshot {
     }
 }
 
+Assert-ExactStimulusTarget
+
 if ($RefreshOwnerGraph -or -not (Test-Path -LiteralPath $resolvedOwnerGraphFile)) {
-    & $ownerGraphScript -Json | Out-Null
+    $ownerGraphArguments = @{
+        Json = $true
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $ownerGraphArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $ownerGraphArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+    & $ownerGraphScript @ownerGraphArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedOwnerGraphFile)) {
@@ -203,11 +316,11 @@ $stateSlot60 = [BitConverter]::ToUInt64($stateRecordBytes, 0x60)
 
 $projectorWriteClusterPattern = '44 89 81 D4 00 00 00 48 8B 02 F3 0F 10 40 28 F3 0F 11 81 B8 00 00 00 F3 0F 11 81 BC 00 00 00 F3 0F 11 81 C0 00 00 00 F3 0F 11 81 D0 00 00 00 C3'
 $projectorFunctionDelta = 0x0B
-$projectorScan = Invoke-ReaderJson -Arguments @(
-    '--process-name', 'rift_x64',
+$projectorScanArguments = @(Get-ReaderTargetArguments) + @(
     '--scan-module-pattern', $projectorWriteClusterPattern,
     '--scan-module-name', 'rift_x64.exe',
     '--json')
+$projectorScan = Invoke-ReaderJson -Arguments $projectorScanArguments
 
 if ($projectorScan.Found -ne $true -or [string]::IsNullOrWhiteSpace([string]$projectorScan.Address)) {
     throw 'Unable to find the projector pattern in rift_x64.exe.'
@@ -223,13 +336,18 @@ for ($attemptIndex = 1; $attemptIndex -le $RepeatCount; $attemptIndex++) {
 
     & $ceExecScript -LuaFile $projectorLuaFile | Out-Null
 
+    $processSelectorLiteral = Get-LuaProcessSelectorLiteral
     $luaCode = @"
-return RiftReaderProjectorTrace.armAsync('rift_x64', $projectorAddress, [[$resolvedStatusFile]])
+return RiftReaderProjectorTrace.armAsync($processSelectorLiteral, $projectorAddress, [[$resolvedStatusFile]])
 "@
     & $ceExecScript -Code $luaCode | Out-Null
 
     Start-Sleep -Milliseconds 250
-    & $postKeyScript -Key 'w' -HoldMilliseconds $MoveHoldMilliseconds | Out-Null
+    Assert-ExactStimulusTarget
+    $postKeyArguments = Get-PostKeyTargetArguments
+    $postKeyArguments['Key'] = 'w'
+    $postKeyArguments['HoldMilliseconds'] = $MoveHoldMilliseconds
+    & $postKeyScript @postKeyArguments | Out-Null
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $status = $null
@@ -310,6 +428,9 @@ $attemptArray = @($attempts.ToArray())
 $result = @{
     Mode = 'player-state-projector-trace'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    ProcessName = $ProcessName
+    ProcessId = Get-EffectiveTargetProcessId
+    TargetWindowHandle = $TargetWindowHandle
     OwnerGraphFile = $resolvedOwnerGraphFile
     ProjectorWriteClusterPattern = $projectorWriteClusterPattern
     ProjectorFunctionDelta = ('0x{0:X}' -f $projectorFunctionDelta)

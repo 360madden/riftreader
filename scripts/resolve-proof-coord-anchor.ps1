@@ -6,6 +6,7 @@ param(
     [int]$TraceReferenceMaxAgeSeconds = 15,
     [string]$PlayerCoordTraceFile,
     [string]$ProofCoordAnchorFile,
+    [string]$TargetWindowHandle,
     [switch]$SkipRefresh,
     [switch]$Json
 )
@@ -17,6 +18,22 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $traceScript = Join-Path $PSScriptRoot 'trace-player-coord-write.ps1'
 $defaultProofCoordAnchorFile = Join-Path $repoRoot 'scripts\captures\telemetry-proof-coord-anchor.json'
+$script:EffectiveProcessId = 0
+$script:NormalizedProcessName = $null
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftProofAnchorTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
 
 if ([string]::IsNullOrWhiteSpace($ProofCoordAnchorFile)) {
     $ProofCoordAnchorFile = $defaultProofCoordAnchorFile
@@ -38,6 +55,77 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
+}
+
+function Get-NormalizedProcessName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $Name
+    }
+
+    $trimmed = $Name.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed.Substring(0, $trimmed.Length - 4)
+    }
+
+    return $trimmed
+}
+
+function ConvertTo-WindowHandle {
+    param([Parameter(Mandatory = $true)][string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Resolve-EffectiveTargetProcessId {
+    $normalizedName = Get-NormalizedProcessName -Name $ProcessName
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+        if ($handle -eq [IntPtr]::Zero -or -not [RiftProofAnchorTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftProofAnchorTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to an owning process."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        $process = Get-Process -Id ([int]$ownerProcessId) -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target window handle '$TargetWindowHandle' belongs to process '$($process.ProcessName)' [PID $ownerProcessId], not '$ProcessName'."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target PID $ProcessId is process '$($process.ProcessName)', not '$ProcessName'."
+        }
+
+        return $process.Id
+    }
+
+    return 0
 }
 
 function Get-ReaderTargetArguments {
@@ -355,7 +443,7 @@ function Read-DirectCoordRegionSample {
     )
 
     $memoryRead = Invoke-ReaderJson -Arguments @(
-        (Get-ReaderTargetArguments -ResolvedProcessId $ProcessId -ResolvedProcessName $ProcessName) +
+        (Get-ReaderTargetArguments -ResolvedProcessId $script:EffectiveProcessId -ResolvedProcessName $script:NormalizedProcessName) +
         @('--address', $AddressHex, '--length', '12', '--json')
     )
 
@@ -720,13 +808,17 @@ function Save-ResolvedProofCoordAnchor {
 
 $lastAnchor = $null
 $lastFailureReason = $null
+$lastRefreshFailureReason = $null
 $resolvedPlayerCoordTraceFile = $null
 if (-not [string]::IsNullOrWhiteSpace($PlayerCoordTraceFile)) {
     $resolvedPlayerCoordTraceFile = [System.IO.Path]::GetFullPath($PlayerCoordTraceFile)
 }
 
+$script:NormalizedProcessName = Get-NormalizedProcessName -Name $ProcessName
+$script:EffectiveProcessId = Resolve-EffectiveTargetProcessId
+
 for ($attempt = 0; $attempt -le $RefreshAttempts; $attempt++) {
-    $lastAnchor = Invoke-ReaderJson -Arguments (Get-CoordAnchorArguments -ResolvedProcessId $ProcessId -ResolvedProcessName $ProcessName -ResolvedTraceFile $resolvedPlayerCoordTraceFile)
+    $lastAnchor = Invoke-ReaderJson -Arguments (Get-CoordAnchorArguments -ResolvedProcessId $script:EffectiveProcessId -ResolvedProcessName $script:NormalizedProcessName -ResolvedTraceFile $resolvedPlayerCoordTraceFile)
     $traceReference = Get-TraceEpochReference -TraceSourceFile ([string]$lastAnchor.SourceFile)
     $selection = Resolve-ProofCoordSelection -Anchor $lastAnchor -TraceReference $traceReference -Reason ([ref]$lastFailureReason)
     if ($null -ne $selection) {
@@ -751,10 +843,30 @@ for ($attempt = 0; $attempt -le $RefreshAttempts; $attempt++) {
 
     Write-Warning ("Proof coord anchor validation failed: {0} Refreshing coord trace with proof-safe non-heuristic seeds first (attempt {1}/{2})..." -f $lastFailureReason, ($attempt + 1), $RefreshAttempts)
     try {
-        & $traceScript -Json -ProofReacquisition -MaxCandidates 4 -WatchMode access -StimulusMode AutoHotkey | Out-Null
+        $traceArguments = @(
+            '-Json',
+            '-ProofReacquisition',
+            '-MaxCandidates', '4',
+            '-WatchMode', 'access',
+            '-StimulusMode', 'AutoHotkey',
+            '-ProcessName', $script:NormalizedProcessName
+        )
+        if ($script:EffectiveProcessId -gt 0) {
+            $traceArguments += @('-ProcessId', $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+        }
+        if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+            $traceArguments += @('-TargetWindowHandle', $TargetWindowHandle)
+        }
+        if (-not [string]::IsNullOrWhiteSpace($resolvedPlayerCoordTraceFile)) {
+            $traceArguments += @('-OutputFile', $resolvedPlayerCoordTraceFile)
+        }
+
+        & $traceScript @traceArguments | Out-Null
     }
     catch {
-        $lastFailureReason = "Coord-trace refresh failed: $($_.Exception.Message)"
+        $lastRefreshFailureReason = "Coord-trace refresh failed: $($_.Exception.Message)"
+        $lastFailureReason = $lastRefreshFailureReason
+        break
     }
 }
 
@@ -772,6 +884,7 @@ if ($Json) {
         ProcessName = $ProcessName
         Status = 'failed'
         Error = $message
+        LastRefreshError = $lastRefreshFailureReason
         LastAnchor = $lastAnchor
     } | ConvertTo-Json -Depth 16
     exit 1

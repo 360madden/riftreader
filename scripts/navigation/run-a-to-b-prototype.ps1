@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$StartWaypointId = 'point_a',
     [string]$DestinationWaypointId = 'point_b',
     [string]$StartLabel = 'Point A',
@@ -309,6 +311,13 @@ function Invoke-Refresh {
         NoReader = $true
         NoAhkFallback = $true
         SkipBackgroundFocus = $true
+        ProcessName = $ProcessName
+    }
+    if ($ProcessId -gt 0) {
+        $refreshArguments['ProcessId'] = $ProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $refreshArguments['TargetWindowHandle'] = $TargetWindowHandle
     }
 
     & $refreshScript @refreshArguments
@@ -452,6 +461,47 @@ function Invoke-ReaderJson {
     }
 }
 
+function Get-ReaderTargetArguments {
+    if ($ProcessId -gt 0) {
+        return @('--pid', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-ScriptTargetArguments {
+    $arguments = @()
+    if ($ProcessId -gt 0) {
+        $arguments += @('-ProcessId', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+    else {
+        $arguments += @('-ProcessName', $ProcessName)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
+}
+
+function Get-PostKeyTargetArguments {
+    $arguments = @('-TargetProcessName', $ProcessName)
+    if ($ProcessId -gt 0) {
+        $arguments += @('-TargetProcessId', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
+}
+
+function Assert-ExactMovementTarget {
+    if ($ProcessId -le 0 -and [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        throw "Navigation movement/turn input requires -ProcessId or -TargetWindowHandle. Refusing name-only '$ProcessName' targeting."
+    }
+}
+
 function Invoke-ScriptJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -568,7 +618,7 @@ function Get-FacingAlignmentState {
         $turnDirection = [string]$preflightSuggestedTurnDirection
     }
     else {
-        $orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments @('-Json', '-ProcessName', $ProcessName) -Step 'actor-orientation'
+        $orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments (@('-Json') + (Get-ScriptTargetArguments)) -Step 'actor-orientation'
         $yawDegrees = $orientation.ReaderOrientation.PreferredEstimate.YawDegrees
         if ($null -eq $yawDegrees) {
             throw "Actor orientation did not return a usable yaw for navigation alignment."
@@ -623,13 +673,14 @@ function Invoke-TurnKeyPulse {
         throw "Turn helper script was not found: $postKeyScript"
     }
 
+    Assert-ExactMovementTarget
     $scriptArguments = @(
         '-NoProfile',
         '-ExecutionPolicy', 'Bypass',
         '-File', $postKeyScript,
         '-Key', $Key,
-        '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
-        '-TargetProcessName', $ProcessName,
+        '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    ) + (Get-PostKeyTargetArguments) + @(
         '-SkipBackgroundFocus',
         '-RequireTargetForeground'
     )
@@ -811,11 +862,22 @@ function Write-NavigationSummary {
 
 function Get-ProcessState {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Name
+        [string]$Name,
+        [int]$Id
     )
 
-    $process = Get-Process -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    $process = if ($Id -gt 0) {
+        Get-Process -Id $Id -ErrorAction SilentlyContinue
+    }
+    else {
+        $matches = @(Get-Process -Name $Name -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+            throw "Process name '$Name' matched multiple windowed processes ($ids). Use -ProcessId for navigation."
+        }
+
+        $matches | Select-Object -First 1
+    }
     if ($null -eq $process) {
         return $null
     }
@@ -954,7 +1016,7 @@ function Assert-SmokeRouteFreshness {
         $issues.Add(("Current player position is {0:N3} units away from smoke_start; the checked route is stale for this session." -f $planarDistance))
     }
 
-    $processState = Get-ProcessState -Name $ProcessName
+    $processState = Get-ProcessState -Name $ProcessName -Id $ProcessId
     $provenance = if ($null -ne $document.provenance) { $document.provenance } else { $document.Provenance }
     if ($null -ne $processState -and $null -ne $provenance -and $null -ne $provenance.processStartTimeUtc) {
         try {
@@ -986,7 +1048,7 @@ function Assert-SmokeRouteFreshness {
 }
 
 function Assert-OrientationReaderParity {
-    $parity = Invoke-ScriptJson -ScriptFile $orientationParityScript -Arguments @('-Json', '-ProcessName', $ProcessName) -Step 'orientation-parity'
+    $parity = Invoke-ScriptJson -ScriptFile $orientationParityScript -Arguments (@('-Json') + (Get-ScriptTargetArguments)) -Step 'orientation-parity'
     Write-Host ""
     Write-Host "[NavPrototype] Orientation parity" -ForegroundColor Cyan
     Write-Host ("[NavPrototype] Status    : {0}" -f [string]$parity.Status) -ForegroundColor Cyan
@@ -1066,8 +1128,7 @@ function Capture-Waypoint {
     Confirm-WaypointOverwrite -WaypointId $WaypointId
     Invoke-Refresh
 
-    $arguments = @(
-        '--process-name', $ProcessName,
+    $arguments = @(Get-ReaderTargetArguments) + @(
         '--capture-navigation-waypoint', $WaypointId,
         '--waypoint-label', $Label,
         '--navigation-waypoint-file', $resolvedWaypointFile,
@@ -1101,8 +1162,7 @@ try {
     Assert-SmokeRouteFreshness
     Assert-OrientationReaderParity
 
-    $preflightArguments = @(
-        '--process-name', $ProcessName,
+    $preflightArguments = @(Get-ReaderTargetArguments) + @(
         '--read-navigation-current',
         '--destination-waypoint', $DestinationWaypointId,
         '--navigation-waypoint-file', $resolvedWaypointFile,
@@ -1132,8 +1192,7 @@ try {
 
     Wait-ForOperator -Prompt "If the preflight looks correct, press Enter to start movement. Ctrl+C to cancel"
 
-    $navigationArguments = @(
-        '--process-name', $ProcessName,
+    $navigationArguments = @(Get-ReaderTargetArguments) + @(
         '--navigate-waypoints',
         '--start-waypoint', $StartWaypointId,
         '--destination-waypoint', $DestinationWaypointId,

@@ -29,11 +29,26 @@ This file defines the default assistant behavior for work inside
 
 | Situation | Default model | Reasoning | Default approach |
 |---|---|---|---|
-| Formatting, tables, docs, status organization | `gpt-5.4-mini` | low | answer directly |
-| Small script, UI, or docs change with known cause | `gpt-5.4-mini` | medium | make the smallest patch and validate |
-| Normal bugfix or multi-file change | `gpt-5.4` | medium | inspect first, then patch |
-| Unclear bug or conflicting evidence | `gpt-5.4` | high | diagnose before editing |
+| Formatting, tables, status boards, and docs-only updates | `spark` (prefer) | low | answer directly; no local modifications |
+| Small script, UI, or docs change with a known fix path | `spark` (prefer) | medium | make the smallest patch and validate |
+| Single-file, low-impact code change with clear rollback | `spark` (prefer) | medium | patch minimally, then validate |
+| Normal multi-file bugfix or moderate behavior change | `gpt-5.4` | medium | inspect first, then patch |
+| Unclear bug, conflicting evidence, or live-path risk | `gpt-5.4` | high | diagnose before editing |
 | Deep discovery, reverse engineering, or proof work | `gpt-5.4` | xhigh | narrow scope and work evidence-first |
+
+### Spark-safe guardrails
+
+Use `spark` unless a task is in the explicit “no-spark” bucket:
+
+| No-spark class | Why | Route |
+|---|---|---|
+| Any unproven live movement capture logic | high blast radius if wrong | `gpt-5.4` |
+| Navigation or route planning core behavior changes | user-impacting movement state | `gpt-5.4` |
+| Reverse-engineering candidate promotion (coord anchors / source-chain / proof watchsets) | stale/invalid candidates have high restart cost | `gpt-5.4` |
+| Cheat Engine session state handoff, branch-wide refactors, or risky merges | evidence-sensitive and hard to auto-rollback | `gpt-5.4` |
+
+When uncertain, use this template (or equivalent): `docs/model-routing-template.md`
+and prefer `gpt-5.4` if any “No-spark” condition is true.
 
 ## Escalation / anti-loop rules
 

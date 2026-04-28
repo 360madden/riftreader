@@ -6,6 +6,9 @@ param(
     [int]$WaitMilliseconds = 250,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-orientation-key-profile.json')
 )
 
@@ -84,19 +87,39 @@ $results = New-Object System.Collections.Generic.List[object]
 
 foreach ($key in $Keys) {
     try {
+        $stimulusArguments = @{
+            Key = $key
+            HoldMilliseconds = $HoldMilliseconds
+            WaitMilliseconds = $WaitMilliseconds
+            Json = $true
+            ProcessName = $ProcessName
+        }
+        if ($ProcessId -gt 0) {
+            $stimulusArguments['ProcessId'] = $ProcessId
+        }
+        if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+            $stimulusArguments['TargetWindowHandle'] = $TargetWindowHandle
+        }
+        if ($RefreshReaderBridge) {
+            $stimulusArguments['RefreshReaderBridge'] = $true
+        }
+        if ($NoAhkFallback) {
+            $stimulusArguments['NoAhkFallback'] = $true
+        }
+
         if ($RefreshReaderBridge) {
             if ($NoAhkFallback) {
-                $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -RefreshReaderBridge -NoAhkFallback
+                $jsonText = & $stimulusScript @stimulusArguments
             }
             else {
-                $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -RefreshReaderBridge
+                $jsonText = & $stimulusScript @stimulusArguments
             }
         }
         elseif ($NoAhkFallback) {
-            $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -NoAhkFallback
+            $jsonText = & $stimulusScript @stimulusArguments
         }
         else {
-            $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json
+            $jsonText = & $stimulusScript @stimulusArguments
         }
         if ($LASTEXITCODE -ne 0) {
             throw "Stimulus helper failed for key '$key'."
@@ -156,6 +179,9 @@ $document = [pscustomobject]@{
     Mode = 'actor-orientation-key-profile'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     OutputFile = $resolvedOutputFile
+    ProcessName = $ProcessName
+    ProcessId = if ($ProcessId -gt 0) { $ProcessId } else { $null }
+    TargetWindowHandle = $TargetWindowHandle
     Keys = $Keys
     HoldMilliseconds = $HoldMilliseconds
     WaitMilliseconds = $WaitMilliseconds

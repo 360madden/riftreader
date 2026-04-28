@@ -6,11 +6,16 @@ param(
     [switch]$ProofReacquisition,
     [string]$CandidateAddressHex,
     [string]$CandidateSource = 'explicit-candidate',
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$StimulusKey = 'w',
     [int]$MovementHoldMilliseconds = 1000,
     [ValidateSet('PostMessage', 'SendInput', 'AutoHotkey')]
     [string]$StimulusMode = 'PostMessage',
     [int]$TimeoutSeconds = 8,
+    [int]$ArmReadyTimeoutSeconds = 12,
+    [int]$CheatEngineCallTimeoutSeconds = 20,
     [int]$MaxCandidates = 8,
     [int]$BreakpointSize = 4,
     [ValidateSet('write', 'access')]
@@ -39,6 +44,23 @@ $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedSelectorOwnerTraceFile = [System.IO.Path]::GetFullPath($SelectorOwnerTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedStatusFile = [System.IO.Path]::GetFullPath($TraceStatusFile)
+$script:EffectiveProcessId = 0
+$script:NormalizedProcessName = $null
+$script:TargetExeName = $null
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftCoordTraceTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
 
 if ($ProofReacquisition -and $WatchMode -eq 'access' -and -not $PSBoundParameters.ContainsKey('BreakpointSize')) {
     $BreakpointSize = 12
@@ -134,9 +156,304 @@ function Convert-HexAddressWithOffset {
     return Format-HexAddress -Value ([UInt64]($baseValue + [UInt64]$Offset))
 }
 
-function Get-CurrentTargetProcessId {
+function Get-ReaderTargetArguments {
+    if ($script:EffectiveProcessId -gt 0) {
+        return @('--pid', $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $script:NormalizedProcessName)
+}
+
+function Get-NormalizedProcessName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $Name
+    }
+
+    $trimmed = $Name.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed.Substring(0, $trimmed.Length - 4)
+    }
+
+    return $trimmed
+}
+
+function Get-TargetExecutableName {
+    param([string]$Name)
+
+    $normalized = Get-NormalizedProcessName -Name $Name
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $Name
+    }
+
+    return "$normalized.exe"
+}
+
+function ConvertTo-WindowHandle {
+    param([Parameter(Mandatory = $true)][string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Resolve-EffectiveTargetProcessId {
+    $normalizedName = Get-NormalizedProcessName -Name $ProcessName
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+        if ($handle -eq [IntPtr]::Zero -or -not [RiftCoordTraceTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftCoordTraceTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to an owning process."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        $process = Get-Process -Id ([int]$ownerProcessId) -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target window handle '$TargetWindowHandle' belongs to process '$($process.ProcessName)' [PID $ownerProcessId], not '$ProcessName'."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target PID $ProcessId is process '$($process.ProcessName)', not '$ProcessName'."
+        }
+
+        return $process.Id
+    }
+
+    return 0
+}
+
+function Test-EffectiveTargetAlive {
+    if ($script:EffectiveProcessId -gt 0 -and -not (Get-Process -Id $script:EffectiveProcessId -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        return $true
+    }
+
     try {
-        return [int](Get-Process -Name 'rift_x64' -ErrorAction Stop | Sort-Object StartTime -Descending | Select-Object -First 1 -ExpandProperty Id)
+        $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+        if ($handle -eq [IntPtr]::Zero -or -not [RiftCoordTraceTargetNative]::IsWindow($handle)) {
+            return $false
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftCoordTraceTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            return $false
+        }
+
+        if ($script:EffectiveProcessId -gt 0 -and [int]$ownerProcessId -ne $script:EffectiveProcessId) {
+            return $false
+        }
+
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function New-TargetExitedTraceAttempt {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AddressHex,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Source,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Stage
+    )
+
+    $targetDescription = if ($script:EffectiveProcessId -gt 0) {
+        "PID $script:EffectiveProcessId"
+    }
+    else {
+        "process '$script:NormalizedProcessName'"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $targetDescription = "$targetDescription / HWND $TargetWindowHandle"
+    }
+
+    return [pscustomobject]@{
+        Success = $false
+        Status = 'target-exited'
+        CandidateAddress = $AddressHex
+        CandidateSource = $Source
+        VerificationMethod = $null
+        WatchMode = $WatchMode
+        BreakpointMethod = $null
+        TargetAddress = $AddressHex
+        HitCount = 0
+        InstructionAddress = $null
+        InstructionSymbol = $null
+        Instruction = $null
+        InstructionBytes = $null
+        InstructionOpcode = $null
+        InstructionExtra = $null
+        InstructionSize = $null
+        WriteOperand = $null
+        AccessOperand = $null
+        AccessType = $null
+        EffectiveAddress = $null
+        AccessMatchesTarget = $null
+        MatchedOffset = $null
+        ModuleName = $null
+        ModuleBase = $null
+        ModuleOffset = $null
+        Error = "Target $targetDescription exited or its window became invalid during coord trace stage '$Stage'. Aborting instead of falling back to another Rift client."
+        Registers = [ordered]@{}
+    }
+}
+
+function Invoke-CheatEngineExec {
+    param(
+        [string]$Code,
+        [string]$LuaFile,
+        [switch]$Async,
+        [int]$TimeoutSeconds = $CheatEngineCallTimeoutSeconds,
+        [switch]$IgnoreFailure
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Code) -and [string]::IsNullOrWhiteSpace($LuaFile)) {
+        throw 'Provide -Code or -LuaFile.'
+    }
+
+    $pwshCommand = Get-Command pwsh -ErrorAction SilentlyContinue
+    if (-not $pwshCommand) {
+        $pwshCommand = Get-Command powershell.exe -ErrorAction Stop
+    }
+
+    $arguments = [System.Collections.Generic.List[string]]::new()
+    $arguments.Add('-NoProfile') | Out-Null
+    $arguments.Add('-ExecutionPolicy') | Out-Null
+    $arguments.Add('Bypass') | Out-Null
+    $arguments.Add('-File') | Out-Null
+    $arguments.Add($ceExecScript) | Out-Null
+
+    if (-not [string]::IsNullOrWhiteSpace($LuaFile)) {
+        $arguments.Add('-LuaFile') | Out-Null
+        $arguments.Add($LuaFile) | Out-Null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Code)) {
+        $arguments.Add('-Code') | Out-Null
+        $arguments.Add($Code) | Out-Null
+    }
+
+    if ($Async) {
+        $arguments.Add('-Async') | Out-Null
+    }
+
+    $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $processInfo.FileName = $pwshCommand.Source
+    $processInfo.UseShellExecute = $false
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $processInfo.CreateNoWindow = $true
+    foreach ($argument in $arguments) {
+        $processInfo.ArgumentList.Add($argument) | Out-Null
+    }
+
+    $process = [System.Diagnostics.Process]::Start($processInfo)
+    $timeoutMilliseconds = [Math]::Max(1, $TimeoutSeconds) * 1000
+    if (-not $process.WaitForExit($timeoutMilliseconds)) {
+        try {
+            $process.Kill($true)
+        }
+        catch {
+        }
+
+        $message = "Cheat Engine call timed out after $TimeoutSeconds seconds."
+        if ($IgnoreFailure) {
+            Write-Warning $message
+            return $null
+        }
+
+        throw $message
+    }
+
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+
+    if ($process.ExitCode -ne 0) {
+        $message = "Cheat Engine call failed (`$LASTEXITCODE=$($process.ExitCode))."
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+            $message = "$message $stderr"
+        }
+
+        if ($IgnoreFailure) {
+            Write-Warning $message
+            return $stdout
+        }
+
+        throw $message
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($stderr) -and -not $IgnoreFailure) {
+        Write-Warning $stderr
+    }
+
+    return $stdout
+}
+
+function Get-PostKeyTargetArguments {
+    $arguments = @('-TargetProcessName', $script:NormalizedProcessName)
+    if ($script:EffectiveProcessId -gt 0) {
+        $arguments += @('-TargetProcessId', $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
+}
+
+function Assert-ExactStimulusTarget {
+    if ($script:EffectiveProcessId -le 0 -and [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        throw "Coord trace stimulus uses live movement/input and requires -ProcessId or -TargetWindowHandle. Refusing name-only '$script:NormalizedProcessName' targeting."
+    }
+}
+
+function Get-CurrentTargetProcessId {
+    if ($script:EffectiveProcessId -gt 0) {
+        return $script:EffectiveProcessId
+    }
+
+    try {
+        $matches = @(Get-Process -Name $script:NormalizedProcessName -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            throw "Process name '$script:NormalizedProcessName' matched multiple windowed processes. Use -ProcessId or -TargetWindowHandle for coord tracing."
+        }
+
+        return [int]($matches | Select-Object -First 1 -ExpandProperty Id)
     }
     catch {
         return $null
@@ -305,6 +622,41 @@ function Add-UniqueTraceCandidate {
     }
 }
 
+function Test-TraceSeedArtifactProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Document,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Label,
+
+        [int]$CurrentProcessId,
+
+        [Parameter(Mandatory = $true)]
+        $Notes
+    )
+
+    $documentProcessId = $null
+    if ($Document.PSObject.Properties['ProcessId'] -and $null -ne $Document.ProcessId) {
+        $documentProcessId = [int]$Document.ProcessId
+    }
+
+    if ($CurrentProcessId -gt 0 -and $null -eq $documentProcessId) {
+        $Notes.Add(("Skipped {0} seeds from '{1}' because the artifact does not record a ProcessId under exact-PID tracing." -f $Label, $Path)) | Out-Null
+        return $false
+    }
+
+    if ($CurrentProcessId -gt 0 -and $documentProcessId -ne $CurrentProcessId) {
+        $Notes.Add(("Skipped {0} seeds from '{1}' because artifact PID {2} does not match live PID {3}." -f $Label, $Path, $documentProcessId, $CurrentProcessId)) | Out-Null
+        return $false
+    }
+
+    return $true
+}
+
 function Add-ProofReacquisitionSeeds {
     param(
         [Parameter(Mandatory = $true)]
@@ -374,24 +726,26 @@ function Add-ProofReacquisitionSeeds {
     if (Test-Path -LiteralPath $resolvedSourceChainFile) {
         try {
             $sourceChain = Get-Content -LiteralPath $resolvedSourceChainFile -Raw | ConvertFrom-Json -Depth 30
-            $selectedSourceAddress = if ($sourceChain.PSObject.Properties['SelectedSourceAddress']) {
-                [string]$sourceChain.SelectedSourceAddress
-            }
-            else {
-                [string]$sourceChain.SourceObjectAddress
-            }
+            if (Test-TraceSeedArtifactProcess -Document $sourceChain -Path $resolvedSourceChainFile -Label 'debug-scan source-chain' -CurrentProcessId $currentProcessId -Notes $Notes) {
+                $selectedSourceAddress = if ($sourceChain.PSObject.Properties['SelectedSourceAddress']) {
+                    [string]$sourceChain.SelectedSourceAddress
+                }
+                else {
+                    [string]$sourceChain.SourceObjectAddress
+                }
 
-            $returnOffset = $null
-            if ($sourceChain.PSObject.Properties['Accessor'] -and $sourceChain.Accessor.PSObject.Properties['ReturnOffset']) {
-                $returnOffset = [int]$sourceChain.Accessor.ReturnOffset
-            }
+                $returnOffset = $null
+                if ($sourceChain.PSObject.Properties['Accessor'] -and $sourceChain.Accessor.PSObject.Properties['ReturnOffset']) {
+                    $returnOffset = [int]$sourceChain.Accessor.ReturnOffset
+                }
 
-            if (-not [string]::IsNullOrWhiteSpace($selectedSourceAddress) -and $null -ne $returnOffset) {
-                $sourceChainCoordAddress = Convert-HexAddressWithOffset -AddressHex $selectedSourceAddress -Offset $returnOffset
-                Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $sourceChainCoordAddress -Source 'debug-scan-source-chain-coord-region'
-            }
-            else {
-                $Notes.Add(("Skipped debug-scan source-chain seed because '{0}' did not expose SelectedSourceAddress + Accessor.ReturnOffset." -f $resolvedSourceChainFile)) | Out-Null
+                if (-not [string]::IsNullOrWhiteSpace($selectedSourceAddress) -and $null -ne $returnOffset) {
+                    $sourceChainCoordAddress = Convert-HexAddressWithOffset -AddressHex $selectedSourceAddress -Offset $returnOffset
+                    Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $sourceChainCoordAddress -Source 'debug-scan-source-chain-coord-region'
+                }
+                else {
+                    $Notes.Add(("Skipped debug-scan source-chain seed because '{0}' did not expose SelectedSourceAddress + Accessor.ReturnOffset." -f $resolvedSourceChainFile)) | Out-Null
+                }
             }
         }
         catch {
@@ -405,19 +759,21 @@ function Add-ProofReacquisitionSeeds {
     if (Test-Path -LiteralPath $resolvedSelectorOwnerTraceFile) {
         try {
             $selectorOwnerTrace = Get-Content -LiteralPath $resolvedSelectorOwnerTraceFile -Raw | ConvertFrom-Json -Depth 30
-            $selectedSourceAddress = if ($selectorOwnerTrace.PSObject.Properties['SelectedSource'] -and $selectorOwnerTrace.SelectedSource.PSObject.Properties['Address']) {
-                [string]$selectorOwnerTrace.SelectedSource.Address
-            }
-            else {
-                $null
-            }
+            if (Test-TraceSeedArtifactProcess -Document $selectorOwnerTrace -Path $resolvedSelectorOwnerTraceFile -Label 'selector-owner debug-scan' -CurrentProcessId $currentProcessId -Notes $Notes) {
+                $selectedSourceAddress = if ($selectorOwnerTrace.PSObject.Properties['SelectedSource'] -and $selectorOwnerTrace.SelectedSource.PSObject.Properties['Address']) {
+                    [string]$selectorOwnerTrace.SelectedSource.Address
+                }
+                else {
+                    $null
+                }
 
-            if (-not [string]::IsNullOrWhiteSpace($selectedSourceAddress)) {
-                $selectorCoord48Address = Convert-HexAddressWithOffset -AddressHex $selectedSourceAddress -Offset 0x48
-                Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $selectorCoord48Address -Source 'debug-scan-selector-owner-coord48'
-            }
-            else {
-                $Notes.Add(("Skipped selector-owner debug-scan seed because '{0}' did not expose SelectedSource.Address." -f $resolvedSelectorOwnerTraceFile)) | Out-Null
+                if (-not [string]::IsNullOrWhiteSpace($selectedSourceAddress)) {
+                    $selectorCoord48Address = Convert-HexAddressWithOffset -AddressHex $selectedSourceAddress -Offset 0x48
+                    Add-UniqueTraceCandidate -Candidates $Candidates -Seen $Seen -AddressHex $selectorCoord48Address -Source 'debug-scan-selector-owner-coord48'
+                }
+                else {
+                    $Notes.Add(("Skipped selector-owner debug-scan seed because '{0}' did not expose SelectedSource.Address." -f $resolvedSelectorOwnerTraceFile)) | Out-Null
+                }
             }
         }
         catch {
@@ -531,28 +887,115 @@ function Get-CoordTraceResult {
     )
 
     $coordAddress = Parse-HexAddress -AddressHex $AddressHex
+    if (-not (Test-EffectiveTargetAlive)) {
+        return New-TargetExitedTraceAttempt -AddressHex $AddressHex -Source $Source -Stage 'before-arm'
+    }
 
     if (Test-Path -LiteralPath $resolvedStatusFile) {
         Remove-Item -LiteralPath $resolvedStatusFile -Force
     }
 
-    & $ceExecScript -LuaFile $traceLuaFile | Out-Null
+    Invoke-CheatEngineExec -LuaFile $traceLuaFile -TimeoutSeconds $CheatEngineCallTimeoutSeconds | Out-Null
 
     $watchModeLiteral = "[[$WatchMode]]"
-    $luaCode = @"
-return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$resolvedStatusFile]], nil, nil, $watchModeLiteral)
-"@
-    & $ceExecScript -Code $luaCode | Out-Null
+    $luaProcessLiteral = if ($script:EffectiveProcessId -gt 0) {
+        $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    else {
+        $escapedProcessName = $script:NormalizedProcessName.Replace("'", "\\'")
+        "'$escapedProcessName'"
+    }
 
+    $luaCode = @"
+return RiftReaderWriteTrace.arm($luaProcessLiteral, $coordAddress, $BreakpointSize, [[$resolvedStatusFile]], nil, nil, $watchModeLiteral)
+"@
+    Invoke-CheatEngineExec -Code $luaCode -Async -TimeoutSeconds $CheatEngineCallTimeoutSeconds | Out-Null
+
+    $armReadyDeadline = [DateTime]::UtcNow.AddSeconds($ArmReadyTimeoutSeconds)
+    $lastArmStatus = $null
+    $isArmed = $false
+
+    while ([DateTime]::UtcNow -lt $armReadyDeadline) {
+        if (Test-Path -LiteralPath $resolvedStatusFile) {
+            $status = Read-KeyValueFile -Path $resolvedStatusFile
+            $lastArmStatus = $status
+            $statusKind = [string](Get-ObjectValue -Object $status -Name 'status')
+
+            if ($statusKind -eq 'hit') {
+                return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $true
+            }
+
+            if ($statusKind -eq 'error') {
+                return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false
+            }
+
+            if ($statusKind -eq 'armed' -or $statusKind -eq 'observed') {
+                $isArmed = $true
+                break
+            }
+        }
+
+        Start-Sleep -Milliseconds 100
+    }
+
+    if (-not $isArmed) {
+        $lastArmStatusKind = if ($lastArmStatus) { [string](Get-ObjectValue -Object $lastArmStatus -Name 'status') } else { 'none' }
+        return [pscustomobject]@{
+            Success = $false
+            Status = 'arm-timeout'
+            CandidateAddress = $AddressHex
+            CandidateSource = $Source
+            VerificationMethod = $null
+            WatchMode = $WatchMode
+            BreakpointMethod = $null
+            TargetAddress = $AddressHex
+            HitCount = 0
+            InstructionAddress = $null
+            InstructionSymbol = $null
+            Instruction = $null
+            InstructionBytes = $null
+            InstructionOpcode = $null
+            InstructionExtra = $null
+            InstructionSize = $null
+            WriteOperand = $null
+            AccessOperand = $null
+            AccessType = $null
+            EffectiveAddress = $null
+            AccessMatchesTarget = $null
+            MatchedOffset = $null
+            ModuleName = $null
+            ModuleBase = $null
+            ModuleOffset = $null
+            Error = "Timed out waiting $ArmReadyTimeoutSeconds seconds for CE breakpoint arm status before sending stimulus. Last status: $lastArmStatusKind."
+            Registers = [ordered]@{}
+        }
+    }
+
+    if (-not (Test-EffectiveTargetAlive)) {
+        return New-TargetExitedTraceAttempt -AddressHex $AddressHex -Source $Source -Stage 'after-arm'
+    }
+
+    Assert-ExactStimulusTarget
     switch ($StimulusMode) {
         'PostMessage' {
-            & $postKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds
+            $postKeyArguments = @(
+                '-Key', $StimulusKey,
+                '-HoldMilliseconds', $MovementHoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+            ) + (Get-PostKeyTargetArguments)
+            & $postKeyScript @postKeyArguments
         }
         'SendInput' {
-            & $sendKeyScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
+            $postKeyArguments = @(
+                '-Key', $StimulusKey,
+                '-HoldMilliseconds', $MovementHoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+            ) + (Get-PostKeyTargetArguments) + @(
+                '-SkipBackgroundFocus',
+                '-RequireTargetForeground'
+            )
+            & $postKeyScript @postKeyArguments
         }
         'AutoHotkey' {
-            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus
+            & $sendKeyAhkScript -Key $StimulusKey -HoldMilliseconds $MovementHoldMilliseconds -NoRefocus -TargetExe $script:TargetExeName -TargetProcessId $script:EffectiveProcessId -TargetWindowHandle $TargetWindowHandle
         }
         default {
             throw "Unsupported stimulus mode '$StimulusMode'."
@@ -561,6 +1004,10 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$r
 
     if ($LASTEXITCODE -ne 0) {
         throw "Stimulus key '$StimulusKey' failed via mode '$StimulusMode'."
+    }
+
+    if (-not (Test-EffectiveTargetAlive)) {
+        return New-TargetExitedTraceAttempt -AddressHex $AddressHex -Source $Source -Stage 'after-stimulus'
     }
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -579,6 +1026,10 @@ return RiftReaderWriteTrace.arm('rift_x64', $coordAddress, $BreakpointSize, [[$r
             if ($statusKind -eq 'error') {
                 return Convert-StatusToTraceAttempt -Status $status -AddressHex $AddressHex -Source $Source -Success $false
             }
+        }
+
+        if (-not (Test-EffectiveTargetAlive)) {
+            return New-TargetExitedTraceAttempt -AddressHex $AddressHex -Source $Source -Stage 'poll'
         }
 
         Start-Sleep -Milliseconds 200
@@ -794,9 +1245,25 @@ function Ensure-CeConfirmation {
         return
     }
 
+    if ($ProofReacquisition) {
+        Write-Host "[CoordTrace] No usable CE-confirmed family sample is available; proof reacquisition will use only proof-safe non-heuristic seeds." -ForegroundColor Yellow
+        return
+    }
+
     try {
         Write-Host "[CoordTrace] No usable CE-confirmed family sample is available; attempting a fresh smart capture first..." -ForegroundColor Yellow
-        & $smartCaptureScript -MovementHoldMilliseconds $MovementHoldMilliseconds | Out-Null
+        $smartCaptureArguments = @{
+            MovementHoldMilliseconds = $MovementHoldMilliseconds
+            ProcessName = $script:NormalizedProcessName
+        }
+        if ($script:EffectiveProcessId -gt 0) {
+            $smartCaptureArguments['ProcessId'] = $script:EffectiveProcessId
+        }
+        if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+            $smartCaptureArguments['TargetWindowHandle'] = $TargetWindowHandle
+        }
+
+        & $smartCaptureScript @smartCaptureArguments | Out-Null
     }
     catch {
         Write-Warning ("CE-backed smart capture failed before trace; continuing with current-player candidates only. {0}" -f $_.Exception.Message)
@@ -809,7 +1276,7 @@ function Cleanup-Trace {
     }
 
     try {
-        & $ceExecScript -Code "return RiftReaderWriteTrace.cleanup()" | Out-Null
+        Invoke-CheatEngineExec -Code "return RiftReaderWriteTrace.cleanup()" -TimeoutSeconds ([Math]::Min(10, $CheatEngineCallTimeoutSeconds)) -IgnoreFailure | Out-Null
     }
     catch {
         Write-Warning ("Unable to clean up the CE trace helper cleanly: {0}" -f $_.Exception.Message)
@@ -887,16 +1354,31 @@ $attempts = New-Object System.Collections.Generic.List[object]
 $candidateGenerationNotes = New-Object System.Collections.Generic.List[string]
 $traceStatus = $null
 
+$script:NormalizedProcessName = Get-NormalizedProcessName -Name $ProcessName
+$script:TargetExeName = Get-TargetExecutableName -Name $ProcessName
+$script:EffectiveProcessId = Resolve-EffectiveTargetProcessId
+Assert-ExactStimulusTarget
 Move-CanonicalFailureArtifactAside -CanonicalPath $resolvedOutputFile
 Add-BreakpointWorkflowNotes -Notes $candidateGenerationNotes
 
 try {
     if (-not $SkipRefresh) {
-        & $refreshScript -NoReader
+        $refreshArguments = @{
+            NoReader = $true
+            ProcessName = $script:NormalizedProcessName
+        }
+        if ($script:EffectiveProcessId -gt 0) {
+            $refreshArguments['ProcessId'] = $script:EffectiveProcessId
+        }
+        if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+            $refreshArguments['TargetWindowHandle'] = $TargetWindowHandle
+        }
+
+        & $refreshScript @refreshArguments
     }
 
     try {
-        $playerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+        $playerRead = Invoke-ReaderJson -Arguments (@(Get-ReaderTargetArguments) + @('--read-player-current', '--json'))
     }
     catch {
         $playerReadError = $_.Exception.Message
@@ -933,6 +1415,10 @@ try {
         }
         finally {
             Cleanup-Trace
+        }
+
+        if ($attempt.Status -eq 'target-exited') {
+            throw $attempt.Error
         }
 
         if ($attempt.Success) {
@@ -996,7 +1482,7 @@ try {
     $postTracePlayerReadCapturedAtUtc = $null
 
     try {
-        $postTracePlayerRead = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-current', '--json')
+        $postTracePlayerRead = Invoke-ReaderJson -Arguments (@(Get-ReaderTargetArguments) + @('--read-player-current', '--json'))
         $postTracePlayerReadCapturedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
     }
     catch {
@@ -1011,12 +1497,12 @@ try {
                 throw "Unable to normalize instruction bytes '$($traceStatus.InstructionBytes)' into an AOB pattern."
             }
 
-            $modulePattern = Invoke-ReaderJson -Arguments @(
-                '--process-name', 'rift_x64',
+            $modulePatternArguments = @(Get-ReaderTargetArguments) + @(
                 '--scan-module-pattern', $normalizedPattern,
                 '--scan-module-name', $traceStatus.ModuleName,
                 '--scan-context', '16',
                 '--json')
+            $modulePattern = Invoke-ReaderJson -Arguments $modulePatternArguments
         }
         catch {
             $modulePattern = [pscustomobject]@{

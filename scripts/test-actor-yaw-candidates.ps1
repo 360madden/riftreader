@@ -2,6 +2,8 @@
 param(
     [switch]$Json,
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$CandidateScreenFile = (Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-screen.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-yaw-candidate-test.json'),
     [int]$TopCount = 4,
@@ -41,6 +43,9 @@ using System.Text;
 
 public static class RiftWindowProbeNative
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr GetForegroundWindow();
 
@@ -82,6 +87,100 @@ function Parse-HexUInt64 {
     }
 
     return [UInt64]::Parse($normalized, [System.Globalization.NumberStyles]::HexNumber, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-TargetExeName {
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) {
+        return $ProcessName
+    }
+
+    $trimmed = $ProcessName.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed
+    }
+
+    return "$trimmed.exe"
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftWindowProbeNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftWindowProbeNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-StimulusTargetArguments {
+    param([Parameter(Mandatory = $true)][string]$Mode)
+
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    $arguments = @()
+    switch ($Mode) {
+        'PostMessage' { $arguments += @('-TargetProcessName', $ProcessName) }
+        'SendInput' { $arguments += @('-ProcessName', $ProcessName) }
+        'AutoHotkey' { $arguments += @('-TargetExe', (Get-TargetExeName)) }
+        default { }
+    }
+
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $arguments += @('-TargetProcessId', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
+}
+
+function Assert-ExactStimulusTarget {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -eq $effectiveProcessId -or $effectiveProcessId -le 0) {
+        throw "Yaw candidate stimulus uses live input and requires -ProcessId or -TargetWindowHandle. Refusing name-only '$ProcessName' targeting."
+    }
 }
 
 function Convert-HexToByteArray {
@@ -148,12 +247,34 @@ function Convert-RadiansToDegrees {
 }
 
 function Get-TargetProcessWindowInfo {
-    $targetProcess = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-        Where-Object { $_.MainWindowHandle -ne 0 } |
-        Select-Object -First 1
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    $targetProcess = if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        Get-Process -Id $effectiveProcessId -ErrorAction SilentlyContinue
+    }
+    else {
+        $matches = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+            throw "Process name '$ProcessName' matched multiple windowed processes ($ids). Use -ProcessId or -TargetWindowHandle for yaw validation."
+        }
+
+        $matches | Select-Object -First 1
+    }
 
     if ($null -eq $targetProcess) {
         return $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ProcessName) -and
+        -not [string]::Equals($targetProcess.ProcessName, [System.IO.Path]::GetFileNameWithoutExtension($ProcessName), [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Target PID $($targetProcess.Id) is '$($targetProcess.ProcessName)', not '$ProcessName'."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $expectedHandle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+        if ($expectedHandle -ne [IntPtr]::Zero -and [Int64]$targetProcess.MainWindowHandle -ne $expectedHandle.ToInt64()) {
+            throw ("Target PID $($targetProcess.Id) main window 0x{0:X} does not match requested window '$TargetWindowHandle'." -f ([Int64]$targetProcess.MainWindowHandle))
+        }
     }
 
     return [pscustomobject]@{
@@ -322,12 +443,16 @@ function Get-CoordDeltaMagnitude {
 
 function Get-PlayerCurrent {
     try {
-        return Invoke-ReaderJson -Arguments @(
-            '--process-name', $ProcessName,
+        $arguments = @(Get-ReaderTargetArguments) + @(
             '--read-player-current',
             '--json')
+        return Invoke-ReaderJson -Arguments $arguments
     }
     catch {
+        if ($ProcessId -gt 0 -or -not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+            throw
+        }
+
         $snapshot = Invoke-ReaderJson -Arguments @(
             '--readerbridge-snapshot',
             '--json')
@@ -383,11 +508,11 @@ function Get-CandidateSnapshot {
     $address = Parse-HexUInt64 -Value $AddressHex
     $forwardOffset = [int](Parse-HexUInt64 -Value $ForwardOffsetHex)
 
-    $memoryRead = Invoke-ReaderJson -Arguments @(
-        '--process-name', $ProcessName,
+    $arguments = @(Get-ReaderTargetArguments) + @(
         '--address', ('0x{0:X}' -f $address),
         '--length', '384',
         '--json')
+    $memoryRead = Invoke-ReaderJson -Arguments $arguments
 
     $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
     $forward = Read-TripletAt -Bytes $bytes -Offset $forwardOffset
@@ -499,20 +624,22 @@ function Start-StimulusProcess {
         return $null
     }
 
+    Assert-ExactStimulusTarget
+
     $scriptPath = $null
     $modeArguments = @()
     switch ($StimulusMode) {
         'PostMessage' {
             $scriptPath = $postKeyScript
-            $modeArguments = @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+            $modeArguments = (Get-StimulusTargetArguments -Mode $StimulusMode) + @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture))
         }
         'SendInput' {
             $scriptPath = $sendKeyScript
-            $modeArguments = @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
+            $modeArguments = (Get-StimulusTargetArguments -Mode $StimulusMode) + @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
         }
         'AutoHotkey' {
             $scriptPath = $sendKeyAhkScript
-            $modeArguments = @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
+            $modeArguments = (Get-StimulusTargetArguments -Mode $StimulusMode) + @('-Key', $Key, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-NoRefocus')
         }
         default {
             throw "Unsupported stimulus mode '$StimulusMode'."
@@ -597,7 +724,13 @@ function Invoke-ValidationPhase {
             })
 
         if (($StimulusMode -eq 'SendInput') -and (-not $SampleDuringStimulus)) {
-            & $sendKeyScript -Key $Key -HoldMilliseconds $HoldMilliseconds -NoRefocus *> $null
+            Assert-ExactStimulusTarget
+            $directArguments = (Get-StimulusTargetArguments -Mode $StimulusMode) + @(
+                '-Key', $Key,
+                '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+                '-NoRefocus'
+            )
+            & $sendKeyScript @directArguments *> $null
             if ($LASTEXITCODE -ne 0) {
                 throw "Stimulus key '$Key' failed via mode '$StimulusMode'."
             }
@@ -755,6 +888,8 @@ $document.Mode = 'actor-yaw-candidate-test'
 $document.GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
 $document.CandidateScreenFile = $resolvedCandidateScreenFile
 $document.ProcessName = $ProcessName
+$document.ProcessId = if ($ProcessId -gt 0) { $ProcessId } else { $null }
+$document.TargetWindowHandle = $TargetWindowHandle
 $document.StimulusKey = $StimulusKey
 $document.ReverseStimulusKey = $ReverseStimulusKey
 $document.StimulusMode = $StimulusMode

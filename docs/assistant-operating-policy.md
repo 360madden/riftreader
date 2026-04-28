@@ -26,11 +26,24 @@ This document expands the repo-level guidance in
 
 | Situation | Model | Reasoning | What to do |
 |---|---|---|---|
-| Explanation, formatting, status board, or doc-only work | `gpt-5.4-mini` | low | answer directly |
-| Small isolated change with a known root cause | `gpt-5.4-mini` | medium | patch minimally and validate |
+| Explanation, formatting, status board, or doc-only work | `spark` (prefer) | low | answer directly |
+| Small isolated code/script change with a known root cause | `spark` (prefer) | medium | patch minimally and validate |
+| Single-file, low-impact code change with quick rollback | `spark` (prefer) | medium | patch minimally and validate |
 | Normal bugfix, validation issue, or moderate multi-file change | `gpt-5.4` | medium | inspect first, then patch |
 | Root cause unclear or evidence conflicts | `gpt-5.4` | high | diagnose before editing |
 | Reverse engineering, controller proof, pointer-chain proof, or other high-risk discovery work | `gpt-5.4` | xhigh | narrow scope and work evidence-first |
+
+### Spark-only decision template
+
+When deciding routing, run this quick check before editing:
+
+1. Will the task touch **live/critical runtime movement behavior** or **unproven discovery logic**?
+2. Is there any possibility it can create **hard-to-revert game/client impact**?
+3. Is the required change **single-file and clearly bounded**?
+
+Only use `spark` when the answer to 1 and 2 is clearly "no" and 3 is "yes."
+If any safety question is uncertain, treat as non-spark and route to
+`gpt-5.4`.
 
 ## Failure escalation
 
@@ -41,6 +54,19 @@ This document expands the repo-level guidance in
 | Third similar failure | stop repeating the same patch pattern; change tactics |
 | Conflicting evidence | rebuild the explanation from observed facts only |
 | No new evidence | do not retry blindly |
+
+## Model routing quick check list
+
+| Check | Spark allowed only if ✅ |
+|---|---|
+| Task is docs-only, formatting, or status organization | ✅ |
+| Task is a single file, low-impact code change with deterministic diff | ✅ |
+| Task can be validated with existing tests/commands before/after edit | ✅ |
+| Task changes live movement, proof sourcing, or CE-dependent assumptions | ❌ |
+| Task has unclear acceptance criteria / conflicting evidence | ❌ |
+| Task is branch-wide behavior refactor or risky merge scope | ❌ |
+
+Use `docs/model-routing-template.md` when you want a more structured review.
 
 ## Recommendation list format
 
@@ -78,8 +104,8 @@ navigation proof:
 
 | Example task | Model | Reasoning | Why |
 |---|---|---|---|
-| Rewrite a status update into tables | `gpt-5.4-mini` | low | formatting only |
-| Fix a brittle PowerShell path default | `gpt-5.4-mini` | medium | small targeted script change |
+| Rewrite a status update into tables | `spark` | low | formatting only |
+| Fix a brittle PowerShell path default | `spark` | medium | small targeted script change |
 | Add dashboard snapshot refresh logic | `gpt-5.4` | medium | moderate UI/data-flow change |
 | Diagnose a repeated validator failure | `gpt-5.4` | high | requires better evidence handling |
 | Prove the authoritative camera controller path | `gpt-5.4` | xhigh | ambiguous, high-cost reverse-engineering work |

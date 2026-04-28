@@ -51,7 +51,7 @@ RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
 - Windows PowerShell 5.1 (`powershell.exe`) is transitional only and should be
   used only when a script explicitly requires it
 
-## Post-Update Status (April 22, 2026)
+## Post-Update Status (as of April 26, 2026; last full validation checkpoint April 23, 2026)
 
 The April 14, 2026 Rift update did **not** break the low-level reader. The
 later recovery passes restored the coord/source-chain/accessor-family lane for
@@ -107,6 +107,7 @@ Repo-level assistant workflow rules live in:
 
 - `C:\RIFT MODDING\RiftReader\agents.md`
 - `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md`
+- `C:\RIFT MODDING\RiftReader\docs\model-routing-template.md`
 
 ## Repository Layout
 
@@ -133,6 +134,7 @@ RiftReader/
 │   ├── navigation-waypoint-v1.md
 │   ├── offline-session-workflow.md
 │   ├── reader-cli-ux.md
+│   ├── model-routing-template.md
 │   └── overview.md
 ├── reader/
 │   ├── RiftReader.Reader/

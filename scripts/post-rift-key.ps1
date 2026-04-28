@@ -4,6 +4,9 @@ param(
     [string]$Key,
     [int]$HoldMilliseconds = 250,
     [string]$TargetProcessName = "rift_x64",
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle,
+    [string]$TargetTitleContains,
     [string]$BackgroundProcessName = "",
     [int]$InterKeyDelayMilliseconds = 20,
     [switch]$SkipBackgroundFocus,
@@ -16,6 +19,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public static class RiftKeyNative
 {
@@ -44,6 +48,15 @@ public static class RiftKeyNative
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern short VkKeyScan(char ch);
@@ -113,8 +126,39 @@ $VK_SHIFT = 0x10
 $VK_CONTROL = 0x11
 $VK_MENU = 0x12
 
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-WindowTitle {
+    param([IntPtr]$Handle)
+
+    $length = [RiftKeyNative]::GetWindowTextLength($Handle)
+    if ($length -le 0) {
+        return ''
+    }
+
+    $builder = New-Object System.Text.StringBuilder ($length + 1)
+    [void][RiftKeyNative]::GetWindowText($Handle, $builder, $builder.Capacity)
+    return $builder.ToString()
+}
+
 function Get-MainWindowProcess {
-    param([string]$ProcessName)
+    param(
+        [string]$ProcessName,
+        [switch]$AllowFirstMatch
+    )
 
     $candidates = @()
 
@@ -131,7 +175,12 @@ function Get-MainWindowProcess {
             Where-Object { $_.MainWindowHandle -ne 0 })
     }
 
-    $candidate = $candidates | Select-Object -First 1
+    if ($candidates.Count -gt 1 -and -not $AllowFirstMatch) {
+        $ids = ($candidates | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+        throw "Process name '$ProcessName' matched multiple windowed processes ($ids). Use -TargetProcessId or -TargetWindowHandle to avoid cross-window input."
+    }
+
+    $candidate = $candidates | Sort-Object StartTime | Select-Object -First 1
 
     if (-not $candidate) {
         throw "No process named '$ProcessName' with a main window was found."
@@ -139,10 +188,86 @@ function Get-MainWindowProcess {
     return $candidate
 }
 
-function Focus-Window {
-    param([System.Diagnostics.Process]$Process)
+function Resolve-TargetWindow {
+    param(
+        [string]$ProcessName,
+        [int]$ProcessId,
+        [string]$WindowHandle,
+        [string]$TitleContains
+    )
 
-    $targetHandle = $Process.MainWindowHandle
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+    $process = $null
+
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftKeyNative]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = 0
+        [void][RiftKeyNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ProcessId -gt 0 -and $ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not requested PID $ProcessId."
+        }
+
+        $process = Get-Process -Id $ownerProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
+            $expectedName = [System.IO.Path]::GetFileNameWithoutExtension($ProcessName)
+            if (-not [string]::Equals($process.ProcessName, $expectedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Target window handle '$WindowHandle' belongs to process '$($process.ProcessName)' [$($process.Id)], not '$expectedName'."
+            }
+        }
+    }
+    elseif ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
+            $expectedName = [System.IO.Path]::GetFileNameWithoutExtension($ProcessName)
+            if (-not [string]::Equals($process.ProcessName, $expectedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Requested PID $ProcessId is '$($process.ProcessName)', not '$expectedName'."
+            }
+        }
+
+        $handle = [IntPtr]$process.MainWindowHandle
+    }
+    else {
+        $process = Get-MainWindowProcess -ProcessName $ProcessName
+        $handle = [IntPtr]$process.MainWindowHandle
+    }
+
+    if ($handle -eq [IntPtr]::Zero) {
+        throw "Target process '$($process.ProcessName)' [$($process.Id)] does not expose a main window handle."
+    }
+
+    if (-not [RiftKeyNative]::IsWindow($handle)) {
+        throw ("Resolved target window 0x{0:X} is not valid." -f $handle.ToInt64())
+    }
+
+    $resolvedOwnerProcessId = 0
+    [void][RiftKeyNative]::GetWindowThreadProcessId($handle, [ref]$resolvedOwnerProcessId)
+    if ($resolvedOwnerProcessId -ne $process.Id) {
+        throw ("Resolved target window 0x{0:X} belongs to PID {1}, not resolved process PID {2}." -f $handle.ToInt64(), $resolvedOwnerProcessId, $process.Id)
+    }
+
+    $title = Get-WindowTitle -Handle $handle
+    if (-not [string]::IsNullOrWhiteSpace($TitleContains) -and
+        $title.IndexOf($TitleContains, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "Resolved target window title '$title' does not contain '$TitleContains'."
+    }
+
+    return [pscustomobject]@{
+        Process = $process
+        WindowHandle = $handle
+        WindowTitle = $title
+    }
+}
+
+function Focus-Window {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [IntPtr]$WindowHandle = [IntPtr]::Zero
+    )
+
+    $targetHandle = if ($WindowHandle -ne [IntPtr]::Zero) { $WindowHandle } else { $Process.MainWindowHandle }
     if ($targetHandle -eq [IntPtr]::Zero) {
         return
     }
@@ -374,12 +499,13 @@ function Invoke-AhkKeyFallback {
     }
 }
 
-$targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
-$targetHandle = [IntPtr]$targetProcess.MainWindowHandle
+$target = Resolve-TargetWindow -ProcessName $TargetProcessName -ProcessId $TargetProcessId -WindowHandle $TargetWindowHandle -TitleContains $TargetTitleContains
+$targetProcess = $target.Process
+$targetHandle = [IntPtr]$target.WindowHandle
 $targetOwnerProcessId = 0
 $targetThreadId = [RiftKeyNative]::GetWindowThreadProcessId($targetHandle, [ref]$targetOwnerProcessId)
 if ($targetOwnerProcessId -ne $targetProcess.Id) {
-    throw "Main window handle 0x{0:X} does not belong to process {1}." -f $targetProcess.MainWindowHandle, $targetProcess.Id
+    throw ("Target window handle 0x{0:X} does not belong to process {1}." -f $targetHandle.ToInt64(), $targetProcess.Id)
 }
 
 $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
@@ -393,7 +519,7 @@ else {
 }
 
 Write-Host "[RiftKey] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
-Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
+Write-Host ("[RiftKey] Target window : 0x{0:X} '{1}'" -f $targetHandle.ToInt64(), $target.WindowTitle)
 Write-Host "[RiftKey] Target thread : $targetThreadId"
 Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 Write-Host "[RiftKey] Key           : $Key"
@@ -417,11 +543,11 @@ if (-not $SkipBackgroundFocus -and -not [string]::IsNullOrWhiteSpace($Background
 }
 
 if ($RequireTargetForeground) {
-    Focus-Window -Process $targetProcess
+    Focus-Window -Process $targetProcess -WindowHandle $targetHandle
 
     if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {
         Start-Sleep -Milliseconds 100
-        Focus-Window -Process $targetProcess
+        Focus-Window -Process $targetProcess -WindowHandle $targetHandle
     }
 
     if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {

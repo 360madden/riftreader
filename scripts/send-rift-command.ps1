@@ -4,6 +4,8 @@ param(
     [string]$ChatCommand,
 
     [string]$ProcessName = "rift_x64",
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle,
     [int]$HoldMilliseconds = 80,
     [int]$FocusDelayMilliseconds = 200,
     [switch]$Help
@@ -14,18 +16,20 @@ $ErrorActionPreference = "Stop"
 
 # Display help if requested
 if ($Help) {
-    Write-Host "Usage: send-rift-command.ps1 -ChatCommand <command> [-ProcessName <name>] [-HoldMilliseconds <ms>] [-FocusDelayMilliseconds <ms>] [-Help]"
+    Write-Host "Usage: send-rift-command.ps1 -ChatCommand <command> [-ProcessName <name>] [-TargetProcessId <pid>] [-TargetWindowHandle <hwnd>] [-HoldMilliseconds <ms>] [-FocusDelayMilliseconds <ms>] [-Help]"
     Write-Host ""
     Write-Host "Parameters:"
     Write-Host "  -ChatCommand                The chat command to send to Rift (e.g., '/reloadui', '/help')"
     Write-Host "  -ProcessName                Target process name (default: 'rift_x64')"
+    Write-Host "  -TargetProcessId            Exact target process id. Use with multiple clients."
+    Write-Host "  -TargetWindowHandle         Exact target window handle, decimal or hex."
     Write-Host "  -HoldMilliseconds           How long to hold each key (default: 80)"
     Write-Host "  -FocusDelayMilliseconds     Delay after focusing the window (default: 200)"
     Write-Host "  -Help                       Display this help message"
     Write-Host ""
     Write-Host "Examples:"
     Write-Host "  .\send-rift-command.ps1 -ChatCommand '/reloadui'"
-    Write-Host "  .\send-rift-command.ps1 -ChatCommand '/test' -ProcessName 'rift_x64' -HoldMilliseconds 100"
+    Write-Host "  .\send-rift-command.ps1 -ChatCommand '/test' -ProcessName 'rift_x64' -TargetProcessId 12345 -TargetWindowHandle 0xABCDEF -HoldMilliseconds 100"
     exit 0
 }
 
@@ -83,6 +87,9 @@ public static class RiftSendCommand
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
@@ -181,20 +188,114 @@ function Send-ChatCommand {
     Send-Chord "ENTER"
 }
 
-# ---------------------------------------------------------------------------
-# Main — find rift_x64 by process name + MainWindowHandle, focus, send
-# ---------------------------------------------------------------------------
-try {
-    $proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne 0 } |
-            Select-Object -First 1
+function Get-NormalizedProcessName {
+    param([string]$Name)
 
-    if (-not $proc) {
-        Write-Error "No windowed '$ProcessName' process found. Is RIFT running?"
-        exit 1
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $Name
     }
 
-    $hwnd = [IntPtr]$proc.MainWindowHandle
+    $trimmed = $Name.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed.Substring(0, $trimmed.Length - 4)
+    }
+
+    return $trimmed
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Resolve-TargetProcess {
+    param(
+        [string]$Name,
+        [int]$ProcessId,
+        [string]$WindowHandle
+    )
+
+    $normalizedName = Get-NormalizedProcessName -Name $Name
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftSendCommand]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftSendCommand]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$WindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        $process = Get-Process -Id ([int]$ownerProcessId) -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target window handle '$WindowHandle' belongs to '$($process.ProcessName)' [PID $ownerProcessId], not '$Name'."
+        }
+
+        return [pscustomobject]@{
+            Process = $process
+            WindowHandle = $handle
+        }
+    }
+
+    if ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target PID $ProcessId is '$($process.ProcessName)', not '$Name'."
+        }
+
+        if ($process.MainWindowHandle -eq 0 -or -not [RiftSendCommand]::IsWindow($process.MainWindowHandle)) {
+            throw "Target PID $ProcessId does not expose a valid main window handle."
+        }
+
+        return [pscustomobject]@{
+            Process = $process
+            WindowHandle = [IntPtr]$process.MainWindowHandle
+        }
+    }
+
+    $matches = @(Get-Process -Name $normalizedName -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+    if ($matches.Count -gt 1) {
+        $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+        throw "Process name '$normalizedName' matched multiple windowed processes ($ids). Use -TargetProcessId or -TargetWindowHandle to avoid cross-window command input."
+    }
+
+    $process = $matches | Select-Object -First 1
+    if (-not $process) {
+        throw "No windowed '$normalizedName' process found. Is RIFT running?"
+    }
+
+    return [pscustomobject]@{
+        Process = $process
+        WindowHandle = [IntPtr]$process.MainWindowHandle
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Main — resolve exact target when supplied, focus, send
+# ---------------------------------------------------------------------------
+try {
+    $target = Resolve-TargetProcess -Name $ProcessName -ProcessId $TargetProcessId -WindowHandle $TargetWindowHandle
+    $proc = $target.Process
+    $hwnd = [IntPtr]$target.WindowHandle
     Write-Host "Found $ProcessName (PID $($proc.Id)) HWND 0x$($hwnd.ToString('X'))"
 
     # Restore if minimised

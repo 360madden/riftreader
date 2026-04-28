@@ -303,13 +303,13 @@ local function isBasisPlausible(forwardMagnitude, upMagnitude, rightMagnitude, d
   return math.abs(math.abs(determinant) - 1.0) <= 0.20
 end
 
-function RiftReaderFacingInstructionTrace.arm(processName, targetAddress, outputFile, hitsFile, basisOffset, maxHits, stopOnPlausible)
+function RiftReaderFacingInstructionTrace.arm(processTarget, targetAddress, outputFile, hitsFile, basisOffset, maxHits, stopOnPlausible)
   RiftReaderFacingInstructionTrace.cleanup()
 
   local state = {
     status = "armed",
     stage = "initializing",
-    processName = processName,
+    processName = tostring(processTarget),
     targetAddress = targetAddress,
     outputFile = outputFile,
     hitsFile = hitsFile,
@@ -432,7 +432,16 @@ function RiftReaderFacingInstructionTrace.arm(processName, targetAddress, output
     return 1
   end
 
-  local openOk, openError = pcall(openProcess, processName)
+  local pid = processTarget
+  if type(pid) ~= "number" then
+    pid = getProcessIDFromProcessName(tostring(processTarget))
+  end
+
+  if pid == nil or pid == 0 then
+    return fail(state, "resolve-process", "Unable to resolve process target: " .. tostring(processTarget))
+  end
+
+  local openOk, openError = pcall(openProcess, pid)
   if not openOk then
     return fail(state, "open-process", "openProcess failed: " .. tostring(openError))
   end
@@ -480,14 +489,14 @@ function RiftReaderFacingInstructionTrace.arm(processName, targetAddress, output
   return 1
 end
 
-function RiftReaderFacingInstructionTrace.armAsync(processName, targetAddress, outputFile, hitsFile, basisOffset, maxHits, stopOnPlausible)
+function RiftReaderFacingInstructionTrace.armAsync(processTarget, targetAddress, outputFile, hitsFile, basisOffset, maxHits, stopOnPlausible)
   createThread(function()
-    local ok, err = pcall(RiftReaderFacingInstructionTrace.arm, processName, targetAddress, outputFile, hitsFile, basisOffset, maxHits, stopOnPlausible)
+    local ok, err = pcall(RiftReaderFacingInstructionTrace.arm, processTarget, targetAddress, outputFile, hitsFile, basisOffset, maxHits, stopOnPlausible)
     if not ok then
       local state = {
         status = "error",
         stage = "exception",
-        processName = processName,
+        processName = tostring(processTarget),
         targetAddress = targetAddress,
         outputFile = outputFile,
         hitsFile = hitsFile,

@@ -5,6 +5,8 @@ param(
     [switch]$RunProvenance,
     [switch]$RunInstructionTrace,
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [int]$SearchMaxHits = 16,
     [int]$TopCount = 8,
     [string]$OrientationCandidateLedgerFile,
@@ -49,6 +51,20 @@ $resolvedValidationOutputFile = [System.IO.Path]::GetFullPath($ValidationOutputF
 $resolvedCaptureConfirmationFile = [System.IO.Path]::GetFullPath($CaptureConfirmationFile)
 $resolvedReaderConfirmationFile = [System.IO.Path]::GetFullPath($ReaderConfirmationFile)
 $resolvedOrientationCandidateLedgerFile = if ([string]::IsNullOrWhiteSpace($OrientationCandidateLedgerFile)) { $null } else { [System.IO.Path]::GetFullPath($OrientationCandidateLedgerFile) }
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftActorFacingDiscoveryNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
 
 function Get-CurrentUtcIso {
     return [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
@@ -198,6 +214,21 @@ function Normalize-HexString {
     return $normalized.ToUpperInvariant()
 }
 
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
 function Get-ProcessSessionKey {
     param($ProcessMetadata)
 
@@ -210,16 +241,54 @@ function Get-ProcessSessionKey {
 function Get-LiveProcessMetadata {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Name
+        [string]$Name,
+        [int]$Id,
+        [string]$WindowHandle
     )
 
-    $process = Get-Process -Name $Name -ErrorAction Stop |
-        Where-Object { $_.MainWindowHandle -ne 0 } |
-        Sort-Object StartTime |
-        Select-Object -First 1
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftActorFacingDiscoveryNative]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftActorFacingDiscoveryNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$WindowHandle' did not resolve to a process id."
+        }
+
+        if ($Id -gt 0 -and [int]$ownerProcessId -ne $Id) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not PID $Id."
+        }
+
+        $Id = [int]$ownerProcessId
+    }
+
+    $process = if ($Id -gt 0) {
+        Get-Process -Id $Id -ErrorAction Stop
+    }
+    else {
+        $matches = @(Get-Process -Name $Name -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+            throw "Process name '$Name' matched multiple windowed processes ($ids). Use -ProcessId or -TargetWindowHandle for actor-facing discovery."
+        }
+
+        $matches | Select-Object -First 1
+    }
 
     if ($null -eq $process) {
         throw "No process named '$Name' with a main window was found."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Name) -and
+        -not [string]::Equals($process.ProcessName, [System.IO.Path]::GetFileNameWithoutExtension($Name), [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Target PID $($process.Id) is '$($process.ProcessName)', not '$Name'."
+    }
+
+    if ($handle -ne [IntPtr]::Zero -and [Int64]$process.MainWindowHandle -ne $handle.ToInt64()) {
+        throw ("Target PID $($process.Id) main window 0x{0:X} does not match requested window '$WindowHandle'." -f ([Int64]$process.MainWindowHandle))
     }
 
     $startTimeUtc = $null
@@ -931,13 +1000,14 @@ function Invoke-Confirmation {
     Invoke-WorkerScript -ScriptPath $captureOrientationScript -Arguments @{
         Json = $true
         ProcessName = $ProcessMetadata.ProcessName
+        ProcessId = $ProcessMetadata.ProcessId
         BehaviorBackedLeadFile = $resolvedBehaviorBackedLeadFile
         OutputFile = $resolvedCaptureConfirmationFile
     }
 
     $captureDocument = Load-JsonDocument -Path $resolvedCaptureConfirmationFile
     $readerDocument = Invoke-ReaderJson -Arguments @(
-        '--process-name', $ProcessMetadata.ProcessName,
+        '--pid', ([string]$ProcessMetadata.ProcessId),
         '--read-player-orientation',
         '--json')
     Save-JsonDocument -Document $readerDocument -Path $resolvedReaderConfirmationFile
@@ -1038,7 +1108,7 @@ function Write-SessionText {
 }
 
 $parameterFingerprint = Get-ParameterFingerprint
-$processMetadata = Get-LiveProcessMetadata -Name $ProcessName
+$processMetadata = Get-LiveProcessMetadata -Name $ProcessName -Id $ProcessId -WindowHandle $TargetWindowHandle
 $processMetadata['SessionKey'] = Get-ProcessSessionKey -ProcessMetadata $processMetadata
 
 $session = $null
@@ -1142,7 +1212,8 @@ try {
         Set-StageStarted -Session $session -StageName 'Discover' | Out-Null
         Invoke-WorkerScript -ScriptPath $findCandidateScript -Arguments @{
             Json = $true
-            ProcessName = $ProcessName
+            ProcessName = $processMetadata.ProcessName
+            ProcessId = $processMetadata.ProcessId
             MaxHits = $SearchMaxHits
             OutputFile = $resolvedDiscoveryOutputFile
             OrientationCandidateLedgerFile = $resolvedOrientationCandidateLedgerFile
@@ -1174,7 +1245,9 @@ try {
         Set-StageStarted -Session $session -StageName 'Validate' | Out-Null
         $validationArguments = @{
             Json = $true
-            ProcessName = $ProcessName
+            ProcessName = $processMetadata.ProcessName
+            ProcessId = $processMetadata.ProcessId
+            TargetWindowHandle = $processMetadata.MainWindowHandleHex
             CandidateScreenFile = $resolvedDiscoveryOutputFile
             OutputFile = $resolvedValidationOutputFile
             TopCount = $TopCount
@@ -1423,7 +1496,7 @@ try {
                 else {
                     $instructionTraceArtifact = Join-Path (Split-Path -Parent $resolvedSessionFile) 'actor-facing-instruction-trace.json'
                     try {
-                        & $traceFacingInstructionScript -Json -InstructionAddressHex (Normalize-HexString -Value $InstructionAddressHex) -BasisOffsetHex (Normalize-HexString -Value $InstructionBasisOffsetHex) -OutputFile $instructionTraceArtifact | Out-Null
+                        & $traceFacingInstructionScript -Json -ProcessName $processMetadata.ProcessName -ProcessId $processMetadata.ProcessId -TargetWindowHandle $processMetadata.MainWindowHandleHex -InstructionAddressHex (Normalize-HexString -Value $InstructionAddressHex) -BasisOffsetHex (Normalize-HexString -Value $InstructionBasisOffsetHex) -OutputFile $instructionTraceArtifact | Out-Null
                         $successfulSteps++
                         $provenanceNotes.Add("trace-actor-facing-instruction.ps1 completed successfully: $instructionTraceArtifact") | Out-Null
                     }

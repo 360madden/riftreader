@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$WaypointFile,
     [string]$AnchorCacheFile,
     [string]$ReaderBridgeSnapshotFile,
@@ -59,6 +61,14 @@ function Invoke-ReaderJson {
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json
 }
 
+function Get-ReaderTargetArguments {
+    if ($ProcessId -gt 0) {
+        return @('--pid', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
 function Start-LiveInteractionCountdown {
     param(
         [Parameter(Mandatory = $true)]
@@ -84,7 +94,20 @@ function Invoke-Refresh {
 
     Write-Host ""
     Write-Host "[SmokeRoute] Refreshing ReaderBridge export..." -ForegroundColor Cyan
-    & $refreshScript -NoReader -NoAhkFallback -SkipBackgroundFocus
+    $refreshArguments = @{
+        NoReader = $true
+        NoAhkFallback = $true
+        SkipBackgroundFocus = $true
+        ProcessName = $ProcessName
+    }
+    if ($ProcessId -gt 0) {
+        $refreshArguments['ProcessId'] = $ProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $refreshArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    & $refreshScript @refreshArguments
     Start-Sleep -Milliseconds 750
 }
 
@@ -107,11 +130,23 @@ function Invoke-ScriptJson {
 
 function Get-ProcessState {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Name
+        [string]$Name,
+        [int]$Id
     )
 
-    $process = Get-Process -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    $process = if ($Id -gt 0) {
+        Get-Process -Id $Id -ErrorAction SilentlyContinue
+    }
+    else {
+        $matches = @(Get-Process -Name $Name -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+            throw "Process name '$Name' matched multiple windowed processes ($ids). Use -ProcessId for route generation."
+        }
+
+        $matches | Select-Object -First 1
+    }
+
     if ($null -eq $process) {
         return $null
     }
@@ -230,11 +265,22 @@ $startX = [double]$playerCoord.X
 $startY = [double]$playerCoord.Y
 $startZ = [double]$playerCoord.Z
 
-$orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments @(
-    '-Json',
-    '-ProcessName', $ProcessName
-)
-$processState = Get-ProcessState -Name $ProcessName
+$orientationArguments = @('-Json')
+if ($ProcessId -gt 0) {
+    $orientationArguments += @('-ProcessId', $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+}
+else {
+    $orientationArguments += @('-ProcessName', $ProcessName)
+}
+if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+    $orientationArguments += @('-TargetWindowHandle', $TargetWindowHandle)
+}
+
+$orientation = Invoke-ScriptJson -ScriptFile $actorOrientationScript -Arguments $orientationArguments
+$processState = Get-ProcessState -Name $ProcessName -Id $ProcessId
+if ($null -eq $processState) {
+    throw "No target Rift process was found for route generation."
+}
 $readerOrientation = $orientation.ReaderOrientation
 $basisPrimaryForwardOffset = Get-OrientationOffsetValue -OrientationDocument $readerOrientation -PrimaryPropertyName 'BasisPrimaryForwardOffset' -FallbackPropertyName 'BasisForwardOffset'
 $basisDuplicateForwardOffset = Get-OrientationOffsetValue -OrientationDocument $readerOrientation -PrimaryPropertyName 'BasisDuplicateForwardOffset' -FallbackPropertyName ''
@@ -256,7 +302,7 @@ $document = [ordered]@{
     provenance    = [ordered]@{
         kind = 'smoke-route'
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
-        processName = $ProcessName
+        processName = $processState.Name
         processId = $processState.Id
         processStartTimeUtc = $processState.StartTimeUtc
         processResponding = $processState.Responding
@@ -321,7 +367,7 @@ $json = $document | ConvertTo-Json -Depth 20
 
 [pscustomobject]@{
     mode = 'new-forward-smoke-route'
-    processName = $ProcessName
+    processName = $processState.Name
     processId = $processState.Id
     processStartTimeUtc = $processState.StartTimeUtc
     waypointFile = $resolvedWaypointFile

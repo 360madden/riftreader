@@ -993,7 +993,8 @@ internal static class Program
 
         var movementBackend = new PowerShellMovementBackend(
             NavigationPathResolver.ResolveMovementScriptFile(),
-            target.ProcessName);
+            target.ProcessName,
+            target.ProcessId);
         movementBackend.PrepareForMovement();
 
         if (!NavigationProofCoordAnchorRefresher.TryRefresh(target.ProcessName, target.ProcessId, out var refreshError))
@@ -1284,7 +1285,8 @@ internal static class Program
 
         var movementBackend = new PowerShellMovementBackend(
             NavigationPathResolver.ResolveMovementScriptFile(),
-            target.ProcessName);
+            target.ProcessName,
+            target.ProcessId);
         var initialMovementDistance = NavigationMath.ComputePlanarDistance(
             resolvedDestinationWaypoint.X - poseSource.InitialSample.X,
             resolvedDestinationWaypoint.Z - poseSource.InitialSample.Z);

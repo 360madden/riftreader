@@ -315,7 +315,13 @@ if (-not [string]::IsNullOrWhiteSpace($TitleContains)) {
     $processes = @($processes | Where-Object { $_.MainWindowTitle -like "*$TitleContains*" })
 }
 
-$process = @($processes | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1)
+$windowedProcesses = @($processes | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
+if (-not $PSBoundParameters.ContainsKey('ProcessId') -and $windowedProcesses.Count -gt 1) {
+    $ids = ($windowedProcesses | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+    throw "Process name '$ProcessName' matched multiple windowed processes ($ids). Use -ProcessId for capture isolation."
+}
+
+$process = @($windowedProcesses | Select-Object -First 1)
 if ($process.Count -eq 0) {
     throw 'No matching process with a main window handle was found.'
 }
