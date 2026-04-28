@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
-    [switch]$NoReaderBridgeRefresh
+    [switch]$NoReaderBridgeRefresh,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle
 )
 
 Set-StrictMode -Version Latest
@@ -41,39 +44,70 @@ function Invoke-DiscoveryStep {
     }
 }
 
+function Get-TargetArgumentMap {
+    $argumentMap = @{
+        ProcessName = $ProcessName
+    }
+
+    if ($ProcessId -gt 0) {
+        $argumentMap['ProcessId'] = $ProcessId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $argumentMap['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $argumentMap
+}
+
+$targetArguments = Get-TargetArgumentMap
+
 Write-Host 'Discovery refresh chain' -ForegroundColor Cyan
 Write-Host ("Script root: {0}" -f $scriptRoot)
+Write-Host ("Target process: {0}{1}{2}" -f $ProcessName, $(if ($ProcessId -gt 0) { " (PID $ProcessId)" } else { '' }), $(if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) { " HWND $TargetWindowHandle" } else { '' }))
 Write-Host ''
 
 if (-not $NoReaderBridgeRefresh) {
     Invoke-DiscoveryStep -Name 'refresh-readerbridge-export' -Action {
-        & $refreshReaderBridgeScript
+        & $refreshReaderBridgeScript @targetArguments
     }
     Write-Host ''
 }
 
 Invoke-DiscoveryStep -Name 'capture-player-source-chain' -Action {
-    & $sourceChainScript -RefreshCluster
+    $arguments = $targetArguments.Clone()
+    $arguments['RefreshCluster'] = $true
+    & $sourceChainScript @arguments
 }
 
 Invoke-DiscoveryStep -Name 'trace-player-selector-owner' -Action {
-    & $selectorTraceScript -RefreshSourceChain
+    $arguments = $targetArguments.Clone()
+    $arguments['RefreshSourceChain'] = $true
+    & $selectorTraceScript @arguments
 }
 
 Invoke-DiscoveryStep -Name 'capture-player-owner-components' -Action {
-    & $ownerComponentsScript -RefreshSelectorTrace
+    $arguments = $targetArguments.Clone()
+    $arguments['RefreshSelectorTrace'] = $true
+    & $ownerComponentsScript @arguments
 }
 
 Invoke-DiscoveryStep -Name 'capture-player-owner-graph' -Action {
-    & $ownerGraphScript -RefreshSelectorTrace
+    $arguments = $targetArguments.Clone()
+    $arguments['RefreshSelectorTrace'] = $true
+    & $ownerGraphScript @arguments
 }
 
 Invoke-DiscoveryStep -Name 'capture-player-source-accessor-family' -Action {
-    & $sourceAccessorFamilyScript -RefreshSourceChain
+    $arguments = $targetArguments.Clone()
+    $arguments['RefreshSourceChain'] = $true
+    & $sourceAccessorFamilyScript @arguments
 }
 
 Invoke-DiscoveryStep -Name 'capture-player-stat-hub-graph' -Action {
-    & $statHubGraphScript -RefreshOwnerComponents
+    $arguments = $targetArguments.Clone()
+    $arguments['RefreshOwnerComponents'] = $true
+    & $statHubGraphScript @arguments
 }
 
 Write-Host ''

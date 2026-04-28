@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshOwnerComponents,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [int]$ComponentReadLength = 0x180,
     [int]$HubReadLength = 0x340,
     [int]$MaxPointersPerComponent = 20,
@@ -18,6 +21,20 @@ $readerExe = Join-Path $repoRoot 'reader\RiftReader.Reader\bin\Debug\net10.0-win
 $ownerComponentsScript = Join-Path $PSScriptRoot 'capture-player-owner-components.ps1'
 $resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftStatHubTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
 
 function Invoke-ReaderJson {
     param(
@@ -39,6 +56,76 @@ function Invoke-ReaderJson {
     }
 
     return ($commandOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 40
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    $text = $HandleText.Trim()
+    $style = [System.Globalization.NumberStyles]::Integer
+    if ($text.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $text = $text.Substring(2)
+        $style = [System.Globalization.NumberStyles]::HexNumber
+    }
+
+    return [IntPtr]([Int64]::Parse($text, $style, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftStatHubTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftStatHubTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-ChildTargetArgumentMap {
+    $argumentMap = @{
+        ProcessName = $ProcessName
+    }
+
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $argumentMap['ProcessId'] = $effectiveProcessId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $argumentMap['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $argumentMap
 }
 
 function Parse-HexUInt64 {
@@ -65,11 +152,12 @@ function Try-Read-Bytes {
     )
 
     try {
-        $result = Invoke-ReaderJson -Arguments @(
-            '--process-name', 'rift_x64',
+        $arguments = @(Get-ReaderTargetArguments)
+        $arguments += @(
             '--address', ('0x{0:X}' -f $Address),
             '--length', $Length.ToString([System.Globalization.CultureInfo]::InvariantCulture),
             '--json')
+        $result = Invoke-ReaderJson -Arguments $arguments
 
         $hex = ([string]$result.BytesHex -replace '\s+', '').Trim()
         $bytes = New-Object byte[] ($hex.Length / 2)
@@ -170,7 +258,9 @@ function Get-HeapPointerEntries {
 }
 
 if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
-    & $ownerComponentsScript -Json | Out-Null
+    $ownerComponentsArguments = Get-ChildTargetArgumentMap
+    $ownerComponentsArguments['Json'] = $true
+    & $ownerComponentsScript @ownerComponentsArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
@@ -361,6 +451,9 @@ foreach ($identity in $identityComponents) {
 $result = [ordered]@{
     Mode = 'player-stat-hub-graph'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    ProcessName = $ProcessName
+    ProcessId = Get-EffectiveTargetProcessId
+    TargetWindowHandle = if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) { $TargetWindowHandle } else { $null }
     OwnerComponentsFile = $resolvedOwnerComponentsFile
     SnapshotFile = [string]$snapshot.SourceFile
     OwnerAddress = ('0x{0:X}' -f $ownerAddress)

@@ -1479,7 +1479,12 @@ try {
             $instructionTraceArtifact = $null
 
             try {
-                & $refreshDiscoveryChainScript | Out-Null
+                $discoveryChainArguments = @{
+                    ProcessName = $processMetadata.ProcessName
+                    ProcessId = $processMetadata.ProcessId
+                    TargetWindowHandle = $processMetadata.MainWindowHandleHex
+                }
+                & $refreshDiscoveryChainScript @discoveryChainArguments | Out-Null
                 $successfulSteps++
                 $provenanceNotes.Add('refresh-discovery-chain.ps1 completed successfully.') | Out-Null
             }

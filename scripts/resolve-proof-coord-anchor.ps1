@@ -843,22 +843,22 @@ for ($attempt = 0; $attempt -le $RefreshAttempts; $attempt++) {
 
     Write-Warning ("Proof coord anchor validation failed: {0} Refreshing coord trace with proof-safe non-heuristic seeds first (attempt {1}/{2})..." -f $lastFailureReason, ($attempt + 1), $RefreshAttempts)
     try {
-        $traceArguments = @(
-            '-Json',
-            '-ProofReacquisition',
-            '-MaxCandidates', '4',
-            '-WatchMode', 'access',
-            '-StimulusMode', 'AutoHotkey',
-            '-ProcessName', $script:NormalizedProcessName
-        )
+        $traceArguments = @{
+            Json = $true
+            ProofReacquisition = $true
+            MaxCandidates = 4
+            WatchMode = 'access'
+            StimulusMode = 'AutoHotkey'
+            ProcessName = $script:NormalizedProcessName
+        }
         if ($script:EffectiveProcessId -gt 0) {
-            $traceArguments += @('-ProcessId', $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+            $traceArguments['ProcessId'] = $script:EffectiveProcessId
         }
         if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
-            $traceArguments += @('-TargetWindowHandle', $TargetWindowHandle)
+            $traceArguments['TargetWindowHandle'] = $TargetWindowHandle
         }
         if (-not [string]::IsNullOrWhiteSpace($resolvedPlayerCoordTraceFile)) {
-            $traceArguments += @('-OutputFile', $resolvedPlayerCoordTraceFile)
+            $traceArguments['OutputFile'] = $resolvedPlayerCoordTraceFile
         }
 
         & $traceScript @traceArguments | Out-Null

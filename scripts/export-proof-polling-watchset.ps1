@@ -2,6 +2,7 @@
 param(
     [string]$ProcessName = 'rift_x64',
     [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\proof-polling-watchset.json'),
     [string]$ProofCoordAnchorFile,
     [int]$CoordTraceObjectWindowBytes = 384,
@@ -132,6 +133,9 @@ $resolveArguments = @{
 if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) {
     $resolveArguments['ProcessId'] = $ProcessId
 }
+if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+    $resolveArguments['TargetWindowHandle'] = $TargetWindowHandle
+}
 
 if (-not [string]::IsNullOrWhiteSpace($ProofCoordAnchorFile)) {
     $resolvedProofCoordAnchorFile = [System.IO.Path]::GetFullPath($ProofCoordAnchorFile)
@@ -191,6 +195,8 @@ $document = [ordered]@{
     Mode = 'proof-polling-watchset'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     ProcessName = $ProcessName
+    ProcessId = if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) { $ProcessId } else { $null }
+    TargetWindowHandle = if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) { $TargetWindowHandle } else { $null }
     CanonicalCoordSource = 'coord-trace-anchor'
     Anchor = $coordAnchor
     Warnings = @($warnings.ToArray())
@@ -203,6 +209,8 @@ $result = [ordered]@{
     Mode = 'proof-polling-watchset-export'
     OutputFile = $resolvedOutputFile
     ProcessName = $ProcessName
+    ProcessId = if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) { $ProcessId } else { $null }
+    TargetWindowHandle = if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) { $TargetWindowHandle } else { $null }
     CanonicalCoordSource = 'coord-trace-anchor'
     CoordRegionAddress = [string]$coordAnchor.CoordRegionAddress
     ObjectBaseAddress = [string]$coordAnchor.ObjectBaseAddress

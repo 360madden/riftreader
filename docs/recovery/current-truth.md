@@ -1,73 +1,114 @@
 # Current Truth
 
-_Last updated: April 23, 2026 (fresh live coord-anchor validation, agentic actor-facing lead promotion, and same-session provenance refresh on the live `rift_x64` session)_
+_Last updated: April 28, 2026 (post-client-update in-world validation on
+live `rift_x64` PID `41220`, HWND `0xBD0D94`; coord anchor, actor-facing,
+exact-target provenance, telemetry preflight, and read-only navigation
+preflight are green)._
 
 ## Current status
 
 | Area | Status |
 |---|---|
-| Low-level reader | reliable enough for active work |
-| ReaderBridge snapshot load | working |
-| Player current read | working |
-| Coord-anchor module pattern | working |
-| Proof coord anchor cache | refreshed again for the current live PID via direct `--read-player-coord-anchor` validation |
-| Proof polling watchset | refreshed again and still includes the canonical `coord-trace-coords` region |
-| Active movement (`--navigate-waypoints`) | requires the validated coord-trace anchor only; cached/reacquired anchors are no longer accepted for live movement, even when opt-in auto-turn is enabled |
-| Navigation preflight (`--read-navigation-current`) | returns a read-only facing-aware turn hint when actor-facing truth is available; this powers operator guidance and reader-core auto-turn planning |
-| Navigation reader-core auto-turn | `--navigate-waypoints` can now opt into pre-movement auto-turn with `--auto-turn-before-move` and related tuning switches; it remains fail-closed if alignment does not improve or worsens repeatedly |
-| Navigation v3 route planning | `--plan-navigation-route` builds a read-only ordered start / via / destination route plan with per-segment distance, bearing, arrival radius, and pace; it does not send movement input |
-| Navigation v3 active route gate | `--navigate-waypoint-route` is now the explicit active-input route-chain gate; it runs planned segments sequentially, can opt into per-segment auto-turn with `--auto-turn-before-move`, preserves per-segment results, and stops on first failure, but still needs live route proof promotion |
-| Navigation prototype wrapper | `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1` remains an optional higher-level helper for the same facing-aware preflight / auto-turn workflow |
-| Navigation proof suite | `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1` now rechecks the smoke-route, asserts v3 route-plan segment metadata, verifies facing-aware preflight, current auto-turn-preflight path, and opt-in active v3-prep proofs via `-IncludeActiveMovement` / `-IncludeMisalignedAutoTurn`; failed steps preserve nested command output for foreground/focus abort diagnosis |
-| V3 movement readiness | v3-prep blocker cleared and repeated for deliberately misaligned live routes: `navigation-prototype-20260423-195303-923` corrected about `19.9°` to about `2.7°`, and `navigation-prototype-20260423-201344-231` corrected about `20.0°` to about `2.1°`; both sent one corrective `d` pulse and arrived through strict `coord-trace-anchor` forward travel; still needs broader terrain/route-chain decisions before promotion |
-| ReaderBridge orientation probe | still empty on the current client |
-| `--read-player-orientation` reader mode | live mode works again when called with `--pid` / `--process-name` through the behavior-backed lead; artifact-only mode remains historical |
-| `capture-actor-orientation.ps1` | working again for the current session through a live behavior-backed lead |
-| Actor yaw / pitch truth | working on the current live session via source `0x12CC0FA0F70` and forward basis row `+0xD4/+0xD8/+0xDC` |
-| Source-chain / accessor-family provenance | refreshed again on the current live session; when the refreshed low-level trace cluster drops the older signature, the source-chain step now rebuilds fresh from the last-good suggested source-chain pattern scan |
-| Selector-owner / owner-components / owner-graph / stat-hub provenance | refreshed again on the current live session |
-| April 22 source-chain/accessor-family actor-facing result | historical evidence only until separately re-proven on the current session |
+| Client executable | changed by the April 28, 2026 update; current `rift_x64.exe` SHA256 is `33B35F2DC17BD9AF1CC2186DF2B62ED5232D77630BDB3C00895FD84C464BF3EC`, size `59918272`, LastWrite `2026-04-28 14:05:32 -04:00` |
+| Low-level reader | working against current live PID `41220` |
+| ReaderBridge snapshot/export | working after `/reloadui`; export matched Atank at Bahralt Street |
+| Player current read | working for read-only context; current `SelectionSource=heuristic` remains exploration-only, not movement proof |
+| Proof coord anchor cache | refreshed and validated on current live PID via `coord-triplet-access` |
+| Proof coord source | canonical current coord region `0x216F87CDE18`; source object `0x216F87CDDD0`; source coord offset `+0x48` |
+| Proof polling watchset | rebuilt after exact-target proof-anchor validation; required `coord-trace-coords` region is present at `0x216F87CDE18` length `12` |
+| Source-chain/accessor-family coord recovery | working again after current-session capture; source-chain pattern found at `rift_x64.exe+0x931133`, accessor at `rift_x64.exe+0x685C30` |
+| CE Lua server/bootstrap | available during this pass; `cheatengine-exec.ps1 -Code 'return 123'` returned `123` |
+| Telemetry preflight | green: memory coords available/valid, memory facing available/valid, effective position source `memory`, effective facing source `memory-facing` |
+| Actor yaw / pitch truth | working on current live session via source `0x216FE3C6280` and forward basis row `+0xD4/+0xD8/+0xDC` |
+| `--read-player-orientation` reader mode | live mode works when called with explicit `--pid 41220`; artifact-only/no-PID mode remains historical-only |
+| Actor-facing provenance | confirmed after the April 28 update through the exact PID/HWND provenance chain; current lead was retained and capture/reader confirmation matched |
+| Navigation preflight (`--read-navigation-current`) | green on a current-session smoke waypoint file using `AnchorSource=coord-trace-anchor`; post-active read shows `WithinArrivalRadius=true` |
+| Active movement (`--navigate-waypoints`) | smallest post-update smoke proof passed: one `w` pulse, `StopReason=arrived`, distance `2.599 -> 1.784` with strict `coord-trace-anchor` |
+| Navigation v3 active route gate | implementation exists, but April 23 active movement proofs are historical after this update; live route-chain promotion remains pending |
+| ReaderBridge orientation probe | still not treated as a usable direct yaw/pitch source |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 
 ## Fresh proof coord anchor truth
 
-Fresh live validation on **April 23, 2026** established:
+Fresh live validation on **April 28, 2026** established the current
+proof-grade movement coord source:
 
-- canonical live coord region: `0x12C9B02B888`
-- canonical live coord-trace object base: `0x12C9B02B888`
-- current trace-linked source object: `0x12C9B02B840`
+- live process: `rift_x64` PID `41220`
+- target window: `0xBD0D94`
+- canonical live coord region: `0x216F87CDE18`
+- canonical live coord-trace object base: `0x216F87CDE18`
+- current trace-linked source object: `0x216F87CDDD0`
 - source-object coord offset: `+0x48`
+- verification method: `coord-triplet-access`
+- match source: `readerbridge-live`
+- sample memory coords after final active-proof ReaderBridge refresh:
+  - `X = 7449.1753`
+  - `Y = 863.58527`
+  - `Z = 2973.069`
+- ReaderBridge deltas at validation:
+  - `DeltaX = -0.0043945312`
+  - `DeltaY = -0.004699707`
+  - `DeltaZ = -0.00073242193`
 - current proof cache file:
   - `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`
-- current proof watchset file:
-  - `C:\RIFT MODDING\RiftReader\scripts\captures\proof-polling-watchset.json`
-
-Fresh direct validation on the same live PID showed:
-
-- `--read-player-coord-anchor` still matches the current ReaderBridge coords
-- the refreshed proof cache still points at the same `coord-trace-object`
-- the refreshed watchset still includes the required `coord-trace-coords` region
 
 Operational interpretation:
 
-- the validated coord-trace anchor remains the **only** proof-grade movement
+- this validated coord-trace anchor remains the **only** proof-grade movement
   source
-- `--navigate-waypoints` now fails closed unless that coord-trace anchor is
-  available and trusted for the current process
-- cached player-current anchors and reacquired player-signature anchors remain
-  read-only fallback aids only; they are not accepted as live movement proof
-- if the full `resolve-proof-coord-anchor.ps1` refresh path cannot reacquire a
-  fresh trace because the CE bootstrap/server is unavailable, use direct
-  `--read-player-coord-anchor` validation to confirm the current-process trace
-  first before trusting any existing proof cache
+- `read-player-current.ps1`, heuristic current-player anchors, and cached
+  current-player snapshots remain read-only/exploration aids only
+- if a proof watchset does not include this validated coord-trace coord region,
+  treat it as a blocker instead of silently accepting a stale/candidate source
+- current proof watchset file:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\proof-polling-watchset.json`
+- the current proof watchset contains required region `coord-trace-coords` at
+  `0x216F87CDE18`, length `12`
+- active route movement was **not** rerun in this April 28 pass; use the fresh
+  proof anchor again immediately before any movement-polling proof
+
+## Fresh source-chain / accessor-family coord evidence
+
+The April 28 current-session source-chain capture rebuilt the coord
+source-chain on PID `41220`:
+
+- selected/source object: `0x216F87CDDD0`
+- cluster trace instruction: `0x7FF7879B117E`
+- cluster pattern offset: `rift_x64.exe+0x931169`
+- source container load: `0x7FF7879B1133` / `mov rcx,[rax+78]`
+- source object load: `0x7FF7879B1137` / `mov rdi,[rcx+rdx*8]`
+- source resolve target: `0x7FF787705C30`
+- accessor return offset: `72` (`+0x48`)
+- suggested source-chain scan: `rift_x64.exe+0x931133`
+- suggested accessor scan: `rift_x64.exe+0x685C30`
+
+Script fix validated in this pass:
+
+- `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` now uses
+  named hashtable splatting when invoking `trace-player-coord-write.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` now
+  uses named hashtable splatting, a 12-byte access watch window, and
+  `MaxCandidates=4`
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-discovery-chain.ps1` now accepts
+  and propagates exact `-ProcessId` / `-TargetWindowHandle` through the
+  provenance chain instead of relying on process-name-only defaults
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1`
+  and `C:\RIFT MODDING\RiftReader\scripts\capture-player-stat-hub-graph.ps1`
+  now support exact target args for reader calls and record the target in their
+  output artifacts
+- `C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1` now
+  passes the exact live target into `refresh-discovery-chain.ps1` during
+  `-RunProvenance`
+- both patched paths were exercised live and then covered by the source-chain
+  regression tests listed below
 
 ## Fresh actor yaw / pitch truth
 
-Fresh live agentic discovery on **April 23, 2026** promoted a new
-current-session lead, and the later provenance-only pass retained it:
+Fresh live agentic discovery on **April 28, 2026** promoted a new
+current-session lead:
 
-- canonical live source address: `0x12CC0FA0F70`
+- canonical live source address: `0x216FE3C6280`
 - canonical forward basis row:
   - `X = +0xD4`
   - `Y = +0xD8`
@@ -79,110 +120,179 @@ current-session lead, and the later provenance-only pass retained it:
 Fresh live checks on the promoted lead:
 
 - `refresh-actor-facing-discovery.ps1 -RestartSession -StimulusMode AutoHotkey`
-  promoted `0x12CC0FA0F70 @ +0xD4` from the current-session ranked candidate
-  pool after reversible D/A validation with zero coord drift
-- `refresh-actor-facing-discovery.ps1 -RunProvenance` confirmed the
-  source-chain -> selector-owner -> owner-components -> owner-graph ->
-  accessor-family -> stat-hub provenance lane on the same PID without
-  replacing the promoted live truth
-- `capture-actor-orientation.ps1 -Json -ProcessName rift_x64` resolved the live
-  source again through the behavior-backed lead and recomputed yaw/pitch from
-  `Basis@0xD4.Forward`
-- `dotnet ... -- --process-name rift_x64 --read-player-orientation --json`
-  resolved the same live source and the same `Basis@0xD4.Forward`
-- the current live yaw/pitch remained derivable from that basis without falling
-  back to owner-component artifacts
+  promoted `0x216FE3C6280 @ +0xD4`
+- reversible validation observed yaw peaks of about `59.055°` and `74.600°`
+  with `0.0` coord drift across one D/A cycle
+- `dotnet ... -- --pid 41220 --read-player-orientation --json` resolved the
+  same behavior-backed lead
+- telemetry preflight used memory-facing from `0x216FE3C6280 @ +0xD4`
+- `refresh-actor-facing-discovery.ps1 -RunProvenance -ProcessId 41220
+  -TargetWindowHandle 0xBD0D94` completed successfully after exact-target
+  plumbing was added
+- provenance summary: `SuccessfulSteps=1`, `FailedSteps=0`,
+  `ProvenanceStatus=confirmed`
 
 Operational interpretation:
 
-- the repo now carries a behavior-backed lead file at:
-  - `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
 - the current live actor-facing truth is the validated `0xD4` forward row on
-  `0x12CC0FA0F70`, not the earlier April 23 revalidated lead at
-  `0x12CAF6F7080` or the older April 22 source-chain `+0x60/+0x94` result
-- the current lead is facing-only truth; the same capture still showed
-  `Coord48` / `Coord88` on this source do **not** match the current player
-  coords, so this lead is not a movement coord source
-- `--read-navigation-current` can now reuse the same live behavior-backed lead
-  to report read-only preflight movement-space yaw, heading delta, and
-  suggested turn direction, and `--navigate-waypoints` can now opt into
-  pre-movement auto-turn with `--auto-turn-before-move`
-- reader-core auto-turn remains fail-closed and movement-anchor-strict; the
-  deliberately misaligned live route proof has now passed end-to-end twice
-  (`navigation-prototype-20260423-195303-923` and
-  `navigation-prototype-20260423-201344-231`), but broader v3 promotion still
-  needs route/terrain scope decisions
-- route-chain planning is available as a read-only v3 slice through
-  `--plan-navigation-route`; active multi-segment movement is now explicitly
-  gated through `--navigate-waypoint-route`, but live route proofing and
-  terrain/obstacle scope are still pending
-- the same-session provenance lane is live again, and the current
-  `capture-player-source-chain.ps1` step now rebuilds fresh with
-  `Recovery.Mode = rebuild-from-suggested-source-chain-pattern` when the
-  refreshed low-level coord cluster no longer contains the older
-  `mov rcx,[rax+78]` signature
-- same-session `reuse-previous-source-chain` remains the last-resort fallback
-  only if that fresh pattern-scan rebuild path fails
-- the earlier April 22 source-chain/accessor-family result at
-  `0x24F595F8D10 @ +0x60/+0x94` remains useful historical evidence, but it is
-  no longer the living authority for the current live session
-- `capture-actor-orientation.ps1` and `--read-player-orientation` now agree on
-  the same live lead again for the current PID
+  `0x216FE3C6280`
+- this is facing-only truth; it is not the movement coord source
+- the April 23 actor-facing address `0x12CC0FA0F70 @ +0xD4` and earlier April
+  source-chain/accessor-family addresses are historical after the April 28
+  client update unless separately re-proven
+- the exact-target post-update provenance chain is green for the current live
+  PID/HWND, but it remains session-bound evidence; rerun it after a client
+  restart/update before treating addresses as current again
 
-See the current live lead / proof artifacts:
+## Telemetry and navigation validation
 
-- `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\player-actor-orientation.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-discovery\session.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-truth-proof.json`
-- for a one-shot same-session proof that validates the live lead, capture parity,
-  reader parity, and current provenance posture together:
-  - `C:\RIFT MODDING\RiftReader\scripts\assert-actor-facing-truth.ps1`
-- for the focused actor-facing proof regressions plus current source-chain
-  recovery / fresh rebuild self-checks in one command:
-  - `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-proof-suite.ps1`
-- for planning / delegation on how to elevate facing to durable truth without
-  regressing the current lead:
-  - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-23-actor-facing-truth-planning-prompt.md`
-- for navigation smoke-route, facing-aware preflight, and current auto-turn
-  proof checks in one command:
+Fresh telemetry preflight after final active-proof ReaderBridge refresh on
+**April 28, 2026**:
+
+- memory coords available: `true`
+- memory coords valid: `true`
+- memory facing available: `true`
+- facing valid: `true`
+- effective position source: `memory`
+- effective facing source: `memory-facing`
+- position source address: `0x216F87CDE18`
+- facing source address: `0x216FE3C6280`
+- facing forward basis offset: `0xD4`
+
+Read-only navigation preflight was also validated with the active-proof
+current-session smoke waypoint file:
+
+- waypoint file:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\post-update-inworld-20260428-141625\current-session-smoke-waypoints-active-proof.json`
+- command mode: `--read-navigation-current`
+- anchor source: `coord-trace-anchor`
+- current address: `0x216F87CDE18`
+- planar distance to smoke destination after active proof: about `1.784`
+- arrival radius: `2.1`
+- within arrival radius: `true`
+- facing source: `0x216FE3C6280 @ +0xD4`
+- signed bearing delta before the active proof: about `0.065°`
+- suggested turn direction: `right`
+
+Smallest active `--navigate-waypoints` smoke proof also passed:
+
+- runner:
+  - `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1`
+- log:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\post-update-inworld-20260428-141625\a-to-b-prototype-active-proof.ndjson`
+- route file:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\post-update-inworld-20260428-141625\current-session-smoke-waypoints-active-proof.json`
+- status: `success`
+- stop reason: `arrived`
+- anchor source: `coord-trace-anchor`
+- pulse count: `1`
+- input: one `w` pulse for `250 ms`
+- initial planar distance: `2.5991395661`
+- final planar distance: `1.7840590320`
+- elapsed: `2406 ms`
+- initial position:
+  - `X = 7448.36083984375`
+  - `Y = 863.5816650390625`
+  - `Z = 2973.037109375`
+- final position:
+  - `X = 7449.17529296875`
+  - `Y = 863.5852661132812`
+  - `Z = 2973.069091796875`
+
+No active multi-segment route-chain proof was run during this post-update
+validation slice.
+
+## Validation commands from this pass
+
+These checks passed after the April 28 update and the small script fixes:
+
+- PowerShell parser checks for:
+  - `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1`
+  - `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1`
+- whitespace check:
+  - `git diff --check -- scripts/resolve-proof-coord-anchor.ps1 scripts/capture-player-trace-cluster.ps1`
+- source-chain recovery regression:
+  - `C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-recovery.ps1`
+- source-chain fresh rebuild regression:
+  - `C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-fresh-rebuild.ps1`
+- actor-facing proof suite:
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-proof-suite.ps1`
+- navigation proof suite, non-live/default mode:
   - `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
+- live exact-target provenance chain:
+  - `C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1 -RunProvenance -ProcessId 41220 -TargetWindowHandle 0xBD0D94`
+- final post-provenance ReaderBridge refresh, proof anchor, telemetry preflight,
+  and read-only navigation-current sanity checks
+- exact-target proof polling watchset export:
+  - `C:\RIFT MODDING\RiftReader\scripts\export-proof-polling-watchset.ps1 -ProcessId 41220 -TargetWindowHandle 0xBD0D94 -Json`
+- proof watchset reader smoke:
+  - `dotnet ... -- --pid 41220 --record-session --session-watchset-file scripts\captures\proof-polling-watchset.json --session-sample-count 2 --session-interval-ms 100 --json`
+- active movement smoke proof:
+  - `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1 -ProcessId 41220 -TargetWindowHandle 0xBD0D94 -WaypointFile <active-proof-route> -UseExistingWaypoints -AutoConfirm -SkipRefresh -ArrivalRadius 2.1 -MaxTravelSeconds 5`
+- final post-active ReaderBridge refresh, proof anchor, telemetry preflight, and
+  read-only navigation-current sanity checks
 
-## ReaderBridge / addon orientation status
+## Broken, stale, or pending right now
 
-Fresh inspection on **April 20, 2026** still showed:
-
-- `orientationProbe` block present
-- player unit available
-- direct heading API unavailable
-- direct pitch API unavailable
-- no player detail/state/stat orientation candidates surfaced
-
-So the addon/API lane still does **not** expose a usable direct orientation
-signal on the current client. Actor yaw / pitch truth is currently coming from
-the validated live memory basis above, not from ReaderBridge orientation fields.
-
-## Broken or stale right now
-
-- the April 22 source-chain/accessor-family actor-facing promotion docs are now
-  historical-only; do not treat them as the current live authority unless they
-  are separately re-proven again
-- `capture-player-source-chain.ps1` can still fall back to
-  `Recovery.Mode = reuse-previous-source-chain` if the fresh pattern-scan
-  rebuild path fails; treat that as a same-session provenance aid, not as
-  fresh raw source-chain proof
-- fresh coord-trace reacquisition still depends on a working CE/bootstrap path
-  when the current trace artifact no longer validates
-- `--read-player-orientation` without `--pid` / `--process-name` remains the historical artifact-only path until the owner/source artifact path is rebuilt
+- April 23 live addresses are historical after the April 28 client update:
+  - old coord anchor: `0x12C9B02B888`
+  - old actor-facing lead: `0x12CC0FA0F70 @ +0xD4`
+- active single-segment smoke movement has been re-promoted after the update;
+  multi-segment route-chain movement is still pending
+- actor-facing selector/source-chain provenance is green only for the current
+  live PID/HWND; it is not durable across restarts or future client updates
+- proof polling watchset is current for PID `41220` / HWND `0xBD0D94`, but it
+  must be rebuilt after client restart/update before movement proof
+- camera yaw/pitch/distance on `main` remains stale/unverified after the update
+- `--read-player-orientation` without explicit `--pid` / `--process-name`
+  remains the historical artifact-only path until the owner/source artifact path
+  is rebuilt
 
 ## Canonical scripts on `main`
 
+- `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
+
+## Evidence folder
+
+Post-update recovery evidence for this pass is under:
+
+- `C:\RIFT MODDING\RiftReader\scripts\captures\post-update-inworld-20260428-141625`
+
+Key files:
+
+- `process-info.json`
+- `smart-capture-player-family.stdout.txt`
+- `capture-player-source-chain-refreshcluster-size12-max4.stdout.txt`
+- `resolve-proof-coord-anchor-after-sourcechain.stdout.txt`
+- `resolve-proof-coord-anchor-final-refresh.stdout.txt`
+- `read-player-orientation-after-facing-promotion.stdout.txt`
+- `telemetry-preflight-after-facing-promotion.stdout.txt`
+- `current-session-smoke-waypoints.json`
+- `read-navigation-current-current-smoke.stdout.txt`
+- `refresh-actor-facing-discovery-runprovenance-exact-target.stdout.txt`
+- `refresh-readerbridge-export-post-provenance.stdout.txt`
+- `resolve-proof-coord-anchor-post-provenance-after-readerbridge-refresh.stdout.txt`
+- `telemetry-preflight-post-provenance-after-readerbridge-refresh.stdout.txt`
+- `current-session-smoke-waypoints-post-provenance.json`
+- `read-navigation-current-post-provenance-after-readerbridge-refresh.stdout.txt`
+- `export-proof-polling-watchset-exact-target.stdout.txt`
+- `record-session-proof-watchset-smoke.stdout.txt`
+- `watchset-record-session-smoke`
+- `current-session-smoke-waypoints-active-proof.json`
+- `run-a-to-b-prototype-active-proof.stdout.txt`
+- `a-to-b-prototype-active-proof.ndjson`
+- `resolve-proof-coord-anchor-after-active-proof.stdout.txt`
+- `telemetry-preflight-after-active-proof.stdout.txt`
+- `read-navigation-current-after-active-proof.stdout.txt`
 
 ## Camera script location note
 

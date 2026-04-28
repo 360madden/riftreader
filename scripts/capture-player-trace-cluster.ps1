@@ -219,12 +219,22 @@ function Invoke-CoordTraceRefresh {
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         try {
-            $traceArguments = @(
-                '-Json',
-                '-MaxCandidates', '1',
-                '-WatchMode', 'access',
-                '-StimulusMode', 'AutoHotkey'
-            ) + (Get-TraceTargetArguments)
+            $traceArguments = @{
+                Json = $true
+                MaxCandidates = 4
+                WatchMode = 'access'
+                BreakpointSize = 12
+                StimulusMode = 'AutoHotkey'
+                ProcessName = $ProcessName
+            }
+            $effectiveProcessId = Get-EffectiveTargetProcessId
+            if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+                $traceArguments['ProcessId'] = $effectiveProcessId
+            }
+            if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+                $traceArguments['TargetWindowHandle'] = $TargetWindowHandle
+            }
+
             & $traceScript @traceArguments | Out-Null
             return
         }
@@ -232,7 +242,7 @@ function Invoke-CoordTraceRefresh {
             $message = $_.Exception.Message
             $playerNotReady = $message -like '*Current player snapshot is not ready after refresh*'
             if ($playerNotReady -and $attempt -lt $MaxAttempts) {
-                Write-Warning ("Coord-trace refresh outran current-player recovery after /reloadui; retrying in {0} ms (attempt {1}/{2})." -f $RetryDelayMilliseconds, $attempt + 1, $MaxAttempts)
+                Write-Warning ("Coord-trace refresh outran current-player recovery after /reloadui; retrying in {0} ms (attempt {1}/{2})." -f $RetryDelayMilliseconds, ($attempt + 1), $MaxAttempts)
                 Start-Sleep -Milliseconds $RetryDelayMilliseconds
                 continue
             }

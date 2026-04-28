@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshSourceChain,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$SourceChainFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json'),
     [string]$TraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-source-accessor-family.json')
@@ -19,6 +22,20 @@ $resolvedSourceChainFile = [System.IO.Path]::GetFullPath($SourceChainFile)
 $resolvedTraceFile = [System.IO.Path]::GetFullPath($TraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftAccessorFamilyTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -34,6 +51,76 @@ function Invoke-ReaderJson {
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
 }
 
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    $text = $HandleText.Trim()
+    $style = [System.Globalization.NumberStyles]::Integer
+    if ($text.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $text = $text.Substring(2)
+        $style = [System.Globalization.NumberStyles]::HexNumber
+    }
+
+    return [IntPtr]([Int64]::Parse($text, $style, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftAccessorFamilyTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftAccessorFamilyTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-ChildTargetArgumentMap {
+    $argumentMap = @{
+        ProcessName = $ProcessName
+    }
+
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $argumentMap['ProcessId'] = $effectiveProcessId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $argumentMap['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $argumentMap
+}
+
 function Invoke-ReadBytes {
     param(
         [Parameter(Mandatory = $true)]
@@ -43,11 +130,13 @@ function Invoke-ReadBytes {
         [int]$Length
     )
 
-    return Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+    $arguments = @(Get-ReaderTargetArguments)
+    $arguments += @(
         '--address', ('0x{0:X}' -f $Address),
         '--length', $Length.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--json')
+
+    return Invoke-ReaderJson -Arguments $arguments
 }
 
 function Parse-HexUInt64 {
@@ -159,7 +248,9 @@ function Convert-HexToBytes {
 }
 
 if ($RefreshSourceChain -or -not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
-    & $sourceChainScript -Json | Out-Null
+    $sourceChainArguments = Get-ChildTargetArgumentMap
+    $sourceChainArguments['Json'] = $true
+    & $sourceChainScript @sourceChainArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSourceChainFile)) {
@@ -205,11 +296,12 @@ for ($index = 0; $index -le ($instructions.Count - 8); $index++) {
 
     $returnOffset = [Convert]::ToInt32($Matches['offset'], 16)
     $pattern = ($window | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
-    $scan = Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+    $scanArguments = @(Get-ReaderTargetArguments)
+    $scanArguments += @(
         '--scan-module-pattern', $pattern,
         '--scan-module-name', 'rift_x64.exe',
         '--json')
+    $scan = Invoke-ReaderJson -Arguments $scanArguments
 
     $liveProbe = $null
     if ($null -ne $sourceObjectAddress) {
@@ -244,6 +336,9 @@ for ($index = 0; $index -le ($instructions.Count - 8); $index++) {
 $result = [ordered]@{
     Mode = 'player-source-accessor-family'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    ProcessName = $ProcessName
+    ProcessId = Get-EffectiveTargetProcessId
+    TargetWindowHandle = if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) { $TargetWindowHandle } else { $null }
     SourceChainFile = $resolvedSourceChainFile
     TraceFile = if (Test-Path -LiteralPath $resolvedTraceFile) { $resolvedTraceFile } else { $null }
     SourceObjectAddress = if ($null -ne $sourceObjectAddress) { ('0x{0:X}' -f $sourceObjectAddress) } else { $null }
