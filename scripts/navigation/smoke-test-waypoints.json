@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "kind": "smoke-route",
+    "generatedAtUtc": "2026-04-23T20:31:39.5974425+00:00",
+    "processName": "rift_x64",
+    "processId": 63012,
+    "processStartTimeUtc": "2026-04-22T07:13:46.8244103Z",
+    "processResponding": true,
+    "readerBridgeSnapshotSourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+    "readerBridgeExportCount": 1629,
+    "orientationResolutionMode": "behavior-backed-lead",
+    "selectedSourceAddress": "0X12CC0FA0F70",
+    "basisPrimaryForwardOffset": "0xD4",
+    "basisDuplicateForwardOffset": null,
+    "yawDegrees": 8.064226442168291,
+    "navigationBearingDegrees": 81.93577355783171,
+    "distanceForward": 2.6,
+    "bearingOffsetDegrees": 0.0,
+    "notes": [
+      "Generated from the current live player position and live actor-facing reader.",
+      "Regenerate this smoke route after a Rift restart, zone move, or major position change before treating it as a current-session validation route."
+    ]
+  },
+  "movement": {
+    "forwardKey": "w",
+    "runKey": null,
+    "walkKey": null,
+    "defaultPace": "keep",
+    "forwardPulseMilliseconds": 250,
+    "postPulseSampleDelayMilliseconds": 150,
+    "startRadius": 1.5,
+    "defaultArrivalRadius": 2.1,
+    "noProgressWindowMilliseconds": 3000,
+    "minimumProgressDistance": 0.05,
+    "wrongWayToleranceDistance": 1.0,
+    "maxTravelSeconds": 20
+  },
+  "waypoints": [
+    {
+      "id": "smoke_start",
+      "label": "Smoke Start",
+      "x": 7424.0,
+      "y": 818.17999267578,
+      "z": 3206.2299804688,
+      "arrivalRadius": 2.1,
+      "pace": "keep"
+    },
+    {
+      "id": "smoke_destination",
+      "label": "Smoke Destination",
+      "x": 7424.364735974296,
+      "y": 818.17999267578,
+      "z": 3208.8042702094963,
+      "arrivalRadius": 2.1,
+      "pace": "keep"
+    }
+  ]
+}

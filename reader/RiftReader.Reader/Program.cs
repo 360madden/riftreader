@@ -9,9 +9,11 @@ using RiftReader.Reader.Cli;
 using RiftReader.Reader.Formatting;
 using RiftReader.Reader.Memory;
 using RiftReader.Reader.Models;
+using RiftReader.Reader.Navigation;
 using RiftReader.Reader.Processes;
 using RiftReader.Reader.Scanning;
 using RiftReader.Reader.Sessions;
+using RiftReader.Reader.Telemetry;
 
 namespace RiftReader.Reader;
 
@@ -64,9 +66,24 @@ internal static class Program
             return RunSessionSummaryMode(options);
         }
 
+        if (options.ImportTomTomWaypoints)
+        {
+            return RunImportTomTomWaypointsMode(options);
+        }
+
         if (options.ReadPlayerOrientation)
         {
             return RunReadPlayerOrientationMode(options);
+        }
+
+        if (options.TelemetryPreflight)
+        {
+            return RunTelemetryPreflightMode(options);
+        }
+
+        if (options.RunTelemetryHost)
+        {
+            return RunTelemetryHostMode(options);
         }
 
         if (options.RankOwnerComponents)
@@ -158,7 +175,12 @@ internal static class Program
             }
         }
 
-        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.ReadPlayerCoordAnchor && !options.RecordSession && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
+        if (options.PlanNavigationRoute)
+        {
+            return RunPlanNavigationRouteMode(options, target);
+        }
+
+        if (!options.WriteCheatEngineProbe && !options.CaptureReaderBridgeBestFamily && !options.ReadPlayerCurrent && !options.FindPlayerOrientationCandidate && !options.ReadTargetCurrent && !options.ReadNavigationCurrent && !options.CaptureNavigationWaypoint && !options.NavigateWaypointRoute && !options.NavigateWaypoints && !options.ReadPlayerCoordAnchor && !options.RecordSession && !options.RunTelemetryHost && !scanRequested && (!options.Address.HasValue || !options.Length.HasValue))
         {
             if (options.JsonOutput)
             {
@@ -206,9 +228,34 @@ internal static class Program
             return RunReadPlayerCurrentMode(options, target, reader);
         }
 
+        if (options.FindPlayerOrientationCandidate)
+        {
+            return RunFindPlayerOrientationCandidateMode(options, target, reader);
+        }
+
         if (options.ReadTargetCurrent)
         {
             return RunReadTargetCurrentMode(options, target, reader);
+        }
+
+        if (options.ReadNavigationCurrent)
+        {
+            return RunReadNavigationCurrentMode(options, process, target, reader);
+        }
+
+        if (options.CaptureNavigationWaypoint)
+        {
+            return RunCaptureNavigationWaypointMode(options, target, reader);
+        }
+
+        if (options.NavigateWaypointRoute)
+        {
+            return RunNavigateWaypointRouteMode(options, process, target, reader);
+        }
+
+        if (options.NavigateWaypoints)
+        {
+            return RunNavigateWaypointsMode(options, process, target, reader);
         }
 
         if (options.ReadPlayerCoordAnchor)
@@ -389,41 +436,342 @@ internal static class Program
 
     private static int RunReadPlayerCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
     {
-        var document = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
-        if (document?.Current?.Player is null)
+        var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+        var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
+
+        if (bootstrapDocuments.Count == 0)
         {
-            Console.Error.WriteLine(loadError ?? "Unable to load the latest ReaderBridge export for player-current reading.");
+            var errors = new[]
+                {
+                    loadError,
+                    validatorLoadError
+                }
+                .Where(static error => !string.IsNullOrWhiteSpace(error))
+                .ToArray();
+
+            Console.Error.WriteLine(errors.Length > 0
+                ? string.Join(" ", errors)
+                : "Unable to load any player-current bootstrap snapshot.");
             return 1;
         }
 
         var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
 
-        PlayerCurrentReadResult result;
+        var failures = new List<string>(bootstrapDocuments.Count);
 
-        try
+        for (var index = 0; index < bootstrapDocuments.Count; index++)
         {
-            result = PlayerCurrentReader.ReadCurrent(
-                reader,
-                target.ProcessId,
-                target.ProcessName,
-                document,
-                inspectionRadius,
-                options.MaxHits);
+            var document = bootstrapDocuments[index];
+
+            try
+            {
+                var result = PlayerCurrentReader.ReadCurrent(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    document,
+                    inspectionRadius,
+                    options.MaxHits);
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(result));
+                    return 0;
+                }
+
+                Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"[{index + 1}/{bootstrapDocuments.Count}] {document.SourceFile}: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+
+        Console.Error.WriteLine($"Unable to read the current player snapshot: {string.Join(" | ", failures)}");
+        return 1;
+    }
+
+    private static int RunFindPlayerOrientationCandidateMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
+        var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+        var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument)
+            .Where(static document => document.Current?.Player?.Coord is not null)
+            .ToArray();
+
+        if (bootstrapDocuments.Length == 0)
         {
-            Console.Error.WriteLine($"Unable to read the current player snapshot: {ex.Message}");
+            var errors = new[]
+                {
+                    loadError,
+                    validatorLoadError
+                }
+                .Where(static error => !string.IsNullOrWhiteSpace(error))
+                .ToArray();
+
+            Console.Error.WriteLine(errors.Length > 0
+                ? string.Join(" ", errors)
+                : "Unable to load any player-orientation bootstrap snapshot.");
             return 1;
         }
 
-        if (options.JsonOutput)
+        var failures = new List<string>(bootstrapDocuments.Length);
+
+        for (var index = 0; index < bootstrapDocuments.Length; index++)
         {
-            Console.WriteLine(JsonOutput.Serialize(result));
-            return 0;
+            var document = bootstrapDocuments[index];
+
+            try
+            {
+                var result = PlayerOrientationCandidateFinder.Find(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    document,
+                    options.MaxHits,
+                    orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+
+                if (result.CandidateCount == 0 && result.PointerHopCandidateCount == 0)
+                {
+                    failures.Add($"[{index + 1}/{bootstrapDocuments.Length}] {document.SourceFile}: no live orientation candidates were found for the bootstrap coordinates.");
+                    continue;
+                }
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(result));
+                    return 0;
+                }
+
+                Console.WriteLine("Player orientation candidate search");
+                Console.WriteLine($"Player:                      {result.PlayerName ?? "n/a"}");
+                Console.WriteLine($"Candidate count:             {result.CandidateCount}");
+                Console.WriteLine($"Pointer-hop candidate count: {result.PointerHopCandidateCount}");
+
+                if (result.BestPointerHopCandidate is not null)
+                {
+                    Console.WriteLine($"Best pointer-hop candidate:  {result.BestPointerHopCandidate.Address} @ {result.BestPointerHopCandidate.BasisPrimaryForwardOffset}");
+                    Console.WriteLine($"Pointer-hop yaw/pitch (deg): {result.BestPointerHopCandidate.PreferredEstimate.YawDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"} / {result.BestPointerHopCandidate.PreferredEstimate.PitchDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"}");
+                }
+                else if (result.BestCandidate is not null)
+                {
+                    Console.WriteLine($"Best local candidate:        {result.BestCandidate.Address} @ {result.BestCandidate.BasisPrimaryForwardOffset}");
+                    Console.WriteLine($"Local yaw/pitch (deg):       {result.BestCandidate.PreferredEstimate.YawDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"} / {result.BestCandidate.PreferredEstimate.PitchDegrees?.ToString("0.000", CultureInfo.InvariantCulture) ?? "n/a"}");
+                }
+
+                foreach (var note in result.Notes)
+                {
+                    Console.WriteLine($"- {note}");
+                }
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"[{index + 1}/{bootstrapDocuments.Length}] {document.SourceFile}: {ex.Message}");
+            }
         }
 
-        Console.WriteLine(PlayerCurrentReadTextFormatter.Format(result));
-        return 0;
+        Console.Error.WriteLine($"Unable to find a live player orientation candidate: {string.Join(" | ", failures)}");
+        return 1;
+    }
+
+    private static IReadOnlyList<ReaderBridgeSnapshotDocument> BuildPlayerCurrentBootstrapDocuments(
+        ReaderBridgeSnapshotDocument? readerBridgeDocument,
+        ValidatorSnapshotDocument? validatorDocument)
+    {
+        var candidates = new List<(ReaderBridgeSnapshotDocument Document, DateTime FileWriteTimeUtc, int Priority)>(2);
+
+        if (readerBridgeDocument?.Current?.Player is not null)
+        {
+            candidates.Add((readerBridgeDocument, TryGetFileLastWriteTimeUtc(readerBridgeDocument.SourceFile), 1));
+        }
+
+        if (validatorDocument?.Current is not null)
+        {
+            candidates.Add((BuildValidatorBootstrapDocument(validatorDocument), TryGetFileLastWriteTimeUtc(validatorDocument.SourceFile), 0));
+        }
+
+        return candidates
+            .OrderByDescending(static candidate => candidate.FileWriteTimeUtc)
+            .ThenByDescending(static candidate => candidate.Priority)
+            .Select(static candidate => candidate.Document)
+            .ToArray();
+    }
+
+    private static ReaderBridgeSnapshotDocument BuildValidatorBootstrapDocument(ValidatorSnapshotDocument document)
+    {
+        var snapshot = document.Current!;
+        var exportCount = snapshot.Sequence is >= int.MinValue and <= int.MaxValue
+            ? (int)snapshot.Sequence.Value
+            : (int?)null;
+        long? hpPct = snapshot.Health.HasValue && snapshot.HealthMax is > 0
+            ? (long)Math.Clamp((int)Math.Round((double)snapshot.Health.Value / snapshot.HealthMax.Value * 100d), 0, 100)
+            : null;
+
+        return new ReaderBridgeSnapshotDocument(
+            SourceFile: $"validator-bootstrap: {document.SourceFile}",
+            LoadedAtUtc: document.LoadedAtUtc,
+            SchemaVersion: 1,
+            LastExportAt: document.LastCaptureAt,
+            LastReason: document.LastReason,
+            ExportCount: exportCount,
+            Current: new ReaderBridgeSnapshot(
+                SchemaVersion: 1,
+                Status: "ready",
+                ExportReason: snapshot.Reason ?? document.LastReason,
+                ExportCount: exportCount,
+                GeneratedAtRealtime: snapshot.CapturedAt,
+                SourceMode: "ValidatorBootstrap",
+                SourceAddon: "RiftReaderValidator",
+                SourceVersion: null,
+                Hud: null,
+                Player: new ReaderBridgeUnitSnapshot(
+                    Id: snapshot.PlayerUnit,
+                    Name: snapshot.Name,
+                    Level: snapshot.Level,
+                    Calling: null,
+                    Guild: null,
+                    Relation: null,
+                    Role: snapshot.Role,
+                    Player: true,
+                    Combat: snapshot.Combat,
+                    Pvp: null,
+                    Hp: snapshot.Health,
+                    HpMax: snapshot.HealthMax,
+                    HpPct: hpPct,
+                    Absorb: null,
+                    Vitality: null,
+                    ResourceKind: snapshot.ManaMax.HasValue ? "Mana" :
+                        snapshot.EnergyMax.HasValue ? "Energy" :
+                        snapshot.Power.HasValue ? "Power" :
+                        snapshot.ChargeMax.HasValue ? "Charge" :
+                        null,
+                    Resource: snapshot.Mana ?? snapshot.Energy ?? snapshot.Power ?? snapshot.Charge,
+                    ResourceMax: snapshot.ManaMax ?? snapshot.EnergyMax ?? snapshot.ChargeMax,
+                    ResourcePct: null,
+                    Mana: snapshot.Mana,
+                    ManaMax: snapshot.ManaMax,
+                    Energy: snapshot.Energy,
+                    EnergyMax: snapshot.EnergyMax,
+                    Power: snapshot.Power,
+                    Charge: snapshot.Charge,
+                    ChargeMax: snapshot.ChargeMax,
+                    ChargePct: null,
+                    Planar: null,
+                    PlanarMax: null,
+                    PlanarPct: null,
+                    Combo: snapshot.Combo,
+                    Zone: snapshot.Zone,
+                    LocationName: snapshot.LocationName,
+                    Coord: snapshot.Coord,
+                    Distance: null,
+                    Ttd: null,
+                    TtdText: null,
+                    Cast: null),
+                Target: null,
+                Telemetry: null,
+                PlayerBuffLines: Array.Empty<string>(),
+                PlayerDebuffLines: Array.Empty<string>(),
+                TargetBuffLines: Array.Empty<string>(),
+                TargetDebuffLines: Array.Empty<string>()));
+    }
+
+    private static DateTime TryGetFileLastWriteTimeUtc(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return DateTime.MinValue;
+        }
+
+        try
+        {
+            return File.Exists(path)
+                ? File.GetLastWriteTimeUtc(path)
+                : DateTime.MinValue;
+        }
+        catch
+        {
+            return DateTime.MinValue;
+        }
+    }
+
+    private static FloatSequenceScanResult? TryScanBootstrapPlayerCoords(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        IReadOnlyList<ReaderBridgeSnapshotDocument> bootstrapDocuments,
+        int contextBytes,
+        int maxHits)
+    {
+        foreach (var document in bootstrapDocuments)
+        {
+            var playerCoord = document.Current?.Player?.Coord;
+            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
+            {
+                continue;
+            }
+
+            var result = ProcessFloatSequenceScanner.ScanFloatTriplet(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                $"player-coords ({document.SourceFile})",
+                (float)coordX,
+                (float)coordY,
+                (float)coordZ,
+                contextBytes,
+                maxHits);
+
+            if (result.HitCount > 0)
+            {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    private static PlayerSignatureScanResult? TryScanBootstrapPlayerSignature(
+        ProcessMemoryReader reader,
+        ProcessTarget target,
+        IReadOnlyList<ReaderBridgeSnapshotDocument> bootstrapDocuments,
+        int inspectionRadius,
+        int maxHits)
+    {
+        foreach (var document in bootstrapDocuments)
+        {
+            var player = document.Current?.Player;
+            var playerCoord = player?.Coord;
+            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
+            {
+                continue;
+            }
+
+            var result = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                $"player-signature ({document.SourceFile})",
+                (float)coordX,
+                (float)coordY,
+                (float)coordZ,
+                player?.Level,
+                player?.Hp,
+                player?.HpMax,
+                player?.Name,
+                player?.LocationName,
+                inspectionRadius,
+                maxHits);
+
+            if (result.FamilyCount > 0 && result.HitCount > 0)
+            {
+                return result;
+            }
+        }
+
+        return null;
     }
 
     private static int RunReadTargetCurrentMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
@@ -462,6 +810,746 @@ internal static class Program
         }
 
         Console.WriteLine(TargetCurrentReadTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunReadNavigationCurrentMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        if (!TryResolveWaypoint(configuration!, options.DestinationWaypointId, "destination", out var destinationWaypoint, out var waypointError))
+        {
+            Console.Error.WriteLine(waypointError ?? "Unable to resolve the destination waypoint.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        var resolvedDestinationWaypoint = destinationWaypoint!;
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.AllowFallback,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+            return 1;
+        }
+
+        var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var facing = TryBuildNavigationFacingSummary(
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            resolvedDestinationWaypoint,
+            poseSource.InitialSample);
+        var result = NavigationMath.BuildSummary(
+            target.ProcessId,
+            target.ProcessName,
+            resolvedConfiguration.SourceFile,
+            resolvedDestinationWaypoint,
+            poseSource.InitialSample,
+            poseSource.Source.AnchorSource,
+            arrivalRadius,
+            facing);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(NavigationVectorSummaryTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunPlanNavigationRouteMode(ReaderOptions options, ProcessTarget target)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        if (!TryResolveRouteWaypoints(resolvedConfiguration, options, out var routeWaypoints, out var routeError))
+        {
+            Console.Error.WriteLine(routeError ?? "Unable to resolve the navigation route.");
+            return 1;
+        }
+
+        var result = WaypointRoutePlanner.BuildPlan(
+            processId: target.ProcessId,
+            processName: target.ProcessName,
+            waypointFile: resolvedConfiguration.SourceFile,
+            movement: resolvedConfiguration.Movement,
+            routeWaypoints: routeWaypoints);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        }
+
+        Console.WriteLine(NavigationRoutePlanTextFormatter.Format(result));
+        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static int RunNavigateWaypointRouteMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        if (!TryResolveRouteWaypoints(resolvedConfiguration, options, out var routeWaypoints, out var routeError))
+        {
+            Console.Error.WriteLine(routeError ?? "Unable to resolve the navigation route.");
+            return 1;
+        }
+
+        var plan = WaypointRoutePlanner.BuildPlan(
+            processId: target.ProcessId,
+            processName: target.ProcessName,
+            waypointFile: resolvedConfiguration.SourceFile,
+            movement: resolvedConfiguration.Movement,
+            routeWaypoints: routeWaypoints);
+
+        if (!string.Equals(plan.Status, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            var planFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: "none",
+                stopReason: "route-plan-invalid",
+                issues: plan.Issues);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(planFailure));
+            }
+            else
+            {
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(planFailure));
+            }
+
+            return 1;
+        }
+
+        if (!TryResolveNavigationAutoTurnOptions(options, out var autoTurnOptions, out var autoTurnError))
+        {
+            Console.Error.WriteLine(autoTurnError ?? "Unable to resolve navigation auto-turn options.");
+            return 1;
+        }
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            var anchorFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: "none",
+                stopReason: "anchor-unavailable",
+                issues: [poseError ?? "Unable to resolve a navigation pose anchor."]);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        var movementBackend = new PowerShellMovementBackend(
+            NavigationPathResolver.ResolveMovementScriptFile(),
+            target.ProcessName,
+            target.ProcessId);
+        movementBackend.PrepareForMovement();
+
+        if (!NavigationProofCoordAnchorRefresher.TryRefresh(target.ProcessName, target.ProcessId, out var refreshError))
+        {
+            var anchorFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: poseSource.Source.AnchorSource,
+                stopReason: "anchor-unavailable",
+                issues: [refreshError ?? "Unable to refresh the proof coord anchor before live navigation started."]);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        var refreshedPoseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            options.MaxHits,
+            out var refreshPoseError);
+
+        if (refreshedPoseSource is null)
+        {
+            var anchorFailure = BuildNavigationRouteFailureResult(
+                plan,
+                routeWaypoints,
+                anchorSource: poseSource.Source.AnchorSource,
+                stopReason: "anchor-unavailable",
+                issues: [refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming."]);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
+                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
+            }
+
+            return 1;
+        }
+
+        Func<NavigationRouteSegmentTurnRequest, NavigationTurnResult>? turnBeforeSegment = null;
+        if (autoTurnOptions.Enabled)
+        {
+            turnBeforeSegment = request => NavigationAutoTurner.Execute(
+                request.CurrentSample,
+                refreshedPoseSource.Source,
+                movementBackend,
+                autoTurnOptions,
+                sample => BuildNavigationTurnPlan(
+                    process,
+                    target,
+                    reader,
+                    snapshotDocument,
+                    request.DestinationWaypoint,
+                    sample,
+                    autoTurnOptions.WithinDegrees));
+        }
+
+        var result = WaypointRouteNavigator.Run(
+            target.ProcessId,
+            target.ProcessName,
+            resolvedConfiguration.SourceFile,
+            resolvedConfiguration.Movement,
+            routeWaypoints,
+            refreshedPoseSource.Source,
+            movementBackend,
+            turnBeforeSegment);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        }
+
+        Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(result));
+        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static bool TryResolveRouteWaypoints(
+        WaypointNavigationConfiguration configuration,
+        ReaderOptions options,
+        out IReadOnlyList<WaypointDefinition> routeWaypoints,
+        out string? error)
+    {
+        var waypointIds = new List<string> { options.StartWaypointId! };
+        if (options.ViaWaypointIds is { Count: > 0 } viaWaypointIds)
+        {
+            waypointIds.AddRange(viaWaypointIds);
+        }
+
+        waypointIds.Add(options.DestinationWaypointId!);
+
+        var resolvedWaypoints = new List<WaypointDefinition>();
+        foreach (var waypointId in waypointIds)
+        {
+            if (!TryResolveWaypoint(configuration, waypointId, "route", out var waypoint, out var resolveError))
+            {
+                routeWaypoints = Array.Empty<WaypointDefinition>();
+                error = resolveError ?? $"Unable to resolve route waypoint '{waypointId}'.";
+                return false;
+            }
+
+            resolvedWaypoints.Add(waypoint!);
+        }
+
+        routeWaypoints = resolvedWaypoints;
+        error = null;
+        return true;
+    }
+
+    private static NavigationRouteRunResult BuildNavigationRouteFailureResult(
+        NavigationRoutePlanResult plan,
+        IReadOnlyList<WaypointDefinition> routeWaypoints,
+        string anchorSource,
+        string stopReason,
+        IReadOnlyList<string> issues)
+    {
+        var destinationPosition = routeWaypoints.Count > 0
+            ? routeWaypoints[^1].Coordinate
+            : (NavigationCoordinate?)null;
+
+        return new NavigationRouteRunResult(
+            Mode: "navigate-waypoint-route",
+            ProcessId: plan.ProcessId,
+            ProcessName: plan.ProcessName,
+            WaypointFile: plan.WaypointFile,
+            Status: "failure",
+            StartWaypointId: plan.StartWaypointId,
+            DestinationWaypointId: plan.DestinationWaypointId,
+            WaypointIds: plan.WaypointIds,
+            SegmentCount: plan.SegmentCount,
+            CompletedSegmentCount: 0,
+            FailedSegmentIndex: null,
+            StopReason: stopReason,
+            AnchorSource: anchorSource,
+            TotalPlanarDistance: plan.TotalPlanarDistance,
+            FinalPlanarDistance: 0d,
+            TotalPulseCount: 0,
+            InitialPosition: null,
+            FinalPosition: null,
+            DestinationPosition: destinationPosition,
+            ElapsedMilliseconds: 0,
+            SegmentResults: Array.Empty<NavigationRunResult>(),
+            Issues: issues.ToArray());
+    }
+
+    private static NavigationFacingSummary TryBuildNavigationFacingSummary(
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        WaypointDefinition destinationWaypoint,
+        NavigationPoseSample currentSample)
+    {
+        try
+        {
+            var leadDocument = ActorFacingBehaviorBackedLeadLoader.TryLoad(null, out var leadError);
+            if (leadDocument is null)
+            {
+                return NavigationMath.BuildUnavailableFacingSummary(
+                    status: "lead-unavailable",
+                    message: leadError ?? "Unable to load the actor-facing behavior-backed lead.");
+            }
+
+            DateTimeOffset processStartTimeUtc;
+            try
+            {
+                processStartTimeUtc = process.StartTime.ToUniversalTime();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                return NavigationMath.BuildUnavailableFacingSummary(
+                    status: "process-start-unavailable",
+                    message: $"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+            }
+
+            var leadValidation = ActorFacingBehaviorBackedLeadValidator.Validate(
+                leadDocument,
+                process.ProcessName,
+                process.Id,
+                processStartTimeUtc);
+            if (!leadValidation.IsValid)
+            {
+                return NavigationMath.BuildUnavailableFacingSummary(
+                    status: "lead-invalid",
+                    message: leadValidation.Error ?? "The actor-facing behavior-backed lead is not valid for the live process.");
+            }
+
+            var orientation = PlayerOrientationReader.ReadLive(reader, target, snapshotDocument, leadDocument);
+            var deltaX = destinationWaypoint.X - currentSample.X;
+            var deltaZ = destinationWaypoint.Z - currentSample.Z;
+            var (_, bearingDegrees) = NavigationMath.ComputeBearing(deltaX, deltaZ);
+            return NavigationMath.BuildFacingSummary(orientation, bearingDegrees);
+        }
+        catch (Exception ex)
+        {
+            return NavigationMath.BuildUnavailableFacingSummary(
+                status: "read-failed",
+                message: $"Unable to read live actor-facing data for navigation alignment: {ex.Message}");
+        }
+    }
+
+    private static int RunNavigateWaypointsMode(ReaderOptions options, Process process, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        if (!TryLoadWaypointNavigationConfiguration(options, out var configuration, out var loadError))
+        {
+            Console.Error.WriteLine(loadError ?? "Unable to load the waypoint navigation configuration.");
+            return 1;
+        }
+
+        if (!TryResolveWaypoint(configuration!, options.StartWaypointId, "start", out var startWaypoint, out var startError))
+        {
+            Console.Error.WriteLine(startError ?? "Unable to resolve the start waypoint.");
+            return 1;
+        }
+
+        if (!TryResolveWaypoint(configuration!, options.DestinationWaypointId, "destination", out var destinationWaypoint, out var destinationError))
+        {
+            Console.Error.WriteLine(destinationError ?? "Unable to resolve the destination waypoint.");
+            return 1;
+        }
+
+        var resolvedConfiguration = configuration!;
+        var resolvedStartWaypoint = startWaypoint!;
+        var resolvedDestinationWaypoint = destinationWaypoint!;
+
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.StrictCoordTrace,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            var anchorFailure = BuildNavigationAnchorUnavailableResult(
+                target,
+                resolvedConfiguration.SourceFile,
+                resolvedStartWaypoint,
+                resolvedDestinationWaypoint,
+                ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement),
+                ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement),
+                resolvedConfiguration.Movement.StartRadius,
+                "anchor-unavailable");
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+            }
+            else
+            {
+                Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+                Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
+            }
+
+            return 1;
+        }
+
+        var effectivePace = ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
+        var maxTravelSeconds = options.MaxTravelSeconds ?? resolvedConfiguration.Movement.MaxTravelSeconds;
+        if (!TryResolveNavigationAutoTurnOptions(options, out var autoTurnOptions, out var autoTurnError))
+        {
+            Console.Error.WriteLine(autoTurnError ?? "Unable to resolve navigation auto-turn options.");
+            return 1;
+        }
+
+        var movementBackend = new PowerShellMovementBackend(
+            NavigationPathResolver.ResolveMovementScriptFile(),
+            target.ProcessName,
+            target.ProcessId);
+        var initialMovementDistance = NavigationMath.ComputePlanarDistance(
+            resolvedDestinationWaypoint.X - poseSource.InitialSample.X,
+            resolvedDestinationWaypoint.Z - poseSource.InitialSample.Z);
+        if (initialMovementDistance > arrivalRadius)
+        {
+            movementBackend.PrepareForMovement();
+
+            if (!NavigationProofCoordAnchorRefresher.TryRefresh(target.ProcessName, target.ProcessId, out var refreshError))
+            {
+                var anchorFailure = BuildNavigationAnchorUnavailableResult(
+                    target,
+                    resolvedConfiguration.SourceFile,
+                    resolvedStartWaypoint,
+                    resolvedDestinationWaypoint,
+                    effectivePace,
+                    arrivalRadius,
+                    resolvedConfiguration.Movement.StartRadius,
+                    "anchor-unavailable");
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+                }
+                else
+                {
+                    Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
+                }
+
+                return 1;
+            }
+
+            var refreshedPoseSource = NavigationPoseSourceFactory.TryCreate(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                snapshotDocument,
+                inspectionRadius,
+                NavigationPoseSourcePolicy.StrictCoordTrace,
+                options.MaxHits,
+                out var refreshPoseError);
+
+            if (refreshedPoseSource is null)
+            {
+                var anchorFailure = BuildNavigationAnchorUnavailableResult(
+                    target,
+                    resolvedConfiguration.SourceFile,
+                    resolvedStartWaypoint,
+                    resolvedDestinationWaypoint,
+                    effectivePace,
+                    arrivalRadius,
+                    resolvedConfiguration.Movement.StartRadius,
+                    "anchor-unavailable");
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(anchorFailure));
+                }
+                else
+                {
+                    Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
+                }
+
+                return 1;
+            }
+
+            poseSource = refreshedPoseSource;
+        }
+
+        NavigationTurnResult? turnResult = null;
+
+        if (autoTurnOptions.Enabled)
+        {
+            turnResult = NavigationAutoTurner.Execute(
+                poseSource.InitialSample,
+                poseSource.Source,
+                movementBackend,
+                autoTurnOptions,
+                sample => BuildNavigationTurnPlan(
+                    process,
+                    target,
+                    reader,
+                    snapshotDocument,
+                    resolvedDestinationWaypoint,
+                    sample,
+                    autoTurnOptions.WithinDegrees));
+
+            if (!turnResult.Succeeded)
+            {
+                var turnFailure = BuildNavigationAutoTurnFailureResult(
+                    target,
+                    resolvedConfiguration.SourceFile,
+                    resolvedStartWaypoint,
+                    resolvedDestinationWaypoint,
+                    effectivePace,
+                    arrivalRadius,
+                    resolvedConfiguration.Movement.StartRadius,
+                    poseSource.InitialSample,
+                    poseSource.Source.AnchorSource,
+                    turnResult);
+
+                if (options.JsonOutput)
+                {
+                    Console.WriteLine(JsonOutput.Serialize(turnFailure));
+                }
+                else
+                {
+                    Console.Error.WriteLine(turnResult.Reason ?? "Auto-turn failed before forward movement could start.");
+                    Console.WriteLine(NavigationRunResultTextFormatter.Format(turnFailure, options.VerboseNavigationEvents));
+                }
+
+                return 1;
+            }
+        }
+
+        var result = WaypointNavigator.Run(
+            target.ProcessId,
+            target.ProcessName,
+            resolvedConfiguration.SourceFile,
+            resolvedConfiguration.Movement,
+            resolvedStartWaypoint,
+            resolvedDestinationWaypoint,
+            poseSource.Source,
+            movementBackend,
+            effectivePace,
+            arrivalRadius,
+            maxTravelSeconds);
+
+        if (turnResult is not null)
+        {
+            result = result with { TurnResult = turnResult };
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        }
+
+        Console.WriteLine(NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
+        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static int RunCaptureNavigationWaypointMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
+    {
+        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
+        var poseSource = NavigationPoseSourceFactory.TryCreate(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            snapshotDocument,
+            inspectionRadius,
+            NavigationPoseSourcePolicy.AllowFallback,
+            options.MaxHits,
+            out var poseError);
+
+        if (poseSource is null)
+        {
+            Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
+            return 1;
+        }
+
+        var waypoint = WaypointNavigationConfigurationStore.TryUpsertWaypoint(
+            options.NavigationWaypointFile,
+            options.CaptureNavigationWaypointId!,
+            poseSource.InitialSample,
+            options.WaypointLabel,
+            options.WaypointZone,
+            options.WaypointArrivalRadius,
+            options.WaypointPace,
+            out var waypointFile,
+            out var created,
+            out var storeError);
+
+        if (waypoint is null)
+        {
+            Console.Error.WriteLine(storeError ?? "Unable to capture the waypoint.");
+            return 1;
+        }
+
+        var result = new WaypointCaptureResult(
+            Mode: "capture-navigation-waypoint",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            WaypointFile: waypointFile,
+            Status: created ? "created" : "updated",
+            WaypointId: waypoint.Id,
+            WaypointLabel: waypoint.Label,
+            WaypointZone: waypoint.Zone,
+            Pace: waypoint.Pace,
+            ArrivalRadius: waypoint.ArrivalRadius,
+            AnchorSource: poseSource.Source.AnchorSource,
+            AnchorAddress: poseSource.InitialSample.AddressHex,
+            Position: waypoint.Coordinate);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine(WaypointCaptureResultTextFormatter.Format(result));
+        return 0;
+    }
+
+    private static int RunImportTomTomWaypointsMode(ReaderOptions options)
+    {
+        var sourceFile = Path.GetFullPath(options.TomTomSavedVariablesFile!);
+        var destinationFile = NavigationPathResolver.ResolveWaypointFile(options.NavigationWaypointFile);
+
+        var result = TomTomWaypointImporter.TryImport(
+            new TomTomWaypointImportOptions(
+                SourceFile: sourceFile,
+                DestinationFile: destinationFile,
+                ListNames: options.TomTomListNames ?? Array.Empty<string>(),
+                Zone: options.TomTomZone,
+                DefaultY: options.TomTomDefaultY ?? 0d,
+                IdPrefix: options.TomTomIdPrefix ?? "tomtom",
+                ArrivalRadius: options.TomTomArrivalRadius,
+                Pace: options.TomTomPace),
+            out var error);
+
+        if (result is null)
+        {
+            Console.Error.WriteLine(error ?? "Unable to import TomTom waypoints.");
+            return 1;
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+            return 0;
+        }
+
+        Console.WriteLine("TomTom waypoint import");
+        Console.WriteLine($"Source:      {result.SourceFile}");
+        Console.WriteLine($"Destination: {result.DestinationFile}");
+        Console.WriteLine($"Imported:    {result.ImportedWaypointCount}");
+        Console.WriteLine($"Preserved:   {result.PreservedWaypointCount}");
+        Console.WriteLine($"Updated:     {result.UpdatedWaypointCount}");
+
+        if (result.Lists.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Lists:");
+            foreach (var list in result.Lists)
+            {
+                Console.WriteLine($"  {list.Name}: imported={list.ImportedWaypointCount}, skipped={list.SkippedWaypointCount}");
+            }
+        }
+
+        if (result.Warnings.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Warnings:");
+            foreach (var warning in result.Warnings)
+            {
+                Console.WriteLine($"  - {warning}");
+            }
+        }
+
         return 0;
     }
 
@@ -537,19 +1625,70 @@ internal static class Program
 
     private static int RunReadPlayerOrientationMode(ReaderOptions options)
     {
-        var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(options.OwnerComponentsFile, out var artifactError);
-        if (artifactDocument is null)
-        {
-            Console.Error.WriteLine(artifactError ?? "Unable to load the player owner-component artifact.");
-            return 1;
-        }
-
         var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out _);
 
         PlayerOrientationReadResult result;
         try
         {
-            result = PlayerOrientationReader.Read(artifactDocument, snapshotDocument);
+            if (options.ProcessId.HasValue || !string.IsNullOrWhiteSpace(options.ProcessName))
+            {
+                using var process = TryResolveProcess(options, out var resolveError);
+                if (process is null)
+                {
+                    Console.Error.WriteLine(resolveError ?? "Unable to resolve the target process for live player-orientation.");
+                    return 1;
+                }
+
+                var leadDocument = ActorFacingBehaviorBackedLeadLoader.TryLoad(null, out var leadError);
+                if (leadDocument is null)
+                {
+                    Console.Error.WriteLine(leadError ?? "Unable to load the actor-facing behavior-backed lead.");
+                    return 1;
+                }
+
+                DateTimeOffset processStartTimeUtc;
+                try
+                {
+                    processStartTimeUtc = process.StartTime.ToUniversalTime();
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+                {
+                    Console.Error.WriteLine($"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+                    return 1;
+                }
+
+                var leadValidation = ActorFacingBehaviorBackedLeadValidator.Validate(
+                    leadDocument,
+                    process.ProcessName,
+                    process.Id,
+                    processStartTimeUtc);
+                if (!leadValidation.IsValid)
+                {
+                    Console.Error.WriteLine(leadValidation.Error ?? "The actor-facing behavior-backed lead is not valid for the live process.");
+                    return 1;
+                }
+
+                var target = ProcessTarget.FromProcess(process);
+                using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+                if (reader is null)
+                {
+                    Console.Error.WriteLine(openError ?? "Unable to open the target process for live player-orientation.");
+                    return 1;
+                }
+
+                result = PlayerOrientationReader.ReadLive(reader, target, snapshotDocument, leadDocument);
+            }
+            else
+            {
+                var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(options.OwnerComponentsFile, out var artifactError);
+                if (artifactDocument is null)
+                {
+                    Console.Error.WriteLine(artifactError ?? "Unable to load the player owner-component artifact.");
+                    return 1;
+                }
+
+                result = PlayerOrientationReader.Read(artifactDocument, snapshotDocument);
+            }
         }
         catch (Exception ex)
         {
@@ -568,6 +1707,523 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(PlayerOrientationReadTextFormatter.Format(result));
         return 0;
+    }
+
+    private static int RunTelemetryHostMode(ReaderOptions options)
+    {
+        using var process = TryResolveProcess(options, out var resolveError);
+        if (process is null)
+        {
+            Console.Error.WriteLine(resolveError ?? "Unable to resolve the target process for telemetry host mode.");
+            return 1;
+        }
+
+        DateTimeOffset processStartTimeUtc;
+        try
+        {
+            processStartTimeUtc = process.StartTime.ToUniversalTime();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            Console.Error.WriteLine($"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+            return 1;
+        }
+
+        var target = ProcessTarget.FromProcess(process);
+        using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+        if (reader is null)
+        {
+            Console.Error.WriteLine(openError ?? "Unable to open the target process for telemetry host mode.");
+            return 1;
+        }
+
+        var repoRoot = RepositoryPathLocator.FindRepoRoot();
+        var latestSnapshotFile = options.TelemetryOutputFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.latest.json");
+        var eventLogFile = options.TelemetryEventLogFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.events.ndjson");
+        var discoveryLogFile = options.TelemetryDiagnosticsLogFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.discovery.ndjson");
+        var proofAnchorCacheFile = options.TelemetryProofAnchorFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "telemetry-proof-coord-anchor.json");
+        var proofCoordAnchorScript = Path.Combine(repoRoot, "scripts", "resolve-proof-coord-anchor.ps1");
+
+        var hostOptions = new TelemetryHostOptions(
+            ProcessName: target.ProcessName,
+            ProcessId: target.ProcessId,
+            PollIntervalMilliseconds: options.TelemetryPollIntervalMilliseconds,
+            DiagnosticsEnabled: options.TelemetryDiagnostics,
+            ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
+            PlayerCoordTraceFile: options.PlayerCoordTraceFile,
+            LatestSnapshotFile: latestSnapshotFile,
+            EventLogFile: eventLogFile,
+            DiscoveryLogFile: options.TelemetryDiagnostics ? discoveryLogFile : null,
+            ProofCoordAnchorScript: proofCoordAnchorScript,
+            ProofAnchorCacheFile: proofAnchorCacheFile,
+            ProofAnchorRevalidationInterval: TimeSpan.FromSeconds(5),
+            ProofAnchorMaxAge: TimeSpan.FromSeconds(15));
+
+        var logger = new StructuredTelemetryLogger(
+            hostOptions.EventLogFile,
+            hostOptions.DiagnosticsEnabled ? hostOptions.DiscoveryLogFile : null);
+        var publisher = new JsonFileTelemetryPublisher(hostOptions.LatestSnapshotFile);
+        var host = new TelemetryHost(
+            options: hostOptions,
+            process: new TelemetryProcessInfo(
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                ModuleName: target.ModuleName,
+                MainWindowTitle: target.MainWindowTitle,
+                StartedAtUtc: processStartTimeUtc),
+            contextSource: new AddonContextSource(options.ReaderBridgeSnapshotFile),
+            positionSource: new MemoryCoordSource(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                hostOptions.ProofCoordAnchorScript,
+                hostOptions.PlayerCoordTraceFile,
+                hostOptions.ProofAnchorCacheFile,
+                hostOptions.ProofAnchorRevalidationInterval,
+                hostOptions.ProofAnchorMaxAge,
+                logger,
+                hostOptions.DiagnosticsEnabled),
+            facingSource: new MemoryFacingSource(reader, target, processStartTimeUtc, hostOptions.DiagnosticsEnabled),
+            merger: new DefaultTelemetryMerger(hostOptions.PollIntervalMilliseconds, hostOptions.DiagnosticsEnabled),
+            publisher: publisher,
+            logger: logger);
+
+        if (!options.JsonOutput)
+        {
+            Console.WriteLine("RiftReader.Reader telemetry host");
+            Console.WriteLine($"Process: {target.ProcessName} ({target.ProcessId})");
+            Console.WriteLine($"Latest snapshot: {hostOptions.LatestSnapshotFile}");
+            Console.WriteLine($"Event log: {hostOptions.EventLogFile}");
+
+            if (hostOptions.DiagnosticsEnabled && !string.IsNullOrWhiteSpace(hostOptions.DiscoveryLogFile))
+            {
+                Console.WriteLine($"Discovery log: {hostOptions.DiscoveryLogFile}");
+            }
+
+            Console.WriteLine("Press Ctrl+C to stop.");
+            Console.WriteLine();
+        }
+
+        using var cancellationSource = new CancellationTokenSource();
+        ConsoleCancelEventHandler? handler = null;
+        handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellationSource.Cancel();
+        };
+
+        Console.CancelKeyPress += handler;
+
+        try
+        {
+            return host.Run(cancellationSource.Token);
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+
+    private static int RunTelemetryPreflightMode(ReaderOptions options)
+    {
+        using var process = TryResolveProcess(options, out var resolveError);
+        if (process is null)
+        {
+            Console.Error.WriteLine(resolveError ?? "Unable to resolve the target process for telemetry preflight mode.");
+            return 1;
+        }
+
+        DateTimeOffset processStartTimeUtc;
+        try
+        {
+            processStartTimeUtc = process.StartTime.ToUniversalTime();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            Console.Error.WriteLine($"Unable to read the live process start time for PID {process.Id}: {ex.Message}");
+            return 1;
+        }
+
+        var target = ProcessTarget.FromProcess(process);
+        using var reader = ProcessMemoryReader.TryOpen(target, out var openError);
+        if (reader is null)
+        {
+            Console.Error.WriteLine(openError ?? "Unable to open the target process for telemetry preflight mode.");
+            return 1;
+        }
+
+        var repoRoot = RepositoryPathLocator.FindRepoRoot();
+        var proofCoordAnchorScript = Path.Combine(repoRoot, "scripts", "resolve-proof-coord-anchor.ps1");
+        var proofAnchorCacheFile = options.TelemetryProofAnchorFile
+            ?? Path.Combine(repoRoot, "scripts", "captures", "telemetry-proof-coord-anchor.json");
+        var hostOptions = new TelemetryHostOptions(
+            ProcessName: target.ProcessName,
+            ProcessId: target.ProcessId,
+            PollIntervalMilliseconds: options.TelemetryPollIntervalMilliseconds,
+            DiagnosticsEnabled: options.TelemetryDiagnostics,
+            ReaderBridgeSnapshotFile: options.ReaderBridgeSnapshotFile,
+            PlayerCoordTraceFile: options.PlayerCoordTraceFile,
+            LatestSnapshotFile: options.TelemetryOutputFile
+                ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.latest.json"),
+            EventLogFile: options.TelemetryEventLogFile
+                ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.events.ndjson"),
+            DiscoveryLogFile: options.TelemetryDiagnostics
+                ? options.TelemetryDiagnosticsLogFile ?? Path.Combine(repoRoot, "scripts", "captures", "readerbridge-telemetry.discovery.ndjson")
+                : null,
+            ProofCoordAnchorScript: proofCoordAnchorScript,
+            ProofAnchorCacheFile: proofAnchorCacheFile,
+            ProofAnchorRevalidationInterval: TimeSpan.FromSeconds(5),
+            ProofAnchorMaxAge: TimeSpan.FromSeconds(15));
+
+        var processInfo = new TelemetryProcessInfo(
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            ModuleName: target.ModuleName,
+            MainWindowTitle: target.MainWindowTitle,
+            StartedAtUtc: processStartTimeUtc);
+        var logger = new NullTelemetryLogger();
+        var context = new AddonContextSource(options.ReaderBridgeSnapshotFile).Read();
+        var memoryPosition = new MemoryCoordSource(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            hostOptions.ProofCoordAnchorScript,
+            hostOptions.PlayerCoordTraceFile,
+            hostOptions.ProofAnchorCacheFile,
+            hostOptions.ProofAnchorRevalidationInterval,
+            hostOptions.ProofAnchorMaxAge,
+            logger,
+            hostOptions.DiagnosticsEnabled).Read(context);
+        var facing = new MemoryFacingSource(reader, target, processStartTimeUtc, hostOptions.DiagnosticsEnabled).Read(context);
+        var snapshot = new DefaultTelemetryMerger(hostOptions.PollIntervalMilliseconds, hostOptions.DiagnosticsEnabled)
+            .Merge(1, DateTimeOffset.UtcNow, processInfo, context, memoryPosition, facing);
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(snapshot));
+            return memoryPosition.Valid && facing.Valid ? 0 : 1;
+        }
+
+        Console.WriteLine("RiftReader.Reader telemetry preflight");
+        Console.WriteLine($"Process: {target.ProcessName} ({target.ProcessId})");
+        Console.WriteLine($"Memory coords: {(memoryPosition.Valid ? "valid" : "invalid")}");
+        Console.WriteLine($"Facing: {(facing.Valid ? "valid" : "invalid")}");
+        Console.WriteLine($"Effective position source: {snapshot.Meta.EffectivePositionSource}");
+        Console.WriteLine($"Effective facing source: {snapshot.Meta.EffectiveFacingSource}");
+
+        if (!memoryPosition.Valid && !string.IsNullOrWhiteSpace(memoryPosition.Reason))
+        {
+            Console.WriteLine($"Coord reason: {memoryPosition.Reason}");
+        }
+
+        if (!facing.Valid && !string.IsNullOrWhiteSpace(facing.Reason))
+        {
+            Console.WriteLine($"Facing reason: {facing.Reason}");
+        }
+
+        return memoryPosition.Valid && facing.Valid ? 0 : 1;
+    }
+
+    private static Process? TryResolveProcess(ReaderOptions options, out string? error)
+    {
+        var locator = new ProcessLocator();
+
+        if (options.ProcessId.HasValue)
+        {
+            return locator.FindById(options.ProcessId.Value, out error);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ProcessName))
+        {
+            return locator.FindByName(options.ProcessName, out error);
+        }
+
+        error = "A process selector was not provided.";
+        return null;
+    }
+
+    private static bool TryLoadWaypointNavigationConfiguration(
+        ReaderOptions options,
+        out WaypointNavigationConfiguration? configuration,
+        out string? error)
+    {
+        configuration = WaypointNavigationConfigurationLoader.TryLoad(options.NavigationWaypointFile, out error);
+        return configuration is not null;
+    }
+
+    private static bool TryResolveWaypoint(
+        WaypointNavigationConfiguration configuration,
+        string? waypointId,
+        string role,
+        out WaypointDefinition? waypoint,
+        out string? error)
+    {
+        if (string.IsNullOrWhiteSpace(waypointId))
+        {
+            waypoint = null;
+            error = $"The {role} waypoint id was not provided.";
+            return false;
+        }
+
+        if (!configuration.Waypoints.TryGetValue(waypointId.Trim(), out waypoint))
+        {
+            error = $"The {role} waypoint '{waypointId}' was not found in '{configuration.SourceFile}'.";
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static string ResolveEffectivePace(
+        string? paceOverride,
+        WaypointDefinition destinationWaypoint,
+        WaypointMovementSettings movement) =>
+        paceOverride ??
+        destinationWaypoint.Pace ??
+        movement.DefaultPace;
+
+    private static double ResolveArrivalRadius(
+        double? arrivalRadiusOverride,
+        WaypointDefinition destinationWaypoint,
+        WaypointMovementSettings movement) =>
+        arrivalRadiusOverride ??
+        destinationWaypoint.ArrivalRadius ??
+        movement.DefaultArrivalRadius;
+
+    private static bool TryResolveNavigationAutoTurnOptions(
+        ReaderOptions options,
+        out NavigationAutoTurnOptions resolved,
+        out string? error)
+    {
+        var withinDegrees = options.AutoTurnWithinDegrees ?? 7.5d;
+        var turnLeftKey = string.IsNullOrWhiteSpace(options.TurnLeftKey) ? "a" : options.TurnLeftKey.Trim();
+        var turnRightKey = string.IsNullOrWhiteSpace(options.TurnRightKey) ? "d" : options.TurnRightKey.Trim();
+        var turnPulseMilliseconds = options.TurnPulseMilliseconds ?? 75;
+        var postTurnSampleDelayMilliseconds = options.TurnPostSampleDelayMilliseconds ?? 150;
+        var settleDelayMilliseconds = options.TurnSettleDelayMilliseconds ?? 250;
+        var maxTurnPulses = options.TurnMaxPulses ?? 12;
+        var worseningToleranceDegrees = options.TurnWorseningToleranceDegrees ?? 0.5d;
+        var maxWorseningPulses = options.TurnMaxWorseningPulses ?? 2;
+
+        if (withinDegrees < 0d)
+        {
+            resolved = default!;
+            error = "--auto-turn-within-degrees cannot be negative.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(turnLeftKey))
+        {
+            resolved = default!;
+            error = "--turn-left-key must not be blank.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(turnRightKey))
+        {
+            resolved = default!;
+            error = "--turn-right-key must not be blank.";
+            return false;
+        }
+
+        if (turnPulseMilliseconds <= 0)
+        {
+            resolved = default!;
+            error = "--turn-pulse-ms must be positive.";
+            return false;
+        }
+
+        if (postTurnSampleDelayMilliseconds < 0)
+        {
+            resolved = default!;
+            error = "--turn-post-sample-delay-ms cannot be negative.";
+            return false;
+        }
+
+        if (settleDelayMilliseconds < 0)
+        {
+            resolved = default!;
+            error = "--turn-settle-delay-ms cannot be negative.";
+            return false;
+        }
+
+        if (maxTurnPulses <= 0)
+        {
+            resolved = default!;
+            error = "--turn-max-pulses must be positive.";
+            return false;
+        }
+
+        if (worseningToleranceDegrees < 0d)
+        {
+            resolved = default!;
+            error = "--turn-worsening-tolerance cannot be negative.";
+            return false;
+        }
+
+        if (maxWorseningPulses <= 0)
+        {
+            resolved = default!;
+            error = "--turn-max-worsening-pulses must be positive.";
+            return false;
+        }
+
+        resolved = new NavigationAutoTurnOptions(
+            Enabled: options.AutoTurnBeforeMove,
+            WithinDegrees: withinDegrees,
+            TurnLeftKey: turnLeftKey,
+            TurnRightKey: turnRightKey,
+            TurnPulseMilliseconds: turnPulseMilliseconds,
+            PostTurnSampleDelayMilliseconds: postTurnSampleDelayMilliseconds,
+            SettleDelayMilliseconds: settleDelayMilliseconds,
+            MaxTurnPulses: maxTurnPulses,
+            WorseningToleranceDegrees: worseningToleranceDegrees,
+            MaxWorseningPulses: maxWorseningPulses);
+        error = null;
+        return true;
+    }
+
+    private static NavigationTurnPlan BuildNavigationTurnPlan(
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        WaypointDefinition destinationWaypoint,
+        NavigationPoseSample currentSample,
+        double alignmentThresholdDegrees)
+    {
+        var facing = TryBuildNavigationFacingSummary(
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            destinationWaypoint,
+            currentSample);
+        var deltaX = destinationWaypoint.X - currentSample.X;
+        var deltaZ = destinationWaypoint.Z - currentSample.Z;
+        var (_, bearingDegrees) = NavigationMath.ComputeBearing(deltaX, deltaZ);
+        return NavigationMath.BuildTurnPlan(facing, bearingDegrees, alignmentThresholdDegrees);
+    }
+
+    private static NavigationRunResult BuildNavigationAnchorUnavailableResult(
+        ProcessTarget target,
+        string waypointFile,
+        WaypointDefinition startWaypoint,
+        WaypointDefinition destinationWaypoint,
+        string pace,
+        double arrivalRadius,
+        double startRadius,
+        string stopReason)
+    {
+        var events = new[]
+        {
+            CreateNavigationLifecycleEvent(
+                type: "stop",
+                status: stopReason,
+                position: startWaypoint.Coordinate,
+                detail: "A validated coord-trace navigation anchor was unavailable for this run.")
+        };
+
+        return new NavigationRunResult(
+            Mode: "navigate-waypoints",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            WaypointFile: waypointFile,
+            Status: "failure",
+            StartWaypointId: startWaypoint.Id,
+            DestinationWaypointId: destinationWaypoint.Id,
+            Pace: pace,
+            AnchorSource: "none",
+            StartRadius: startRadius,
+            ArrivalRadius: arrivalRadius,
+            InitialPlanarDistance: 0d,
+            FinalPlanarDistance: 0d,
+            PulseCount: 0,
+            StopReason: stopReason,
+            InitialPosition: startWaypoint.Coordinate,
+            FinalPosition: startWaypoint.Coordinate,
+            DestinationPosition: destinationWaypoint.Coordinate,
+            ElapsedMilliseconds: 0,
+            Events: events);
+    }
+
+    private static NavigationRunResult BuildNavigationAutoTurnFailureResult(
+        ProcessTarget target,
+        string waypointFile,
+        WaypointDefinition startWaypoint,
+        WaypointDefinition destinationWaypoint,
+        string pace,
+        double arrivalRadius,
+        double startRadius,
+        NavigationPoseSample initialSample,
+        string anchorSource,
+        NavigationTurnResult turnResult)
+    {
+        var initialPosition = new NavigationCoordinate(initialSample.X, initialSample.Y, initialSample.Z);
+        var initialPlanarDistance = ComputePlanarDistance(initialPosition, destinationWaypoint);
+        var finalPlanarDistance = ComputePlanarDistance(turnResult.FinalPosition, destinationWaypoint);
+        var events = new[]
+        {
+            CreateNavigationLifecycleEvent(
+                type: "stop",
+                status: $"auto-turn-{turnResult.Status}",
+                pulseIndex: turnResult.PulseCount,
+                position: turnResult.FinalPosition,
+                planarDistance: finalPlanarDistance,
+                detail: turnResult.Reason ?? "Auto-turn failed before forward movement could start.")
+        };
+
+        return new NavigationRunResult(
+            Mode: "navigate-waypoints",
+            ProcessId: target.ProcessId,
+            ProcessName: target.ProcessName,
+            WaypointFile: waypointFile,
+            Status: "failure",
+            StartWaypointId: startWaypoint.Id,
+            DestinationWaypointId: destinationWaypoint.Id,
+            Pace: pace,
+            AnchorSource: anchorSource,
+            StartRadius: startRadius,
+            ArrivalRadius: arrivalRadius,
+            InitialPlanarDistance: initialPlanarDistance,
+            FinalPlanarDistance: finalPlanarDistance,
+            PulseCount: 0,
+            StopReason: $"auto-turn-{turnResult.Status}",
+            InitialPosition: initialPosition,
+            FinalPosition: turnResult.FinalPosition,
+            DestinationPosition: destinationWaypoint.Coordinate,
+            ElapsedMilliseconds: 0,
+            TurnResult: turnResult,
+            Events: events);
+    }
+
+    private static NavigationEvent CreateNavigationLifecycleEvent(
+        string type,
+        string status,
+        NavigationCoordinate position,
+        string detail,
+        int? pulseIndex = null,
+        double? planarDistance = null) =>
+        new(
+            Stage: "navigation",
+            Type: type,
+            ElapsedMilliseconds: 0,
+            Status: status,
+            PulseIndex: pulseIndex,
+            Position: position,
+            PlanarDistance: planarDistance,
+            Detail: detail);
+
+    private static double ComputePlanarDistance(NavigationCoordinate currentPosition, WaypointDefinition destinationWaypoint)
+    {
+        var deltaX = destinationWaypoint.X - currentPosition.X;
+        var deltaZ = destinationWaypoint.Z - currentPosition.Z;
+        return NavigationMath.ComputePlanarDistance(deltaX, deltaZ);
     }
 
     private static void WriteUsage(ReaderOptionsParseResult parseResult)
@@ -788,26 +2444,31 @@ internal static class Program
 
         if (options.ScanReaderBridgePlayerCoords)
         {
-            var document = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
-            var playerCoord = document?.Current?.Player?.Coord;
-            var sourceFile = document?.SourceFile ?? "<unknown>";
-
-            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
-            {
-                Console.Error.WriteLine(loadError ?? "Unable to resolve current player coordinates from the latest ReaderBridge export.");
-                return 1;
-            }
-
-            var sequenceResult = ProcessFloatSequenceScanner.ScanFloatTriplet(
+            var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
+            var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+            var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
+            var sequenceResult = TryScanBootstrapPlayerCoords(
                 reader,
-                target.ProcessId,
-                target.ProcessName,
-                $"readerbridge-player-coords ({sourceFile})",
-                (float)coordX,
-                (float)coordY,
-                (float)coordZ,
+                target,
+                bootstrapDocuments,
                 options.ScanContextBytes,
                 options.MaxHits);
+
+            if (sequenceResult is null)
+            {
+                var errors = new[]
+                    {
+                        loadError,
+                        validatorLoadError
+                    }
+                    .Where(static error => !string.IsNullOrWhiteSpace(error))
+                    .ToArray();
+
+                Console.Error.WriteLine(errors.Length > 0
+                    ? string.Join(" ", errors)
+                    : "Unable to resolve current player coordinates from any bootstrap snapshot.");
+                return 1;
+            }
 
             if (options.JsonOutput)
             {
@@ -821,32 +2482,31 @@ internal static class Program
 
         if (options.ScanReaderBridgePlayerSignature)
         {
-            var document = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
-            var player = document?.Current?.Player;
-            var playerCoord = player?.Coord;
-            var sourceFile = document?.SourceFile ?? "<unknown>";
-
-            if (playerCoord?.X is not double coordX || playerCoord.Y is not double coordY || playerCoord.Z is not double coordZ)
-            {
-                Console.Error.WriteLine(loadError ?? "Unable to resolve current player coordinates from the latest ReaderBridge export.");
-                return 1;
-            }
-
-            var signatureResult = ProcessPlayerSignatureScanner.ScanReaderBridgePlayerSignature(
+            var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
+            var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
+            var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
+            var signatureResult = TryScanBootstrapPlayerSignature(
                 reader,
-                target.ProcessId,
-                target.ProcessName,
-                $"readerbridge-player-signature ({sourceFile})",
-                (float)coordX,
-                (float)coordY,
-                (float)coordZ,
-                player?.Level,
-                player?.Hp,
-                player?.HpMax,
-                player?.Name,
-                player?.LocationName,
+                target,
+                bootstrapDocuments,
                 options.ScanContextBytes,
                 options.MaxHits);
+
+            if (signatureResult is null)
+            {
+                var errors = new[]
+                    {
+                        loadError,
+                        validatorLoadError
+                    }
+                    .Where(static error => !string.IsNullOrWhiteSpace(error))
+                    .ToArray();
+
+                Console.Error.WriteLine(errors.Length > 0
+                    ? string.Join(" ", errors)
+                    : "Unable to resolve current player coordinates from any bootstrap snapshot.");
+                return 1;
+            }
 
             if (options.JsonOutput)
             {
@@ -1054,6 +2714,7 @@ internal static class Program
             var markerInputProcessedLineCount = 0;
             var cancelRequested = false;
             SessionRecordResult result;
+            DateTimeOffset completedAtUtc = startedAtUtc;
 
             using (var sampleWriter = new StreamWriter(tempSamplesFile, append: false))
             using (var markerWriter = new StreamWriter(tempMarkersFile, append: false))
@@ -1259,7 +2920,7 @@ internal static class Program
                     }
                 }
 
-                var completedAtUtc = DateTimeOffset.UtcNow;
+                completedAtUtc = DateTimeOffset.UtcNow;
                 var terminalSampleIndex = recordedSampleCount > 0
                     ? Math.Max(0, recordedSampleCount - 1)
                     : 0;
@@ -1324,61 +2985,62 @@ internal static class Program
                     warnings.Add($"Required watchset regions had read failures: {string.Join(", ", requiredReadFailures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))}");
                 }
 
-                PromoteTempFile(tempModulesFile, modulesFile);
-                PromoteTempFile(tempSamplesFile, samplesFile);
-                PromoteTempFile(tempMarkersFile, markersFile);
-
-                var missingFiles = BuildMissingSessionFiles(watchsetFile, modulesFile, samplesFile, markersFile);
-                if (missingFiles.Count > 0)
-                {
-                    warnings.Add($"Session output files are missing after recording: {string.Join(", ", missingFiles)}");
-                }
-
-                result = new SessionRecordResult(
-                    SchemaVersion: SessionRecordingSchemaVersion,
-                    Mode: "record-session",
-                    SessionId: sessionId,
-                    OutputDirectory: outputDirectory,
-                    ProcessId: target.ProcessId,
-                    ProcessName: target.ProcessName,
-                    ModuleName: target.ModuleName,
-                    MainWindowTitle: target.MainWindowTitle,
-                    WatchsetFile: watchsetFile,
-                    WatchsetRegionCount: watchset.Regions.Count,
-                    RequestedSampleCount: options.SessionSampleCount,
-                    RecordedSampleCount: recordedSampleCount,
-                    IntervalMilliseconds: options.SessionIntervalMilliseconds,
-                    Label: options.SessionLabel,
-                    StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                    CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
-                    ManifestFile: manifestFile,
-                    SamplesFile: samplesFile,
-                    MarkersFile: markersFile,
-                    ModulesFile: modulesFile,
-                    Interrupted: interrupted,
-                    SessionMarkerInputFile: sessionMarkerInputFile,
-                    MarkerCount: markerCount,
-                    MarkerKinds: markerKinds.Keys
-                        .OrderBy(static kind => kind, StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
-                    RequestedRegionByteCount: requestedRegionByteCount,
-                    TotalBytesRead: totalBytesRead,
-                    TotalRegionReadFailures: totalRegionReadFailures,
-                    IntegrityStatus: missingFiles.Count > 0 ? "failed" : (!interrupted && requiredReadFailures.Count == 0 && totalRegionReadFailures == 0 ? "ok" : "warning"),
-                    MissingFiles: missingFiles,
-                    RegionSummaries: BuildSessionRegionSummaries(regionAccumulators),
-                    Modules: modules,
-                    WatchsetWarnings: watchsetWarnings,
-                    Warnings: warnings
-                        .Where(static warning => !string.IsNullOrWhiteSpace(warning))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray());
             }
 
             if (cancelHandler is not null)
             {
                 Console.CancelKeyPress -= cancelHandler;
             }
+
+            PromoteTempFile(tempModulesFile, modulesFile);
+            PromoteTempFile(tempSamplesFile, samplesFile);
+            PromoteTempFile(tempMarkersFile, markersFile);
+
+            var missingFiles = BuildMissingSessionFiles(watchsetFile, modulesFile, samplesFile, markersFile);
+            if (missingFiles.Count > 0)
+            {
+                warnings.Add($"Session output files are missing after recording: {string.Join(", ", missingFiles)}");
+            }
+
+            result = new SessionRecordResult(
+                SchemaVersion: SessionRecordingSchemaVersion,
+                Mode: "record-session",
+                SessionId: sessionId,
+                OutputDirectory: outputDirectory,
+                ProcessId: target.ProcessId,
+                ProcessName: target.ProcessName,
+                ModuleName: target.ModuleName,
+                MainWindowTitle: target.MainWindowTitle,
+                WatchsetFile: watchsetFile,
+                WatchsetRegionCount: watchset.Regions.Count,
+                RequestedSampleCount: options.SessionSampleCount,
+                RecordedSampleCount: recordedSampleCount,
+                IntervalMilliseconds: options.SessionIntervalMilliseconds,
+                Label: options.SessionLabel,
+                StartedAtUtc: startedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                CompletedAtUtc: completedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                ManifestFile: manifestFile,
+                SamplesFile: samplesFile,
+                MarkersFile: markersFile,
+                ModulesFile: modulesFile,
+                Interrupted: interrupted,
+                SessionMarkerInputFile: sessionMarkerInputFile,
+                MarkerCount: markerCount,
+                MarkerKinds: markerKinds.Keys
+                    .OrderBy(static kind => kind, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                RequestedRegionByteCount: requestedRegionByteCount,
+                TotalBytesRead: totalBytesRead,
+                TotalRegionReadFailures: totalRegionReadFailures,
+                IntegrityStatus: missingFiles.Count > 0 ? "failed" : (!interrupted && requiredReadFailures.Count == 0 && totalRegionReadFailures == 0 ? "ok" : "warning"),
+                MissingFiles: missingFiles,
+                RegionSummaries: BuildSessionRegionSummaries(regionAccumulators),
+                Modules: modules,
+                WatchsetWarnings: watchsetWarnings,
+                Warnings: warnings
+                    .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
 
             File.WriteAllText(tempManifestFile, JsonOutput.Serialize(result));
             PromoteTempFile(tempManifestFile, manifestFile);

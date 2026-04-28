@@ -2,6 +2,8 @@
 param(
     [string]$Command = "/reloadui",
     [string]$TargetExe = "rift_x64.exe",
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle,
     [string]$VerifyFilePath = "C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
     [string]$BackgroundExe = "cheatengine-x86_64-SSE4-AVX2.exe",
     [int]$AttemptTimeoutSeconds = 12
@@ -88,6 +90,8 @@ $baselineUtc = Get-FileTimestampUtc -Path $VerifyFilePath
 Write-Host "[RiftAhkPost] AutoHotkey    : $autoHotkeyExe"
 Write-Host "[RiftAhkPost] Script        : $scriptPath"
 Write-Host "[RiftAhkPost] Target EXE    : $TargetExe"
+Write-Host "[RiftAhkPost] Target PID    : $TargetProcessId"
+Write-Host "[RiftAhkPost] Target HWND   : $TargetWindowHandle"
 Write-Host "[RiftAhkPost] Background EXE: $BackgroundExe"
 Write-Host "[RiftAhkPost] Command       : $Command"
 Write-Host "[RiftAhkPost] Baseline UTC  : $($baselineUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ'))"
@@ -97,6 +101,8 @@ $argumentList = @(
     Quote-ProcessArgument -Value $Command
     Quote-ProcessArgument -Value $TargetExe
     Quote-ProcessArgument -Value $BackgroundExe
+    Quote-ProcessArgument -Value $TargetWindowHandle
+    Quote-ProcessArgument -Value ([string]$TargetProcessId)
 ) -join ' '
 
 $process = Start-Process -FilePath $autoHotkeyExe -ArgumentList $argumentList -PassThru

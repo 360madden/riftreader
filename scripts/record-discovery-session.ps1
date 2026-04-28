@@ -11,6 +11,8 @@ param(
     [switch]$RefreshDiscoveryChain,
     [switch]$RefreshProjectorTrace,
     [switch]$RefreshReaderBridge,
+    [switch]$ProofPolling,
+    [string]$ProofCoordAnchorFile,
     [switch]$NoAhkFallback,
     [switch]$Json
 )
@@ -27,6 +29,7 @@ $refreshDiscoveryChainScript = Join-Path $PSScriptRoot 'refresh-discovery-chain.
 $refreshProjectorTraceScript = Join-Path $PSScriptRoot 'trace-player-state-projector.ps1'
 $ownerStateNeighborhoodScript = Join-Path $PSScriptRoot 'capture-owner-state-neighborhood.ps1'
 $watchsetScript = Join-Path $PSScriptRoot 'export-discovery-watchset.ps1'
+$proofWatchsetScript = Join-Path $PSScriptRoot 'export-proof-polling-watchset.ps1'
 $consistencyScript = Join-Path $PSScriptRoot 'inspect-capture-consistency.ps1'
 $capturesRoot = Join-Path $PSScriptRoot 'captures'
 $ownerStateNeighborhoodFile = Join-Path $capturesRoot 'owner-state-neighborhood.json'
@@ -96,6 +99,7 @@ function Write-Utf8TextAtomic {
 function Get-MissingPackagePaths {
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string[]]$Paths
     )
 
@@ -111,6 +115,29 @@ function Get-MissingPackagePaths {
     }
 
     return $missing.ToArray()
+}
+
+function Get-DocumentPropertyValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Document,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        $Default = $null
+    )
+
+    if ($null -eq $Document) {
+        return $Default
+    }
+
+    $property = $Document.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $Default
+    }
+
+    return $property.Value
 }
 
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -242,7 +269,33 @@ try {
             }) | Out-Null
     }
 
-    & $watchsetScript -ProcessName $ProcessName -TopSharedHubs $TopSharedHubs -OutputFile $watchsetFile -Json | Out-Null
+    if ($ProofPolling) {
+        $proofWatchsetArguments = @{
+            ProcessName = $ProcessName
+            OutputFile = $watchsetFile
+            Json = $true
+        }
+        if ($PSBoundParameters.ContainsKey('ProcessId') -and $ProcessId -gt 0) {
+            $proofWatchsetArguments['ProcessId'] = $ProcessId
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ProofCoordAnchorFile)) {
+            $proofWatchsetArguments['ProofCoordAnchorFile'] = $ProofCoordAnchorFile
+            if (Test-Path -LiteralPath $ProofCoordAnchorFile) {
+                $proofCoordAnchorArtifactFile = Join-Path $artifactDirectory 'proof-coord-anchor.json'
+                Copy-Item -LiteralPath $ProofCoordAnchorFile -Destination $proofCoordAnchorArtifactFile -Force
+                $copiedArtifacts.Add([ordered]@{
+                        Name = 'proof-coord-anchor.json'
+                        File = $proofCoordAnchorArtifactFile
+                    }) | Out-Null
+            }
+        }
+
+        & $proofWatchsetScript @proofWatchsetArguments | Out-Null
+    }
+    else {
+        & $watchsetScript -ProcessName $ProcessName -TopSharedHubs $TopSharedHubs -OutputFile $watchsetFile -Json | Out-Null
+    }
+
     if (-not (Test-Path -LiteralPath $watchsetFile)) {
         throw "Watchset export did not create '$watchsetFile'."
     }
@@ -326,9 +379,9 @@ try {
         MarkersFile = [string]$recordDocument.MarkersFile
         ModulesFile = [string]$recordDocument.ModulesFile
         Interrupted = $recordDocument.Interrupted
-        SessionMarkerInputFile = [string]$recordDocument.SessionMarkerInputFile
-        MarkerCount = $recordDocument.MarkerCount
-        MarkerKinds = @($recordDocument.MarkerKinds)
+        SessionMarkerInputFile = [string](Get-DocumentPropertyValue -Document $recordDocument -Name 'SessionMarkerInputFile' -Default $resolvedSessionMarkerInputFile)
+        MarkerCount = Get-DocumentPropertyValue -Document $recordDocument -Name 'MarkerCount'
+        MarkerKinds = @((Get-DocumentPropertyValue -Document $recordDocument -Name 'MarkerKinds' -Default @()))
         RequestedRegionByteCount = $recordDocument.RequestedRegionByteCount
         TotalBytesRead = $recordDocument.TotalBytesRead
         TotalRegionReadFailures = $recordDocument.TotalRegionReadFailures
@@ -361,8 +414,9 @@ try {
     Write-Host ("Watchset:             {0}" -f $watchsetFile)
     Write-Host ("Samples file:         {0}" -f $recordDocument.SamplesFile)
     Write-Host ("Markers file:         {0}" -f $recordDocument.MarkersFile)
-    if (-not [string]::IsNullOrWhiteSpace([string]$recordDocument.SessionMarkerInputFile)) {
-        Write-Host ("Marker input file:    {0}" -f $recordDocument.SessionMarkerInputFile)
+    $sessionMarkerInputFileValue = [string](Get-DocumentPropertyValue -Document $recordDocument -Name 'SessionMarkerInputFile' -Default $resolvedSessionMarkerInputFile)
+    if (-not [string]::IsNullOrWhiteSpace($sessionMarkerInputFileValue)) {
+        Write-Host ("Marker input file:    {0}" -f $sessionMarkerInputFileValue)
     }
     Write-Host ("Copied artifacts:     {0}" -f $copiedArtifacts.Count)
     Write-Host ("Integrity:            {0}" -f $packageManifest['IntegrityStatus'])
@@ -419,9 +473,9 @@ catch {
             MarkersFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.MarkersFile } else { $null })
             ModulesFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.ModulesFile } else { $null })
             Interrupted = $(if ($null -ne $recordDocument) { $recordDocument.Interrupted } else { $null })
-            SessionMarkerInputFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.SessionMarkerInputFile } else { $resolvedSessionMarkerInputFile })
-            MarkerCount = $(if ($null -ne $recordDocument) { $recordDocument.MarkerCount } else { $null })
-            MarkerKinds = $(if ($null -ne $recordDocument) { @($recordDocument.MarkerKinds) } else { @() })
+            SessionMarkerInputFile = $(if ($null -ne $recordDocument) { [string](Get-DocumentPropertyValue -Document $recordDocument -Name 'SessionMarkerInputFile' -Default $resolvedSessionMarkerInputFile) } else { $resolvedSessionMarkerInputFile })
+            MarkerCount = $(if ($null -ne $recordDocument) { Get-DocumentPropertyValue -Document $recordDocument -Name 'MarkerCount' } else { $null })
+            MarkerKinds = $(if ($null -ne $recordDocument) { @((Get-DocumentPropertyValue -Document $recordDocument -Name 'MarkerKinds' -Default @())) } else { @() })
             RequestedRegionByteCount = $(if ($null -ne $recordDocument) { $recordDocument.RequestedRegionByteCount } else { $null })
             TotalBytesRead = $(if ($null -ne $recordDocument) { $recordDocument.TotalBytesRead } else { $null })
             TotalRegionReadFailures = $(if ($null -ne $recordDocument) { $recordDocument.TotalRegionReadFailures } else { $null })

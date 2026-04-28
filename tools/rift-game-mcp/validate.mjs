@@ -34,7 +34,34 @@ try {
   await client.connect(transport);
   const result = await client.listTools();
   const toolNames = result.tools.map((tool) => tool.name).sort();
-  console.log(JSON.stringify({ ok: true, toolNames }, null, 2));
+  const findWindowTool = result.tools.find((tool) => tool.name === 'find_game_window');
+  if (!findWindowTool) {
+    throw new Error('find_game_window tool is missing.');
+  }
+
+  const findWindowProperties = findWindowTool.inputSchema?.properties ?? {};
+  const requiredFindWindowProperties = ['processId', 'windowHandle', 'processName', 'titleContains'];
+  const missingFindWindowProperties = requiredFindWindowProperties.filter(
+    (propertyName) => !(propertyName in findWindowProperties),
+  );
+
+  if (missingFindWindowProperties.length > 0) {
+    throw new Error(
+      `find_game_window input schema is missing exact-target properties: ${missingFindWindowProperties.join(', ')}`,
+    );
+  }
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        toolNames,
+        findGameWindowProperties: Object.keys(findWindowProperties).sort(),
+      },
+      null,
+      2,
+    ),
+  );
 } finally {
   await client.close();
 }

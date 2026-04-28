@@ -1,0 +1,25 @@
+namespace RiftReader.Reader.Navigation;
+
+public sealed record NavigationRouteRunResult(
+    string Mode,
+    int ProcessId,
+    string ProcessName,
+    string WaypointFile,
+    string Status,
+    string StartWaypointId,
+    string DestinationWaypointId,
+    IReadOnlyList<string> WaypointIds,
+    int SegmentCount,
+    int CompletedSegmentCount,
+    int? FailedSegmentIndex,
+    string StopReason,
+    string AnchorSource,
+    double TotalPlanarDistance,
+    double FinalPlanarDistance,
+    int TotalPulseCount,
+    NavigationCoordinate? InitialPosition,
+    NavigationCoordinate? FinalPosition,
+    NavigationCoordinate? DestinationPosition,
+    long ElapsedMilliseconds,
+    IReadOnlyList<NavigationRunResult> SegmentResults,
+    IReadOnlyList<string> Issues);

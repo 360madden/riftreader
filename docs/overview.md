@@ -11,6 +11,41 @@ RiftReader is a hybrid project with two planned components:
 
 The **memory reader** remains the primary implementation target right now.
 
+## Waypoint Navigation V1 (April 16, 2026)
+
+Waypoint navigation v1 is now available as a narrow reader-owned slice.
+
+| Area | Current status |
+|---|---|
+| Movement model | Core reader path is single-segment forward travel with optional pre-movement auto-turn on `--navigate-waypoints` |
+| Route model | v3 route-chain planning exists via `--plan-navigation-route`; active chained execution is explicitly gated behind `--navigate-waypoint-route` with opt-in per-segment auto-turn, but still lacks live route proof promotion |
+| Waypoint source | `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
+| Telemetry source | Verified live coord anchor plus direct memory reads |
+| Preflight facing summary | `--read-navigation-current` now surfaces a read-only actor-facing turn hint when the current behavior-backed lead is valid |
+| Reader-core v2 bridge | `--navigate-waypoints --auto-turn-before-move` can consume that turn hint before forward travel |
+| Recovery behavior | Fail closed, not self-correcting; reader-core auto-turn aborts if alignment worsens across pulses |
+
+Use:
+
+- `--read-navigation-current` for a read-only vector summary to a destination waypoint
+- `--read-navigation-current` now also reports current yaw, heading delta, and suggested turn direction when actor-facing truth is available
+- `--plan-navigation-route` for read-only start / via / destination segment planning
+- `--navigate-waypoint-route` for explicit active chained route execution after route planning and foreground/terrain checks; add `--auto-turn-before-move` for per-segment alignment
+- `--navigate-waypoints` for straight-line forward travel, with optional `--auto-turn-before-move` when you want pre-movement heading alignment
+- `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1 -AutoTurnBeforeMove` remains an optional higher-level helper around the same facing-aware preflight idea
+
+Constraints:
+
+- no strafe correction
+- no obstacle avoidance
+- no promoted multi-waypoint route proof yet; `--navigate-waypoint-route` is available as a v3-prep active gate, but obstacle handling is still pending
+- no addon waypoint authoring in v1
+
+Full doc:
+
+- `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
+- `C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`
+
 The current prototype should stay focused on:
 
 - explicit process targeting
@@ -44,26 +79,62 @@ If artifacts or notes are corrupted, start here:
 
 - C:\RIFT MODDING\RiftReader\docs\recovery\README.md
 
-## Post-Update Status (April 14, 2026)
+## Post-Update Status (April 22, 2026)
 
-The April 14, 2026 Rift update left the reader baseline partially intact but
-drifted the owner/source discovery chain.
+The April 14, 2026 Rift update left the reader baseline partially intact and
+initially drifted the owner/source discovery chain. The later April 22, 2026
+recovery passes restored the source-chain/accessor-family lane strongly enough
+to recover actor-facing truth, and the April 23, 2026 agentic refresh pass
+re-promoted live actor-facing truth plus refreshed the provenance lane again.
 
 Current short version:
 
 - `player-current` still works
 - the coord-anchor module pattern still works
-- source-chain refresh is broken
-- selector-owner trace is broken
-- actor-orientation and camera claims below are historical until rebuilt
+- proof-grade movement still uses the validated coord-trace anchor
+- actor-orientation is currently live again through the behavior-backed lead at `0x12CC0FA0F70 @ 0xD4`
+- navigation preflight now surfaces a read-only facing-aware turn hint from that
+  live actor-facing lead when it validates on the current process
+- `--navigate-waypoints` can now opt into pre-movement auto-turn; movement
+  still stays strict on the coord-trace anchor and fails closed
+- selector-owner / owner-components / owner-graph / stat-hub provenance refreshed again on April 23, 2026
+- current source-chain refresh now rebuilds fresh from the last-good suggested source-chain pattern when the refreshed low-level cluster drops the older signature; same-session `reuse-previous-source-chain` is the last fallback only if that rebuild path fails
+- camera claims below are historical until rebuilt
 - camera live workflow currently lives on
   `feature/camera-orientation-discovery`, not the `main` worktree
 
 Use these first:
 
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
-- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-23-actor-facing-truth-planning-prompt.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+
+Actor-facing proof / hardening commands on the current client:
+
+- `C:\RIFT MODDING\RiftReader\scripts\assert-actor-facing-truth.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-proof-suite.ps1`
+
+Navigation proof / hardening commands on the current client:
+
+- `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
+
+Current v2 / v3 posture:
+
+- v2 is now represented by the facing-aware preflight plus opt-in reader-core
+  auto-turn on `--navigate-waypoints`
+- the prototype wrapper remains useful as a higher-level helper, but it is no
+  longer the only auto-turn path worth documenting
+- the first v3-prep deliberately misaligned live route is now proven
+  end-to-end (`navigation-prototype-20260423-195303-923`) and repeated through
+  the proof suite (`navigation-prototype-20260423-201344-231`)
+- v3 route-chain planning is available through `--plan-navigation-route`, and
+  active chained execution is now explicitly gated through
+  `--navigate-waypoint-route` with opt-in per-segment auto-turn; broader v3
+  promotion still needs live route proofing and terrain/obstacle scope decisions
+- the proof suite now asserts the read-only smoke route-plan segment payload;
+  active route-run segment/turn proof assertions are still pending
 
 ## Immediate Milestones
 
@@ -93,8 +164,8 @@ Post-update note:
 
 - as of April 14, 2026, only the player-current path and coord-anchor module
   pattern are currently revalidated on `main`
-- the selected-source / selector-owner / owner-components / actor-orientation
-  bullets below are historical until the chain is rebuilt on the updated client
+- selector-owner / owner-components bullets below are historical until those
+  lanes are rebuilt on the updated client
 
 - keep artifact freshness and provenance explicit before promoting a new anchor:
   - `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1`
@@ -106,11 +177,14 @@ Post-update note:
 - reject debugger trace hits unless the traced instruction can be verified against the watched coord triplet (`x/y/z`)
 - prefer tracing CE-confirmed moved-axis candidate addresses when available instead of assuming the default current-player sample is the best access target
 - prefer actor-orientation work over camera-config work first when the goal is player/world-facing logic:
-  - pre-update, the selected source component yielded the strongest actor-orientation vectors
-  - pre-update, that selected source also exposed duplicated 3x3 basis blocks at `+0x60/+0x6C/+0x78` and `+0x94/+0xA0/+0xAC`
-  - pre-update, `--read-player-orientation` plus `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` produced repeatable yaw/pitch captures derived from the forward basis row
-  - pre-update, `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` validated actor-turn stimuli directly
-  - pre-update, `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` classified bindings that produced clean actor yaw changes vs no-turn/movement noise
+  - current live truth uses the validated behavior-backed lead in
+    `C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json`
+  - current live truth currently resolves to `0x12CC0FA0F70 @ 0xD4`
+  - preferred refresh entrypoint is
+    `C:\RIFT MODDING\RiftReader\scripts\refresh-actor-facing-discovery.ps1`
+  - current live `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` derives repeatable yaw/pitch captures from the promoted behavior-backed lead
+  - treat the earlier April 22 source-chain `+0x60/+0x94` result as
+    historical evidence until it is re-proven again on the current session
   - current camera live workflow is branch-specific and lives on `feature/camera-orientation-discovery`, not `main`
 - treat the owner container as a component table, not just a wrapper list:
   - pre-update, entry `6` behaved like the transform/source component

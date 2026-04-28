@@ -12,6 +12,7 @@ Thumbs.db
 
 # Logs
 *.log
+.codex/tmp/
 
 # Python
 __pycache__/
@@ -30,9 +31,15 @@ dist/
 build/
 
 # Generated local helper artifacts
-scripts/cheat-engine/
+# Durable Cheat Engine tables belong under artifacts/cheat-engine/tables/,
+# not under scripts/cheat-engine/. Keep helper output ignored, but allow the
+# repo-owned actor-facing trace helper source to be tracked.
+scripts/cheat-engine/*
+!scripts/cheat-engine/RiftReaderFacingInstructionTrace.lua
 scripts/captures/
 scripts/sessions/
+artifacts/tooltip-projection/
+artifacts/window-capture/
 tools/reverse-engineering/downloads/
 tools/reverse-engineering/ReClass.NET/
 tools/reverse-engineering/x64dbg/

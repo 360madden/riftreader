@@ -20,20 +20,35 @@ This file defines the default assistant behavior for work inside
 - Use a table with these columns:
   - `#`
   - `Action`
-  - `Model`
-  - `Reasoning`
   - `Why`
+- Do **not** include `Model` or `Reasoning` columns unless the user explicitly
+  asks for them.
 - Do not pad the list with generic suggestions.
 
 ## Default model-picking policy
 
 | Situation | Default model | Reasoning | Default approach |
 |---|---|---|---|
-| Formatting, tables, docs, status organization | `gpt-5.4-mini` | low | answer directly |
-| Small script, UI, or docs change with known cause | `gpt-5.4-mini` | medium | make the smallest patch and validate |
-| Normal bugfix or multi-file change | `gpt-5.4` | medium | inspect first, then patch |
-| Unclear bug or conflicting evidence | `gpt-5.4` | high | diagnose before editing |
+| Formatting, tables, status boards, and docs-only updates | `spark` (prefer) | low | answer directly; no local modifications |
+| Small script, UI, or docs change with a known fix path | `spark` (prefer) | medium | make the smallest patch and validate |
+| Single-file, low-impact code change with clear rollback | `spark` (prefer) | medium | patch minimally, then validate |
+| Normal multi-file bugfix or moderate behavior change | `gpt-5.4` | medium | inspect first, then patch |
+| Unclear bug, conflicting evidence, or live-path risk | `gpt-5.4` | high | diagnose before editing |
 | Deep discovery, reverse engineering, or proof work | `gpt-5.4` | xhigh | narrow scope and work evidence-first |
+
+### Spark-safe guardrails
+
+Use `spark` unless a task is in the explicit “no-spark” bucket:
+
+| No-spark class | Why | Route |
+|---|---|---|
+| Any unproven live movement capture logic | high blast radius if wrong | `gpt-5.4` |
+| Navigation or route planning core behavior changes | user-impacting movement state | `gpt-5.4` |
+| Reverse-engineering candidate promotion (coord anchors / source-chain / proof watchsets) | stale/invalid candidates have high restart cost | `gpt-5.4` |
+| Cheat Engine session state handoff, branch-wide refactors, or risky merges | evidence-sensitive and hard to auto-rollback | `gpt-5.4` |
+
+When uncertain, use this template (or equivalent): `docs/model-routing-template.md`
+and prefer `gpt-5.4` if any “No-spark” condition is true.
 
 ## Escalation / anti-loop rules
 
@@ -50,6 +65,54 @@ This file defines the default assistant behavior for work inside
 - Preserve existing architecture unless there is a clear reason to change it.
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
+
+## Live movement / polling invariant
+
+- For any **movement polling**, **forward-hold proof**, or other live
+  coordinate-driven capture, resolve a **validated coord-trace anchor** first
+  via `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` and
+  build the proof watchset from that anchor only.
+- Treat the validated coord-trace coordinate triplet as the **canonical**
+  movement source for proof runs.
+- Allow the validated coord-trace proof source to resolve to either the traced
+  object or the trace-linked source object, whichever still matches live
+  ReaderBridge coordinates; do not force the raw traced object when it has
+  drifted.
+- Treat `read-player-current.ps1` and any `heuristic` or cached current-player
+  anchor as **exploration-only** unless separately re-proven and explicitly
+  promoted.
+- For **proof reacquisition**, prefer **last-good trace seeds** and
+  **debug-scanned selector/source-chain seeds** first; do **not** reseed proof
+  tracing from heuristic or cached current-player snapshots.
+- In proof reacquisition with access watchpoints, default to a **12-byte
+  coord-triplet watch window** instead of a 4-byte scalar watch so `X/Y/Z`
+  lane accesses can be re-proven from the same live source object.
+- If proof reacquisition fails repeatedly, escalate to **debug scanning**
+  instead of looping the same heuristic/bootstrap trace attempt.
+- Use **debug tracing proactively**, not only after failures. When working on
+  live coords, actor facing, or proof-watchset quality, use breakpoints,
+  trace-cluster inspection, selector/owner tracing, and neighborhood scans to
+  look for related fields, stronger offsets, pointer relationships, and better
+  candidates before settling on a watchset.
+- Treat selected-source coord lanes and other discovery artifacts as
+  **candidate-only** unless they have been re-proven for the current session.
+- If a proof watchset does not include the validated canonical
+  `coord-trace-coords` region, treat that as a blocker instead of silently
+  recording stale/candidate or heuristic data.
+
+## Cheat Engine preservation
+
+- Treat live Cheat Engine work as potentially ephemeral until the repo has a
+  durable copy.
+- When a CE table contains reverse-engineering state that would be expensive to
+  reconstruct, save a `.ct` snapshot before closing CE, restarting Rift, or
+  changing branches.
+- Store durable CE tables under
+  `C:\RIFT MODDING\RiftReader\artifacts\cheat-engine\tables\`, not under
+  `scripts\cheat-engine\`, because the latter is ignored as generated/local
+  helper output.
+- Pair saved `.ct` files with a short note covering date, branch, target
+  process/build, and what the table proves or is still pending.
 
 See `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md` for the
 longer decision tree and examples.

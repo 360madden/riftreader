@@ -3,6 +3,50 @@
 Cheat Engine is now treated as the **interactive discovery workbench** for
 RiftReader, not as a replacement for the reader itself.
 
+## Breakpoint modes and guardrails
+
+For the current live proof workflow:
+
+- `debug-register` is still **debugger-assisted breakpoint tracing**
+- the preferred proof path is the repo-owned coord trace using:
+  - `BreakpointMethod=debug-register`
+  - `WatchMode=access`
+- `page-exception` / VEH remains an **exploratory/manual** path, not the
+  canonical proof path
+
+Treat both `debug-register` and VEH as live debugger work:
+
+- do not run other debugger-class tools against `rift_x64` at the same time
+- avoid overlapping manual CE breakpoint sessions with telemetry-proof refresh
+  runs
+- save a `.ct` snapshot before deeper breakpoint-heavy work
+
+On the current client, `debug-register` has been the stable proof path while
+VEH/page-exception has already produced an access-violation popup. Prefer the
+stable path unless you are intentionally doing manual exploratory work.
+
+## Preserve durable CE progress
+
+If a Cheat Engine session contains reverse-engineering state that would be
+costly to recreate, save a `.ct` file before closing CE, restarting Rift, or
+switching branches.
+
+Use this tracked repo location for durable tables:
+
+- `C:\RIFT MODDING\RiftReader\artifacts\cheat-engine\tables\`
+
+Do **not** treat `C:\RIFT MODDING\RiftReader\scripts\cheat-engine\` as durable
+storage for `.ct` tables. That directory is used for generated/local CE helper
+artifacts and is ignored by git.
+
+When you save a `.ct`, add a short sibling `.md` note recording:
+
+- branch/worktree
+- target process or build/PID when relevant
+- what the table proves
+- what is still tentative
+- which repo artifacts/scripts depend on it
+
 ## Verified local integration points
 
 From the installed Cheat Engine 7.6 files on this machine:
@@ -119,6 +163,9 @@ Useful follow-up actions inside CE:
 - change health and compare which health copies move together
 - change target/location and see which candidate survives without turning into UI noise
 - use CE access/write tracing on the best behaving sample
+
+For proof-grade coord refresh on the current build, prefer the scripted
+`debug-register` + `access` workflow over manual VEH/page-exception tracing.
 
 ## Expected next use
 

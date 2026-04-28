@@ -4,6 +4,9 @@ param(
     [switch]$RefreshTrace,
     [int]$InstructionsBefore = 8,
     [int]$InstructionsAfter = 16,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$TraceFile = (Join-Path $PSScriptRoot 'captures\player-coord-write-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json')
 )
@@ -20,6 +23,20 @@ $resolvedTraceFile = [System.IO.Path]::GetFullPath($TraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $rawClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.tsv')
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftTraceClusterTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -33,6 +50,71 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftTraceClusterTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftTraceClusterTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
+}
+
+function Get-TraceTargetArguments {
+    $arguments = @('-ProcessName', $ProcessName)
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $arguments += @('-ProcessId', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments += @('-TargetWindowHandle', $TargetWindowHandle)
+    }
+
+    return $arguments
 }
 
 function Parse-HexUInt64 {
@@ -129,14 +211,45 @@ function Convert-OffsetToLittleEndianPattern {
     return ($bytes | ForEach-Object { $_.ToString('X2', [System.Globalization.CultureInfo]::InvariantCulture) }) -join ' '
 }
 
-if ($RefreshTrace -or -not (Test-Path -LiteralPath $resolvedTraceFile)) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
+function Invoke-CoordTraceRefresh {
+    param(
+        [int]$MaxAttempts = 3,
+        [int]$RetryDelayMilliseconds = 1500
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            $traceArguments = @(
+                '-Json',
+                '-MaxCandidates', '1',
+                '-WatchMode', 'access',
+                '-StimulusMode', 'AutoHotkey'
+            ) + (Get-TraceTargetArguments)
+            & $traceScript @traceArguments | Out-Null
+            return
+        }
+        catch {
+            $message = $_.Exception.Message
+            $playerNotReady = $message -like '*Current player snapshot is not ready after refresh*'
+            if ($playerNotReady -and $attempt -lt $MaxAttempts) {
+                Write-Warning ("Coord-trace refresh outran current-player recovery after /reloadui; retrying in {0} ms (attempt {1}/{2})." -f $RetryDelayMilliseconds, $attempt + 1, $MaxAttempts)
+                Start-Sleep -Milliseconds $RetryDelayMilliseconds
+                continue
+            }
+
+            throw
+        }
+    }
 }
 
-$anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
+if ($RefreshTrace -or -not (Test-Path -LiteralPath $resolvedTraceFile)) {
+    Invoke-CoordTraceRefresh
+}
+
+$anchor = Invoke-ReaderJson -Arguments (@(Get-ReaderTargetArguments) + @('--read-player-coord-anchor', '--json'))
 if (-not $anchor.TraceMatchesProcess) {
-    & $traceScript -Json -MaxCandidates 1 | Out-Null
-    $anchor = Invoke-ReaderJson -Arguments @('--process-name', 'rift_x64', '--read-player-coord-anchor', '--json')
+    Invoke-CoordTraceRefresh
+    $anchor = Invoke-ReaderJson -Arguments (@(Get-ReaderTargetArguments) + @('--read-player-coord-anchor', '--json'))
 }
 
 if (-not $anchor.TraceMatchesProcess) {
@@ -215,11 +328,11 @@ if ($anchor.CoordXRelativeOffset -and $anchor.CoordYRelativeOffset -and $anchor.
     ) -join ' '
 
     try {
-        $suggestedClusterScan = Invoke-ReaderJson -Arguments @(
-            '--process-name', 'rift_x64',
+        $suggestedClusterArguments = @(Get-ReaderTargetArguments) + @(
             '--scan-module-pattern', $suggestedClusterPattern,
             '--scan-module-name', 'rift_x64.exe',
             '--json')
+        $suggestedClusterScan = Invoke-ReaderJson -Arguments $suggestedClusterArguments
     }
     catch {
         $suggestedClusterScan = [pscustomobject]@{

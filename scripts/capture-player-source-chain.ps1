@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshCluster,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$ClusterFile = (Join-Path $PSScriptRoot 'captures\player-coord-trace-cluster.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-source-chain.json')
 )
@@ -17,6 +20,20 @@ $clusterLuaFile = Join-Path $PSScriptRoot 'cheat-engine\RiftReaderDisasmCluster.
 $resolvedClusterFile = [System.IO.Path]::GetFullPath($ClusterFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftSourceChainTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -30,6 +47,57 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftSourceChainTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftSourceChainTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
 }
 
 function Get-RequiredInstruction {
@@ -75,13 +143,13 @@ function Get-PatternToken {
 
     $bytes = Normalize-Bytes -Bytes ([string]$Instruction.Bytes)
     if ([string]::IsNullOrWhiteSpace($bytes)) {
-        throw "Instruction '$($Instruction.Full)' did not contain byte text."
+        return $null
     }
 
     $opcode = [string]$Instruction.Opcode
     $parts = $bytes.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
     if ($parts.Count -lt 1) {
-        throw "Unable to tokenize instruction '$($Instruction.Full)'."
+        return $null
     }
 
     if ($opcode -like 'call *') {
@@ -143,8 +211,371 @@ return RiftReaderDisasmCluster.dump([[$OutputPath]], $Address, $Before, $After)
     return @(Import-Csv -LiteralPath $OutputPath -Delimiter "`t")
 }
 
+function Try-LoadJsonDocument {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    try {
+        $json = Get-Content -LiteralPath $Path -Raw
+        if ([string]::IsNullOrWhiteSpace($json)) {
+            return $null
+        }
+
+        if ((Get-Command Microsoft.PowerShell.Utility\ConvertFrom-Json).Parameters.ContainsKey('Depth')) {
+            return ($json | Microsoft.PowerShell.Utility\ConvertFrom-Json -Depth 40)
+        }
+
+        return ($json | Microsoft.PowerShell.Utility\ConvertFrom-Json)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Test-ReusablePreviousSourceChain {
+    param(
+        $Document,
+        $Cluster
+    )
+
+    if ($null -eq $Document) {
+        return $false
+    }
+
+    $documentMode = if ($Document.PSObject.Properties['Mode']) { [string]$Document.Mode } else { $null }
+    if ($documentMode -ne 'player-source-chain') {
+        return $false
+    }
+
+    $accessor = if ($Document.PSObject.Properties['Accessor']) { $Document.Accessor } else { $null }
+    $preparation = if ($Document.PSObject.Properties['Preparation']) { $Document.Preparation } else { $null }
+    if ($null -eq $accessor -or [string]::IsNullOrWhiteSpace([string]$accessor.FunctionStart)) {
+        return $false
+    }
+
+    if ($null -eq $preparation -or [string]::IsNullOrWhiteSpace([string]$preparation.FunctionStart)) {
+        return $false
+    }
+
+    $currentProcessId = if ($Cluster.Anchor.PSObject.Properties['ProcessId']) { [string]$Cluster.Anchor.ProcessId } else { $null }
+    $documentProcessId = if ($Document.PSObject.Properties['ProcessId']) { [string]$Document.ProcessId } else { $null }
+    if (-not [string]::IsNullOrWhiteSpace($documentProcessId) -and
+        -not [string]::Equals($documentProcessId, $currentProcessId, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+
+    return $true
+}
+
+function Get-PreviousSourceChainPattern {
+    param(
+        $Document
+    )
+
+    if ($null -eq $Document) {
+        return $null
+    }
+
+    if ($Document.PSObject.Properties['SuggestedSourceChainPattern']) {
+        $pattern = [string]$Document.SuggestedSourceChainPattern
+        if (-not [string]::IsNullOrWhiteSpace($pattern)) {
+            return $pattern
+        }
+    }
+
+    return $null
+}
+
+function Convert-ToCanonicalInstruction {
+    param(
+        $Instruction
+    )
+
+    if ($null -eq $Instruction) {
+        return $null
+    }
+
+    return [ordered]@{
+        Index = if ($Instruction.PSObject.Properties['Index']) { $Instruction.Index } elseif ($Instruction.PSObject.Properties['index']) { $Instruction.index } else { $null }
+        Address = if ($Instruction.PSObject.Properties['Address']) { $Instruction.Address } elseif ($Instruction.PSObject.Properties['address']) { $Instruction.address } else { $null }
+        Bytes = if ($Instruction.PSObject.Properties['Bytes']) { $Instruction.Bytes } elseif ($Instruction.PSObject.Properties['bytes']) { $Instruction.bytes } else { $null }
+        Opcode = if ($Instruction.PSObject.Properties['Opcode']) { $Instruction.Opcode } elseif ($Instruction.PSObject.Properties['opcode']) { $Instruction.opcode } else { $null }
+        Extra = if ($Instruction.PSObject.Properties['Extra']) { $Instruction.Extra } elseif ($Instruction.PSObject.Properties['extra']) { $Instruction.extra } else { $null }
+        Full = if ($Instruction.PSObject.Properties['Full']) { $Instruction.Full } elseif ($Instruction.PSObject.Properties['full']) { $Instruction.full } else { $null }
+        UsesBaseRegister = if ($Instruction.PSObject.Properties['UsesBaseRegister']) { $Instruction.UsesBaseRegister } else { $null }
+        MemoryOperand = if ($Instruction.PSObject.Properties['MemoryOperand']) { $Instruction.MemoryOperand } else { $null }
+        RelativeOffset = if ($Instruction.PSObject.Properties['RelativeOffset']) { $Instruction.RelativeOffset } else { $null }
+        RoleHint = if ($Instruction.PSObject.Properties['RoleHint']) { $Instruction.RoleHint } else { $null }
+    }
+}
+
+function Build-SourceChainArtifacts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Instructions,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ArtifactBasePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProcessName
+    )
+
+    $sourceContainerLoad = Get-RequiredInstruction -Instructions $Instructions -Description 'source container load' -Predicate {
+        $_.Opcode -eq 'mov rcx,[rax+78]'
+    }
+    $sourceObjectLoad = Get-RequiredInstruction -Instructions $Instructions -Description 'source object load' -Predicate {
+        $_.Opcode -eq 'mov rdi,[rcx+rdx*8]'
+    }
+    $sourceObjectLoadIndex = [int]$sourceObjectLoad.Index
+
+    $sourceResolveCall = $null
+    foreach ($instruction in $Instructions) {
+        $instructionIndex = [int]$instruction.Index
+        if ($instructionIndex -le $sourceObjectLoadIndex) {
+            continue
+        }
+
+        if (-not ([string]$instruction.Opcode -like 'call *')) {
+            continue
+        }
+
+        $previous = $Instructions | Where-Object { [int]$_.Index -eq ($instructionIndex - 1) } | Select-Object -First 1
+        $next = $Instructions | Where-Object { [int]$_.Index -eq ($instructionIndex + 1) } | Select-Object -First 1
+        if ($previous -and $next -and ([string]$previous.Opcode -eq 'mov rcx,rdi') -and ([string]$next.Opcode -eq 'mov rcx,rdi')) {
+            $sourceResolveCall = $instruction
+            break
+        }
+    }
+
+    if ($null -eq $sourceResolveCall) {
+        throw "Unable to locate the source resolve call in the current trace cluster."
+    }
+
+    $sourceResolveCallIndex = [int]$sourceResolveCall.Index
+    $sourceCoordXRead = Get-RequiredInstruction -Instructions $Instructions -Description 'source coord-x read' -Predicate {
+        [int]$_.Index -gt $sourceResolveCallIndex -and $_.Opcode -eq 'movsd xmm0,[rax]'
+    }
+    $sourceCoordXReadIndex = [int]$sourceCoordXRead.Index
+    $destCoordXWrite = Get-RequiredInstruction -Instructions $Instructions -Description 'destination coord-x write' -Predicate {
+        [int]$_.Index -gt $sourceCoordXReadIndex -and $_.Opcode -eq 'movsd [rsi+00000158],xmm0'
+    }
+    $destCoordXWriteIndex = [int]$destCoordXWrite.Index
+    $sourceCoordZRead = Get-RequiredInstruction -Instructions $Instructions -Description 'source coord-z read' -Predicate {
+        [int]$_.Index -gt $destCoordXWriteIndex -and $_.Opcode -eq 'mov eax,[rax+08]'
+    }
+    $sourceCoordZReadIndex = [int]$sourceCoordZRead.Index
+    $destCoordZWrite = Get-RequiredInstruction -Instructions $Instructions -Description 'destination coord-z write' -Predicate {
+        [int]$_.Index -gt $sourceCoordZReadIndex -and $_.Opcode -eq 'mov [rsi+00000160],eax'
+    }
+
+    $patternInstructions = @(
+        $sourceContainerLoad,
+        $sourceObjectLoad,
+        ($Instructions | Where-Object { [int]$_.Index -eq ($sourceObjectLoadIndex + 1) } | Select-Object -First 1),
+        ($Instructions | Where-Object { [int]$_.Index -eq ($sourceObjectLoadIndex + 2) } | Select-Object -First 1),
+        ($Instructions | Where-Object { [int]$_.Index -eq ($sourceResolveCallIndex - 1) } | Select-Object -First 1),
+        $sourceResolveCall,
+        ($Instructions | Where-Object { [int]$_.Index -eq ($sourceResolveCallIndex + 1) } | Select-Object -First 1),
+        $sourceCoordXRead,
+        $destCoordXWrite,
+        $sourceCoordZRead,
+        $destCoordZWrite
+    ) | Where-Object { $null -ne $_ }
+
+    $sourceChainPatternTokens = @(
+        $patternInstructions |
+            ForEach-Object { Get-PatternToken -Instruction $_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+
+    if ($sourceChainPatternTokens.Count -lt 6) {
+        throw 'Unable to build a stable source-chain pattern from the current disassembly cluster.'
+    }
+
+    $sourceChainPattern = $sourceChainPatternTokens -join ' '
+    $sourceChainScanArguments = @(Get-ReaderTargetArguments) + @(
+        '--scan-module-pattern', $sourceChainPattern,
+        '--scan-module-name', 'rift_x64.exe',
+        '--json')
+    $sourceChainScan = Invoke-ReaderJson -Arguments $sourceChainScanArguments
+
+    $sourceResolveTarget = $null
+    if ([string]$sourceResolveCall.Opcode -match '^call\s+(?<target>[0-9A-Fa-f`]+)$') {
+        $sourceResolveTarget = $Matches['target'] -replace '`', ''
+    }
+
+    $accessorInstructions = @()
+    $accessorSummary = $null
+    $accessorPattern = $null
+    $accessorScan = $null
+    $preparationSummary = $null
+    $preparationPattern = $null
+    $preparationScan = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($sourceResolveTarget)) {
+        $accessorClusterFile = [System.IO.Path]::ChangeExtension($ArtifactBasePath, '.accessor.tsv')
+        $accessorInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value $sourceResolveTarget) -OutputPath $accessorClusterFile -Before 4 -After 12
+
+        $accessorReturnLea = $accessorInstructions | Where-Object { ([string]$_.opcode) -match '^lea rax,\[rbx\+[0-9A-Fa-f]+\]$' } | Select-Object -First 1
+        $accessorPrepCall = $accessorInstructions | Where-Object { $_.Opcode -like 'call *' } | Select-Object -First 1
+        $accessorReturnOffset = $null
+        if ($accessorReturnLea -and ([string]$accessorReturnLea.Opcode -match 'lea rax,\[rbx\+(?<offset>[0-9A-Fa-f]+)\]')) {
+            $accessorReturnOffset = [Convert]::ToInt32($Matches['offset'], 16)
+        }
+
+        $accessorPatternInstructions = $accessorInstructions | Where-Object {
+            $_.Address -and ((Parse-HexUInt64 -Value ([string]$_.Address)) -ge (Parse-HexUInt64 -Value $sourceResolveTarget)) -and (
+                $_.Address -eq $sourceResolveTarget -or
+                ([string]$_.Opcode -eq 'sub rsp,20') -or
+                ([string]$_.Opcode -eq 'mov rbx,rcx') -or
+                ([string]$_.Opcode -like 'call *') -or
+                (([string]$_.opcode) -match '^lea rax,\[rbx\+[0-9A-Fa-f]+\]$') -or
+                ([string]$_.Opcode -eq 'add rsp,20') -or
+                ([string]$_.Opcode -eq 'pop rbx') -or
+                ([string]$_.Opcode -like 'ret*')
+            )
+        }
+
+        if (@($accessorPatternInstructions).Count -gt 0) {
+            $accessorPatternTokens = @(
+                @($accessorPatternInstructions) |
+                    ForEach-Object { Get-PatternToken -Instruction $_ } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+
+            if ($accessorPatternTokens.Count -gt 0) {
+                $accessorPattern = $accessorPatternTokens -join ' '
+                $accessorScanArguments = @(Get-ReaderTargetArguments) + @(
+                    '--scan-module-pattern', $accessorPattern,
+                    '--scan-module-name', 'rift_x64.exe',
+                    '--json')
+                $accessorScan = Invoke-ReaderJson -Arguments $accessorScanArguments
+            }
+        }
+
+        $accessorSummary = [ordered]@{
+            FunctionStart = $sourceResolveTarget
+            PreparationCall = $accessorPrepCall
+            ReturnLea = $accessorReturnLea
+            ReturnOffset = $accessorReturnOffset
+            RawInstructionCount = @($accessorInstructions).Count
+        }
+
+        $preparationTarget = $null
+        if ($accessorPrepCall -and ([string]$accessorPrepCall.opcode -match '^call\s+(?<target>[0-9A-Fa-f`]+)$')) {
+            $preparationTarget = $Matches['target'] -replace '`', ''
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($preparationTarget)) {
+            $preparationClusterFile = [System.IO.Path]::ChangeExtension($ArtifactBasePath, '.preparation.tsv')
+            $preparationInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value $preparationTarget) -OutputPath $preparationClusterFile -Before 4 -After 24
+
+            $guardMove = $preparationInstructions | Where-Object { ([string]$_.opcode) -eq 'mov rdi,rcx' } | Select-Object -First 1
+            $guardInstruction = $preparationInstructions | Where-Object { ([string]$_.opcode) -eq 'cmp qword ptr [rcx+00000100],00' } | Select-Object -First 1
+            $guardJump = $preparationInstructions | Where-Object { $null -ne $guardInstruction -and ([string]$_.opcode) -like 'je *' -and [int]$_.index -gt [int]$guardInstruction.index } | Select-Object -First 1
+            $globalLoad = $preparationInstructions | Where-Object { ([string]$_.opcode) -like 'mov rbx,[*]' } | Select-Object -First 1
+            $globalTest = $preparationInstructions | Where-Object { $null -ne $globalLoad -and ([string]$_.opcode) -eq 'test rbx,rbx' -and [int]$_.index -gt [int]$globalLoad.index } | Select-Object -First 1
+
+            $preparationPatternInstructions = @(
+                $guardMove,
+                $guardInstruction,
+                $guardJump,
+                $globalLoad,
+                $globalTest
+            ) | Where-Object { $null -ne $_ }
+
+            if (@($preparationPatternInstructions).Count -ge 5) {
+                $preparationPatternTokens = @(
+                    @($preparationPatternInstructions) |
+                        ForEach-Object { Get-PatternToken -Instruction $_ } |
+                        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+                )
+
+                if ($preparationPatternTokens.Count -ge 5) {
+                    $preparationPattern = $preparationPatternTokens -join ' '
+                    $preparationScanArguments = @(Get-ReaderTargetArguments) + @(
+                        '--scan-module-pattern', $preparationPattern,
+                        '--scan-module-name', 'rift_x64.exe',
+                        '--json')
+                    $preparationScan = Invoke-ReaderJson -Arguments $preparationScanArguments
+                }
+            }
+
+            $preparationSummary = [ordered]@{
+                FunctionStart = $preparationTarget
+                GuardInstruction = $guardInstruction
+                GuardOffset = if ($guardInstruction) { 0x100 } else { $null }
+                GlobalLoad = $globalLoad
+                RawInstructionCount = @($preparationInstructions).Count
+            }
+        }
+    }
+
+    return [ordered]@{
+        SourceChain = [ordered]@{
+            SourceContainerLoad = Convert-ToCanonicalInstruction -Instruction $sourceContainerLoad
+            SourceObjectLoad = Convert-ToCanonicalInstruction -Instruction $sourceObjectLoad
+            SourceResolveCall = Convert-ToCanonicalInstruction -Instruction $sourceResolveCall
+            SourceResolveTarget = $sourceResolveTarget
+            SourceCoordXRead = Convert-ToCanonicalInstruction -Instruction $sourceCoordXRead
+            DestinationCoordXWrite = Convert-ToCanonicalInstruction -Instruction $destCoordXWrite
+            SourceCoordZRead = Convert-ToCanonicalInstruction -Instruction $sourceCoordZRead
+            DestinationCoordZWrite = Convert-ToCanonicalInstruction -Instruction $destCoordZWrite
+        }
+        Accessor = if ($null -ne $accessorSummary) {
+            [ordered]@{
+                FunctionStart = $accessorSummary.FunctionStart
+                PreparationCall = Convert-ToCanonicalInstruction -Instruction $accessorSummary.PreparationCall
+                ReturnLea = Convert-ToCanonicalInstruction -Instruction $accessorSummary.ReturnLea
+                ReturnOffset = $accessorSummary.ReturnOffset
+                RawInstructionCount = $accessorSummary.RawInstructionCount
+            }
+        } else {
+            $null
+        }
+        AccessorInstructions = @($accessorInstructions | ForEach-Object { Convert-ToCanonicalInstruction -Instruction $_ })
+        SuggestedAccessorPattern = $accessorPattern
+        SuggestedAccessorScan = $accessorScan
+        Preparation = if ($null -ne $preparationSummary) {
+            [ordered]@{
+                FunctionStart = $preparationSummary.FunctionStart
+                GuardInstruction = Convert-ToCanonicalInstruction -Instruction $preparationSummary.GuardInstruction
+                GuardOffset = $preparationSummary.GuardOffset
+                GlobalLoad = Convert-ToCanonicalInstruction -Instruction $preparationSummary.GlobalLoad
+                RawInstructionCount = $preparationSummary.RawInstructionCount
+            }
+        } else {
+            $null
+        }
+        SuggestedPreparationPattern = $preparationPattern
+        SuggestedPreparationScan = $preparationScan
+        SuggestedSourceChainPattern = $sourceChainPattern
+        SuggestedSourceChainScan = $sourceChainScan
+    }
+}
+
 if ($RefreshCluster -or -not (Test-Path -LiteralPath $resolvedClusterFile)) {
-    & $clusterScript -Json -InstructionsBefore 40 -InstructionsAfter 24 | Out-Null
+    $clusterArguments = @{
+        Json = $true
+        InstructionsBefore = 40
+        InstructionsAfter = 24
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $clusterArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $clusterArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+    & $clusterScript @clusterArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedClusterFile)) {
@@ -156,74 +587,31 @@ $instructions = @($cluster.Instructions)
 $clusterSourceObjectAddress = [string]$cluster.Anchor.SourceObjectAddress
 $clusterSourceObjectRegister = [string]$cluster.Anchor.SourceObjectRegister
 $clusterSourceObjectRegisterValue = [string]$cluster.Anchor.SourceObjectRegisterValue
-
-$sourceContainerLoad = Get-RequiredInstruction -Instructions $instructions -Description 'source container load' -Predicate {
-    $_.Opcode -eq 'mov rcx,[rax+78]'
+$clusterSuggestedClusterScan = $null
+$clusterPatternAddress = $null
+$clusterPatternOffset = $null
+if ($cluster.PSObject.Properties['SuggestedClusterScan']) {
+    $clusterSuggestedClusterScan = $cluster.SuggestedClusterScan
+    if ($null -ne $clusterSuggestedClusterScan) {
+        if ($clusterSuggestedClusterScan.PSObject.Properties['Address']) {
+            $clusterPatternAddress = [string]$clusterSuggestedClusterScan.Address
+        }
+        if ($clusterSuggestedClusterScan.PSObject.Properties['RelativeOffsetHex']) {
+            $clusterPatternOffset = [string]$clusterSuggestedClusterScan.RelativeOffsetHex
+        }
+    }
 }
-$sourceObjectLoad = Get-RequiredInstruction -Instructions $instructions -Description 'source object load' -Predicate {
-    $_.Opcode -eq 'mov rdi,[rcx+rdx*8]'
-}
+$previousSourceChain = Try-LoadJsonDocument -Path $resolvedOutputFile
+$sourceContainerLoad = $null
+$sourceObjectLoad = $null
 $sourceResolveCall = $null
-foreach ($instruction in $instructions) {
-    if ($instruction.Index -le $sourceObjectLoad.Index) {
-        continue
-    }
-
-    if (-not ([string]$instruction.Opcode -like 'call *')) {
-        continue
-    }
-
-    $previous = $instructions | Where-Object { $_.Index -eq ($instruction.Index - 1) } | Select-Object -First 1
-    $next = $instructions | Where-Object { $_.Index -eq ($instruction.Index + 1) } | Select-Object -First 1
-    if ($previous -and $next -and ([string]$previous.Opcode -eq 'mov rcx,rdi') -and ([string]$next.Opcode -eq 'mov rcx,rdi')) {
-        $sourceResolveCall = $instruction
-        break
-    }
-}
-
-if ($null -eq $sourceResolveCall) {
-    throw "Unable to locate the source resolve call in the current trace cluster."
-}
-
-$sourceCoordXRead = Get-RequiredInstruction -Instructions $instructions -Description 'source coord-x read' -Predicate {
-    $_.Index -gt $sourceResolveCall.Index -and $_.Opcode -eq 'movsd xmm0,[rax]'
-}
-$destCoordXWrite = Get-RequiredInstruction -Instructions $instructions -Description 'destination coord-x write' -Predicate {
-    $_.Index -gt $sourceCoordXRead.Index -and $_.Opcode -eq 'movsd [rsi+00000158],xmm0'
-}
-$sourceCoordZRead = Get-RequiredInstruction -Instructions $instructions -Description 'source coord-z read' -Predicate {
-    $_.Index -gt $destCoordXWrite.Index -and $_.Opcode -eq 'mov eax,[rax+08]'
-}
-$destCoordZWrite = Get-RequiredInstruction -Instructions $instructions -Description 'destination coord-z write' -Predicate {
-    $_.Index -gt $sourceCoordZRead.Index -and $_.Opcode -eq 'mov [rsi+00000160],eax'
-}
-
-$patternInstructions = @(
-    $sourceContainerLoad,
-    $sourceObjectLoad,
-    ($instructions | Where-Object { $_.Index -eq ($sourceObjectLoad.Index + 1) } | Select-Object -First 1),
-    ($instructions | Where-Object { $_.Index -eq ($sourceObjectLoad.Index + 2) } | Select-Object -First 1),
-    ($instructions | Where-Object { $_.Index -eq ($sourceResolveCall.Index - 1) } | Select-Object -First 1),
-    $sourceResolveCall,
-    ($instructions | Where-Object { $_.Index -eq ($sourceResolveCall.Index + 1) } | Select-Object -First 1),
-    $sourceCoordXRead,
-    $destCoordXWrite,
-    $sourceCoordZRead,
-    $destCoordZWrite
-) | Where-Object { $null -ne $_ }
-
-$sourceChainPattern = ($patternInstructions | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
-$sourceChainScan = Invoke-ReaderJson -Arguments @(
-    '--process-name', 'rift_x64',
-    '--scan-module-pattern', $sourceChainPattern,
-    '--scan-module-name', 'rift_x64.exe',
-    '--json')
-
+$sourceCoordXRead = $null
+$destCoordXWrite = $null
+$sourceCoordZRead = $null
+$destCoordZWrite = $null
+$sourceChainPattern = $null
+$sourceChainScan = $null
 $sourceResolveTarget = $null
-if ([string]$sourceResolveCall.Opcode -match '^call\s+(?<target>[0-9A-Fa-f`]+)$') {
-    $sourceResolveTarget = $Matches['target'] -replace '`', ''
-}
-
 $accessorInstructions = @()
 $accessorSummary = $null
 $accessorPattern = $null
@@ -231,123 +619,160 @@ $accessorScan = $null
 $preparationSummary = $null
 $preparationPattern = $null
 $preparationScan = $null
-if (-not [string]::IsNullOrWhiteSpace($sourceResolveTarget)) {
-    $accessorClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.accessor.tsv')
-    $accessorInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value $sourceResolveTarget) -OutputPath $accessorClusterFile -Before 4 -After 12
+$result = $null
+$sourceChainBuildError = $null
+$freshSourceChainRecovery = $null
 
-    $accessorFunctionStart = $accessorInstructions | Where-Object { $_.Address -eq $sourceResolveTarget } | Select-Object -First 1
-    $accessorReturnLea = $accessorInstructions | Where-Object { ([string]$_.opcode) -match '^lea rax,\[rbx\+[0-9A-Fa-f]+\]$' } | Select-Object -First 1
-    $accessorPrepCall = $accessorInstructions | Where-Object { $_.Opcode -like 'call *' } | Select-Object -First 1
-    $accessorReturnOffset = $null
-    if ($accessorReturnLea -and ([string]$accessorReturnLea.Opcode -match 'lea rax,\[rbx\+(?<offset>[0-9A-Fa-f]+)\]')) {
-        $accessorReturnOffset = [Convert]::ToInt32($Matches['offset'], 16)
-    }
+try {
+    $builtArtifacts = Build-SourceChainArtifacts -Instructions $instructions -ArtifactBasePath $resolvedOutputFile -ProcessName ([string]$cluster.Anchor.ProcessName)
 
-    $accessorPatternInstructions = $accessorInstructions | Where-Object {
-        $_.Address -and ((Parse-HexUInt64 -Value ([string]$_.Address)) -ge (Parse-HexUInt64 -Value $sourceResolveTarget)) -and (
-            $_.Address -eq $sourceResolveTarget -or
-            ([string]$_.Opcode -eq 'sub rsp,20') -or
-            ([string]$_.Opcode -eq 'mov rbx,rcx') -or
-            ([string]$_.Opcode -like 'call *') -or
-            (([string]$_.opcode) -match '^lea rax,\[rbx\+[0-9A-Fa-f]+\]$') -or
-            ([string]$_.Opcode -eq 'add rsp,20') -or
-            ([string]$_.Opcode -eq 'pop rbx') -or
-            ([string]$_.Opcode -like 'ret*')
-        )
-    }
+    $sourceChainPattern = $builtArtifacts.SuggestedSourceChainPattern
+    $sourceChainScan = $builtArtifacts.SuggestedSourceChainScan
+    $accessorSummary = $builtArtifacts.Accessor
+    $accessorInstructions = @($builtArtifacts.AccessorInstructions)
+    $accessorPattern = $builtArtifacts.SuggestedAccessorPattern
+    $accessorScan = $builtArtifacts.SuggestedAccessorScan
+    $preparationSummary = $builtArtifacts.Preparation
+    $preparationPattern = $builtArtifacts.SuggestedPreparationPattern
+    $preparationScan = $builtArtifacts.SuggestedPreparationScan
 
-    if (@($accessorPatternInstructions).Count -gt 0) {
-        $accessorPattern = (@($accessorPatternInstructions) | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
-        $accessorScan = Invoke-ReaderJson -Arguments @(
-            '--process-name', 'rift_x64',
-            '--scan-module-pattern', $accessorPattern,
-            '--scan-module-name', 'rift_x64.exe',
-            '--json')
-    }
-
-    $accessorSummary = [ordered]@{
-        FunctionStart = $sourceResolveTarget
-        PreparationCall = $accessorPrepCall
-        ReturnLea = $accessorReturnLea
-        ReturnOffset = $accessorReturnOffset
-        RawInstructionCount = @($accessorInstructions).Count
-    }
-
-    $preparationTarget = $null
-    if ($accessorPrepCall -and ([string]$accessorPrepCall.opcode -match '^call\s+(?<target>[0-9A-Fa-f`]+)$')) {
-        $preparationTarget = $Matches['target'] -replace '`', ''
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($preparationTarget)) {
-        $preparationClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.preparation.tsv')
-        $preparationInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value $preparationTarget) -OutputPath $preparationClusterFile -Before 4 -After 24
-
-        $guardMove = $preparationInstructions | Where-Object { ([string]$_.opcode) -eq 'mov rdi,rcx' } | Select-Object -First 1
-        $guardInstruction = $preparationInstructions | Where-Object { ([string]$_.opcode) -eq 'cmp qword ptr [rcx+00000100],00' } | Select-Object -First 1
-        $guardJump = $preparationInstructions | Where-Object { $null -ne $guardInstruction -and ([string]$_.opcode) -like 'je *' -and [int]$_.index -gt [int]$guardInstruction.index } | Select-Object -First 1
-        $globalLoad = $preparationInstructions | Where-Object { ([string]$_.opcode) -like 'mov rbx,[*]' } | Select-Object -First 1
-        $globalTest = $preparationInstructions | Where-Object { $null -ne $globalLoad -and ([string]$_.opcode) -eq 'test rbx,rbx' -and [int]$_.index -gt [int]$globalLoad.index } | Select-Object -First 1
-
-        $preparationPatternInstructions = @(
-            $guardMove,
-            $guardInstruction,
-            $guardJump,
-            $globalLoad,
-            $globalTest
-        ) | Where-Object { $null -ne $_ }
-
-        if (@($preparationPatternInstructions).Count -ge 5) {
-            $preparationPattern = (@($preparationPatternInstructions) | ForEach-Object { Get-PatternToken -Instruction $_ }) -join ' '
-            $preparationScan = Invoke-ReaderJson -Arguments @(
-                '--process-name', 'rift_x64',
-                '--scan-module-pattern', $preparationPattern,
-                '--scan-module-name', 'rift_x64.exe',
-                '--json')
+    $result = [ordered]@{
+        Mode = 'player-source-chain'
+        GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        ProcessId = $cluster.Anchor.ProcessId
+        ProcessName = $cluster.Anchor.ProcessName
+        ClusterFile = $resolvedClusterFile
+        SourceObjectAddress = $clusterSourceObjectAddress
+        SelectedSourceAddress = $clusterSourceObjectAddress
+        ClusterSummary = [ordered]@{
+            TraceInstruction = $cluster.Anchor.InstructionAddress
+            ClusterPatternAddress = $clusterPatternAddress
+            ClusterPatternOffset = $clusterPatternOffset
+            SourceObjectRegister = $clusterSourceObjectRegister
+            SourceObjectRegisterValue = $clusterSourceObjectRegisterValue
+            SourceObjectAddress = $clusterSourceObjectAddress
         }
-
-        $preparationSummary = [ordered]@{
-            FunctionStart = $preparationTarget
-            GuardInstruction = $guardInstruction
-            GuardOffset = if ($guardInstruction) { 0x100 } else { $null }
-            GlobalLoad = $globalLoad
-            RawInstructionCount = @($preparationInstructions).Count
-        }
+        SourceChain = $builtArtifacts.SourceChain
+        Accessor = $accessorSummary
+        AccessorInstructions = @($accessorInstructions)
+        SuggestedAccessorPattern = $accessorPattern
+        SuggestedAccessorScan = $accessorScan
+        Preparation = $preparationSummary
+        SuggestedPreparationPattern = $preparationPattern
+        SuggestedPreparationScan = $preparationScan
+        SuggestedSourceChainPattern = $sourceChainPattern
+        SuggestedSourceChainScan = $sourceChainScan
     }
 }
+catch {
+    $sourceChainBuildError = $_.Exception
+}
 
-$result = [ordered]@{
-    Mode = 'player-source-chain'
-    GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
-    ClusterFile = $resolvedClusterFile
-    SourceObjectAddress = $clusterSourceObjectAddress
-    SelectedSourceAddress = $clusterSourceObjectAddress
-    ClusterSummary = [ordered]@{
-        TraceInstruction = $cluster.Anchor.InstructionAddress
-        ClusterPatternAddress = $cluster.SuggestedClusterScan.Address
-        ClusterPatternOffset = $cluster.SuggestedClusterScan.RelativeOffsetHex
-        SourceObjectRegister = $clusterSourceObjectRegister
-        SourceObjectRegisterValue = $clusterSourceObjectRegisterValue
-        SourceObjectAddress = $clusterSourceObjectAddress
+if ($null -ne $sourceChainBuildError) {
+    $canReusePreviousSourceChain = Test-ReusablePreviousSourceChain -Document $previousSourceChain -Cluster $cluster
+    if ($canReusePreviousSourceChain) {
+        $previousSourceChainPattern = Get-PreviousSourceChainPattern -Document $previousSourceChain
+        if (-not [string]::IsNullOrWhiteSpace($previousSourceChainPattern)) {
+            try {
+                $freshSourceChainArguments = @(Get-ReaderTargetArguments) + @(
+                    '--scan-module-pattern', $previousSourceChainPattern,
+                    '--scan-module-name', 'rift_x64.exe',
+                    '--json')
+                $freshSourceChainScan = Invoke-ReaderJson -Arguments $freshSourceChainArguments
+
+                if ($freshSourceChainScan.Found -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$freshSourceChainScan.Address)) {
+                    $freshSourceChainClusterFile = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.fresh-source-chain.tsv')
+                    $freshSourceChainInstructions = Invoke-DisasmCluster -Address (Parse-HexUInt64 -Value ([string]$freshSourceChainScan.Address)) -OutputPath $freshSourceChainClusterFile -Before 8 -After 40
+                    $freshSourceChainArtifactBasePath = [System.IO.Path]::ChangeExtension($resolvedOutputFile, '.fresh-source-chain.json')
+                    $freshBuiltArtifacts = Build-SourceChainArtifacts -Instructions $freshSourceChainInstructions -ArtifactBasePath $freshSourceChainArtifactBasePath -ProcessName ([string]$cluster.Anchor.ProcessName)
+
+                    $result = [ordered]@{
+                        Mode = 'player-source-chain'
+                        GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                        ProcessId = $cluster.Anchor.ProcessId
+                        ProcessName = $cluster.Anchor.ProcessName
+                        ClusterFile = $resolvedClusterFile
+                        SourceObjectAddress = $clusterSourceObjectAddress
+                        SelectedSourceAddress = $clusterSourceObjectAddress
+                        ClusterSummary = [ordered]@{
+                            TraceInstruction = $cluster.Anchor.InstructionAddress
+                            ClusterPatternAddress = $clusterPatternAddress
+                            ClusterPatternOffset = $clusterPatternOffset
+                            SourceObjectRegister = $clusterSourceObjectRegister
+                            SourceObjectRegisterValue = $clusterSourceObjectRegisterValue
+                            SourceObjectAddress = $clusterSourceObjectAddress
+                        }
+                        Recovery = [ordered]@{
+                            Mode = 'rebuild-from-suggested-source-chain-pattern'
+                            TriggerReason = $sourceChainBuildError.Message
+                            Pattern = $previousSourceChainPattern
+                            PatternScanAddress = [string]$freshSourceChainScan.Address
+                            PatternScanOffset = [string]$freshSourceChainScan.RelativeOffsetHex
+                        }
+                        SourceChain = $freshBuiltArtifacts.SourceChain
+                        Accessor = $freshBuiltArtifacts.Accessor
+                        AccessorInstructions = @($freshBuiltArtifacts.AccessorInstructions)
+                        SuggestedAccessorPattern = $freshBuiltArtifacts.SuggestedAccessorPattern
+                        SuggestedAccessorScan = $freshBuiltArtifacts.SuggestedAccessorScan
+                        Preparation = $freshBuiltArtifacts.Preparation
+                        SuggestedPreparationPattern = $freshBuiltArtifacts.SuggestedPreparationPattern
+                        SuggestedPreparationScan = $freshBuiltArtifacts.SuggestedPreparationScan
+                        SuggestedSourceChainPattern = $freshBuiltArtifacts.SuggestedSourceChainPattern
+                        SuggestedSourceChainScan = $freshBuiltArtifacts.SuggestedSourceChainScan
+                    }
+
+                    $freshSourceChainRecovery = $result.Recovery
+                }
+            }
+            catch {
+                # Fall through to the last-good same-session reuse path below.
+            }
+        }
     }
-    SourceChain = [ordered]@{
-        SourceContainerLoad = $sourceContainerLoad
-        SourceObjectLoad = $sourceObjectLoad
-        SourceResolveCall = $sourceResolveCall
-        SourceResolveTarget = $sourceResolveTarget
-        SourceCoordXRead = $sourceCoordXRead
-        DestinationCoordXWrite = $destCoordXWrite
-        SourceCoordZRead = $sourceCoordZRead
-        DestinationCoordZWrite = $destCoordZWrite
+
+    if ($null -ne $result) {
+        $sourceChainBuildError = $null
     }
-    Accessor = $accessorSummary
-    AccessorInstructions = @($accessorInstructions)
-    SuggestedAccessorPattern = $accessorPattern
-    SuggestedAccessorScan = $accessorScan
-    Preparation = $preparationSummary
-    SuggestedPreparationPattern = $preparationPattern
-    SuggestedPreparationScan = $preparationScan
-    SuggestedSourceChainPattern = $sourceChainPattern
-    SuggestedSourceChainScan = $sourceChainScan
+    elseif (-not $canReusePreviousSourceChain) {
+        throw $sourceChainBuildError
+    }
+    else {
+        $result = [ordered]@{
+            Mode = 'player-source-chain'
+            GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+            ProcessId = $cluster.Anchor.ProcessId
+            ProcessName = $cluster.Anchor.ProcessName
+            ClusterFile = $resolvedClusterFile
+            SourceObjectAddress = if (-not [string]::IsNullOrWhiteSpace([string]$previousSourceChain.SourceObjectAddress)) { [string]$previousSourceChain.SourceObjectAddress } else { $clusterSourceObjectAddress }
+            SelectedSourceAddress = if (-not [string]::IsNullOrWhiteSpace([string]$previousSourceChain.SelectedSourceAddress)) { [string]$previousSourceChain.SelectedSourceAddress } else { $clusterSourceObjectAddress }
+            ClusterSummary = [ordered]@{
+                TraceInstruction = $cluster.Anchor.InstructionAddress
+                ClusterPatternAddress = $clusterPatternAddress
+                ClusterPatternOffset = $clusterPatternOffset
+                SourceObjectRegister = $clusterSourceObjectRegister
+                SourceObjectRegisterValue = $clusterSourceObjectRegisterValue
+                SourceObjectAddress = $clusterSourceObjectAddress
+            }
+            Recovery = [ordered]@{
+                Mode = 'reuse-previous-source-chain'
+                PreviousArtifactFile = $resolvedOutputFile
+                PreviousGeneratedAtUtc = $previousSourceChain.GeneratedAtUtc
+                Reason = $sourceChainBuildError.Message
+                ReusedAccessorFunctionStart = [string]$previousSourceChain.Accessor.FunctionStart
+                ReusedPreparationFunctionStart = [string]$previousSourceChain.Preparation.FunctionStart
+            }
+            SourceChain = $previousSourceChain.SourceChain
+            Accessor = $previousSourceChain.Accessor
+            AccessorInstructions = @($previousSourceChain.AccessorInstructions)
+            SuggestedAccessorPattern = $previousSourceChain.SuggestedAccessorPattern
+            SuggestedAccessorScan = $previousSourceChain.SuggestedAccessorScan
+            Preparation = $previousSourceChain.Preparation
+            SuggestedPreparationPattern = $previousSourceChain.SuggestedPreparationPattern
+            SuggestedPreparationScan = $previousSourceChain.SuggestedPreparationScan
+            SuggestedSourceChainPattern = $previousSourceChain.SuggestedSourceChainPattern
+            SuggestedSourceChainScan = $previousSourceChain.SuggestedSourceChainScan
+        }
+    }
 }
 
 $outputDirectory = Split-Path -Parent $resolvedOutputFile
@@ -363,31 +788,38 @@ if ($Json) {
 }
 else {
     Write-Host "Source-chain file:     $resolvedOutputFile"
-    Write-Host "Source object load:    $($sourceObjectLoad.Address) | $($sourceObjectLoad.Full)"
-        Write-Host "Source resolve call:   $($sourceResolveCall.Address) | $($sourceResolveCall.Full)"
-        Write-Host "Source target:         $sourceResolveTarget"
-    if ($accessorSummary) {
-        Write-Host "Accessor return lea:   $($accessorSummary.ReturnLea.Address) | $($accessorSummary.ReturnLea.Full)"
-        if ($null -ne $accessorSummary.ReturnOffset) {
-            Write-Host ("Accessor return off:   0x{0:X}" -f [int]$accessorSummary.ReturnOffset)
-        }
-        if ($accessorScan -and $accessorScan.Found -eq $true) {
-            Write-Host "Accessor pattern:      $($accessorScan.Address) [$($accessorScan.RelativeOffsetHex)]"
+    if ($result.Recovery) {
+        $recoveryReason = if ($result.Recovery.PSObject.Properties['Reason']) { $result.Recovery.Reason } elseif ($result.Recovery.PSObject.Properties['TriggerReason']) { $result.Recovery.TriggerReason } else { $null }
+        Write-Host "Recovery mode:         $($result.Recovery.Mode)"
+        if (-not [string]::IsNullOrWhiteSpace([string]$recoveryReason)) {
+            Write-Host "Recovery reason:       $recoveryReason"
         }
     }
-    if ($preparationSummary) {
-        Write-Host "Prep guard:            $($preparationSummary.GuardInstruction.address) | $($preparationSummary.GuardInstruction.full)"
-        if ($null -ne $preparationSummary.GuardOffset) {
-            Write-Host ("Prep guard off:        0x{0:X}" -f [int]$preparationSummary.GuardOffset)
+    Write-Host "Source object load:    $($result.SourceChain.SourceObjectLoad.Address) | $($result.SourceChain.SourceObjectLoad.Full)"
+    Write-Host "Source resolve call:   $($result.SourceChain.SourceResolveCall.Address) | $($result.SourceChain.SourceResolveCall.Full)"
+    Write-Host "Source target:         $($result.SourceChain.SourceResolveTarget)"
+    if ($result.Accessor) {
+        Write-Host "Accessor return lea:   $($result.Accessor.ReturnLea.Address) | $($result.Accessor.ReturnLea.Full)"
+        if ($null -ne $result.Accessor.ReturnOffset) {
+            Write-Host ("Accessor return off:   0x{0:X}" -f [int]$result.Accessor.ReturnOffset)
         }
-        if ($preparationScan -and $preparationScan.Found -eq $true) {
-            Write-Host "Prep pattern:          $($preparationScan.Address) [$($preparationScan.RelativeOffsetHex)]"
+        if ($result.SuggestedAccessorScan -and $result.SuggestedAccessorScan.Found -eq $true) {
+            Write-Host "Accessor pattern:      $($result.SuggestedAccessorScan.Address) [$($result.SuggestedAccessorScan.RelativeOffsetHex)]"
         }
     }
-    Write-Host "Coord X read/write:    $($sourceCoordXRead.Address) -> $($destCoordXWrite.Address)"
-    Write-Host "Coord Z read/write:    $($sourceCoordZRead.Address) -> $($destCoordZWrite.Address)"
-    Write-Host "Suggested pattern:     $sourceChainPattern"
-    if ($sourceChainScan.Found -eq $true) {
-        Write-Host "Pattern match:         $($sourceChainScan.Address) [$($sourceChainScan.RelativeOffsetHex)]"
+    if ($result.Preparation) {
+        Write-Host "Prep guard:            $($result.Preparation.GuardInstruction.address) | $($result.Preparation.GuardInstruction.full)"
+        if ($null -ne $result.Preparation.GuardOffset) {
+            Write-Host ("Prep guard off:        0x{0:X}" -f [int]$result.Preparation.GuardOffset)
+        }
+        if ($result.SuggestedPreparationScan -and $result.SuggestedPreparationScan.Found -eq $true) {
+            Write-Host "Prep pattern:          $($result.SuggestedPreparationScan.Address) [$($result.SuggestedPreparationScan.RelativeOffsetHex)]"
+        }
+    }
+    Write-Host "Coord X read/write:    $($result.SourceChain.SourceCoordXRead.Address) -> $($result.SourceChain.DestinationCoordXWrite.Address)"
+    Write-Host "Coord Z read/write:    $($result.SourceChain.SourceCoordZRead.Address) -> $($result.SourceChain.DestinationCoordZWrite.Address)"
+    Write-Host "Suggested pattern:     $($result.SuggestedSourceChainPattern)"
+    if ($result.SuggestedSourceChainScan.Found -eq $true) {
+        Write-Host "Pattern match:         $($result.SuggestedSourceChainScan.Address) [$($result.SuggestedSourceChainScan.RelativeOffsetHex)]"
     }
 }

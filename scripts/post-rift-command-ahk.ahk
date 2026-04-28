@@ -7,6 +7,8 @@ WM_KEYUP := 0x0101
 commandText := A_Args.Length >= 1 ? A_Args[1] : "/reloadui"
 targetExe := A_Args.Length >= 2 ? A_Args[2] : "rift_x64.exe"
 backgroundExe := A_Args.Length >= 3 ? A_Args[3] : "cheatengine-x86_64-SSE4-AVX2.exe"
+targetWindowHandle := A_Args.Length >= 4 ? A_Args[4] : ""
+targetProcessId := A_Args.Length >= 5 ? Integer(A_Args[5]) : 0
 
 BuildKeyLParam(sc, isKeyUp) {
     lParam := 1 | (sc << 16)
@@ -15,10 +17,32 @@ BuildKeyLParam(sc, isKeyUp) {
     return lParam
 }
 
-GetTargetTopHwnd(targetExe) {
+GetTargetTopHwnd(targetExe, targetWindowHandle, targetProcessId) {
+    if (targetWindowHandle != "") {
+        if (!WinExist("ahk_id " targetWindowHandle))
+            return 0
+
+        if (targetProcessId > 0 && WinGetPID("ahk_id " targetWindowHandle) != targetProcessId)
+            return 0
+
+        return targetWindowHandle
+    }
+
     windows := WinGetList("ahk_exe " targetExe)
     if (windows.Length < 1)
         return 0
+
+    if (windows.Length > 1 && targetProcessId <= 0)
+        ExitApp(6)
+
+    if (targetProcessId > 0) {
+        for hwnd in windows {
+            if (WinGetPID("ahk_id " hwnd) = targetProcessId)
+                return hwnd
+        }
+
+        return 0
+    }
 
     return windows[1]
 }
@@ -70,7 +94,7 @@ SendCommand(targetHwnd, commandText) {
     PostKey(targetHwnd, "Enter")
 }
 
-targetTopHwnd := GetTargetTopHwnd(targetExe)
+targetTopHwnd := GetTargetTopHwnd(targetExe, targetWindowHandle, targetProcessId)
 if !targetTopHwnd
     ExitApp(2)
 

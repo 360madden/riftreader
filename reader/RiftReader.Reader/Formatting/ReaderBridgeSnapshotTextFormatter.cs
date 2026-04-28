@@ -79,6 +79,16 @@ public static class ReaderBridgeSnapshotTextFormatter
             lines.Add($"Target buffs:            {string.Join(" | ", snapshot.TargetBuffLines)}");
         }
 
+        if (snapshot.Telemetry is not null)
+        {
+            lines.Add($"Telemetry:               v{snapshot.Telemetry.Version?.ToString() ?? "?"} seq {snapshot.Telemetry.Sequence?.ToString() ?? "n/a"}");
+
+            if (snapshot.Telemetry.Movement?.Speed is double speed)
+            {
+                lines.Add($"Telemetry speed:         {speed:0.000}");
+            }
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 

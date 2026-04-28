@@ -7,6 +7,13 @@ Default rule:
 
 > Treat a script as **read-only only if it is explicitly classified that way**.
 
+Two-window rule:
+
+> Any movement/proof/orientation helper that can send live key input must use
+> an exact PID/HWND target. If two Rift clients are present, process-name-only
+> targeting is unsafe and should fail closed instead of selecting the first
+> `rift_x64` window.
+
 This page exists because post-update triage surfaced two separate concerns:
 
 1. some workflows are safe to repeat at high frequency
@@ -30,13 +37,19 @@ This page exists because post-update triage surfaced two separate concerns:
 | `C:\RIFT MODDING\RiftReader\scripts\watch-readerbridge-export.ps1` | Read-only | none | `main` | Watches saved-variable output only |
 | `C:\RIFT MODDING\RiftReader\scripts\inspect-capture-consistency.ps1` | Read-only | none | `main` | Capture provenance / freshness only |
 | `C:\RIFT MODDING\RiftReader\scripts\export-discovery-watchset.ps1` | Read-only | none | `main` | Derived watchset output only |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` | Direct key input | none | `main` | Gameplay-style key helper; accepts exact PID/HWND and refuses ambiguous process-name targeting |
+| `C:\RIFT MODDING\RiftReader\scripts\send-rift-key.ps1` | Direct key input | foreground `SendInput` | `main` | Accepts exact PID/HWND; fails closed if process-name lookup would match multiple windows |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-key-ahk.ps1` | Direct key input | AutoHotkey | `main` | Accepts exact PID/HWND; refuses ambiguous process-name targeting |
+| `C:\RIFT MODDING\RiftReader\scripts\send-rift-key-ahk.ps1` | Direct key input | foreground AutoHotkey | `main` | Accepts exact PID/HWND; refuses ambiguous process-name targeting |
 | `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` | Direct key input | readback before/after | `main` | Measures actor-orientation deltas around a key stimulus |
 | `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` | Direct key input | readback profiling | `main` | Repeats multiple key stimuli |
 | `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1` | Chat/reload UI-intrusive | may fallback to AHK | `main` | Uses `/reloadui`; not safe for unattended probing |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` | Chat/reload UI-intrusive | none | `main` | Command/chat injection helper |
-| `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` | Chat/reload UI-intrusive | none | `main` | Thread-message variant of command injection |
-| `C:\RIFT MODDING\RiftReader\scripts\send-rift-command.ps1` | Chat/reload UI-intrusive | focus-sensitive | `main` | Uses `Enter` + typed command flow |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-command.ps1` | Chat/reload UI-intrusive | none | `main` | Command/chat injection helper; accepts exact PID/HWND and refuses ambiguous process-name targeting |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-command-ahk.ps1` | Chat/reload UI-intrusive | AutoHotkey | `main` | Command/chat injection helper; accepts exact PID/HWND and refuses ambiguous process-name targeting |
+| `C:\RIFT MODDING\RiftReader\scripts\post-rift-thread-command.ps1` | Chat/reload UI-intrusive | none | `main` | Thread-message variant of command injection; accepts exact PID/HWND and refuses ambiguous process-name targeting |
+| `C:\RIFT MODDING\RiftReader\scripts\send-rift-command.ps1` | Chat/reload UI-intrusive | focus-sensitive | `main` | Uses `Enter` + typed command flow; accepts exact PID/HWND and refuses ambiguous process-name targeting |
+| `C:\RIFT MODDING\RiftReader\scripts\get-rift-window-targets.ps1` | Read-only | exact PID/HWND discovery | `main` | Enumerates current `rift_x64` windows and suggests movement/background coordinator dry-run; no focus/input/debugger |
+| `C:\RIFT MODDING\RiftReader\scripts\invoke-rift-input-coordinator.ps1` | Hybrid | serializes exact PID/HWND lanes | `main` | Dry-run safe by default; background lane blocks movement/camera/hotbar keys |
 | `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` | Hybrid | may refresh export / reacquire | `main` | Mostly reader-driven, but can invoke helper flows |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` | Hybrid | may rely on live trace/input path | `main` | Analysis-first, but not purely passive |
 | `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` | Hybrid | may refresh selector trace | `main` | Downstream of trace workflow |

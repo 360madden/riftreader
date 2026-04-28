@@ -6,6 +6,9 @@ param(
     [int]$WaitMilliseconds = 250,
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-orientation-key-profile.json')
 )
 
@@ -74,7 +77,7 @@ function Write-ProfileText {
             continue
         }
 
-        $lines.Add("  - $($entry.Key): $($entry.Classification) | yaw $(Format-Nullable $entry.YawDeltaDegrees '0.000') deg | pitch $(Format-Nullable $entry.PitchDeltaDegrees '0.000') deg | coord $(Format-Nullable $entry.CoordDeltaMagnitude '0.000000') | basis det $(Format-Nullable $entry.BasisDeterminantAfter '0.000000') | basis dup $(Format-Nullable $entry.BasisDuplicateMaxRowDeltaAfter '0.000000')")
+        $lines.Add("  - $($entry.Key): $($entry.Classification) | yaw $(Format-Nullable $entry.YawDeltaDegrees '0.000') deg | pitch $(Format-Nullable $entry.PitchDeltaDegrees '0.000') deg | addon coord $(Format-Nullable $entry.AddonCoordDeltaMagnitude '0.000000') | live coord $(Format-Nullable $entry.PreferredLiveCoordDeltaMagnitude '0.000000') | addon confirmed $($entry.AddonCoordMovementConfirmed) | live confirmed $($entry.LiveCoordMovementConfirmed) | telemetry $($entry.TelemetryAlignmentStatus) | basis det $(Format-Nullable $entry.BasisDeterminantAfter '0.000000') | basis dup $(Format-Nullable $entry.BasisDuplicateMaxRowDeltaAfter '0.000000')")
     }
 
     return [string]::Join([Environment]::NewLine, $lines)
@@ -84,19 +87,39 @@ $results = New-Object System.Collections.Generic.List[object]
 
 foreach ($key in $Keys) {
     try {
+        $stimulusArguments = @{
+            Key = $key
+            HoldMilliseconds = $HoldMilliseconds
+            WaitMilliseconds = $WaitMilliseconds
+            Json = $true
+            ProcessName = $ProcessName
+        }
+        if ($ProcessId -gt 0) {
+            $stimulusArguments['ProcessId'] = $ProcessId
+        }
+        if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+            $stimulusArguments['TargetWindowHandle'] = $TargetWindowHandle
+        }
+        if ($RefreshReaderBridge) {
+            $stimulusArguments['RefreshReaderBridge'] = $true
+        }
+        if ($NoAhkFallback) {
+            $stimulusArguments['NoAhkFallback'] = $true
+        }
+
         if ($RefreshReaderBridge) {
             if ($NoAhkFallback) {
-                $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -RefreshReaderBridge -NoAhkFallback
+                $jsonText = & $stimulusScript @stimulusArguments
             }
             else {
-                $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -RefreshReaderBridge
+                $jsonText = & $stimulusScript @stimulusArguments
             }
         }
         elseif ($NoAhkFallback) {
-            $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json -NoAhkFallback
+            $jsonText = & $stimulusScript @stimulusArguments
         }
         else {
-            $jsonText = & $stimulusScript -Key $key -HoldMilliseconds $HoldMilliseconds -WaitMilliseconds $WaitMilliseconds -Json
+            $jsonText = & $stimulusScript @stimulusArguments
         }
         if ($LASTEXITCODE -ne 0) {
             throw "Stimulus helper failed for key '$key'."
@@ -106,7 +129,8 @@ foreach ($key in $Keys) {
 
         $yawDelta = if ($null -ne $result.Comparison.YawDeltaDegrees) { [double]$result.Comparison.YawDeltaDegrees } else { 0.0 }
         $pitchDelta = if ($null -ne $result.Comparison.PitchDeltaDegrees) { [double]$result.Comparison.PitchDeltaDegrees } else { 0.0 }
-        $coordDelta = if ($null -ne $result.Comparison.CoordDeltaMagnitude) { [double]$result.Comparison.CoordDeltaMagnitude } else { 0.0 }
+        $coordDelta = if ($null -ne $result.Comparison.AddonCoordDeltaMagnitude) { [double]$result.Comparison.AddonCoordDeltaMagnitude } elseif ($null -ne $result.Comparison.CoordDeltaMagnitude) { [double]$result.Comparison.CoordDeltaMagnitude } else { 0.0 }
+        $preferredLiveCoordDelta = if ($null -ne $result.Comparison.PreferredLiveCoordDeltaMagnitude) { [double]$result.Comparison.PreferredLiveCoordDeltaMagnitude } else { 0.0 }
         $basisDeterminantAfter = $null
         $basisDuplicateDeltaAfter = $null
         $forwardYAfter = $null
@@ -131,6 +155,13 @@ foreach ($key in $Keys) {
                 YawDeltaDegrees = $yawDelta
                 PitchDeltaDegrees = $pitchDelta
                 CoordDeltaMagnitude = $coordDelta
+                AddonCoordDeltaMagnitude = $coordDelta
+                PreferredLiveCoordDeltaMagnitude = $preferredLiveCoordDelta
+                AddonCoordMovementConfirmed = [bool]$result.Comparison.AddonCoordMovementConfirmed
+                LiveCoordMovementConfirmed = [bool]$result.Comparison.LiveCoordMovementConfirmed
+                AnyCoordMovementConfirmed = [bool]$result.Comparison.AnyCoordMovementConfirmed
+                TelemetryAlignmentStatus = [string]$result.Comparison.TelemetryAlignmentStatus
+                TelemetryBlocker = [bool]$result.Comparison.TelemetryBlocker
                 BasisDeterminantAfter = $basisDeterminantAfter
                 BasisDuplicateMaxRowDeltaAfter = $basisDuplicateDeltaAfter
                 ForwardYAfter = $forwardYAfter
@@ -148,6 +179,9 @@ $document = [pscustomobject]@{
     Mode = 'actor-orientation-key-profile'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     OutputFile = $resolvedOutputFile
+    ProcessName = $ProcessName
+    ProcessId = if ($ProcessId -gt 0) { $ProcessId } else { $null }
+    TargetWindowHandle = $TargetWindowHandle
     Keys = $Keys
     HoldMilliseconds = $HoldMilliseconds
     WaitMilliseconds = $WaitMilliseconds

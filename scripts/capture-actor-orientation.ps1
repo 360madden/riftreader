@@ -6,6 +6,10 @@ param(
     [switch]$RefreshReaderBridge,
     [switch]$NoAhkFallback,
     [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
+    [string]$BehaviorBackedLeadFile = (Join-Path $PSScriptRoot 'actor-facing-behavior-backed-lead.json'),
+    [switch]$IgnoreBehaviorBackedLead,
     [string]$OwnerComponentsFile = (Join-Path $PSScriptRoot 'captures\player-owner-components.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.json'),
     [string]$PreviousFile = (Join-Path $PSScriptRoot 'captures\player-actor-orientation.previous.json')
@@ -20,6 +24,20 @@ $ownerComponentScript = Join-Path $PSScriptRoot 'capture-player-owner-components
 $refreshReaderBridgeScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $coordTolerance = 0.75
 
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftActorOrientationTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
 function Invoke-ReaderJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -33,6 +51,57 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftActorOrientationTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftActorOrientationTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
 }
 
 function Normalize-AngleRadians {
@@ -53,6 +122,24 @@ function Normalize-AngleRadians {
 function Convert-RadiansToDegrees {
     param([double]$Radians)
     return $Radians * 180.0 / [Math]::PI
+}
+
+function Get-OptionalPropertyValue {
+    param(
+        $Object,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
 }
 
 function Format-Nullable {
@@ -179,6 +266,12 @@ function Write-ActorOrientationText {
     $lines.Add("Player:                      $(if ($Document.ReaderOrientation.PlayerName) { $Document.ReaderOrientation.PlayerName } else { 'n/a' })")
     $lines.Add("Player coords:               $(Format-Vector $Document.ReaderOrientation.PlayerCoord)")
     $lines.Add("Selected source:             $($Document.ReaderOrientation.SelectedSourceAddress)")
+    if ($Document.ReaderOrientation.ResolutionMode) {
+        $lines.Add("Resolution mode:             $($Document.ReaderOrientation.ResolutionMode)")
+    }
+    if ($Document.ReaderOrientation.BasisForwardOffset) {
+        $lines.Add("Basis forward offset:        $($Document.ReaderOrientation.BasisForwardOffset)")
+    }
     $lines.Add("Selected entry:              index $($Document.ReaderOrientation.SelectedEntryIndex) | $($Document.ReaderOrientation.SelectedEntryAddress)")
     $lines.Add("Preferred vector:            $(Format-Vector $Document.ReaderOrientation.PreferredEstimate.Vector)")
     $lines.Add("Actor yaw/pitch (rad):       $(Format-Nullable $Document.ReaderOrientation.PreferredEstimate.YawRadians '0.000000') / $(Format-Nullable $Document.ReaderOrientation.PreferredEstimate.PitchRadians '0.000000')")
@@ -449,18 +542,244 @@ function Get-BasisDuplicateAgreement {
     }
 }
 
+function Convert-HexOffsetToInt32 {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    return [int](Parse-HexUInt64 -Value $Value)
+}
+
+function Get-BasisMatrixEstimateAtOffset {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][int]$ForwardOffset
+    )
+
+    $basisName = ('Basis@0x{0:X}' -f $ForwardOffset)
+    return New-BasisMatrixEstimate `
+        -Name $basisName `
+        -Forward (Read-TripletAt -Bytes $Bytes -Offset $ForwardOffset) `
+        -Up (Read-TripletAt -Bytes $Bytes -Offset ($ForwardOffset + 0x0C)) `
+        -Right (Read-TripletAt -Bytes $Bytes -Offset ($ForwardOffset + 0x18))
+}
+
+function Test-MeaningfulBasisCandidate {
+    param($Basis)
+
+    if ($null -eq $Basis -or -not $Basis.IsOrthonormal) {
+        return $false
+    }
+
+    if ($null -eq $Basis.ForwardEstimate -or $null -eq $Basis.ForwardEstimate.Magnitude) {
+        return $false
+    }
+
+    $magnitude = [double]$Basis.ForwardEstimate.Magnitude
+    return ($magnitude -ge 0.85) -and ($magnitude -le 1.15)
+}
+
+function Try-ParseDateTimeOffsetValue {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -is [DateTimeOffset]) {
+        return $Value.ToUniversalTime()
+    }
+
+    if ($Value -is [DateTime]) {
+        return ([DateTimeOffset]$Value).ToUniversalTime()
+    }
+
+    $stringValue = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($stringValue)) {
+        return $null
+    }
+
+    $parsed = [DateTimeOffset]::MinValue
+    if ([DateTimeOffset]::TryParse($stringValue, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
+        return $parsed.ToUniversalTime()
+    }
+
+    return $null
+}
+
+function Get-TargetProcessMetadata {
+    param(
+        [string]$Name,
+        [int]$Id,
+        [string]$WindowHandle
+    )
+
+    $effectiveId = $Id
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftActorOrientationTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftActorOrientationTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$WindowHandle' did not resolve to a process id."
+        }
+
+        if ($Id -gt 0 -and [int]$ownerProcessId -ne $Id) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not PID $Id."
+        }
+
+        $effectiveId = [int]$ownerProcessId
+    }
+
+    $process = if ($effectiveId -gt 0) {
+        Get-Process -Id $effectiveId -ErrorAction Stop
+    }
+    else {
+        $matches = @(Get-Process -Name $Name -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+            throw "Process name '$Name' matched multiple windowed processes ($ids). Use -ProcessId for actor-orientation capture."
+        }
+
+        $matches | Select-Object -First 1
+    }
+
+    if ($null -eq $process) {
+        throw "No process named '$Name' with a main window was found."
+    }
+
+    if ($process.MainWindowHandle -eq [IntPtr]::Zero) {
+        throw "Target process '$($process.ProcessName)' [$($process.Id)] does not expose a main window."
+    }
+
+    if ($handle -ne [IntPtr]::Zero -and [Int64]$process.MainWindowHandle -ne $handle.ToInt64()) {
+        throw ("Target PID $($process.Id) main window 0x{0:X} does not match requested window '$WindowHandle'." -f ([Int64]$process.MainWindowHandle))
+    }
+
+    return [pscustomobject]@{
+        ProcessId = $process.Id
+        ProcessName = $process.ProcessName
+        StartTimeUtc = $process.StartTime.ToUniversalTime()
+        MainWindowTitle = $process.MainWindowTitle
+    }
+}
+
+function Test-BehaviorBackedLeadApplicability {
+    param(
+        $Lead,
+        $ProcessMetadata
+    )
+
+    if ($null -eq $Lead -or $null -eq $ProcessMetadata) {
+        return [pscustomobject]@{
+            IsValid = $true
+            Reason = $null
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Lead.ProcessName) -and
+        -not [string]::Equals([string]$Lead.ProcessName, [string]$ProcessMetadata.ProcessName, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{
+            IsValid = $false
+            Reason = ("Behavior-backed lead targets process '{0}', but the live process is '{1}'." -f $Lead.ProcessName, $ProcessMetadata.ProcessName)
+        }
+    }
+
+    $leadTimestamp = Try-ParseDateTimeOffsetValue -Value $Lead.ValidatedAtUtc
+    if ($null -eq $leadTimestamp) {
+        $leadTimestamp = Try-ParseDateTimeOffsetValue -Value $Lead.GeneratedAtUtc
+    }
+
+    if ($null -ne $leadTimestamp -and $leadTimestamp.UtcDateTime -lt $ProcessMetadata.StartTimeUtc.AddSeconds(-1)) {
+        return [pscustomobject]@{
+            IsValid = $false
+            Reason = ("Behavior-backed lead '{0}' is stale for live PID {1}: lead timestamp {2} predates process start {3}." -f `
+                $resolvedBehaviorBackedLeadFile, `
+                $ProcessMetadata.ProcessId, `
+                $leadTimestamp.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture), `
+                $ProcessMetadata.StartTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture))
+        }
+    }
+
+    return [pscustomobject]@{
+        IsValid = $true
+        Reason = $null
+    }
+}
+
+function Load-BehaviorBackedLead {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $json = Get-Content -LiteralPath $Path -Raw
+    if ([string]::IsNullOrWhiteSpace($json)) {
+        throw "Behavior-backed lead file '$Path' is empty."
+    }
+
+    $document = $json | Microsoft.PowerShell.Utility\ConvertFrom-Json -Depth 20
+    $sourceAddress = [string](Get-OptionalPropertyValue -Object $document -Name 'SourceAddress')
+    $basisForwardOffset = [string](Get-OptionalPropertyValue -Object $document -Name 'BasisForwardOffset')
+
+    if ([string]::IsNullOrWhiteSpace($sourceAddress)) {
+        throw "Behavior-backed lead file '$Path' does not expose SourceAddress."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($basisForwardOffset)) {
+        throw "Behavior-backed lead file '$Path' does not expose BasisForwardOffset."
+    }
+
+    return [pscustomobject]@{
+        SourceAddress = $sourceAddress
+        BasisForwardOffset = $basisForwardOffset
+        BasisDuplicateForwardOffset = [string](Get-OptionalPropertyValue -Object $document -Name 'BasisDuplicateForwardOffset')
+        ProcessName = [string](Get-OptionalPropertyValue -Object $document -Name 'ProcessName')
+        GeneratedAtUtc = Get-OptionalPropertyValue -Object $document -Name 'GeneratedAtUtc'
+        ValidatedAtUtc = Get-OptionalPropertyValue -Object $document -Name 'ValidatedAtUtc'
+        Status = [string](Get-OptionalPropertyValue -Object $document -Name 'Status')
+        OperationalStatus = [string](Get-OptionalPropertyValue -Object $document -Name 'OperationalStatus')
+        PreferredLead = [bool](Get-OptionalPropertyValue -Object $document -Name 'PreferredLead')
+        SolvedActorFacing = [bool](Get-OptionalPropertyValue -Object $document -Name 'SolvedActorFacing')
+        CanonicalActorYaw = [bool](Get-OptionalPropertyValue -Object $document -Name 'CanonicalActorYaw')
+        Notes = @((Get-OptionalPropertyValue -Object $document -Name 'Notes'))
+    }
+}
+
+function Get-ReaderBridgePlayerMetadata {
+    $snapshot = Invoke-ReaderJson -Arguments @('--readerbridge-snapshot', '--json')
+    $current = Get-OptionalPropertyValue -Object $snapshot -Name 'Current'
+    $player = Get-OptionalPropertyValue -Object $current -Name 'Player'
+
+    return [pscustomobject]@{
+        SnapshotFile = [string](Get-OptionalPropertyValue -Object $snapshot -Name 'SourceFile')
+        SnapshotLoadedAtUtc = [string](Get-OptionalPropertyValue -Object $snapshot -Name 'LoadedAtUtc')
+        PlayerName = [string](Get-OptionalPropertyValue -Object $player -Name 'Name')
+        PlayerLevel = Get-OptionalPropertyValue -Object $player -Name 'Level'
+        PlayerGuild = [string](Get-OptionalPropertyValue -Object $player -Name 'Guild')
+        PlayerLocation = [string](Get-OptionalPropertyValue -Object $player -Name 'Location')
+        PlayerCoord = Get-OptionalPropertyValue -Object $player -Name 'Coord'
+    }
+}
+
 function Get-LiveSourceSample {
     param(
         [Parameter(Mandatory = $true)][string]$SelectedSourceAddress,
-        [Parameter(Mandatory = $true)][string]$ProcessName
+        [Parameter(Mandatory = $true)][string[]]$TargetArguments,
+        [string]$BasisForwardOffset,
+        [string]$DuplicateBasisForwardOffset
     )
 
     $address = Parse-HexUInt64 -Value $SelectedSourceAddress
-    $memoryRead = Invoke-ReaderJson -Arguments @(
-        '--process-name', $ProcessName,
+    $memoryReadArguments = @(
+        @($TargetArguments) +
+        @(
         '--address', ('0x{0:X}' -f $address),
-        '--length', '192',
-        '--json')
+        '--length', '256',
+        '--json'))
+    $memoryRead = Invoke-ReaderJson -Arguments $memoryReadArguments
 
     $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
     $coord48 = Read-TripletAt -Bytes $bytes -Offset 0x48
@@ -469,6 +788,44 @@ function Get-LiveSourceSample {
     $orientation94 = Read-TripletAt -Bytes $bytes -Offset 0x94
     $basis60 = New-BasisMatrixEstimate -Name 'Basis60' -Forward $orientation60 -Up (Read-TripletAt -Bytes $bytes -Offset 0x6C) -Right (Read-TripletAt -Bytes $bytes -Offset 0x78)
     $basis94 = New-BasisMatrixEstimate -Name 'Basis94' -Forward $orientation94 -Up (Read-TripletAt -Bytes $bytes -Offset 0xA0) -Right (Read-TripletAt -Bytes $bytes -Offset 0xAC)
+    $resolvedForwardOffset = $null
+    $resolvedDuplicateForwardOffset = $null
+    $resolvedBasisCandidate = $null
+    $resolvedBasisDuplicateCandidate = $null
+    $resolvedBasisDuplicateAgreement = $null
+    $resolvedBasis = $null
+    $resolvedEstimate = $null
+    $basisPrimaryForwardOffset = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($BasisForwardOffset)) {
+        $resolvedForwardOffset = ('0x{0:X}' -f (Convert-HexOffsetToInt32 -Value $BasisForwardOffset))
+        $resolvedBasisCandidate = Get-BasisMatrixEstimateAtOffset -Bytes $bytes -ForwardOffset (Convert-HexOffsetToInt32 -Value $BasisForwardOffset)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($DuplicateBasisForwardOffset)) {
+        $resolvedDuplicateForwardOffset = ('0x{0:X}' -f (Convert-HexOffsetToInt32 -Value $DuplicateBasisForwardOffset))
+        $resolvedBasisDuplicateCandidate = Get-BasisMatrixEstimateAtOffset -Bytes $bytes -ForwardOffset (Convert-HexOffsetToInt32 -Value $DuplicateBasisForwardOffset)
+    }
+
+    if ($null -ne $resolvedBasisCandidate -and $null -ne $resolvedBasisDuplicateCandidate) {
+        $resolvedBasisDuplicateAgreement = Get-BasisDuplicateAgreement -PrimaryBasis $resolvedBasisCandidate -DuplicateBasis $resolvedBasisDuplicateCandidate
+    }
+
+    if (Test-MeaningfulBasisCandidate -Basis $resolvedBasisCandidate) {
+        $resolvedBasis = $resolvedBasisCandidate
+        $resolvedEstimate = $resolvedBasisCandidate.ForwardEstimate
+        $basisPrimaryForwardOffset = $resolvedForwardOffset
+    }
+    elseif (Test-MeaningfulBasisCandidate -Basis $basis60) {
+        $resolvedBasis = $basis60
+        $resolvedEstimate = $basis60.ForwardEstimate
+        $basisPrimaryForwardOffset = '0x60'
+    }
+    elseif (Test-MeaningfulBasisCandidate -Basis $basis94) {
+        $resolvedBasis = $basis94
+        $resolvedEstimate = $basis94.ForwardEstimate
+        $basisPrimaryForwardOffset = '0x94'
+    }
 
     return [pscustomobject]@{
         AddressHex = ('0x{0:X}' -f $address)
@@ -479,6 +836,15 @@ function Get-LiveSourceSample {
         Orientation94 = $orientation94
         Basis94 = $basis94
         BasisDuplicateAgreement = Get-BasisDuplicateAgreement -PrimaryBasis $basis60 -DuplicateBasis $basis94
+        ResolvedForwardOffset = $resolvedForwardOffset
+        ResolvedDuplicateForwardOffset = $resolvedDuplicateForwardOffset
+        ResolvedOrientation = if ($null -ne $resolvedBasis) { $resolvedBasis.Forward } else { $null }
+        ResolvedBasisCandidate = $resolvedBasisCandidate
+        ResolvedBasisDuplicateCandidate = $resolvedBasisDuplicateCandidate
+        ResolvedBasisDuplicateAgreement = $resolvedBasisDuplicateAgreement
+        BasisPrimaryForwardOffset = $basisPrimaryForwardOffset
+        ResolvedBasis = $resolvedBasis
+        ResolvedEstimate = $resolvedEstimate
     }
 }
 
@@ -509,19 +875,94 @@ function Test-CoordMatch {
 
 function Resolve-LiveOrientation {
     param(
-        [bool]$AllowOwnerRefresh
+        [bool]$AllowOwnerRefresh,
+        $BehaviorBackedLead
     )
 
-    $metadata = Invoke-ReaderJson -Arguments @(
+    if ($null -ne $BehaviorBackedLead) {
+        $snapshotMetadata = $null
+        $resolutionNotes = New-Object System.Collections.Generic.List[string]
+        try {
+            $snapshotMetadata = Get-ReaderBridgePlayerMetadata
+        }
+        catch {
+            $resolutionNotes.Add("ReaderBridge snapshot metadata load failed: $($_.Exception.Message)")
+        }
+
+        $liveSample = Get-LiveSourceSample `
+            -SelectedSourceAddress $BehaviorBackedLead.SourceAddress `
+            -TargetArguments (Get-ReaderTargetArguments) `
+            -BasisForwardOffset $BehaviorBackedLead.BasisForwardOffset `
+            -DuplicateBasisForwardOffset $BehaviorBackedLead.BasisDuplicateForwardOffset
+
+        if (-not (Test-MeaningfulBasisCandidate -Basis $liveSample.ResolvedBasis)) {
+            throw ("Behavior-backed lead '{0}' did not resolve a meaningful live basis at {1} ({2})." -f `
+                $resolvedBehaviorBackedLeadFile, `
+                $BehaviorBackedLead.SourceAddress, `
+                $BehaviorBackedLead.BasisForwardOffset)
+        }
+
+        $resolutionNotes.Add("Resolved live source via behavior-backed lead file '$resolvedBehaviorBackedLeadFile': $($BehaviorBackedLead.SourceAddress) (basis $($BehaviorBackedLead.BasisForwardOffset)).")
+        if (-not [string]::IsNullOrWhiteSpace($BehaviorBackedLead.Status)) {
+            $resolutionNotes.Add("Behavior-backed lead status: $($BehaviorBackedLead.Status).")
+        }
+        foreach ($note in @($BehaviorBackedLead.Notes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })) {
+            $resolutionNotes.Add([string]$note)
+        }
+
+        $playerCoord = if ($null -ne $snapshotMetadata) { $snapshotMetadata.PlayerCoord } else { $null }
+        $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
+        $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
+        $artifactTimestamp = (Get-Item -LiteralPath $resolvedBehaviorBackedLeadFile).LastWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+
+        $metadata = [pscustomobject]@{
+            ArtifactFile = $resolvedBehaviorBackedLeadFile
+            ArtifactLoadedAtUtc = $artifactTimestamp
+            ArtifactGeneratedAtUtc = $BehaviorBackedLead.GeneratedAtUtc
+            SnapshotFile = if ($null -ne $snapshotMetadata) { $snapshotMetadata.SnapshotFile } else { $null }
+            SnapshotLoadedAtUtc = if ($null -ne $snapshotMetadata) { $snapshotMetadata.SnapshotLoadedAtUtc } else { $null }
+            PlayerName = if ($null -ne $snapshotMetadata) { $snapshotMetadata.PlayerName } else { $null }
+            PlayerLevel = if ($null -ne $snapshotMetadata) { $snapshotMetadata.PlayerLevel } else { $null }
+            PlayerGuild = if ($null -ne $snapshotMetadata) { $snapshotMetadata.PlayerGuild } else { $null }
+            PlayerLocation = if ($null -ne $snapshotMetadata) { $snapshotMetadata.PlayerLocation } else { $null }
+            PlayerCoord = $playerCoord
+            SelectedSourceAddress = $BehaviorBackedLead.SourceAddress
+            SelectedEntryAddress = $null
+            SelectedEntryIndex = $null
+            SelectedEntryMatchesSelectedSource = $null
+            SelectedEntryRoleHints = @()
+            RefreshedOwnerComponents = $false
+            ResolutionMode = 'behavior-backed-lead'
+            ResolutionNotes = $resolutionNotes.ToArray()
+            BasisForwardOffset = $BehaviorBackedLead.BasisForwardOffset
+            Status = $BehaviorBackedLead.Status
+            OperationalStatus = $BehaviorBackedLead.OperationalStatus
+            PreferredLead = $BehaviorBackedLead.PreferredLead
+            SolvedActorFacing = $BehaviorBackedLead.SolvedActorFacing
+            CanonicalActorYaw = $BehaviorBackedLead.CanonicalActorYaw
+        }
+
+        return [pscustomobject]@{
+            Metadata = $metadata
+            LiveSample = $liveSample
+            Coord48Matches = $coord48Matches
+            Coord88Matches = $coord88Matches
+        }
+    }
+
+    $metadataArguments = @(
+        @(Get-ReaderTargetArguments) +
+        @(
         '--read-player-orientation',
         '--owner-components-file', $resolvedOwnerComponentsFile,
-        '--json')
+        '--json'))
+    $metadata = Invoke-ReaderJson -Arguments $metadataArguments
 
     if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {
         throw 'The player-orientation reader did not resolve a selected source address.'
     }
 
-    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -ProcessName $ProcessName
+    $liveSample = Get-LiveSourceSample -SelectedSourceAddress ([string]$metadata.SelectedSourceAddress) -TargetArguments (Get-ReaderTargetArguments)
     $playerCoord = $metadata.PlayerCoord
     $coord48Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord48 -Tolerance $coordTolerance
     $coord88Matches = Test-CoordMatch -ExpectedCoord $playerCoord -ActualCoord $liveSample.Coord88 -Tolerance $coordTolerance
@@ -539,9 +980,30 @@ function Resolve-LiveOrientation {
 $resolvedOwnerComponentsFile = [System.IO.Path]::GetFullPath($OwnerComponentsFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
 $resolvedPreviousFile = [System.IO.Path]::GetFullPath($PreviousFile)
+$resolvedBehaviorBackedLeadFile = [System.IO.Path]::GetFullPath($BehaviorBackedLeadFile)
+$behaviorBackedLead = $null
+$targetProcessMetadata = Get-TargetProcessMetadata -Name $ProcessName -Id $ProcessId -WindowHandle $TargetWindowHandle
+
+if (-not $IgnoreBehaviorBackedLead -and (Test-Path -LiteralPath $resolvedBehaviorBackedLeadFile)) {
+    $behaviorBackedLead = Load-BehaviorBackedLead -Path $resolvedBehaviorBackedLeadFile
+    $behaviorBackedLeadApplicability = Test-BehaviorBackedLeadApplicability -Lead $behaviorBackedLead -ProcessMetadata $targetProcessMetadata
+    if (-not $behaviorBackedLeadApplicability.IsValid) {
+        throw ("{0} Rebuild the live facing lead with find-player-orientation-candidate.ps1 / test-actor-yaw-candidates.ps1, or rerun with -IgnoreBehaviorBackedLead to bypass the cached lead." -f $behaviorBackedLeadApplicability.Reason)
+    }
+}
 
 if ($RefreshReaderBridge) {
-    $refreshArguments = @{ 'NoReader' = $true }
+    $refreshArguments = @{
+        'NoReader' = $true
+        'ProcessName' = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $refreshArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $refreshArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
     if ($NoAhkFallback) {
         $refreshArguments['NoAhkFallback'] = $true
     }
@@ -554,32 +1016,72 @@ if ($RefreshReaderBridge) {
     }
 }
 
-if ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile)) {
-    & $ownerComponentScript -RefreshSelectorTrace -OutputFile $resolvedOwnerComponentsFile -Json | Out-Null
+if ($null -eq $behaviorBackedLead -and ($RefreshOwnerComponents -or -not (Test-Path -LiteralPath $resolvedOwnerComponentsFile))) {
+    $ownerComponentArguments = @{
+        RefreshSelectorTrace = $true
+        OutputFile = $resolvedOwnerComponentsFile
+        Json = $true
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $ownerComponentArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $ownerComponentArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    & $ownerComponentScript @ownerComponentArguments | Out-Null
 }
 
-$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents
+$liveResolution = Resolve-LiveOrientation -AllowOwnerRefresh $RefreshOwnerComponents -BehaviorBackedLead $behaviorBackedLead
 $orientationMetadata = $liveResolution.Metadata
 $liveSourceSample = $liveResolution.LiveSample
-$estimates = @(
-    (New-VectorEstimate -Name 'Orientation60' -Vector $liveSourceSample.Orientation60),
-    (New-VectorEstimate -Name 'Orientation94' -Vector $liveSourceSample.Orientation94)
-)
+$estimates = New-Object System.Collections.Generic.List[object]
+if ($null -ne $liveSourceSample.ResolvedEstimate) {
+    $estimates.Add($liveSourceSample.ResolvedEstimate) | Out-Null
+}
+else {
+    $estimates.Add((New-VectorEstimate -Name 'Orientation60' -Vector $liveSourceSample.Orientation60)) | Out-Null
+    $estimates.Add((New-VectorEstimate -Name 'Orientation94' -Vector $liveSourceSample.Orientation94)) | Out-Null
+}
 
-$preferredEstimate = $estimates | Where-Object { $_.Name -eq 'Orientation60' } | Select-Object -First 1
+$preferredEstimate = if ($null -ne $liveSourceSample.ResolvedEstimate) {
+    $liveSourceSample.ResolvedEstimate
+}
+else {
+    $estimates | Where-Object { $_.Name -eq 'Orientation60' } | Select-Object -First 1
+}
 if ($null -eq $preferredEstimate) {
-    $preferredEstimate = $estimates | Select-Object -First 1
+    $preferredEstimate = @($estimates) | Select-Object -First 1
 }
 
 $orientationNotes = New-Object System.Collections.Generic.List[string]
-if ($orientationMetadata.Notes) {
-    foreach ($note in $orientationMetadata.Notes) {
-        $orientationNotes.Add([string]$note)
+if ($orientationMetadata.PSObject.Properties.Name -contains 'Notes') {
+    foreach ($note in @($orientationMetadata.Notes)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$note)) {
+            $orientationNotes.Add([string]$note)
+        }
+    }
+}
+elseif ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionNotes') {
+    foreach ($note in @($orientationMetadata.ResolutionNotes)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$note)) {
+            $orientationNotes.Add([string]$note)
+        }
     }
 }
 $orientationNotes.Add('Preferred estimate in this capture was recomputed from a fresh live memory read of the selected source object.')
-$orientationNotes.Add('Coord48/Coord88 and Orientation60/Orientation94 were read directly from source offsets +0x48/+0x88 and +0x60/+0x94.')
-$orientationNotes.Add('The source object also exposes duplicated 3x3 basis blocks at +0x60/+0x6C/+0x78 and +0x94/+0xA0/+0xAC; yaw/pitch are derived from the forward row.')
+if ($null -ne $liveSourceSample.ResolvedBasis -and -not [string]::IsNullOrWhiteSpace([string]$liveSourceSample.BasisPrimaryForwardOffset)) {
+    $orientationNotes.Add("Yaw/pitch truth is currently derived from $($liveSourceSample.ResolvedBasis.Name).Forward at $($liveSourceSample.BasisPrimaryForwardOffset).")
+}
+else {
+    $orientationNotes.Add('Coord48/Coord88 and Orientation60/Orientation94 were read directly from source offsets +0x48/+0x88 and +0x60/+0x94.')
+    $orientationNotes.Add('The source object also exposes duplicated 3x3 basis blocks at +0x60/+0x6C/+0x78 and +0x94/+0xA0/+0xAC; yaw/pitch are derived from the forward row.')
+}
+if ($null -ne $behaviorBackedLead) {
+    $orientationNotes.Add('Legacy refresh/recovery was suppressed because a behavior-backed lead file is present; the helper now fails closed instead of falling back to owner-component recovery.')
+}
 if ($liveResolution.Coord48Matches -or $liveResolution.Coord88Matches) {
     $orientationNotes.Add('Live source coords matched the current ReaderBridge player coords during capture.')
 }
@@ -593,7 +1095,23 @@ elseif ($orientationMetadata.PSObject.Properties.Name -contains 'OwnerRefreshErr
     $orientationNotes.Add("Owner-component refresh failed; using the last known selected source. $($orientationMetadata.OwnerRefreshError)")
 }
 
-$orientation = [pscustomobject]@{
+$preferredBasis = if ($null -ne $liveSourceSample.ResolvedBasis) { $liveSourceSample.ResolvedBasis } else { $liveSourceSample.Basis60 }
+$duplicateBasisAgreement = if ($null -ne $liveSourceSample.ResolvedBasis) { $liveSourceSample.ResolvedBasisDuplicateAgreement } else { $liveSourceSample.BasisDuplicateAgreement }
+$basisForwardOffset = if ($null -ne $liveSourceSample.BasisPrimaryForwardOffset) { $liveSourceSample.BasisPrimaryForwardOffset } elseif ($orientationMetadata.PSObject.Properties.Name -contains 'BasisForwardOffset') { $orientationMetadata.BasisForwardOffset } else { $null }
+$preferredBasisName = if ($null -ne $liveSourceSample.ResolvedBasis) { $liveSourceSample.ResolvedBasis.Name } else { $null }
+$resolutionMode = if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionMode') { $orientationMetadata.ResolutionMode } else { $null }
+$resolutionNotes = if ($orientationMetadata.PSObject.Properties.Name -contains 'ResolutionNotes') { $orientationMetadata.ResolutionNotes } else { $null }
+$status = if ($orientationMetadata.PSObject.Properties.Name -contains 'Status') { $orientationMetadata.Status } else { $null }
+$operationalStatus = if ($orientationMetadata.PSObject.Properties.Name -contains 'OperationalStatus') { $orientationMetadata.OperationalStatus } else { $null }
+$preferredLeadFlag = if ($orientationMetadata.PSObject.Properties.Name -contains 'PreferredLead') { $orientationMetadata.PreferredLead } else { $null }
+$solvedActorFacingFlag = if ($orientationMetadata.PSObject.Properties.Name -contains 'SolvedActorFacing') { $orientationMetadata.SolvedActorFacing } else { $null }
+$canonicalActorYawFlag = if ($orientationMetadata.PSObject.Properties.Name -contains 'CanonicalActorYaw') { $orientationMetadata.CanonicalActorYaw } else { $null }
+$selectedEntryRoleHints = @($orientationMetadata.SelectedEntryRoleHints)
+$resolutionNotesArray = @($resolutionNotes)
+$estimatesArray = $estimates.ToArray()
+$orientationNotesArray = $orientationNotes.ToArray()
+
+$orientationProperties = [ordered]@{
     Mode = 'player-orientation-live'
     ArtifactFile = $orientationMetadata.ArtifactFile
     ArtifactLoadedAtUtc = $orientationMetadata.ArtifactLoadedAtUtc
@@ -609,21 +1127,32 @@ $orientation = [pscustomobject]@{
     SelectedEntryAddress = $orientationMetadata.SelectedEntryAddress
     SelectedEntryIndex = $orientationMetadata.SelectedEntryIndex
     SelectedEntryMatchesSelectedSource = $orientationMetadata.SelectedEntryMatchesSelectedSource
-    SelectedEntryRoleHints = $orientationMetadata.SelectedEntryRoleHints
+    SelectedEntryRoleHints = $selectedEntryRoleHints
     LiveSourceCoord48MatchesPlayerCoord = $liveResolution.Coord48Matches
     LiveSourceCoord88MatchesPlayerCoord = $liveResolution.Coord88Matches
     RefreshedOwnerComponents = $orientationMetadata.RefreshedOwnerComponents
+    ResolutionMode = $resolutionMode
+    ResolutionNotes = $resolutionNotesArray
+    BasisForwardOffset = $basisForwardOffset
+    PreferredBasisName = $preferredBasisName
+    Status = $status
+    OperationalStatus = $operationalStatus
+    PreferredLead = $preferredLeadFlag
+    SolvedActorFacing = $solvedActorFacingFlag
+    CanonicalActorYaw = $canonicalActorYawFlag
     LiveSourceSample = $liveSourceSample
-    PreferredBasis = $liveSourceSample.Basis60
-    DuplicateBasisAgreement = $liveSourceSample.BasisDuplicateAgreement
+    PreferredBasis = $preferredBasis
+    DuplicateBasisAgreement = $duplicateBasisAgreement
     PreferredEstimate = $preferredEstimate
-    Estimates = $estimates
-    Notes = $orientationNotes
+    Estimates = $estimatesArray
+    Notes = $orientationNotesArray
 }
+$orientation = New-Object psobject -Property $orientationProperties
 
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add('This helper is actor-oriented: it reads the selected owner/source component and derives yaw/pitch from the live source basis matrix.')
 $notes.Add('Use -RefreshOwnerComponents when you want to recapture the owner/source component live before computing yaw/pitch.')
+$notes.Add('When a behavior-backed lead file is present, the helper prefers that live source and validates the basis before trusting the capture.')
 $notes.Add('Use -RefreshReaderBridge when you want the coord-match checks to compare against a freshly exported player snapshot.')
 $notes.Add('For cleaner live tests, keep movement minimal and compare labeled captures before/after controlled facing changes.')
 

@@ -14,6 +14,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'logging-common.ps1')
+
 function ConvertTo-MarkerKind {
     param(
         [string]$Value
@@ -61,16 +63,10 @@ function ConvertTo-MetadataMap {
 
 $resolvedFile = [System.IO.Path]::GetFullPath($File)
 $directory = Split-Path -Path $resolvedFile -Parent
-if (-not [string]::IsNullOrWhiteSpace($directory)) {
-    New-Item -ItemType Directory -Path $directory -Force | Out-Null
-}
-
-if (-not (Test-Path -LiteralPath $resolvedFile)) {
-    [System.IO.File]::WriteAllText($resolvedFile, '', [System.Text.UTF8Encoding]::new($false))
-}
 
 $metadataMap = ConvertTo-MetadataMap -Pairs $Metadata
-$marker = [ordered]@{
+$runId = New-LogRunId -Source 'session-marker'
+$markerData = [ordered]@{
     Kind = ConvertTo-MarkerKind -Value $Kind
     Label = $(if ([string]::IsNullOrWhiteSpace($Label)) { $null } else { $Label.Trim() })
     Message = $(if ([string]::IsNullOrWhiteSpace($Message)) { $null } else { $Message.Trim() })
@@ -78,8 +74,14 @@ $marker = [ordered]@{
     Metadata = $(if ($metadataMap.Count -gt 0) { $metadataMap } else { $null })
 }
 
-$jsonLine = ($marker | ConvertTo-Json -Compress -Depth 8)
-[System.IO.File]::AppendAllText($resolvedFile, $jsonLine + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+$marker = New-StructuredLogEntry `
+    -Level 'info' `
+    -Source 'session-marker' `
+    -RunId $runId `
+    -Message $(if ($null -ne $markerData.Message) { [string]$markerData.Message } else { 'Appended session marker.' }) `
+    -Data $markerData
+
+Write-StructuredLogLine -Path $resolvedFile -Entry $marker
 
 if ($Json) {
     [ordered]@{

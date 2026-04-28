@@ -15,6 +15,12 @@ Read this file at the start of every session. It is the single authoritative ref
 > - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 > - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
 > - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
+>
+> **Current live authority index:**
+>
+> - active live truth: `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
+> - movement / proof runbook: `C:\RIFT MODDING\RiftReader\docs\recovery\rebuild-runbook.md`
+> - telemetry bridge contract: `C:\RIFT MODDING\RiftReader\docs\telemetry-bridge-v1.md`
 
 ---
 
@@ -38,7 +44,9 @@ scripts\deploy-addon.cmd
 scripts\sync-cheatengine.cmd
 ```
 
-There is no test project. Validate C# changes by building (`dotnet build RiftReader.slnx`) then running `scripts\read-player-current.cmd`.
+There is a test project at `reader\RiftReader.Reader.Tests`. Validate C#
+changes by building (`dotnet build RiftReader.slnx`) and running targeted or
+full `dotnet test` where relevant.
 
 ---
 
@@ -242,7 +250,7 @@ Things that look reasonable but are wrong for this system. Don't do these.
 - **Discovery modes**: Cheat Engine probe generation, module pattern scanning, pointer reference scanning
 - **Typed reader modes**:
   - `--read-player-current` — Full player snapshot from memory (coord, health, level, etc.)
-  - `--read-player-orientation` — Historical pre-update actor yaw/pitch path from the basis matrix; revalidation currently required
+  - `--read-player-orientation` — Live actor yaw/pitch via the behavior-backed lead when called with `--pid` / `--process-name`; artifact-only mode remains historical
   - `--read-player-coord-anchor` — Validates coordinate write instruction and derives anchor details
   - `--read-target-current` — Full target snapshot from memory (coord, health, level, name, distance)
   - `--rank-stat-hubs` — Walks identity-component graph and ranks shared memory hubs by player-stat prevalence; optionally emits a CE probe script via `--cheatengine-stat-hubs`

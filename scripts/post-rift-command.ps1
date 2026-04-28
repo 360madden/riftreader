@@ -2,11 +2,15 @@
 param(
     [string]$Command = "/reloadui",
     [string]$TargetProcessName = "rift_x64",
+    [int]$TargetProcessId,
+    [string]$TargetWindowHandle,
+    [string]$TargetTitleContains,
     [string]$VerifyFilePath = "C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.1@gmail.com\Deepwood\Atank\SavedVariables\ReaderBridgeExport.lua",
-    [string]$BackgroundProcessName = "cheatengine-x86_64-SSE4-AVX2",
+    [string]$BackgroundProcessName = "",
     [int]$AttemptTimeoutSeconds = 10,
     [int]$InterKeyDelayMilliseconds = 20,
-    [switch]$SkipBackgroundFocus
+    [switch]$SkipBackgroundFocus,
+    [switch]$RequireTargetForeground
 )
 
 Set-StrictMode -Version Latest
@@ -15,11 +19,21 @@ $ErrorActionPreference = "Stop"
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public static class RiftPostMessageNative
 {
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern short VkKeyScan(char ch);
@@ -78,10 +92,39 @@ $VK_MENU = 0x12
 $MAPVK_VK_TO_VSC = 0
 $SW_RESTORE = 9
 
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-WindowTitle {
+    param([IntPtr]$Handle)
+
+    $length = [RiftPostMessageNative]::GetWindowTextLength($Handle)
+    if ($length -le 0) {
+        return ''
+    }
+
+    $builder = New-Object System.Text.StringBuilder ($length + 1)
+    [void][RiftPostMessageNative]::GetWindowText($Handle, $builder, $builder.Capacity)
+    return $builder.ToString()
+}
+
 function Get-MainWindowProcess {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProcessName
+        [string]$ProcessName,
+        [switch]$AllowFirstMatch
     )
 
     $candidates = @()
@@ -99,7 +142,12 @@ function Get-MainWindowProcess {
             Where-Object { $_.MainWindowHandle -ne 0 })
     }
 
-    $candidate = $candidates | Select-Object -First 1
+    if ($candidates.Count -gt 1 -and -not $AllowFirstMatch) {
+        $ids = ($candidates | Sort-Object Id | ForEach-Object { $_.Id }) -join ', '
+        throw "Process name '$ProcessName' matched multiple windowed processes ($ids). Use -TargetProcessId or -TargetWindowHandle to avoid cross-window input."
+    }
+
+    $candidate = $candidates | Sort-Object StartTime | Select-Object -First 1
 
     if (-not $candidate) {
         throw "No process named '$ProcessName' with a main window was found."
@@ -108,15 +156,106 @@ function Get-MainWindowProcess {
     return $candidate
 }
 
+function Resolve-TargetWindow {
+    param(
+        [string]$ProcessName,
+        [int]$ProcessId,
+        [string]$WindowHandle,
+        [string]$TitleContains
+    )
+
+    $handle = ConvertTo-WindowHandle -HandleText $WindowHandle
+    $process = $null
+
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftPostMessageNative]::IsWindow($handle)) {
+            throw "Target window handle '$WindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = 0
+        [void][RiftPostMessageNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ProcessId -gt 0 -and $ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$WindowHandle' belongs to PID $ownerProcessId, not requested PID $ProcessId."
+        }
+
+        $process = Get-Process -Id $ownerProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
+            $expectedName = [System.IO.Path]::GetFileNameWithoutExtension($ProcessName)
+            if (-not [string]::Equals($process.ProcessName, $expectedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Target window handle '$WindowHandle' belongs to process '$($process.ProcessName)' [$($process.Id)], not '$expectedName'."
+            }
+        }
+    }
+    elseif ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
+            $expectedName = [System.IO.Path]::GetFileNameWithoutExtension($ProcessName)
+            if (-not [string]::Equals($process.ProcessName, $expectedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Requested PID $ProcessId is '$($process.ProcessName)', not '$expectedName'."
+            }
+        }
+
+        $handle = [IntPtr]$process.MainWindowHandle
+    }
+    else {
+        $process = Get-MainWindowProcess -ProcessName $ProcessName
+        $handle = [IntPtr]$process.MainWindowHandle
+    }
+
+    if ($handle -eq [IntPtr]::Zero) {
+        throw "Target process '$($process.ProcessName)' [$($process.Id)] does not expose a main window handle."
+    }
+
+    if (-not [RiftPostMessageNative]::IsWindow($handle)) {
+        throw ("Resolved target window 0x{0:X} is not valid." -f $handle.ToInt64())
+    }
+
+    $resolvedOwnerProcessId = 0
+    [void][RiftPostMessageNative]::GetWindowThreadProcessId($handle, [ref]$resolvedOwnerProcessId)
+    if ($resolvedOwnerProcessId -ne $process.Id) {
+        throw ("Resolved target window 0x{0:X} belongs to PID {1}, not resolved process PID {2}." -f $handle.ToInt64(), $resolvedOwnerProcessId, $process.Id)
+    }
+
+    $title = Get-WindowTitle -Handle $handle
+    if (-not [string]::IsNullOrWhiteSpace($TitleContains) -and
+        $title.IndexOf($TitleContains, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "Resolved target window title '$title' does not contain '$TitleContains'."
+    }
+
+    return [pscustomobject]@{
+        Process = $process
+        WindowHandle = $handle
+        WindowTitle = $title
+    }
+}
+
 function Focus-Window {
     param(
         [Parameter(Mandatory = $true)]
-        [System.Diagnostics.Process]$Process
+        [System.Diagnostics.Process]$Process,
+        [IntPtr]$WindowHandle = [IntPtr]::Zero
     )
 
-    [void][RiftPostMessageNative]::ShowWindow($Process.MainWindowHandle, $SW_RESTORE)
-    [void][RiftPostMessageNative]::SetForegroundWindow($Process.MainWindowHandle)
+    $targetHandle = if ($WindowHandle -ne [IntPtr]::Zero) { $WindowHandle } else { $Process.MainWindowHandle }
+    [void][RiftPostMessageNative]::ShowWindow($targetHandle, $SW_RESTORE)
+    [void][RiftPostMessageNative]::SetForegroundWindow($targetHandle)
     Start-Sleep -Milliseconds 250
+}
+
+function Test-TargetProcessIsForeground {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$TargetProcessId
+    )
+
+    $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+    if ($foregroundHandle -eq [IntPtr]::Zero) {
+        return $false
+    }
+
+    $foregroundProcessId = 0
+    [void][RiftPostMessageNative]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+    return $foregroundProcessId -eq $TargetProcessId
 }
 
 function Get-FileTimestampUtc {
@@ -313,32 +452,48 @@ function Wait-ForTimestampAdvance {
     return $null
 }
 
-$targetProcess = Get-MainWindowProcess -ProcessName $TargetProcessName
-$targetHandle = [IntPtr]$targetProcess.MainWindowHandle
+$target = Resolve-TargetWindow -ProcessName $TargetProcessName -ProcessId $TargetProcessId -WindowHandle $TargetWindowHandle -TitleContains $TargetTitleContains
+$targetProcess = $target.Process
+$targetHandle = [IntPtr]$target.WindowHandle
 
 $targetOwnerProcessId = 0
 $targetThreadId = [RiftPostMessageNative]::GetWindowThreadProcessId($targetHandle, [ref]$targetOwnerProcessId)
 if ($targetOwnerProcessId -ne $targetProcess.Id) {
-    throw "Main window handle 0x{0:X} does not belong to process {1}." -f $targetProcess.MainWindowHandle, $targetProcess.Id
+    throw ("Target window handle 0x{0:X} does not belong to process {1}." -f $targetHandle.ToInt64(), $targetProcess.Id)
 }
 
 Write-Host "[RiftPost] Target process: $($targetProcess.ProcessName) [$($targetProcess.Id)]"
-Write-Host ("[RiftPost] Target window : 0x{0:X} '{1}'" -f $targetProcess.MainWindowHandle, $targetProcess.MainWindowTitle)
+Write-Host ("[RiftPost] Target window : 0x{0:X} '{1}'" -f $targetHandle.ToInt64(), $target.WindowTitle)
 Write-Host "[RiftPost] Target thread : $targetThreadId"
 
 $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
 Write-Host ("[RiftPost] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 
-if (-not $SkipBackgroundFocus) {
-    $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
-    Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
-    Focus-Window -Process $backgroundProcess
+if (-not $SkipBackgroundFocus -and -not [string]::IsNullOrWhiteSpace($BackgroundProcessName)) {
+    $backgroundProcess = $null
+    try {
+        $backgroundProcess = Get-MainWindowProcess -ProcessName $BackgroundProcessName
+    }
+    catch {
+        Write-Warning ("Background focus target '{0}' was not available; continuing without background focus. {1}" -f $BackgroundProcessName, $_.Exception.Message)
+    }
 
-    $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
-    Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+    if ($backgroundProcess) {
+        Write-Host "[RiftPost] Background focus target: $($backgroundProcess.ProcessName) [$($backgroundProcess.Id)]"
+        Focus-Window -Process $backgroundProcess
 
-    if ($foregroundHandle -eq $targetHandle) {
-        throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        $foregroundHandle = [RiftPostMessageNative]::GetForegroundWindow()
+        Write-Host ("[RiftPost] Foreground window after redirect: 0x{0:X}" -f $foregroundHandle.ToInt64())
+
+        if ($foregroundHandle -eq $targetHandle) {
+            throw "Foreground window is still the Rift window; this test would not prove non-focused posting."
+        }
+    }
+}
+
+if ($RequireTargetForeground) {
+    if (-not (Test-TargetProcessIsForeground -TargetProcessId $targetProcess.Id)) {
+        throw "Rift is not the foreground window. Aborting live command posting to preserve focus safety."
     }
 }
 

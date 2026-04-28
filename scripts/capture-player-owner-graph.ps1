@@ -2,6 +2,9 @@
 param(
     [switch]$Json,
     [switch]$RefreshSelectorTrace,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string]$SelectorTraceFile = (Join-Path $PSScriptRoot 'captures\player-selector-owner-trace.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\player-owner-graph.json')
 )
@@ -14,6 +17,20 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $selectorTraceScript = Join-Path $PSScriptRoot 'trace-player-selector-owner.ps1'
 $resolvedSelectorTraceFile = [System.IO.Path]::GetFullPath($SelectorTraceFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftOwnerGraphTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
 
 function Invoke-ReaderJson {
     param(
@@ -28,6 +45,57 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function ConvertTo-WindowHandle {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Get-EffectiveTargetProcessId {
+    $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        if (-not [RiftOwnerGraphTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftOwnerGraphTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to a process id."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        return $ProcessId
+    }
+
+    return $null
+}
+
+function Get-ReaderTargetArguments {
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        return @('--pid', $effectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $ProcessName)
 }
 
 function Parse-HexUInt64 {
@@ -53,11 +121,11 @@ function Read-Bytes {
         [int]$Length
     )
 
-    $result = Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+    $arguments = @(Get-ReaderTargetArguments) + @(
         '--address', ('0x{0:X}' -f $Address),
         '--length', $Length.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--json')
+    $result = Invoke-ReaderJson -Arguments $arguments
 
     $hex = ([string]$result.BytesHex -replace '\s+', '').Trim()
     $bytes = New-Object byte[] ($hex.Length / 2)
@@ -120,7 +188,18 @@ function Test-CoordMatch {
 }
 
 if ($RefreshSelectorTrace -or -not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
-    & $selectorTraceScript -Json | Out-Null
+    $selectorTraceArguments = @{
+        Json = $true
+        ProcessName = $ProcessName
+    }
+    $effectiveProcessId = Get-EffectiveTargetProcessId
+    if ($null -ne $effectiveProcessId -and $effectiveProcessId -gt 0) {
+        $selectorTraceArguments['ProcessId'] = $effectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $selectorTraceArguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+    & $selectorTraceScript @selectorTraceArguments | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $resolvedSelectorTraceFile)) {
@@ -199,6 +278,9 @@ for ($offset = 0; $offset -lt 0x180; $offset += 8) {
 $result = [ordered]@{
     Mode = 'player-owner-graph'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+    ProcessName = $ProcessName
+    ProcessId = Get-EffectiveTargetProcessId
+    TargetWindowHandle = $TargetWindowHandle
     SelectorTraceFile = $resolvedSelectorTraceFile
     Owner = [ordered]@{
         Address = ('0x{0:X}' -f $ownerAddress)

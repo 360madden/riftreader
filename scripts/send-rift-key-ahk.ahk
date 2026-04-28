@@ -1,0 +1,114 @@
+#Requires AutoHotkey v2.0
+#SingleInstance Force
+
+keyText := A_Args.Length >= 1 ? A_Args[1] : ""
+holdMilliseconds := A_Args.Length >= 2 ? Integer(A_Args[2]) : 250
+targetExe := A_Args.Length >= 3 ? A_Args[3] : "rift_x64.exe"
+noRefocus := A_Args.Length >= 4 ? (A_Args[4] = "1") : false
+targetWindowHandle := A_Args.Length >= 5 ? A_Args[5] : ""
+targetProcessId := A_Args.Length >= 6 ? Integer(A_Args[6]) : 0
+
+NormalizeKey(keyValue) {
+    trimmed := Trim(keyValue)
+    if (trimmed = "")
+        return ""
+
+    upper := StrUpper(trimmed)
+    switch upper {
+        case "W":
+            return "sc011"
+        case "A":
+            return "sc01E"
+        case "S":
+            return "sc01F"
+        case "D":
+            return "sc020"
+        case "Q":
+            return "sc010"
+        case "E":
+            return "sc012"
+        case "SPACE":
+            return "sc039"
+        case "LEFT":
+            return "sc14B"
+        case "RIGHT":
+            return "sc14D"
+        case "UP":
+            return "sc148"
+        case "DOWN":
+            return "sc150"
+        case "ENTER", "RETURN":
+            return "Enter"
+        case "ESC", "ESCAPE":
+            return "Escape"
+        case "TAB":
+            return "Tab"
+        case "BACKSPACE":
+            return "Backspace"
+        default:
+            return trimmed
+    }
+}
+
+SendHeldKey(keyName, holdMs) {
+    SendEvent("{" keyName " down}")
+    Sleep(Max(holdMs, 1))
+    SendEvent("{" keyName " up}")
+}
+
+if (keyText = "")
+    ExitApp(1)
+
+if (targetWindowHandle != "") {
+    targetHwnd := targetWindowHandle
+    if (!WinExist("ahk_id " targetHwnd))
+        ExitApp(2)
+} else {
+    targetWindows := WinGetList("ahk_exe " targetExe)
+    if (targetWindows.Length < 1)
+        ExitApp(2)
+
+    if (targetWindows.Length > 1 && targetProcessId <= 0)
+        ExitApp(6)
+
+    targetHwnd := targetWindows[1]
+    if (targetProcessId > 0) {
+        targetHwnd := 0
+        for hwnd in targetWindows {
+            if (WinGetPID("ahk_id " hwnd) = targetProcessId) {
+                targetHwnd := hwnd
+                break
+            }
+        }
+        if (!targetHwnd)
+            ExitApp(7)
+    }
+}
+
+if (targetProcessId > 0 && WinGetPID("ahk_id " targetHwnd) != targetProcessId)
+    ExitApp(8)
+
+previousHwnd := WinExist("A")
+keyName := NormalizeKey(keyText)
+if (keyName = "")
+    ExitApp(3)
+
+SetTitleMatchMode(2)
+SetKeyDelay(50, 50)
+WinActivate("ahk_id " targetHwnd)
+
+try {
+    WinWaitActive("ahk_id " targetHwnd, , 1.5)
+} catch {
+    ExitApp(4)
+}
+
+Sleep(150)
+SendHeldKey(keyName, holdMilliseconds)
+
+if (!noRefocus && previousHwnd && previousHwnd != targetHwnd) {
+    Sleep(100)
+    try WinActivate("ahk_id " previousHwnd)
+}
+
+ExitApp(0)

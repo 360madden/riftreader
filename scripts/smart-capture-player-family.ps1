@@ -9,6 +9,9 @@ param(
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\ce-smart-player-family.json'),
     [int]$CoordScale = 1000,
     [int]$CoordToleranceUnits = 5,
+    [string]$ProcessName = 'rift_x64',
+    [int]$ProcessId,
+    [string]$TargetWindowHandle,
     [string[]]$AxisPriority = @("X", "Z")
 )
 
@@ -22,6 +25,22 @@ $ceFloatScanLua = Join-Path $PSScriptRoot 'ce-float-scan.lua'
 $refreshScript = Join-Path $PSScriptRoot 'refresh-readerbridge-export.ps1'
 $postKeyScript = Join-Path $PSScriptRoot 'post-rift-key.ps1'
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+$script:EffectiveProcessId = 0
+$script:NormalizedProcessName = $null
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RiftSmartCaptureTargetNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
 
 function Invoke-ReaderJson {
     param(
@@ -36,6 +55,124 @@ function Invoke-ReaderJson {
     }
 
     return ($output -join [Environment]::NewLine) | ConvertFrom-Json -Depth 20
+}
+
+function Get-NormalizedProcessName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $Name
+    }
+
+    $trimmed = $Name.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed.Substring(0, $trimmed.Length - 4)
+    }
+
+    return $trimmed
+}
+
+function ConvertTo-WindowHandle {
+    param([Parameter(Mandatory = $true)][string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return [IntPtr]::Zero
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $raw = [UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [IntPtr]([Int64]$raw)
+    }
+
+    return [IntPtr]([Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Resolve-EffectiveTargetProcessId {
+    $normalizedName = Get-NormalizedProcessName -Name $ProcessName
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $handle = ConvertTo-WindowHandle -HandleText $TargetWindowHandle
+        if ($handle -eq [IntPtr]::Zero -or -not [RiftSmartCaptureTargetNative]::IsWindow($handle)) {
+            throw "Target window handle '$TargetWindowHandle' is not a valid window."
+        }
+
+        $ownerProcessId = [uint32]0
+        [void][RiftSmartCaptureTargetNative]::GetWindowThreadProcessId($handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -eq 0) {
+            throw "Target window handle '$TargetWindowHandle' did not resolve to an owning process."
+        }
+
+        if ($ProcessId -gt 0 -and [int]$ownerProcessId -ne $ProcessId) {
+            throw "Target window handle '$TargetWindowHandle' belongs to PID $ownerProcessId, not PID $ProcessId."
+        }
+
+        $process = Get-Process -Id ([int]$ownerProcessId) -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target window handle '$TargetWindowHandle' belongs to process '$($process.ProcessName)' [PID $ownerProcessId], not '$ProcessName'."
+        }
+
+        return [int]$ownerProcessId
+    }
+
+    if ($ProcessId -gt 0) {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($normalizedName) -and
+            -not [string]::Equals($process.ProcessName, $normalizedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target PID $ProcessId is process '$($process.ProcessName)', not '$ProcessName'."
+        }
+
+        return $process.Id
+    }
+
+    return 0
+}
+
+function Get-ReaderTargetArguments {
+    if ($script:EffectiveProcessId -gt 0) {
+        return @('--pid', $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return @('--process-name', $script:NormalizedProcessName)
+}
+
+function Get-PostKeyTargetArguments {
+    $arguments = @{
+        TargetProcessName = $script:NormalizedProcessName
+    }
+    if ($script:EffectiveProcessId -gt 0) {
+        $arguments['TargetProcessId'] = $script:EffectiveProcessId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $arguments
+}
+
+function Get-RefreshArguments {
+    $arguments = @{
+        NoReader = $true
+        ProcessName = $script:NormalizedProcessName
+    }
+    if ($script:EffectiveProcessId -gt 0) {
+        $arguments['ProcessId'] = $script:EffectiveProcessId
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $arguments['TargetWindowHandle'] = $TargetWindowHandle
+    }
+
+    return $arguments
+}
+
+function Get-CeProcessTargetLiteral {
+    if ($script:EffectiveProcessId -gt 0) {
+        return $script:EffectiveProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    $escapedProcessName = $script:NormalizedProcessName.Replace("'", "\\'")
+    return "'$escapedProcessName'"
 }
 
 function Invoke-CeNumeric {
@@ -80,7 +217,8 @@ function Start-CeExactFloatScan {
         [double]$Value
     )
 
-    return Invoke-CeNumeric -Code "return RiftReaderFloatScan.startExactFloat('rift_x64', ${Value})"
+    $targetLiteral = Get-CeProcessTargetLiteral
+    return Invoke-CeNumeric -Code "return RiftReaderFloatScan.startExactFloat($targetLiteral, ${Value})"
 }
 
 function Next-CeExactFloatScan {
@@ -162,11 +300,12 @@ function Get-CeScaledFloatAt {
 
 function Get-PlayerSignatureScan {
     return Invoke-ReaderJson -Arguments @(
-        '--process-name', 'rift_x64',
+        (Get-ReaderTargetArguments) +
+        @(
         '--scan-readerbridge-player-signature',
         '--scan-context', $ScanContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '--max-hits', $MaxScanHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
-        '--json'
+        '--json')
     )
 }
 
@@ -306,6 +445,9 @@ function Get-TripletConfirmedBaseAddresses {
     return @($baseAddresses)
 }
 
+$script:NormalizedProcessName = Get-NormalizedProcessName -Name $ProcessName
+$script:EffectiveProcessId = Resolve-EffectiveTargetProcessId
+
 Write-Host "[SmartFamily] Loading Cheat Engine float scan helper..." -ForegroundColor Cyan
 Load-CeHelper
 
@@ -315,7 +457,8 @@ $movementKeySequence = @(Get-MovementKeySequence -PrimaryKey $MovementKey -Fallb
 foreach ($axis in $AxisPriority) {
     $normalizedAxis = $axis.ToUpperInvariant()
     Write-Host "[SmartFamily] Refreshing baseline ReaderBridge export for axis $normalizedAxis..." -ForegroundColor Cyan
-    & $refreshScript -NoReader
+    $refreshArguments = Get-RefreshArguments
+    & $refreshScript @refreshArguments
 
     $baselineSnapshot = Get-CurrentSnapshot
     $baselinePlayer = $baselineSnapshot.Current.Player
@@ -344,10 +487,14 @@ foreach ($axis in $AxisPriority) {
 
     foreach ($movementStimulusKey in $movementKeySequence) {
         Write-Host "[SmartFamily] Applying movement stimulus key '$movementStimulusKey' via native Rift key helper..." -ForegroundColor Cyan
-        & $postKeyScript -Key $movementStimulusKey -HoldMilliseconds $MovementHoldMilliseconds
+        $postKeyArguments = Get-PostKeyTargetArguments
+        $postKeyArguments['Key'] = $movementStimulusKey
+        $postKeyArguments['HoldMilliseconds'] = $MovementHoldMilliseconds
+        & $postKeyScript @postKeyArguments
 
         Write-Host "[SmartFamily] Refreshing post-move ReaderBridge export for axis $normalizedAxis..." -ForegroundColor Cyan
-        & $refreshScript -NoReader
+        $refreshArguments = Get-RefreshArguments
+        & $refreshScript @refreshArguments
 
         $candidateSnapshot = Get-CurrentSnapshot
         $candidatePlayer = $candidateSnapshot.Current.Player
@@ -522,7 +669,9 @@ $attemptArray = $attemptResults.ToArray()
 $result = [ordered]@{
     Mode = 'ce-smart-player-family'
     GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
-    ProcessName = 'rift_x64'
+    ProcessName = $script:NormalizedProcessName
+    ProcessId = if ($script:EffectiveProcessId -gt 0) { $script:EffectiveProcessId } else { $null }
+    TargetWindowHandle = if ([string]::IsNullOrWhiteSpace($TargetWindowHandle)) { $null } else { $TargetWindowHandle }
     MovementKey = $MovementKey
     FallbackMovementKeys = @($FallbackMovementKeys)
     MovementKeySequence = @($movementKeySequence)

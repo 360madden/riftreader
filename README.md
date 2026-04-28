@@ -9,6 +9,38 @@ Hybrid Rift tooling project:
 
 Current work is scoped primarily to the **memory reader**.
 
+## Waypoint Navigation V1 (April 16, 2026)
+
+Waypoint navigation v1 now exists in the reader as a **manual-facing assist**
+layer.
+
+| Area | Current v1 behavior |
+|---|---|
+| Control model | Manual-align first by default; optional proof-strict pre-movement auto-turn |
+| Waypoints | External JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
+| Telemetry | Verified coord anchor once, then direct memory coord reads during travel |
+| Movement | Forward key pulses plus optional run / walk toggle; `--auto-turn-before-move` can align before single-segment travel or before each active route segment |
+| V3 route chain | `--plan-navigation-route` validates ordered start / via / destination route chains without input; `--navigate-waypoint-route` is the explicit active-input route gate with opt-in per-segment auto-turn |
+| TomTom import | `--import-tomtom-waypoints` converts TomTom saved `coordX/coordZ` waypoint lists into RiftReader waypoint JSON; imported `Y` defaults to `0` unless `--tomtom-default-y` is provided |
+| Safety | Fail closed on anchor loss, no progress, moving away, input failure, or timeout |
+| Non-goals | No obstacle avoidance, no route graph, no addon waypoint UI |
+
+Use these waypoint modes:
+
+- `--import-tomtom-waypoints` for offline TomTom saved-variable import into
+  waypoint JSON
+- `--read-navigation-current` for a read-only destination vector preflight
+- `--plan-navigation-route` for read-only v3 route-chain planning
+- `--navigate-waypoint-route` for active v3 multi-segment route execution; add
+  `--auto-turn-before-move` for opt-in per-segment turn alignment
+- `--navigate-waypoints` for single-segment forward travel; add
+  `--auto-turn-before-move` for opt-in pre-movement turn alignment
+
+See:
+
+- `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
+- `C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`
+
 ## Shell Requirements
 
 RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
@@ -19,24 +51,28 @@ RiftReader now uses **PowerShell 7+ (`pwsh`) as the default repo shell**.
 - Windows PowerShell 5.1 (`powershell.exe`) is transitional only and should be
   used only when a script explicitly requires it
 
-## Post-Update Status (April 14, 2026)
+## Post-Update Status (as of April 26, 2026; last full validation checkpoint April 23, 2026)
 
-The April 14, 2026 Rift update did **not** break the low-level reader, but it
-**did** break the current source-chain / selector-owner / owner-components
-refresh path.
+The April 14, 2026 Rift update did **not** break the low-level reader. The
+later recovery passes restored the coord/source-chain/accessor-family lane for
+actor-facing truth, but selector-owner / owner-components refresh is still not
+fully rebuilt.
 
 Right now on `main`:
 
 - `--read-player-current` is still working
 - `--read-player-coord-anchor` still finds the module-local coord pattern
-- actor-orientation notes are historical until the owner/source chain is rebuilt
+- ReaderBridge orientation probe is still empty on the current client
+- `--read-player-orientation` live mode is working again when called with `--pid` / `--process-name` through the behavior-backed lead; the no-process artifact-only path remains historical
+- `scripts\capture-player-source-chain.ps1` and `scripts\capture-player-source-accessor-family.ps1` are working again for the current actor-facing source lane
+- `scripts\capture-actor-orientation.ps1` is working again for the current session through the validated behavior-backed lead `0x24F595F8D10 @ +0x60` (duplicate `+0x94`)
 - camera live workflow is currently documented on
   `feature/camera-orientation-discovery`, not on the `main` worktree
 
 Use these before trusting older actor/camera claims in this file:
 
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
-- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-post-update-anchor-drift-report.md`
+- `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 
 Constraints:
@@ -71,6 +107,7 @@ Repo-level assistant workflow rules live in:
 
 - `C:\RIFT MODDING\RiftReader\agents.md`
 - `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md`
+- `C:\RIFT MODDING\RiftReader\docs\model-routing-template.md`
 
 ## Repository Layout
 
@@ -94,17 +131,23 @@ RiftReader/
 ├── docs/
 │   ├── addon-validation-spec.md
 │   ├── cheat-engine-workflow.md
+│   ├── navigation-waypoint-v1.md
 │   ├── offline-session-workflow.md
 │   ├── reader-cli-ux.md
+│   ├── model-routing-template.md
 │   └── overview.md
 ├── reader/
-│   └── RiftReader.Reader/
-│       ├── Cli/
-│       ├── Formatting/
-│       ├── Memory/
-│       ├── Processes/
-│       ├── Program.cs
-│       └── RiftReader.Reader.csproj
+│   ├── RiftReader.Reader/
+│   │   ├── Cli/
+│   │   ├── Formatting/
+│   │   ├── Memory/
+│   │   ├── Navigation/
+│   │   ├── Processes/
+│   │   ├── Program.cs
+│   │   └── RiftReader.Reader.csproj
+│   └── RiftReader.Reader.Tests/
+│       ├── Navigation/
+│       └── RiftReader.Reader.Tests.csproj
 ├── scripts/
 │   ├── build-reader.cmd
 │   ├── deploy-addon.cmd
@@ -121,7 +164,9 @@ RiftReader/
 │   ├── sync-cheatengine.cmd
 │   ├── sync-addon.cmd
 │   ├── validate-addon.cmd
-│   └── watch-readerbridge-export.cmd
+│   ├── watch-readerbridge-export.cmd
+│   └── navigation/
+│       └── waypoints.json
 ├── tools/
 │   └── reverse-engineering/
 │       ├── README.md
@@ -195,9 +240,11 @@ The reader now has two near-term targets:
    - prefers a verified coord-trace object anchor when it belongs to the current process and still matches current exported state
    - reads level / health / coords directly from memory
    - compares them against the latest ReaderBridge export
-   - `--read-player-orientation` *(historical/stale after the April 14, 2026 update until the owner/source chain is rebuilt)*
-   - reuses the owner-selected source component
-   - surfaces the artifact-side basis forward-row agreement and the live helper derives actor yaw / pitch from the full source basis matrix, with forward/up/right rows at `+0x60/+0x6C/+0x78` and a duplicate block at `+0x94/+0xA0/+0xAC`
+  - `--read-player-orientation`
+    - with `--pid` / `--process-name`, now reads live actor-facing yaw / pitch through the behavior-backed lead
+    - without a live process selector, remains the historical artifact-only path
+  - `scripts\capture-actor-orientation.ps1` is the current truth-oriented actor yaw / pitch helper
+  - when `scripts\actor-facing-behavior-backed-lead.json` is present and still validates live, the capture helper derives yaw / pitch from the forward basis row at `+0x60/+0x64/+0x68` (duplicate `+0x94/+0x98/+0x9C` on the same source)
   - `--read-player-coord-anchor`
     - loads the latest verified coord-triplet trace artifact
     - validates the traced instruction bytes as a module-local pattern
@@ -477,10 +524,11 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 
 ## Helper Scripts
 
-> **Post-update note:** scripts on `main` that depend on the source-chain →
-> selector-owner → owner-components path are currently historical until rebuilt
-> on the updated client. Camera-specific live helpers currently live on
-> `C:\RIFT MODDING\RiftReader_camera_feature`, not this `main` worktree.
+> **Post-update note:** the source-chain/accessor-family lane is working again
+> for actor-facing truth on the updated client, but selector-owner /
+> owner-components are still historical until rebuilt. Camera-specific live
+> helpers currently live on `C:\RIFT MODDING\RiftReader_camera_feature`, not
+> this `main` worktree.
 
 - `C:\RIFT MODDING\RiftReader\scripts\validate-addon.cmd` - syntax-check all project Lua addons with `luac`
 - `C:\RIFT MODDING\RiftReader\scripts\deploy-addon.cmd` - copy all project addons into every detected Rift `Interface\AddOns` folder (supports addons driven by either `main.lua` or `RiftAddon.toc`)
@@ -499,13 +547,13 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 - `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.ps1` / `C:\RIFT MODDING\RiftReader\scripts\record-discovery-session.cmd` - package the current watchset/artifact chain into a session folder with timing drift, capture duration, interruption state, and region summaries for offline review
 - `C:\RIFT MODDING\RiftReader\scripts\append-session-marker.ps1` - append a normalized NDJSON marker record to a watched marker-input file during a live session recording
 - `C:\RIFT MODDING\RiftReader\scripts\read-player-current.ps1` / `C:\RIFT MODDING\RiftReader\scripts\read-player-current.cmd` - preferred one-command player-reader path; refreshes the ReaderBridge export, then runs `--read-player-current` using the best available fast path. If no full player family is available, it can nudge movement and retry to reacquire one. Use `-RefreshAnchor` to refresh the CE-backed family confirmation before the read, or `-RefreshTraceAnchor` to refresh a stale saved coord trace before the read.
-- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.cmd` - **historical/pre-update until rebuilt** actor yaw/pitch helper; older workflow reads the selected source object, derives yaw/pitch from the forward row of the source basis matrix, and stores actor-orientation captures
-- `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.cmd` - **historical/pre-update until rebuilt** actor-orientation before/after stimulus harness
-- `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` / `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.cmd` - **historical/pre-update until rebuilt** key-profile harness for actor yaw tests
+- `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-actor-orientation.cmd` - current actor yaw / pitch helper; prefers `scripts\actor-facing-behavior-backed-lead.json` when present, validates the live basis, and derives yaw / pitch from the current truth-bearing forward row instead of trusting the stale owner-components path
+- `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1` / `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.cmd` - current before/after actor-orientation stimulus harness over the lead-backed capture path
+- `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1` / `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.cmd` - current key-profile harness for actor yaw validation over the lead-backed capture path
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-coord-write.cmd` - uses Cheat Engine's debugger to trap the first verified access to the current player coord triplet, tries CE-confirmed candidate addresses when available, captures the instruction and register context, and validates the captured instruction bytes through the reader's module-local pattern scan
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-trace-cluster.cmd` - captures a small disassembly window around the latest verified coord trace through Cheat Engine, highlights nearby instructions that reuse the traced base register, and labels offsets that line up with the current derived coord/level/health fields
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - **historical/pre-update until rebuilt** source/destination handoff-chain capture
-- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function and verifies each accessor pattern against the live module
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-chain.cmd` - refreshed live source-chain capture; currently strong enough to support actor-facing truth recovery on the updated client
+- `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-source-accessor-family.cmd` - enumerates the sibling source-object accessors that share the same preparation function, verifies each accessor pattern against the live module, and is part of the current actor-facing truth lane
 - `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.ps1` / `C:\RIFT MODDING\RiftReader\scripts\trace-player-selector-owner.cmd` - **historical/pre-update until rebuilt** selector-owner trace helper
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-graph.cmd` - **historical/pre-update until rebuilt** owner-graph capture helper
 - `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.ps1` / `C:\RIFT MODDING\RiftReader\scripts\capture-player-owner-components.cmd` - **historical/pre-update until rebuilt** owner/component-table capture helper

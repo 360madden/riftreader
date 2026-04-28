@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -13,6 +13,13 @@ const screenshotsDir = path.join(runtimeDir, 'screenshots');
 const logsDir = path.join(runtimeDir, 'logs');
 const logFilePath = path.join(logsDir, 'actions.jsonl');
 const helperScriptPath = path.join(__dirname, 'helpers', 'window-tools.ps1');
+const repoRoot = path.resolve(__dirname, '..', '..');
+const inventoryReferencesDir = path.join(
+  repoRoot,
+  'artifacts',
+  'rift-game-mcp',
+  'references',
+);
 const configDir = path.join(__dirname, 'config');
 const bindingsFilePath = path.join(configDir, 'bindings.json');
 
@@ -69,7 +76,42 @@ async function ensureRuntimeDirs() {
     mkdir(screenshotsDir, { recursive: true }),
     mkdir(logsDir, { recursive: true }),
     mkdir(configDir, { recursive: true }),
+    mkdir(inventoryReferencesDir, { recursive: true }),
   ]);
+}
+
+async function getFileStatus(filePath) {
+  if (!filePath) {
+    return {
+      exists: false,
+      isFile: false,
+      sizeBytes: null,
+    };
+  }
+
+  try {
+    const stats = await stat(filePath);
+    return {
+      exists: true,
+      isFile: stats.isFile(),
+      sizeBytes: stats.size,
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return {
+        exists: false,
+        isFile: false,
+        sizeBytes: null,
+      };
+    }
+
+    throw error;
+  }
+}
+
+async function fileExists(filePath) {
+  const status = await getFileStatus(filePath);
+  return status.exists;
 }
 
 async function logAction(action, details) {
@@ -526,6 +568,323 @@ async function detectImageDifferenceRegion({
   });
 }
 
+function addConfigCheck(checks, { id, status, message, details = {} }) {
+  checks.push({
+    id,
+    status,
+    message,
+    ...(Object.keys(details).length > 0 ? { details } : {}),
+  });
+}
+
+function summarizeConfigChecks(checks) {
+  const errorCount = checks.filter((check) => check.status === 'error').length;
+  const warningCount = checks.filter(
+    (check) => check.status === 'warning',
+  ).length;
+
+  return {
+    ok: errorCount === 0,
+    errorCount,
+    warningCount,
+  };
+}
+
+async function validateRiftMcpConfig() {
+  const checks = [];
+  const configFileStatus = await getFileStatus(bindingsFilePath);
+
+  addConfigCheck(checks, {
+    id: 'bindings_file',
+    status: configFileStatus.exists ? 'ok' : 'warning',
+    message: configFileStatus.exists
+      ? 'bindings.json exists.'
+      : 'bindings.json does not exist; default bindings will be used.',
+    details: {
+      path: bindingsFilePath,
+      ...configFileStatus,
+    },
+  });
+
+  let bindingsDocument;
+  try {
+    bindingsDocument = await loadBindingsDocument();
+    addConfigCheck(checks, {
+      id: 'bindings_json',
+      status: 'ok',
+      message: 'bindings.json is readable JSON.',
+    });
+  } catch (error) {
+    addConfigCheck(checks, {
+      id: 'bindings_json',
+      status: 'error',
+      message: `bindings.json could not be read or parsed: ${error instanceof Error ? error.message : String(error)}`,
+    });
+
+    return {
+      ...summarizeConfigChecks(checks),
+      configPath: bindingsFilePath,
+      inventoryReferencesDir,
+      checks,
+      capabilities: {
+        canUseInventoryBinding: false,
+        canUseInventoryToggle: false,
+        canUseInventoryEnsure: false,
+        canSuggestInventoryRegion: false,
+      },
+    };
+  }
+
+  let bindings;
+  try {
+    bindings = await loadBindings();
+    addConfigCheck(checks, {
+      id: 'bindings_schema',
+      status: 'ok',
+      message: 'bindings.json normalized successfully.',
+    });
+  } catch (error) {
+    addConfigCheck(checks, {
+      id: 'bindings_schema',
+      status: 'error',
+      message: `bindings.json has invalid values: ${error instanceof Error ? error.message : String(error)}`,
+    });
+
+    return {
+      ...summarizeConfigChecks(checks),
+      configPath: bindingsFilePath,
+      inventoryReferencesDir,
+      checks,
+      rawBindings: bindingsDocument,
+      capabilities: {
+        canUseInventoryBinding: false,
+        canUseInventoryToggle: false,
+        canUseInventoryEnsure: false,
+        canSuggestInventoryRegion: false,
+      },
+    };
+  }
+
+  const inventoryBindingConfigured =
+    typeof bindings.inventory === 'string' && bindings.inventory.trim().length > 0;
+  addConfigCheck(checks, {
+    id: 'inventory_binding',
+    status: inventoryBindingConfigured ? 'ok' : 'error',
+    message: inventoryBindingConfigured
+      ? `Inventory binding is configured as "${bindings.inventory}".`
+      : 'Inventory binding is missing. Configure "inventory" or pass keyChord explicitly.',
+    details: {
+      inventory: bindings.inventory,
+    },
+  });
+
+  const missingHotbarSlots = [];
+  for (let slot = 1; slot <= 12; slot++) {
+    const keyChord = bindings.hotbarSlots?.[String(slot)];
+    if (typeof keyChord !== 'string' || keyChord.trim().length === 0) {
+      missingHotbarSlots.push(slot);
+    }
+  }
+
+  addConfigCheck(checks, {
+    id: 'hotbar_slots',
+    status: missingHotbarSlots.length === 0 ? 'ok' : 'warning',
+    message:
+      missingHotbarSlots.length === 0
+        ? 'Hotbar slots 1-12 have bindings.'
+        : `Hotbar slots missing bindings: ${missingHotbarSlots.join(', ')}.`,
+    details: {
+      missingHotbarSlots,
+    },
+  });
+
+  const verification = bindings.inventoryVerification;
+  const openReferenceStatus = await getFileStatus(verification.openReferencePath);
+  const closedReferenceStatus = await getFileStatus(
+    verification.closedReferencePath,
+  );
+  const openReferenceUsable = openReferenceStatus.exists && openReferenceStatus.isFile;
+  const closedReferenceUsable =
+    closedReferenceStatus.exists && closedReferenceStatus.isFile;
+
+  addConfigCheck(checks, {
+    id: 'inventory_open_reference',
+    status: openReferenceUsable
+      ? 'ok'
+      : verification.openReferencePath
+        ? 'error'
+        : 'warning',
+    message: openReferenceUsable
+      ? 'Inventory-open reference screenshot exists.'
+      : verification.openReferencePath
+        ? 'Inventory-open reference path is configured but is not a readable file.'
+        : 'Inventory-open reference screenshot is not configured.',
+    details: {
+      path: verification.openReferencePath,
+      ...openReferenceStatus,
+    },
+  });
+
+  addConfigCheck(checks, {
+    id: 'inventory_closed_reference',
+    status: closedReferenceUsable
+      ? 'ok'
+      : verification.closedReferencePath
+        ? 'error'
+        : 'warning',
+    message: closedReferenceUsable
+      ? 'Inventory-closed reference screenshot exists.'
+      : verification.closedReferencePath
+        ? 'Inventory-closed reference path is configured but is not a readable file.'
+        : 'Inventory-closed reference screenshot is not configured.',
+    details: {
+      path: verification.closedReferencePath,
+      ...closedReferenceStatus,
+    },
+  });
+
+  addConfigCheck(checks, {
+    id: 'inventory_region',
+    status: verification.region ? 'ok' : 'warning',
+    message: verification.region
+      ? 'Inventory verification region is configured.'
+      : 'Inventory verification region is not configured; full-screen matching may be noisy.',
+    details: {
+      region: verification.region,
+    },
+  });
+
+  let referencesComparable = false;
+  let referencesDistinct = false;
+  let referenceComparison = null;
+  if (openReferenceUsable && closedReferenceUsable) {
+    try {
+      referenceComparison = await compareImages(
+        verification.closedReferencePath,
+        verification.openReferencePath,
+        verification.region,
+      );
+      referencesComparable = true;
+      referencesDistinct =
+        referenceComparison.changePercent > verification.matchThresholdPercent;
+
+      addConfigCheck(checks, {
+        id: 'inventory_reference_pair',
+        status: referencesDistinct ? 'ok' : 'warning',
+        message:
+          referencesDistinct
+            ? 'Inventory reference screenshots are comparable and visually distinct.'
+            : 'Inventory reference screenshots are very similar; state detection may be ambiguous.',
+        details: {
+          changePercent: referenceComparison.changePercent,
+          matchThresholdPercent: verification.matchThresholdPercent,
+          region: referenceComparison.region,
+          openReferencePath: verification.openReferencePath,
+          closedReferencePath: verification.closedReferencePath,
+        },
+      });
+    } catch (error) {
+      addConfigCheck(checks, {
+        id: 'inventory_reference_pair',
+        status: 'error',
+        message: `Inventory reference screenshots could not be compared: ${error instanceof Error ? error.message : String(error)}`,
+        details: {
+          openReferencePath: verification.openReferencePath,
+          closedReferencePath: verification.closedReferencePath,
+          region: verification.region,
+        },
+      });
+    }
+  } else {
+    addConfigCheck(checks, {
+      id: 'inventory_reference_pair',
+      status: 'warning',
+      message:
+        'Inventory open/closed reference pair is incomplete; ensure_inventory_open and ensure_inventory_closed are not ready.',
+    });
+  }
+
+  const summary = summarizeConfigChecks(checks);
+  return {
+    ...summary,
+    configPath: bindingsFilePath,
+    inventoryReferencesDir,
+    checks,
+    capabilities: {
+      keyboardInputMethod: 'window-message',
+      canUseInventoryBinding: inventoryBindingConfigured,
+      canUseInventoryToggle: inventoryBindingConfigured,
+      canUseInventoryEnsure:
+        inventoryBindingConfigured && referencesDistinct && summary.errorCount === 0,
+      canSuggestInventoryRegion: openReferenceUsable && closedReferenceUsable,
+      inventoryStateVerificationNarrowed: Boolean(verification.region),
+    },
+    inventoryVerification: verification,
+    hotbarSlots: bindings.hotbarSlots,
+    referenceComparison,
+  };
+}
+
+function inventoryReferenceKey(referenceState) {
+  return referenceState === 'open' ? 'openReferencePath' : 'closedReferencePath';
+}
+
+function resolveInventoryReferenceOutputPath(referenceState, outputPath) {
+  if (!outputPath) {
+    return path.join(
+      inventoryReferencesDir,
+      `inventory-${referenceState}-${nowStamp()}.png`,
+    );
+  }
+
+  return path.isAbsolute(outputPath)
+    ? path.normalize(outputPath)
+    : path.resolve(inventoryReferencesDir, outputPath);
+}
+
+async function captureInventoryReference({
+  referenceState,
+  outputPath,
+  updateBindings,
+  overwrite,
+}) {
+  const resolvedOutputPath = resolveInventoryReferenceOutputPath(
+    referenceState,
+    outputPath,
+  );
+  const existing = await fileExists(resolvedOutputPath);
+  if (existing && !overwrite) {
+    throw new Error(
+      `Refusing to overwrite existing inventory reference screenshot: ${resolvedOutputPath}. Pass overwrite=true or choose a different outputPath.`,
+    );
+  }
+
+  await mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+  const capture = await captureBoundWindow(resolvedOutputPath);
+  const configKey = inventoryReferenceKey(referenceState);
+
+  if (updateBindings) {
+    const bindingsDocument = await loadBindingsDocument();
+    bindingsDocument.inventoryVerification = {
+      ...(bindingsDocument.inventoryVerification ?? {}),
+      [configKey]: capture.screenshotPath,
+    };
+    await saveBindingsDocument(bindingsDocument);
+  }
+
+  return {
+    referenceState,
+    screenshotPath: capture.screenshotPath,
+    imageSize: capture.imageSize,
+    updatedBindings: updateBindings,
+    updatedConfigKey: updateBindings
+      ? `inventoryVerification.${configKey}`
+      : null,
+    configPath: bindingsFilePath,
+    window: state.boundWindow,
+  };
+}
+
 async function suggestInventoryVerificationRegion({
   openReferencePath,
   closedReferencePath,
@@ -752,7 +1111,7 @@ async function runInventoryVerificationAction({
     }
   }
 
-  await sendBoundKey(binding.keyChord, holdMilliseconds);
+  const keyResult = await sendBoundKey(binding.keyChord, holdMilliseconds);
 
   const waitResult = await waitForFrameChangeInternal({
     baselineScreenshotPath: beforeCapture.screenshotPath,
@@ -826,6 +1185,7 @@ async function runInventoryVerificationAction({
     sent: true,
     usedBinding: binding.keyChord,
     bindingSource: binding.bindingSource,
+    keyboardInputMethod: keyResult.keyboardInputMethod,
     holdMilliseconds,
     baselineScreenshotPath: beforeCapture.screenshotPath,
     screenshotPath: waitResult.screenshotPath,
@@ -968,12 +1328,33 @@ const server = new McpServer(
 );
 
 server.registerTool(
+  'validate_config',
+  {
+    title: 'Validate Rift MCP config',
+    description:
+      'Checks tools/rift-game-mcp/config/bindings.json, configured inventory references, hotbar bindings, and readiness for inventory state verification. Does not require or control the live game window.',
+  },
+  async () =>
+    runLoggedTool('validate_config', async () => validateRiftMcpConfig()),
+);
+
+server.registerTool(
   'find_game_window',
   {
     title: 'Find and bind game window',
     description:
-      'Finds the Rift game window by process name and optional title filter, then binds it for later focus/capture/input tools.',
+      'Finds the Rift game window by exact process id/window handle or by process name and optional title filter, then binds it for later focus/capture/input tools.',
     inputSchema: {
+      processId: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Exact target process id. Prefer this when more than one Rift client is running.'),
+      windowHandle: z
+        .string()
+        .optional()
+        .describe('Exact target window handle, decimal or hex like 0x109126C. Strongest binding selector.'),
       processName: z
         .string()
         .default('rift_x64')
@@ -984,9 +1365,11 @@ server.registerTool(
         .describe('Optional substring that must appear in the window title.'),
     },
   },
-  async ({ processName, titleContains }) =>
+  async ({ processId, windowHandle, processName, titleContains }) =>
     runLoggedTool('find_game_window', async () => {
       const raw = await runPowerShell('find', {
+        ProcessId: processId,
+        WindowHandle: windowHandle,
         ProcessName: processName,
         TitleContains: titleContains,
       });
@@ -1037,6 +1420,48 @@ server.registerTool(
         imageSize: result.imageSize,
       };
     }),
+);
+
+server.registerTool(
+  'capture_inventory_reference',
+  {
+    title: 'Capture inventory reference',
+    description:
+      'Captures the currently visible bound game window as an inventory open/closed reference screenshot and can update bindings.json. This does not toggle bags; visually put bags in the requested state first.',
+    inputSchema: {
+      referenceState: z
+        .enum(['open', 'closed'])
+        .describe('The inventory state visible in the current game window.'),
+      outputPath: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Optional output PNG path. Relative paths are resolved under artifacts/rift-game-mcp/references. If omitted, a timestamped path is used.',
+        ),
+      updateBindings: z
+        .boolean()
+        .default(true)
+        .describe(
+          'When true, writes the captured path into inventoryVerification.openReferencePath or closedReferencePath.',
+        ),
+      overwrite: z
+        .boolean()
+        .default(false)
+        .describe(
+          'When false, refuses to overwrite an existing outputPath.',
+        ),
+    },
+  },
+  async ({ referenceState, outputPath, updateBindings, overwrite }) =>
+    runLoggedTool('capture_inventory_reference', async () =>
+      captureInventoryReference({
+        referenceState,
+        outputPath,
+        updateBindings,
+        overwrite,
+      }),
+    ),
 );
 
 server.registerTool(
@@ -1093,11 +1518,12 @@ server.registerTool(
   },
   async ({ keyChord, holdMilliseconds }) =>
     runLoggedTool('send_key', async () => {
-      await sendBoundKey(keyChord, holdMilliseconds);
+      const keyResult = await sendBoundKey(keyChord, holdMilliseconds);
 
       return {
         sent: true,
         keyChord,
+        keyboardInputMethod: keyResult.keyboardInputMethod,
         holdMilliseconds,
         window: state.boundWindow,
       };
@@ -1434,12 +1860,13 @@ server.registerTool(
         bindingName: 'inventory',
       });
 
-      await sendBoundKey(binding.keyChord, holdMilliseconds);
+      const keyResult = await sendBoundKey(binding.keyChord, holdMilliseconds);
 
       return {
         action: 'open_inventory',
         usedBinding: binding.keyChord,
         bindingSource: binding.bindingSource,
+        keyboardInputMethod: keyResult.keyboardInputMethod,
         holdMilliseconds,
         window: state.boundWindow,
       };
@@ -1476,12 +1903,13 @@ server.registerTool(
         bindingName: 'inventory',
       });
 
-      await sendBoundKey(binding.keyChord, holdMilliseconds);
+      const keyResult = await sendBoundKey(binding.keyChord, holdMilliseconds);
 
       return {
         action: 'open_bags',
         usedBinding: binding.keyChord,
         bindingSource: binding.bindingSource,
+        keyboardInputMethod: keyResult.keyboardInputMethod,
         holdMilliseconds,
         window: state.boundWindow,
       };
@@ -1525,13 +1953,14 @@ server.registerTool(
         slot,
       });
 
-      await sendBoundKey(binding.keyChord, holdMilliseconds);
+      const keyResult = await sendBoundKey(binding.keyChord, holdMilliseconds);
 
       return {
         action: 'press_hotbar_slot',
         slot,
         usedBinding: binding.keyChord,
         bindingSource: binding.bindingSource,
+        keyboardInputMethod: keyResult.keyboardInputMethod,
         holdMilliseconds,
         window: state.boundWindow,
       };

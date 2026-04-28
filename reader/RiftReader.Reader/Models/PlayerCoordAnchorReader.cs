@@ -422,7 +422,10 @@ public static partial class PlayerCoordAnchorReader
             return null;
         }
 
-        return BitConverter.ToSingle(bytes, 0);
+        var value = BitConverter.ToSingle(bytes, 0);
+        return float.IsFinite(value)
+            ? value
+            : null;
     }
 
     [GeneratedRegex("^[0-9A-Fa-f]+$", RegexOptions.Compiled)]

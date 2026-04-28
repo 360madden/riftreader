@@ -1,0 +1,36 @@
+{
+  "Mode": "actor-facing-behavior-backed-lead",
+  "GeneratedAtUtc": "2026-04-23T04:33:38.9061948+00:00",
+  "ValidatedAtUtc": "2026-04-23T04:33:38.9062759+00:00",
+  "ProcessName": "rift_x64",
+  "SourceAddress": "0X12CC0FA0F70",
+  "BasisForwardOffset": "0XD4",
+  "BasisDuplicateForwardOffset": null,
+  "Status": "preferred-solved-lead",
+  "OperationalStatus": "behavior-backed-lead",
+  "PreferredLead": true,
+  "SolvedActorFacing": true,
+  "CanonicalActorYaw": true,
+  "CanonicalPitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
+  "CanonicalYawFormula": "atan2(forwardZ, forwardX)",
+  "Notes": [
+    "Fresh agentic actor-facing discovery on April 23, 2026 confirmed that the live actor-facing basis is the forward row at 0XD4 on source 0X12CC0FA0F70. Focused AutoHotkey D/A validation produced reversible yaw deltas of about 46.58/44.393 degrees with 0 coord drift across 1 cycle(s). This lead was promoted from the current-session actor-facing discovery session and targets live PID 63012 started at 2026-04-22T07:13:46.8244103Z."
+  ],
+  "CandidateDiagnostics": {
+    "Rank": 5,
+    "DiscoveryMode": "second-hop-pointer-hop",
+    "ParentAddress": "0X12CC54ADFD0",
+    "RootAddress": "0X12CC54ADFA0",
+    "ReversibleCycleCount": 1,
+    "CandidateResponsive": true,
+    "PlayerStayedMostlyStill": true,
+    "CandidateSearchFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-discovery\\search.json",
+    "ValidationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-discovery\\validation.json",
+    "DiscoverySessionFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-discovery\\session.json",
+    "ProcessId": 63012,
+    "ProcessStartTimeUtc": "2026-04-22T07:13:46.8244103Z",
+    "ForwardPeakYawDegrees": 46.5797723617407,
+    "ReversePeakYawDegrees": 44.39272390514295,
+    "PlayerCoordDeltaMagnitude": 0.0
+  }
+}

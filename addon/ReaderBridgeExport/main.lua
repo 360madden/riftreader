@@ -19,6 +19,7 @@ local runtime = {
   targetTtdSamples = {},
   lastPlayerCoord = nil,
   lastPlayerCoordAt = 0,
+  telemetrySequence = 0,
 }
 
 local function now()
@@ -86,6 +87,43 @@ local function copyCoord(unit)
     x = x,
     y = y,
     z = z,
+  }
+end
+
+local function copyCoordinate(coord)
+  if type(coord) ~= "table" then
+    return nil
+  end
+
+  local x = toNumber(coord.x)
+  local y = toNumber(coord.y)
+  local z = toNumber(coord.z)
+
+  if x == nil and y == nil and z == nil then
+    return nil
+  end
+
+  return {
+    x = x,
+    y = y,
+    z = z,
+  }
+end
+
+local function copyCoordDelta(delta)
+  if type(delta) ~= "table" then
+    return nil
+  end
+
+  return {
+    dx = toNumber(delta.dx),
+    dy = toNumber(delta.dy),
+    dz = toNumber(delta.dz),
+    distance = toNumber(delta.distance),
+    dt = toNumber(delta.dt),
+    speed = (toNumber(delta.distance) and toNumber(delta.dt) and toNumber(delta.dt) > 0)
+      and (toNumber(delta.distance) / toNumber(delta.dt))
+      or nil,
   }
 end
 
@@ -726,6 +764,8 @@ local function buildSnapshot(reason)
     sourceVersion = bridge and bridge.Const and bridge.Const.VERSION or nil,
     exportAddon = addonIdentifier,
     exportVersion = addonVersion,
+    playerId = copyString(player and player.id),
+    targetId = copyString(bridgeState.target and bridgeState.target.id),
     hud = copyHud(bridgeState.hud),
     player = player,
     target = copyUnit(bridgeState.target),
@@ -737,6 +777,54 @@ local function buildSnapshot(reason)
     playerCoordDelta = coordDelta,
     nearbyUnits = nil,
     partyUnits = readPartyMembers(),
+  }
+end
+
+local function buildTelemetrySnapshot(snapshot)
+  if type(snapshot) ~= "table" then
+    return nil
+  end
+
+  runtime.telemetrySequence = (toNumber(runtime.telemetrySequence) or 0) + 1
+
+  local player = type(snapshot.player) == "table" and snapshot.player or nil
+  local target = type(snapshot.target) == "table" and snapshot.target or nil
+  local coord = copyCoordinate(player and player.coord)
+  local coordDelta = copyCoordDelta(snapshot.playerCoordDelta)
+  local combat = player and copyBoolean(player.combat) or nil
+
+  return {
+    version = 1,
+    sequence = runtime.telemetrySequence,
+    generatedAtRealtime = toNumber(snapshot.generatedAtRealtime),
+    capabilities = {
+      apiFacingAvailable = false,
+      apiYawAvailable = false,
+      readerBridgeAvailable = snapshot.sourceMode == "ReaderBridge",
+      directApiAvailable = snapshot.sourceMode == "DirectAPI",
+      nearbyUnitsAvailable = snapshot.nearbyUnits ~= nil,
+      targetAvailable = target ~= nil,
+    },
+    position = {
+      coord = coord,
+      zone = copyString(player and player.zone),
+      locationName = copyString(player and player.locationName),
+      sourceMode = copyString(snapshot.sourceMode),
+    },
+    movement = coordDelta,
+    context = {
+      playerId = copyString(snapshot.playerId),
+      targetId = copyString(snapshot.targetId),
+      combat = combat,
+      targetPresent = target ~= nil,
+      zone = copyString(player and player.zone),
+      locationName = copyString(player and player.locationName),
+      sourceAddon = copyString(snapshot.sourceAddon),
+      sourceMode = copyString(snapshot.sourceMode),
+      sourceVersion = copyString(snapshot.sourceVersion),
+      exportAddon = copyString(snapshot.exportAddon),
+      exportVersion = copyString(snapshot.exportVersion),
+    },
   }
 end
 
@@ -754,6 +842,7 @@ function Exporter.Refresh(reason, incrementCount)
   end
 
   snapshot.exportCount = state.session.exportCount
+  snapshot.telemetry = buildTelemetrySnapshot(snapshot)
   state.current = snapshot
   state.session.lastReason = snapshot.exportReason
   state.session.lastExportAt = snapshot.generatedAtRealtime
