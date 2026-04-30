@@ -6,6 +6,7 @@ public sealed record FloatSequenceScanResult(
     string ProcessName,
     string SearchLabel,
     string SearchValues,
+    string? Tolerance,
     int ContextBytes,
     int MaxHits,
     int HitCount,

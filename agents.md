@@ -59,6 +59,47 @@ and prefer `gpt-5.4` if any “No-spark” condition is true.
   restate the hypothesis from observed facts.
 - Do not keep retrying a hypothesis without new evidence.
 
+## Live discovery / reverse-engineering signal policy
+
+- Do **not** interpret "smallest correct patch" or "start simple" as "use the
+  shortest possible live proof" for coordinate/facing discovery.
+- For live reverse-engineering, memory scanning, movement capture, or candidate
+  scoring, optimize for the **highest signal per bounded run**, not the
+  shortest safe pulse.
+- Prefer controlled, reversible, well-instrumented runs over underpowered
+  probes: addon labels + native memory recorder + exact PID/HWND input +
+  timestamped artifacts.
+- When validating coordinate candidates, prefer scripted multi-vector movement
+  traces with pauses and direction changes over a single forward pulse, unless
+  the user explicitly asks for a tiny smoke test.
+- Safety means bounded scope, exact targeting, crash awareness, and clear stop
+  conditions; it does **not** mean minimizing the data collected below what is
+  needed for strong evidence.
+
+## SavedVariables live-capture hazard
+
+- Treat RIFT addon `SavedVariables` files, including
+  `ReaderBridgeExport.lua`, as **post-save snapshots only**. They are **not**
+  live IPC and should be expected to update only on `/reloadui`, logout, UI
+  shutdown, or another client save event.
+- Never use `ReaderBridgeExport.lua` last contents as live movement truth during
+  a START/STOP capture unless a fresh save/flush was intentionally performed
+  and the file timestamp proves it happened after the movement state being
+  analyzed.
+- For live coordinate capture, use a true live surface: on-screen addon overlay
+  screenshots/OCR, native memory reads, a validated coord-trace anchor, or an
+  explicitly implemented live bridge. In-game addon runtime state may be live,
+  but the SavedVariables file is not live until flushed.
+- Any scan, seed list, or candidate packet derived from a SavedVariables file
+  must record the file `LastWriteTimeUtc`, capture start time, and freshness
+  classification. If the file predates the capture, mark those seeds
+  `stale-post-save-snapshot` and do not mix them with live overlay truth as if
+  they were same-time samples.
+- Before any future coord bundle, declare the authoritative truth surface in the
+  manifest (`overlay`, `memory-anchor`, `post-flush-savedvariables`, etc.) and
+  fail closed if the recorder accidentally uses a non-live SavedVariables file
+  as live truth.
+
 ## Scope and validation
 
 - Prefer the smallest correct patch over broad refactors.

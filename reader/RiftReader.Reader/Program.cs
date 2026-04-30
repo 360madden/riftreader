@@ -703,7 +703,8 @@ internal static class Program
         ProcessTarget target,
         IReadOnlyList<ReaderBridgeSnapshotDocument> bootstrapDocuments,
         int contextBytes,
-        int maxHits)
+        int maxHits,
+        double scanTolerance = 0d)
     {
         foreach (var document in bootstrapDocuments)
         {
@@ -722,7 +723,8 @@ internal static class Program
                 (float)coordY,
                 (float)coordZ,
                 contextBytes,
-                maxHits);
+                maxHits,
+                scanTolerance);
 
             if (result.HitCount > 0)
             {
@@ -2502,7 +2504,8 @@ internal static class Program
                 target,
                 bootstrapDocuments,
                 options.ScanContextBytes,
-                options.MaxHits);
+                options.MaxHits,
+                options.ScanTolerance);
 
             if (sequenceResult is null)
             {

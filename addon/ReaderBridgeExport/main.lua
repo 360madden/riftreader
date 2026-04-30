@@ -7,6 +7,8 @@ local UPDATE_INTERVAL = 0.5
 local MAX_BUFF_ROWS = 5
 local MAX_NEARBY_UNITS = 10
 local MAX_PARTY_SLOTS = 5
+local MOVEMENT_TRACE_INTERVAL = 0.05
+local MAX_MOVEMENT_TRACE_SAMPLES = 512
 
 local Exporter = {}
 privateVars.Exporter = Exporter
@@ -20,6 +22,9 @@ local runtime = {
   lastPlayerCoord = nil,
   lastPlayerCoordAt = 0,
   telemetrySequence = 0,
+  movementTraceActive = false,
+  movementTraceLastSampleAt = 0,
+  movementTraceLastCoord = nil,
 }
 
 local function now()
@@ -734,10 +739,133 @@ local function ensureState()
   state.schemaVersion = 1
   state.session = type(state.session) == "table" and state.session or {}
   state.current = type(state.current) == "table" and state.current or {}
+  state.movementTrace = type(state.movementTrace) == "table" and state.movementTrace or {}
+  state.movementTrace.samples = type(state.movementTrace.samples) == "table" and state.movementTrace.samples or {}
+  state.movementTrace.active = state.movementTrace.active and true or false
+  state.movementTrace.nextSequence = toNumber(state.movementTrace.nextSequence) or (#state.movementTrace.samples + 1)
   state.session.exportCount = toNumber(state.session.exportCount) or 0
   state.session.lastReason = copyString(state.session.lastReason) or "none"
   state.session.exportVersion = addonVersion
   return state
+end
+
+local function trimMovementTrace()
+  ensureState()
+
+  while #state.movementTrace.samples > MAX_MOVEMENT_TRACE_SAMPLES do
+    table.remove(state.movementTrace.samples, 1)
+  end
+end
+
+local function readTracePlayerCoord()
+  local _, bridgeState = getReaderBridgeState()
+  local sourceMode = "DirectAPI"
+  local player = nil
+
+  if type(bridgeState) == "table" and type(bridgeState.player) == "table" then
+    player = bridgeState.player
+    sourceMode = "ReaderBridge"
+  else
+    player = readUnit("player")
+  end
+
+  local coord = copyCoordinate(player and player.coord)
+  if type(coord) ~= "table" then
+    return nil, sourceMode
+  end
+
+  return coord, sourceMode
+end
+
+local function appendMovementTraceSample(reason, force)
+  ensureState()
+
+  if not force and not runtime.movementTraceActive and not state.movementTrace.active then
+    return nil
+  end
+
+  local currentTime = now()
+  if not force and runtime.movementTraceLastSampleAt > 0 and (currentTime - runtime.movementTraceLastSampleAt) < MOVEMENT_TRACE_INTERVAL then
+    return nil
+  end
+
+  local coord, sourceMode = readTracePlayerCoord()
+  if type(coord) ~= "table" then
+    return nil
+  end
+
+  local previous = runtime.movementTraceLastCoord
+  local delta = nil
+  if type(previous) == "table" then
+    local dt = currentTime - (toNumber(previous.capturedAt) or currentTime)
+    if dt > 0 then
+      local dx = (toNumber(coord.x) or 0) - (toNumber(previous.x) or 0)
+      local dy = (toNumber(coord.y) or 0) - (toNumber(previous.y) or 0)
+      local dz = (toNumber(coord.z) or 0) - (toNumber(previous.z) or 0)
+      local distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+      delta = {
+        dx = dx,
+        dy = dy,
+        dz = dz,
+        distance = distance,
+        dt = dt,
+        speed = distance / dt,
+      }
+    end
+  end
+
+  local sample = {
+    sequence = state.movementTrace.nextSequence,
+    capturedAt = currentTime,
+    reason = tostring(reason or "trace"),
+    sourceMode = sourceMode,
+    coord = coord,
+    delta = delta,
+  }
+
+  state.movementTrace.nextSequence = (toNumber(state.movementTrace.nextSequence) or 1) + 1
+  state.movementTrace.lastSampleAt = currentTime
+  state.movementTrace.lastReason = sample.reason
+  table.insert(state.movementTrace.samples, sample)
+  trimMovementTrace()
+
+  runtime.movementTraceLastSampleAt = currentTime
+  runtime.movementTraceLastCoord = {
+    x = coord.x,
+    y = coord.y,
+    z = coord.z,
+    capturedAt = currentTime,
+  }
+
+  return sample
+end
+
+local function copyMovementTraceState()
+  ensureState()
+
+  local samples = {}
+  for index, sample in ipairs(state.movementTrace.samples) do
+    samples[index] = {
+      sequence = toNumber(sample.sequence),
+      capturedAt = toNumber(sample.capturedAt),
+      reason = copyString(sample.reason),
+      sourceMode = copyString(sample.sourceMode),
+      coord = copyCoordinate(sample.coord),
+      delta = copyCoordDelta(sample.delta),
+    }
+  end
+
+  return {
+    active = state.movementTrace.active and true or false,
+    startedAt = toNumber(state.movementTrace.startedAt),
+    stoppedAt = toNumber(state.movementTrace.stoppedAt),
+    lastSampleAt = toNumber(state.movementTrace.lastSampleAt),
+    lastReason = copyString(state.movementTrace.lastReason),
+    sampleCount = #samples,
+    maxSamples = MAX_MOVEMENT_TRACE_SAMPLES,
+    interval = MOVEMENT_TRACE_INTERVAL,
+    samples = samples,
+  }
 end
 
 local function buildSnapshot(reason)
@@ -775,6 +903,7 @@ local function buildSnapshot(reason)
     targetDebuffLines = copyList(bridgeState.targetDebuffLines),
     playerStats = buildStatSnapshot(),
     playerCoordDelta = coordDelta,
+    movementTrace = copyMovementTraceState(),
     nearbyUnits = nil,
     partyUnits = readPartyMembers(),
   }
@@ -885,6 +1014,89 @@ function Exporter.PrintStatus()
     "#00CC88")
 end
 
+function Exporter.ClearMovementTrace()
+  ensureState()
+  state.movementTrace = {
+    active = false,
+    samples = {},
+    nextSequence = 1,
+    lastReason = "clear",
+    lastSampleAt = now(),
+  }
+  runtime.movementTraceActive = false
+  runtime.movementTraceLastSampleAt = 0
+  runtime.movementTraceLastCoord = nil
+  Exporter.Refresh("slash.trace.clear", true)
+  console("Movement trace cleared.", "#00CC88")
+end
+
+function Exporter.StartMovementTrace()
+  ensureState()
+  state.movementTrace.active = true
+  state.movementTrace.startedAt = now()
+  state.movementTrace.stoppedAt = nil
+  state.movementTrace.lastReason = "start"
+  runtime.movementTraceActive = true
+  runtime.movementTraceLastSampleAt = 0
+  runtime.movementTraceLastCoord = nil
+  appendMovementTraceSample("trace.start", true)
+  Exporter.Refresh("slash.trace.start", true)
+  console("Movement trace started.", "#00CC88")
+end
+
+function Exporter.StopMovementTrace()
+  ensureState()
+  appendMovementTraceSample("trace.stop", true)
+  state.movementTrace.active = false
+  state.movementTrace.stoppedAt = now()
+  state.movementTrace.lastReason = "stop"
+  runtime.movementTraceActive = false
+  Exporter.Refresh("slash.trace.stop", true)
+  console(string.format("Movement trace stopped. samples=%s", tostring(#state.movementTrace.samples)), "#00CC88")
+end
+
+function Exporter.PrintMovementTraceStatus()
+  ensureState()
+  console(string.format(
+    "trace active=%s samples=%s next=%s last=%s",
+    tostring(state.movementTrace.active and true or false),
+    tostring(#state.movementTrace.samples),
+    tostring(state.movementTrace.nextSequence or "?"),
+    tostring(state.movementTrace.lastReason or "-")),
+    "#66CCFF")
+end
+
+function Exporter.OnTraceCommand(rest)
+  local action = string.match(rest or "", "^(%S+)")
+  if action then
+    action = string.lower(action)
+  end
+
+  if action == "start" then
+    Exporter.StartMovementTrace()
+    return
+  end
+
+  if action == "stop" then
+    Exporter.StopMovementTrace()
+    return
+  end
+
+  if action == "clear" then
+    Exporter.ClearMovementTrace()
+    return
+  end
+
+  if action == "sample" then
+    local sample = appendMovementTraceSample("trace.sample", true)
+    Exporter.Refresh("slash.trace.sample", true)
+    console(sample and "Movement trace sample captured." or "Movement trace sample skipped: coord unavailable.", sample and "#00CC88" or "#FFAA44")
+    return
+  end
+
+  Exporter.PrintMovementTraceStatus()
+end
+
 function Exporter.OnSlashCommand(args)
   local command = string.match(args or "", "^(%S+)")
   if command then
@@ -903,7 +1115,13 @@ function Exporter.OnSlashCommand(args)
     return
   end
 
-  console("Commands: /rbx | export | status | help", "#66CCFF")
+  if command == "trace" then
+    local rest = string.match(args or "", "^%S+%s*(.*)$") or ""
+    Exporter.OnTraceCommand(rest)
+    return
+  end
+
+  console("Commands: /rbx | export | status | trace start|stop|clear|sample|status | help", "#66CCFF")
 end
 
 function Exporter.OnSavedVariablesLoad(addon)
@@ -920,6 +1138,9 @@ function Exporter.OnSavedVariablesSave(addon)
   end
 
   ensureState()
+  if state.movementTrace.active then
+    appendMovementTraceSample("save-begin", true)
+  end
   Exporter.Refresh("save-begin", true)
   ReaderBridgeExport_State = state
 end
@@ -927,13 +1148,18 @@ end
 function Exporter.OnStartup()
   ensureState()
   runtime.started = true
+  runtime.movementTraceActive = state.movementTrace.active and true or false
   Exporter.Refresh("startup", true)
-  console("Loaded. Use /rbx status or /rbx export.", "#00CC88")
+  console("Loaded. Use /rbx status, /rbx export, or /rbx trace start.", "#00CC88")
 end
 
 function Exporter.OnUpdateEnd()
   if not runtime.started then
     return
+  end
+
+  if runtime.movementTraceActive or (state and state.movementTrace and state.movementTrace.active) then
+    appendMovementTraceSample("trace.heartbeat", false)
   end
 
   local currentTime = now()

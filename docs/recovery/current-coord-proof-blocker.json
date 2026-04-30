@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mode": "current-coord-proof-blocker",
-  "lastUpdatedUtc": "2026-04-30T19:30:52.6811337+00:00",
-  "status": "blocked-no-proof-grade-coordinate-anchor",
+  "lastUpdatedUtc": "2026-04-30T17:25:46.1968122-04:00",
+  "status": "current-session-movement-backed-coordinate-candidate-recovered-proof-gate-still-closed",
   "target": {
     "processName": "rift_x64",
     "processId": 32468,
@@ -17,9 +17,9 @@
     "pitchDegrees": 0.0
   },
   "coordinate": {
-    "status": "not-proof-grade-after-debug-scan",
-    "proofCoordAnchorStatus": "missing",
-    "proofWatchsetStatus": "not-rebuilt",
+    "status": "current-session-addon-assisted-movement-backed-candidate-recovered",
+    "proofCoordAnchorStatus": "missing-canonical-coord-trace-anchor",
+    "proofWatchsetStatus": "not-rebuilt-from-canonical-proof-anchor",
     "readerBridgeCoord": {
       "x": 7269.83984375,
       "y": 876.33996582031,
@@ -52,8 +52,32 @@
         "proofTraceStatus": "not-traced"
       }
     ],
-    "nonHeuristicStrongCandidateCount": 0,
-    "reason": "Crash-safe debug scan found yaw pointer/list/local-ref activity and one nearby entity coord write, but no same-PID proof-grade player coordinate access source."
+    "nonHeuristicStrongCandidateCount": 1,
+    "reason": "Addon-assisted no-CE live movement trace correlated a native memory float triplet with player movement. Candidate is current-session movement-backed, but not restart-durable and not canonical coord-trace proof-grade yet.",
+    "movementBackedCandidate": {
+      "address": "0x2C990DDE5C0",
+      "length": 12,
+      "valueFormat": "float32-triplet-x-y-z",
+      "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315",
+      "correlationSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\addon-memory-correlation-summary.json",
+      "distanceFirstToAddonTrace": 0.0040578052028838124,
+      "distanceLastToAddonTrace": 0.0064049118959192625,
+      "sampleCount": 300,
+      "changedStepCount": 37,
+      "firstCoord": {
+        "x": 7293.06982421875,
+        "y": 818.4039916992188,
+        "z": 3092.549560546875
+      },
+      "lastCoord": {
+        "x": 7293.49072265625,
+        "y": 818.4039916992188,
+        "z": 3094.704833984375
+      },
+      "netDistance": 2.1959870411919575,
+      "currentSessionOnly": true,
+      "proofGradeByExistingCoordTraceInvariant": false
+    }
   },
   "debugScan": {
     "status": "completed-no-crash-no-proof",
@@ -232,14 +256,14 @@
   },
   "movementGate": {
     "activeMovementAllowed": false,
-    "reason": "No validated post-restart coord-trace-coords anchor/watchset exists; no-CE scans have not found a proof-grade replacement source."
+    "reason": "Candidate debug scan found a base-referenced current-session coord component at 0x2C990DDE4C0 + 0x100, but no canonical coord-trace proof or yaw-linked source chain; active navigation remains gated."
   },
   "nextSmallestActions": [
-    "Keep the no-CE boundary: native reader process-memory scans only, no Cheat Engine/Lua/debugger/watchpoints.",
-    "Use the new capture-no-ce-coord-neighborhood.ps1 report to target narrower native follow-up around coord-root 0x2C9A50B6CD0 -> pointer-hop-2 parent 0x2C9AC932390 and yaw-source ref tables.",
-    "If user permits manual movement, rerun no-CE exact coord/signature/neighborhood scans after a significant position change to classify which coord roots update versus cache.",
-    "Do not promote pointer-hop basis candidates unless behavior-tested without CE and tied back to the player coord source.",
-    "Only unblock movement after a no-CE proof path or separately approved proof path produces a validated coord-trace-coords watchset equivalent."
+    "Use 0x2C990DDE5C0 as the selected current-session coordinate candidate for read-only validation and fast reacquisition experiments.",
+    "Build a candidate-only watchset/adapter that clearly marks this source current-session-only and blocks restart-stable promotion.",
+    "Run a second short addon-assisted live validation if active navigation polling will consume this candidate.",
+    "Derive a no-CE equivalent proof policy or canonicalize this candidate through the existing coord-trace invariant before opening the movement gate.",
+    "Keep exact ReaderBridge coord hits excluded unless they live-change during helper movement."
   ],
   "noCeDebugScan": {
     "status": "completed-read-only-no-cheat-engine-no-live-input",
@@ -502,5 +526,137 @@
       "No local structural link from either exact coord root to the behavior-backed yaw source was found in this no-CE neighborhood pass."
     ],
     "conclusion": "No-CE neighborhood scan produced useful structural negatives and candidate graph details, but no movement-grade coord-trace-coords replacement proof. Movement remains blocked."
+  },
+  "noCeFastReacquisitionAutomatedPass": {
+    "status": "completed-current-session-fast-reacquisition-no-proof-promotion",
+    "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\no-ce-fast-reacquisition-20260430-1553",
+    "comparisonFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\no-ce-fast-reacquisition-20260430-1553\\comparison.json",
+    "liveCandidateSamplingSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\no-ce-fast-reacquisition-20260430-1553\\live-candidate-sampling-summary.json",
+    "noCheatEngine": true,
+    "helperAutomationUsed": true,
+    "stimuli": [
+      {
+        "phase": "before-after-refresh-compare",
+        "key": "w",
+        "holdMilliseconds": 500,
+        "frameChangePercent": 12.8403
+      },
+      {
+        "phase": "live-record-candidate-sampling",
+        "key": "w",
+        "holdMilliseconds": 700,
+        "frameChangePercent": 6.8193
+      }
+    ],
+    "beforeAfterDelta": {
+      "x": 0.1298828125,
+      "y": 0.0,
+      "z": 0.6198730467999667,
+      "planar": 0.6333341449282391,
+      "magnitude": 0.6333341449282391
+    },
+    "beforeCoordHitCount": 23,
+    "afterCoordHitCount": 5,
+    "sameCoordHitAddresses": [],
+    "beforeAddressPostMoveReadsMatchingAfter": [],
+    "liveSamplingClassification": "all-after-refresh-coord-candidates-static-during-helper-movement",
+    "liveSamplingCoordCandidateSummary": [
+      {
+        "name": "after-coord-0x2C9843B8460",
+        "address": "0x2C9843B8460",
+        "changedSampleCount": 0,
+        "successfulReadCount": 45
+      },
+      {
+        "name": "after-coord-0x2C98BF5EE80",
+        "address": "0x2C98BF5EE80",
+        "changedSampleCount": 0,
+        "successfulReadCount": 45
+      },
+      {
+        "name": "after-coord-0x2C9BD7B0300",
+        "address": "0x2C9BD7B0300",
+        "changedSampleCount": 0,
+        "successfulReadCount": 45
+      },
+      {
+        "name": "after-coord-0x2C9BD821360",
+        "address": "0x2C9BD821360",
+        "changedSampleCount": 0,
+        "successfulReadCount": 45
+      },
+      {
+        "name": "after-coord-0x2C9C2BC8E20",
+        "address": "0x2C9C2BC8E20",
+        "changedSampleCount": 0,
+        "successfulReadCount": 45
+      }
+    ],
+    "liveSamplingYawSourceSummary": [
+      {
+        "name": "behavior-backed-yaw-source-basis-window",
+        "address": "0x2C9A013A490",
+        "changedSampleCount": 44,
+        "successfulReadCount": 45
+      }
+    ],
+    "keyFindings": [
+      "Automated no-CE helper movement moved the ReaderBridge position about 0.633m on the first before/after pass.",
+      "The exact coord hit set relocated after /reloadui; there were no same coord-hit addresses across before/after refresh scans.",
+      "All before-hit addresses retained before-position values when reread after movement; none matched the after ReaderBridge position.",
+      "In live record-session sampling without reload, all 5 post-refresh coord candidates stayed static across 45 samples during a 700ms W pulse.",
+      "The yaw-source window changed in 44/45 samples during the same live recording, confirming the recorder was observing live-changing memory.",
+      "Conclusion: exact ReaderBridge coord hits are cache/export copies for fast reacquisition; they should be excluded as live movement coord sources."
+    ],
+    "conclusion": "Helper automation improved fast reacquisition by quickly rejecting the current exact coord scan roots as live movement sources. No proof-grade coord source was recovered."
+  },
+  "addonAssistedFastReacquisition": {
+    "status": "completed-current-session-candidate-recovered",
+    "noCheatEngine": true,
+    "helperAutomationUsed": true,
+    "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315",
+    "correlationSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\addon-memory-correlation-summary.json",
+    "selectedCandidate": "0x2C990DDE5C0",
+    "addonTraceSampleCount": 378,
+    "memoryRecordSampleCount": 300,
+    "addonTraceNetDistance": 2.190528353840768,
+    "bestCandidateNetDistance": 2.1959870411919575,
+    "bestCandidateDistanceFirstToAddonTrace": 0.0040578052028838124,
+    "bestCandidateDistanceLastToAddonTrace": 0.0064049118959192625,
+    "conclusion": "The selected memory triplet followed the addon trace during live W movement and is usable as a current-session fast-reacquisition candidate, not as restart-stable truth."
+  },
+  "candidateNoCeDebugScan": {
+    "status": "base-referenced-current-session-coordinate-component-candidate",
+    "noCheatEngine": true,
+    "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939",
+    "durablePacket": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-session-coord-candidate-debug-scan.json",
+    "selectedCandidate": "0x2C990DDE5C0",
+    "candidateBase": "0x2C990DDE4C0",
+    "coordOffsetFromBase": "0x100",
+    "exactCandidateRefCount": 0,
+    "candidateBaseRefCount": 3,
+    "candidateBaseRefs": [
+      "0x2C99B4FB0B0",
+      "0x2C99C98BF98",
+      "0x2C9E6A61368"
+    ],
+    "parentRefsOfBaseRefs": [
+      {
+        "target": "0x2C99B4FB0B0",
+        "hitCount": 0
+      },
+      {
+        "target": "0x2C99C98BF98",
+        "hitCount": 0
+      },
+      {
+        "target": "0x2C9E6A61368",
+        "hitCount": 0
+      }
+    ],
+    "candidateFoundInFreshTolerantCoordScan": true,
+    "structuralLinkToYawSourceFound": false,
+    "proofGradeByExistingCoordTraceInvariant": false,
+    "conclusion": "No-CE debug scan strengthened the candidate as a base-referenced current-session coordinate component, but did not prove a yaw-linked owner/source chain or canonical coord-trace anchor."
   }
 }

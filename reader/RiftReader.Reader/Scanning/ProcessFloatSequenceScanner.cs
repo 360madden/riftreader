@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using RiftReader.Reader.Memory;
 
 namespace RiftReader.Reader.Scanning;
@@ -16,7 +17,8 @@ public static class ProcessFloatSequenceScanner
         float second,
         float third,
         int contextBytes,
-        int maxHits)
+        int maxHits,
+        double tolerance = 0d)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
@@ -35,6 +37,11 @@ public static class ProcessFloatSequenceScanner
             throw new ArgumentOutOfRangeException(nameof(maxHits), "Max hits must be greater than zero.");
         }
 
+        if (double.IsNaN(tolerance) || double.IsInfinity(tolerance) || tolerance < 0d)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tolerance), "Tolerance must be a finite zero-or-greater value.");
+        }
+
         var pattern = BuildPattern(first, second, third);
         var hits = new List<FloatSequenceScanHit>(Math.Min(maxHits, 64));
 
@@ -45,7 +52,14 @@ public static class ProcessFloatSequenceScanner
                 continue;
             }
 
-            ScanRegion(reader, region, pattern, first, second, third, hits, maxHits);
+            if (tolerance > 0d)
+            {
+                ScanRegionTolerant(reader, region, first, second, third, tolerance, hits, maxHits);
+            }
+            else
+            {
+                ScanRegion(reader, region, pattern, first, second, third, hits, maxHits);
+            }
 
             if (hits.Count >= maxHits)
             {
@@ -59,6 +73,7 @@ public static class ProcessFloatSequenceScanner
             ProcessName: processName,
             SearchLabel: searchLabel,
             SearchValues: FormatValues(first, second, third),
+            Tolerance: tolerance > 0d ? tolerance.ToString("G9", CultureInfo.InvariantCulture) : null,
             ContextBytes: contextBytes,
             MaxHits: maxHits,
             HitCount: hits.Count,
@@ -115,8 +130,8 @@ public static class ProcessFloatSequenceScanner
 
                 var hitIndex = searchStart + foundIndex;
                 var hitEnd = hitIndex + pattern.Length;
-                var startsInOverlap = hitIndex < overlapLength;
-                var crossesBoundary = hitEnd > overlapLength;
+                var startsInOverlap = hitIndex < overlapBytes;
+                var crossesBoundary = hitEnd > overlapBytes;
 
                 if (!startsInOverlap || crossesBoundary)
                 {
@@ -132,6 +147,79 @@ public static class ProcessFloatSequenceScanner
                 }
 
                 searchStart = hitIndex + 1;
+            }
+
+            var copyLength = Math.Min(overlapLength, combined.Length);
+            overlap = copyLength > 0 ? combined[^copyLength..] : [];
+            regionOffset += buffer.Length;
+        }
+    }
+
+    private static void ScanRegionTolerant(
+        ProcessMemoryReader reader,
+        ProcessMemoryRegion region,
+        float first,
+        float second,
+        float third,
+        double tolerance,
+        List<FloatSequenceScanHit> hits,
+        int maxHits)
+    {
+        const int width = sizeof(float) * 3;
+        var overlapLength = width - 1;
+        byte[] overlap = [];
+        long regionOffset = 0;
+
+        while (regionOffset < region.RegionSize && hits.Count < maxHits)
+        {
+            var bytesToRead = (int)Math.Min(ChunkSize, region.RegionSize - regionOffset);
+            var address = new nint(region.BaseAddress.ToInt64() + regionOffset);
+
+            if (!reader.TryReadBytes(address, bytesToRead, out var buffer, out _))
+            {
+                break;
+            }
+
+            var overlapBytes = overlap.Length;
+            var combined = Combine(overlap, buffer);
+            var combinedBaseAddress = address.ToInt64() - overlapBytes;
+            var firstAlignedIndex = (int)((sizeof(float) - (combinedBaseAddress & 0x3)) & 0x3);
+            var alignedBytes = combined.AsSpan(firstAlignedIndex);
+            var alignedByteLength = alignedBytes.Length - (alignedBytes.Length % sizeof(float));
+            var values = MemoryMarshal.Cast<byte, float>(alignedBytes[..alignedByteLength]);
+
+            for (var valueIndex = 0; valueIndex <= values.Length - 3 && hits.Count < maxHits; valueIndex++)
+            {
+                var hitIndex = firstAlignedIndex + (valueIndex * sizeof(float));
+                var absoluteAddress = combinedBaseAddress + hitIndex;
+                var hitEnd = hitIndex + width;
+                var startsInOverlap = hitIndex < overlapLength;
+                var crossesBoundary = hitEnd > overlapLength;
+
+                if (startsInOverlap && !crossesBoundary)
+                {
+                    continue;
+                }
+
+                var observedFirst = values[valueIndex];
+                var observedSecond = values[valueIndex + 1];
+                var observedThird = values[valueIndex + 2];
+
+                if (!IsMatch(observedFirst, first, tolerance) ||
+                    !IsMatch(observedSecond, second, tolerance) ||
+                    !IsMatch(observedThird, third, tolerance))
+                {
+                    continue;
+                }
+
+                hits.Add(new FloatSequenceScanHit(
+                    Address: absoluteAddress,
+                    AddressHex: $"0x{absoluteAddress:X}",
+                    RegionBase: region.BaseAddress.ToInt64(),
+                    RegionBaseHex: $"0x{region.BaseAddress.ToInt64():X}",
+                    RegionSize: region.RegionSize,
+                    ObservedValues: FormatValues(observedFirst, observedSecond, observedThird),
+                    Context: null));
             }
 
             var copyLength = Math.Min(overlapLength, combined.Length);
@@ -211,6 +299,9 @@ public static class ProcessFloatSequenceScanner
         Buffer.BlockCopy(buffer, 0, combined, overlap.Length, buffer.Length);
         return combined;
     }
+
+    private static bool IsMatch(float observed, float expected, double tolerance) =>
+        float.IsFinite(observed) && Math.Abs(observed - expected) <= tolerance;
 
     private static string FormatValues(float first, float second, float third) =>
         string.Create(

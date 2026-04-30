@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-session-coord-candidate-debug-scan",
+  "generatedAtUtc": "2026-04-30T21:25:46.0008093Z",
+  "status": "base-referenced-current-session-coordinate-component-candidate",
+  "noCheatEngine": true,
+  "target": {
+    "processName": "rift_x64",
+    "processId": 32468,
+    "targetWindowHandle": "0x15908B2"
+  },
+  "candidate": {
+    "address": "0x2C990DDE5C0",
+    "baseGuess": "0x2C990DDE4C0",
+    "coordOffsetFromBase": "0x100",
+    "length": 12,
+    "directReadBytesHex": "EDEBE345DB994C44476B4145",
+    "directReadCoord": {
+      "x": 7293.49072265625,
+      "y": 818.4039916992188,
+      "z": 3094.704833984375
+    }
+  },
+  "readerbridgeCoordScan": {
+    "hitCount": 47,
+    "searchValues": "7293.48975, 818.399963, 3094.69995",
+    "tolerance": "0.05",
+    "candidateFound": true,
+    "candidateObservedValues": "7293.49072, 818.403992, 3094.70483",
+    "regionBase": "0x2C990DD0000"
+  },
+  "pointerScan": {
+    "exactCandidateRefCount": 0,
+    "candidateBase": "0x2C990DDE4C0",
+    "candidateBaseRefCount": 3,
+    "candidateBaseRefs": [
+      "0x2C99B4FB0B0",
+      "0x2C99C98BF98",
+      "0x2C9E6A61368"
+    ],
+    "parentRefsOfBaseRefs": [
+      {
+        "target": "0x2C99B4FB0B0",
+        "hitCount": 0
+      },
+      {
+        "target": "0x2C99C98BF98",
+        "hitCount": 0
+      },
+      {
+        "target": "0x2C9E6A61368",
+        "hitCount": 0
+      }
+    ],
+    "yawSourceRefCount": 14
+  },
+  "neighborhood": {
+    "coordWindowCount": 1,
+    "basisWindowCount": 1,
+    "localPointerLinkCount": 15,
+    "candidateCoordTriplets": [
+      {
+        "Address": "0x2C990DDE5C0",
+        "OffsetHex": "0x200",
+        "X": 7293.49072265625,
+        "Y": 818.4039916992188,
+        "Z": 3094.704833984375,
+        "DeltaX": 0.0,
+        "DeltaY": 0.0,
+        "DeltaZ": 0.0
+      }
+    ],
+    "candidateLocalPointerLinks": [
+      {
+        "WindowLabel": "coord-root:0x2C990DDE5C0",
+        "PointerAddress": "0x2C990DDE6E8",
+        "PointerOffset": "0x328",
+        "PointerValue": "0x2C990DDE640",
+        "Relations": [
+          {
+            "Kind": "near",
+            "SeedLabel": "coord-root:0x2C990DDE5C0",
+            "SeedAddress": "0x2C990DDE5C0",
+            "Delta": 128
+          }
+        ]
+      },
+      {
+        "WindowLabel": "coord-root:0x2C990DDE5C0",
+        "PointerAddress": "0x2C990DDE790",
+        "PointerOffset": "0x3D0",
+        "PointerValue": "0x2C990DDE8D0",
+        "Relations": [
+          {
+            "Kind": "near",
+            "SeedLabel": "coord-root:0x2C990DDE5C0",
+            "SeedAddress": "0x2C990DDE5C0",
+            "Delta": 784
+          }
+        ]
+      }
+    ],
+    "nextDebugSeeds": [
+      "0x2C990DDE4C0",
+      "0x2C99B4FB0B0",
+      "0x2C99C98BF98",
+      "0x2C9E6A61368",
+      "0x2C990DDE640",
+      "0x2C990DDE8D0"
+    ]
+  },
+  "classification": {
+    "status": "base-referenced-current-session-coordinate-component-candidate",
+    "promoteToProofGrade": false,
+    "evidence": [
+      "Candidate address is present in fresh tolerant ReaderBridge coord scan.",
+      "Direct 12-byte read decodes to the current movement-backed coordinate within scanner tolerance.",
+      "No exact pointers to the coordinate triplet address were found.",
+      "Three pointers reference candidate-0x100, suggesting a component/object base with coords at +0x100.",
+      "No one-hop parent pointers to those three reference slots were found in this pass.",
+      "Neighborhood scan found candidate-local near self-pointers but no structural link to behavior-backed yaw source."
+    ],
+    "nextDebugSeeds": [
+      "0x2C990DDE4C0",
+      "0x2C99B4FB0B0",
+      "0x2C99C98BF98",
+      "0x2C9E6A61368",
+      "0x2C990DDE640",
+      "0x2C990DDE8D0"
+    ]
+  },
+  "artifacts": {
+    "runRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939",
+    "fullSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939\\candidate-debug-summary.json",
+    "correctedNeighborhood": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939\\candidate-neighborhood-corrected.json",
+    "tolerantCoordScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939\\scan-readerbridge-player-coords-tol005.json",
+    "pointerBaseScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939\\scan-pointer-candidate-window-start.json",
+    "runSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939\\run-summary.json"
+  }
+}

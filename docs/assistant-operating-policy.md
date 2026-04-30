@@ -10,7 +10,7 @@ This document expands the repo-level guidance in
 | Keep answers easy to scan | lead with the verdict and use tables |
 | Keep changes low-risk | prefer the smallest correct patch |
 | Avoid endless loops | escalate on evidence and change tactics after repeated similar failures |
-| Stay iterative | start simple and only add complexity when needed |
+| Stay iterative | start simple for code patches; for live discovery, start with enough instrumentation to produce strong evidence |
 
 ## Default response shape
 
@@ -97,6 +97,10 @@ navigation proof:
 | Proof access-watch size | In proof reacquisition with access watchpoints, default to a **12-byte coord-triplet watch window** so `X/Y/Z` lane accesses can be re-proven from the same live source object instead of missing non-`X` reads with a 4-byte watch |
 | Escalation after repeated proof-reacquisition failure | Escalate to **debug scanning** instead of retrying the same heuristic/bootstrap trace loop |
 | Proactive debug tracing | Use debug tracing as a **primary discovery method**, not just a recovery tool. For coords, facing, and proof-watchset quality, use breakpoints, trace-cluster inspection, selector/owner tracing, and neighborhood scans to look for related fields, better offsets, pointer relationships, and stronger candidates before locking a watchset |
+| Live discovery signal | For coordinate/facing reverse engineering, optimize for **highest signal per bounded run**, not the shortest safe pulse. Use addon labels, exact-window helper input, native memory recording, and timestamped artifacts together when available |
+| Movement trace shape | Prefer scripted multi-vector movement traces with baseline pauses, stops, turns/strafe/backtrack, and final stabilization over a single forward pulse when scoring candidates |
+| SavedVariables freshness | Treat `ReaderBridgeExport.lua` and all RIFT addon `SavedVariables` files as post-save snapshots only, not live IPC. They normally update on `/reloadui`, logout, UI shutdown, or another save event. Do not use them as live movement truth unless a fresh save/flush timestamp proves the file is current for the capture. |
+| Live truth declaration | Every coord bundle must declare its authoritative truth surface (`overlay`, `validated-memory-anchor`, `post-flush-savedvariables`, etc.) and fail closed if stale SavedVariables data is accidentally used as live truth |
 | Discovery artifacts | Treat selected-source coord lanes, projector traces, stat hubs, and similar discovery artifacts as candidate-only unless they have been re-proven for the current session |
 | Failure policy | If the watchset lacks canonical coord-trace coords or the resolved anchor is not validated, stop and fix the proof source instead of recording stale/candidate/heuristic movement data |
 

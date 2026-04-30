@@ -37,7 +37,7 @@ Usage:
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-double <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-name [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
-  RiftReader.Reader --process-name <name> --scan-readerbridge-player-coords [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-readerbridge-player-coords [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-signature [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-identity [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-pointer <hexOrDecimalAddress> [--pointer-width 4|8] [--scan-context <bytes>] [--max-hits <count>]
@@ -78,7 +78,7 @@ Notes:
   - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
   - Use --scan-readerbridge-player-name to load the latest ReaderBridge export and scan the process for the current player name.
-  - Use --scan-readerbridge-player-coords to load the latest ReaderBridge export and scan for an exact contiguous float triplet of the current player coordinates.
+  - Use --scan-readerbridge-player-coords to load the latest ReaderBridge export and scan for a contiguous float triplet of the current player coordinates. Add --scan-tolerance when the stored values may differ slightly from the exported decimals.
   - Use --scan-readerbridge-player-signature to rank coordinate hits by nearby exported player fields such as health, level, and location text.
   - Use --scan-readerbridge-identity to derive a likely character identity string such as Name@Shard from the latest ReaderBridge export path and scan for it.
   - Use --scan-pointer to search process memory for references to a target address.
@@ -115,7 +115,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-name --scan-context 32 --max-hits 16
-  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-coords --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-coords --scan-tolerance 0.05 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-signature --scan-context 96 --max-hits 12
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-identity --scan-encoding ascii --scan-context 32 --max-hits 8
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-pointer 0x2039DD70 --pointer-width 8 --scan-context 32 --max-hits 16
@@ -1357,9 +1357,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--plan-navigation-route cannot be combined with other reader, snapshot, scan, navigation movement, telemetry, or raw memory modes.", UsageText);
         }
 
-        if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue)
+        if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue && !scanReaderBridgePlayerCoords)
         {
-            return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float or --scan-double.", UsageText);
+            return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float, --scan-double, or --scan-readerbridge-player-coords.", UsageText);
         }
 
         if ((telemetryOutputFile is not null || telemetryEventLogFile is not null || telemetryDiagnosticsLogFile is not null || telemetryProofAnchorFile is not null || telemetryDiagnostics) && !runTelemetryHost && !telemetryPreflight)

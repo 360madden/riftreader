@@ -108,6 +108,24 @@ public sealed class ReaderOptionsParserTests
     }
 
     [Fact]
+    public void Parse_AcceptsReaderBridgeCoordScanTolerance()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--scan-readerbridge-player-coords",
+            "--scan-tolerance", "0.05",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.ScanReaderBridgePlayerCoords);
+        Assert.Equal(0.05d, options.ScanTolerance);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
     public void Parse_AcceptsNavigateWaypointsWithAutoTurnOptions()
     {
         var result = ReaderOptionsParser.Parse(

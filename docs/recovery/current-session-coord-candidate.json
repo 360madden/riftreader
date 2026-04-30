@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-session-addon-assisted-coordinate-candidate",
+  "generatedAtUtc": "2026-04-30T20:46:12.1300387Z",
+  "status": "current-session-movement-backed-candidate-recovered",
+  "noCheatEngine": true,
+  "target": {
+    "processName": "rift_x64",
+    "processId": 32468,
+    "targetWindowHandle": "0x15908B2",
+    "processStartTimeUtc": "2026-04-30T16:03:29.7977969Z"
+  },
+  "candidate": {
+    "address": "0x2C990DDE5C0",
+    "length": 12,
+    "valueFormat": "float32-triplet-x-y-z",
+    "source": "addon-assisted-memory-correlation",
+    "movementBacked": true,
+    "restartDurability": "current-session-only-not-restart-stable",
+    "proofGradeByExistingCoordTraceInvariant": false,
+    "reasonNotProofGrade": "Recovered without CE/access-watchpoint coord-trace proof; use as current-session fast reacquisition candidate only until promoted by the canonical proof path or a no-CE equivalent policy.",
+    "sampleCount": 300,
+    "changedStepCount": 37,
+    "firstCoord": {
+      "x": 7293.06982421875,
+      "y": 818.4039916992188,
+      "z": 3092.549560546875
+    },
+    "lastCoord": {
+      "x": 7293.49072265625,
+      "y": 818.4039916992188,
+      "z": 3094.704833984375
+    },
+    "netDistance": 2.1959870411919575,
+    "totalStepDistance": 2.1959933670105234,
+    "distanceFirstToAddonTrace": 0.0040578052028838124,
+    "distanceLastToAddonTrace": 0.0064049118959192625,
+    "firstChangedStep": {
+      "sampleIndex": 192,
+      "elapsedMs": 9614,
+      "distanceFromPrevious": 0.04103378620429767,
+      "coord": {
+        "x": 7293.07763671875,
+        "y": 818.4039916992188,
+        "z": 3092.58984375
+      },
+      "nearestTrace": {
+        "sequence": 249,
+        "capturedAt": 16809.6875,
+        "distance": 0.004710395841902604,
+        "coord": {
+          "x": 7293.080078125,
+          "y": 818.39996337891,
+          "z": 3092.58984375
+        }
+      }
+    },
+    "lastChangedStep": {
+      "sampleIndex": 228,
+      "elapsedMs": 11409,
+      "distanceFromPrevious": 0.02063674361230875,
+      "coord": {
+        "x": 7293.49072265625,
+        "y": 818.4039916992188,
+        "z": 3094.704833984375
+      },
+      "nearestTrace": {
+        "sequence": 278,
+        "capturedAt": 16811.474609375,
+        "distance": 0.0064049118959192625,
+        "coord": {
+          "x": 7293.4897460938,
+          "y": 818.39996337891,
+          "z": 3094.6999511719
+        }
+      }
+    }
+  },
+  "addonTrace": {
+    "sampleCount": 378,
+    "firstCoord": {
+      "x": 7293.0698242188,
+      "y": 818.39996337891,
+      "z": 3092.5500488281
+    },
+    "lastCoord": {
+      "x": 7293.4897460938,
+      "y": 818.39996337891,
+      "z": 3094.6999511719
+    },
+    "netDistance": 2.190528353840768,
+    "firstMovingStep": {
+      "sequence": 249,
+      "capturedAt": 16809.6875,
+      "distanceFromPrevious": 0.04109474907315929,
+      "coord": {
+        "x": 7293.080078125,
+        "y": 818.39996337891,
+        "z": 3092.58984375
+      },
+      "reason": "trace.heartbeat"
+    },
+    "lastMovingStep": {
+      "sequence": 278,
+      "capturedAt": 16811.474609375,
+      "distanceFromPrevious": 0.050992672275758044,
+      "coord": {
+        "x": 7293.4897460938,
+        "y": 818.39996337891,
+        "z": 3094.6999511719
+      },
+      "reason": "trace.heartbeat"
+    }
+  },
+  "artifacts": {
+    "runRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315",
+    "correlationSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\addon-memory-correlation-summary.json",
+    "savedVariablesSnapshot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\ReaderBridgeExport-after-trace.lua",
+    "memorySessionDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\memory-record-during-addon-trace-w",
+    "watchset": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\watchset-dynamic-candidates-plus-yaw.json",
+    "runSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\addon-assisted-coord-correlation-20260430-164315\\run-summary.json"
+  },
+  "validation": {
+    "addonTraceSamples": 378,
+    "memoryRecordSamples": 300,
+    "bestDistanceFirstToAddonTrace": 0.0040578052028838124,
+    "bestDistanceLastToAddonTrace": 0.0064049118959192625,
+    "conclusion": "candidate_matches_addon_trace",
+    "helperMovementUsed": true,
+    "exactWindowTargeted": true
+  },
+  "debugScan": {
+    "status": "base-referenced-current-session-coordinate-component-candidate",
+    "generatedAtUtc": "2026-04-30T21:25:46.0008093Z",
+    "noCheatEngine": true,
+    "candidateBase": "0x2C990DDE4C0",
+    "coordOffsetFromBase": "0x100",
+    "exactCandidateRefCount": 0,
+    "candidateBaseRefCount": 3,
+    "candidateBaseRefs": [
+      "0x2C99B4FB0B0",
+      "0x2C99C98BF98",
+      "0x2C9E6A61368"
+    ],
+    "parentRefCounts": [
+      {
+        "target": "0x2C99B4FB0B0",
+        "hitCount": 0
+      },
+      {
+        "target": "0x2C99C98BF98",
+        "hitCount": 0
+      },
+      {
+        "target": "0x2C9E6A61368",
+        "hitCount": 0
+      }
+    ],
+    "yawSourceRefCount": 14,
+    "structuralLinkToYawSourceFound": false,
+    "promoteToProofGrade": false,
+    "durablePacket": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-session-coord-candidate-debug-scan.json",
+    "fullSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\candidate-debug-scan-20260430-171939\\candidate-debug-summary.json"
+  }
+}

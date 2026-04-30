@@ -63,6 +63,8 @@
 - Current blocker packet: `docs/recovery/current-coord-proof-blocker.json` (mode `blocked-no-proof-grade-coordinate-anchor`)
 - Latest no-CE follow-up: `scripts/captures/coord-no-ce-scan-20260430-1501/no-ce-scan-summary.json`
 - Latest no-CE neighborhood report: `scripts/captures/coord-no-ce-neighborhood-20260430-1530/coord-no-ce-neighborhood-summary.json`
+- Latest automated no-CE fast-reacquisition pass: `scripts/captures/no-ce-fast-reacquisition-20260430-1553/comparison.json`
+- Latest live candidate sampling summary: `scripts/captures/no-ce-fast-reacquisition-20260430-1553/live-candidate-sampling-summary.json`
 - Last debug-scan evidence: `scripts/captures/coord-debug-scan-20260430-134228`
 - Latest reacquisition attempts: `scripts/captures/coord-reacquisition-20260430-143447`
 - Last command in this lane: `scripts/trace-coord-writer-instruction.ps1` variants with instruction `0x674B6F` and 12-byte candidate windows
@@ -204,17 +206,134 @@ Key findings:
 Movement remains blocked: this was useful structural negative evidence, but it
 does not produce a `coord-trace-coords` replacement proof.
 
+## Automated no-CE fast-reacquisition pass - 2026-04-30 15:53-16:01 EDT
+
+User clarified the active goal: **fast current-session reacquisition**, not
+restart-stable truth. Existing helper automation was then used for a bounded
+no-CE movement classification pass.
+
+| Item | Result |
+|---|---|
+| Run folder | `scripts/captures/no-ce-fast-reacquisition-20260430-1553` |
+| Before/after comparison | `scripts/captures/no-ce-fast-reacquisition-20260430-1553/comparison.json` |
+| Live sampling summary | `scripts/captures/no-ce-fast-reacquisition-20260430-1553/live-candidate-sampling-summary.json` |
+| Cheat Engine used | No |
+| Helper automation used | Yes: exact-window `mcp__rift_game.send_key` |
+| First stimulus | `w` for `500 ms`, visible frame change `12.8403%` |
+| First ReaderBridge delta | about `0.633 m` planar |
+| Before coord-hit count | 23 |
+| After coord-hit count | 5 |
+| Same coord-hit addresses before/after `/reloadui` | 0 |
+| Before addresses reread after movement | none matched the after ReaderBridge coordinate |
+| Live sampling stimulus | `w` for `700 ms`, visible frame change `6.8193%` |
+| Live record samples | 45 samples at `100 ms` interval |
+| Post-refresh coord candidates during live W | all 5 had `ChangedSampleCount=0` |
+| Behavior-backed yaw window during same recording | changed `44/45` samples |
+| Movement gate | Still `false` |
+
+Interpretation:
+
+- The helper automation did work and produced a useful fast-reacquisition
+  result.
+- Exact ReaderBridge coordinate hits are now strongly classified as
+  cache/export copies for this lane, not live movement coordinate roots.
+- The native recorder saw live-changing memory in the yaw-source window during
+  the same stimulus, so the static coord-candidate result is meaningful.
+- Do **not** keep chasing exact ReaderBridge coord scan hits as live coord roots
+  unless a later live sampler shows them changing during movement.
+- No proof-grade coord source was recovered; active movement stays blocked.
+
 ## Top 10 recommended next best actions
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Continue only no-CE native reader scans for this lane | Matches the current user constraint |
-| 2 | Narrow around `0x2C9A50B6CD0 -> 0x2C9AC932390` with native pointer/neighborhood reads | This is the only coord-root structural link found |
-| 3 | Inspect yaw-source ref tables separately from coord roots | Yaw graph is active but currently disconnected from coord roots |
-| 4 | Treat `0x2C9C46F9948 @ +0x58/+0x8C` as candidate-only unless behavior-proofed without CE | It diverges from current behavior-backed yaw |
-| 5 | Re-run exact coord/signature/neighborhood scans after a manual significant position change, if user permits movement | Separates cache/static hits from live-updating source candidates |
-| 6 | Keep all scan outputs under timestamped run folders with `noCheatEngine=true` metadata | Makes recovery resumable and auditable |
-| 7 | Extend native neighborhood reporting only if a specific structural question needs it | Avoids drifting into broad scanner rewrites |
+| 1 | Continue fast reacquisition, not restart-durable truth | Aligns with the corrected objective |
+| 2 | Use automated helper stimulus plus native record-session sampling | It produced useful evidence quickly |
+| 3 | Stop treating exact ReaderBridge coord hits as likely live coord roots | Live sampling showed they stayed static during W |
+| 4 | Build/run a no-CE differential sampler over broader non-cache candidate families/source graph seeds | Next best way to find live-changing coord memory without CE |
+| 5 | Prioritize candidates whose raw bytes change during helper W and later decode to ReaderBridge coords after refresh | Fast path to current-session coord reacquisition |
+| 6 | Keep yaw source `0x2C9A013A490 @ +0xD4` as current-session yaw, separate from coord search | Yaw remains valid while coords are blocked |
+| 7 | Keep all scan outputs under timestamped run folders with `noCheatEngine=true` and stimulus metadata | Makes recovery resumable and auditable |
 | 8 | Do not rerun `trace-coord-writer-instruction.ps1` while the no-CE boundary is active | That collector is CE/Lua-backed |
 | 9 | Only promote after a non-CE equivalent proof path satisfies the `coord-trace-coords` watchset invariant | Maintains safety gate |
 |10 | Run proof/validator suites after any future promotion | Verifies no actor-facing/navigation regressions |
+
+## Addon-assisted no-CE current-session coord recovery - 2026-04-30 16:40-16:45 EDT
+
+User correction applied: use the in-game addon as the synchronized live movement
+label stream while native memory sampling runs. Cheat Engine was not used.
+
+| Item | Result |
+|---|---|
+| Installed addon patch | Added `/rbx trace start|stop|clear|sample|status` movement trace buffer to `C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\AddOns\ReaderBridgeExport\main.lua` |
+| Repo addon patch | Mirrored trace support in `C:\RIFT MODDING\RiftReader\addon\ReaderBridgeExport\main.lua` |
+| Crash found/fixed | Installed addon was missing `copyCoordinate` / `copyCoordDelta`; this caused `attempt to call global 'copyCoordinate'`; fixed and reloaded |
+| Syntax validation | `luac -p` passed for repo + installed addon files |
+| Best run folder | `C:\RIFT MODDING\RiftReader\scripts\captures\addon-assisted-coord-correlation-20260430-164315` |
+| Correlation summary | `C:\RIFT MODDING\RiftReader\scripts\captures\addon-assisted-coord-correlation-20260430-164315\addon-memory-correlation-summary.json` |
+| Selected current-session candidate | `0x2C990DDE5C0`, 12 bytes, float32 triplet X/Y/Z |
+| Addon trace | 378 samples; moved about `2.1905m` from `7293.0698,818.4000,3092.5500` to `7293.4897,818.4000,3094.7000` |
+| Native memory record | 300 samples; candidate changed 37 steps and moved about `2.1960m` |
+| First/last match to addon trace | First distance `0.0041m`; last distance `0.0064m` |
+| Cheat Engine used | No |
+| Helper automation used | Yes: exact PID/HWND `w` hold, with addon trace active |
+| Recovery packet | `C:\RIFT MODDING\RiftReader\docs\recovery\current-session-coord-candidate.json` |
+| Movement gate | Still closed for active nav until canonical proof invariant is satisfied or explicitly replaced by a no-CE policy |
+
+Interpretation:
+
+- This is the first recovered **current-session movement-backed coordinate
+  candidate** in the no-CE lane.
+- It is good enough to drive read-only validation / fast-reacquisition
+  experiments in the current process.
+- It is **not** restart-stable truth and not promoted through the existing
+  `coord-trace-coords` proof invariant yet.
+
+## Updated Top 10 recommended next best actions
+
+| # | Action | Why |
+|---:|---|---|
+| 1 | Treat `0x2C990DDE5C0` as the selected current-session coord candidate | It followed the addon movement trace within `0.0064m` at the end of the run |
+| 2 | Build a read-only candidate watchset/adapter around that 12-byte triplet | Fastest way to consume the recovered source safely |
+| 3 | Run one more short addon-assisted validation before active navigation consumes it | Confirms it is still live after the last reload and movement |
+| 4 | Keep movement gate closed until canonical proof policy is satisfied or explicitly amended | Preserves the project safety invariant |
+| 5 | Stop chasing exact ReaderBridge export triplets as primary live roots | Prior runs showed they can be cache/static copies |
+| 6 | Use addon trace as live labels for future no-CE differential scans | It solved the timing/ground-truth issue without CE |
+| 7 | Prefer direct built reader exe for record-session runs | Avoids `dotnet run` startup latency during movement tests |
+| 8 | Add automated trace extraction/correlation script if this workflow repeats | Turns the current ad hoc parser into a reusable proof tool |
+| 9 | Search local pointer/neighborhood links around `0x2C990DDE5C0` next | Could find a stronger owner/source object for reacquisition |
+|10 | Preserve the current candidate packet separately from blocker docs | Keeps current-session truth easy to consume without overstating durability |
+
+## No-CE candidate debug scan - 2026-04-30 17:19-17:22 EDT
+
+User requested debug scanning on the recovered candidate through repo/native tools,
+with Cheat Engine still disallowed. The scan used `RiftReader.Reader` memory reads,
+pointer scans, tolerant coord scans, and the repo no-CE neighborhood scanner only.
+
+| Item | Result |
+|---|---|
+| Candidate scanned | `0x2C990DDE5C0` |
+| Candidate base guess | `0x2C990DDE4C0` |
+| Coord offset from base | `+0x100` |
+| Direct read coord | `7293.4907, 818.4040, 3094.7048` |
+| Fresh tolerant ReaderBridge coord scan | Candidate found; 47 total tolerant hits in process |
+| Exact pointer refs to coord triplet | 0 refs to `0x2C990DDE5C0` |
+| Pointer refs to base guess | 3 refs to `0x2C990DDE4C0`: `0x2C99B4FB0B0`, `0x2C99C98BF98`, `0x2C9E6A61368` |
+| One-hop parents of those refs | 0 refs found to each of the three ref slots |
+| Yaw-source refs in same pass | 14 refs to `0x2C9A013A490` |
+| Candidate neighborhood | 1 coord window, 1 basis window, 15 local pointer links |
+| Link to behavior-backed yaw source | None found |
+| Durable packet | `C:\RIFT MODDING\RiftReader\docs\recovery\current-session-coord-candidate-debug-scan.json` |
+| Full run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\candidate-debug-scan-20260430-171939\candidate-debug-summary.json` |
+| Cheat Engine used | No |
+
+Interpretation:
+
+- The candidate is now stronger than a loose triplet: it appears to be a
+  **base-referenced current-session coordinate component** with coords at
+  `base + 0x100`.
+- It still is **not proof-grade** under the existing invariant because there is
+  no canonical access-trace proof and no structural link to the behavior-backed
+  yaw source in this scan.
+- Best next debug seeds are `0x2C990DDE4C0`, `0x2C99B4FB0B0`,
+  `0x2C99C98BF98`, `0x2C9E6A61368`, `0x2C990DDE640`, and `0x2C990DDE8D0`.
