@@ -60,6 +60,10 @@ Operational interpretation:
 - movement-grade coord proof is still blocked: proof coord anchor reacquisition
   armed debug-register access watchpoints but received no verified hits against
   explicit current coord candidates
+- bounded neighborhood recovery captured the current yaw object and coord-like
+  candidates, but exact ReaderBridge-coordinate triplets remained in
+  heuristic/current-candidate lineage only; see
+  `C:\RIFT MODDING\RiftReader\docs\recovery\current-coord-proof-blocker.json`
 - active movement must stay blocked until a post-restart `coord-trace-coords`
   watchset is rebuilt and validated
 ## April 30 actor-yaw recovery truth

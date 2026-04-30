@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-coord-proof-blocker",
+  "lastUpdatedUtc": "2026-04-30T17:12:59.9124349Z",
+  "status": "blocked-no-proof-grade-coordinate-anchor",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 32468,
+    "targetWindowHandle": "0x15908B2",
+    "processStartTimeUtc": "2026-04-30T16:03:29.7977969Z"
+  },
+  "actorFacing": {
+    "status": "current-session-yaw-available",
+    "sourceAddress": "0x2C9A013A490",
+    "basisForwardOffset": "0xD4",
+    "yawDegrees": 170.5779786657639,
+    "pitchDegrees": 0
+  },
+  "coordinate": {
+    "status": "not-proof-grade-after-restart",
+    "proofCoordAnchorStatus": "missing",
+    "proofWatchsetStatus": "not-rebuilt",
+    "readerBridgeCoord": {
+      "x": 7269.83984375,
+      "y": 876.33996582031,
+      "z": 3052.2099609375,
+      "snapshotFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+      "snapshotLoadedAtUtc": "2026-04-30T13:04:40.9022505-04:00"
+    },
+    "exactCoordLikeHits": [
+      {
+        "address": "0x2C989B8DD90",
+        "region": "failed-current-candidate-plus-minus-64kb",
+        "sourceKind": "failed-proof-current-candidate",
+        "offset": "0x10000",
+        "x": 7269.83984375,
+        "y": 876.3399658203125,
+        "z": 3052.2099609375,
+        "distanceToReaderBridge": 2.5011104298755527E-12,
+        "score": 80,
+        "nonHeuristic": false,
+        "reasons": [
+          "matches-readerbridge-within-0.5"
+        ],
+        "nextProofAction": "trace 12-byte access watch at this address only if nonHeuristic=true"
+      },
+      {
+        "address": "0x2C9ABD5FF90",
+        "region": "latest-reader-current-plus-minus-64kb",
+        "sourceKind": "heuristic-reader-current-candidate",
+        "offset": "0xD740",
+        "x": 7269.83984375,
+        "y": 876.3399658203125,
+        "z": 3052.2099609375,
+        "distanceToReaderBridge": 2.5011104298755527E-12,
+        "score": 80,
+        "nonHeuristic": false,
+        "reasons": [
+          "matches-readerbridge-within-0.5"
+        ],
+        "nextProofAction": "trace 12-byte access watch at this address only if nonHeuristic=true"
+      },
+      {
+        "address": "0x2C9ABD62850",
+        "region": "latest-reader-current-plus-minus-64kb",
+        "sourceKind": "heuristic-reader-current-candidate",
+        "offset": "0x10000",
+        "x": 7267.43994140625,
+        "y": 876.2099609375,
+        "z": 3052.27001953125,
+        "distanceToReaderBridge": 2.4041712842005274,
+        "score": 65,
+        "nonHeuristic": false,
+        "reasons": [
+          "matches-readerbridge-within-5"
+        ],
+        "nextProofAction": "trace 12-byte access watch at this address only if nonHeuristic=true"
+      },
+      {
+        "address": "0x2C9ABD63AF0",
+        "region": "latest-reader-current-plus-minus-64kb",
+        "sourceKind": "heuristic-reader-current-candidate",
+        "offset": "0x112A0",
+        "x": 7267.43994140625,
+        "y": 876.2099609375,
+        "z": 3052.27001953125,
+        "distanceToReaderBridge": 2.4041712842005274,
+        "score": 65,
+        "nonHeuristic": false,
+        "reasons": [
+          "matches-readerbridge-within-5"
+        ],
+        "nextProofAction": "trace 12-byte access watch at this address only if nonHeuristic=true"
+      },
+      {
+        "address": "0x2C9ABD63DD0",
+        "region": "latest-reader-current-plus-minus-64kb",
+        "sourceKind": "heuristic-reader-current-candidate",
+        "offset": "0x11580",
+        "x": 7267.43994140625,
+        "y": 876.2099609375,
+        "z": 3052.27001953125,
+        "distanceToReaderBridge": 2.4041712842005274,
+        "score": 65,
+        "nonHeuristic": false,
+        "reasons": [
+          "matches-readerbridge-within-5"
+        ],
+        "nextProofAction": "trace 12-byte access watch at this address only if nonHeuristic=true"
+      },
+      {
+        "address": "0x2C9ABD65370",
+        "region": "latest-reader-current-plus-minus-64kb",
+        "sourceKind": "heuristic-reader-current-candidate",
+        "offset": "0x12B20",
+        "x": 7267.43994140625,
+        "y": 876.2099609375,
+        "z": 3052.27001953125,
+        "distanceToReaderBridge": 2.4041712842005274,
+        "score": 65,
+        "nonHeuristic": false,
+        "reasons": [
+          "matches-readerbridge-within-5"
+        ],
+        "nextProofAction": "trace 12-byte access watch at this address only if nonHeuristic=true"
+      }
+    ],
+    "nonHeuristicStrongCandidateCount": 0,
+    "reason": "Bounded neighborhood analysis found exact ReaderBridge-coordinate triplets only in heuristic/current-candidate lineage; no strong non-heuristic coord candidate is safe for proof promotion."
+  },
+  "proofTrace": {
+    "status": "skipped-safety-gate",
+    "reason": "Plan allowed controlled W/access tracing only for non-heuristic ranked candidates. Offline analysis produced zero strong non-heuristic candidates within 25m of ReaderBridge coords.",
+    "priorFailedTraceArtifacts": [
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-proof-rebuild-after-yaw-restart-20260430-123920\\resolve-proof-coord-anchor.stdout.txt",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-proof-rebuild-after-yaw-restart-20260430-123920\\capture-player-source-chain-refresh.stdout.txt"
+    ]
+  },
+  "artifacts": {
+    "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434",
+    "manifest": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\manifest.json",
+    "analysisJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\coord-neighborhood-analysis.json",
+    "analysisMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\coord-neighborhood-analysis.md",
+    "yawNeighborhood": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\yaw-source-plus-minus-64kb.memory-read.json",
+    "latestReaderCurrentNeighborhood": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\latest-reader-current-plus-minus-64kb.memory-read.json",
+    "failedCurrentCandidateNeighborhood": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\failed-current-candidate-plus-minus-64kb.memory-read.json",
+    "yawPointerRefs": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-neighborhood-recovery-20260430-130434\\ptrrefs-yaw-source.scan-pointer.json"
+  },
+  "movementGate": {
+    "activeMovementAllowed": false,
+    "reason": "No validated post-restart coord-trace-coords anchor/watchset exists."
+  },
+  "nextSmallestActions": [
+    "Refresh same-PID debug-scanned source-chain or owner artifacts from yaw-source pointer refs, not heuristic current-player reads.",
+    "Use the yaw-source pointer refs around 0x2C9A013A468/0x2C9A013A6A8/0x2C9A013D158/0x2C9A07563F0 to build a non-heuristic owner/source candidate set.",
+    "Only then run a 12-byte access proof trace and export proof-polling-watchset if coord-trace-coords resolves."
+  ]
+}
