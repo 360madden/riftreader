@@ -106,6 +106,73 @@ public static class NavigationMath
             Reason: null);
     }
 
+    public static NavigationFacingSummary BuildCandidateFacingSummary(
+        PlayerOrientationReadResult orientation,
+        double destinationBearingDegrees,
+        string status,
+        string sourceKind,
+        string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(orientation);
+
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            throw new ArgumentException("Candidate facing status cannot be blank.", nameof(status));
+        }
+
+        if (string.IsNullOrWhiteSpace(sourceKind))
+        {
+            throw new ArgumentException("Candidate facing source kind cannot be blank.", nameof(sourceKind));
+        }
+
+        var yaw = TryComputeNavigationBearing(orientation.PreferredEstimate);
+        if (!yaw.HasValue)
+        {
+            const string unusableEstimateReason = "Owner-components artifact candidate did not return a usable movement-space yaw estimate.";
+            return new NavigationFacingSummary(
+                Status: status,
+                SourceKind: sourceKind,
+                ResolutionMode: orientation.ResolutionMode,
+                SelectedSourceAddress: orientation.SelectedSourceAddress,
+                BasisPrimaryForwardOffset: orientation.BasisPrimaryForwardOffset,
+                BasisDuplicateForwardOffset: orientation.BasisDuplicateForwardOffset,
+                YawRadians: null,
+                YawDegrees: null,
+                PitchRadians: orientation.PreferredEstimate?.PitchRadians,
+                PitchDegrees: orientation.PreferredEstimate?.PitchDegrees,
+                SignedBearingDeltaDegrees: null,
+                AbsoluteBearingDeltaDegrees: null,
+                SuggestedTurnDirection: null,
+                Reason: string.IsNullOrWhiteSpace(reason)
+                    ? unusableEstimateReason
+                    : $"{reason} {unusableEstimateReason}");
+        }
+
+        var signedDelta = NormalizeDegrees(destinationBearingDegrees - yaw.Value.Degrees);
+        var absoluteDelta = Math.Abs(signedDelta);
+        var direction = absoluteDelta <= 0.0001d
+            ? "aligned"
+            : signedDelta > 0d
+                ? "right"
+                : "left";
+
+        return new NavigationFacingSummary(
+            Status: status,
+            SourceKind: sourceKind,
+            ResolutionMode: orientation.ResolutionMode,
+            SelectedSourceAddress: orientation.SelectedSourceAddress,
+            BasisPrimaryForwardOffset: orientation.BasisPrimaryForwardOffset,
+            BasisDuplicateForwardOffset: orientation.BasisDuplicateForwardOffset,
+            YawRadians: yaw.Value.Radians,
+            YawDegrees: yaw.Value.Degrees,
+            PitchRadians: orientation.PreferredEstimate?.PitchRadians,
+            PitchDegrees: orientation.PreferredEstimate?.PitchDegrees,
+            SignedBearingDeltaDegrees: signedDelta,
+            AbsoluteBearingDeltaDegrees: absoluteDelta,
+            SuggestedTurnDirection: direction,
+            Reason: string.IsNullOrWhiteSpace(reason) ? null : reason);
+    }
+
     private static (double Radians, double Degrees)? TryComputeNavigationBearing(PlayerOrientationVectorEstimate? estimate)
     {
         var vector = estimate?.Vector;

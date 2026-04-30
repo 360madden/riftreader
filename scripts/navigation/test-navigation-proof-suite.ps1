@@ -16,6 +16,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $readerTestsProject = Join-Path $repoRoot 'reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj'
+$proofCoordAnchorNormalizationTest = Join-Path $repoRoot 'scripts\test-resolve-proof-coord-anchor-normalization.ps1'
 $proofWatchsetExactTargetTest = Join-Path $repoRoot 'scripts\test-export-proof-polling-watchset-exact-target.ps1'
 $smokeRouteScript = Join-Path $PSScriptRoot 'new-forward-smoke-route.ps1'
 $prototypeScript = Join-Path $PSScriptRoot 'run-a-to-b-prototype.ps1'
@@ -145,6 +146,13 @@ Invoke-SuiteStep -Name 'proof-watchset-exact-target-regression' -ScriptBlock {
     & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $proofWatchsetExactTargetTest
     if ($LASTEXITCODE -ne 0) {
         throw "proof watchset exact-target regression failed with exit code $LASTEXITCODE."
+    }
+}
+
+Invoke-SuiteStep -Name 'proof-coord-anchor-normalization-regression' -ScriptBlock {
+    & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $proofCoordAnchorNormalizationTest
+    if ($LASTEXITCODE -ne 0) {
+        throw "proof coord anchor normalization regression failed with exit code $LASTEXITCODE."
     }
 }
 

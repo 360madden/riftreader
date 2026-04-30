@@ -302,6 +302,59 @@ public sealed class NavigationMathTests
     }
 
     [Fact]
+    public void BuildCandidateFacingSummary_ReportsOwnerArtifactAsNonCanonicalCandidate()
+    {
+        var orientation = CreateOwnerArtifactOrientation();
+
+        var facing = NavigationMath.BuildCandidateFacingSummary(
+            orientation,
+            destinationBearingDegrees: 60d,
+            status: "fallback-candidate",
+            sourceKind: "owner-components-artifact-candidate-facing",
+            reason: "Behavior-backed facing was read-failed; owner-components artifact is fallback candidate only, not canonical/actionable navigation truth.");
+
+        Assert.Equal("fallback-candidate", facing.Status);
+        Assert.Equal("owner-components-artifact-candidate-facing", facing.SourceKind);
+        Assert.Equal("artifact-owner-components", facing.ResolutionMode);
+        Assert.Equal("0x1234", facing.SelectedSourceAddress);
+        Assert.Equal("0x60", facing.BasisPrimaryForwardOffset);
+        Assert.Equal("0x94", facing.BasisDuplicateForwardOffset);
+        Assert.Equal(90d, facing.YawDegrees);
+        Assert.Equal(-30d, facing.SignedBearingDeltaDegrees);
+        Assert.Equal(30d, facing.AbsoluteBearingDeltaDegrees);
+        Assert.Equal("left", facing.SuggestedTurnDirection);
+        Assert.Contains("fallback candidate only", facing.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not canonical/actionable", facing.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildTurnPlan_DoesNotUseFallbackCandidateAsActionableFacing()
+    {
+        var orientation = CreateOwnerArtifactOrientation();
+        var facing = NavigationMath.BuildCandidateFacingSummary(
+            orientation,
+            destinationBearingDegrees: 60d,
+            status: "fallback-candidate",
+            sourceKind: "owner-components-artifact-candidate-facing",
+            reason: "Owner-components artifact is fallback candidate only, not canonical/actionable navigation truth.");
+
+        var turnPlan = NavigationMath.BuildTurnPlan(
+            facing,
+            destinationBearingDegrees: 60d,
+            alignmentThresholdDegrees: 7.5d);
+
+        Assert.Equal("unavailable", turnPlan.Status);
+        Assert.Equal("owner-components-artifact-candidate-facing", turnPlan.SourceKind);
+        Assert.Equal("artifact-owner-components", turnPlan.ResolutionMode);
+        Assert.Equal(90d, turnPlan.CurrentYawDegrees);
+        Assert.Equal(-30d, turnPlan.SignedBearingDeltaDegrees);
+        Assert.Equal(30d, turnPlan.AbsoluteBearingDeltaDegrees);
+        Assert.Null(turnPlan.SuggestedTurnDirection);
+        Assert.False(turnPlan.WithinAlignmentThreshold);
+        Assert.Contains("fallback candidate only", turnPlan.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void BuildTurnPlan_ReturnsAlignedWhenFacingIsWithinThreshold()
     {
         var facing = new NavigationFacingSummary(
@@ -330,6 +383,42 @@ public sealed class NavigationMathTests
         Assert.Equal("aligned", turnPlan.SuggestedTurnDirection);
         Assert.Equal(7.5d, turnPlan.AlignmentThresholdDegrees);
     }
+
+    private static PlayerOrientationReadResult CreateOwnerArtifactOrientation() =>
+        new(
+            Mode: "player-orientation",
+            ArtifactFile: @"C:\RIFT MODDING\RiftReader\scripts\captures\player-owner-components.json",
+            ArtifactLoadedAtUtc: new DateTimeOffset(2026, 4, 30, 12, 0, 0, TimeSpan.Zero),
+            ArtifactGeneratedAtUtc: new DateTimeOffset(2026, 4, 30, 11, 59, 0, TimeSpan.Zero),
+            SnapshotFile: null,
+            SnapshotLoadedAtUtc: null,
+            PlayerName: "Atank",
+            PlayerLevel: 45,
+            PlayerGuild: null,
+            PlayerLocation: "Sanctum Watch",
+            PlayerCoord: null,
+            SelectedSourceAddress: "0x1234",
+            SelectedEntryAddress: "0x1234",
+            SelectedEntryIndex: 1,
+            SelectedEntryMatchesSelectedSource: true,
+            SelectedEntryRoleHints: new[] { "selected-source", "orientation" },
+            ResolutionMode: "artifact-owner-components",
+            BasisPrimaryForwardOffset: "0x60",
+            BasisDuplicateForwardOffset: "0x94",
+            PreferredEstimate: new PlayerOrientationVectorEstimate(
+                Name: "Orientation60",
+                Vector: new ValidatorCoordinateSnapshot(1d, 0d, 0d),
+                YawRadians: 0d,
+                YawDegrees: 0d,
+                PitchRadians: 0d,
+                PitchDegrees: 0d,
+                Magnitude: 1d),
+            BasisPrimaryEstimate: null,
+            BasisDuplicateEstimate: null,
+            BasisDuplicateDeltaMagnitude: null,
+            BasisDuplicateAgreementStrong: null,
+            Estimates: Array.Empty<PlayerOrientationVectorEstimate>(),
+            Notes: Array.Empty<string>());
 }
 
 public sealed class NavigationPoseSourcePolicyTests

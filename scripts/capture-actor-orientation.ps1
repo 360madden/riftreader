@@ -951,11 +951,9 @@ function Resolve-LiveOrientation {
     }
 
     $metadataArguments = @(
-        @(Get-ReaderTargetArguments) +
-        @(
         '--read-player-orientation',
         '--owner-components-file', $resolvedOwnerComponentsFile,
-        '--json'))
+        '--json')
     $metadata = Invoke-ReaderJson -Arguments $metadataArguments
 
     if ([string]::IsNullOrWhiteSpace([string]$metadata.SelectedSourceAddress)) {

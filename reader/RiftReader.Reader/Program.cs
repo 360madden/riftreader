@@ -849,7 +849,7 @@ internal static class Program
         }
 
         var arrivalRadius = ResolveArrivalRadius(options.ArrivalRadius, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
-        var facing = TryBuildNavigationFacingSummary(
+        var facing = TryBuildReadOnlyNavigationFacingSummary(
             process,
             target,
             reader,
@@ -1210,6 +1210,56 @@ internal static class Program
             return NavigationMath.BuildUnavailableFacingSummary(
                 status: "read-failed",
                 message: $"Unable to read live actor-facing data for navigation alignment: {ex.Message}");
+        }
+    }
+
+    private static NavigationFacingSummary TryBuildReadOnlyNavigationFacingSummary(
+        Process process,
+        ProcessTarget target,
+        ProcessMemoryReader reader,
+        ReaderBridgeSnapshotDocument? snapshotDocument,
+        WaypointDefinition destinationWaypoint,
+        NavigationPoseSample currentSample)
+    {
+        var behaviorBackedFacing = TryBuildNavigationFacingSummary(
+            process,
+            target,
+            reader,
+            snapshotDocument,
+            destinationWaypoint,
+            currentSample);
+        if (string.Equals(behaviorBackedFacing.Status, "available", StringComparison.OrdinalIgnoreCase))
+        {
+            return behaviorBackedFacing;
+        }
+
+        try
+        {
+            var artifactDocument = PlayerOwnerComponentArtifactLoader.TryLoad(null, out _);
+            if (artifactDocument is null)
+            {
+                return behaviorBackedFacing;
+            }
+
+            var orientation = PlayerOrientationReader.Read(artifactDocument, snapshotDocument);
+            var deltaX = destinationWaypoint.X - currentSample.X;
+            var deltaZ = destinationWaypoint.Z - currentSample.Z;
+            var (_, bearingDegrees) = NavigationMath.ComputeBearing(deltaX, deltaZ);
+            var behaviorReason = string.IsNullOrWhiteSpace(behaviorBackedFacing.Reason)
+                ? $"Behavior-backed facing status was '{behaviorBackedFacing.Status}'."
+                : $"Behavior-backed facing status was '{behaviorBackedFacing.Status}': {behaviorBackedFacing.Reason}";
+            var reason = $"{behaviorReason} Owner-components artifact is reported as fallback candidate only, not canonical/actionable navigation truth.";
+
+            return NavigationMath.BuildCandidateFacingSummary(
+                orientation,
+                bearingDegrees,
+                status: "fallback-candidate",
+                sourceKind: "owner-components-artifact-candidate-facing",
+                reason: reason);
+        }
+        catch
+        {
+            return behaviorBackedFacing;
         }
     }
 

@@ -741,7 +741,26 @@ function Get-ResolvedProofCoordAnchor {
 
     $objectBaseAddress = Parse-HexUInt64 -Value $selectionObjectBaseAddress
     $coordXOffset = [int]$selectionCoordXOffset
+    $coordYOffset = [int]$selectionCoordYOffset
+    $coordZOffset = [int]$selectionCoordZOffset
     $coordRegionAddress = [UInt64]([long]$objectBaseAddress + [long]$coordXOffset)
+    $coordYRegionOffset = $coordYOffset - $coordXOffset
+    $coordZRegionOffset = $coordZOffset - $coordXOffset
+    if ($coordYRegionOffset -lt 0 -or $coordZRegionOffset -lt 0) {
+        throw 'Proof coord anchor selection produced offsets before the selected coord region.'
+    }
+
+    $normalizedMemorySample = if ($null -ne $selectionMemorySample) {
+        [pscustomobject]@{
+            AddressHex = ('0x{0:X}' -f $coordRegionAddress)
+            CoordX = Get-ObjectMemberValue -InputObject $selectionMemorySample -Name 'CoordX'
+            CoordY = Get-ObjectMemberValue -InputObject $selectionMemorySample -Name 'CoordY'
+            CoordZ = Get-ObjectMemberValue -InputObject $selectionMemorySample -Name 'CoordZ'
+        }
+    }
+    else {
+        $null
+    }
     $traceSourceFile = [string](Get-ObjectMemberValue -InputObject $Anchor -Name 'SourceFile')
     $traceVerificationMethod = [string](Get-ObjectMemberValue -InputObject $Anchor -Name 'VerificationMethod')
     $traceMatchesProcess = Get-ObjectMemberValue -InputObject $Anchor -Name 'TraceMatchesProcess'
@@ -768,15 +787,15 @@ function Get-ResolvedProofCoordAnchor {
         TraceObjectBaseAddress = $traceObjectBaseAddress
         ObjectBaseAddress = $selectionObjectBaseAddress
         CoordRegionAddress = ('0x{0:X}' -f $coordRegionAddress)
-        CoordXRelativeOffset = [int]$selectionCoordXOffset
-        CoordYRelativeOffset = [int]$selectionCoordYOffset
-        CoordZRelativeOffset = [int]$selectionCoordZOffset
+        CoordXRelativeOffset = 0
+        CoordYRelativeOffset = $coordYRegionOffset
+        CoordZRelativeOffset = $coordZRegionOffset
         LevelRelativeOffset = $selectionLevelRelativeOffset
         HealthRelativeOffset = $selectionHealthRelativeOffset
         SourceObjectAddress = $sourceObjectAddress
         SourceCoordRelativeOffset = $sourceCoordRelativeOffset
         Match = $selectionMatch
-        MemorySample = $selectionMemorySample
+        MemorySample = $normalizedMemorySample
         Expected = $Anchor.Expected
         TraceMatch = $Anchor.Match
         TraceMemorySample = $Anchor.MemorySample

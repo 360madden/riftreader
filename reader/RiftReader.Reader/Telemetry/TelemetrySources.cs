@@ -74,6 +74,7 @@ public sealed class AddonContextSource(string? snapshotFile) : IContextSource
 
 public sealed class MemoryCoordSource : IPositionSource
 {
+    private const double CoordMatchTolerance = 0.25d;
     private static readonly TimeSpan StaleAnchorGraceWindow = TimeSpan.FromSeconds(10);
     private static readonly string[] CheatEngineDebuggerModuleNames =
     [
@@ -157,20 +158,6 @@ public sealed class MemoryCoordSource : IPositionSource
             anchorAge > _maxAnchorAge &&
             anchorAge <= (_maxAnchorAge + StaleAnchorGraceWindow);
 
-        if (anchorAge > _maxAnchorAge && !staleGraceActive)
-        {
-            return new TelemetryPositionSourceReading(
-                Available: true,
-                Valid: false,
-                SampledAtUtc: sampledAtUtc,
-                SourceKind: "proof-coord-anchor",
-                Reason: $"Proof coord anchor validation is stale ({anchorAgeSeconds:0.0}s old).",
-                Position: null,
-                ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds),
-                CoordMismatch: BuildCoordMismatch(anchor.Match),
-                Discovery: BuildDiscovery(anchor));
-        }
-
         if (!TryParseAddress(anchor.CoordRegionAddress, out var coordRegionAddress))
         {
             return new TelemetryPositionSourceReading(
@@ -201,6 +188,40 @@ public sealed class MemoryCoordSource : IPositionSource
                 Discovery: BuildDiscovery(anchor));
         }
 
+        var liveCoordMismatch = BuildCoordMismatch(sample, context?.AddonPosition?.Coord);
+        if (liveCoordMismatch is not null && !CoordMatchesWithinTolerance(liveCoordMismatch))
+        {
+            return new TelemetryPositionSourceReading(
+                Available: true,
+                Valid: false,
+                SampledAtUtc: sampledAtUtc,
+                SourceKind: "proof-coord-anchor",
+                Reason: "Proof coord anchor memory sample does not match current ReaderBridge coordinates.",
+                Position: null,
+                ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds, staleGraceActive),
+                CoordMismatch: liveCoordMismatch,
+                Discovery: BuildDiscovery(anchor));
+        }
+
+        var acceptedStaleAnchor =
+            anchorAge > _maxAnchorAge &&
+            !staleGraceActive &&
+            liveCoordMismatch is not null &&
+            CoordMatchesWithinTolerance(liveCoordMismatch);
+        if (anchorAge > _maxAnchorAge && !staleGraceActive && !acceptedStaleAnchor)
+        {
+            return new TelemetryPositionSourceReading(
+                Available: true,
+                Valid: false,
+                SampledAtUtc: sampledAtUtc,
+                SourceKind: "proof-coord-anchor",
+                Reason: $"Proof coord anchor validation is stale ({anchorAgeSeconds:0.0}s old).",
+                Position: null,
+                ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds),
+                CoordMismatch: liveCoordMismatch ?? BuildCoordMismatch(anchor.Match),
+                Discovery: BuildDiscovery(anchor));
+        }
+
         var position = new TelemetryPositionValue(
             Valid: true,
             SourceKind: "validated-memory-coords",
@@ -219,8 +240,14 @@ public sealed class MemoryCoordSource : IPositionSource
             SourceKind: "proof-coord-anchor",
             Reason: null,
             Position: position,
-            ProofAnchor: BuildProofAnchorDiagnostics(anchor, anchorAgeSeconds, staleGraceActive),
-            CoordMismatch: BuildCoordMismatch(anchor.Match),
+            ProofAnchor: BuildProofAnchorDiagnostics(
+                anchor,
+                anchorAgeSeconds,
+                staleGraceActive,
+                acceptedStaleAnchor
+                    ? "Accepted stale proof coord anchor for this sample because current memory coordinates match ReaderBridge."
+                    : null),
+            CoordMismatch: liveCoordMismatch ?? BuildCoordMismatch(anchor.Match),
             Discovery: BuildDiscovery(anchor));
     }
 
@@ -257,15 +284,10 @@ public sealed class MemoryCoordSource : IPositionSource
                 return;
             }
 
-            var age = nowUtc - document.GeneratedAtUtc;
-            if (age > _maxAnchorAge)
-            {
-                return;
-            }
-
             _anchor = document;
             _lastResolveAttemptUtc = nowUtc;
             _lastResolveError = null;
+            var age = nowUtc - document.GeneratedAtUtc;
 
             _logger.LogTransition(
                 "source.coord",
@@ -570,13 +592,24 @@ public sealed class MemoryCoordSource : IPositionSource
         }
     }
 
-    private TelemetryProofAnchorDiagnostics BuildProofAnchorDiagnostics(ProofCoordAnchorDocument anchor, double ageSeconds, bool staleGraceActive = false)
+    private TelemetryProofAnchorDiagnostics BuildProofAnchorDiagnostics(
+        ProofCoordAnchorDocument anchor,
+        double ageSeconds,
+        bool staleGraceActive = false,
+        string? additionalNote = null)
     {
         IReadOnlyList<string> notes = anchor.Notes ?? Array.Empty<string>();
         if (staleGraceActive)
         {
             notes = notes
                 .Concat(["Telemetry host is temporarily using a stale proof coord anchor while background refresh is in progress."])
+                .ToArray();
+        }
+
+        if (!string.IsNullOrWhiteSpace(additionalNote))
+        {
+            notes = notes
+                .Concat([additionalNote])
                 .ToArray();
         }
 
@@ -594,6 +627,19 @@ public sealed class MemoryCoordSource : IPositionSource
         match is null
             ? null
             : new TelemetryDeltaDiagnostics(match.DeltaX, match.DeltaY, match.DeltaZ);
+
+    private static TelemetryDeltaDiagnostics? BuildCoordMismatch(TelemetryVector3? sample, TelemetryVector3? reference) =>
+        sample is null || reference is null
+            ? null
+            : new TelemetryDeltaDiagnostics(
+                sample.X - reference.X,
+                sample.Y - reference.Y,
+                sample.Z - reference.Z);
+
+    private static bool CoordMatchesWithinTolerance(TelemetryDeltaDiagnostics mismatch) =>
+        Math.Abs(mismatch.Dx ?? double.PositiveInfinity) <= CoordMatchTolerance &&
+        Math.Abs(mismatch.Dy ?? double.PositiveInfinity) <= CoordMatchTolerance &&
+        Math.Abs(mismatch.Dz ?? double.PositiveInfinity) <= CoordMatchTolerance;
 
     private object? BuildDiscovery(ProofCoordAnchorDocument anchor)
     {
