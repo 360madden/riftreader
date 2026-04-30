@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mode": "current-coord-proof-blocker",
-  "lastUpdatedUtc": "2026-04-30T18:07:06.7956918+00:00",
+  "lastUpdatedUtc": "2026-04-30T19:30:52.6811337+00:00",
   "status": "blocked-no-proof-grade-coordinate-anchor",
   "target": {
     "processName": "rift_x64",
@@ -232,11 +232,275 @@
   },
   "movementGate": {
     "activeMovementAllowed": false,
-    "reason": "No validated post-restart coord-trace-coords anchor/watchset exists."
+    "reason": "No validated post-restart coord-trace-coords anchor/watchset exists; no-CE scans have not found a proof-grade replacement source."
   },
   "nextSmallestActions": [
-    "Build/run a bounded instruction-family collector around rift_x64.exe+674B6F to log RBX/R13 coord writers during W without promoting anything.",
-    "Refresh ReaderBridge or manually move to a clearly different coordinate before exact coord scans; current exact hits behave like static/cache copies.",
-    "Re-run resolve/export only after a same-PID coord access proof exists and verify proof-polling-watchset includes coord-trace-coords."
-  ]
+    "Keep the no-CE boundary: native reader process-memory scans only, no Cheat Engine/Lua/debugger/watchpoints.",
+    "Use the new capture-no-ce-coord-neighborhood.ps1 report to target narrower native follow-up around coord-root 0x2C9A50B6CD0 -> pointer-hop-2 parent 0x2C9AC932390 and yaw-source ref tables.",
+    "If user permits manual movement, rerun no-CE exact coord/signature/neighborhood scans after a significant position change to classify which coord roots update versus cache.",
+    "Do not promote pointer-hop basis candidates unless behavior-tested without CE and tied back to the player coord source.",
+    "Only unblock movement after a no-CE proof path or separately approved proof path produces a validated coord-trace-coords watchset equivalent."
+  ],
+  "noCeDebugScan": {
+    "status": "completed-read-only-no-cheat-engine-no-live-input",
+    "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-no-ce-scan-20260430-1501",
+    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-no-ce-scan-20260430-1501\\no-ce-scan-summary.json",
+    "exactCoordHitCount": 2,
+    "exactCoordHits": [
+      {
+        "address": "0x2C9A50B6CD0",
+        "regionBase": "0x2C9A50B0000"
+      },
+      {
+        "address": "0x2C9BD7D98D0",
+        "regionBase": "0x2C9BD7C0000"
+      }
+    ],
+    "signatureFamilyCount": 2,
+    "directOrientationCandidateCount": 0,
+    "pointerHopCandidateCount": 2,
+    "bestPointerHopCandidate": {
+      "address": "0x2C9C46F9948",
+      "rootAddress": "0x2C9BD7D98D0",
+      "parentAddress": "0x2C9880F76F0",
+      "parentFamilyId": "fam-CEC3708F",
+      "basisPrimaryForwardOffset": "0x58",
+      "yawDegrees": 171.28202250023963,
+      "pitchDegrees": 0,
+      "score": 151,
+      "status": "candidate-only-not-behavior-proofed"
+    },
+    "pointerRefsToCoordFam6F81F26E": 0,
+    "pointerRefsToCoordFamCEC3708F": 0,
+    "pointerRefsToYawSource": 13,
+    "pointerRefsToBestPointerHopCandidate": 1,
+    "currentBehaviorBackedYaw": {
+      "sourceAddress": "0x2C9A013A490",
+      "basisForwardOffset": "0xD4",
+      "yawDegrees": 11.078230047244007,
+      "pitchDegrees": 0,
+      "resolutionMode": "live-behavior-backed-lead"
+    },
+    "findings": [
+      "No Cheat Engine, CE Lua, CE debugger, watchpoints, or live movement input were used in this follow-up scan.",
+      "Native reader exact coord scan found 2 ReaderBridge coordinate triplets: 0x2C9A50B6CD0 and 0x2C9BD7D98D0.",
+      "Exact pointer scans found 0 refs to both coord triplet addresses, reinforcing cache/static candidate status rather than source-chain proof.",
+      "Orientation candidate finder found 0 direct candidates and 2 pointer-hop candidates; best pointer-hop candidate remains candidate-only and does not replace the behavior-backed yaw lead.",
+      "Behavior-backed yaw remains 0x2C9A013A490 @ +0xD4 for this session, but coord-trace-coords is still unresolved."
+    ]
+  },
+  "noCeNeighborhoodScan": {
+    "status": "completed-read-only-no-cheat-engine-no-live-input",
+    "runFolder": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-no-ce-neighborhood-20260430-1530",
+    "reportFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-no-ce-neighborhood-20260430-1530\\coord-no-ce-neighborhood.json",
+    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\coord-no-ce-neighborhood-20260430-1530\\coord-no-ce-neighborhood-summary.json",
+    "windowCount": 23,
+    "localPointerLinkCount": 96,
+    "coordWindowCount": 4,
+    "basisWindowCount": 5,
+    "exactLocalPointerLinks": [
+      {
+        "window": "coord-root:0x2C9A50B6CD0",
+        "pointerAddress": "0x2C9A50B6DC8",
+        "pointerValue": "0x2C9AC932390",
+        "relations": [
+          {
+            "seedLabel": "pointer-hop-2-parent",
+            "seedAddress": "0x2C9AC932390"
+          }
+        ]
+      },
+      {
+        "window": "behavior-backed-yaw-source",
+        "pointerAddress": "0x2C9A013A468",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "best-pointer-hop-parent",
+        "pointerAddress": "0x2C9880F77B8",
+        "pointerValue": "0x2C9C46F9948",
+        "relations": [
+          {
+            "seedLabel": "best-pointer-hop-candidate",
+            "seedAddress": "0x2C9C46F9948"
+          }
+        ]
+      },
+      {
+        "window": "pointer-hop-2-root",
+        "pointerAddress": "0x2C9A50B6DC8",
+        "pointerValue": "0x2C9AC932390",
+        "relations": [
+          {
+            "seedLabel": "pointer-hop-2-parent",
+            "seedAddress": "0x2C9AC932390"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9881600B0",
+        "pointerAddress": "0x2C9881600B0",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A01241F8",
+        "pointerAddress": "0x2C9A01241F8",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A013A468",
+        "pointerAddress": "0x2C9A013A468",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A013A6A8",
+        "pointerAddress": "0x2C9A013A6A8",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A013D158",
+        "pointerAddress": "0x2C9A013D158",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A0148E30",
+        "pointerAddress": "0x2C9A0148E30",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A0149550",
+        "pointerAddress": "0x2C9A0149550",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9A07563F0",
+        "pointerAddress": "0x2C9A07563F0",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "yaw-source-ref:0x2C9C45C0080",
+        "pointerAddress": "0x2C9C45C0080",
+        "pointerValue": "0x2C9A013A490",
+        "relations": [
+          {
+            "seedLabel": "behavior-backed-yaw-source",
+            "seedAddress": "0x2C9A013A490"
+          }
+        ]
+      },
+      {
+        "window": "best-pointer-hop-ref:0x2C9880F77B8",
+        "pointerAddress": "0x2C9880F77B8",
+        "pointerValue": "0x2C9C46F9948",
+        "relations": [
+          {
+            "seedLabel": "best-pointer-hop-candidate",
+            "seedAddress": "0x2C9C46F9948"
+          }
+        ]
+      }
+    ],
+    "coordRootLocalPointerLinks": [
+      {
+        "window": "coord-root:0x2C9BD7D98D0",
+        "pointerAddress": "0x2C9BD7D9930",
+        "pointerValue": "0x2C9BD7D9938",
+        "relations": [
+          {
+            "kind": "near",
+            "seedLabel": "coord-root:0x2C9BD7D98D0",
+            "seedAddress": "0x2C9BD7D98D0",
+            "delta": 104
+          },
+          {
+            "kind": "near",
+            "seedLabel": "best-pointer-hop-root",
+            "seedAddress": "0x2C9BD7D98D0",
+            "delta": 104
+          }
+        ]
+      },
+      {
+        "window": "best-pointer-hop-root",
+        "pointerAddress": "0x2C9BD7D9930",
+        "pointerValue": "0x2C9BD7D9938",
+        "relations": [
+          {
+            "kind": "near",
+            "seedLabel": "coord-root:0x2C9BD7D98D0",
+            "seedAddress": "0x2C9BD7D98D0",
+            "delta": 104
+          },
+          {
+            "kind": "near",
+            "seedLabel": "best-pointer-hop-root",
+            "seedAddress": "0x2C9BD7D98D0",
+            "delta": 104
+          }
+        ]
+      }
+    ],
+    "keyFindings": [
+      "Coord roots still only show exact ReaderBridge coord triplets in their own windows; no behavior-backed yaw basis was found in coord-root windows.",
+      "Coord-root 0x2C9A50B6CD0 has an exact local pointer to pointer-hop-2 parent 0x2C9AC932390 at 0x2C9A50B6DC8, but that path is candidate-only and did not reveal current yaw/coord proof.",
+      "Behavior-backed yaw source 0x2C9A013A490 contains duplicate basis rows at source-0xCC and source+0xD4 with current yaw about 11.078 degrees.",
+      "Best pointer-hop candidate 0x2C9C46F9948 still has duplicate basis rows at +0x58/+0x8C with yaw about 171.282 degrees; it remains candidate-only and divergent from current behavior-backed yaw.",
+      "No local structural link from either exact coord root to the behavior-backed yaw source was found in this no-CE neighborhood pass."
+    ],
+    "conclusion": "No-CE neighborhood scan produced useful structural negatives and candidate graph details, but no movement-grade coord-trace-coords replacement proof. Movement remains blocked."
+  }
 }

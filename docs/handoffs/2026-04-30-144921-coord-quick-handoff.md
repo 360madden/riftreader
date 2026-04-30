@@ -10,6 +10,7 @@
 | Active movement | False |
 | Gate reason | No validated post-restart coord-trace-coords anchor/watchset exists |
 | Live session match | PID/HWND still live from blocker snapshot |
+| Debug-scan constraint | No Cheat Engine / CE Lua / CE debugger for follow-up scanning |
 
 ## Repo / state snapshot
 
@@ -60,11 +61,15 @@
 ## Evidence / artifacts (latest)
 
 - Current blocker packet: `docs/recovery/current-coord-proof-blocker.json` (mode `blocked-no-proof-grade-coordinate-anchor`)
+- Latest no-CE follow-up: `scripts/captures/coord-no-ce-scan-20260430-1501/no-ce-scan-summary.json`
+- Latest no-CE neighborhood report: `scripts/captures/coord-no-ce-neighborhood-20260430-1530/coord-no-ce-neighborhood-summary.json`
 - Last debug-scan evidence: `scripts/captures/coord-debug-scan-20260430-134228`
 - Latest reacquisition attempts: `scripts/captures/coord-reacquisition-20260430-143447`
 - Last command in this lane: `scripts/trace-coord-writer-instruction.ps1` variants with instruction `0x674B6F` and 12-byte candidate windows
 - Last result: all runs either timed out/failed to arm or remained armed with `hitCount=0`; no candidate was promoted.
 - A CE/VEH-dependent path remains unstable and should be treated as compromised for now.
+- User clarified after this handoff: debug scanning is okay as needed, but do
+  **not** use Cheat Engine for it.
 
 ## Candidate carry-forward list
 
@@ -84,8 +89,34 @@ Observed result:
 
 ## Next command
 
+Resume note: the committed collector script uses `-ModuleOffsetHex` /
+`-InstructionAddressHex`, `-TimeoutSeconds`, `-MaxHits`, and explicit
+`-OutputFile` / `-StatusFile` / `-HitsFile`; it does not accept the older
+draft parameters `-InstructionAddress`, `-Pattern`, `-RunDurationSeconds`,
+`-SampleCount`, `-SampleDelayMs`, or `-RunDir`.
+
 ```powershell
-pwsh -File scripts/trace-coord-writer-instruction.ps1 -ProcessId 32468 -TargetWindowHandle 0x15908B2 -InstructionAddress 0x7FF7876F4B6F -Pattern 'F3 0F 11 93 C0030000' -PrimaryRegister RBX -PrimaryCoordOffset 0x3BC -PrimaryWriteOffset 0x3C0 -SecondaryRegister R13 -SecondaryCoordOffset 0x2E8 -RunDurationSeconds 12 -SampleCount 180 -SampleDelayMs 250 -StimulusKey w -RunDir scripts/captures/coord-reacquisition-20260430-15xxxx
+$runDir = 'scripts/captures/coord-reacquisition-20260430-15xxxx'
+New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+
+pwsh -File scripts/trace-coord-writer-instruction.ps1 `
+  -ProcessId 32468 `
+  -TargetWindowHandle 0x15908B2 `
+  -ModuleOffsetHex 0x674B6F `
+  -PrimaryRegister RBX `
+  -PrimaryCoordOffsetHex 0x3BC `
+  -PrimaryWriteOffsetHex 0x3C0 `
+  -SecondaryRegister R13 `
+  -SecondaryCoordOffsetHex 0x2E8 `
+  -TimeoutSeconds 12 `
+  -MaxHits 180 `
+  -StimulusMode AutoHotkey `
+  -StimulusKey w `
+  -StimulusHoldMilliseconds 1000 `
+  -OutputFile (Join-Path $runDir 'coord-writer-instruction-trace.json') `
+  -StatusFile (Join-Path $runDir 'coord-writer-instruction-trace.status.txt') `
+  -HitsFile (Join-Path $runDir 'coord-writer-instruction-trace.hits.ndjson') `
+  -Json
 ```
 
 ## Notes
@@ -93,17 +124,97 @@ pwsh -File scripts/trace-coord-writer-instruction.ps1 -ProcessId 32468 -TargetWi
 - Movement remains disabled in this session and must stay disabled until proof recovery succeeds.
 - Wall-collision and non-clear-path W pulses should not be used as proof evidence.
 
+## Resume attempt - 2026-04-30 14:56 EDT
+
+| Item | Result |
+|---|---|
+| Exact target recheck | PID `32468` / HWND `0x15908B2` still live, visible, responding, title `RIFT` |
+| Visual preflight | Forward path appeared open toward water; not an enclosed-room/wall collision setup |
+| Screenshot baseline | `tools/rift-game-mcp/.runtime/screenshots/capture-20260430-145538-291.png` |
+| Corrected collector run dir | `scripts/captures/coord-reacquisition-20260430-1455-corrected-collector` |
+| Collector result | Failed before arming: `cheatengine-exec.ps1` could not connect to Cheat Engine Lua pipe `RiftReader` |
+| CE process/pipe check | No `cheatengine*` process found; no `RiftReader` named pipe found |
+| W stimulus | Not sent; failure happened before the collector armed |
+| Movement gate | Still `false` |
+
+Next unblocker: start Cheat Engine with the RiftReader autorun bootstrap loaded,
+then verify `pwsh -File scripts/cheatengine-exec.ps1 -Code 'return 123'`
+before rerunning the corrected collector command above. If the bootstrap is
+missing, install it with `scripts/install-cheatengine-autorun.cmd` and restart
+Cheat Engine.
+
+Superseding constraint from the next resume turn: do **not** use this CE
+unblocker path for debug scanning. Keep the command above only as historical
+context for why the CE-dependent collector was not run.
+
+## No-CE debug scan - 2026-04-30 15:01 EDT
+
+| Item | Result |
+|---|---|
+| Run folder | `scripts/captures/coord-no-ce-scan-20260430-1501` |
+| Summary | `scripts/captures/coord-no-ce-scan-20260430-1501/no-ce-scan-summary.json` |
+| Methods | Native `RiftReader.Reader` process-memory reads/scans only |
+| Cheat Engine used | No |
+| Live movement/input used | No |
+| Exact ReaderBridge coord hits | 2: `0x2C9A50B6CD0`, `0x2C9BD7D98D0` |
+| Signature families | 2: `fam-6F81F26E` at `0x2C9A50B6CD0`, `fam-CEC3708F` at `0x2C9BD7D98D0` |
+| `read-player-current` | Still heuristic/cached-anchor only at `0x2C9A50B6CD0`; not proof-grade |
+| Direct orientation candidates | 0 |
+| Pointer-hop orientation candidates | 2; best `0x2C9C46F9948 @ +0x58`, candidate-only |
+| Current behavior-backed yaw | Still `0x2C9A013A490 @ +0xD4`, fresh read yaw about `11.078°` |
+| Pointer refs to coord hits | 0 refs to both exact coord triplet addresses |
+| Pointer refs to yaw source | 13 refs to `0x2C9A013A490` |
+| Movement gate | Still `false` |
+
+Interpretation: the no-CE scan reinforces that the current exact coordinate
+hits are cache/static candidates, not a proven source-chain/movement source.
+There is still no post-restart `coord-trace-coords` anchor/watchset.
+
+## No-CE neighborhood scan - 2026-04-30 15:30 EDT
+
+| Item | Result |
+|---|---|
+| Script added | `scripts/capture-no-ce-coord-neighborhood.ps1` |
+| Run folder | `scripts/captures/coord-no-ce-neighborhood-20260430-1530` |
+| Full report | `scripts/captures/coord-no-ce-neighborhood-20260430-1530/coord-no-ce-neighborhood.json` |
+| Compact summary | `scripts/captures/coord-no-ce-neighborhood-20260430-1530/coord-no-ce-neighborhood-summary.json` |
+| Methods | Native reader raw memory reads over selected windows only |
+| Cheat Engine used | No |
+| Live movement/input used | No |
+| Windows inspected | 23 |
+| Local pointer links | 96 |
+| Coord windows | 4 |
+| Basis windows | 5 |
+
+Key findings:
+
+- Coord roots still only show exact ReaderBridge coord triplets in their own
+  windows; no behavior-backed yaw basis was found in coord-root windows.
+- `0x2C9A50B6CD0` has an exact local pointer to pointer-hop-2 parent
+  `0x2C9AC932390` at `0x2C9A50B6DC8`; this is a structural candidate link only,
+  not movement proof.
+- Behavior-backed yaw source `0x2C9A013A490` contains duplicate basis rows at
+  source `-0xCC` and source `+0xD4`, both reading current yaw about `11.078°`.
+- Best pointer-hop candidate `0x2C9C46F9948` still has duplicate basis rows at
+  `+0x58/+0x8C` with yaw about `171.282°`, divergent from the current
+  behavior-backed yaw; keep it candidate-only.
+- No local structural link from either exact coord root to the behavior-backed
+  yaw source was found in this no-CE neighborhood pass.
+
+Movement remains blocked: this was useful structural negative evidence, but it
+does not produce a `coord-trace-coords` replacement proof.
+
 ## Top 10 recommended next best actions
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Verify live window targeting before any more scanning | Prevent stale address and wrong-session capture |
-| 2 | Keep a brief visual preflight for collision-free movement path before W stimuli | Avoid wall-collision contamination of samples |
-| 3 | Run RiftReader-native neighborhood reads before any further CE-dependent trace attempts | Lower blast radius and higher session stability |
-| 4 | Capture short baseline ReaderBridge coordinates then run bounded candidate sampling | Reduces false positives from stale/static matches |
-| 5 | Recompute candidate deltas before/after controlled stimulus using 12-byte windows | Matches proof policy for coord replay |
-| 6 | Prioritize proof candidates by structural link to yaw source object graph | Higher signal than raw movement delta |
-| 7 | Preserve and annotate all captures in a timestamped run folder each attempt | Enables resumable crash-safe handoff |
-| 8 | Only promote after `scripts/resolve-proof-coord-anchor.ps1` and `scripts/export-proof-polling-watchset.ps1` both succeed | Maintains safety gate |
-| 9 | Run `pwsh -File scripts/validate-current-actor-yaw-restart-check.ps1 -Json` after any successful proof replay | Confirms gate + facing/coord alignment |
-|10 | Run `pwsh -File scripts/test-actor-facing-proof-suite.ps1` before declaring completion | Verifies no regressions in actor-facing flow |
+| 1 | Continue only no-CE native reader scans for this lane | Matches the current user constraint |
+| 2 | Narrow around `0x2C9A50B6CD0 -> 0x2C9AC932390` with native pointer/neighborhood reads | This is the only coord-root structural link found |
+| 3 | Inspect yaw-source ref tables separately from coord roots | Yaw graph is active but currently disconnected from coord roots |
+| 4 | Treat `0x2C9C46F9948 @ +0x58/+0x8C` as candidate-only unless behavior-proofed without CE | It diverges from current behavior-backed yaw |
+| 5 | Re-run exact coord/signature/neighborhood scans after a manual significant position change, if user permits movement | Separates cache/static hits from live-updating source candidates |
+| 6 | Keep all scan outputs under timestamped run folders with `noCheatEngine=true` metadata | Makes recovery resumable and auditable |
+| 7 | Extend native neighborhood reporting only if a specific structural question needs it | Avoids drifting into broad scanner rewrites |
+| 8 | Do not rerun `trace-coord-writer-instruction.ps1` while the no-CE boundary is active | That collector is CE/Lua-backed |
+| 9 | Only promote after a non-CE equivalent proof path satisfies the `coord-trace-coords` watchset invariant | Maintains safety gate |
+|10 | Run proof/validator suites after any future promotion | Verifies no actor-facing/navigation regressions |
