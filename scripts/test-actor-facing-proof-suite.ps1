@@ -11,6 +11,7 @@ $tests = @(
     'C:\RIFT MODDING\RiftReader\scripts\test-actor-yaw-candidates-reversible-output.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\validate-current-actor-truth.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\test-current-actor-truth-validator.ps1',
+    'C:\RIFT MODDING\RiftReader\scripts\test-current-actor-yaw-restart-check-validator.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-recovery.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-fresh-rebuild.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\test-refresh-discovery-chain-exact-target.ps1'
