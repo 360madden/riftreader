@@ -15,6 +15,13 @@ save event. Future live coord bundles must use live overlay screenshots/OCR,
 validated memory anchors, or another real live bridge as the live truth source.
 SavedVariables-derived seeds must carry file timestamps and freshness labels.
 
+Related integration plan:
+`C:\RIFT MODDING\RiftReader\docs\todos\2026-04-30-chromalink-targeted-live-telemetry-integration-plan.md`
+
+That plan covers the targeted ChromaLink-style live telemetry integration,
+robust metadata/logging, SavedVariables backup/snapshot role, and later use as
+a general live-test oracle.
+
 The workflow gap is that these pieces are still too often run as separate one-off attempts. The next improvement should be a single reusable **coord evidence bundle** workflow:
 
 > addon movement trace + exact input plan + native memory samples + candidate trajectory scoring + mirror/cache classification + no-CE pointer/base debug scan + promotion gate + next-seed packet.
@@ -111,6 +118,22 @@ The run should be rejected if movement is too small, recorder starts late, live 
 | 3 | Fail closed if `ReaderBridgeExport.lua` predates capture start and is being used as live truth. | Avoids repeating the `manual-bundle-001` stale-seed mistake. |
 | 4 | Prefer overlay screenshot/OCR capture when no validated memory anchor exists. | It is a real live truth surface now. |
 | 5 | Rebuild seed scans from extracted live overlay coordinates, not stale SavedVariables coordinates. | Produces candidates in the same time/domain as movement truth. |
+
+## Targeted ChromaLink integration TODOs
+
+Use only the live telemetry relay parts of ChromaLink. Do not wholesale-port
+combat/RiftMeter/helper complexity into RiftReader.
+
+| # | Action | Why |
+|---:|---|---|
+| 1 | Prototype consuming existing ChromaLink `playerPosition` telemetry. | Fastest way to prove live coords without `/reloadui`. |
+| 2 | Emit `live-coords.ndjson` from ChromaLink-style telemetry. | Gives the memory scorer a clean live truth input. |
+| 3 | Add sequence/freshness/age/drop metrics to live coord logs. | Detects stale or repeated frames. |
+| 4 | Compare ChromaLink telemetry to PlayerCoords overlay for one run. | Validates that the relay matches visible game truth. |
+| 5 | Add candidate scoring against `live-coords.ndjson`. | Converts live telemetry into coord discovery evidence. |
+| 6 | Build ReaderBridgeLive / ChromaLink-lite only after the existing feed prototype passes. | Avoids premature porting. |
+| 7 | Keep SavedVariables as backup/archive only. | Valuable, but not live IPC. |
+| 8 | Later expand relay fields beyond player position. | Enables target/combat/input/nav smoke testing. |
 
 ## Implementation notes
 
