@@ -18,6 +18,7 @@ $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader
 $readerTestsProject = Join-Path $repoRoot 'reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj'
 $proofCoordAnchorNormalizationTest = Join-Path $repoRoot 'scripts\test-resolve-proof-coord-anchor-normalization.ps1'
 $proofWatchsetExactTargetTest = Join-Path $repoRoot 'scripts\test-export-proof-polling-watchset-exact-target.ps1'
+$navigationLogSummaryTest = Join-Path $PSScriptRoot 'test-summarize-a-to-b-log.ps1'
 $smokeRouteScript = Join-Path $PSScriptRoot 'new-forward-smoke-route.ps1'
 $prototypeScript = Join-Path $PSScriptRoot 'run-a-to-b-prototype.ps1'
 $smokeRouteFile = Join-Path $PSScriptRoot 'smoke-test-waypoints.json'
@@ -153,6 +154,13 @@ Invoke-SuiteStep -Name 'proof-coord-anchor-normalization-regression' -ScriptBloc
     & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $proofCoordAnchorNormalizationTest
     if ($LASTEXITCODE -ne 0) {
         throw "proof coord anchor normalization regression failed with exit code $LASTEXITCODE."
+    }
+}
+
+Invoke-SuiteStep -Name 'navigation-log-summary-regression' -ScriptBlock {
+    & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $navigationLogSummaryTest
+    if ($LASTEXITCODE -ne 0) {
+        throw "navigation log summary regression failed with exit code $LASTEXITCODE."
     }
 }
 

@@ -960,6 +960,7 @@ if (-not $useAdvancedValidation) {
                 PlayerCoordDeltaMagnitude = $coordDeltaMagnitude
                 CandidateResponsive = $candidateResponsive
                 PlayerStayedMostlyStill = $playerStayedMostlyStill
+                Reversible = $null
                 TruthLike = $truthLike
             }) | Out-Null
     }
@@ -1154,6 +1155,12 @@ else {
         else {
             $candidateResponsive -and $playerStayedMostlyStill
         }
+        $reversible = if (-not [string]::IsNullOrWhiteSpace($ReverseStimulusKey)) {
+            $reversibleCycleCount -gt 0
+        }
+        else {
+            $null
+        }
 
         $results.Add([pscustomobject]@{
                 Rank = $row.Rank
@@ -1173,6 +1180,7 @@ else {
                 PlayerCoordDeltaMagnitude = if ($forwardCoordDrifts.Count -gt 0) { ($forwardCoordDrifts | Measure-Object -Maximum).Maximum } else { $null }
                 CandidateResponsive = $candidateResponsive
                 PlayerStayedMostlyStill = $playerStayedMostlyStill
+                Reversible = $reversible
                 TruthLike = $truthLike
             }) | Out-Null
     }
@@ -1229,12 +1237,15 @@ else {
 Write-Host "Candidates tested:        $($results.Count)"
 Write-Host "Truth-like candidates:    $(@($results | Where-Object { $_.TruthLike }).Count)"
 foreach ($result in $results) {
-    Write-Host ("  [{0}] {1} @ {2} | yaw {3:N3} deg | coord {4:N6} | responsive={5} | truthLike={6}" -f `
+    $yawDeltaDegrees = if ($null -eq $result.YawDeltaDegrees) { 0.0 } else { [double]$result.YawDeltaDegrees }
+    $coordDeltaMagnitude = if ($null -eq $result.PlayerCoordDeltaMagnitude) { 0.0 } else { [double]$result.PlayerCoordDeltaMagnitude }
+    Write-Host ("  [{0}] {1} @ {2} | yaw {3:N3} deg | coord {4:N6} | responsive={5} | reversible={6} | truthLike={7}" -f `
         $result.Rank,
         $result.SourceAddress,
         $result.BasisForwardOffset,
-        (if ($null -eq $result.YawDeltaDegrees) { 0.0 } else { [double]$result.YawDeltaDegrees }),
-        (if ($null -eq $result.PlayerCoordDeltaMagnitude) { 0.0 } else { [double]$result.PlayerCoordDeltaMagnitude }),
+        $yawDeltaDegrees,
+        $coordDeltaMagnitude,
         $result.CandidateResponsive,
+        $result.Reversible,
         $result.TruthLike)
 }

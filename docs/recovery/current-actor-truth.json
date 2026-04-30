@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-actor-truth",
+  "lastUpdatedUtc": "2026-04-30T15:40:46.2713463+00:00",
+  "status": "current-live-session-validated",
+  "sessionBound": true,
+  "target": {
+    "processName": "rift_x64",
+    "processId": 41220,
+    "targetWindowHandle": "0xBD0D94",
+    "processStartTimeUtc": "2026-04-28T18:06:20.402266Z",
+    "character": "Atank",
+    "location": "Sanctum Watch"
+  },
+  "coordinate": {
+    "status": "proof-grade-current-session",
+    "sourceObjectAddress": "0x216F2F26020",
+    "coordRegionAddress": "0x216F2F26068",
+    "sourceCoordRelativeOffset": 72,
+    "canonicalCoordSourceKind": "coord-trace-direct-region",
+    "matchSource": "readerbridge-live",
+    "coordMatchesWithinTolerance": true,
+    "sample": {
+      "x": 7261.057,
+      "y": 875.69653,
+      "z": 3053.452
+    },
+    "defaultProofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "defaultProofPollingWatchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-polling-watchset.json",
+    "requiredWatchsetRegion": {
+      "name": "coord-trace-coords",
+      "address": "0x216F2F26068",
+      "length": 12
+    }
+  },
+  "actorFacing": {
+    "status": "behavior-backed-current-session",
+    "sourceAddress": "0x216F2F26020",
+    "basisForwardOffset": "0x60",
+    "basisDuplicateForwardOffset": "0x94",
+    "yawFormula": "atan2(forwardZ, forwardX)",
+    "pitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
+    "duplicateAgreementStrong": true,
+    "validation": {
+      "method": "exact-window AutoHotkey D/A candidate validation",
+      "forwardYawDeltaDegrees": -129.55342200814928,
+      "reverseYawDeltaDegrees": 129.6034188447625,
+      "duplicateForwardYawDeltaDegrees": -129.55404641814346,
+      "duplicateReverseYawDeltaDegrees": 129.60403653193876,
+      "playerCoordDeltaMagnitude": 0.0,
+      "validationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-recovery-20260430-110229\\actor-yaw-candidate-test-da-ahk-700ms.json"
+    },
+    "leadFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\actor-facing-behavior-backed-lead.json"
+  },
+  "autoTurn": {
+    "status": "preflight-green",
+    "logFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-recovery-20260430-110229\\autoturn-preflight-only.ndjson",
+    "startDeltaDegrees": 42.1349395746651,
+    "finalDeltaDegrees": 4.702421676913779,
+    "pulses": 3,
+    "pulseKey": "d",
+    "pulseMilliseconds": 75,
+    "sentForwardMovement": false
+  },
+  "activeMovement": {
+    "status": "success",
+    "stopReason": "arrived",
+    "logFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-recovery-20260430-110229\\active-forward-smoke.ndjson",
+    "routeFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-recovery-20260430-110229\\active-forward-smoke-waypoints.json",
+    "anchorSource": "coord-trace-anchor",
+    "pulseCount": 2,
+    "initialPlanarDistance": 2.6000000000003465,
+    "finalPlanarDistance": 1.8901200685976791,
+    "initialPosition": {
+      "X": 7260.58544921875,
+      "Y": 875.6790161132812,
+      "Z": 3052.92138671875
+    },
+    "finalPosition": {
+      "X": 7261.05712890625,
+      "Y": 875.696533203125,
+      "Z": 3053.451904296875
+    },
+    "planarMoved": 0.709880714134222,
+    "postActiveTelemetry": {
+      "memoryCoordValid": true,
+      "facingValid": true,
+      "effectivePositionSource": "memory",
+      "effectiveFacingSource": "memory-facing"
+    },
+    "postActiveNavigation": {
+      "currentAddress": "0x216F2F26068",
+      "withinArrivalRadius": true,
+      "planarDistance": 1.8901200685976791,
+      "facingSource": "0x216F2F26020",
+      "facingOffset": "0x60",
+      "yawBearingDeltaDegrees": 0.027246156942979383
+    }
+  },
+  "staleOrHistorical": {
+    "previousBehaviorBackedLead": "0x216FE3C6280 @ +0xD4",
+    "note": "Stale/unreadable in the April 30 live session unless separately re-proven."
+  },
+  "caveats": [
+    "Addresses are session-bound and must be revalidated after Rift restart or client update.",
+    "Durable owner/source recovery remains unresolved.",
+    "ReaderBridge/addon exports can be stale immediately after movement; refresh or reacquire proof coords before telemetry validation."
+  ]
+}
