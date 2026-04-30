@@ -9,7 +9,8 @@ $tests = @(
     'C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-truth-proof.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-truth-proof-fail.ps1',
     'C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-recovery.ps1',
-    'C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-fresh-rebuild.ps1'
+    'C:\RIFT MODDING\RiftReader\scripts\test-player-source-chain-fresh-rebuild.ps1',
+    'C:\RIFT MODDING\RiftReader\scripts\test-refresh-discovery-chain-exact-target.ps1'
 )
 
 $results = New-Object System.Collections.Generic.List[object]
