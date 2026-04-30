@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-actor-yaw-restart-check",
+  "lastUpdatedUtc": "2026-04-30T16:31:52.8845931Z",
+  "status": "yaw-current-coord-proof-blocked",
+  "sessionBound": true,
+  "target": {
+    "processName": "rift_x64",
+    "processId": 32468,
+    "targetWindowHandle": "0x15908B2",
+    "processStartTimeUtc": "2026-04-30T16:03:29.7977969Z",
+    "character": "Atank",
+    "location": "Sanctum Watch"
+  },
+  "actorFacing": {
+    "status": "behavior-backed-current-session",
+    "sourceAddress": "0x2C9A013A490",
+    "basisForwardOffset": "0xD4",
+    "yawFormula": "atan2(forwardZ, forwardX)",
+    "pitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
+    "duplicateAgreementStrong": false,
+    "currentYawDegrees": 125.08155427081634,
+    "validation": {
+      "method": "exact-window AutoHotkey D/A manual confirmation after Rift restart",
+      "forwardYawDeltaDegrees": -128.30902263553332,
+      "reverseYawDeltaDegrees": 127.86392807812392,
+      "playerCoordDeltaMagnitude": 0.0,
+      "validationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\manual-yaw-basis-confirmation-after-restart.json"
+    },
+    "leadFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\actor-facing-behavior-backed-lead.json"
+  },
+  "coordinate": {
+    "status": "not-proof-grade-after-restart",
+    "latestReadMode": "read-player-current",
+    "latestReadAddress": "0x2C9ABD62850",
+    "anchorProvenance": "heuristic",
+    "selectionSource": "cached-anchor",
+    "coordMatchesWithinTolerance": true,
+    "sample": {
+      "x": 7267.44,
+      "y": 876.20996,
+      "z": 3052.27
+    },
+    "proofCoordAnchorStatus": "failed",
+    "proofCoordAnchorFailure": "debug-register access trace armed but received no verified hits against explicit current coord candidates"
+  },
+  "movementGate": {
+    "activeMovementAllowed": false,
+    "reason": "Movement-grade coord proof/watchset was not rebuilt after restart."
+  },
+  "staleOrHistorical": {
+    "previousCurrentActorTruthPacket": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-actor-truth.json",
+    "previousYawSource": "0x216F2F26020 @ +0x60/+0x94",
+    "previousProcessId": 41220,
+    "note": "Previous packet is stale after Rift restart because PID 41220 is gone."
+  },
+  "artifacts": {
+    "artifactRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848",
+    "candidateSearch": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\player-orientation-candidate-search-after-restart.json",
+    "candidateScreen": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\actor-yaw-validation-candidate-screen-after-restart.json",
+    "manualConfirmation": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\manual-yaw-basis-confirmation-after-restart.json",
+    "failedProofCoordAnchor": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\proof-coord-anchor.stdout.json",
+    "failedExplicitCoordTrace": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\coord-trace-explicit-current2-after-restart.failed.json",
+    "finalReadPlayerCurrent": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\read-player-current-final-after-restart.json"
+  }
+}

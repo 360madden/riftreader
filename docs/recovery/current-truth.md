@@ -1,35 +1,67 @@
 # Current Truth
 
-_Last updated: April 30, 2026 (live `rift_x64` PID `41220`, HWND `0xBD0D94`;
-coord anchor refreshed, actor-facing/yaw re-promoted from exact-window D/A
-validation, telemetry preflight green, and read-only navigation-current using
-memory-facing is green)._
+_Last updated: April 30, 2026 post-restart recheck (live `rift_x64` PID `32468`, HWND `0x15908B2`; yaw/facing re-found and promoted as `0x2C9A013A490 @ +0xD4`, but movement-grade coord proof/watchset is blocked after restart)._
 
 ## Current status
 
 | Area | Status |
 |---|---|
 | Client executable | changed by the April 28, 2026 update; current `rift_x64.exe` SHA256 is `33B35F2DC17BD9AF1CC2186DF2B62ED5232D77630BDB3C00895FD84C464BF3EC`, size `59918272`, LastWrite `2026-04-28 14:05:32 -04:00` |
-| Low-level reader | working against current live PID `41220` |
+| Low-level reader | working against current live PID `32468` |
 | ReaderBridge snapshot/export | available; export matched Atank at Sanctum Watch during April 30 recovery |
-| Player current read | working for read-only context; current `SelectionSource=heuristic` remains exploration-only, not movement proof |
-| Proof coord anchor cache | refreshed and validated on current live PID via `coord-triplet-access` |
-| Proof coord source | canonical current coord region `0x216F2F26068`; source object `0x216F2F26020`; source coord offset `+0x48` |
-| Proof polling watchset | rebuilt after April 30 yaw promotion and again after active smoke; required `coord-trace-coords` region is present at `0x216F2F26068` length `12` |
-| Source-chain/accessor-family coord recovery | working again after current-session capture; source-chain pattern found at `rift_x64.exe+0x931133`, accessor at `rift_x64.exe+0x685C30` |
+| Player current read | working for read-only context; current `SelectionSource=cached-anchor` / heuristic lineage remains exploration-only, not movement proof |
+| Proof coord anchor cache | stale after Rift restart; post-restart proof-anchor rebuild failed and must be rerun/fixed before movement |
+| Proof coord source | not proof-grade after restart; `read-player-current` matches ReaderBridge but is heuristic/cached-anchor only, latest read address `0x2C9ABD62850` |
+| Proof polling watchset | stale after restart; no post-restart required `coord-trace-coords` watchset has been promoted |
+| Source-chain/accessor-family coord recovery | historical for the pre-restart session; not re-promoted after PID `32468` restart |
 | CE Lua server/bootstrap | available during this pass; `cheatengine-exec.ps1 -Code 'return 123'` returned `123` |
-| Telemetry preflight | green: memory coords available/valid, memory facing available/valid, effective position source `memory`, effective facing source `memory-facing` |
-| Actor yaw / pitch truth | working on current live session via source `0x216F2F26020`; primary forward basis `+0x60/+0x64/+0x68`, duplicate basis `+0x94/+0x98/+0x9C` |
-| `--read-player-orientation` reader mode | live mode works when called with explicit `--pid 41220`; artifact-only/no-PID mode remains historical-only |
-| Actor-facing provenance | April 30 exact PID/HWND D/A validation confirmed behavior-backed yaw on `0x216F2F26020 @ +0x60/+0x94`; durable owner/source recovery remains unresolved |
-| Navigation preflight (`--read-navigation-current`) | green after April 30 lead promotion using `AnchorSource=coord-trace-anchor`, current address `0x216F2F26068`, facing source `0x216F2F26020 @ +0x60` |
-| Auto-turn preflight | green after April 30 lead promotion: `-PreflightOnly -AutoTurnBeforeMove` aligned from `42.135°` to `4.702°` with three `d` pulses and no forward movement |
-| Active movement (`--navigate-waypoints`) | April 30 smallest active forward smoke passed with current yaw/coord truth: `success`, `StopReason=arrived`, `2` `w` pulses, distance `2.600 -> 1.890` |
+| Telemetry preflight | mixed after restart: memory-facing is valid from `0x2C9A013A490 @ +0xD4`, but memory coords are not proof-grade; effective position falls back to addon |
+| Actor yaw / pitch truth | re-found after restart via source `0x2C9A013A490`; forward basis `+0xD4/+0xD8/+0xDC`; duplicate row not yet proven in this session |
+| `--read-player-orientation` reader mode | live mode works when called with explicit `--pid 32468`; artifact-only/no-PID mode remains historical-only |
+| Actor-facing provenance | April 30 post-restart exact PID/HWND D/A validation confirmed behavior-backed yaw on `0x2C9A013A490 @ +0xD4`; durable owner/source recovery remains unresolved |
+| Navigation preflight (`--read-navigation-current`) | blocked for movement-grade proof after restart until coord anchor/watchset is rebuilt; facing source alone is available |
+| Auto-turn preflight | historical for pre-restart session; not rerun after restart because coord proof is blocked |
+| Active movement (`--navigate-waypoints`) | historical for pre-restart session; active movement is currently blocked until post-restart coord proof/watchset is green |
 | Navigation v3 active route gate | implementation exists, but April 23 active movement proofs are historical after this update; live route-chain promotion remains pending |
 | ReaderBridge orientation probe | still not treated as a usable direct yaw/pitch source |
 | Camera yaw / pitch / distance on `main` | stale / unverified after the update |
 | Authoritative camera controller | not yet isolated |
 
+## April 30 post-restart yaw recheck
+
+After the Rift client restart, the previous current actor-truth packet became
+stale because PID `41220` no longer exists. The new live target is PID `32468`,
+HWND `0x15908B2`, process start `2026-04-30T16:03:29.7977969Z`.
+
+Current post-restart yaw/facing truth:
+
+- source object: `0x2C9A013A490`
+- forward basis: `+0xD4/+0xD8/+0xDC`
+- yaw formula: `atan2(forwardZ, forwardX)`
+- proof artifact:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\actor-yaw-recheck-after-restart-20260430-121848\manual-yaw-basis-confirmation-after-restart.json`
+- compact restart packet:
+  - `C:\RIFT MODDING\RiftReader\docs\recovery\current-actor-yaw-restart-check.json`
+
+Behavior proof:
+
+- exact target: PID `32468`, HWND `0x15908B2`
+- `D` yaw delta: about `-128.309°`
+- `A` yaw delta: about `+127.864°`
+- coordinate drift during both turn checks: `0.0`
+
+Operational interpretation:
+
+- yaw/facing is current for this restarted session
+- the previous `0x216F2F26020 @ +0x60/+0x94` lead is historical/stale after
+  restart
+- the coord-source-minus-`0x48` plus `+0x60/+0x94` pattern did not survive this
+  restart as the yaw source
+- movement-grade coord proof is still blocked: proof coord anchor reacquisition
+  armed debug-register access watchpoints but received no verified hits against
+  explicit current coord candidates
+- active movement must stay blocked until a post-restart `coord-trace-coords`
+  watchset is rebuilt and validated
 ## April 30 actor-yaw recovery truth
 
 April 30, 2026 live recovery supersedes conflicting April 28 session-bound
