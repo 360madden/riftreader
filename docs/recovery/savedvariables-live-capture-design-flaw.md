@@ -13,6 +13,7 @@ during coordinate discovery is a major workflow/design flaw.
 | Surface | Updates during normal play? | External reader sees updates live? | Correct use |
 |---|---:|---:|---|
 | In-game addon runtime state | Yes | No, unless exposed through a real live bridge | In-game UI, labels, runtime trace state |
+| ChromaLink `playerPosition` relay | Yes | Yes, when the decoder/snapshot is actively updating and freshness-gated | Live API-derived coordinate truth for scoring memory candidates |
 | On-screen addon overlay | Yes | Yes, via screenshot/OCR or visual inspection | Live ground truth for manual captures |
 | Native memory reads | Yes | Yes | Candidate discovery and validation |
 | Validated coord-trace anchor | Yes | Yes | Proof-grade movement/polling source |
@@ -45,7 +46,7 @@ file were therefore stale relative to the live overlay trajectory.
 | Classify freshness explicitly | If the file timestamp predates capture start, mark derived data `stale-post-save-snapshot` |
 | Separate truth surfaces | Do not mix overlay truth and SavedVariables-derived seeds without labeling their time domains |
 | Fail closed | If a live bundle accidentally depends on stale SavedVariables for ground truth, stop and reframe the run |
-| Use real live truth | Prefer overlay screenshots/OCR, native memory, or validated coord-trace anchors for live movement data |
+| Use real live truth | Prefer ChromaLink live telemetry, overlay screenshots/OCR, native memory, or validated coord-trace anchors for live movement data |
 | Use `/reloadui` only for snapshots | `/reloadui` can create a post-flush snapshot, but it is not a substitute for a live feed |
 
 ## Required manifest fields for future coord bundles
@@ -54,7 +55,7 @@ Every future live coordinate bundle should declare:
 
 ```json
 {
-  "truthSurface": "overlay|validated-memory-anchor|post-flush-savedvariables|other",
+  "truthSurface": "chromalink-live-telemetry|overlay|validated-memory-anchor|post-flush-savedvariables|other",
   "savedVariablesUse": "none|post-flush-snapshot|seed-only|invalid-for-live",
   "savedVariablesLastWriteUtc": "optional ISO timestamp",
   "captureStartUtc": "ISO timestamp",
@@ -70,7 +71,7 @@ Every future live coordinate bundle should declare:
 | 1 | Before capture, declare the authoritative truth surface |
 | 2 | If using `ReaderBridgeExport.lua`, verify it is intentionally a post-flush snapshot |
 | 3 | For START/STOP live movement, stream screenshots/OCR and native memory once per second or faster as needed |
-| 4 | Use visible overlay coordinates as live truth unless a validated memory anchor exists; this can be ReaderBridge's own API-backed coord display or observed/on-screen PlayerCoords values, not SavedVariables or addon files |
+| 4 | Use ChromaLink live telemetry or visible overlay coordinates as live truth unless a validated memory anchor exists; this can be ChromaLink `playerPosition`, ReaderBridge's own API-backed coord display, or observed/on-screen PlayerCoords values, not SavedVariables or addon files |
 | 5 | Derive memory candidates from live truth samples, not from stale SavedVariables |
 | 6 | Preserve stationary tail samples for cache/static rejection |
 | 7 | Write `freshnessClassification` into every seed/candidate packet |

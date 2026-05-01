@@ -13,9 +13,16 @@ the best ChromaLink ideas to create a reliable live truth feed for coordinate
 and other live testing, while keeping RiftReader's memory reader as the proof
 and discovery surface.
 
+Important source distinction: ChromaLink's `playerPosition` feed is
+API-derived addon runtime data, not RiftReader memory-discovered data. The
+current ChromaLink addon reads `Inspect.Unit.Detail("player").coordX/coordY/coordZ`
+and encodes those values into a live `playerPosition` frame. Memory discovery
+can consume this as live truth; it is not a prerequisite for ChromaLink to
+produce the coordinates.
+
 | Channel | Role |
 |---|---|
-| ChromaLink-style relay | Live addon telemetry: player position first, other player/target data later |
+| ChromaLink-style relay | Live API-derived addon telemetry: player position first, other player/target data later; independent of RiftReader memory-coordinate discovery |
 | RiftReader native memory reader | Candidate discovery, memory proof, source/provenance work |
 | SavedVariables | Backup/archive/post-`/reloadui` snapshot only |
 | Metadata/logging | Prevent stale truth, ambiguous timing, and bad promotion |
@@ -26,6 +33,7 @@ and discovery surface.
 |---|---|
 | Do not copy the full ChromaLink project into RiftReader | ChromaLink includes combat/RiftMeter/helper scope that is not needed for coord discovery |
 | Start by consuming or adapting only `playerPosition` telemetry | Coordinates are the current blocker and easiest live truth feed to validate |
+| Treat ChromaLink position as API truth, not memory proof | It does not require a pre-existing memory anchor, but it also does not prove internal memory provenance by itself |
 | Keep SavedVariables as backup | They are valuable after `/reloadui`/logout/UI save, but not live IPC |
 | Keep memory proof separate | A live addon relay proves observed game state, not internal memory provenance |
 | Expand later only after player position is stable | Avoids overbuilding and keeps the first integration testable |
@@ -94,7 +102,7 @@ adapting code into RiftReader.
 
 | Task | Output | Acceptance |
 |---|---|---|
-| Inspect live `playerPosition` telemetry path | notes or code map | Confirm current ChromaLink feed exposes X/Y/Z, sequence, freshness |
+| Inspect live `playerPosition` telemetry path | notes or code map | Confirm current ChromaLink feed reads `Inspect.Unit.Detail("player").coordX/coordY/coordZ` and exposes X/Y/Z, sequence, freshness |
 | Capture ChromaLink player position while moving | `chromalink-live-coords.ndjson` | Coordinates update without `/reloadui` |
 | Compare ChromaLink coords to visible ReaderBridge or PlayerCoords overlay | `chromalink-overlay-alignment.json` | Values align within expected display precision/timing; ReaderBridge already reads API coords at runtime, and PlayerCoords is optional visual/manual validation only, not a repo dependency or SavedVariables-backed live feed |
 | Record sequence/freshness behavior | `chromalink-freshness-check.json` | Detect repeated, stale, or dropped frames |
