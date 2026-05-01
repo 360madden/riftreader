@@ -24,6 +24,8 @@ param(
 
     [string]$PreflightFile,
 
+    [string]$TruthSurfaceFile,
+
     [string]$ExportResultFile,
 
     [string]$SummaryFile,
@@ -146,12 +148,20 @@ if ([string]::IsNullOrWhiteSpace($PreflightFile)) {
     $PreflightFile = Join-Path $resolvedBundleDirectory 'chromalink-freshness-preflight.json'
 }
 
+if ([string]::IsNullOrWhiteSpace($TruthSurfaceFile)) {
+    $TruthSurfaceFile = Join-Path $resolvedBundleDirectory 'truth-surface.json'
+}
+
 if ([string]::IsNullOrWhiteSpace($ExportResultFile)) {
     $ExportResultFile = Join-Path $resolvedBundleDirectory 'chromalink-live-coords-export-result.json'
 }
 
 if ([string]::IsNullOrWhiteSpace($SummaryFile)) {
     $SummaryFile = Join-Path $resolvedBundleDirectory 'chromalink-live-coords-capture-summary.json'
+}
+
+if (Test-Path -LiteralPath $TruthSurfaceFile) {
+    Remove-Item -LiteralPath $TruthSurfaceFile -Force
 }
 
 function Write-Utf8TextAtomic {
@@ -236,6 +246,46 @@ function Get-BaseUrlFromWorldStateUrl {
     }
 }
 
+function Get-CaptureInputMode {
+    if ($useWorldStateUrl) {
+        return 'world-state-url'
+    }
+    elseif ($useWorldStatePath) {
+        return 'world-state-file'
+    }
+
+    return 'snapshot-file'
+}
+
+function Get-PropertyValue {
+    param(
+        [object]$InputObject,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Names
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    foreach ($name in $Names) {
+        if ($InputObject -is [System.Collections.IDictionary]) {
+            if ($InputObject.Contains($name)) {
+                return $InputObject[$name]
+            }
+        }
+        else {
+            $property = $InputObject.PSObject.Properties[$name]
+            if ($null -ne $property) {
+                return $property.Value
+            }
+        }
+    }
+
+    return $null
+}
+
 function Stop-StartedBridgeIfNeeded {
     param([int]$ProcessId)
 
@@ -257,6 +307,78 @@ function Stop-StartedBridgeIfNeeded {
     }
 }
 
+function New-TruthSurfaceDocument {
+    param(
+        [object]$PreflightDocument,
+
+        [object]$BridgeDocument,
+
+        [object]$ContractDocument,
+
+        [object]$ExportDocument
+    )
+
+    $inputMode = Get-CaptureInputMode
+    $sourceView = if ($useWorldStateInput) { 'chromalink-riftreader-world-state' } else { 'chromalink-rolling-snapshot' }
+    $liveTruth = -not $useWorldStatePath
+
+    return [ordered]@{
+        schemaVersion = $schemaVersion
+        mode = 'truth-surface'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        authoritativeTruthSurface = 'chromalink-live-telemetry'
+        sourceView = $sourceView
+        inputMode = $inputMode
+        liveTruth = [bool]$liveTruth
+        freshnessRequired = $true
+        savedVariablesUse = 'none'
+        savedVariablesUsableAsLiveTruth = $false
+        candidateSurfaces = @()
+        backupSurfaces = @()
+        input = [ordered]@{
+            worldStateUrl = $(if ($useWorldStateUrl) { $WorldStateUrl } else { $null })
+            worldStatePath = $(if ($useWorldStatePath) { [System.IO.Path]::GetFullPath($WorldStatePath) } else { $null })
+            snapshotPath = $(if (-not $useWorldStateInput) { [System.IO.Path]::GetFullPath($SnapshotPath) } else { $null })
+        }
+        freshness = [ordered]@{
+            status = [string](Get-PropertyValue -InputObject $PreflightDocument -Names @('status'))
+            fresh = Get-PropertyValue -InputObject $PreflightDocument -Names @('fresh')
+            maxFreshAgeMs = $MaxFreshAgeMilliseconds
+            file = [System.IO.Path]::GetFullPath($PreflightFile)
+        }
+        bridge = [ordered]@{
+            required = [bool]($useWorldStateUrl -and -not $SkipBridgeReadiness)
+            status = [string](Get-PropertyValue -InputObject $BridgeDocument -Names @('status'))
+            file = $(if ($useWorldStateUrl -and -not $SkipBridgeReadiness) { [System.IO.Path]::GetFullPath($BridgeReadinessFile) } else { $null })
+        }
+        contract = [ordered]@{
+            required = [bool]($useWorldStateInput -and -not $SkipContractPreflight)
+            status = [string](Get-PropertyValue -InputObject $ContractDocument -Names @('status'))
+            file = $(if ($useWorldStateInput -and -not $SkipContractPreflight) { [System.IO.Path]::GetFullPath($ContractFile) } else { $null })
+        }
+        export = [ordered]@{
+            status = [string](Get-PropertyValue -InputObject $ExportDocument -Names @('status'))
+            sampleCount = Get-PropertyValue -InputObject $ExportDocument -Names @('sampleCount', 'writtenSampleCount', 'writtenCount')
+            file = [System.IO.Path]::GetFullPath($ExportResultFile)
+            liveCoordsFile = [System.IO.Path]::GetFullPath($OutputFile)
+        }
+        artifacts = [ordered]@{
+            truthSurfaceFile = [System.IO.Path]::GetFullPath($TruthSurfaceFile)
+            liveCoordsFile = [System.IO.Path]::GetFullPath($OutputFile)
+            preflightFile = [System.IO.Path]::GetFullPath($PreflightFile)
+            bridgeReadinessFile = $(if ($useWorldStateUrl -and -not $SkipBridgeReadiness) { [System.IO.Path]::GetFullPath($BridgeReadinessFile) } else { $null })
+            contractFile = $(if ($useWorldStateInput -and -not $SkipContractPreflight) { [System.IO.Path]::GetFullPath($ContractFile) } else { $null })
+            exportResultFile = [System.IO.Path]::GetFullPath($ExportResultFile)
+            summaryFile = [System.IO.Path]::GetFullPath($SummaryFile)
+        }
+        notes = @(
+            'ChromaLink telemetry is an external live/API truth surface for coordinate capture and candidate scoring.',
+            'This artifact does not prove native ReaderBridge pointer/source-chain provenance.',
+            'RIFT SavedVariables are not used as live truth by this capture path.'
+        )
+    }
+}
+
 function New-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -275,6 +397,8 @@ function New-Summary {
         [object]$ContractDocument,
 
         [object]$ExportDocument,
+
+        [object]$TruthSurfaceDocument,
 
         [bool]$RemovedOutputFile = $false,
 
@@ -305,6 +429,7 @@ function New-Summary {
         contractFile = [System.IO.Path]::GetFullPath($ContractFile)
         skipContractPreflight = [bool]$SkipContractPreflight
         preflightFile = [System.IO.Path]::GetFullPath($PreflightFile)
+        truthSurfaceFile = [System.IO.Path]::GetFullPath($TruthSurfaceFile)
         exportResultFile = [System.IO.Path]::GetFullPath($ExportResultFile)
         summaryFile = [System.IO.Path]::GetFullPath($SummaryFile)
         maxFreshAgeMs = $MaxFreshAgeMilliseconds
@@ -314,6 +439,7 @@ function New-Summary {
         bridge = $BridgeDocument
         contract = $ContractDocument
         export = $ExportDocument
+        truthSurface = $TruthSurfaceDocument
         failures = @($Failures)
     }
 }
@@ -610,7 +736,13 @@ if ($null -ne $startedBridgeProcessId) {
     }
 }
 
-$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -RemovedOutputFile $removedOutputFile -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $summaryFailures.ToArray()
+$truthSurfaceDocument = $null
+if ($exported) {
+    $truthSurfaceDocument = New-TruthSurfaceDocument -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument
+    Write-Utf8TextAtomic -Path $TruthSurfaceFile -Content ($truthSurfaceDocument | ConvertTo-Json -Depth 64)
+}
+
+$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -TruthSurfaceDocument $truthSurfaceDocument -RemovedOutputFile $removedOutputFile -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $summaryFailures.ToArray()
 Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
 if ($Json) {

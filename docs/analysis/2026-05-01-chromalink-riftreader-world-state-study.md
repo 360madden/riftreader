@@ -73,7 +73,7 @@ ChromaLink now has a first-class read-only app surface for RiftReader:
 | `scripts/test-chromalink-http-bridge.ps1` | Added bridge readiness probing and optional hidden helper-start for the ChromaLink HTTP bridge. |
 | `scripts/test-chromalink-world-state-contract.ps1` | Added a manifest/schema/world-state drift guard for the new HTTP contract. |
 | `scripts/export-chromalink-live-coords.ps1` | Added world-state input support while preserving raw snapshot support. |
-| `scripts/capture-chromalink-live-coords.ps1` | Added `-WorldStateUrl` pass-through plus bundle-level `chromalink-http-bridge-readiness.json` and `chromalink-world-state-contract.json` outputs for URL-based world-state captures. |
+| `scripts/capture-chromalink-live-coords.ps1` | Added `-WorldStateUrl` pass-through plus bundle-level `chromalink-http-bridge-readiness.json`, `chromalink-world-state-contract.json`, and `truth-surface.json` outputs for world-state captures. |
 | `docs/candidate-trajectory-promotion-gate.md` | Updated live capture commands to prefer the HTTP world-state endpoint. |
 | `docs/todos/2026-04-30-chromalink-targeted-live-telemetry-integration-plan.md` | Updated the integration plan to reflect ChromaLink's new endpoint/schema/client. |
 | `docs/todos/2026-04-30-coord-discovery-workflow-todo.md` | Updated targeted ChromaLink TODOs to prefer the world-state endpoint. |
