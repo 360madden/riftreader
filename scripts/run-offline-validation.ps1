@@ -81,6 +81,7 @@ $tests = @(
     'scripts/test-write-capture-metadata.ps1',
     'scripts/test-export-chromalink-live-coords.ps1',
     'scripts/test-chromalink-live-telemetry-script.ps1',
+    'scripts/test-capture-chromalink-live-coords.ps1',
     'scripts/test-score-candidate-trajectories.ps1',
     'scripts/test-write-promotion-gate.ps1',
     'scripts/test-run-candidate-trajectory-gate.ps1'
@@ -94,6 +95,8 @@ $parserFiles = @(
     'scripts/test-export-chromalink-live-coords.ps1',
     'scripts/test-chromalink-live-telemetry.ps1',
     'scripts/test-chromalink-live-telemetry-script.ps1',
+    'scripts/capture-chromalink-live-coords.ps1',
+    'scripts/test-capture-chromalink-live-coords.ps1',
     'scripts/score-candidate-trajectories.ps1',
     'scripts/test-score-candidate-trajectories.ps1',
     'scripts/write-promotion-gate.ps1',

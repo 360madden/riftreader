@@ -84,19 +84,31 @@ pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReade
 The expected pass state is `status=pass` and `fresh=true`. `status=stale` or
 `status=missing` means do not export/use the snapshot as live truth yet.
 
+Preferred capture command:
+
 ```powershell
 $bundle = Join-Path "C:\RIFT MODDING\RiftReader\scripts\captures" ("chromalink-live-coords-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
-$liveCoords = Join-Path $bundle 'live-coords.ndjson'
-pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\export-chromalink-live-coords.ps1" `
-  -Watch `
-  -DurationSeconds 30 `
-  -IntervalMilliseconds 250 `
-  -OutputFile $liveCoords `
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-chromalink-live-coords.ps1" `
+  -BundleDirectory $bundle `
+  -PreflightDurationSeconds 30 `
+  -ExportDurationSeconds 30 `
+  -ExportIntervalMilliseconds 250 `
   -Json
 ```
 
-If the result is `stale`, do not use it as live truth. Restart or repair the
-telemetry source first.
+This wrapper writes:
+
+| Artifact | Purpose |
+|---|---|
+| `chromalink-freshness-preflight.json` | Freshness proof before export |
+| `live-coords.ndjson` | Exported live coordinate truth stream |
+| `chromalink-live-coords-export-result.json` | Lower-level export result |
+| `chromalink-live-coords-capture-summary.json` | Wrapper summary |
+
+If the wrapper result is `preflight-failed`, it does not write
+`live-coords.ndjson`; restart or repair the telemetry source first. The lower
+level `export-chromalink-live-coords.ps1` remains available for diagnostics,
+but the wrapper is safer for normal capture bundles.
 
 ## Future live bundle gate command
 
