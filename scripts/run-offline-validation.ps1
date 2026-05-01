@@ -80,6 +80,7 @@ function Invoke-ParserValidation {
 $tests = @(
     'scripts/test-write-capture-metadata.ps1',
     'scripts/test-export-chromalink-live-coords.ps1',
+    'scripts/test-chromalink-http-bridge-script.ps1',
     'scripts/test-chromalink-live-telemetry-script.ps1',
     'scripts/test-chromalink-world-state-contract-script.ps1',
     'scripts/test-capture-chromalink-live-coords.ps1',
@@ -96,6 +97,8 @@ $parserFiles = @(
     'scripts/record-discovery-session.ps1',
     'scripts/export-chromalink-live-coords.ps1',
     'scripts/test-export-chromalink-live-coords.ps1',
+    'scripts/test-chromalink-http-bridge.ps1',
+    'scripts/test-chromalink-http-bridge-script.ps1',
     'scripts/test-chromalink-live-telemetry.ps1',
     'scripts/test-chromalink-live-telemetry-script.ps1',
     'scripts/test-chromalink-world-state-contract.ps1',

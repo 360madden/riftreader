@@ -74,6 +74,17 @@ Preferred live endpoint:
 $worldStateUrl = 'http://127.0.0.1:7337/api/v1/riftreader/world-state'
 ```
 
+Bridge readiness check, with optional temporary start:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-http-bridge.ps1" `
+  -StartBridge `
+  -Json
+```
+
+Use `-KeepRunning` if you want the helper-started bridge to stay up for the
+following capture commands.
+
 Contract/schema drift preflight:
 
 ```powershell

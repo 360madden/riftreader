@@ -70,6 +70,7 @@ ChromaLink now has a first-class read-only app surface for RiftReader:
 | File | Change |
 |---|---|
 | `scripts/test-chromalink-live-telemetry.ps1` | Added `-WorldStateUrl` and `-WorldStatePath` support. |
+| `scripts/test-chromalink-http-bridge.ps1` | Added bridge readiness probing and optional hidden helper-start for the ChromaLink HTTP bridge. |
 | `scripts/test-chromalink-world-state-contract.ps1` | Added a manifest/schema/world-state drift guard for the new HTTP contract. |
 | `scripts/export-chromalink-live-coords.ps1` | Added world-state input support while preserving raw snapshot support. |
 | `scripts/capture-chromalink-live-coords.ps1` | Added `-WorldStateUrl` pass-through and bundle-level `chromalink-world-state-contract.json` output for world-state captures. |
