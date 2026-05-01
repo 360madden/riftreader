@@ -96,7 +96,7 @@ adapting code into RiftReader.
 |---|---|---|
 | Inspect live `playerPosition` telemetry path | notes or code map | Confirm current ChromaLink feed exposes X/Y/Z, sequence, freshness |
 | Capture ChromaLink player position while moving | `chromalink-live-coords.ndjson` | Coordinates update without `/reloadui` |
-| Compare ChromaLink coords to visible PlayerCoords overlay | `chromalink-overlay-alignment.json` | Values align within expected display precision/timing |
+| Compare ChromaLink coords to visible PlayerCoords overlay | `chromalink-overlay-alignment.json` | Values align within expected display precision/timing; PlayerCoords is a visual/manual validation overlay only, not a repo dependency or SavedVariables-backed live feed |
 | Record sequence/freshness behavior | `chromalink-freshness-check.json` | Detect repeated, stale, or dropped frames |
 | Use ChromaLink data as `truthSurface` for one bundle | `truth-surface.json` | Analysis uses `chromalink-live-telemetry`, not SavedVariables |
 
@@ -112,7 +112,7 @@ Initial frame fields:
 | `schemaVersion` | Protocol compatibility |
 | `sequence` | Stale/repeat/drop detection |
 | `addonRealtime` | Align addon frame time to helper time |
-| `playerX/playerY/playerZ` | Live coordinate truth |
+| `playerX/playerY/playerZ` | Live coordinate relay payload; usable as truth only when sequence/freshness gates pass and it is aligned against a visible overlay or another validated live surface |
 | `speed` | Movement quality and stuck detection |
 | `zone/shard` optional | Context/freshness sanity |
 | `crc` / checksum | Decode correctness |
@@ -251,4 +251,3 @@ Milestone outputs:
 5. `memory-timeseries.csv`
 6. `candidate-trajectory-scores.json`
 7. `promotion-gate.json`
-
