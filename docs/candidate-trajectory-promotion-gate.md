@@ -74,6 +74,12 @@ Preferred live endpoint:
 $worldStateUrl = 'http://127.0.0.1:7337/api/v1/riftreader/world-state'
 ```
 
+Contract/schema drift preflight:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-world-state-contract.ps1" -Json
+```
+
 Preflight freshness first:
 
 ```powershell
@@ -118,6 +124,10 @@ This wrapper writes:
 | `live-coords.ndjson` | Exported live coordinate truth stream |
 | `chromalink-live-coords-export-result.json` | Lower-level export result |
 | `chromalink-live-coords-capture-summary.json` | Wrapper summary |
+
+The contract preflight is separate from freshness: use it after ChromaLink
+updates or before the first capture in a session to confirm the HTTP manifest,
+schema, and world-state shape still match RiftReader expectations.
 
 If the wrapper result is `preflight-failed`, it does not write
 `live-coords.ndjson`; restart or repair the telemetry source first. The lower
