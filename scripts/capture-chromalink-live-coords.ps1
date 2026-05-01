@@ -4,9 +4,17 @@ param(
 
     [string]$WorldStateUrl = '',
 
+    [string]$WorldStatePath = '',
+
     [string]$BundleDirectory,
 
     [string]$OutputFile,
+
+    [string]$ContractFile,
+
+    [string]$ContractManifestPath = '',
+
+    [string]$ContractSchemaPath = '',
 
     [string]$PreflightFile,
 
@@ -26,6 +34,8 @@ param(
 
     [int]$MaxFreshAgeMilliseconds = 2000,
 
+    [switch]$SkipContractPreflight,
+
     [switch]$IncludeDuplicates,
 
     [switch]$Json
@@ -36,8 +46,13 @@ $ErrorActionPreference = 'Stop'
 
 $schemaVersion = 1
 
+$contractScript = Join-Path $PSScriptRoot 'test-chromalink-world-state-contract.ps1'
 $freshnessScript = Join-Path $PSScriptRoot 'test-chromalink-live-telemetry.ps1'
 $exportScript = Join-Path $PSScriptRoot 'export-chromalink-live-coords.ps1'
+
+if (-not (Test-Path -LiteralPath $contractScript)) {
+    throw "ChromaLink contract script not found: $contractScript"
+}
 
 if (-not (Test-Path -LiteralPath $freshnessScript)) {
     throw "ChromaLink freshness script not found: $freshnessScript"
@@ -72,6 +87,12 @@ if ($MaxFreshAgeMilliseconds -lt 0) {
 }
 
 $useWorldStateUrl = -not [string]::IsNullOrWhiteSpace($WorldStateUrl)
+$useWorldStatePath = -not [string]::IsNullOrWhiteSpace($WorldStatePath)
+$useWorldStateInput = $useWorldStateUrl -or $useWorldStatePath
+
+if ($useWorldStateUrl -and $useWorldStatePath) {
+    throw 'Specify only one of WorldStateUrl or WorldStatePath.'
+}
 
 if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {
     $BundleDirectory = Join-Path (Join-Path $PSScriptRoot 'captures') ('chromalink-live-coords-{0}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -82,6 +103,10 @@ New-Item -ItemType Directory -Path $resolvedBundleDirectory -Force | Out-Null
 
 if ([string]::IsNullOrWhiteSpace($OutputFile)) {
     $OutputFile = Join-Path $resolvedBundleDirectory 'live-coords.ndjson'
+}
+
+if ([string]::IsNullOrWhiteSpace($ContractFile)) {
+    $ContractFile = Join-Path $resolvedBundleDirectory 'chromalink-world-state-contract.json'
 }
 
 if ([string]::IsNullOrWhiteSpace($PreflightFile)) {
@@ -166,6 +191,18 @@ function ConvertFrom-JsonOrNull {
     }
 }
 
+function Get-BaseUrlFromWorldStateUrl {
+    param([Parameter(Mandatory = $true)][string]$Url)
+
+    try {
+        $uri = [Uri]$Url
+        return $uri.GetLeftPart([UriPartial]::Authority)
+    }
+    catch {
+        throw "WorldStateUrl is not a valid absolute URI: $Url"
+    }
+}
+
 function New-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -178,6 +215,8 @@ function New-Summary {
         [bool]$Exported,
 
         [object]$PreflightDocument,
+
+        [object]$ContractDocument,
 
         [object]$ExportDocument,
 
@@ -193,12 +232,15 @@ function New-Summary {
         status = $Status
         fresh = $Fresh
         exported = $Exported
-        inputMode = $(if ($useWorldStateUrl) { 'world-state-url' } else { 'snapshot-file' })
+        inputMode = $(if ($useWorldStateUrl) { 'world-state-url' } elseif ($useWorldStatePath) { 'world-state-file' } else { 'snapshot-file' })
         worldStateUrl = $(if ($useWorldStateUrl) { $WorldStateUrl } else { $null })
+        worldStatePath = $(if ($useWorldStatePath) { [System.IO.Path]::GetFullPath($WorldStatePath) } else { $null })
         snapshotPath = [System.IO.Path]::GetFullPath($SnapshotPath)
         bundleDirectory = $resolvedBundleDirectory
         outputFile = [System.IO.Path]::GetFullPath($OutputFile)
         removedOutputFile = $RemovedOutputFile
+        contractFile = [System.IO.Path]::GetFullPath($ContractFile)
+        skipContractPreflight = [bool]$SkipContractPreflight
         preflightFile = [System.IO.Path]::GetFullPath($PreflightFile)
         exportResultFile = [System.IO.Path]::GetFullPath($ExportResultFile)
         summaryFile = [System.IO.Path]::GetFullPath($SummaryFile)
@@ -206,6 +248,7 @@ function New-Summary {
         preflightDurationSeconds = $PreflightDurationSeconds
         exportDurationSeconds = $ExportDurationSeconds
         preflight = $PreflightDocument
+        contract = $ContractDocument
         export = $ExportDocument
         failures = @($Failures)
     }
@@ -227,6 +270,9 @@ $preflightArguments = @(
 
 if ($useWorldStateUrl) {
     $preflightArguments += @('-WorldStateUrl', $WorldStateUrl)
+}
+elseif ($useWorldStatePath) {
+    $preflightArguments += @('-WorldStatePath', $WorldStatePath)
 }
 else {
     $preflightArguments += @('-SnapshotPath', $SnapshotPath)
@@ -260,7 +306,7 @@ if ($preflightRun.ExitCode -ne 0 -or $null -eq $preflightDocument -or [string]$p
         }
     }
 
-    $summary = New-Summary -Status 'preflight-failed' -Fresh $false -Exported $false -PreflightDocument $preflightDocument -ExportDocument $null -Failures $failures.ToArray()
+    $summary = New-Summary -Status 'preflight-failed' -Fresh $false -Exported $false -PreflightDocument $preflightDocument -ContractDocument $null -ExportDocument $null -Failures $failures.ToArray()
     Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
     if ($Json) {
@@ -274,6 +320,69 @@ if ($preflightRun.ExitCode -ne 0 -or $null -eq $preflightDocument -or [string]$p
     }
 
     exit 1
+}
+
+$contractDocument = $null
+if ($useWorldStateInput -and -not $SkipContractPreflight) {
+    $contractArguments = @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $contractScript,
+        '-Json'
+    )
+
+    if ($useWorldStateUrl) {
+        $contractArguments += @('-BaseUrl', (Get-BaseUrlFromWorldStateUrl -Url $WorldStateUrl))
+    }
+    else {
+        $contractArguments += @(
+            '-ManifestPath',
+            $ContractManifestPath,
+            '-SchemaPath',
+            $ContractSchemaPath,
+            '-WorldStatePath',
+            $WorldStatePath
+        )
+    }
+
+    $contractRun = Invoke-NativeCommand -Arguments $contractArguments
+    $contractDocument = ConvertFrom-JsonOrNull -Text $contractRun.Output
+    Write-Utf8TextAtomic -Path $ContractFile -Content $contractRun.Output
+
+    if ($contractRun.ExitCode -ne 0 -or $null -eq $contractDocument -or [string]$contractDocument.status -ne 'pass') {
+        $failures = [System.Collections.Generic.List[string]]::new()
+        if ($contractRun.ExitCode -ne 0) {
+            $failures.Add("ChromaLink world-state contract preflight exited $($contractRun.ExitCode).") | Out-Null
+        }
+        if ($null -eq $contractDocument) {
+            $failures.Add('ChromaLink world-state contract preflight output could not be parsed.') | Out-Null
+        }
+        else {
+            foreach ($failure in @($contractDocument.failures)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$failure)) {
+                    $failures.Add([string]$failure) | Out-Null
+                }
+            }
+        }
+
+        $summary = New-Summary -Status 'contract-failed' -Fresh $true -Exported $false -PreflightDocument $preflightDocument -ContractDocument $contractDocument -ExportDocument $null -Failures $failures.ToArray()
+        Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
+
+        if ($Json) {
+            $summary | ConvertTo-Json -Depth 64
+        }
+        else {
+            Write-Host 'ChromaLink live coord capture: contract-failed' -ForegroundColor Red
+            foreach ($failure in @($summary.failures)) {
+                Write-Host ("- {0}" -f $failure) -ForegroundColor Red
+            }
+        }
+
+        exit 1
+    }
 }
 
 $exportArguments = @(
@@ -294,6 +403,9 @@ $exportArguments = @(
 
 if ($useWorldStateUrl) {
     $exportArguments += @('-WorldStateUrl', $WorldStateUrl)
+}
+elseif ($useWorldStatePath) {
+    $exportArguments += @('-WorldStatePath', $WorldStatePath)
 }
 else {
     $exportArguments += @('-SnapshotPath', $SnapshotPath)
@@ -339,7 +451,7 @@ if (-not $exported -and (Test-Path -LiteralPath $OutputFile)) {
     $summaryFailures.Add('Rejected live-coords.ndjson was removed because export did not pass freshness checks.') | Out-Null
 }
 
-$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -ExportDocument $exportDocument -RemovedOutputFile $removedOutputFile -Failures $summaryFailures.ToArray()
+$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -RemovedOutputFile $removedOutputFile -Failures $summaryFailures.ToArray()
 Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
 if ($Json) {

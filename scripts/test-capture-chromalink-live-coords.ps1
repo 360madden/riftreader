@@ -80,12 +80,132 @@ function Write-Snapshot {
     Set-Content -LiteralPath $Path -Value ($document | ConvertTo-Json -Depth 16) -Encoding UTF8
 }
 
+function Write-JsonFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [object]$Value
+    )
+
+    Set-Content -LiteralPath $Path -Value ($Value | ConvertTo-Json -Depth 64) -Encoding UTF8
+}
+
+function Write-WorldStateFixtures {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ManifestPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SchemaPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$WorldStatePath,
+
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$ObservedAtUtc
+    )
+
+    Write-JsonFile -Path $ManifestPath -Value ([ordered]@{
+            name = 'ChromaLink HTTP Bridge'
+            baseUrl = 'http://127.0.0.1:7337'
+            localOnly = $true
+            snapshotContract = [ordered]@{
+                name = 'chromalink-live-telemetry'
+                schemaVersion = 2
+            }
+            endpoints = @(
+                [ordered]@{ path = '/api/v1/riftreader/world-state'; purpose = 'Reduced read-only world-state view.' },
+                [ordered]@{ path = '/api/v1/riftreader/world-state/schema'; purpose = 'JSON schema.' }
+            )
+        })
+
+    Write-JsonFile -Path $SchemaPath -Value ([ordered]@{
+            title = 'ChromaLink RiftReader World State'
+            '$defs' = [ordered]@{
+                position = [ordered]@{
+                    required = @('x', 'y', 'z')
+                }
+                navigation = [ordered]@{
+                    properties = [ordered]@{
+                        headingAvailable = [ordered]@{ const = $false }
+                        facingAvailable = [ordered]@{ const = $false }
+                        routeAvailable = [ordered]@{ const = $false }
+                        controlAvailable = [ordered]@{ const = $false }
+                    }
+                }
+                success = [ordered]@{
+                    properties = [ordered]@{
+                        contract = [ordered]@{
+                            allOf = @(
+                                [ordered]@{ '$ref' = '#/$defs/contract' },
+                                [ordered]@{
+                                    properties = [ordered]@{
+                                        name = [ordered]@{ const = 'chromalink-riftreader-world-state' }
+                                        schemaVersion = [ordered]@{ const = 1 }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        })
+
+    Write-JsonFile -Path $WorldStatePath -Value ([ordered]@{
+            ok = $true
+            artifactKind = 'riftreader-world-state'
+            contract = [ordered]@{
+                name = 'chromalink-riftreader-world-state'
+                schemaVersion = 1
+            }
+            sourceContract = [ordered]@{
+                name = 'chromalink-live-telemetry'
+                schemaVersion = 2
+            }
+            ready = $true
+            healthy = $true
+            fresh = $true
+            stale = $false
+            snapshotAgeSeconds = 0.1
+            snapshotPath = 'C:\fake\chromalink-live-telemetry.json'
+            navigation = [ordered]@{
+                playerPositionAvailable = $true
+                targetPositionAvailable = $false
+                followUnitPositionsAvailable = $false
+                headingAvailable = $false
+                facingAvailable = $false
+                routeAvailable = $false
+                controlAvailable = $false
+                limitations = @()
+            }
+            player = [ordered]@{
+                position = [ordered]@{
+                    x = 11.0
+                    y = 22.0
+                    z = 33.0
+                    observedAtUtc = $ObservedAtUtc.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                    ageMs = 100.0
+                    fresh = $true
+                    stale = $false
+                }
+            }
+            target = $null
+            followUnits = @()
+        })
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $captureScript = Join-Path $repoRoot 'scripts\capture-chromalink-live-coords.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-chromalink-capture-' + [Guid]::NewGuid().ToString('N'))
 $snapshot = Join-Path $tempRoot 'chromalink-live-telemetry.json'
 $freshBundle = Join-Path $tempRoot 'fresh-bundle'
+$worldStateBundle = Join-Path $tempRoot 'world-state-bundle'
 $staleBundle = Join-Path $tempRoot 'stale-bundle'
+$manifest = Join-Path $tempRoot 'manifest.json'
+$schema = Join-Path $tempRoot 'schema.json'
+$worldState = Join-Path $tempRoot 'world-state.json'
 
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
@@ -106,6 +226,23 @@ try {
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-freshness-preflight.json')) -Message 'Fresh preflight file missing.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-live-coords-export-result.json')) -Message 'Fresh export result file missing.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-live-coords-capture-summary.json')) -Message 'Fresh summary file missing.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-world-state-contract.json'))) -Message 'Raw snapshot capture should not write a world-state contract preflight.'
+
+    Write-WorldStateFixtures -ManifestPath $manifest -SchemaPath $schema -WorldStatePath $worldState -ObservedAtUtc $now
+    $worldStateOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $captureScript `
+        -WorldStatePath $worldState `
+        -ContractManifestPath $manifest `
+        -ContractSchemaPath $schema `
+        -BundleDirectory $worldStateBundle `
+        -MaxFreshAgeMilliseconds 10000 `
+        -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected ChromaLink world-state capture to pass: {0}" -f ($worldStateOutput -join [Environment]::NewLine))
+    $worldStateResult = ($worldStateOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 64
+    Assert-Equal -Actual ([string]$worldStateResult.status) -Expected 'pass' -Message 'World-state capture status mismatch.'
+    Assert-Equal -Actual ([string]$worldStateResult.inputMode) -Expected 'world-state-file' -Message 'World-state capture input mode mismatch.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $worldStateBundle 'chromalink-world-state-contract.json')) -Message 'World-state contract preflight file missing.'
+    Assert-Equal -Actual ([string]$worldStateResult.contract.status) -Expected 'pass' -Message 'World-state contract status mismatch.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $worldStateBundle 'live-coords.ndjson')) -Message 'World-state live-coords.ndjson missing.'
 
     $staleTime = [DateTimeOffset]::UtcNow.AddSeconds(-10)
     Write-Snapshot -Path $snapshot -GeneratedAtUtc $staleTime -ObservedAtUtc $staleTime -Fresh $true -Stale $false
