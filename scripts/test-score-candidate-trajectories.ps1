@@ -38,6 +38,7 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-candidate-t
 $truthCsv = Join-Path $tempRoot 'truth.csv'
 $memoryCsv = Join-Path $tempRoot 'memory-timeseries.csv'
 $outputFile = Join-Path $tempRoot 'candidate-trajectory-scores.json'
+$explicitSamplesOutputFile = Join-Path $tempRoot 'candidate-trajectory-scores-explicit-samples.json'
 $memoryDirectory = Join-Path $tempRoot 'memory'
 $directoryOutputFile = Join-Path $tempRoot 'candidate-trajectory-scores-from-directory.json'
 $flattenedCsv = Join-Path $tempRoot 'flattened-memory-timeseries.csv'
@@ -99,6 +100,18 @@ sampleIndex,candidateId,addressHex,source,x,y,z
 
     $driftCandidate = @($result.candidates | Where-Object { $_.candidateId -eq 'drift-tail' })[0]
     Assert-Equal -Actual ([string]$driftCandidate.classification) -Expected 'stationary-tail-drift' -Message 'Stationary drift candidate classification mismatch.'
+
+    $explicitSamplesOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $scoreScript `
+        -TruthCsv $truthCsv `
+        -MemoryTimeseriesCsv $memoryCsv `
+        -OutputFile $explicitSamplesOutputFile `
+        -MovementSamples 1,2,3 `
+        -StationarySamples 4,5 `
+        -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected explicit sample scoring to pass: {0}" -f ($explicitSamplesOutput -join [Environment]::NewLine))
+    $explicitSamplesResult = ($explicitSamplesOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 64
+    Assert-Equal -Actual (([string[]]@($explicitSamplesResult.movementSamples)) -join ',') -Expected '1,2,3' -Message 'Explicit movement samples were not parsed as separate indices.'
+    Assert-Equal -Actual (([string[]]@($explicitSamplesResult.stationarySamples)) -join ',') -Expected '4,5' -Message 'Explicit stationary samples were not parsed as separate indices.'
 
     New-Item -ItemType Directory -Path $memoryDirectory -Force | Out-Null
     $memorySample1 = [ordered]@{

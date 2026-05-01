@@ -12,9 +12,9 @@ param(
 
     [string]$OutputFile = (Join-Path (Join-Path $PSScriptRoot 'captures') ('candidate-trajectory-scores-{0}.json' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))),
 
-    [int[]]$MovementSamples = @(),
+    [string[]]$MovementSamples = @(),
 
-    [int[]]$StationarySamples = @(),
+    [string[]]$StationarySamples = @(),
 
     [int]$MinimumComparedSamples = 3,
 
@@ -95,6 +95,37 @@ function ConvertTo-IntOrNull {
     catch {
         return $null
     }
+}
+
+function ConvertTo-SampleIndexArray {
+    param(
+        [string[]]$Values,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ParameterName
+    )
+
+    $samples = [System.Collections.Generic.List[int]]::new()
+    foreach ($value in @($Values)) {
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            continue
+        }
+
+        foreach ($part in ([string]$value -split '[,\s;]+')) {
+            if ([string]::IsNullOrWhiteSpace($part)) {
+                continue
+            }
+
+            try {
+                $samples.Add([int]::Parse($part, [System.Globalization.CultureInfo]::InvariantCulture)) | Out-Null
+            }
+            catch {
+                throw "$ParameterName contains a non-integer sample index: $part"
+            }
+        }
+    }
+
+    return $samples.ToArray()
 }
 
 function Get-PropertyValue {
@@ -387,16 +418,18 @@ function Get-TruthSampleSets {
 
     $movement = [System.Collections.Generic.HashSet[int]]::new()
     $stationary = [System.Collections.Generic.HashSet[int]]::new()
+    $explicitMovementSamples = @(ConvertTo-SampleIndexArray -Values $MovementSamples -ParameterName 'MovementSamples')
+    $explicitStationarySamples = @(ConvertTo-SampleIndexArray -Values $StationarySamples -ParameterName 'StationarySamples')
 
-    if ($MovementSamples.Count -gt 0) {
-        foreach ($sample in $MovementSamples) {
-            [void]$movement.Add([int]$sample)
+    if ($explicitMovementSamples.Count -gt 0) {
+        foreach ($sample in $explicitMovementSamples) {
+            [void]$movement.Add($sample)
         }
     }
 
-    if ($StationarySamples.Count -gt 0) {
-        foreach ($sample in $StationarySamples) {
-            [void]$stationary.Add([int]$sample)
+    if ($explicitStationarySamples.Count -gt 0) {
+        foreach ($sample in $explicitStationarySamples) {
+            [void]$stationary.Add($sample)
         }
     }
 
