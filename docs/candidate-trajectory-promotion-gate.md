@@ -131,6 +131,16 @@ pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReade
 Adjust the sample windows to the actual capture. Avoid letting a long stationary
 tail dominate the movement proof.
 
+After the gate runs, write compact summaries for handoffs:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\summarize-promotion-gate.ps1" `
+  -PromotionGateFile (Join-Path $bundle 'promotion-gate.json') `
+  -OutputJsonFile (Join-Path $bundle 'promotion-gate-summary.json') `
+  -OutputMarkdownFile (Join-Path $bundle 'promotion-gate-summary.md') `
+  -Json
+```
+
 ## Promotion decision
 
 | Gate field | Required state |
@@ -150,7 +160,9 @@ If any row fails, preserve the bundle as candidate or negative evidence only.
 
 ## Handoff summary template
 
-Include this table in future handoffs whenever `promotion-gate.json` exists:
+Prefer linking `promotion-gate-summary.md` / `promotion-gate-summary.json` in
+future handoffs whenever `promotion-gate.json` exists. If those artifacts are
+not present yet, include this table:
 
 ```markdown
 | Field | Value |
