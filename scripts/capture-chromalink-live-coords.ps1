@@ -6,9 +6,15 @@ param(
 
     [string]$WorldStatePath = '',
 
+    [string]$ChromaLinkRoot = 'C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\AddOns\ChromaLink',
+
+    [string]$BridgeProject = '',
+
     [string]$BundleDirectory,
 
     [string]$OutputFile,
+
+    [string]$BridgeReadinessFile,
 
     [string]$ContractFile,
 
@@ -34,6 +40,16 @@ param(
 
     [int]$MaxFreshAgeMilliseconds = 2000,
 
+    [int]$BridgeWaitSeconds = 10,
+
+    [int]$BridgeRequestTimeoutSeconds = 2,
+
+    [switch]$SkipBridgeReadiness,
+
+    [switch]$StartBridge,
+
+    [switch]$KeepBridgeRunning,
+
     [switch]$SkipContractPreflight,
 
     [switch]$IncludeDuplicates,
@@ -46,9 +62,14 @@ $ErrorActionPreference = 'Stop'
 
 $schemaVersion = 1
 
+$bridgeScript = Join-Path $PSScriptRoot 'test-chromalink-http-bridge.ps1'
 $contractScript = Join-Path $PSScriptRoot 'test-chromalink-world-state-contract.ps1'
 $freshnessScript = Join-Path $PSScriptRoot 'test-chromalink-live-telemetry.ps1'
 $exportScript = Join-Path $PSScriptRoot 'export-chromalink-live-coords.ps1'
+
+if (-not (Test-Path -LiteralPath $bridgeScript)) {
+    throw "ChromaLink bridge readiness script not found: $bridgeScript"
+}
 
 if (-not (Test-Path -LiteralPath $contractScript)) {
     throw "ChromaLink contract script not found: $contractScript"
@@ -86,6 +107,14 @@ if ($MaxFreshAgeMilliseconds -lt 0) {
     throw 'MaxFreshAgeMilliseconds must be zero or greater.'
 }
 
+if ($BridgeWaitSeconds -lt 0) {
+    throw 'BridgeWaitSeconds must be zero or greater.'
+}
+
+if ($BridgeRequestTimeoutSeconds -lt 1) {
+    throw 'BridgeRequestTimeoutSeconds must be at least 1.'
+}
+
 $useWorldStateUrl = -not [string]::IsNullOrWhiteSpace($WorldStateUrl)
 $useWorldStatePath = -not [string]::IsNullOrWhiteSpace($WorldStatePath)
 $useWorldStateInput = $useWorldStateUrl -or $useWorldStatePath
@@ -103,6 +132,10 @@ New-Item -ItemType Directory -Path $resolvedBundleDirectory -Force | Out-Null
 
 if ([string]::IsNullOrWhiteSpace($OutputFile)) {
     $OutputFile = Join-Path $resolvedBundleDirectory 'live-coords.ndjson'
+}
+
+if ([string]::IsNullOrWhiteSpace($BridgeReadinessFile)) {
+    $BridgeReadinessFile = Join-Path $resolvedBundleDirectory 'chromalink-http-bridge-readiness.json'
 }
 
 if ([string]::IsNullOrWhiteSpace($ContractFile)) {
@@ -203,6 +236,27 @@ function Get-BaseUrlFromWorldStateUrl {
     }
 }
 
+function Stop-StartedBridgeIfNeeded {
+    param([int]$ProcessId)
+
+    if ($ProcessId -le 0 -or $KeepBridgeRunning) {
+        return $false
+    }
+
+    try {
+        $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if ($null -eq $process) {
+            return $false
+        }
+
+        Stop-Process -Id $ProcessId -Force
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 function New-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -216,11 +270,15 @@ function New-Summary {
 
         [object]$PreflightDocument,
 
+        [object]$BridgeDocument,
+
         [object]$ContractDocument,
 
         [object]$ExportDocument,
 
         [bool]$RemovedOutputFile = $false,
+
+        [bool]$BridgeStoppedAfterCapture = $false,
 
         [string[]]$Failures = @()
     )
@@ -239,6 +297,11 @@ function New-Summary {
         bundleDirectory = $resolvedBundleDirectory
         outputFile = [System.IO.Path]::GetFullPath($OutputFile)
         removedOutputFile = $RemovedOutputFile
+        bridgeReadinessFile = [System.IO.Path]::GetFullPath($BridgeReadinessFile)
+        skipBridgeReadiness = [bool]$SkipBridgeReadiness
+        startBridge = [bool]$StartBridge
+        keepBridgeRunning = [bool]$KeepBridgeRunning
+        bridgeStoppedAfterCapture = $BridgeStoppedAfterCapture
         contractFile = [System.IO.Path]::GetFullPath($ContractFile)
         skipContractPreflight = [bool]$SkipContractPreflight
         preflightFile = [System.IO.Path]::GetFullPath($PreflightFile)
@@ -248,9 +311,87 @@ function New-Summary {
         preflightDurationSeconds = $PreflightDurationSeconds
         exportDurationSeconds = $ExportDurationSeconds
         preflight = $PreflightDocument
+        bridge = $BridgeDocument
         contract = $ContractDocument
         export = $ExportDocument
         failures = @($Failures)
+    }
+}
+
+$bridgeDocument = $null
+$startedBridgeProcessId = $null
+$bridgeStoppedAfterCapture = $false
+if ($useWorldStateUrl -and -not $SkipBridgeReadiness) {
+    $bridgeArguments = @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $bridgeScript,
+        '-BaseUrl',
+        (Get-BaseUrlFromWorldStateUrl -Url $WorldStateUrl),
+        '-ChromaLinkRoot',
+        $ChromaLinkRoot,
+        '-WaitSeconds',
+        $BridgeWaitSeconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-RequestTimeoutSeconds',
+        $BridgeRequestTimeoutSeconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-Json'
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($BridgeProject)) {
+        $bridgeArguments += @('-BridgeProject', $BridgeProject)
+    }
+
+    if ($StartBridge) {
+        $bridgeArguments += @('-StartBridge', '-KeepRunning')
+    }
+
+    $bridgeRun = Invoke-NativeCommand -Arguments $bridgeArguments
+    $bridgeDocument = ConvertFrom-JsonOrNull -Text $bridgeRun.Output
+    Write-Utf8TextAtomic -Path $BridgeReadinessFile -Content $bridgeRun.Output
+
+    if ($null -ne $bridgeDocument -and $bridgeDocument.startedByScript -eq $true -and $null -ne $bridgeDocument.bridgeProcessId) {
+        $startedBridgeProcessId = [int]$bridgeDocument.bridgeProcessId
+    }
+
+    if ($bridgeRun.ExitCode -ne 0 -or $null -eq $bridgeDocument -or [string]$bridgeDocument.status -ne 'pass') {
+        if ($null -ne $startedBridgeProcessId) {
+            if (Stop-StartedBridgeIfNeeded -ProcessId $startedBridgeProcessId) {
+                $bridgeStoppedAfterCapture = $true
+            }
+        }
+
+        $failures = [System.Collections.Generic.List[string]]::new()
+        if ($bridgeRun.ExitCode -ne 0) {
+            $failures.Add("ChromaLink HTTP bridge readiness exited $($bridgeRun.ExitCode).") | Out-Null
+        }
+        if ($null -eq $bridgeDocument) {
+            $failures.Add('ChromaLink HTTP bridge readiness output could not be parsed.') | Out-Null
+        }
+        else {
+            foreach ($failure in @($bridgeDocument.failures)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$failure)) {
+                    $failures.Add([string]$failure) | Out-Null
+                }
+            }
+        }
+
+        $summary = New-Summary -Status 'bridge-failed' -Fresh $false -Exported $false -PreflightDocument $null -BridgeDocument $bridgeDocument -ContractDocument $null -ExportDocument $null -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $failures.ToArray()
+        Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
+
+        if ($Json) {
+            $summary | ConvertTo-Json -Depth 64
+        }
+        else {
+            Write-Host 'ChromaLink live coord capture: bridge-failed' -ForegroundColor Red
+            foreach ($failure in @($summary.failures)) {
+                Write-Host ("- {0}" -f $failure) -ForegroundColor Red
+            }
+        }
+
+        exit 1
     }
 }
 
@@ -306,7 +447,13 @@ if ($preflightRun.ExitCode -ne 0 -or $null -eq $preflightDocument -or [string]$p
         }
     }
 
-    $summary = New-Summary -Status 'preflight-failed' -Fresh $false -Exported $false -PreflightDocument $preflightDocument -ContractDocument $null -ExportDocument $null -Failures $failures.ToArray()
+    if ($null -ne $startedBridgeProcessId) {
+        if (Stop-StartedBridgeIfNeeded -ProcessId $startedBridgeProcessId) {
+            $bridgeStoppedAfterCapture = $true
+        }
+    }
+
+    $summary = New-Summary -Status 'preflight-failed' -Fresh $false -Exported $false -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $null -ExportDocument $null -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $failures.ToArray()
     Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
     if ($Json) {
@@ -368,7 +515,13 @@ if ($useWorldStateInput -and -not $SkipContractPreflight) {
             }
         }
 
-        $summary = New-Summary -Status 'contract-failed' -Fresh $true -Exported $false -PreflightDocument $preflightDocument -ContractDocument $contractDocument -ExportDocument $null -Failures $failures.ToArray()
+        if ($null -ne $startedBridgeProcessId) {
+            if (Stop-StartedBridgeIfNeeded -ProcessId $startedBridgeProcessId) {
+                $bridgeStoppedAfterCapture = $true
+            }
+        }
+
+        $summary = New-Summary -Status 'contract-failed' -Fresh $true -Exported $false -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $null -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $failures.ToArray()
         Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
         if ($Json) {
@@ -451,7 +604,13 @@ if (-not $exported -and (Test-Path -LiteralPath $OutputFile)) {
     $summaryFailures.Add('Rejected live-coords.ndjson was removed because export did not pass freshness checks.') | Out-Null
 }
 
-$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -RemovedOutputFile $removedOutputFile -Failures $summaryFailures.ToArray()
+if ($null -ne $startedBridgeProcessId) {
+    if (Stop-StartedBridgeIfNeeded -ProcessId $startedBridgeProcessId) {
+        $bridgeStoppedAfterCapture = $true
+    }
+}
+
+$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -RemovedOutputFile $removedOutputFile -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $summaryFailures.ToArray()
 Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
 if ($Json) {

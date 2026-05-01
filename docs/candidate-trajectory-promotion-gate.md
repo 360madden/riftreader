@@ -131,16 +131,18 @@ This wrapper writes:
 
 | Artifact | Purpose |
 |---|---|
+| `chromalink-http-bridge-readiness.json` | HTTP bridge `/api/v1`, `/health`, `/ready`, and schema reachability proof for URL-based world-state captures |
 | `chromalink-world-state-contract.json` | Contract/schema proof for world-state captures; omitted for raw snapshot fallback |
 | `chromalink-freshness-preflight.json` | Freshness proof before export |
 | `live-coords.ndjson` | Exported live coordinate truth stream |
 | `chromalink-live-coords-export-result.json` | Lower-level export result |
 | `chromalink-live-coords-capture-summary.json` | Wrapper summary |
 
-The wrapper automatically runs the contract/schema preflight for world-state
-captures and records it in the bundle. You can still run it separately after
-ChromaLink updates or before the first capture in a session to confirm the HTTP
-manifest, schema, and world-state shape still match RiftReader expectations.
+The wrapper automatically runs bridge readiness and contract/schema preflights
+for URL-based world-state captures and records them in the bundle. You can still
+run either check separately after ChromaLink updates or before the first capture
+in a session to confirm the HTTP bridge and schema still match RiftReader
+expectations.
 
 If the wrapper result is `preflight-failed`, it does not write
 `live-coords.ndjson`; restart or repair the telemetry source first. The lower

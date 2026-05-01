@@ -202,6 +202,7 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-chromalink-
 $snapshot = Join-Path $tempRoot 'chromalink-live-telemetry.json'
 $freshBundle = Join-Path $tempRoot 'fresh-bundle'
 $worldStateBundle = Join-Path $tempRoot 'world-state-bundle'
+$bridgeFailedBundle = Join-Path $tempRoot 'bridge-failed-bundle'
 $staleBundle = Join-Path $tempRoot 'stale-bundle'
 $manifest = Join-Path $tempRoot 'manifest.json'
 $schema = Join-Path $tempRoot 'schema.json'
@@ -243,6 +244,20 @@ try {
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $worldStateBundle 'chromalink-world-state-contract.json')) -Message 'World-state contract preflight file missing.'
     Assert-Equal -Actual ([string]$worldStateResult.contract.status) -Expected 'pass' -Message 'World-state contract status mismatch.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $worldStateBundle 'live-coords.ndjson')) -Message 'World-state live-coords.ndjson missing.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $worldStateBundle 'chromalink-http-bridge-readiness.json'))) -Message 'World-state file capture should not write HTTP bridge readiness.'
+
+    $bridgeFailedOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $captureScript `
+        -WorldStateUrl 'http://127.0.0.1:1/api/v1/riftreader/world-state' `
+        -BundleDirectory $bridgeFailedBundle `
+        -BridgeWaitSeconds 0 `
+        -BridgeRequestTimeoutSeconds 1 `
+        -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -ne 0) -Message 'Expected unreachable ChromaLink bridge capture to fail.'
+    $bridgeFailedResult = ($bridgeFailedOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 64
+    Assert-Equal -Actual ([string]$bridgeFailedResult.status) -Expected 'bridge-failed' -Message 'Bridge-failed capture status mismatch.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'chromalink-http-bridge-readiness.json')) -Message 'Bridge readiness artifact missing for bridge failure.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'chromalink-freshness-preflight.json'))) -Message 'Bridge-failed capture should stop before freshness preflight.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'live-coords.ndjson'))) -Message 'Bridge-failed capture should not write live-coords.ndjson.'
 
     $staleTime = [DateTimeOffset]::UtcNow.AddSeconds(-10)
     Write-Snapshot -Path $snapshot -GeneratedAtUtc $staleTime -ObservedAtUtc $staleTime -Fresh $true -Stale $false
