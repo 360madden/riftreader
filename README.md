@@ -483,6 +483,7 @@ See:
 
 - `C:\RIFT MODDING\RiftReader\docs\offline-session-workflow.md`
 - `C:\RIFT MODDING\RiftReader\docs\offline-session-troubleshooting.md`
+- `C:\RIFT MODDING\RiftReader\docs\candidate-trajectory-promotion-gate.md`
 
 Capture the first live coord-triplet access and validate the instruction as a
 module-local pattern candidate:
