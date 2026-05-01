@@ -65,6 +65,25 @@ Only use this when ChromaLink is already producing a fresh snapshot. This reads
 the ChromaLink JSON snapshot and writes `live-coords.ndjson`; it does not focus
 Rift or send input.
 
+Preflight freshness first:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-live-telemetry.ps1" -Json
+```
+
+To wait passively for the source to become fresh:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-live-telemetry.ps1" `
+  -Watch `
+  -DurationSeconds 30 `
+  -IntervalMilliseconds 250 `
+  -Json
+```
+
+The expected pass state is `status=pass` and `fresh=true`. `status=stale` or
+`status=missing` means do not export/use the snapshot as live truth yet.
+
 ```powershell
 $bundle = Join-Path "C:\RIFT MODDING\RiftReader\scripts\captures" ("chromalink-live-coords-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $liveCoords = Join-Path $bundle 'live-coords.ndjson'
