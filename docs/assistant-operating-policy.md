@@ -68,6 +68,24 @@ If any safety question is uncertain, treat as non-spark and route to
 
 Use `docs/model-routing-template.md` when you want a more structured review.
 
+## Cross-repo provider/consumer rule
+
+RiftReader may consume ChromaLink, but a RiftReader-focused task must not
+silently mutate the ChromaLink provider repo.
+
+| Situation | Required behavior |
+|---|---|
+| Need existing ChromaLink world-state data | Consume the documented local HTTP/API/schema/client surface only |
+| Need a new ChromaLink field or endpoint | Write a request with `docs\chromalink-change-request-template.md` |
+| User explicitly asks for a ChromaLink edit pass | Switch context deliberately, read the latest ChromaLink handoff, and validate/push in the ChromaLink repo |
+| Both repos must change | Make ChromaLink provider contract changes first, then integrate the explicit contract in RiftReader |
+| ChromaLink tests pass | Still run/record RiftReader-side validation before claiming RiftReader integration works |
+
+Do not use `spark` for hidden cross-repo behavior changes. Spark is acceptable
+for read-only contract review or docs-only coordination notes, but not for
+provider schema/API/client changes unless the user explicitly scopes the change
+as low-risk and reversible.
+
 ## Recommendation list format
 
 When recommendations add real value, use a **Top 10 recommended next actions**

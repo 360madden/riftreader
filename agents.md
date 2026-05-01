@@ -107,6 +107,23 @@ and prefer `gpt-5.4` if any “No-spark” condition is true.
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
 
+## Cross-repo ChromaLink boundary
+
+- Treat ChromaLink as an external **provider** repo and RiftReader as a
+  **consumer** unless the user explicitly authorizes a ChromaLink edit pass.
+- Do not directly modify
+  `C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\AddOns\ChromaLink` from a
+  RiftReader-focused task to add fields, change schemas, adjust frame rotation,
+  or update the typed client.
+- If RiftReader needs more ChromaLink data, write a ChromaLink change request
+  instead of silently editing the provider. Use
+  `docs\chromalink-change-request-template.md`.
+- A RiftReader-side integration may consume only explicit ChromaLink surfaces:
+  `/api/v1/riftreader/world-state`, its schema endpoint, the HTTP bridge
+  manifest, or a published `ChromaLink.Client` version.
+- Never claim RiftReader integration is complete because ChromaLink provider
+  tests passed; record separate RiftReader-side validation.
+
 ## Live movement / polling invariant
 
 - For any **movement polling**, **forward-hold proof**, or other live

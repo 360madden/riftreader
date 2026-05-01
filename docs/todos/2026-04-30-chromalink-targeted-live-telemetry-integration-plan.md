@@ -6,6 +6,11 @@ Scope: `C:\RIFT MODDING\RiftReader` using selected patterns from
 Constraint: **Do not wholesale-merge ChromaLink. Reuse/adapt only the live
 telemetry relay parts needed by RiftReader.**
 
+Cross-repo authorization: **Do not edit ChromaLink from this RiftReader plan
+unless the user explicitly authorizes a ChromaLink edit pass.** If RiftReader
+needs new provider data, file a ChromaLink change request first, then consume the
+published ChromaLink contract after provider validation/handoff.
+
 2026-05-01 update: ChromaLink `main` now exposes a dedicated read-only
 RiftReader world-state HTTP surface:
 
@@ -52,6 +57,7 @@ produce the coordinates.
 | Keep SavedVariables as backup | They are valuable after `/reloadui`/logout/UI save, but not live IPC |
 | Keep memory proof separate | A live addon relay proves observed game state, not internal memory provenance |
 | Expand later only after player position is stable | Avoids overbuilding and keeps the first integration testable |
+| Do not silently mutate ChromaLink | Provider-side endpoint/schema/client/rotation changes belong in ChromaLink after an explicit change request or user-authorized ChromaLink edit pass |
 
 ## ChromaLink parts to reuse or adapt
 
