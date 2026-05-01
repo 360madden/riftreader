@@ -2,6 +2,8 @@
 param(
     [string]$SnapshotPath = (Join-Path $env:LOCALAPPDATA 'ChromaLink\DesktopDotNet\out\chromalink-live-telemetry.json'),
 
+    [string]$WorldStateUrl = '',
+
     [string]$BundleDirectory,
 
     [string]$OutputFile,
@@ -68,6 +70,8 @@ if ($MaxSamples -lt 0) {
 if ($MaxFreshAgeMilliseconds -lt 0) {
     throw 'MaxFreshAgeMilliseconds must be zero or greater.'
 }
+
+$useWorldStateUrl = -not [string]::IsNullOrWhiteSpace($WorldStateUrl)
 
 if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {
     $BundleDirectory = Join-Path (Join-Path $PSScriptRoot 'captures') ('chromalink-live-coords-{0}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -189,6 +193,8 @@ function New-Summary {
         status = $Status
         fresh = $Fresh
         exported = $Exported
+        inputMode = $(if ($useWorldStateUrl) { 'world-state-url' } else { 'snapshot-file' })
+        worldStateUrl = $(if ($useWorldStateUrl) { $WorldStateUrl } else { $null })
         snapshotPath = [System.IO.Path]::GetFullPath($SnapshotPath)
         bundleDirectory = $resolvedBundleDirectory
         outputFile = [System.IO.Path]::GetFullPath($OutputFile)
@@ -212,14 +218,19 @@ $preflightArguments = @(
     'Bypass',
     '-File',
     $freshnessScript,
-    '-SnapshotPath',
-    $SnapshotPath,
     '-MaxFreshAgeMilliseconds',
     $MaxFreshAgeMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
     '-IntervalMilliseconds',
     $PreflightIntervalMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
     '-Json'
 )
+
+if ($useWorldStateUrl) {
+    $preflightArguments += @('-WorldStateUrl', $WorldStateUrl)
+}
+else {
+    $preflightArguments += @('-SnapshotPath', $SnapshotPath)
+}
 
 if ($PreflightDurationSeconds -gt 0) {
     $preflightArguments += @(
@@ -272,8 +283,6 @@ $exportArguments = @(
     'Bypass',
     '-File',
     $exportScript,
-    '-SnapshotPath',
-    $SnapshotPath,
     '-OutputFile',
     $OutputFile,
     '-IntervalMilliseconds',
@@ -282,6 +291,13 @@ $exportArguments = @(
     $MaxFreshAgeMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
     '-Json'
 )
+
+if ($useWorldStateUrl) {
+    $exportArguments += @('-WorldStateUrl', $WorldStateUrl)
+}
+else {
+    $exportArguments += @('-SnapshotPath', $SnapshotPath)
+}
 
 if ($ExportDurationSeconds -gt 0) {
     $exportArguments += @(

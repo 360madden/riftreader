@@ -6,6 +6,20 @@ Scope: `C:\RIFT MODDING\RiftReader` using selected patterns from
 Constraint: **Do not wholesale-merge ChromaLink. Reuse/adapt only the live
 telemetry relay parts needed by RiftReader.**
 
+2026-05-01 update: ChromaLink `main` now exposes a dedicated read-only
+RiftReader world-state HTTP surface:
+
+| Surface | Path / package | Integration status |
+|---|---|---|
+| HTTP world state | `GET http://127.0.0.1:7337/api/v1/riftreader/world-state` | **Preferred RiftReader ingestion surface** when the bridge is running |
+| HTTP schema | `GET http://127.0.0.1:7337/api/v1/riftreader/world-state/schema` | Contract discovery / drift guard |
+| Typed .NET client | `DesktopDotNet/ChromaLink.Client` | Useful reference; do not add a hard external project dependency until needed |
+| Raw rolling snapshot | `%LOCALAPPDATA%\ChromaLink\DesktopDotNet\out\chromalink-live-telemetry.json` | Diagnostic / fallback only |
+
+RiftReader scripts now support the new world-state path via `-WorldStateUrl`
+for live bridge reads and `-WorldStatePath` for offline contract fixtures while
+retaining the legacy `-SnapshotPath` flow.
+
 ## TL;DR
 
 ChromaLink is primarily a **live addon telemetry relay**. RiftReader should use
@@ -22,7 +36,8 @@ produce the coordinates.
 
 | Channel | Role |
 |---|---|
-| ChromaLink-style relay | Live API-derived addon telemetry: player position first, other player/target data later; independent of RiftReader memory-coordinate discovery |
+| ChromaLink RiftReader world-state HTTP endpoint | Preferred read-only local app surface for live player/target/follow-unit position/status |
+| ChromaLink-style relay / raw snapshot | Live API-derived addon telemetry: player position first, other player/target data later; independent of RiftReader memory-coordinate discovery |
 | RiftReader native memory reader | Candidate discovery, memory proof, source/provenance work |
 | SavedVariables | Backup/archive/post-`/reloadui` snapshot only |
 | Metadata/logging | Prevent stale truth, ambiguous timing, and bad promotion |
@@ -32,7 +47,7 @@ produce the coordinates.
 | Decision | Rationale |
 |---|---|
 | Do not copy the full ChromaLink project into RiftReader | ChromaLink includes combat/RiftMeter/helper scope that is not needed for coord discovery |
-| Start by consuming or adapting only `playerPosition` telemetry | Coordinates are the current blocker and easiest live truth feed to validate |
+| Start by consuming the RiftReader world-state endpoint, then fall back to raw `playerPosition` telemetry only for diagnostics | Coordinates are the current blocker; the new endpoint avoids hand-parsing the full diagnostic snapshot |
 | Treat ChromaLink position as API truth, not memory proof | It does not require a pre-existing memory anchor, but it also does not prove internal memory provenance by itself |
 | Keep SavedVariables as backup | They are valuable after `/reloadui`/logout/UI save, but not live IPC |
 | Keep memory proof separate | A live addon relay proves observed game state, not internal memory provenance |
@@ -102,11 +117,11 @@ adapting code into RiftReader.
 
 | Task | Output | Acceptance |
 |---|---|---|
-| Inspect live `playerPosition` telemetry path | notes or code map | Confirm current ChromaLink feed reads `Inspect.Unit.Detail("player").coordX/coordY/coordZ` and exposes X/Y/Z, sequence, freshness |
-| Capture ChromaLink player position while moving | `chromalink-live-coords.ndjson` | Coordinates update without `/reloadui` |
+| Inspect HTTP world-state path and schema | notes or code map | Confirm `/api/v1/riftreader/world-state` exposes `player.position.x/y/z`, freshness, readiness, source contract, and limitations |
+| Capture ChromaLink player position while moving | `chromalink-live-coords.ndjson` | Coordinates update through `-WorldStateUrl` without `/reloadui` |
 | Compare ChromaLink coords to visible ReaderBridge or PlayerCoords overlay | `chromalink-overlay-alignment.json` | Values align within expected display precision/timing; ReaderBridge already reads API coords at runtime, and PlayerCoords is optional visual/manual validation only, not a repo dependency or SavedVariables-backed live feed |
 | Record sequence/freshness behavior | `chromalink-freshness-check.json` | Detect repeated, stale, or dropped frames |
-| Use ChromaLink data as `truthSurface` for one bundle | `truth-surface.json` | Analysis uses `chromalink-live-telemetry`, not SavedVariables |
+| Use ChromaLink data as `truthSurface` for one bundle | `truth-surface.json` | Analysis uses `chromalink-riftreader-world-state` / `chromalink-live-telemetry`, not SavedVariables |
 
 ## Phase 3 — Build ReaderBridgeLive / ChromaLink-lite in RiftReader
 

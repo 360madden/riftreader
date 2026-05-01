@@ -80,10 +80,71 @@ function Write-Snapshot {
     Set-Content -LiteralPath $Path -Value ($document | ConvertTo-Json -Depth 16) -Encoding UTF8
 }
 
+function Write-WorldState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$ObservedAtUtc,
+
+        [double]$SnapshotAgeSeconds = 0.1,
+
+        [bool]$Fresh = $true,
+
+        [bool]$Stale = $false
+    )
+
+    $document = [ordered]@{
+        ok = $Fresh
+        artifactKind = 'riftreader-world-state'
+        contract = [ordered]@{
+            name = 'chromalink-riftreader-world-state'
+            schemaVersion = 1
+        }
+        sourceContract = [ordered]@{
+            name = 'chromalink-live-telemetry'
+            schemaVersion = 2
+        }
+        ready = $Fresh
+        healthy = $Fresh
+        fresh = $Fresh
+        stale = $Stale
+        snapshotAgeSeconds = $SnapshotAgeSeconds
+        snapshotPath = 'C:\fake\chromalink-live-telemetry.json'
+        navigation = [ordered]@{
+            playerPositionAvailable = $Fresh
+            targetPositionAvailable = $false
+            followUnitPositionsAvailable = $false
+            headingAvailable = $false
+            facingAvailable = $false
+            routeAvailable = $false
+            controlAvailable = $false
+            limitations = @()
+        }
+        player = [ordered]@{
+            position = [ordered]@{
+                x = 4.0
+                y = 5.0
+                z = 6.0
+                observedAtUtc = $ObservedAtUtc.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+                ageMs = [Math]::Round($SnapshotAgeSeconds * 1000.0, 3)
+                fresh = $Fresh
+                stale = $Stale
+            }
+        }
+        target = $null
+        followUnits = @()
+    }
+
+    Set-Content -LiteralPath $Path -Value ($document | ConvertTo-Json -Depth 32) -Encoding UTF8
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $script = Join-Path $repoRoot 'scripts\test-chromalink-live-telemetry.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-chromalink-freshness-' + [Guid]::NewGuid().ToString('N'))
 $snapshot = Join-Path $tempRoot 'chromalink-live-telemetry.json'
+$worldState = Join-Path $tempRoot 'chromalink-riftreader-world-state.json'
 
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
@@ -95,6 +156,14 @@ try {
     $freshResult = ($freshOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
     Assert-Equal -Actual ([string]$freshResult.status) -Expected 'pass' -Message 'Fresh status mismatch.'
     Assert-Equal -Actual ([bool]$freshResult.fresh) -Expected $true -Message 'Fresh flag mismatch.'
+
+    Write-WorldState -Path $worldState -ObservedAtUtc $now -SnapshotAgeSeconds 0.1 -Fresh $true -Stale $false
+    $worldStateOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script -WorldStatePath $worldState -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected fresh ChromaLink RiftReader world-state to pass: {0}" -f ($worldStateOutput -join [Environment]::NewLine))
+    $worldStateResult = ($worldStateOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
+    Assert-Equal -Actual ([string]$worldStateResult.status) -Expected 'pass' -Message 'World-state status mismatch.'
+    Assert-Equal -Actual ([string]$worldStateResult.inputMode) -Expected 'world-state-file' -Message 'World-state input mode mismatch.'
+    Assert-Equal -Actual ([double]$worldStateResult.x) -Expected 4.0 -Message 'World-state X mismatch.'
 
     $staleTime = [DateTimeOffset]::UtcNow.AddSeconds(-10)
     Write-Snapshot -Path $snapshot -GeneratedAtUtc $staleTime -ObservedAtUtc $staleTime -Fresh $true -Stale $false

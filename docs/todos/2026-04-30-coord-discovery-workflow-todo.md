@@ -124,6 +124,13 @@ The run should be rejected if movement is too small, recorder starts late, live 
 Use only the live telemetry relay parts of ChromaLink. Do not wholesale-port
 combat/RiftMeter/helper complexity into RiftReader.
 
+2026-05-01 update: ChromaLink now has a dedicated read-only RiftReader HTTP
+projection at `http://127.0.0.1:7337/api/v1/riftreader/world-state`, plus a
+JSON schema endpoint at `/api/v1/riftreader/world-state/schema` and a typed
+`.NET` client package under `DesktopDotNet/ChromaLink.Client`. Prefer this
+world-state endpoint over hand-parsing the full raw snapshot when the bridge is
+running. Keep the raw snapshot path as diagnostics/fallback only.
+
 ChromaLink's current `playerPosition` relay is an independent addon-API truth
 surface: it reads `Inspect.Unit.Detail("player").coordX/coordY/coordZ` at
 runtime and emits those values through its telemetry frame. It does **not**
@@ -133,8 +140,8 @@ and proof work, not as a prerequisite for generating the feed.
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Prototype consuming existing ChromaLink `playerPosition` telemetry. | Fastest way to prove live API-derived coords without `/reloadui` or pre-discovered memory coordinates. |
-| 2 | Emit `live-coords.ndjson` from ChromaLink-style telemetry. | Gives the memory scorer a clean live truth input. |
+| 1 | Prototype consuming ChromaLink `/api/v1/riftreader/world-state`. | Fastest supported app-facing path to live API-derived coords without `/reloadui` or pre-discovered memory coordinates. |
+| 2 | Emit `live-coords.ndjson` from ChromaLink world-state / telemetry. | Gives the memory scorer a clean live truth input. |
 | 3 | Add sequence/freshness/age/drop metrics to live coord logs. | Detects stale or repeated frames. |
 | 4 | Compare ChromaLink telemetry to a visible ReaderBridge or PlayerCoords overlay for one run. | Validates that the relay matches visible game truth. ReaderBridge already tracks API coords at runtime; PlayerCoords is optional visual/manual validation only. Do not port PlayerCoords into RiftReader or treat addon SavedVariables output as live IPC. |
 | 5 | Add candidate scoring against `live-coords.ndjson`. | Converts live telemetry into coord discovery evidence. |

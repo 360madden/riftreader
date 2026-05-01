@@ -63,20 +63,30 @@ The runner also writes `promotion-gate-summary.json` and
 
 ## Passive ChromaLink live-coordinate export
 
-Only use this when ChromaLink is already producing a fresh snapshot. This reads
-the ChromaLink JSON snapshot and writes `live-coords.ndjson`; it does not focus
-Rift or send input.
+Only use this when ChromaLink is already producing fresh telemetry. This reads
+the preferred ChromaLink RiftReader world-state HTTP endpoint, or the raw JSON
+snapshot as a fallback, and writes `live-coords.ndjson`; it does not focus Rift
+or send input.
+
+Preferred live endpoint:
+
+```powershell
+$worldStateUrl = 'http://127.0.0.1:7337/api/v1/riftreader/world-state'
+```
 
 Preflight freshness first:
 
 ```powershell
-pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-live-telemetry.ps1" -Json
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-live-telemetry.ps1" `
+  -WorldStateUrl $worldStateUrl `
+  -Json
 ```
 
 To wait passively for the source to become fresh:
 
 ```powershell
 pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\test-chromalink-live-telemetry.ps1" `
+  -WorldStateUrl $worldStateUrl `
   -Watch `
   -DurationSeconds 30 `
   -IntervalMilliseconds 250 `
@@ -84,13 +94,15 @@ pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReade
 ```
 
 The expected pass state is `status=pass` and `fresh=true`. `status=stale` or
-`status=missing` means do not export/use the snapshot as live truth yet.
+`status=missing` means do not export/use the endpoint or snapshot as live truth
+yet.
 
 Preferred capture command:
 
 ```powershell
 $bundle = Join-Path "C:\RIFT MODDING\RiftReader\scripts\captures" ("chromalink-live-coords-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
 pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-chromalink-live-coords.ps1" `
+  -WorldStateUrl $worldStateUrl `
   -BundleDirectory $bundle `
   -PreflightDurationSeconds 30 `
   -ExportDurationSeconds 30 `
@@ -111,6 +123,17 @@ If the wrapper result is `preflight-failed`, it does not write
 `live-coords.ndjson`; restart or repair the telemetry source first. The lower
 level `export-chromalink-live-coords.ps1` remains available for diagnostics,
 but the wrapper is safer for normal capture bundles.
+
+Raw snapshot fallback:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\capture-chromalink-live-coords.ps1" `
+  -SnapshotPath "$env:LOCALAPPDATA\ChromaLink\DesktopDotNet\out\chromalink-live-telemetry.json" `
+  -BundleDirectory $bundle `
+  -PreflightDurationSeconds 30 `
+  -ExportDurationSeconds 30 `
+  -Json
+```
 
 ## Future live bundle gate command
 

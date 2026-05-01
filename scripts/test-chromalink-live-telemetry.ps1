@@ -2,6 +2,10 @@
 param(
     [string]$SnapshotPath = (Join-Path $env:LOCALAPPDATA 'ChromaLink\DesktopDotNet\out\chromalink-live-telemetry.json'),
 
+    [string]$WorldStateUrl = '',
+
+    [string]$WorldStatePath = '',
+
     [int]$MaxFreshAgeMilliseconds = 2000,
 
     [switch]$Watch,
@@ -30,6 +34,12 @@ if ($IntervalMilliseconds -lt 50) {
 
 if ($DurationSeconds -lt 0) {
     throw 'DurationSeconds must be zero or greater.'
+}
+
+$useWorldStateUrl = -not [string]::IsNullOrWhiteSpace($WorldStateUrl)
+$useWorldStatePath = -not [string]::IsNullOrWhiteSpace($WorldStatePath)
+if ($useWorldStateUrl -and $useWorldStatePath) {
+    throw 'Specify only one of WorldStateUrl or WorldStatePath.'
 }
 
 function ConvertTo-DateTimeOffsetOrNull {
@@ -259,18 +269,208 @@ function Test-SnapshotFreshness {
     }
 }
 
+function Read-WorldStateDocument {
+    param(
+        [string]$Url,
+        [string]$Path
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+        if (-not (Test-Path -LiteralPath $resolvedPath)) {
+            return [pscustomobject]@{
+                Exists = $false
+                InputMode = 'world-state-file'
+                WorldStatePath = $resolvedPath
+                WorldStateUrl = $null
+                StatusCode = 503
+                LastWriteTimeUtc = $null
+                Document = $null
+            }
+        }
+
+        $file = Get-Item -LiteralPath $resolvedPath
+        return [pscustomobject]@{
+            Exists = $true
+            InputMode = 'world-state-file'
+            WorldStatePath = $resolvedPath
+            WorldStateUrl = $null
+            StatusCode = 200
+            LastWriteTimeUtc = [DateTimeOffset]::new($file.LastWriteTimeUtc).ToUniversalTime()
+            Document = Get-Content -LiteralPath $resolvedPath -Raw | ConvertFrom-Json -Depth 64
+        }
+    }
+
+    $response = Invoke-WebRequest -Method Get -Uri $Url -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 5
+    $document = if ([string]::IsNullOrWhiteSpace($response.Content)) { $null } else { $response.Content | ConvertFrom-Json -Depth 64 }
+    return [pscustomobject]@{
+        Exists = $true
+        InputMode = 'world-state-url'
+        WorldStatePath = $null
+        WorldStateUrl = [string]$Url
+        StatusCode = [int]$response.StatusCode
+        LastWriteTimeUtc = $null
+        Document = $document
+    }
+}
+
+function Test-WorldStateFreshness {
+    param(
+        [string]$Url,
+        [string]$Path
+    )
+
+    $nowUtc = [DateTimeOffset]::UtcNow
+    $reader = Read-WorldStateDocument -Url $Url -Path $Path
+    $failures = [System.Collections.Generic.List[string]]::new()
+
+    if ($reader.Exists -ne $true -or $null -eq $reader.Document) {
+        $location = if (-not [string]::IsNullOrWhiteSpace($Path)) { $reader.WorldStatePath } else { $Url }
+        return [ordered]@{
+            schemaVersion = $schemaVersion
+            mode = 'chromalink-live-telemetry-freshness'
+            inputMode = $reader.InputMode
+            status = 'missing'
+            snapshotPath = $null
+            worldStateUrl = $reader.WorldStateUrl
+            worldStatePath = $reader.WorldStatePath
+            exists = $false
+            generatedAtUtc = $nowUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+            maxFreshAgeMs = $MaxFreshAgeMilliseconds
+            fresh = $false
+            stale = $true
+            failures = @("ChromaLink RiftReader world-state not found or empty: $location")
+        }
+    }
+
+    $document = $reader.Document
+    $position = Get-NestedValue -InputObject $document -Path 'player.position'
+    $navigationPlayerAvailable = Get-NestedValue -InputObject $document -Path 'navigation.playerPositionAvailable'
+
+    if ($null -eq $position) {
+        $failures.Add('ChromaLink RiftReader world-state does not contain player.position.') | Out-Null
+    }
+    else {
+        foreach ($axis in @('x', 'y', 'z')) {
+            if ($null -eq (ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $position -Name $axis))) {
+                $failures.Add("ChromaLink RiftReader world-state player.position is missing numeric $axis.") | Out-Null
+            }
+        }
+    }
+    if ($navigationPlayerAvailable -ne $true) {
+        $failures.Add("ChromaLink RiftReader world-state navigation.playerPositionAvailable is not true; value=$navigationPlayerAvailable.") | Out-Null
+    }
+
+    $rootOk = Get-PropertyValue -InputObject $document -Name 'ok'
+    $rootReady = Get-PropertyValue -InputObject $document -Name 'ready'
+    $rootFresh = Get-PropertyValue -InputObject $document -Name 'fresh'
+    $rootStale = Get-PropertyValue -InputObject $document -Name 'stale'
+    if ($rootOk -ne $true) {
+        $failures.Add("ChromaLink RiftReader world-state ok is not true; value=$rootOk.") | Out-Null
+    }
+    if ($rootReady -ne $true) {
+        $failures.Add("ChromaLink RiftReader world-state ready is not true; value=$rootReady.") | Out-Null
+    }
+    if ($rootFresh -ne $true -or $rootStale -eq $true) {
+        $failures.Add("ChromaLink RiftReader world-state is marked stale by source; fresh=$rootFresh stale=$rootStale.") | Out-Null
+    }
+
+    $snapshotAgeSeconds = ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $document -Name 'snapshotAgeSeconds')
+    $snapshotAgeMs = if ($null -ne $snapshotAgeSeconds) {
+        [Math]::Round($snapshotAgeSeconds * 1000.0, 3)
+    }
+    elseif ($null -ne $reader.LastWriteTimeUtc) {
+        [Math]::Round(($nowUtc - $reader.LastWriteTimeUtc).TotalMilliseconds, 3)
+    }
+    else {
+        $null
+    }
+    $snapshotWithinFreshWindow = if ($null -ne $snapshotAgeMs) { $snapshotAgeMs -le $MaxFreshAgeMilliseconds } else { $false }
+
+    $observedAtUtc = ConvertTo-DateTimeOffsetOrNull (Get-PropertyValue -InputObject $position -Name 'observedAtUtc')
+    $ageMs = ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $position -Name 'ageMs')
+    if ($null -eq $ageMs -and $null -ne $observedAtUtc) {
+        $ageMs = [Math]::Round(($nowUtc - $observedAtUtc).TotalMilliseconds, 3)
+    }
+
+    $sourceFrameFresh = Get-PropertyValue -InputObject $position -Name 'fresh'
+    $sourceFrameStale = Get-PropertyValue -InputObject $position -Name 'stale'
+    $frameWithinFreshWindow = if ($null -ne $ageMs) { $ageMs -le $MaxFreshAgeMilliseconds } else { $null }
+
+    if ($null -eq $snapshotAgeMs) {
+        $failures.Add('World-state snapshot age is unavailable.') | Out-Null
+    }
+    elseif ($snapshotWithinFreshWindow -eq $false) {
+        $failures.Add("World-state snapshot age exceeds MaxFreshAgeMilliseconds; snapshotAgeMs=$snapshotAgeMs maxFreshAgeMs=$MaxFreshAgeMilliseconds.") | Out-Null
+    }
+    if ($frameWithinFreshWindow -eq $false) {
+        $failures.Add("Player-position frame age exceeds MaxFreshAgeMilliseconds; ageMs=$ageMs maxFreshAgeMs=$MaxFreshAgeMilliseconds.") | Out-Null
+    }
+    if ($sourceFrameFresh -eq $false -or $sourceFrameStale -eq $true) {
+        $failures.Add("Player-position frame is marked stale by source; fresh=$sourceFrameFresh stale=$sourceFrameStale.") | Out-Null
+    }
+
+    $fresh = $failures.Count -eq 0
+
+    return [ordered]@{
+        schemaVersion = $schemaVersion
+        mode = 'chromalink-live-telemetry-freshness'
+        inputMode = $reader.InputMode
+        status = if ($fresh) { 'pass' } else { 'stale' }
+        snapshotPath = [string](Get-PropertyValue -InputObject $document -Name 'snapshotPath')
+        worldStateUrl = $reader.WorldStateUrl
+        worldStatePath = $reader.WorldStatePath
+        exists = $true
+        generatedAtUtc = $nowUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        sourceSnapshotLastWriteUtc = $(if ($null -ne $reader.LastWriteTimeUtc) { $reader.LastWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) } else { $null })
+        snapshotGeneratedAtUtc = $null
+        snapshotAgeMs = $snapshotAgeMs
+        snapshotWithinFreshWindow = $snapshotWithinFreshWindow
+        observedAtUtc = Format-UtcOrNull $observedAtUtc
+        ageMs = $ageMs
+        maxFreshAgeMs = $MaxFreshAgeMilliseconds
+        sourceFrameFresh = $sourceFrameFresh
+        sourceFrameStale = $sourceFrameStale
+        frameWithinFreshWindow = $frameWithinFreshWindow
+        fresh = $fresh
+        stale = -not $fresh
+        sourceContractName = [string](Get-NestedValue -InputObject $document -Path 'sourceContract.name')
+        sourceContractSchemaVersion = ConvertTo-IntOrNull (Get-NestedValue -InputObject $document -Path 'sourceContract.schemaVersion')
+        worldStateContractName = [string](Get-NestedValue -InputObject $document -Path 'contract.name')
+        worldStateContractSchemaVersion = ConvertTo-IntOrNull (Get-NestedValue -InputObject $document -Path 'contract.schemaVersion')
+        aggregateReady = $rootReady
+        aggregateHealthy = Get-PropertyValue -InputObject $document -Name 'healthy'
+        aggregateStale = $rootStale
+        aggregateAcceptedFrames = $null
+        frameType = $null
+        schemaId = $null
+        sequence = $null
+        x = ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $position -Name 'x')
+        y = ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $position -Name 'y')
+        z = ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $position -Name 'z')
+        failures = $failures.ToArray()
+    }
+}
+
 $startedAtUtc = [DateTimeOffset]::UtcNow
 $result = $null
 do {
     try {
-        $result = Test-SnapshotFreshness -Path $SnapshotPath
+        if ($useWorldStateUrl -or $useWorldStatePath) {
+            $result = Test-WorldStateFreshness -Url $WorldStateUrl -Path $WorldStatePath
+        }
+        else {
+            $result = Test-SnapshotFreshness -Path $SnapshotPath
+        }
     }
     catch {
         $result = [ordered]@{
             schemaVersion = $schemaVersion
             mode = 'chromalink-live-telemetry-freshness'
             status = 'fail'
-            snapshotPath = [System.IO.Path]::GetFullPath($SnapshotPath)
+            snapshotPath = $(if ($useWorldStateUrl -or $useWorldStatePath) { $null } else { [System.IO.Path]::GetFullPath($SnapshotPath) })
+            worldStateUrl = $(if ($useWorldStateUrl) { $WorldStateUrl } else { $null })
+            worldStatePath = $(if ($useWorldStatePath) { [System.IO.Path]::GetFullPath($WorldStatePath) } else { $null })
             generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
             maxFreshAgeMs = $MaxFreshAgeMilliseconds
             fresh = $false
@@ -297,6 +497,12 @@ else {
     $color = if ([string]$result.status -eq 'pass') { 'Green' } else { 'Red' }
     Write-Host ("ChromaLink telemetry freshness: {0}" -f $result.status) -ForegroundColor $color
     Write-Host ("Snapshot: {0}" -f $result.snapshotPath)
+    if ($result.PSObject.Properties['worldStateUrl'] -and -not [string]::IsNullOrWhiteSpace([string]$result.worldStateUrl)) {
+        Write-Host ("WorldStateUrl: {0}" -f $result.worldStateUrl)
+    }
+    if ($result.PSObject.Properties['worldStatePath'] -and -not [string]::IsNullOrWhiteSpace([string]$result.worldStatePath)) {
+        Write-Host ("WorldStatePath: {0}" -f $result.worldStatePath)
+    }
     Write-Host ("Fresh:    {0}" -f $result.fresh)
     if ($result.PSObject.Properties['snapshotAgeMs']) {
         Write-Host ("Age ms:   {0}" -f $result.snapshotAgeMs)

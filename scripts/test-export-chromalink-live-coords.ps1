@@ -36,7 +36,9 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $exportScript = Join-Path $repoRoot 'scripts\export-chromalink-live-coords.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-chromalink-live-coords-' + [Guid]::NewGuid().ToString('N'))
 $snapshotFile = Join-Path $tempRoot 'chromalink-live-telemetry.json'
+$worldStateFile = Join-Path $tempRoot 'chromalink-riftreader-world-state.json'
 $outputFile = Join-Path $tempRoot 'live-coords.ndjson'
+$worldStateOutputFile = Join-Path $tempRoot 'world-state-live-coords.ndjson'
 $missingPositionSnapshotFile = Join-Path $tempRoot 'missing-player-position.json'
 
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
@@ -91,6 +93,61 @@ try {
     Assert-Equal -Actual ([double]$sample.y) -Expected 875.25 -Message 'Sample Y mismatch.'
     Assert-Equal -Actual ([double]$sample.z) -Expected 3052.75 -Message 'Sample Z mismatch.'
     Assert-Equal -Actual ([bool]$sample.withinFreshWindow) -Expected $true -Message 'Sample freshness mismatch.'
+
+    $worldState = [ordered]@{
+        ok = $true
+        artifactKind = 'riftreader-world-state'
+        contract = [ordered]@{
+            name = 'chromalink-riftreader-world-state'
+            schemaVersion = 1
+        }
+        sourceContract = [ordered]@{
+            name = 'chromalink-live-telemetry'
+            schemaVersion = 2
+        }
+        ready = $true
+        healthy = $true
+        fresh = $true
+        stale = $false
+        snapshotAgeSeconds = 0.1
+        snapshotPath = $snapshotFile
+        navigation = [ordered]@{
+            playerPositionAvailable = $true
+            targetPositionAvailable = $false
+            followUnitPositionsAvailable = $false
+            headingAvailable = $false
+            facingAvailable = $false
+            routeAvailable = $false
+            controlAvailable = $false
+            limitations = @()
+        }
+        player = [ordered]@{
+            position = [ordered]@{
+                x = 7455.6
+                y = 876.25
+                z = 3053.75
+                observedAtUtc = $observedAtUtc.ToString('O')
+                ageMs = 100.0
+                fresh = $true
+                stale = $false
+            }
+        }
+        target = $null
+        followUnits = @()
+    }
+    Set-Content -LiteralPath $worldStateFile -Value ($worldState | ConvertTo-Json -Depth 32) -Encoding UTF8
+
+    $worldStateExportOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $exportScript `
+        -WorldStatePath $worldStateFile `
+        -OutputFile $worldStateOutputFile `
+        -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected ChromaLink RiftReader world-state coord export to pass: {0}" -f ($worldStateExportOutput -join [Environment]::NewLine))
+    $worldStateExportResult = ($worldStateExportOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
+    Assert-Equal -Actual ([string]$worldStateExportResult.status) -Expected 'pass' -Message 'World-state export status mismatch.'
+    Assert-Equal -Actual ([string]$worldStateExportResult.inputMode) -Expected 'world-state-file' -Message 'World-state export input mode mismatch.'
+    $worldStateSample = (@(Get-Content -LiteralPath $worldStateOutputFile))[0] | ConvertFrom-Json -Depth 32
+    Assert-Equal -Actual ([string]$worldStateSample.sourceView) -Expected 'chromalink-riftreader-world-state' -Message 'World-state source view mismatch.'
+    Assert-Equal -Actual ([double]$worldStateSample.x) -Expected 7455.6 -Message 'World-state sample X mismatch.'
 
     $staleSnapshot = $snapshot
     $staleSnapshot.generatedAtUtc = $nowUtc.AddHours(-1).ToString('O')

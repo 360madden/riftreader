@@ -2,6 +2,10 @@
 param(
     [string]$SnapshotPath = (Join-Path $env:LOCALAPPDATA 'ChromaLink\DesktopDotNet\out\chromalink-live-telemetry.json'),
 
+    [string]$WorldStateUrl = '',
+
+    [string]$WorldStatePath = '',
+
     [string]$OutputFile = (Join-Path (Join-Path $PSScriptRoot 'captures') ('chromalink-live-coords-{0}\live-coords.ndjson' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))),
 
     [switch]$Watch,
@@ -42,6 +46,12 @@ if ($MaxSamples -lt 0) {
 
 if ($MaxFreshAgeMilliseconds -lt 0) {
     throw 'MaxFreshAgeMilliseconds must be zero or greater.'
+}
+
+$useWorldStateUrl = -not [string]::IsNullOrWhiteSpace($WorldStateUrl)
+$useWorldStatePath = -not [string]::IsNullOrWhiteSpace($WorldStatePath)
+if ($useWorldStateUrl -and $useWorldStatePath) {
+    throw 'Specify only one of WorldStateUrl or WorldStatePath.'
 }
 
 function ConvertTo-DateTimeOffsetOrNull {
@@ -172,9 +182,48 @@ function Read-ChromaLinkSnapshot {
     $file = Get-Item -LiteralPath $resolvedPath
     $document = Get-Content -LiteralPath $resolvedPath -Raw | ConvertFrom-Json -Depth 64
     return [pscustomobject]@{
+        InputMode = 'snapshot-file'
         Path = $resolvedPath
         LastWriteTimeUtc = [DateTimeOffset]::new($file.LastWriteTimeUtc).ToUniversalTime()
         Document = $document
+    }
+}
+
+function Read-ChromaLinkWorldState {
+    param(
+        [string]$Url,
+        [string]$Path
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+        if (-not (Test-Path -LiteralPath $resolvedPath)) {
+            throw "ChromaLink RiftReader world-state file not found: $resolvedPath"
+        }
+
+        $file = Get-Item -LiteralPath $resolvedPath
+        $document = Get-Content -LiteralPath $resolvedPath -Raw | ConvertFrom-Json -Depth 64
+        return [pscustomobject]@{
+            InputMode = 'world-state-file'
+            Path = $resolvedPath
+            WorldStateUrl = $null
+            LastWriteTimeUtc = [DateTimeOffset]::new($file.LastWriteTimeUtc).ToUniversalTime()
+            Document = $document
+        }
+    }
+
+    $response = Invoke-WebRequest -Method Get -Uri $Url -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 5
+    if ([string]::IsNullOrWhiteSpace($response.Content)) {
+        throw "ChromaLink RiftReader world-state endpoint returned an empty response: $Url"
+    }
+
+    return [pscustomobject]@{
+        InputMode = 'world-state-url'
+        Path = $null
+        WorldStateUrl = [string]$Url
+        LastWriteTimeUtc = $null
+        StatusCode = [int]$response.StatusCode
+        Document = $response.Content | ConvertFrom-Json -Depth 64
     }
 }
 
@@ -185,8 +234,19 @@ function New-LiveCoordSample {
     )
 
     $document = $Snapshot.Document
-    $position = Get-NestedValue -InputObject $document -Path 'aggregate.playerPosition'
+    $inputMode = [string]$Snapshot.InputMode
+    $isWorldState = $inputMode -like 'world-state-*'
+    $position = if ($isWorldState) {
+        Get-NestedValue -InputObject $document -Path 'player.position'
+    }
+    else {
+        Get-NestedValue -InputObject $document -Path 'aggregate.playerPosition'
+    }
     if ($null -eq $position) {
+        if ($isWorldState) {
+            throw 'ChromaLink RiftReader world-state does not contain player.position.'
+        }
+
         throw 'ChromaLink snapshot does not contain aggregate.playerPosition.'
     }
 
@@ -199,7 +259,7 @@ function New-LiveCoordSample {
 
     $nowUtc = [DateTimeOffset]::UtcNow
     $observedAtUtc = ConvertTo-DateTimeOffsetOrNull (Get-PropertyValue -InputObject $position -Name 'observedAtUtc')
-    $snapshotGeneratedAtUtc = ConvertTo-DateTimeOffsetOrNull (Get-PropertyValue -InputObject $document -Name 'generatedAtUtc')
+    $snapshotGeneratedAtUtc = if ($isWorldState) { $null } else { ConvertTo-DateTimeOffsetOrNull (Get-PropertyValue -InputObject $document -Name 'generatedAtUtc') }
     $ageMs = ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $position -Name 'ageMs')
     if ($null -eq $ageMs -and $null -ne $observedAtUtc) {
         $ageMs = [Math]::Round(($nowUtc - $observedAtUtc).TotalMilliseconds, 3)
@@ -208,20 +268,71 @@ function New-LiveCoordSample {
     $sourceFrameFresh = Get-PropertyValue -InputObject $position -Name 'fresh'
     $sourceFrameStale = Get-PropertyValue -InputObject $position -Name 'stale'
     $frameWithinFreshWindow = if ($null -ne $ageMs) { $ageMs -le $MaxFreshAgeMilliseconds } else { $null }
-    $snapshotAgeBasisUtc = if ($null -ne $snapshotGeneratedAtUtc) { $snapshotGeneratedAtUtc } else { $Snapshot.LastWriteTimeUtc }
-    $snapshotAgeMs = [Math]::Round(($nowUtc - $snapshotAgeBasisUtc).TotalMilliseconds, 3)
-    $snapshotWithinFreshWindow = $snapshotAgeMs -le $MaxFreshAgeMilliseconds
-    $fresh = $snapshotWithinFreshWindow -and ($frameWithinFreshWindow -ne $false) -and ($sourceFrameFresh -ne $false)
+    $worldStateSnapshotAgeSeconds = if ($isWorldState) { ConvertTo-DoubleOrNull (Get-PropertyValue -InputObject $document -Name 'snapshotAgeSeconds') } else { $null }
+    $snapshotAgeMs = if ($null -ne $worldStateSnapshotAgeSeconds) {
+        [Math]::Round($worldStateSnapshotAgeSeconds * 1000.0, 3)
+    }
+    else {
+        $snapshotAgeBasisUtc = if ($null -ne $snapshotGeneratedAtUtc) {
+            $snapshotGeneratedAtUtc
+        }
+        elseif ($null -ne $Snapshot.LastWriteTimeUtc) {
+            $Snapshot.LastWriteTimeUtc
+        }
+        else {
+            $null
+        }
+
+        if ($null -ne $snapshotAgeBasisUtc) {
+            [Math]::Round(($nowUtc - $snapshotAgeBasisUtc).TotalMilliseconds, 3)
+        }
+        else {
+            $null
+        }
+    }
+    $snapshotWithinFreshWindow = if ($null -ne $snapshotAgeMs) { $snapshotAgeMs -le $MaxFreshAgeMilliseconds } else { $false }
+    $worldStateOk = if ($isWorldState) { Get-PropertyValue -InputObject $document -Name 'ok' } else { $true }
+    $worldStateReady = if ($isWorldState) { Get-PropertyValue -InputObject $document -Name 'ready' } else { $true }
+    $worldStateFresh = if ($isWorldState) { Get-PropertyValue -InputObject $document -Name 'fresh' } else { $true }
+    $worldStateStale = if ($isWorldState) { Get-PropertyValue -InputObject $document -Name 'stale' } else { $false }
+    $playerPositionAvailable = if ($isWorldState) { Get-NestedValue -InputObject $document -Path 'navigation.playerPositionAvailable' } else { $true }
+    $fresh = $snapshotWithinFreshWindow -and
+        ($frameWithinFreshWindow -ne $false) -and
+        ($sourceFrameFresh -ne $false) -and
+        ($worldStateOk -eq $true) -and
+        ($worldStateReady -eq $true) -and
+        ($worldStateFresh -eq $true) -and
+        ($worldStateStale -ne $true) -and
+        ($playerPositionAvailable -eq $true)
     $stale = -not $fresh
+
+    if ($isWorldState) {
+        $sourceContractNameValue = Get-NestedValue -InputObject $document -Path 'sourceContract.name'
+        $sourceContractSchemaVersionValue = Get-NestedValue -InputObject $document -Path 'sourceContract.schemaVersion'
+        $sourceViewContractNameValue = Get-NestedValue -InputObject $document -Path 'contract.name'
+        $sourceViewContractSchemaVersionValue = Get-NestedValue -InputObject $document -Path 'contract.schemaVersion'
+    }
+    else {
+        $sourceContractNameValue = Get-NestedValue -InputObject $document -Path 'contract.name'
+        $sourceContractSchemaVersionValue = Get-NestedValue -InputObject $document -Path 'contract.schemaVersion'
+        $sourceViewContractNameValue = $null
+        $sourceViewContractSchemaVersionValue = $null
+    }
 
     return [ordered]@{
         schemaVersion = $schemaVersion
         mode = 'live-coord-sample'
         source = 'chromalink-live-telemetry'
-        sourceContractName = [string](Get-NestedValue -InputObject $document -Path 'contract.name')
-        sourceContractSchemaVersion = ConvertTo-IntOrNull (Get-NestedValue -InputObject $document -Path 'contract.schemaVersion')
-        sourceSnapshotPath = $Snapshot.Path
-        sourceSnapshotLastWriteUtc = $Snapshot.LastWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        sourceView = $(if ($isWorldState) { 'chromalink-riftreader-world-state' } else { 'chromalink-rolling-snapshot' })
+        inputMode = $inputMode
+        sourceContractName = [string]$sourceContractNameValue
+        sourceContractSchemaVersion = ConvertTo-IntOrNull $sourceContractSchemaVersionValue
+        sourceViewContractName = [string]$sourceViewContractNameValue
+        sourceViewContractSchemaVersion = ConvertTo-IntOrNull $sourceViewContractSchemaVersionValue
+        sourceSnapshotPath = $(if ($isWorldState) { [string](Get-PropertyValue -InputObject $document -Name 'snapshotPath') } else { $Snapshot.Path })
+        sourceSnapshotLastWriteUtc = $(if ($null -ne $Snapshot.LastWriteTimeUtc) { $Snapshot.LastWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) } else { $null })
+        sourceWorldStateUrl = $(if ($isWorldState) { $Snapshot.WorldStateUrl } else { $null })
+        sourceWorldStatePath = $(if ($isWorldState) { $Snapshot.Path } else { $null })
         exportedAtUtc = $nowUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
         snapshotGeneratedAtUtc = $(if ($null -ne $snapshotGeneratedAtUtc) { $snapshotGeneratedAtUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) } else { $null })
         snapshotAgeMs = $snapshotAgeMs
@@ -235,14 +346,14 @@ function New-LiveCoordSample {
         fresh = $fresh
         stale = $stale
         withinFreshWindow = $fresh
-        aggregateReady = Get-NestedValue -InputObject $document -Path 'aggregate.ready'
-        aggregateHealthy = Get-NestedValue -InputObject $document -Path 'aggregate.healthy'
-        aggregateStale = Get-NestedValue -InputObject $document -Path 'aggregate.stale'
-        aggregateAcceptedFrames = ConvertTo-IntOrNull (Get-NestedValue -InputObject $document -Path 'aggregate.acceptedFrames')
-        frameType = [string](Get-PropertyValue -InputObject $position -Name 'frameType')
-        schemaId = ConvertTo-IntOrNull (Get-PropertyValue -InputObject $position -Name 'schemaId')
-        sequence = ConvertTo-IntOrNull (Get-PropertyValue -InputObject $position -Name 'sequence')
-        reservedFlags = ConvertTo-IntOrNull (Get-PropertyValue -InputObject $position -Name 'reservedFlags')
+        aggregateReady = $(if ($isWorldState) { $worldStateReady } else { Get-NestedValue -InputObject $document -Path 'aggregate.ready' })
+        aggregateHealthy = $(if ($isWorldState) { Get-PropertyValue -InputObject $document -Name 'healthy' } else { Get-NestedValue -InputObject $document -Path 'aggregate.healthy' })
+        aggregateStale = $(if ($isWorldState) { $worldStateStale } else { Get-NestedValue -InputObject $document -Path 'aggregate.stale' })
+        aggregateAcceptedFrames = $(if ($isWorldState) { $null } else { ConvertTo-IntOrNull (Get-NestedValue -InputObject $document -Path 'aggregate.acceptedFrames') })
+        frameType = $(if ($isWorldState) { $null } else { [string](Get-PropertyValue -InputObject $position -Name 'frameType') })
+        schemaId = $(if ($isWorldState) { $null } else { ConvertTo-IntOrNull (Get-PropertyValue -InputObject $position -Name 'schemaId') })
+        sequence = $(if ($isWorldState) { $null } else { ConvertTo-IntOrNull (Get-PropertyValue -InputObject $position -Name 'sequence') })
+        reservedFlags = $(if ($isWorldState) { $null } else { ConvertTo-IntOrNull (Get-PropertyValue -InputObject $position -Name 'reservedFlags') })
         x = $x
         y = $y
         z = $z
@@ -288,7 +399,12 @@ $lastError = $null
 
 do {
     try {
-        $snapshot = Read-ChromaLinkSnapshot -Path $SnapshotPath
+        $snapshot = if ($useWorldStateUrl -or $useWorldStatePath) {
+            Read-ChromaLinkWorldState -Url $WorldStateUrl -Path $WorldStatePath
+        }
+        else {
+            Read-ChromaLinkSnapshot -Path $SnapshotPath
+        }
         $sample = New-LiveCoordSample -Snapshot $snapshot
         $key = Get-SampleKey -Sample $sample
         if ($IncludeDuplicates -or $seenKeys.Add($key)) {
@@ -330,7 +446,10 @@ $result = [ordered]@{
     schemaVersion = $schemaVersion
     mode = 'chromalink-live-coords-export'
     status = $status
-    snapshotPath = [System.IO.Path]::GetFullPath($SnapshotPath)
+    inputMode = $(if ($useWorldStateUrl) { 'world-state-url' } elseif ($useWorldStatePath) { 'world-state-file' } else { 'snapshot-file' })
+    snapshotPath = $(if ($useWorldStateUrl -or $useWorldStatePath) { if ($lastSample) { $lastSample.sourceSnapshotPath } else { $null } } else { [System.IO.Path]::GetFullPath($SnapshotPath) })
+    worldStateUrl = $(if ($useWorldStateUrl) { $WorldStateUrl } else { $null })
+    worldStatePath = $(if ($useWorldStatePath) { [System.IO.Path]::GetFullPath($WorldStatePath) } else { $null })
     outputFile = $resolvedOutputFile
     watch = [bool]$Watch
     samplesWritten = $samplesWritten
@@ -348,6 +467,12 @@ else {
     $color = if ($status -eq 'pass') { 'Green' } else { 'Red' }
     Write-Host ("ChromaLink live coords export: {0}" -f $status) -ForegroundColor $color
     Write-Host ("Snapshot: {0}" -f ([System.IO.Path]::GetFullPath($SnapshotPath)))
+    if ($useWorldStateUrl) {
+        Write-Host ("WorldStateUrl: {0}" -f $WorldStateUrl)
+    }
+    if ($useWorldStatePath) {
+        Write-Host ("WorldStatePath: {0}" -f ([System.IO.Path]::GetFullPath($WorldStatePath)))
+    }
     Write-Host ("Output:   {0}" -f $resolvedOutputFile)
     Write-Host ("Samples:  {0}" -f $samplesWritten)
     if (-not [string]::IsNullOrWhiteSpace($lastError)) {
