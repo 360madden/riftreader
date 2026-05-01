@@ -26,6 +26,8 @@ param(
 
     [string]$TruthSurfaceFile,
 
+    [string]$SavedVariablesFreshnessFile,
+
     [string]$ExportResultFile,
 
     [string]$SummaryFile,
@@ -152,6 +154,10 @@ if ([string]::IsNullOrWhiteSpace($TruthSurfaceFile)) {
     $TruthSurfaceFile = Join-Path $resolvedBundleDirectory 'truth-surface.json'
 }
 
+if ([string]::IsNullOrWhiteSpace($SavedVariablesFreshnessFile)) {
+    $SavedVariablesFreshnessFile = Join-Path $resolvedBundleDirectory 'savedvariables-freshness.json'
+}
+
 if ([string]::IsNullOrWhiteSpace($ExportResultFile)) {
     $ExportResultFile = Join-Path $resolvedBundleDirectory 'chromalink-live-coords-export-result.json'
 }
@@ -163,6 +169,12 @@ if ([string]::IsNullOrWhiteSpace($SummaryFile)) {
 if (Test-Path -LiteralPath $TruthSurfaceFile) {
     Remove-Item -LiteralPath $TruthSurfaceFile -Force
 }
+
+if (Test-Path -LiteralPath $SavedVariablesFreshnessFile) {
+    Remove-Item -LiteralPath $SavedVariablesFreshnessFile -Force
+}
+
+$captureStartedAtUtc = [DateTimeOffset]::UtcNow
 
 function Write-Utf8TextAtomic {
     param(
@@ -379,6 +391,29 @@ function New-TruthSurfaceDocument {
     }
 }
 
+function New-SavedVariablesFreshnessDocument {
+    param([DateTimeOffset]$CaptureEndUtc)
+
+    return [ordered]@{
+        schemaVersion = $schemaVersion
+        mode = 'savedvariables-freshness'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        filePath = $null
+        exists = $false
+        lastWriteTimeUtc = $null
+        captureStartUtc = $captureStartedAtUtc.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        captureEndUtc = $CaptureEndUtc.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        savedVariablesUse = 'none'
+        freshnessClassification = 'not-used'
+        usableAsLiveTruth = $false
+        source = 'chromalink-live-telemetry'
+        notes = @(
+            'This ChromaLink capture path does not read RIFT SavedVariables.',
+            'SavedVariables are post-save snapshots and are not usable as live movement truth.'
+        )
+    }
+}
+
 function New-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -399,6 +434,8 @@ function New-Summary {
         [object]$ExportDocument,
 
         [object]$TruthSurfaceDocument,
+
+        [object]$SavedVariablesFreshnessDocument,
 
         [bool]$RemovedOutputFile = $false,
 
@@ -430,6 +467,7 @@ function New-Summary {
         skipContractPreflight = [bool]$SkipContractPreflight
         preflightFile = [System.IO.Path]::GetFullPath($PreflightFile)
         truthSurfaceFile = [System.IO.Path]::GetFullPath($TruthSurfaceFile)
+        savedVariablesFreshnessFile = [System.IO.Path]::GetFullPath($SavedVariablesFreshnessFile)
         exportResultFile = [System.IO.Path]::GetFullPath($ExportResultFile)
         summaryFile = [System.IO.Path]::GetFullPath($SummaryFile)
         maxFreshAgeMs = $MaxFreshAgeMilliseconds
@@ -440,6 +478,7 @@ function New-Summary {
         contract = $ContractDocument
         export = $ExportDocument
         truthSurface = $TruthSurfaceDocument
+        savedVariablesFreshness = $SavedVariablesFreshnessDocument
         failures = @($Failures)
     }
 }
@@ -737,12 +776,16 @@ if ($null -ne $startedBridgeProcessId) {
 }
 
 $truthSurfaceDocument = $null
+$savedVariablesFreshnessDocument = $null
 if ($exported) {
+    $captureEndedAtUtc = [DateTimeOffset]::UtcNow
     $truthSurfaceDocument = New-TruthSurfaceDocument -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument
+    $savedVariablesFreshnessDocument = New-SavedVariablesFreshnessDocument -CaptureEndUtc $captureEndedAtUtc
     Write-Utf8TextAtomic -Path $TruthSurfaceFile -Content ($truthSurfaceDocument | ConvertTo-Json -Depth 64)
+    Write-Utf8TextAtomic -Path $SavedVariablesFreshnessFile -Content ($savedVariablesFreshnessDocument | ConvertTo-Json -Depth 64)
 }
 
-$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -TruthSurfaceDocument $truthSurfaceDocument -RemovedOutputFile $removedOutputFile -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $summaryFailures.ToArray()
+$summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -TruthSurfaceDocument $truthSurfaceDocument -SavedVariablesFreshnessDocument $savedVariablesFreshnessDocument -RemovedOutputFile $removedOutputFile -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $summaryFailures.ToArray()
 Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
 
 if ($Json) {

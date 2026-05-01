@@ -235,6 +235,13 @@ try {
     Assert-Equal -Actual ([string]$freshTruthSurface.inputMode) -Expected 'snapshot-file' -Message 'Fresh truth surface input mode mismatch.'
     Assert-Equal -Actual ([bool]$freshTruthSurface.liveTruth) -Expected $true -Message 'Fresh truth surface live truth flag mismatch.'
     Assert-Equal -Actual ([bool]$freshTruthSurface.savedVariablesUsableAsLiveTruth) -Expected $false -Message 'Fresh truth surface SavedVariables flag mismatch.'
+    $freshSavedVariablesFreshnessPath = Join-Path $freshBundle 'savedvariables-freshness.json'
+    Assert-True -Condition (Test-Path -LiteralPath $freshSavedVariablesFreshnessPath) -Message 'Fresh savedvariables-freshness.json missing.'
+    $freshSavedVariablesFreshness = Get-Content -LiteralPath $freshSavedVariablesFreshnessPath -Raw | ConvertFrom-Json -Depth 64
+    Assert-Equal -Actual ([string]$freshResult.savedVariablesFreshnessFile) -Expected ([System.IO.Path]::GetFullPath($freshSavedVariablesFreshnessPath)) -Message 'Fresh summary savedVariablesFreshnessFile mismatch.'
+    Assert-Equal -Actual ([string]$freshResult.savedVariablesFreshness.savedVariablesUse) -Expected 'none' -Message 'Fresh summary SavedVariables use mismatch.'
+    Assert-Equal -Actual ([string]$freshSavedVariablesFreshness.freshnessClassification) -Expected 'not-used' -Message 'Fresh SavedVariables freshness classification mismatch.'
+    Assert-Equal -Actual ([bool]$freshSavedVariablesFreshness.usableAsLiveTruth) -Expected $false -Message 'Fresh SavedVariables live truth flag mismatch.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-live-coords-export-result.json')) -Message 'Fresh export result file missing.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-live-coords-capture-summary.json')) -Message 'Fresh summary file missing.'
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $freshBundle 'chromalink-world-state-contract.json'))) -Message 'Raw snapshot capture should not write a world-state contract preflight.'
@@ -261,6 +268,12 @@ try {
     Assert-Equal -Actual ([string]$worldStateTruthSurface.sourceView) -Expected 'chromalink-riftreader-world-state' -Message 'World-state truth surface source view mismatch.'
     Assert-Equal -Actual ([string]$worldStateTruthSurface.inputMode) -Expected 'world-state-file' -Message 'World-state truth surface input mode mismatch.'
     Assert-Equal -Actual ([bool]$worldStateTruthSurface.liveTruth) -Expected $false -Message 'World-state file truth surface should not claim live HTTP truth.'
+    $worldStateSavedVariablesFreshnessPath = Join-Path $worldStateBundle 'savedvariables-freshness.json'
+    Assert-True -Condition (Test-Path -LiteralPath $worldStateSavedVariablesFreshnessPath) -Message 'World-state savedvariables-freshness.json missing.'
+    $worldStateSavedVariablesFreshness = Get-Content -LiteralPath $worldStateSavedVariablesFreshnessPath -Raw | ConvertFrom-Json -Depth 64
+    Assert-Equal -Actual ([string]$worldStateResult.savedVariablesFreshness.savedVariablesUse) -Expected 'none' -Message 'World-state summary SavedVariables use mismatch.'
+    Assert-Equal -Actual ([string]$worldStateSavedVariablesFreshness.freshnessClassification) -Expected 'not-used' -Message 'World-state SavedVariables freshness classification mismatch.'
+    Assert-Equal -Actual ([bool]$worldStateSavedVariablesFreshness.usableAsLiveTruth) -Expected $false -Message 'World-state SavedVariables live truth flag mismatch.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $worldStateBundle 'live-coords.ndjson')) -Message 'World-state live-coords.ndjson missing.'
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $worldStateBundle 'chromalink-http-bridge-readiness.json'))) -Message 'World-state file capture should not write HTTP bridge readiness.'
 
@@ -277,6 +290,7 @@ try {
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'chromalink-freshness-preflight.json'))) -Message 'Bridge-failed capture should stop before freshness preflight.'
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'live-coords.ndjson'))) -Message 'Bridge-failed capture should not write live-coords.ndjson.'
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'truth-surface.json'))) -Message 'Bridge-failed capture should not write truth-surface.json.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $bridgeFailedBundle 'savedvariables-freshness.json'))) -Message 'Bridge-failed capture should not write savedvariables-freshness.json.'
 
     $staleTime = [DateTimeOffset]::UtcNow.AddSeconds(-10)
     Write-Snapshot -Path $snapshot -GeneratedAtUtc $staleTime -ObservedAtUtc $staleTime -Fresh $true -Stale $false
@@ -293,6 +307,7 @@ try {
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $staleBundle 'chromalink-freshness-preflight.json')) -Message 'Stale preflight file missing.'
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $staleBundle 'chromalink-live-coords-export-result.json'))) -Message 'Stale capture should not write export result.'
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $staleBundle 'truth-surface.json'))) -Message 'Stale capture should not write truth-surface.json.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $staleBundle 'savedvariables-freshness.json'))) -Message 'Stale capture should not write savedvariables-freshness.json.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $staleBundle 'chromalink-live-coords-capture-summary.json')) -Message 'Stale summary file missing.'
 }
 finally {

@@ -135,6 +135,7 @@ This wrapper writes:
 | `chromalink-world-state-contract.json` | Contract/schema proof for world-state captures; omitted for raw snapshot fallback |
 | `chromalink-freshness-preflight.json` | Freshness proof before export |
 | `truth-surface.json` | Bundle-level declaration that ChromaLink live telemetry, not SavedVariables, is the authoritative coordinate truth surface |
+| `savedvariables-freshness.json` | Explicit `not-used` marker proving this ChromaLink capture did not use SavedVariables as live truth |
 | `live-coords.ndjson` | Exported live coordinate truth stream |
 | `chromalink-live-coords-export-result.json` | Lower-level export result |
 | `chromalink-live-coords-capture-summary.json` | Wrapper summary |
