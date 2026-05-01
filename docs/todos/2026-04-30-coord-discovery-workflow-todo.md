@@ -129,7 +129,7 @@ combat/RiftMeter/helper complexity into RiftReader.
 | 1 | Prototype consuming existing ChromaLink `playerPosition` telemetry. | Fastest way to prove live coords without `/reloadui`. |
 | 2 | Emit `live-coords.ndjson` from ChromaLink-style telemetry. | Gives the memory scorer a clean live truth input. |
 | 3 | Add sequence/freshness/age/drop metrics to live coord logs. | Detects stale or repeated frames. |
-| 4 | Compare ChromaLink telemetry to PlayerCoords overlay for one run. | Validates that the relay matches visible game truth. PlayerCoords is a visual/manual validation overlay only; do not port it into RiftReader or treat its SavedVariables output as live IPC. |
+| 4 | Compare ChromaLink telemetry to a visible ReaderBridge or PlayerCoords overlay for one run. | Validates that the relay matches visible game truth. ReaderBridge already tracks API coords at runtime; PlayerCoords is optional visual/manual validation only. Do not port PlayerCoords into RiftReader or treat addon SavedVariables output as live IPC. |
 | 5 | Add candidate scoring against `live-coords.ndjson`. | Converts live telemetry into coord discovery evidence. |
 | 6 | Build ReaderBridgeLive / ChromaLink-lite only after the existing feed prototype passes. | Avoids premature porting. |
 | 7 | Keep SavedVariables as backup/archive only. | Valuable, but not live IPC. |
@@ -138,7 +138,7 @@ combat/RiftMeter/helper complexity into RiftReader.
 ## Implementation notes
 
 - Keep this lane **no-CE** unless the user explicitly re-approves CE.
-- Use ReaderBridge/addon runtime or visible overlay coordinates as validation/scaffolding and the native memory reader as the target truth surface. PlayerCoords overlay may validate displayed live positions, but its addon/SavedVariables output is not a live IPC contract. Do not treat `ReaderBridgeExport.lua` SavedVariables as a live feed.
+- Use ReaderBridge/addon runtime or visible overlay coordinates as validation/scaffolding and the native memory reader as the target truth surface. ReaderBridge already reads player API coords at runtime; PlayerCoords overlay is optional and may validate displayed live positions, but addon/SavedVariables output is not a live IPC contract. Do not treat `ReaderBridgeExport.lua` SavedVariables as a live feed.
 - Every live run should be designed to support offline fan-out analysis after the game state changes.
 - Prefer one high-signal bounded run over multiple short one-question runs.
 - Do not promote cached/current-player heuristic anchors unless separately re-proven.

@@ -70,7 +70,7 @@ Every future live coordinate bundle should declare:
 | 1 | Before capture, declare the authoritative truth surface |
 | 2 | If using `ReaderBridgeExport.lua`, verify it is intentionally a post-flush snapshot |
 | 3 | For START/STOP live movement, stream screenshots/OCR and native memory once per second or faster as needed |
-| 4 | Use visible overlay coordinates as live truth unless a validated memory anchor exists; this means observed/on-screen PlayerCoords values, not PlayerCoords SavedVariables or addon files |
+| 4 | Use visible overlay coordinates as live truth unless a validated memory anchor exists; this can be ReaderBridge's own API-backed coord display or observed/on-screen PlayerCoords values, not SavedVariables or addon files |
 | 5 | Derive memory candidates from live truth samples, not from stale SavedVariables |
 | 6 | Preserve stationary tail samples for cache/static rejection |
 | 7 | Write `freshnessClassification` into every seed/candidate packet |

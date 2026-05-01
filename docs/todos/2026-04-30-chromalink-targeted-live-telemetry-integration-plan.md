@@ -96,7 +96,7 @@ adapting code into RiftReader.
 |---|---|---|
 | Inspect live `playerPosition` telemetry path | notes or code map | Confirm current ChromaLink feed exposes X/Y/Z, sequence, freshness |
 | Capture ChromaLink player position while moving | `chromalink-live-coords.ndjson` | Coordinates update without `/reloadui` |
-| Compare ChromaLink coords to visible PlayerCoords overlay | `chromalink-overlay-alignment.json` | Values align within expected display precision/timing; PlayerCoords is a visual/manual validation overlay only, not a repo dependency or SavedVariables-backed live feed |
+| Compare ChromaLink coords to visible ReaderBridge or PlayerCoords overlay | `chromalink-overlay-alignment.json` | Values align within expected display precision/timing; ReaderBridge already reads API coords at runtime, and PlayerCoords is optional visual/manual validation only, not a repo dependency or SavedVariables-backed live feed |
 | Record sequence/freshness behavior | `chromalink-freshness-check.json` | Detect repeated, stale, or dropped frames |
 | Use ChromaLink data as `truthSurface` for one bundle | `truth-surface.json` | Analysis uses `chromalink-live-telemetry`, not SavedVariables |
 
