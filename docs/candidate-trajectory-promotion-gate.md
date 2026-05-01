@@ -150,6 +150,17 @@ pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReade
   -Json
 ```
 
+To emit one bundle-level handoff/status report that combines ChromaLink capture
+readiness, scoring, promotion, truth-surface, and SavedVariables freshness:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\inspect-coordinate-bundle-status.ps1" `
+  -BundleDirectory $bundle `
+  -Json
+```
+
+This writes `coordinate-bundle-status.json` and `coordinate-bundle-status.md`.
+
 ## Promotion decision
 
 | Gate field | Required state |
@@ -169,9 +180,9 @@ If any row fails, preserve the bundle as candidate or negative evidence only.
 
 ## Handoff summary template
 
-Prefer linking `promotion-gate-summary.md` / `promotion-gate-summary.json` in
-future handoffs whenever `promotion-gate.json` exists. If those artifacts are
-not present yet, include this table:
+Prefer linking `coordinate-bundle-status.md`, `promotion-gate-summary.md`, and
+their JSON counterparts in future handoffs whenever gate artifacts exist. If
+those artifacts are not present yet, include this table:
 
 ```markdown
 | Field | Value |

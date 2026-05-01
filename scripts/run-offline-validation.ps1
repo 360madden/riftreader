@@ -85,6 +85,7 @@ $tests = @(
     'scripts/test-score-candidate-trajectories.ps1',
     'scripts/test-write-promotion-gate.ps1',
     'scripts/test-summarize-promotion-gate.ps1',
+    'scripts/test-inspect-coordinate-bundle-status.ps1',
     'scripts/test-run-candidate-trajectory-gate.ps1'
 )
 
@@ -104,6 +105,8 @@ $parserFiles = @(
     'scripts/test-write-promotion-gate.ps1',
     'scripts/summarize-promotion-gate.ps1',
     'scripts/test-summarize-promotion-gate.ps1',
+    'scripts/inspect-coordinate-bundle-status.ps1',
+    'scripts/test-inspect-coordinate-bundle-status.ps1',
     'scripts/run-candidate-trajectory-gate.ps1',
     'scripts/test-run-candidate-trajectory-gate.ps1',
     'scripts/run-offline-validation.ps1'
