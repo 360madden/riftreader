@@ -8,6 +8,23 @@ param(
     [int]$TopSharedHubs = 4,
     [string]$SessionRoot = (Join-Path $PSScriptRoot 'sessions'),
     [string]$SessionMarkerInputFile,
+    [string]$CapturePurpose = 'discovery session package',
+    [string]$ExpectedMovement,
+    [ValidateSet(
+        'none',
+        'overlay',
+        'overlay-screenshot-manual-extract',
+        'validated-memory-anchor',
+        'chromalink-live-telemetry',
+        'readerbridge-live-telemetry',
+        'candidate-memory',
+        'post-flush-savedvariables',
+        'savedvariables-live',
+        'other')]
+    [string]$TruthSurface = 'none',
+    [ValidateSet('none', 'backup-only', 'seed-only', 'post-flush-snapshot', 'invalid-for-live')]
+    [string]$SavedVariablesUse = 'none',
+    [string]$SavedVariablesFilePath,
     [switch]$RefreshDiscoveryChain,
     [switch]$RefreshProjectorTrace,
     [switch]$RefreshReaderBridge,
@@ -31,6 +48,7 @@ $ownerStateNeighborhoodScript = Join-Path $PSScriptRoot 'capture-owner-state-nei
 $watchsetScript = Join-Path $PSScriptRoot 'export-discovery-watchset.ps1'
 $proofWatchsetScript = Join-Path $PSScriptRoot 'export-proof-polling-watchset.ps1'
 $consistencyScript = Join-Path $PSScriptRoot 'inspect-capture-consistency.ps1'
+$metadataScript = Join-Path $PSScriptRoot 'write-capture-metadata.ps1'
 $capturesRoot = Join-Path $PSScriptRoot 'captures'
 $ownerStateNeighborhoodFile = Join-Path $capturesRoot 'owner-state-neighborhood.json'
 
@@ -140,6 +158,127 @@ function Get-DocumentPropertyValue {
     return $property.Value
 }
 
+function Get-ReaderBridgeSourceFileFromSnapshot {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    try {
+        $snapshotDocument = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 32
+        return [string](Get-DocumentPropertyValue -Document $snapshotDocument -Name 'SourceFile')
+    }
+    catch {
+        return $null
+    }
+}
+
+function Write-CaptureMetadata {
+    param(
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$CaptureStart,
+
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$CaptureEnd,
+
+        [int]$CapturedProcessId,
+
+        [string]$SnapshotFile
+    )
+
+    $effectiveSavedVariablesFilePath = $SavedVariablesFilePath
+    if ([string]::IsNullOrWhiteSpace($effectiveSavedVariablesFilePath)) {
+        $effectiveSavedVariablesFilePath = Get-ReaderBridgeSourceFileFromSnapshot -Path $SnapshotFile
+    }
+
+    $effectiveSavedVariablesUse = $SavedVariablesUse
+    if ($effectiveSavedVariablesUse -eq 'none' -and -not [string]::IsNullOrWhiteSpace($effectiveSavedVariablesFilePath)) {
+        $effectiveSavedVariablesUse = 'backup-only'
+    }
+
+    $metadataArguments = @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $metadataScript,
+        '-BundleDirectory',
+        $sessionDirectory,
+        '-Label',
+        $Label,
+        '-Purpose',
+        $CapturePurpose,
+        '-TruthSurface',
+        $TruthSurface,
+        '-SavedVariablesUse',
+        $effectiveSavedVariablesUse,
+        '-CaptureStartUtc',
+        $CaptureStart.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture),
+        '-CaptureEndUtc',
+        $CaptureEnd.ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture),
+        '-ProcessName',
+        $ProcessName,
+        '-StopCondition',
+        'manual stop; sample count reached; quality gate failure',
+        '-Json'
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($effectiveSavedVariablesFilePath)) {
+        $metadataArguments += @('-SavedVariablesFilePath', $effectiveSavedVariablesFilePath)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedMovement)) {
+        $metadataArguments += @('-ExpectedMovement', $ExpectedMovement)
+    }
+    if ($CapturedProcessId -gt 0) {
+        $metadataArguments += @('-ProcessId', $CapturedProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $nativePreferenceVariable = Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope 1 -ErrorAction SilentlyContinue
+    $previousNativeCommandPreference = if ($null -ne $nativePreferenceVariable) { $nativePreferenceVariable.Value } else { $null }
+    try {
+        $ErrorActionPreference = 'Continue'
+        if ($null -ne $nativePreferenceVariable) {
+            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Scope 1 -Value $false
+        }
+
+        $metadataOutput = & pwsh @metadataArguments 2>&1
+        $metadataExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($null -ne $nativePreferenceVariable) {
+            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Scope 1 -Value $previousNativeCommandPreference
+        }
+    }
+    $metadataText = ($metadataOutput -join [Environment]::NewLine)
+    $metadataResult = $null
+    if (-not [string]::IsNullOrWhiteSpace($metadataText)) {
+        try {
+            $metadataResult = $metadataText | ConvertFrom-Json -Depth 32
+        }
+        catch {
+            $metadataResult = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $metadataExitCode
+        Output = $metadataText
+        Result = $metadataResult
+        CapturePlanFile = Join-Path $sessionDirectory 'capture-plan.json'
+        TruthSurfaceFile = Join-Path $sessionDirectory 'truth-surface.json'
+        SavedVariablesFreshnessFile = Join-Path $sessionDirectory 'savedvariables-freshness.json'
+        QualityGateFile = Join-Path $sessionDirectory 'quality-gate.json'
+        CaptureLifecycleFile = Join-Path $sessionDirectory 'capture-lifecycle.ndjson'
+        ArtifactIndexFile = Join-Path $sessionDirectory 'artifact-index.json'
+    }
+}
+
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $labelSlug = New-SessionSlug -Value $Label
 $sessionId = '{0}-{1}' -f $timestamp, $labelSlug
@@ -160,9 +299,15 @@ $copiedArtifacts = [System.Collections.Generic.List[object]]::new()
 $ownerLineageFresh = $false
 $recordDocument = $null
 $packageManifest = $null
+$metadataResult = $null
+$captureStartUtc = [DateTimeOffset]::UtcNow
 
 try {
     New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
+
+    if ($TruthSurface -eq 'savedvariables-live' -or $SavedVariablesUse -eq 'invalid-for-live') {
+        throw 'Capture preflight rejected SavedVariables-as-live. SavedVariables may be backup/post-flush snapshots or seed-only candidates, but not live truth.'
+    }
 
     if ($RefreshDiscoveryChain) {
         try {
@@ -329,11 +474,16 @@ try {
 
     $recordDocument = $recordResult.Output | ConvertFrom-Json -Depth 32
 
+    $metadataResult = Write-CaptureMetadata -CaptureStart $captureStartUtc -CaptureEnd ([DateTimeOffset]::UtcNow) -CapturedProcessId ([int]$recordDocument.ProcessId) -SnapshotFile $readerBridgeSnapshotFile
+
     $packageWarnings = @($warnings)
     foreach ($warning in @($recordDocument.Warnings)) {
         if (-not [string]::IsNullOrWhiteSpace([string]$warning)) {
             $packageWarnings += [string]$warning
         }
+    }
+    if ($metadataResult.ExitCode -ne 0) {
+        $packageWarnings += "Capture metadata quality gate failed: $($metadataResult.Output)"
     }
 
     $requiredPackagePaths = @(
@@ -342,6 +492,12 @@ try {
         [string]$recordDocument.SamplesFile,
         [string]$recordDocument.MarkersFile,
         [string]$recordDocument.ModulesFile,
+        $metadataResult.CapturePlanFile,
+        $metadataResult.TruthSurfaceFile,
+        $metadataResult.SavedVariablesFreshnessFile,
+        $metadataResult.QualityGateFile,
+        $metadataResult.CaptureLifecycleFile,
+        $metadataResult.ArtifactIndexFile,
         $artifactDirectory
     )
     $missingFiles = @(Get-MissingPackagePaths -Paths $requiredPackagePaths)
@@ -352,10 +508,10 @@ try {
     $status = 'complete'
     $integrityStatus = 'ok'
     $failureMessage = $null
-    if ($missingFiles.Count -gt 0 -or [string]$recordDocument.IntegrityStatus -eq 'failed') {
+    if ($missingFiles.Count -gt 0 -or [string]$recordDocument.IntegrityStatus -eq 'failed' -or $metadataResult.ExitCode -ne 0) {
         $status = 'failed'
         $integrityStatus = 'failed'
-        $failureMessage = 'Package is missing one or more required outputs.'
+        $failureMessage = if ($metadataResult.ExitCode -ne 0) { 'Capture metadata quality gate failed.' } else { 'Package is missing one or more required outputs.' }
     }
     elseif ([string]$recordDocument.IntegrityStatus -eq 'warning') {
         $integrityStatus = 'warning'
@@ -373,6 +529,12 @@ try {
         WatchsetFile = $watchsetFile
         CaptureConsistencyFile = $(if (Test-Path -LiteralPath $consistencyFile) { $consistencyFile } else { $null })
         ReaderBridgeSnapshotFile = $(if (Test-Path -LiteralPath $readerBridgeSnapshotFile) { $readerBridgeSnapshotFile } else { $null })
+        CapturePlanFile = $metadataResult.CapturePlanFile
+        TruthSurfaceFile = $metadataResult.TruthSurfaceFile
+        SavedVariablesFreshnessFile = $metadataResult.SavedVariablesFreshnessFile
+        QualityGateFile = $metadataResult.QualityGateFile
+        CaptureLifecycleFile = $metadataResult.CaptureLifecycleFile
+        ArtifactIndexFile = $metadataResult.ArtifactIndexFile
         ArtifactDirectory = $artifactDirectory
         RecordingManifestFile = [string]$recordDocument.ManifestFile
         SamplesFile = [string]$recordDocument.SamplesFile
@@ -414,6 +576,7 @@ try {
     Write-Host ("Watchset:             {0}" -f $watchsetFile)
     Write-Host ("Samples file:         {0}" -f $recordDocument.SamplesFile)
     Write-Host ("Markers file:         {0}" -f $recordDocument.MarkersFile)
+    Write-Host ("Quality gate:         {0}" -f $metadataResult.QualityGateFile)
     $sessionMarkerInputFileValue = [string](Get-DocumentPropertyValue -Document $recordDocument -Name 'SessionMarkerInputFile' -Default $resolvedSessionMarkerInputFile)
     if (-not [string]::IsNullOrWhiteSpace($sessionMarkerInputFileValue)) {
         Write-Host ("Marker input file:    {0}" -f $sessionMarkerInputFileValue)
@@ -443,10 +606,28 @@ catch {
     }
 
     if (Test-Path -LiteralPath $sessionDirectory) {
+        if ($null -eq $metadataResult) {
+            try {
+                $metadataResult = Write-CaptureMetadata -CaptureStart $captureStartUtc -CaptureEnd ([DateTimeOffset]::UtcNow) -CapturedProcessId $(if ($null -ne $recordDocument) { [int]$recordDocument.ProcessId } else { $ProcessId }) -SnapshotFile $readerBridgeSnapshotFile
+                if ($metadataResult.ExitCode -ne 0) {
+                    $failureWarnings += "Capture metadata quality gate failed: $($metadataResult.Output)"
+                }
+            }
+            catch {
+                $failureWarnings += "Capture metadata writing failed during error handling: $($_.Exception.Message)"
+            }
+        }
+
         $missingFiles = @(Get-MissingPackagePaths -Paths @(
                 $watchsetFile,
                 $consistencyFile,
                 $readerBridgeSnapshotFile,
+                $(if ($null -ne $metadataResult) { $metadataResult.CapturePlanFile } else { $null }),
+                $(if ($null -ne $metadataResult) { $metadataResult.TruthSurfaceFile } else { $null }),
+                $(if ($null -ne $metadataResult) { $metadataResult.SavedVariablesFreshnessFile } else { $null }),
+                $(if ($null -ne $metadataResult) { $metadataResult.QualityGateFile } else { $null }),
+                $(if ($null -ne $metadataResult) { $metadataResult.CaptureLifecycleFile } else { $null }),
+                $(if ($null -ne $metadataResult) { $metadataResult.ArtifactIndexFile } else { $null }),
                 $packageManifestFile,
                 $(if ($null -ne $recordDocument) { [string]$recordDocument.ManifestFile } else { $null }),
                 $(if ($null -ne $recordDocument) { [string]$recordDocument.SamplesFile } else { $null }),
@@ -467,6 +648,12 @@ catch {
             WatchsetFile = $watchsetFile
             CaptureConsistencyFile = $(if (Test-Path -LiteralPath $consistencyFile) { $consistencyFile } else { $null })
             ReaderBridgeSnapshotFile = $(if (Test-Path -LiteralPath $readerBridgeSnapshotFile) { $readerBridgeSnapshotFile } else { $null })
+            CapturePlanFile = $(if ($null -ne $metadataResult) { $metadataResult.CapturePlanFile } else { $null })
+            TruthSurfaceFile = $(if ($null -ne $metadataResult) { $metadataResult.TruthSurfaceFile } else { $null })
+            SavedVariablesFreshnessFile = $(if ($null -ne $metadataResult) { $metadataResult.SavedVariablesFreshnessFile } else { $null })
+            QualityGateFile = $(if ($null -ne $metadataResult) { $metadataResult.QualityGateFile } else { $null })
+            CaptureLifecycleFile = $(if ($null -ne $metadataResult) { $metadataResult.CaptureLifecycleFile } else { $null })
+            ArtifactIndexFile = $(if ($null -ne $metadataResult) { $metadataResult.ArtifactIndexFile } else { $null })
             ArtifactDirectory = $artifactDirectory
             RecordingManifestFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.ManifestFile } else { $null })
             SamplesFile = $(if ($null -ne $recordDocument) { [string]$recordDocument.SamplesFile } else { $null })
