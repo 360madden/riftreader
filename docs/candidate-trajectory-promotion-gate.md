@@ -58,6 +58,8 @@ $out | ConvertFrom-Json -Depth 80 | Select-Object status,promotionAllowed,scores
 ```
 
 Expected result: `promotion-blocked`, `promotionAllowed=false`.
+The runner also writes `promotion-gate-summary.json` and
+`promotion-gate-summary.md` into the bundle directory.
 
 ## Passive ChromaLink live-coordinate export
 
@@ -131,7 +133,14 @@ pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReade
 Adjust the sample windows to the actual capture. Avoid letting a long stationary
 tail dominate the movement proof.
 
-After the gate runs, write compact summaries for handoffs:
+The runner automatically writes compact summaries for handoffs:
+
+| Artifact | Purpose |
+|---|---|
+| `promotion-gate-summary.json` | Machine-readable compact promotion status |
+| `promotion-gate-summary.md` | Markdown summary suitable for handoffs |
+
+If summaries need to be regenerated from existing gate artifacts:
 
 ```powershell
 pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\RIFT MODDING\RiftReader\scripts\summarize-promotion-gate.ps1" `

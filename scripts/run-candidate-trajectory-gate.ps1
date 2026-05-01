@@ -14,6 +14,10 @@ param(
 
     [string]$PromotionGateFile,
 
+    [string]$PromotionGateSummaryJsonFile,
+
+    [string]$PromotionGateSummaryMarkdownFile,
+
     [string]$FlattenedMemoryTimeseriesCsv,
 
     [string]$TruthSurfaceFile,
@@ -56,6 +60,7 @@ $schemaVersion = 1
 
 $scoreScript = Join-Path $PSScriptRoot 'score-candidate-trajectories.ps1'
 $gateScript = Join-Path $PSScriptRoot 'write-promotion-gate.ps1'
+$summaryScript = Join-Path $PSScriptRoot 'summarize-promotion-gate.ps1'
 
 if (-not (Test-Path -LiteralPath $scoreScript)) {
     throw "Score script not found: $scoreScript"
@@ -63,6 +68,10 @@ if (-not (Test-Path -LiteralPath $scoreScript)) {
 
 if (-not (Test-Path -LiteralPath $gateScript)) {
     throw "Promotion gate script not found: $gateScript"
+}
+
+if (-not (Test-Path -LiteralPath $summaryScript)) {
+    throw "Promotion gate summary script not found: $summaryScript"
 }
 
 if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {
@@ -89,6 +98,14 @@ if ([string]::IsNullOrWhiteSpace($ScoresFile)) {
 
 if ([string]::IsNullOrWhiteSpace($PromotionGateFile)) {
     $PromotionGateFile = Join-Path $resolvedBundleDirectory 'promotion-gate.json'
+}
+
+if ([string]::IsNullOrWhiteSpace($PromotionGateSummaryJsonFile)) {
+    $PromotionGateSummaryJsonFile = Join-Path $resolvedBundleDirectory 'promotion-gate-summary.json'
+}
+
+if ([string]::IsNullOrWhiteSpace($PromotionGateSummaryMarkdownFile)) {
+    $PromotionGateSummaryMarkdownFile = Join-Path $resolvedBundleDirectory 'promotion-gate-summary.md'
 }
 
 if ([string]::IsNullOrWhiteSpace($FlattenedMemoryTimeseriesCsv) -and -not [string]::IsNullOrWhiteSpace($MemoryDirectory)) {
@@ -291,6 +308,38 @@ if (-not [string]::IsNullOrWhiteSpace($gateRun.Output)) {
 $promotionAllowed = $gateRun.ExitCode -eq 0 -and $null -ne $gateDocument -and [bool]$gateDocument.promotionAllowed
 $status = if ($promotionAllowed) { 'pass' } else { 'promotion-blocked' }
 
+$summaryArguments = @(
+    '-NoLogo',
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    $summaryScript,
+    '-PromotionGateFile',
+    $PromotionGateFile,
+    '-CandidateScoresFile',
+    $ScoresFile,
+    '-OutputJsonFile',
+    $PromotionGateSummaryJsonFile,
+    '-OutputMarkdownFile',
+    $PromotionGateSummaryMarkdownFile,
+    '-Json'
+)
+
+$summaryRun = $null
+$summaryDocument = $null
+if ($null -ne $gateDocument) {
+    $summaryRun = Invoke-NativeCommand -Arguments $summaryArguments
+    if (-not [string]::IsNullOrWhiteSpace($summaryRun.Output)) {
+        try {
+            $summaryDocument = $summaryRun.Output | ConvertFrom-Json -Depth 80
+        }
+        catch {
+            $summaryDocument = $null
+        }
+    }
+}
+
 $result = [ordered]@{
     schemaVersion = $schemaVersion
     mode = 'candidate-trajectory-gate-run'
@@ -300,10 +349,14 @@ $result = [ordered]@{
     bundleDirectory = $resolvedBundleDirectory
     scoresFile = [System.IO.Path]::GetFullPath($ScoresFile)
     promotionGateFile = [System.IO.Path]::GetFullPath($PromotionGateFile)
+    promotionGateSummaryJsonFile = [System.IO.Path]::GetFullPath($PromotionGateSummaryJsonFile)
+    promotionGateSummaryMarkdownFile = [System.IO.Path]::GetFullPath($PromotionGateSummaryMarkdownFile)
     flattenedMemoryTimeseriesCsv = $(if (-not [string]::IsNullOrWhiteSpace($FlattenedMemoryTimeseriesCsv)) { [System.IO.Path]::GetFullPath($FlattenedMemoryTimeseriesCsv) } else { $null })
     scoreExitCode = $scoreRun.ExitCode
     gateExitCode = $gateRun.ExitCode
+    summaryExitCode = $(if ($null -ne $summaryRun) { $summaryRun.ExitCode } else { $null })
     bestCandidate = $scoreDocument.bestCandidate
+    promotionSummary = $summaryDocument
     gateFailures = $(if ($null -ne $gateDocument) { @($gateDocument.failures) } else { @('Promotion gate output could not be parsed.') })
     gateWarnings = $(if ($null -ne $gateDocument) { @($gateDocument.warnings) } else { @() })
 }
@@ -316,6 +369,10 @@ else {
     Write-Host ("Candidate trajectory gate run: {0}" -f $status) -ForegroundColor $color
     Write-Host ("Scores:         {0}" -f ([System.IO.Path]::GetFullPath($ScoresFile)))
     Write-Host ("Promotion gate: {0}" -f ([System.IO.Path]::GetFullPath($PromotionGateFile)))
+    if ($null -ne $summaryRun) {
+        Write-Host ("Summary JSON:   {0}" -f ([System.IO.Path]::GetFullPath($PromotionGateSummaryJsonFile)))
+        Write-Host ("Summary MD:     {0}" -f ([System.IO.Path]::GetFullPath($PromotionGateSummaryMarkdownFile)))
+    }
     if ($null -ne $scoreDocument.bestCandidate) {
         Write-Host ("Best candidate: {0} score={1} class={2}" -f $scoreDocument.bestCandidate.candidateId, $scoreDocument.bestCandidate.score, $scoreDocument.bestCandidate.classification)
     }

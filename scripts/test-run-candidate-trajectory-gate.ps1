@@ -97,6 +97,10 @@ sampleIndex,candidateId,addressHex,source,x,y,z
     Assert-Equal -Actual ([bool]$passResult.promotionAllowed) -Expected $true -Message 'Pass runner promotion flag mismatch.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $passBundle 'candidate-trajectory-scores.json')) -Message 'Pass scores file missing.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $passBundle 'promotion-gate.json')) -Message 'Pass promotion gate file missing.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $passBundle 'promotion-gate-summary.json')) -Message 'Pass promotion summary JSON missing.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $passBundle 'promotion-gate-summary.md')) -Message 'Pass promotion summary markdown missing.'
+    Assert-Equal -Actual ([int]$passResult.summaryExitCode) -Expected 0 -Message 'Pass promotion summary exit code mismatch.'
+    Assert-Equal -Actual ([bool]$passResult.promotionSummary.promotionAllowed) -Expected $true -Message 'Pass promotion summary flag mismatch.'
     $passScores = Get-Content -LiteralPath (Join-Path $passBundle 'candidate-trajectory-scores.json') -Raw | ConvertFrom-Json -Depth 80
     Assert-Equal -Actual (([string[]]@($passScores.movementSamples)) -join ',') -Expected '1,2,3' -Message 'Pass movement samples were not forwarded.'
     Assert-Equal -Actual (([string[]]@($passScores.stationarySamples)) -join ',') -Expected '4,5' -Message 'Pass stationary samples were not forwarded.'
@@ -114,6 +118,10 @@ sampleIndex,candidateId,addressHex,source,x,y,z
     $failResult = ($failOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
     Assert-Equal -Actual ([string]$failResult.status) -Expected 'promotion-blocked' -Message 'Fail runner status mismatch.'
     Assert-Equal -Actual ([bool]$failResult.promotionAllowed) -Expected $false -Message 'Fail runner promotion flag mismatch.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $failBundle 'promotion-gate-summary.json')) -Message 'Fail promotion summary JSON missing.'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $failBundle 'promotion-gate-summary.md')) -Message 'Fail promotion summary markdown missing.'
+    Assert-Equal -Actual ([int]$failResult.summaryExitCode) -Expected 0 -Message 'Fail promotion summary exit code mismatch.'
+    Assert-Equal -Actual ([bool]$failResult.promotionSummary.promotionAllowed) -Expected $false -Message 'Fail promotion summary flag mismatch.'
     Assert-True -Condition (@($failResult.gateFailures | Where-Object { $_ -like '*classification must be trajectory-match*' }).Count -gt 0) -Message 'Expected fail runner classification failure.'
 }
 finally {
