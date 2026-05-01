@@ -28,6 +28,12 @@ param(
 
     [string]$SavedVariablesFreshnessFile,
 
+    [string]$CapturePlanFile,
+
+    [string]$QualityGateFile,
+
+    [string]$ArtifactIndexFile,
+
     [string]$ExportResultFile,
 
     [string]$SummaryFile,
@@ -158,6 +164,18 @@ if ([string]::IsNullOrWhiteSpace($SavedVariablesFreshnessFile)) {
     $SavedVariablesFreshnessFile = Join-Path $resolvedBundleDirectory 'savedvariables-freshness.json'
 }
 
+if ([string]::IsNullOrWhiteSpace($CapturePlanFile)) {
+    $CapturePlanFile = Join-Path $resolvedBundleDirectory 'capture-plan.json'
+}
+
+if ([string]::IsNullOrWhiteSpace($QualityGateFile)) {
+    $QualityGateFile = Join-Path $resolvedBundleDirectory 'quality-gate.json'
+}
+
+if ([string]::IsNullOrWhiteSpace($ArtifactIndexFile)) {
+    $ArtifactIndexFile = Join-Path $resolvedBundleDirectory 'artifact-index.json'
+}
+
 if ([string]::IsNullOrWhiteSpace($ExportResultFile)) {
     $ExportResultFile = Join-Path $resolvedBundleDirectory 'chromalink-live-coords-export-result.json'
 }
@@ -172,6 +190,12 @@ if (Test-Path -LiteralPath $TruthSurfaceFile) {
 
 if (Test-Path -LiteralPath $SavedVariablesFreshnessFile) {
     Remove-Item -LiteralPath $SavedVariablesFreshnessFile -Force
+}
+
+foreach ($metadataFile in @($CapturePlanFile, $QualityGateFile, $ArtifactIndexFile)) {
+    if (Test-Path -LiteralPath $metadataFile) {
+        Remove-Item -LiteralPath $metadataFile -Force
+    }
 }
 
 $captureStartedAtUtc = [DateTimeOffset]::UtcNow
@@ -319,6 +343,90 @@ function Stop-StartedBridgeIfNeeded {
     }
 }
 
+function Get-RelativePathSafe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BasePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    try {
+        return [System.IO.Path]::GetRelativePath($BasePath, $Path)
+    }
+    catch {
+        return $Path
+    }
+}
+
+function Get-ArtifactRole {
+    param([string]$RelativePath)
+
+    $fileName = [System.IO.Path]::GetFileName($RelativePath)
+    switch -Regex ($fileName) {
+        '^capture-plan\.json$' { return 'capture-plan' }
+        '^truth-surface\.json$' { return 'truth-surface' }
+        '^savedvariables-freshness\.json$' { return 'savedvariables-freshness' }
+        '^quality-gate\.json$' { return 'quality-gate' }
+        '^artifact-index\.json$' { return 'artifact-index' }
+        '^live-coords\.ndjson$' { return 'live-coordinate-truth' }
+        '^chromalink-http-bridge-readiness\.json$' { return 'chromalink-http-bridge-readiness' }
+        '^chromalink-world-state-contract\.json$' { return 'chromalink-world-state-contract' }
+        '^chromalink-freshness-preflight\.json$' { return 'chromalink-freshness-preflight' }
+        '^chromalink-live-coords-export-result\.json$' { return 'chromalink-live-coords-export-result' }
+        '^chromalink-live-coords-capture-summary\.json$' { return 'chromalink-live-coords-capture-summary' }
+        default { return 'artifact' }
+    }
+}
+
+function New-CapturePlanDocument {
+    return [ordered]@{
+        schemaVersion = $schemaVersion
+        mode = 'capture-plan'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        label = 'chromalink-live-coords'
+        purpose = 'Capture ChromaLink coordinate telemetry as an external truth stream for candidate scoring.'
+        bundleDirectory = $resolvedBundleDirectory
+        inputMode = Get-CaptureInputMode
+        truthSurface = 'chromalink-live-telemetry'
+        savedVariablesUse = 'none'
+        failClosedIfStaleSavedVariables = $true
+        input = [ordered]@{
+            worldStateUrl = $(if ($useWorldStateUrl) { $WorldStateUrl } else { $null })
+            worldStatePath = $(if ($useWorldStatePath) { [System.IO.Path]::GetFullPath($WorldStatePath) } else { $null })
+            snapshotPath = $(if (-not $useWorldStateInput) { [System.IO.Path]::GetFullPath($SnapshotPath) } else { $null })
+        }
+        outputFile = [System.IO.Path]::GetFullPath($OutputFile)
+        preflight = [ordered]@{
+            maxFreshAgeMs = $MaxFreshAgeMilliseconds
+            durationSeconds = $PreflightDurationSeconds
+            intervalMilliseconds = $PreflightIntervalMilliseconds
+        }
+        export = [ordered]@{
+            durationSeconds = $ExportDurationSeconds
+            intervalMilliseconds = $ExportIntervalMilliseconds
+            maxSamples = $MaxSamples
+            includeDuplicates = [bool]$IncludeDuplicates
+        }
+        bridge = [ordered]@{
+            required = [bool]($useWorldStateUrl -and -not $SkipBridgeReadiness)
+            startBridge = [bool]$StartBridge
+            keepBridgeRunning = [bool]$KeepBridgeRunning
+            waitSeconds = $BridgeWaitSeconds
+            requestTimeoutSeconds = $BridgeRequestTimeoutSeconds
+        }
+        contract = [ordered]@{
+            required = [bool]($useWorldStateInput -and -not $SkipContractPreflight)
+            skipContractPreflight = [bool]$SkipContractPreflight
+        }
+        stopConditions = @(
+            'Fail if bridge readiness, freshness preflight, contract preflight, or export does not pass.',
+            'Do not write truth-surface.json or savedvariables-freshness.json unless export passes.'
+        )
+    }
+}
+
 function New-TruthSurfaceDocument {
     param(
         [object]$PreflightDocument,
@@ -414,6 +522,117 @@ function New-SavedVariablesFreshnessDocument {
     }
 }
 
+function New-QualityGateDocument {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CaptureStatus,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$Fresh,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$Exported,
+
+        [object]$PreflightDocument,
+
+        [object]$BridgeDocument,
+
+        [object]$ContractDocument,
+
+        [object]$ExportDocument,
+
+        [string[]]$Failures = @()
+    )
+
+    $checks = [System.Collections.Generic.List[object]]::new()
+    $checks.Add([ordered]@{
+            name = 'savedvariables-not-live-truth'
+            status = 'pass'
+            message = 'ChromaLink capture path does not read SavedVariables as live truth.'
+        }) | Out-Null
+
+    $checks.Add([ordered]@{
+            name = 'bridge-readiness'
+            status = $(if ($useWorldStateUrl -and -not $SkipBridgeReadiness) { if ($null -ne $BridgeDocument -and [string]$BridgeDocument.status -eq 'pass') { 'pass' } else { 'fail' } } else { 'skipped' })
+            message = $(if ($useWorldStateUrl -and -not $SkipBridgeReadiness) { "Bridge status=$([string](Get-PropertyValue -InputObject $BridgeDocument -Names @('status')))." } else { 'Bridge readiness is not required for this input mode or was skipped.' })
+        }) | Out-Null
+
+    $checks.Add([ordered]@{
+            name = 'freshness-preflight'
+            status = $(if ($null -ne $PreflightDocument -and [string]$PreflightDocument.status -eq 'pass' -and [bool]$PreflightDocument.fresh -eq $true) { 'pass' } else { 'fail' })
+            message = "Preflight status=$([string](Get-PropertyValue -InputObject $PreflightDocument -Names @('status'))) fresh=$([string](Get-PropertyValue -InputObject $PreflightDocument -Names @('fresh')))."
+        }) | Out-Null
+
+    $checks.Add([ordered]@{
+            name = 'contract-preflight'
+            status = $(if ($useWorldStateInput -and -not $SkipContractPreflight) { if ($null -ne $ContractDocument -and [string]$ContractDocument.status -eq 'pass') { 'pass' } else { 'fail' } } else { 'skipped' })
+            message = $(if ($useWorldStateInput -and -not $SkipContractPreflight) { "Contract status=$([string](Get-PropertyValue -InputObject $ContractDocument -Names @('status')))." } else { 'Contract preflight is not required for this input mode or was skipped.' })
+        }) | Out-Null
+
+    $checks.Add([ordered]@{
+            name = 'live-coord-export'
+            status = $(if ($Exported -and $null -ne $ExportDocument -and [string]$ExportDocument.status -eq 'pass') { 'pass' } else { 'fail' })
+            message = "Export status=$([string](Get-PropertyValue -InputObject $ExportDocument -Names @('status'))) samplesWritten=$([string](Get-PropertyValue -InputObject $ExportDocument -Names @('samplesWritten')))."
+        }) | Out-Null
+
+    return [ordered]@{
+        schemaVersion = $schemaVersion
+        mode = 'capture-quality-gate'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        status = $(if ($CaptureStatus -eq 'pass' -and $Fresh -and $Exported) { 'pass' } else { 'fail' })
+        captureStatus = $CaptureStatus
+        truthSurface = 'chromalink-live-telemetry'
+        savedVariablesUse = 'none'
+        savedVariablesFreshness = $(if ($Exported) { 'not-used' } else { $null })
+        fresh = $Fresh
+        exported = $Exported
+        inputMode = Get-CaptureInputMode
+        failures = @($Failures)
+        warnings = @()
+        checks = $checks.ToArray()
+    }
+}
+
+function Write-ArtifactIndex {
+    $artifactRecords = [System.Collections.Generic.List[object]]::new()
+    Get-ChildItem -LiteralPath $resolvedBundleDirectory -Recurse -File -ErrorAction SilentlyContinue |
+        Sort-Object FullName |
+        ForEach-Object {
+            $relativePath = Get-RelativePathSafe -BasePath $resolvedBundleDirectory -Path $_.FullName
+            $artifactRecords.Add([ordered]@{
+                    relativePath = $relativePath
+                    fullPath = $_.FullName
+                    role = Get-ArtifactRole -RelativePath $relativePath
+                    length = $_.Length
+                    lastWriteTimeUtc = ([DateTimeOffset]::new($_.LastWriteTimeUtc).ToUniversalTime().ToString('O', [System.Globalization.CultureInfo]::InvariantCulture))
+                }) | Out-Null
+        }
+
+    if (-not @($artifactRecords | Where-Object { $_.relativePath -eq 'artifact-index.json' }).Count) {
+        $artifactRecords.Add([ordered]@{
+                relativePath = 'artifact-index.json'
+                fullPath = [System.IO.Path]::GetFullPath($ArtifactIndexFile)
+                role = 'artifact-index'
+                length = $null
+                lastWriteTimeUtc = $null
+            }) | Out-Null
+    }
+
+    $artifactIndex = [ordered]@{
+        schemaVersion = $schemaVersion
+        mode = 'artifact-index'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
+        bundleDirectory = $resolvedBundleDirectory
+        capturePlanFile = [System.IO.Path]::GetFullPath($CapturePlanFile)
+        qualityGateFile = [System.IO.Path]::GetFullPath($QualityGateFile)
+        truthSurfaceFile = [System.IO.Path]::GetFullPath($TruthSurfaceFile)
+        savedVariablesFreshnessFile = [System.IO.Path]::GetFullPath($SavedVariablesFreshnessFile)
+        artifacts = $artifactRecords.ToArray()
+    }
+
+    Write-Utf8TextAtomic -Path $ArtifactIndexFile -Content ($artifactIndex | ConvertTo-Json -Depth 64)
+}
+
 function New-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -468,6 +687,9 @@ function New-Summary {
         preflightFile = [System.IO.Path]::GetFullPath($PreflightFile)
         truthSurfaceFile = [System.IO.Path]::GetFullPath($TruthSurfaceFile)
         savedVariablesFreshnessFile = [System.IO.Path]::GetFullPath($SavedVariablesFreshnessFile)
+        capturePlanFile = [System.IO.Path]::GetFullPath($CapturePlanFile)
+        qualityGateFile = [System.IO.Path]::GetFullPath($QualityGateFile)
+        artifactIndexFile = [System.IO.Path]::GetFullPath($ArtifactIndexFile)
         exportResultFile = [System.IO.Path]::GetFullPath($ExportResultFile)
         summaryFile = [System.IO.Path]::GetFullPath($SummaryFile)
         maxFreshAgeMs = $MaxFreshAgeMilliseconds
@@ -482,6 +704,8 @@ function New-Summary {
         failures = @($Failures)
     }
 }
+
+Write-Utf8TextAtomic -Path $CapturePlanFile -Content ((New-CapturePlanDocument) | ConvertTo-Json -Depth 64)
 
 $bridgeDocument = $null
 $startedBridgeProcessId = $null
@@ -543,8 +767,11 @@ if ($useWorldStateUrl -and -not $SkipBridgeReadiness) {
             }
         }
 
+        $qualityGate = New-QualityGateDocument -CaptureStatus 'bridge-failed' -Fresh $false -Exported $false -PreflightDocument $null -BridgeDocument $bridgeDocument -ContractDocument $null -ExportDocument $null -Failures $failures.ToArray()
+        Write-Utf8TextAtomic -Path $QualityGateFile -Content ($qualityGate | ConvertTo-Json -Depth 64)
         $summary = New-Summary -Status 'bridge-failed' -Fresh $false -Exported $false -PreflightDocument $null -BridgeDocument $bridgeDocument -ContractDocument $null -ExportDocument $null -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $failures.ToArray()
         Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
+        Write-ArtifactIndex
 
         if ($Json) {
             $summary | ConvertTo-Json -Depth 64
@@ -618,8 +845,11 @@ if ($preflightRun.ExitCode -ne 0 -or $null -eq $preflightDocument -or [string]$p
         }
     }
 
+    $qualityGate = New-QualityGateDocument -CaptureStatus 'preflight-failed' -Fresh $false -Exported $false -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $null -ExportDocument $null -Failures $failures.ToArray()
+    Write-Utf8TextAtomic -Path $QualityGateFile -Content ($qualityGate | ConvertTo-Json -Depth 64)
     $summary = New-Summary -Status 'preflight-failed' -Fresh $false -Exported $false -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $null -ExportDocument $null -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $failures.ToArray()
     Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
+    Write-ArtifactIndex
 
     if ($Json) {
         $summary | ConvertTo-Json -Depth 64
@@ -686,8 +916,11 @@ if ($useWorldStateInput -and -not $SkipContractPreflight) {
             }
         }
 
+        $qualityGate = New-QualityGateDocument -CaptureStatus 'contract-failed' -Fresh $true -Exported $false -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $null -Failures $failures.ToArray()
+        Write-Utf8TextAtomic -Path $QualityGateFile -Content ($qualityGate | ConvertTo-Json -Depth 64)
         $summary = New-Summary -Status 'contract-failed' -Fresh $true -Exported $false -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $null -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $failures.ToArray()
         Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
+        Write-ArtifactIndex
 
         if ($Json) {
             $summary | ConvertTo-Json -Depth 64
@@ -785,8 +1018,12 @@ if ($exported) {
     Write-Utf8TextAtomic -Path $SavedVariablesFreshnessFile -Content ($savedVariablesFreshnessDocument | ConvertTo-Json -Depth 64)
 }
 
+$qualityGate = New-QualityGateDocument -CaptureStatus $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -Failures $summaryFailures.ToArray()
+Write-Utf8TextAtomic -Path $QualityGateFile -Content ($qualityGate | ConvertTo-Json -Depth 64)
+
 $summary = New-Summary -Status $summaryStatus -Fresh $true -Exported $exported -PreflightDocument $preflightDocument -BridgeDocument $bridgeDocument -ContractDocument $contractDocument -ExportDocument $exportDocument -TruthSurfaceDocument $truthSurfaceDocument -SavedVariablesFreshnessDocument $savedVariablesFreshnessDocument -RemovedOutputFile $removedOutputFile -BridgeStoppedAfterCapture $bridgeStoppedAfterCapture -Failures $summaryFailures.ToArray()
 Write-Utf8TextAtomic -Path $SummaryFile -Content ($summary | ConvertTo-Json -Depth 64)
+Write-ArtifactIndex
 
 if ($Json) {
     $summary | ConvertTo-Json -Depth 64

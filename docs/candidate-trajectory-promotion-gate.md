@@ -131,11 +131,14 @@ This wrapper writes:
 
 | Artifact | Purpose |
 |---|---|
+| `capture-plan.json` | Capture intent, input mode, freshness limits, bridge/contract requirements, and stop conditions |
 | `chromalink-http-bridge-readiness.json` | HTTP bridge `/api/v1`, `/health`, `/ready`, and schema reachability proof for URL-based world-state captures |
 | `chromalink-world-state-contract.json` | Contract/schema proof for world-state captures; omitted for raw snapshot fallback |
 | `chromalink-freshness-preflight.json` | Freshness proof before export |
 | `truth-surface.json` | Bundle-level declaration that ChromaLink live telemetry, not SavedVariables, is the authoritative coordinate truth surface |
 | `savedvariables-freshness.json` | Explicit `not-used` marker proving this ChromaLink capture did not use SavedVariables as live truth |
+| `quality-gate.json` | Machine-readable pass/fail checks for bridge readiness, freshness, contract preflight, export, and SavedVariables exclusion |
+| `artifact-index.json` | Canonical file list and artifact roles for the bundle |
 | `live-coords.ndjson` | Exported live coordinate truth stream |
 | `chromalink-live-coords-export-result.json` | Lower-level export result |
 | `chromalink-live-coords-capture-summary.json` | Wrapper summary |
@@ -145,6 +148,12 @@ for URL-based world-state captures and records them in the bundle. You can still
 run either check separately after ChromaLink updates or before the first capture
 in a session to confirm the HTTP bridge and schema still match RiftReader
 expectations.
+
+Bridge readiness is intentionally stricter than API/schema reachability: it
+requires `/health` and `/ready` to return successful status codes with
+`ok/ready/healthy/fresh=true` and `stale=false`. Use
+`test-chromalink-world-state-contract.ps1` when you only need API/schema
+contract reachability without requiring fresh telemetry.
 
 If the wrapper result is `preflight-failed`, it does not write
 `live-coords.ndjson`; restart or repair the telemetry source first. The lower

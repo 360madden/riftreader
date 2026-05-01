@@ -32,6 +32,89 @@ function Assert-Equal {
     }
 }
 
+function Get-FreeTcpPort {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+        $listener.Start()
+        return [int]$listener.LocalEndpoint.Port
+    }
+    finally {
+        $listener.Stop()
+    }
+}
+
+function Start-TestJsonServer {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Routes,
+
+        [int]$MaxRequests = 16
+    )
+
+    $serverScript = Join-Path $PSScriptRoot 'test-json-http-server.ps1'
+    if (-not (Test-Path -LiteralPath $serverScript)) {
+        throw "Test JSON HTTP server script not found: $serverScript"
+    }
+
+    $routesPath = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-test-json-routes-{0}.json' -f ([Guid]::NewGuid().ToString('N')))
+    Set-Content -LiteralPath $routesPath -Value ($Routes | ConvertTo-Json -Depth 100) -Encoding UTF8
+
+    $process = Start-Process -FilePath 'pwsh' -ArgumentList @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        ('"{0}"' -f $serverScript),
+        '-Port',
+        $Port.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-RoutesPath',
+        ('"{0}"' -f $routesPath),
+        '-MaxRequests',
+        $MaxRequests.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    ) -PassThru -WindowStyle Hidden
+
+    for ($attempt = 0; $attempt -lt 50; $attempt++) {
+        try {
+            Invoke-WebRequest -Method Get -Uri "http://127.0.0.1:$Port/__probe" -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 1 | Out-Null
+            return [pscustomobject]@{
+                Process = $process
+                RoutesPath = $routesPath
+            }
+        }
+        catch {
+            if ($process.HasExited) {
+                throw "Test JSON server exited before accepting connections on port $Port."
+            }
+
+            Start-Sleep -Milliseconds 100
+        }
+    }
+
+    if (-not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+    }
+    if (Test-Path -LiteralPath $routesPath) {
+        Remove-Item -LiteralPath $routesPath -Force
+    }
+    throw "Test JSON server did not start on port $Port."
+}
+function Stop-TestJsonServer {
+    param([object]$Job)
+
+    if ($null -ne $Job) {
+        if ($Job.PSObject.Properties['Process'] -and $null -ne $Job.Process -and -not $Job.Process.HasExited) {
+            Stop-Process -Id $Job.Process.Id -Force
+        }
+        if ($Job.PSObject.Properties['RoutesPath'] -and -not [string]::IsNullOrWhiteSpace([string]$Job.RoutesPath) -and (Test-Path -LiteralPath $Job.RoutesPath)) {
+            Remove-Item -LiteralPath $Job.RoutesPath -Force
+        }
+    }
+}
+
 function Write-Snapshot {
     param(
         [Parameter(Mandatory = $true)]
@@ -164,6 +247,31 @@ try {
     Assert-Equal -Actual ([string]$worldStateResult.status) -Expected 'pass' -Message 'World-state status mismatch.'
     Assert-Equal -Actual ([string]$worldStateResult.inputMode) -Expected 'world-state-file' -Message 'World-state input mode mismatch.'
     Assert-Equal -Actual ([double]$worldStateResult.x) -Expected 4.0 -Message 'World-state X mismatch.'
+
+    $worldStateDocument = Get-Content -LiteralPath $worldState -Raw | ConvertFrom-Json -Depth 64
+    $nonSuccessPort = Get-FreeTcpPort
+    $nonSuccessServer = $null
+    try {
+        $nonSuccessServer = Start-TestJsonServer -Port $nonSuccessPort -MaxRequests 3 -Routes @{
+            '/api/v1/riftreader/world-state' = [ordered]@{
+                statusCode = 500
+                body = $worldStateDocument
+            }
+        }
+
+        $nonSuccessOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script `
+            -WorldStateUrl "http://127.0.0.1:$nonSuccessPort/api/v1/riftreader/world-state" `
+            -MaxFreshAgeMilliseconds 10000 `
+            -Json 2>&1
+        Assert-True -Condition ($LASTEXITCODE -ne 0) -Message 'Expected HTTP 500 ChromaLink world-state freshness check to fail.'
+        $nonSuccessResult = ($nonSuccessOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
+        Assert-Equal -Actual ([string]$nonSuccessResult.status) -Expected 'stale' -Message 'HTTP 500 world-state status mismatch.'
+        Assert-Equal -Actual ([int]$nonSuccessResult.httpStatusCode) -Expected 500 -Message 'HTTP 500 status code was not recorded.'
+        Assert-True -Condition (@($nonSuccessResult.failures | Where-Object { $_ -like '*HTTP status*' }).Count -gt 0) -Message 'Expected HTTP status failure.'
+    }
+    finally {
+        Stop-TestJsonServer -Job $nonSuccessServer
+    }
 
     $staleTime = [DateTimeOffset]::UtcNow.AddSeconds(-10)
     Write-Snapshot -Path $snapshot -GeneratedAtUtc $staleTime -ObservedAtUtc $staleTime -Fresh $true -Stale $false

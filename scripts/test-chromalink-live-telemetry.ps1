@@ -343,6 +343,10 @@ function Test-WorldStateFreshness {
         }
     }
 
+    if ($reader.InputMode -eq 'world-state-url' -and ([int]$reader.StatusCode -lt 200 -or [int]$reader.StatusCode -gt 299)) {
+        $failures.Add("ChromaLink RiftReader world-state HTTP status is not successful; status=$($reader.StatusCode).") | Out-Null
+    }
+
     $document = $reader.Document
     $position = Get-NestedValue -InputObject $document -Path 'player.position'
     $navigationPlayerAvailable = Get-NestedValue -InputObject $document -Path 'navigation.playerPositionAvailable'
@@ -420,6 +424,7 @@ function Test-WorldStateFreshness {
         snapshotPath = [string](Get-PropertyValue -InputObject $document -Name 'snapshotPath')
         worldStateUrl = $reader.WorldStateUrl
         worldStatePath = $reader.WorldStatePath
+        httpStatusCode = $(if ($reader.InputMode -eq 'world-state-url') { [int]$reader.StatusCode } else { $null })
         exists = $true
         generatedAtUtc = $nowUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
         sourceSnapshotLastWriteUtc = $(if ($null -ne $reader.LastWriteTimeUtc) { $reader.LastWriteTimeUtc.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture) } else { $null })

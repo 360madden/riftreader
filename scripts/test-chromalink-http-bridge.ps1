@@ -80,6 +80,71 @@ function Invoke-HttpJson {
     }
 }
 
+function Get-JsonPropertyValue {
+    param(
+        [object]$InputObject,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        if ($InputObject.Contains($Name)) {
+            return $InputObject[$Name]
+        }
+
+        return $null
+    }
+
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Add-ReadinessEndpointFailures {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [object]$Response,
+
+        [System.Collections.Generic.List[string]]$Failures
+    )
+
+    if ($null -eq $Response) {
+        $Failures.Add("$Name endpoint did not return a response.") | Out-Null
+        return
+    }
+
+    if ([int]$Response.StatusCode -lt 200 -or [int]$Response.StatusCode -gt 299) {
+        $Failures.Add("$Name endpoint returned non-success status=$($Response.StatusCode).") | Out-Null
+    }
+
+    if ($null -eq $Response.Json) {
+        $Failures.Add("$Name endpoint response could not be parsed as JSON.") | Out-Null
+        return
+    }
+
+    foreach ($field in @('ok', 'ready', 'healthy', 'fresh')) {
+        $value = Get-JsonPropertyValue -InputObject $Response.Json -Name $field
+        if ($value -ne $true) {
+            $Failures.Add("$Name endpoint $field is not true; value=$value.") | Out-Null
+        }
+    }
+
+    $stale = Get-JsonPropertyValue -InputObject $Response.Json -Name 'stale'
+    if ($stale -eq $true) {
+        $Failures.Add("$Name endpoint stale is true.") | Out-Null
+    }
+}
+
 function Test-BridgeApi {
     param([Parameter(Mandatory = $true)][string]$Url)
 
@@ -137,12 +202,61 @@ function Resolve-BridgeProject {
     return [System.IO.Path]::GetFullPath((Join-Path $ChromaLinkRoot 'DesktopDotNet\ChromaLink.HttpBridge\ChromaLink.HttpBridge.csproj'))
 }
 
+function Resolve-BridgeLaunchTarget {
+    param([Parameter(Mandatory = $true)][string]$ProjectPath)
+
+    $projectDocument = [xml](Get-Content -LiteralPath $ProjectPath -Raw)
+    $targetFramework = @(
+        $projectDocument.Project.PropertyGroup |
+            ForEach-Object { $_.TargetFramework } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Select-Object -First 1
+    )
+    if (-not $targetFramework) {
+        throw "Unable to resolve TargetFramework from ChromaLink HTTP bridge project: $ProjectPath"
+    }
+
+    $projectDirectory = Split-Path -Path $ProjectPath -Parent
+    $assemblyName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath)
+    $targetDirectory = Join-Path $projectDirectory (Join-Path 'bin\Debug' ([string]$targetFramework))
+    $exePath = Join-Path $targetDirectory ('{0}.exe' -f $assemblyName)
+    if (Test-Path -LiteralPath $exePath) {
+        return [pscustomobject]@{
+            FilePath = $exePath
+            ArgumentList = @()
+        }
+    }
+
+    $dllPath = Join-Path $targetDirectory ('{0}.dll' -f $assemblyName)
+    if (Test-Path -LiteralPath $dllPath) {
+        return [pscustomobject]@{
+            FilePath = 'dotnet'
+            ArgumentList = @($dllPath)
+        }
+    }
+
+    throw "ChromaLink HTTP bridge build output not found after build: $exePath"
+}
+
+function Write-Utf8LogFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [string]$Content = ''
+    )
+
+    [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+}
+
 $base = $BaseUrl.TrimEnd('/')
 $startedProcess = $null
 $startedByScript = $false
 $bridgeStopped = $false
 $stdoutLog = $null
 $stderrLog = $null
+$buildLog = $null
+$buildExitCode = $null
 $failures = [System.Collections.Generic.List[string]]::new()
 $apiProbe = $null
 $health = $null
@@ -162,15 +276,40 @@ try {
             throw "ChromaLink root not found: $resolvedRoot"
         }
 
-        $stdoutLog = Join-Path $env:TEMP ('riftreader-chromalink-httpbridge-out-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
-        $stderrLog = Join-Path $env:TEMP ('riftreader-chromalink-httpbridge-err-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
-        $startedProcess = Start-Process -FilePath 'dotnet' `
-            -ArgumentList @('run', '--project', $resolvedProject, '--no-launch-profile') `
-            -WorkingDirectory $resolvedRoot `
-            -RedirectStandardOutput $stdoutLog `
-            -RedirectStandardError $stderrLog `
-            -PassThru `
-            -WindowStyle Hidden
+        $buildLog = Join-Path $env:TEMP ('riftreader-chromalink-httpbridge-build-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
+        $buildRun = Invoke-NativeCommand -Arguments @(
+            'dotnet',
+            'build',
+            $resolvedProject,
+            '--nologo',
+            '-v',
+            'quiet'
+        )
+        $buildExitCode = $buildRun.ExitCode
+        Write-Utf8LogFile -Path $buildLog -Content $buildRun.Output
+        if ($buildRun.ExitCode -ne 0) {
+            throw "ChromaLink HTTP bridge build failed; exitCode=$($buildRun.ExitCode); buildLog=$buildLog"
+        }
+
+        $launchTarget = Resolve-BridgeLaunchTarget -ProjectPath $resolvedProject
+        $startProcessParameters = @{
+            FilePath = $launchTarget.FilePath
+            WorkingDirectory = $resolvedRoot
+            PassThru = $true
+            WindowStyle = 'Hidden'
+        }
+        if (@($launchTarget.ArgumentList).Count -gt 0) {
+            $startProcessParameters.ArgumentList = @($launchTarget.ArgumentList)
+        }
+
+        if (-not $KeepRunning) {
+            $stdoutLog = Join-Path $env:TEMP ('riftreader-chromalink-httpbridge-out-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
+            $stderrLog = Join-Path $env:TEMP ('riftreader-chromalink-httpbridge-err-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
+            $startProcessParameters.RedirectStandardOutput = $stdoutLog
+            $startProcessParameters.RedirectStandardError = $stderrLog
+        }
+
+        $startedProcess = Start-Process @startProcessParameters
         $startedByScript = $true
     }
 
@@ -195,6 +334,7 @@ try {
     if ($apiProbe.Reachable) {
         try {
             $health = Invoke-HttpJson -Url ('{0}/health' -f $base)
+            Add-ReadinessEndpointFailures -Name 'Health' -Response $health -Failures $failures
         }
         catch {
             $failures.Add("Health endpoint query failed: $($_.Exception.Message)") | Out-Null
@@ -202,6 +342,7 @@ try {
 
         try {
             $ready = Invoke-HttpJson -Url ('{0}/ready' -f $base)
+            Add-ReadinessEndpointFailures -Name 'Ready' -Response $ready -Failures $failures
         }
         catch {
             $failures.Add("Ready endpoint query failed: $($_.Exception.Message)") | Out-Null
@@ -265,6 +406,8 @@ $result = [ordered]@{
     keepRunning = [bool]$KeepRunning
     bridgeProcessId = if ($startedProcess) { $startedProcess.Id } else { $null }
     bridgeStopped = $bridgeStopped
+    buildExitCode = $buildExitCode
+    buildLog = $buildLog
     stdoutLog = $stdoutLog
     stderrLog = $stderrLog
     apiReachable = [bool]($apiProbe -and $apiProbe.Reachable)

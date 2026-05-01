@@ -32,6 +32,102 @@ function Assert-Equal {
     }
 }
 
+function Get-FreeTcpPort {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+        $listener.Start()
+        return [int]$listener.LocalEndpoint.Port
+    }
+    finally {
+        $listener.Stop()
+    }
+}
+
+function Start-TestJsonServer {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Routes,
+
+        [int]$MaxRequests = 16
+    )
+
+    $serverScript = Join-Path $PSScriptRoot 'test-json-http-server.ps1'
+    if (-not (Test-Path -LiteralPath $serverScript)) {
+        throw "Test JSON HTTP server script not found: $serverScript"
+    }
+
+    $routesPath = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-test-json-routes-{0}.json' -f ([Guid]::NewGuid().ToString('N')))
+    Set-Content -LiteralPath $routesPath -Value ($Routes | ConvertTo-Json -Depth 100) -Encoding UTF8
+    $stdoutLog = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-test-json-server-out-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
+    $stderrLog = Join-Path ([System.IO.Path]::GetTempPath()) ('riftreader-test-json-server-err-{0}.log' -f ([Guid]::NewGuid().ToString('N')))
+
+    $process = Start-Process -FilePath 'pwsh' -ArgumentList @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        ('"{0}"' -f $serverScript),
+        '-Port',
+        $Port.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-RoutesPath',
+        ('"{0}"' -f $routesPath),
+        '-MaxRequests',
+        $MaxRequests.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+
+    for ($attempt = 0; $attempt -lt 50; $attempt++) {
+        try {
+            Invoke-WebRequest -Method Get -Uri "http://127.0.0.1:$Port/__probe" -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 1 | Out-Null
+            return [pscustomobject]@{
+                Process = $process
+                RoutesPath = $routesPath
+                StdoutLog = $stdoutLog
+                StderrLog = $stderrLog
+            }
+        }
+        catch {
+            if ($process.HasExited) {
+                $serverOutput = if (Test-Path -LiteralPath $stdoutLog) { Get-Content -LiteralPath $stdoutLog -Raw } else { '' }
+                $serverError = if (Test-Path -LiteralPath $stderrLog) { Get-Content -LiteralPath $stderrLog -Raw } else { '' }
+                throw "Test JSON server exited before accepting connections on port $Port. stdout=$serverOutput stderr=$serverError"
+            }
+
+            Start-Sleep -Milliseconds 100
+        }
+    }
+
+    if (-not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+    }
+    foreach ($pathToRemove in @($routesPath, $stdoutLog, $stderrLog)) {
+        if (-not [string]::IsNullOrWhiteSpace($pathToRemove) -and (Test-Path -LiteralPath $pathToRemove)) {
+            Remove-Item -LiteralPath $pathToRemove -Force
+        }
+    }
+    throw "Test JSON server did not start on port $Port."
+}
+function Stop-TestJsonServer {
+    param([object]$Job)
+
+    if ($null -ne $Job) {
+        if ($Job.PSObject.Properties['Process'] -and $null -ne $Job.Process -and -not $Job.Process.HasExited) {
+            Stop-Process -Id $Job.Process.Id -Force
+        }
+        foreach ($pathProperty in @('RoutesPath', 'StdoutLog', 'StderrLog')) {
+            if ($Job.PSObject.Properties[$pathProperty]) {
+                $pathToRemove = [string]$Job.$pathProperty
+                if (-not [string]::IsNullOrWhiteSpace($pathToRemove) -and (Test-Path -LiteralPath $pathToRemove)) {
+                    Remove-Item -LiteralPath $pathToRemove -Force
+                }
+            }
+        }
+    }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $exportScript = Join-Path $repoRoot 'scripts\export-chromalink-live-coords.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-chromalink-live-coords-' + [Guid]::NewGuid().ToString('N'))
@@ -78,6 +174,7 @@ try {
     $exportOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $exportScript `
         -SnapshotPath $snapshotFile `
         -OutputFile $outputFile `
+        -MaxFreshAgeMilliseconds 10000 `
         -Json 2>&1
     Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected ChromaLink live coord export to pass: {0}" -f ($exportOutput -join [Environment]::NewLine))
     $exportResult = ($exportOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
@@ -140,6 +237,7 @@ try {
     $worldStateExportOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $exportScript `
         -WorldStatePath $worldStateFile `
         -OutputFile $worldStateOutputFile `
+        -MaxFreshAgeMilliseconds 10000 `
         -Json 2>&1
     Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected ChromaLink RiftReader world-state coord export to pass: {0}" -f ($worldStateExportOutput -join [Environment]::NewLine))
     $worldStateExportResult = ($worldStateExportOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 32
@@ -148,6 +246,30 @@ try {
     $worldStateSample = (@(Get-Content -LiteralPath $worldStateOutputFile))[0] | ConvertFrom-Json -Depth 32
     Assert-Equal -Actual ([string]$worldStateSample.sourceView) -Expected 'chromalink-riftreader-world-state' -Message 'World-state source view mismatch.'
     Assert-Equal -Actual ([double]$worldStateSample.x) -Expected 7455.6 -Message 'World-state sample X mismatch.'
+
+    $nonSuccessPort = Get-FreeTcpPort
+    $nonSuccessServer = $null
+    $nonSuccessOutputFile = Join-Path $tempRoot 'http-500-live-coords.ndjson'
+    try {
+        $nonSuccessServer = Start-TestJsonServer -Port $nonSuccessPort -MaxRequests 3 -Routes @{
+            '/api/v1/riftreader/world-state' = [ordered]@{
+                statusCode = 500
+                body = $worldState
+            }
+        }
+
+        $nonSuccessOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $exportScript `
+            -WorldStateUrl "http://127.0.0.1:$nonSuccessPort/api/v1/riftreader/world-state" `
+            -OutputFile $nonSuccessOutputFile `
+            -MaxFreshAgeMilliseconds 10000 `
+            -Json 2>&1
+        Assert-True -Condition ($LASTEXITCODE -ne 0) -Message 'Expected HTTP 500 ChromaLink world-state export to fail.'
+        Assert-True -Condition (($nonSuccessOutput -join [Environment]::NewLine) -like '*non-success HTTP status*') -Message 'Expected HTTP status export error.'
+        Assert-True -Condition (-not (Test-Path -LiteralPath $nonSuccessOutputFile)) -Message 'HTTP 500 export should not write NDJSON.'
+    }
+    finally {
+        Stop-TestJsonServer -Job $nonSuccessServer
+    }
 
     $staleSnapshot = $snapshot
     $staleSnapshot.generatedAtUtc = $nowUtc.AddHours(-1).ToString('O')

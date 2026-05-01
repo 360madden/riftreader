@@ -32,6 +32,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $schemaVersion = 1
+$allowedPromotionTruthSurfaces = @(
+    'overlay',
+    'overlay-screenshot-manual-extract',
+    'validated-memory-anchor',
+    'chromalink-live-telemetry',
+    'readerbridge-live-telemetry',
+    'post-flush-savedvariables'
+)
 
 function Write-Utf8TextAtomic {
     param(
@@ -240,6 +248,7 @@ if (-not [string]::IsNullOrWhiteSpace($TruthSurfaceFile)) {
         $truthSurfaceDocument = Get-Content -LiteralPath $resolvedTruthSurfaceFile -Raw | ConvertFrom-Json -Depth 64
         $truthSurface = [string](Get-PropertyValue -InputObject $truthSurfaceDocument -Names @('authoritativeTruthSurface', 'truthSurface'))
         Add-Check -Checks $checks -Name 'truth-surface-not-savedvariables-live' -Passed ($truthSurface -ne 'savedvariables-live') -Message "Authoritative truth surface must not be savedvariables-live; actual=$truthSurface." -Failures $failures -Warnings $warnings
+        Add-Check -Checks $checks -Name 'truth-surface-allowed' -Passed ($allowedPromotionTruthSurfaces -contains $truthSurface) -Message "Authoritative truth surface must be one of: $($allowedPromotionTruthSurfaces -join ', '); actual=$truthSurface." -Failures $failures -Warnings $warnings
     }
     else {
         Add-Check -Checks $checks -Name 'truth-surface-file-present' -Passed $false -Message "Truth surface file not found: $resolvedTruthSurfaceFile" -Failures $failures -Warnings $warnings

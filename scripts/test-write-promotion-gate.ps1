@@ -40,6 +40,8 @@ $passingGateFile = Join-Path $tempRoot 'passing-promotion-gate.json'
 $failingScoresFile = Join-Path $tempRoot 'failing-candidate-trajectory-scores.json'
 $failingGateFile = Join-Path $tempRoot 'failing-promotion-gate.json'
 $truthSurfaceFile = Join-Path $tempRoot 'truth-surface.json'
+$badTruthSurfaceFile = Join-Path $tempRoot 'bad-truth-surface.json'
+$badTruthSurfaceGateFile = Join-Path $tempRoot 'bad-truth-surface-promotion-gate.json'
 $savedVariablesFreshnessFile = Join-Path $tempRoot 'savedvariables-freshness.json'
 
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
@@ -95,6 +97,24 @@ try {
     Assert-Equal -Actual ([string]$passingResult.status) -Expected 'pass' -Message 'Passing gate status mismatch.'
     Assert-Equal -Actual ([bool]$passingResult.promotionAllowed) -Expected $true -Message 'Passing gate promotionAllowed mismatch.'
     Assert-True -Condition (Test-Path -LiteralPath $passingGateFile) -Message 'Passing gate file was not written.'
+
+    Set-Content -LiteralPath $badTruthSurfaceFile -Value ([ordered]@{
+            schemaVersion = 1
+            mode = 'truth-surface'
+            authoritativeTruthSurface = 'candidate-memory'
+            savedVariablesUsableAsLiveTruth = $false
+        } | ConvertTo-Json -Depth 16) -Encoding UTF8
+
+    $badTruthSurfaceOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $gateScript `
+        -CandidateScoresFile $passingScoresFile `
+        -TruthSurfaceFile $badTruthSurfaceFile `
+        -SavedVariablesFreshnessFile $savedVariablesFreshnessFile `
+        -OutputFile $badTruthSurfaceGateFile `
+        -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -ne 0) -Message 'Expected disallowed truth-surface promotion gate to fail.'
+    $badTruthSurfaceResult = ($badTruthSurfaceOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 64
+    Assert-Equal -Actual ([string]$badTruthSurfaceResult.status) -Expected 'fail' -Message 'Bad truth-surface gate status mismatch.'
+    Assert-True -Condition (@($badTruthSurfaceResult.failures | Where-Object { $_ -like '*Authoritative truth surface must be one of*' }).Count -gt 0) -Message 'Expected allowed truth-surface failure.'
 
     $failingCandidate = [ordered]@{
         rank = 1

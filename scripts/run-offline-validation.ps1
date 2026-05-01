@@ -95,6 +95,7 @@ $parserFiles = @(
     'scripts/write-capture-metadata.ps1',
     'scripts/test-write-capture-metadata.ps1',
     'scripts/record-discovery-session.ps1',
+    'scripts/test-json-http-server.ps1',
     'scripts/export-chromalink-live-coords.ps1',
     'scripts/test-export-chromalink-live-coords.ps1',
     'scripts/test-chromalink-http-bridge.ps1',

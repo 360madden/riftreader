@@ -213,6 +213,10 @@ function Read-ChromaLinkWorldState {
     }
 
     $response = Invoke-WebRequest -Method Get -Uri $Url -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 5
+    if ([int]$response.StatusCode -lt 200 -or [int]$response.StatusCode -gt 299) {
+        throw "ChromaLink RiftReader world-state endpoint returned a non-success HTTP status: $Url status=$([int]$response.StatusCode)"
+    }
+
     if ([string]::IsNullOrWhiteSpace($response.Content)) {
         throw "ChromaLink RiftReader world-state endpoint returned an empty response: $Url"
     }
