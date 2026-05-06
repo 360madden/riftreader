@@ -231,6 +231,16 @@ function Invoke-ProofAnchorResolverNoRefresh {
     }
 }
 
+function Test-NoCeRiftScanReferenceProofAnchorDocument {
+    param($Document)
+
+    $canonicalCoordSourceKind = [string](Get-DocumentPropertyValue -Document $Document -Name 'CanonicalCoordSourceKind')
+    $proofMethod = [string](Get-DocumentPropertyValue -Document $Document -Name 'ProofMethod')
+
+    return [string]::Equals($canonicalCoordSourceKind, 'riftscan-reference-validated-candidate', [System.StringComparison]::OrdinalIgnoreCase) -or
+        [string]::Equals($proofMethod, 'no-ce-riftscan-reference-multisample', [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 function Read-ProofAnchorDocument {
     param(
         [Parameter(Mandatory = $true)]
@@ -252,6 +262,18 @@ function Read-ProofAnchorDocument {
             ExitCode = 0
             Document = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $resolvedProofCoordAnchorFile -Raw) -Depth 80
             RawOutput = $null
+        }
+    }
+
+    if (Test-Path -LiteralPath $resolvedProofCoordAnchorFile) {
+        $cachedDocument = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $resolvedProofCoordAnchorFile -Raw) -Depth 80
+        if (Test-NoCeRiftScanReferenceProofAnchorDocument -Document $cachedDocument) {
+            return [pscustomobject]@{
+                Source = 'cache'
+                ExitCode = 0
+                Document = $cachedDocument
+                RawOutput = $null
+            }
         }
     }
 

@@ -26,6 +26,7 @@ param(
     [double]$ReferenceTolerance = 0.25,
     [string]$ReferenceSource = 'manual-or-overlay-reference',
     [int]$ReferenceMaxAgeSeconds = 0,
+    [int]$ProofAnchorMaxAgeSeconds = 60,
     [int]$TopReferenceMatches = 5,
     [switch]$SkipProofAnchorCheck,
     [switch]$Json
@@ -37,7 +38,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $importerScript = Join-Path $PSScriptRoot 'import-riftscan-coordinate-candidates.ps1'
-$proofAnchorScript = Join-Path $PSScriptRoot 'resolve-proof-coord-anchor.ps1'
+$proofAnchorScript = Join-Path $PSScriptRoot 'assert-current-proof-coord-anchor.ps1'
 
 Add-Type -TypeDefinition @"
 using System;
@@ -670,6 +671,10 @@ if ($TopReferenceMatches -lt 0) {
     throw "TopReferenceMatches must be zero or greater."
 }
 
+if ($ProofAnchorMaxAgeSeconds -lt 0) {
+    throw "ProofAnchorMaxAgeSeconds must be zero or greater."
+}
+
 $referenceCoordinate = Resolve-ReferenceCoordinate
 $effectiveReferenceTolerance = if ($null -eq $referenceCoordinate) { [double]$ReferenceTolerance } else { [double]$referenceCoordinate.Tolerance }
 
@@ -756,27 +761,49 @@ if (-not (Test-Path -LiteralPath $riftScanCliProject) -and [string]::IsNullOrWhi
 
 $proofAnchorCommand = $null
 $proofAnchorStatus = 'skipped'
-$proofAnchorOutputPath = Join-Path $resolvedOutputRoot ("resolve-proof-coord-anchor-currentpid-{0}-no-ce-wrapper-{1}.json" -f $targetProcessId, $stamp)
+$proofAnchorMovementAllowed = $false
+$proofAnchorSource = $null
+$proofAnchorIssues = @()
+$proofAnchorCandidateId = $null
+$proofAnchorCandidateAddressHex = $null
+$proofAnchorOutputPath = Join-Path $resolvedOutputRoot ("assert-current-proof-coord-anchor-currentpid-{0}-no-ce-wrapper-{1}.json" -f $targetProcessId, $stamp)
 if (-not $SkipProofAnchorCheck) {
     $anchorArgs = @(
         '-ProcessId',
         $targetProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '-TargetWindowHandle',
         $targetHandleHex,
-        '-SkipRefresh',
+        '-MaxAgeSeconds',
+        $ProofAnchorMaxAgeSeconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '-Json'
     )
     $proofAnchorCommand = Invoke-PowerShellScript -ScriptPath $proofAnchorScript -Arguments $anchorArgs -AllowFailure
     $proofAnchorCommand.Output | Set-Content -LiteralPath $proofAnchorOutputPath -Encoding UTF8
+    $proofAnchor = $null
     try {
         $proofAnchor = ConvertFrom-JsonCompat -Text $proofAnchorCommand.Output
-        $proofAnchorStatus = [string]$proofAnchor.Status
-        if ([string]::IsNullOrWhiteSpace($proofAnchorStatus)) {
-            $proofAnchorStatus = if ($proofAnchorCommand.ExitCode -eq 0) { 'unknown' } else { 'failed' }
-        }
     }
     catch {
         $proofAnchorStatus = if ($proofAnchorCommand.ExitCode -eq 0) { 'unparseable' } else { 'failed' }
+    }
+
+    if ($null -ne $proofAnchor) {
+        $statusValue = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('Status')
+        $proofAnchorStatus = [string]$statusValue
+        if ([string]::IsNullOrWhiteSpace($proofAnchorStatus)) {
+            $proofAnchorStatus = if ($proofAnchorCommand.ExitCode -eq 0) { 'unknown' } else { 'failed' }
+        }
+
+        $movementAllowedValue = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('MovementAllowed')
+        $proofAnchorMovementAllowed = $null -ne $movementAllowedValue -and [bool]$movementAllowedValue
+        $proofAnchorSource = [string](Get-JsonPropertyValue -InputObject $proofAnchor -Names @('AnchorSource'))
+        $issuesValue = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('Issues')
+        $proofAnchorIssues = if ($null -eq $issuesValue) { @() } else { @($issuesValue) }
+
+        $proofAnchorDocument = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('Anchor')
+        $proofAnchorEvidence = Get-JsonPropertyValue -InputObject $proofAnchorDocument -Names @('Evidence')
+        $proofAnchorCandidateId = [string](Get-JsonPropertyValue -InputObject $proofAnchorEvidence -Names @('CandidateId'))
+        $proofAnchorCandidateAddressHex = [string](Get-JsonPropertyValue -InputObject $proofAnchorEvidence -Names @('CandidateAddressHex'))
     }
 }
 
@@ -900,6 +927,96 @@ $sourcePreviewMatchCount = @($candidateReadbacks | Where-Object { $null -ne $_.S
 $referenceMatchCount = @($candidateReadbacks | Where-Object { $null -ne $_.ReferenceMatchesReadback -and [bool]$_.ReferenceMatchesReadback }).Count
 $bestReferenceMatches = @(New-BestReferenceMatchSummary -CandidateReadbacks $candidateReadbacks -TopCount $TopReferenceMatches)
 
+$proofAnchorCandidateReadback = $null
+if (-not [string]::IsNullOrWhiteSpace($proofAnchorCandidateId)) {
+    $anchorCandidateReadback = @($candidateReadbacks | Where-Object { [string]::Equals([string]$_.CandidateId, $proofAnchorCandidateId, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1)
+    $anchorReadbackIssues = [System.Collections.Generic.List[string]]::new()
+    if ($anchorCandidateReadback.Count -eq 0) {
+        $anchorReadbackIssues.Add('proof_anchor_candidate_not_found_in_current_readback') | Out-Null
+    }
+
+    $anchorCandidate = if ($anchorCandidateReadback.Count -eq 0) { $null } else { $anchorCandidateReadback[0] }
+    $decodedSamples = if ($null -eq $anchorCandidate) { @() } else { @($anchorCandidate.DecodedSamples) }
+    $firstDecodedSample = if ($decodedSamples.Count -eq 0) { $null } else { $decodedSamples[0] }
+    $addressMatches = $false
+    if ($null -ne $anchorCandidate -and -not [string]::IsNullOrWhiteSpace($proofAnchorCandidateAddressHex)) {
+        $addressMatches = [string]::Equals([string]$anchorCandidate.CandidateAddressHex, $proofAnchorCandidateAddressHex, [System.StringComparison]::OrdinalIgnoreCase)
+        if (-not $addressMatches) {
+            $anchorReadbackIssues.Add('proof_anchor_candidate_address_mismatch') | Out-Null
+        }
+    }
+
+    if ($null -ne $anchorCandidate -and -not [bool]$anchorCandidate.StableAcrossReadbackSamples) {
+        $anchorReadbackIssues.Add('proof_anchor_candidate_not_stable_across_current_readback_samples') | Out-Null
+    }
+
+    if ($null -ne $anchorCandidate -and $decodedSamples.Count -eq 0) {
+        $anchorReadbackIssues.Add('proof_anchor_candidate_has_no_decoded_current_readback_sample') | Out-Null
+    }
+
+    if (-not [string]::Equals([string]$manifest.IntegrityStatus, 'ok', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $anchorReadbackIssues.Add('readback_integrity_not_ok') | Out-Null
+    }
+
+    if ([int]$manifest.TotalRegionReadFailures -ne 0) {
+        $anchorReadbackIssues.Add('readback_region_failures_present') | Out-Null
+    }
+
+    $proofAnchorCandidateReadbackSupportsAnchor = (
+        $proofAnchorMovementAllowed -and
+        $null -ne $anchorCandidate -and
+        $decodedSamples.Count -gt 0 -and
+        [bool]$anchorCandidate.StableAcrossReadbackSamples -and
+        $addressMatches -and
+        [string]::Equals([string]$manifest.IntegrityStatus, 'ok', [System.StringComparison]::OrdinalIgnoreCase) -and
+        [int]$manifest.TotalRegionReadFailures -eq 0
+    )
+
+    $proofAnchorCandidateReadback = [pscustomobject][ordered]@{
+        CandidateId = $proofAnchorCandidateId
+        CandidateFound = $null -ne $anchorCandidate
+        ProofAnchorCandidateAddressHex = $proofAnchorCandidateAddressHex
+        ReadbackCandidateAddressHex = if ($null -eq $anchorCandidate) { $null } else { [string]$anchorCandidate.CandidateAddressHex }
+        AddressMatchesProofAnchor = $addressMatches
+        StableAcrossReadbackSamples = if ($null -eq $anchorCandidate) { $null } else { [bool]$anchorCandidate.StableAcrossReadbackSamples }
+        DecodedSampleCount = if ($null -eq $anchorCandidate) { 0 } else { [int]$anchorCandidate.DecodedSampleCount }
+        MaxAbsDeltaAcrossReadbackSamples = if ($null -eq $anchorCandidate) { $null } else { $anchorCandidate.MaxAbsDeltaAcrossReadbackSamples }
+        CurrentCoordinate = if ($null -eq $firstDecodedSample) {
+            $null
+        }
+        else {
+            [pscustomobject][ordered]@{
+                X = [double]$firstDecodedSample.X
+                Y = [double]$firstDecodedSample.Y
+                Z = [double]$firstDecodedSample.Z
+                RecordedAtUtc = [string]$firstDecodedSample.RecordedAtUtc
+            }
+        }
+        ReadbackIntegrityStatus = [string]$manifest.IntegrityStatus
+        ReadbackTotalRegionReadFailures = [int]$manifest.TotalRegionReadFailures
+        SupportsProofAnchor = $proofAnchorCandidateReadbackSupportsAnchor
+        Issues = @($anchorReadbackIssues.ToArray())
+    }
+}
+
+$proofAnchorCandidateReadbackSupportsAnchor = $null -ne $proofAnchorCandidateReadback -and [bool]$proofAnchorCandidateReadback.SupportsProofAnchor
+$canonicalCoordSource = if ($proofAnchorCandidateReadbackSupportsAnchor) { 'proof-anchor-preflight-validated-current-readback' } elseif ($proofAnchorMovementAllowed) { 'proof-anchor-preflight-validated' } else { 'none-candidate-watchset-only' }
+$movementGate = if ($proofAnchorMovementAllowed) { 'satisfied_by_current_process_proof_coord_anchor_preflight' } else { 'blocked_until_current_process_validated_coord_trace_anchor_or_equivalent_canonical_source' }
+$warnings = [System.Collections.Generic.List[string]]::new()
+$warnings.Add('This wrapper uses no Cheat Engine path.') | Out-Null
+$warnings.Add('This wrapper sends no input and performs no movement.') | Out-Null
+$warnings.Add('RiftScan candidates are candidate evidence only unless the proof-anchor preflight is valid.') | Out-Null
+if ($proofAnchorCandidateReadbackSupportsAnchor) {
+    $warnings.Add('The proof-anchor candidate was found in the current readback and decoded as a stable coordinate triplet.') | Out-Null
+}
+if ($proofAnchorMovementAllowed) {
+    $warnings.Add('Movement polling gate is satisfied by the current-process proof-anchor preflight; candidate readback remains supporting evidence.') | Out-Null
+}
+else {
+    $warnings.Add('Fresh candidate readback does not satisfy RiftReader movement polling invariants by itself.') | Out-Null
+    $warnings.Add('Movement remains blocked unless a current-process canonical coord-trace proof anchor or validated equivalent is separately validated.') | Out-Null
+}
+
 $summaryPath = Join-Path $resolvedOutputRoot ("riftscan-riftreader-currentpid-{0}-readback-wrapper-summary-{1}.json" -f $targetProcessId, $stamp)
 $summary = [pscustomobject][ordered]@{
     SchemaVersion = 1
@@ -910,8 +1027,15 @@ $summary = [pscustomobject][ordered]@{
     TargetWindowHandle = $targetHandleHex
     NoCheatEngine = $true
     MovementSent = $false
-    MovementAllowed = $false
+    MovementAllowed = $proofAnchorMovementAllowed
     ProofAnchorStatus = $proofAnchorStatus
+    ProofAnchorMovementAllowed = $proofAnchorMovementAllowed
+    ProofAnchorSource = $proofAnchorSource
+    ProofAnchorMaxAgeSeconds = $ProofAnchorMaxAgeSeconds
+    ProofAnchorIssues = @($proofAnchorIssues)
+    ProofAnchorCandidateId = $proofAnchorCandidateId
+    ProofAnchorCandidateAddressHex = $proofAnchorCandidateAddressHex
+    ProofAnchorCandidateReadback = $proofAnchorCandidateReadback
     ProofAnchorFile = if ($SkipProofAnchorCheck) { $null } else { $proofAnchorOutputPath }
     SourceCandidateFile = $sourceCandidateFile
     RiftScanSessionPath = $riftscanSessionPath
@@ -933,15 +1057,9 @@ $summary = [pscustomobject][ordered]@{
     BestReferenceMatchCount = $bestReferenceMatches.Count
     BestReferenceMatches = @($bestReferenceMatches)
     CandidateReadbacks = @($candidateReadbacks)
-    CanonicalCoordSource = 'none-candidate-watchset-only'
-    MovementGate = 'blocked_until_current_process_validated_coord_trace_anchor_or_equivalent_canonical_source'
-    Warnings = @(
-        'This wrapper uses no Cheat Engine path.',
-        'This wrapper sends no input and performs no movement.',
-        'RiftScan candidates are candidate evidence only.',
-        'Fresh candidate readback does not satisfy RiftReader movement polling invariants.',
-        'Movement remains blocked unless a current-process canonical coord-trace proof anchor is separately validated.'
-    )
+    CanonicalCoordSource = $canonicalCoordSource
+    MovementGate = $movementGate
+    Warnings = @($warnings.ToArray())
     Commands = [pscustomobject][ordered]@{
         ProofAnchor = Get-CommandSummary -CommandResult $proofAnchorCommand
         RiftScanCapture = Get-CommandSummary -CommandResult $captureCommand
@@ -962,6 +1080,7 @@ if ($Json) {
 Write-Host 'RiftScan -> RiftReader coordinate candidate readback complete.' -ForegroundColor Green
 Write-Host ("PID/HWND:        {0} / {1}" -f $targetProcessId, $targetHandleHex)
 Write-Host ("Proof anchor:    {0}" -f $proofAnchorStatus)
+Write-Host ("Proof gate:      {0}" -f $(if ($proofAnchorMovementAllowed) { 'allowed' } else { 'blocked' }))
 Write-Host ("Candidates:      {0}" -f $watchset.CandidateCount)
 Write-Host ("Readback:        {0}; failures={1}; bytes={2}" -f $manifest.IntegrityStatus, $manifest.TotalRegionReadFailures, $manifest.TotalBytesRead)
 Write-Host ("Decoded vec3:    {0}; stable={1}; source-preview-match={2}" -f $decodedCandidateCount, $stableDecodedCandidateCount, $sourcePreviewMatchCount)
@@ -973,5 +1092,5 @@ if ($null -ne $referenceCoordinate) {
     }
 }
 Write-Host ("Summary:         {0}" -f $summaryPath)
-Write-Host 'Movement:        blocked'
+Write-Host 'Movement:        no input sent'
 Write-Host 'CE usage:        none'

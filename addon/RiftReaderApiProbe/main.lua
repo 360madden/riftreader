@@ -7,6 +7,13 @@ local addonVersion = "0.1.0"
 local Probe = {}
 privateVars.Probe = Probe
 
+local refreshIntervalSeconds = 0.10
+local lastRefreshAt = 0
+local liveSequence = 0
+
+RiftReaderApiProbe_State = RiftReaderApiProbe_State or {}
+RiftReaderApiProbe_Live = RiftReaderApiProbe_Live or "RRAPICOORD1|status=starting|savedVariablesUse=none"
+
 local function console(message, color)
   local text = tostring(message or "")
   local prefix = "<font color='" .. tostring(color or "#66CCFF") .. "'>[ApiProbe]</font> "
@@ -22,6 +29,145 @@ local function safeCall(fn, ...)
     return nil
   end
   return a, b, c, d
+end
+
+local function now()
+  if Inspect and Inspect.Time and Inspect.Time.Real then
+    local realtime = safeCall(Inspect.Time.Real)
+    if type(realtime) == "number" then
+      return realtime
+    end
+  end
+
+  return 0
+end
+
+local function safeString(value)
+  if value == nil then
+    return ""
+  end
+
+  return tostring(value):gsub("[|\r\n]", " ")
+end
+
+local function numberOrNil(value)
+  if type(value) == "number" then
+    return value
+  end
+
+  return nil
+end
+
+local function readPlayerApiCoord()
+  local sampledAt = now()
+  local unitApi = Inspect and Inspect.Unit or nil
+  local playerId = safeCall(unitApi and unitApi.Lookup, "player")
+  if not playerId then
+    return {
+      schemaVersion = 1,
+      source = "rift-api",
+      sourceView = "Inspect.Unit.Detail(player)",
+      savedVariablesUse = "none",
+      status = "fail",
+      reason = "Inspect.Unit.Lookup('player') returned nil.",
+      sampledAt = sampledAt,
+    }
+  end
+
+  local detail = safeCall(unitApi and unitApi.Detail, playerId)
+  if type(detail) ~= "table" then
+    return {
+      schemaVersion = 1,
+      source = "rift-api",
+      sourceView = "Inspect.Unit.Detail(player)",
+      savedVariablesUse = "none",
+      status = "fail",
+      reason = "Inspect.Unit.Detail(player) did not return a table.",
+      sampledAt = sampledAt,
+      playerId = playerId,
+    }
+  end
+
+  local x = numberOrNil(detail.coordX)
+  local y = numberOrNil(detail.coordY)
+  local z = numberOrNil(detail.coordZ)
+  local hasCoord = x ~= nil and y ~= nil and z ~= nil
+
+  return {
+    schemaVersion = 1,
+    source = "rift-api",
+    sourceView = "Inspect.Unit.Detail(player)",
+    savedVariablesUse = "none",
+    status = hasCoord and "pass" or "fail",
+    reason = hasCoord and nil or "Inspect.Unit.Detail(player) did not expose coordX/coordY/coordZ.",
+    sampledAt = sampledAt,
+    playerId = playerId,
+    name = detail.name,
+    shard = detail.shard,
+    zone = detail.zone,
+    locationName = detail.locationName,
+    coordX = x,
+    coordY = y,
+    coordZ = z,
+  }
+end
+
+local function formatLivePayload(snapshot)
+  local coordText = "x=|y=|z="
+  if snapshot.coordX ~= nil and snapshot.coordY ~= nil and snapshot.coordZ ~= nil then
+    coordText = string.format("x=%.4f|y=%.4f|z=%.4f", snapshot.coordX, snapshot.coordY, snapshot.coordZ)
+  end
+
+  return table.concat({
+    "RRAPICOORD1",
+    "schema=1",
+    "seq=" .. tostring(liveSequence),
+    "sampledAt=" .. string.format("%.3f", snapshot.sampledAt or 0),
+    "source=rift-api",
+    "view=Inspect.Unit.Detail(player)",
+    "status=" .. safeString(snapshot.status),
+    coordText,
+    "playerId=" .. safeString(snapshot.playerId),
+    "name=" .. safeString(snapshot.name),
+    "zone=" .. safeString(snapshot.zone),
+    "location=" .. safeString(snapshot.locationName),
+    "savedVariablesUse=none",
+  }, "|")
+end
+
+local function refreshLiveApiCoord(force)
+  local currentTime = now()
+  if not force and currentTime > 0 and (currentTime - lastRefreshAt) < refreshIntervalSeconds then
+    return RiftReaderApiProbe_State
+  end
+
+  lastRefreshAt = currentTime
+  liveSequence = liveSequence + 1
+
+  local snapshot = readPlayerApiCoord()
+  snapshot.sequence = liveSequence
+  RiftReaderApiProbe_State = snapshot
+  RiftReaderApiProbe_Live = formatLivePayload(snapshot)
+
+  return snapshot
+end
+
+local function probeApiCoords()
+  local snapshot = refreshLiveApiCoord(true)
+  if snapshot.status ~= "pass" then
+    console("API coord read failed: " .. tostring(snapshot.reason), "#FF4444")
+    return
+  end
+
+  console(
+    string.format(
+      "API coords seq=%d x=%.4f y=%.4f z=%.4f source=Inspect.Unit.Detail(player) savedVariablesUse=none",
+      snapshot.sequence or 0,
+      snapshot.coordX or 0,
+      snapshot.coordY or 0,
+      snapshot.coordZ or 0),
+    "#00FF88")
+  console("Live marker: " .. tostring(RiftReaderApiProbe_Live), "#CCCCCC")
 end
 
 local function inspectTable(tbl, indent, maxDepth)
@@ -57,14 +203,15 @@ end
 local function probeInspectUnitDetail()
   console("=== Probing Inspect.Unit.Detail ===", "#FFFF00")
   
-  local playerId = safeCall(Inspect.Unit.Lookup, "player")
+  local unitApi = Inspect and Inspect.Unit or nil
+  local playerId = safeCall(unitApi and unitApi.Lookup, "player")
   if not playerId then
     console("Inspect.Unit.Lookup('player') returned nil", "#FF4444")
     return
   end
   console("Player unit ID: " .. tostring(playerId), "#00FF88")
   
-  local detail = safeCall(Inspect.Unit.Detail, playerId)
+  local detail = safeCall(unitApi and unitApi.Detail, playerId)
   if type(detail) ~= "table" then
     console("Inspect.Unit.Detail returned: " .. type(detail), "#FF4444")
     return
@@ -128,7 +275,8 @@ end
 local function probeInspectUnitCastbar()
   console("=== Probing Inspect.Unit.Castbar ===", "#FFFF00")
   
-  local playerId = safeCall(Inspect.Unit.Lookup, "player")
+  local unitApi = Inspect and Inspect.Unit or nil
+  local playerId = safeCall(unitApi and unitApi.Lookup, "player")
   if not playerId then
     console("Player not available", "#FF4444")
     return
@@ -173,7 +321,8 @@ end
 local function probeInspectBuffList()
   console("=== Probing Inspect.Buff.List ===", "#FFFF00")
   
-  local playerId = safeCall(Inspect.Unit.Lookup, "player")
+  local unitApi = Inspect and Inspect.Unit or nil
+  local playerId = safeCall(unitApi and unitApi.Lookup, "player")
   if not playerId then
     console("Player not available", "#FF4444")
     return
@@ -282,6 +431,7 @@ function Probe.OnSlashCommand(args)
   
   if not command or command == "help" then
     console("Commands:", "#FFFF00")
+    console("  /rap coord      - Read live player coordinates from Rift API", "#CCCCCC")
     console("  /rap detail     - Probe Inspect.Unit.Detail", "#CCCCCC")
     console("  /rap stat       - Probe Inspect.Stat", "#CCCCCC")
     console("  /rap castbar    - Probe Inspect.Unit.Castbar", "#CCCCCC")
@@ -294,6 +444,11 @@ function Probe.OnSlashCommand(args)
     return
   end
   
+  if command == "coord" then
+    probeApiCoords()
+    return
+  end
+
   if command == "detail" then
     probeInspectUnitDetail()
     return
@@ -350,8 +505,12 @@ function Probe.OnSlashCommand(args)
 end
 
 function Probe.OnStartup()
+  refreshLiveApiCoord(true)
   console("Loaded. Use /rap help for commands.", "#00CC88")
 end
 
 table.insert(Command.Slash.Register("rap"), { Probe.OnSlashCommand, addonIdentifier, "RiftReaderApiProbe slash command" })
 table.insert(Event.Addon.Startup.End, { Probe.OnStartup, addonIdentifier, "RiftReaderApiProbe startup" })
+if Event and Event.System and Event.System.Update and Event.System.Update.Begin then
+  table.insert(Event.System.Update.Begin, { function() refreshLiveApiCoord(false) end, addonIdentifier, "RiftReaderApiProbe live coord refresh" })
+end

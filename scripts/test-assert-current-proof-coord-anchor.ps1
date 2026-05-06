@@ -135,20 +135,33 @@ function Invoke-Preflight {
         [Parameter(Mandatory = $true)]
         [string]$TargetProcessName,
 
-        [int]$MaxAgeSeconds = 300
+        [int]$MaxAgeSeconds = 300,
+
+        [bool]$UseCacheOnly = $true
     )
 
-    $output = & powershell `
-        -NoLogo `
-        -NoProfile `
-        -ExecutionPolicy Bypass `
-        -File $script:PreflightScript `
-        -ProcessId $TargetProcessId `
-        -ProcessName $TargetProcessName `
-        -ProofCoordAnchorFile $AnchorFile `
-        -MaxAgeSeconds $MaxAgeSeconds `
-        -UseCacheOnly `
-        -Json 2>&1
+    $arguments = @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $script:PreflightScript,
+        '-ProcessId',
+        $TargetProcessId,
+        '-ProcessName',
+        $TargetProcessName,
+        '-ProofCoordAnchorFile',
+        $AnchorFile,
+        '-MaxAgeSeconds',
+        $MaxAgeSeconds,
+        '-Json'
+    )
+    if ($UseCacheOnly) {
+        $arguments += '-UseCacheOnly'
+    }
+
+    $output = & powershell @arguments 2>&1
 
     $exitCode = $LASTEXITCODE
     $text = ($output -join [Environment]::NewLine).Trim()
@@ -194,6 +207,12 @@ try {
     Assert-Equal -Actual $validNoCe.ExitCode -Expected 0 -Message 'Valid no-CE RiftScan reference proof fixture should exit 0.'
     Assert-Equal -Actual $validNoCe.Document.Status -Expected 'valid' -Message 'Valid no-CE RiftScan reference proof fixture should produce valid status.'
     Assert-True -Condition ([bool]$validNoCe.Document.MovementAllowed) -Message 'Valid no-CE RiftScan reference proof fixture should allow movement gate.'
+
+    $validNoCeDefault = Invoke-Preflight -AnchorFile $validNoCeAnchorFile -TargetProcessId $targetProcessId -TargetProcessName $targetProcessName -UseCacheOnly:$false
+    Assert-Equal -Actual $validNoCeDefault.ExitCode -Expected 0 -Message 'Default preflight should accept valid no-CE RiftScan reference proof cache.'
+    Assert-Equal -Actual $validNoCeDefault.Document.Status -Expected 'valid' -Message 'Default preflight should produce valid status for no-CE RiftScan reference proof cache.'
+    Assert-Equal -Actual $validNoCeDefault.Document.AnchorSource -Expected 'cache' -Message 'Default preflight should use no-CE RiftScan reference proof cache before legacy resolver.'
+    Assert-True -Condition ([bool]$validNoCeDefault.Document.MovementAllowed) -Message 'Default preflight should allow movement for valid no-CE RiftScan reference proof cache.'
 
     $badNoCeAnchorFile = Join-Path $tempRoot 'bad-no-ce-anchor.json'
     New-NoCeRiftScanProofAnchorFixture -ProcessId $targetProcessId -ProcessName $targetProcessName -ProofProcessMatchesProcess:$false |

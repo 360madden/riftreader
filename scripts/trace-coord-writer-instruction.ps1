@@ -485,10 +485,20 @@ function Summarize-Hits {
         $PostExpected
     )
 
-    $validHits = @($Hits | Where-Object {
-            -not (Get-JsonPropertyValue -Object $_ -Name 'ParseError') -and
-            -not [string]::IsNullOrWhiteSpace([string](Get-JsonPropertyValue -Object $_ -Name 'PrimaryBase'))
-        })
+    $validHits = @(
+        foreach ($hit in @($Hits)) {
+            if ($null -eq $hit) {
+                continue
+            }
+
+            if (
+                -not (Get-JsonPropertyValue -Object $hit -Name 'ParseError') -and
+                -not [string]::IsNullOrWhiteSpace([string](Get-JsonPropertyValue -Object $hit -Name 'PrimaryBase'))
+            ) {
+                $hit
+            }
+        }
+    )
 
     return @(
         $validHits |

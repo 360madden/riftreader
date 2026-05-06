@@ -6,6 +6,7 @@ param(
     [string]$TargetWindowHandle,
     [string]$CandidateScreenFile = (Join-Path $PSScriptRoot 'captures\actor-orientation-candidate-screen.json'),
     [string]$OutputFile = (Join-Path $PSScriptRoot 'captures\actor-yaw-candidate-test.json'),
+    [string]$ProofAnchorFile = (Join-Path $PSScriptRoot 'captures\telemetry-proof-coord-anchor.json'),
     [int]$TopCount = 4,
     [string]$StimulusKey = 'Right',
     [string]$ReverseStimulusKey = '',
@@ -35,6 +36,7 @@ $sendKeyScript = Join-Path $PSScriptRoot 'send-rift-key.ps1'
 $sendKeyAhkScript = Join-Path $PSScriptRoot 'send-rift-key-ahk.ps1'
 $resolvedCandidateScreenFile = [System.IO.Path]::GetFullPath($CandidateScreenFile)
 $resolvedOutputFile = [System.IO.Path]::GetFullPath($OutputFile)
+$resolvedProofAnchorFile = if ([string]::IsNullOrWhiteSpace($ProofAnchorFile)) { $null } else { [System.IO.Path]::GetFullPath($ProofAnchorFile) }
 
 Add-Type -TypeDefinition @"
 using System;
@@ -449,8 +451,15 @@ function Get-PlayerCurrent {
         return Invoke-ReaderJson -Arguments $arguments
     }
     catch {
+        $readerFailure = $_.Exception.Message
+
         if ($ProcessId -gt 0 -or -not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
-            throw
+            try {
+                return Get-PlayerCurrentFromProofAnchor -FallbackReason $readerFailure
+            }
+            catch {
+                throw ("Reader command failed and proof-anchor coordinate fallback was unavailable. Reader: {0} Proof fallback: {1}" -f $readerFailure, $_.Exception.Message)
+            }
         }
 
         $snapshot = Invoke-ReaderJson -Arguments @(
@@ -471,6 +480,56 @@ function Get-PlayerCurrent {
                 CoordY = if ($null -ne $coord -and $coord.PSObject.Properties['Y']) { [double]$coord.Y } else { $null }
                 CoordZ = if ($null -ne $coord -and $coord.PSObject.Properties['Z']) { [double]$coord.Z } else { $null }
             }
+        }
+    }
+}
+
+function Get-PlayerCurrentFromProofAnchor {
+    param([string]$FallbackReason)
+
+    if ([string]::IsNullOrWhiteSpace($resolvedProofAnchorFile) -or -not (Test-Path -LiteralPath $resolvedProofAnchorFile)) {
+        throw "Proof anchor file was not found: $resolvedProofAnchorFile"
+    }
+
+    $anchor = Get-Content -LiteralPath $resolvedProofAnchorFile -Raw | ConvertFrom-Json -Depth 40
+    if ($ProcessId -gt 0 -and $anchor.ProcessId -ne $ProcessId) {
+        throw "Proof anchor PID $($anchor.ProcessId) does not match requested PID $ProcessId."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$anchor.ProcessName) -and
+        -not [string]::Equals([string]$anchor.ProcessName, [System.IO.Path]::GetFileNameWithoutExtension($ProcessName), [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Proof anchor process '$($anchor.ProcessName)' does not match requested process '$ProcessName'."
+    }
+
+    if ($anchor.TraceMatchesProcess -ne $true -or $anchor.Match.CoordMatchesWithinTolerance -ne $true) {
+        throw "Proof anchor is not currently marked process-matched and coord-matched."
+    }
+
+    $coordRegionAddress = [string]$anchor.CoordRegionAddress
+    if ([string]::IsNullOrWhiteSpace($coordRegionAddress)) {
+        throw "Proof anchor did not expose CoordRegionAddress."
+    }
+
+    $coordXOffset = if ($null -ne $anchor.CoordXRelativeOffset) { [int]$anchor.CoordXRelativeOffset } else { 0 }
+    $coordYOffset = if ($null -ne $anchor.CoordYRelativeOffset) { [int]$anchor.CoordYRelativeOffset } else { 4 }
+    $coordZOffset = if ($null -ne $anchor.CoordZRelativeOffset) { [int]$anchor.CoordZRelativeOffset } else { 8 }
+    $readLength = ((@($coordXOffset, $coordYOffset, $coordZOffset) | Measure-Object -Maximum).Maximum + 4)
+
+    $memoryRead = Invoke-ReaderJson -Arguments (@(Get-ReaderTargetArguments) + @(
+            '--address', $coordRegionAddress,
+            '--length', $readLength.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            '--json'))
+    $bytes = Convert-HexToByteArray -Hex ([string]$memoryRead.BytesHex)
+
+    return [pscustomobject]@{
+        Mode = 'player-current-proof-anchor-fallback'
+        FallbackReason = $FallbackReason
+        ProofAnchorFile = $resolvedProofAnchorFile
+        Memory = [pscustomobject]@{
+            AddressHex = $coordRegionAddress
+            CoordX = Read-SingleAt -Bytes $bytes -Offset $coordXOffset
+            CoordY = Read-SingleAt -Bytes $bytes -Offset $coordYOffset
+            CoordZ = Read-SingleAt -Bytes $bytes -Offset $coordZOffset
         }
     }
 }

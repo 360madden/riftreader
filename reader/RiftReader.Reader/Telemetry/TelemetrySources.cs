@@ -75,6 +75,7 @@ public sealed class AddonContextSource(string? snapshotFile) : IContextSource
 public sealed class MemoryCoordSource : IPositionSource
 {
     private const double CoordMatchTolerance = 0.25d;
+    private static readonly TimeSpan AddonReferenceFreshnessWindow = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan StaleAnchorGraceWindow = TimeSpan.FromSeconds(10);
     private static readonly string[] CheatEngineDebuggerModuleNames =
     [
@@ -189,7 +190,10 @@ public sealed class MemoryCoordSource : IPositionSource
         }
 
         var liveCoordMismatch = BuildCoordMismatch(sample, context?.AddonPosition?.Coord);
-        if (liveCoordMismatch is not null && !CoordMatchesWithinTolerance(liveCoordMismatch))
+        var addonReferenceIsFresh =
+            context?.SnapshotFileAgeSeconds is double addonSnapshotFileAgeSeconds &&
+            addonSnapshotFileAgeSeconds <= AddonReferenceFreshnessWindow.TotalSeconds;
+        if (addonReferenceIsFresh && liveCoordMismatch is not null && !CoordMatchesWithinTolerance(liveCoordMismatch))
         {
             return new TelemetryPositionSourceReading(
                 Available: true,

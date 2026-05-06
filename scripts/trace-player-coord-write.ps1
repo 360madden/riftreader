@@ -1385,7 +1385,7 @@ try {
         Write-Warning ("Unable to refresh the current-player snapshot before trace; continuing with CE-derived candidates only. {0}" -f $playerReadError)
     }
 
-    if ($null -eq $playerRead -and -not [string]::IsNullOrWhiteSpace($playerReadError) -and
+    if ($null -eq $playerRead -and [string]::IsNullOrWhiteSpace($CandidateAddressHex) -and -not [string]::IsNullOrWhiteSpace($playerReadError) -and
         $playerReadError.Contains('No grouped player-signature families were found', [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Current player snapshot is not ready after refresh; ReaderBridge/Validator exports do not yet contain grouped player-signature families. Wait until the character is fully loaded in-world, then rerun trace-player-coord-write.ps1."
     }

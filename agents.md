@@ -126,6 +126,12 @@ and prefer `gpt-5.4` if any “No-spark” condition is true.
 
 ## Live movement / polling invariant
 
+- **Current no-CE live boundary:** do **not** use Cheat Engine, CE Lua,
+  CE debugger attach, CE breakpoints/watchpoints, or `cheatengine-exec.ps1` for
+  live RIFT work unless the user explicitly re-authorizes CE in the current
+  conversation after acknowledging the crash risk. If a required proof anchor
+  cannot be refreshed without CE, fail closed and block movement instead of
+  falling back to a stale/cached or heuristic source.
 - For any **movement polling**, **forward-hold proof**, or other live
   coordinate-driven capture, resolve a **validated coord-trace anchor** first
   via `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` and
