@@ -42,6 +42,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $postKeyScript = Join-Path $repoRoot 'scripts\post-rift-key.ps1'
+$proofCoordPreflightScript = Join-Path $repoRoot 'scripts\assert-current-proof-coord-anchor.ps1'
 $refreshScript = Join-Path $repoRoot 'scripts\refresh-readerbridge-export.ps1'
 $WaypointFile = if ([string]::IsNullOrWhiteSpace($WaypointFile)) {
     Join-Path $PSScriptRoot 'waypoints.json'
@@ -509,7 +510,8 @@ function Invoke-ScriptJson {
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments,
         [Parameter(Mandatory = $true)]
-        [string]$Step
+        [string]$Step,
+        [switch]$AllowFailureExitCode
     )
 
     Write-Host ""
@@ -520,7 +522,7 @@ function Invoke-ScriptJson {
     $text = $nativeResult.Text
     Write-SessionLog -Step $Step -ExitCode $exitCode -Arguments $Arguments -Output $text
 
-    if ($exitCode -ne 0) {
+    if ($exitCode -ne 0 -and -not $AllowFailureExitCode) {
         if (-not [string]::IsNullOrWhiteSpace($text)) {
             Write-Host $text
         }
@@ -529,6 +531,32 @@ function Invoke-ScriptJson {
     }
 
     return $text | ConvertFrom-Json
+}
+
+function Assert-ProofCoordMovementPreflight {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Reason
+    )
+
+    Assert-ExactMovementTarget
+    if (-not (Test-Path -LiteralPath $proofCoordPreflightScript)) {
+        throw "Proof coord anchor preflight script was not found: $proofCoordPreflightScript"
+    }
+
+    $preflight = Invoke-ScriptJson -ScriptFile $proofCoordPreflightScript -Arguments (@('-Json') + (Get-ScriptTargetArguments)) -Step ("proof-anchor-movement-preflight:{0}" -f $Reason) -AllowFailureExitCode
+    if (-not [string]::Equals([string]$preflight.Status, 'valid', [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not [bool]$preflight.MovementAllowed) {
+        $issueText = (@($preflight.Issues) | ForEach-Object { [string]$_ }) -join '; '
+        if ([string]::IsNullOrWhiteSpace($issueText)) {
+            $issueText = 'no issue details returned'
+        }
+
+        throw ("Proof coord anchor movement preflight failed for '{0}': {1}" -f $Reason, $issueText)
+    }
+
+    Write-Host ("[NavPrototype] Proof coord anchor movement preflight passed for {0}." -f $Reason) -ForegroundColor DarkGray
+    return $preflight
 }
 
 function Normalize-Degrees {
@@ -673,7 +701,7 @@ function Invoke-TurnKeyPulse {
         throw "Turn helper script was not found: $postKeyScript"
     }
 
-    Assert-ExactMovementTarget
+    [void](Assert-ProofCoordMovementPreflight -Reason ("auto-turn-key:{0}" -f $PulseIndex))
     $scriptArguments = @(
         '-NoProfile',
         '-ExecutionPolicy', 'Bypass',
@@ -1191,6 +1219,7 @@ try {
     }
 
     Wait-ForOperator -Prompt "If the preflight looks correct, press Enter to start movement. Ctrl+C to cancel"
+    [void](Assert-ProofCoordMovementPreflight -Reason 'navigate')
 
     $navigationArguments = @(Get-ReaderTargetArguments) + @(
         '--navigate-waypoints',

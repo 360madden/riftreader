@@ -17,7 +17,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
 $readerTestsProject = Join-Path $repoRoot 'reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj'
 $proofCoordAnchorNormalizationTest = Join-Path $repoRoot 'scripts\test-resolve-proof-coord-anchor-normalization.ps1'
+$proofCoordAnchorPreflightTest = Join-Path $repoRoot 'scripts\test-assert-current-proof-coord-anchor.ps1'
+$riftscanReferenceProofPromotionTest = Join-Path $repoRoot 'scripts\test-promote-riftscan-reference-match-to-proof-anchor.ps1'
 $proofWatchsetExactTargetTest = Join-Path $repoRoot 'scripts\test-export-proof-polling-watchset-exact-target.ps1'
+$navigationPrototypeProofAnchorGateTest = Join-Path $PSScriptRoot 'test-run-a-to-b-proof-anchor-gate.ps1'
 $navigationLogSummaryTest = Join-Path $PSScriptRoot 'test-summarize-a-to-b-log.ps1'
 $smokeRouteScript = Join-Path $PSScriptRoot 'new-forward-smoke-route.ps1'
 $prototypeScript = Join-Path $PSScriptRoot 'run-a-to-b-prototype.ps1'
@@ -154,6 +157,27 @@ Invoke-SuiteStep -Name 'proof-coord-anchor-normalization-regression' -ScriptBloc
     & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $proofCoordAnchorNormalizationTest
     if ($LASTEXITCODE -ne 0) {
         throw "proof coord anchor normalization regression failed with exit code $LASTEXITCODE."
+    }
+}
+
+Invoke-SuiteStep -Name 'proof-coord-anchor-movement-preflight-regression' -ScriptBlock {
+    & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $proofCoordAnchorPreflightTest
+    if ($LASTEXITCODE -ne 0) {
+        throw "proof coord anchor movement preflight regression failed with exit code $LASTEXITCODE."
+    }
+}
+
+Invoke-SuiteStep -Name 'riftscan-reference-proof-promotion-regression' -ScriptBlock {
+    & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $riftscanReferenceProofPromotionTest
+    if ($LASTEXITCODE -ne 0) {
+        throw "RiftScan reference proof promotion regression failed with exit code $LASTEXITCODE."
+    }
+}
+
+Invoke-SuiteStep -Name 'navigation-prototype-proof-anchor-gate-regression' -ScriptBlock {
+    & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $navigationPrototypeProofAnchorGateTest
+    if ($LASTEXITCODE -ne 0) {
+        throw "navigation prototype proof-anchor gate regression failed with exit code $LASTEXITCODE."
     }
 }
 
