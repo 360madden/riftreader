@@ -15,7 +15,11 @@ from rift_live_test.baselines import (
 from rift_live_test.commands import extract_first_json
 from rift_live_test.profiles import load_profile
 from rift_live_test.runner import LiveTestRunner
-from rift_live_test.status import BLOCKED_LIVE_FLAG_REQUIRED, BLOCKED_TARGET_MISMATCH
+from rift_live_test.status import (
+    BLOCKED_LIVE_FLAG_REQUIRED,
+    BLOCKED_REFERENCE_CAPTURE,
+    BLOCKED_TARGET_MISMATCH,
+)
 
 
 class LiveTestOrchestratorTests(unittest.TestCase):
@@ -213,6 +217,42 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertEqual(summary["status"], BLOCKED_TARGET_MISMATCH)
             self.assertIn("target_window_not_found", summary["issues"])
             refresh.assert_not_called()
+
+    def test_reference_capture_failure_is_blocked_not_internal_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            profile = {
+                "mode": "proof-only",
+                "input": None,
+                "outputRoot": str(root / "captures"),
+                "writeMarkdownSummary": False,
+            }
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile=profile,
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+            with patch(
+                "rift_live_test.runner.verify_target",
+                return_value={"valid": True, "status": "valid", "targetWindowHandle": "0x123"},
+            ), patch.object(
+                runner,
+                "_run_ps1",
+                return_value=SimpleNamespace(
+                    exit_code=1,
+                    json_data=None,
+                    parse_error="No JSON object or array found in command output",
+                    stderr="No usable RRAPICOORD1 marker was found",
+                ),
+            ):
+                summary = runner.run()
+
+            self.assertEqual(summary["status"], BLOCKED_REFERENCE_CAPTURE)
+            self.assertIn("reference_marker_unavailable:no_usable_rrapicoord1", summary["issues"])
+            self.assertFalse(summary["movementSent"])
 
     def test_child_commands_receive_process_name_and_proof_anchor_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -548,6 +588,111 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertTrue(summary["movementSent"])
             self.assertEqual(summary["seriesPulses"][1]["stage"], "dry-run")
             self.assertIn("proof_anchor_remaining_age_budget_too_low", summary["issues"][0])
+
+    def test_coordinate_recorder_records_series_pulse_samples(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ForwardSeries2x250",
+                profile={
+                    "mode": "live-input-series",
+                    "input": {"key": "w", "holdMilliseconds": 250, "pulseCount": 2},
+                    "recording": {"coordSamples": True},
+                    "outputRoot": str(root / "captures"),
+                    "writeMarkdownSummary": False,
+                },
+                process_id=123,
+                target_window_handle="0x123",
+                live=True,
+            )
+            dry = {
+                "Status": "dry-run-valid",
+                "SummaryFile": "dry-1.json",
+                "Preflight": {
+                    "CurrentCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0},
+                },
+            }
+            live = {
+                "Status": "passed",
+                "SummaryFile": "live-1.json",
+                "MovementSent": True,
+                "MovementAttempted": True,
+                "Preflight": {
+                    "AnchorReadback": {
+                        "DecodedSamples": [
+                            {
+                                "SampleIndex": 0,
+                                "RecordedAtUtc": "2026-05-07T00:00:00Z",
+                                "X": 1.0,
+                                "Y": 2.0,
+                                "Z": 3.0,
+                            },
+                            {
+                                "SampleIndex": 1,
+                                "RecordedAtUtc": "2026-05-07T00:00:01Z",
+                                "X": 1.0,
+                                "Y": 2.0,
+                                "Z": 3.0,
+                            },
+                        ]
+                    },
+                    "CurrentCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0},
+                    "SummaryFile": "pre-readback.json",
+                },
+                "PostReadback": {
+                    "AnchorReadback": {
+                        "DecodedSamples": [
+                            {
+                                "SampleIndex": 0,
+                                "RecordedAtUtc": "2026-05-07T00:00:02Z",
+                                "X": 1.2,
+                                "Y": 2.0,
+                                "Z": 2.6,
+                            },
+                            {
+                                "SampleIndex": 1,
+                                "RecordedAtUtc": "2026-05-07T00:00:03Z",
+                                "X": 1.3,
+                                "Y": 2.0,
+                                "Z": 2.5,
+                            },
+                        ]
+                    },
+                    "CurrentCoordinate": {"X": 1.3, "Y": 2.0, "Z": 2.5},
+                    "SummaryFile": "post-readback.json",
+                },
+                "CoordinateDelta": {
+                    "DeltaX": 0.3,
+                    "DeltaY": 0.0,
+                    "DeltaZ": -0.5,
+                    "PlanarDistance": 0.583,
+                    "SpatialDistance": 0.583,
+                },
+            }
+
+            runner._append_series_pulse(
+                pulse_index=1,
+                status="passed",
+                stage="live-input",
+                dry_run=dry,
+                live_result=live,
+            )
+
+            pulse = runner.series_pulses[0]
+            recording = pulse["coordinateRecording"]
+            self.assertEqual(recording["sampleCount"], 5)
+            self.assertEqual(recording["phases"]["dry-run-preflight"], 1)
+            self.assertEqual(recording["phases"]["live-preflight"], 2)
+            self.assertEqual(recording["phases"]["live-post-readback"], 2)
+            self.assertTrue(Path(recording["samplesFile"]).exists())
+            samples = [
+                json.loads(line)
+                for line in Path(recording["samplesFile"]).read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(samples[-1]["coordinate"]["x"], 1.3)
+            self.assertTrue(samples[-1]["noCheatEngine"])
+            self.assertFalse(samples[-1]["savedVariablesUsedAsLiveTruth"])
 
 
 if __name__ == "__main__":

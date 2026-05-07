@@ -75,6 +75,23 @@ def write_markdown_summary(path: Path, summary: dict[str, Any]) -> None:
                 f"`{pulse.get('stage')}` | `{str(pulse.get('movementSent')).lower()}` | "
                 f"`{delta.get('planarDistance')}` | `{summary_file}` |"
             )
+    if summary.get("coordinateRecordings"):
+        lines.extend(
+            [
+                "",
+                "## Coordinate recordings",
+                "",
+                "| Pulse | Samples | Phases | File |",
+                "|---:|---:|---|---|",
+            ]
+        )
+        for recording in summary.get("coordinateRecordings", []):
+            phases = recording.get("phases") or {}
+            phase_text = ", ".join(f"{name}={count}" for name, count in sorted(phases.items()))
+            lines.append(
+                f"| `{recording.get('pulseIndex')}` | `{recording.get('sampleCount')}` | "
+                f"`{phase_text}` | `{recording.get('pulseSummaryFile')}` |"
+            )
     lines.extend(["", "## State history", "", "| State | Status | Detail |", "|---|---|---|"])
     for state in summary.get("states", []):
         detail = state.get("detail") or state.get("summaryFile") or ""

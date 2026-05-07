@@ -1,6 +1,6 @@
 # Python Live-Testing Orchestrator Plan
 
-_Last updated: May 7, 2026 12:19 EDT._
+_Last updated: May 7, 2026 12:38 EDT._
 
 ## Verdict
 
@@ -228,6 +228,23 @@ without blindly rerunning input.
 | Movement sent | `false` |
 | Current coordinate | `X=7437.462890625`, `Y=885.2191772460938`, `Z=3055.73779296875` |
 
+## May 7 update - coordinate recorder implemented
+
+The runner now honors profile `recording.coordSamples=true` by writing normalized
+proof-readback coordinate samples around each pulse into
+`recorder\coord-samples.ndjson`, plus per-pulse
+`recorder\coord-pulse-###-summary.json` files. The recorder does not introduce a
+new input path and does not use Cheat Engine or SavedVariables as live truth; it
+extracts samples from the existing proof-anchor current-readback surfaces already
+returned by the gated wrapper.
+
+| Output | Purpose |
+|---|---|
+| `coordinateRecordings` in `run-summary.json` / `run-progress.json` | Fast per-pulse recording lookup. |
+| `coordinateSamplesFile` | Single NDJSON stream for all recorded pulse samples. |
+| `seriesPulses[].coordinateRecording` | Pulse-local sample count, phase counts, and recorded delta. |
+| `run-summary.md` coordinate recording table | Human-readable evidence summary. |
+
 ## State machine
 
 | State | Purpose | Failure behavior |
@@ -356,6 +373,7 @@ Codex should normally inspect only `run-summary.json` and `run-summary.md`.
 | `passed-proof-only` | No input; proof valid. |
 | `blocked-target-mismatch` | PID/HWND wrong or stale. |
 | `blocked-live-flag-required` | Input profile requested but `--live` missing. |
+| `blocked-reference-capture` | Fresh API/reference marker was unavailable; fail closed before proof/input. |
 | `blocked-promotion-reference-mismatch` | Baseline promotion summary is from a different PID/HWND/process. |
 | `blocked-proof-expired` | Proof stale and refresh failed/disabled. |
 | `blocked-low-age-budget` | Not enough proof time remains. |

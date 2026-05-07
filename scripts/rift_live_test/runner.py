@@ -19,12 +19,14 @@ from .commands import (
     run_json_command,
 )
 from .reports import write_json, write_markdown_summary
+from .recorder import record_pulse_coordinates
 from .status import (
     BLOCKED_DRY_RUN,
     BLOCKED_LIVE_FLAG_REQUIRED,
     BLOCKED_LOW_AGE_BUDGET,
     BLOCKED_PROMOTION_REFERENCE_MISMATCH,
     BLOCKED_PROOF_EXPIRED,
+    BLOCKED_REFERENCE_CAPTURE,
     BLOCKED_TARGET_MISMATCH,
     FAILED_INTERNAL_ERROR,
     INPUT_FAILED,
@@ -43,6 +45,12 @@ class PromotionBaselineError(RuntimeError):
         super().__init__("promotion baseline selection failed")
         self.issues = issues
         self.diagnostics = diagnostics or {}
+
+
+class ReferenceCaptureError(RuntimeError):
+    def __init__(self, issues: list[str]) -> None:
+        super().__init__("reference capture failed")
+        self.issues = issues
 
 
 class LiveTestRunner:
@@ -68,6 +76,7 @@ class LiveTestRunner:
         self.auto_refresh_attempts_used = 0
         self.proof_refresh_sequence = 0
         self.series_pulses: list[dict[str, Any]] = []
+        self.coordinate_recordings: list[dict[str, Any]] = []
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_root = Path(str(profile.get("outputRoot", repo_root / "scripts" / "captures")))
@@ -191,9 +200,21 @@ class LiveTestRunner:
 
             live_status = self._get(live_result, "Status")
             if live_status == "passed":
+                self._record_coordinate_pulse(
+                    pulse_index=1,
+                    stage="live-input",
+                    dry_run=dry,
+                    live_result=live_result,
+                )
                 self._state("live-input", "passed", summaryFile=self._get(live_result, "SummaryFile"))
                 return self._finish(PASSED, final_json=live_result)
 
+            self._record_coordinate_pulse(
+                pulse_index=1,
+                stage="live-input",
+                dry_run=dry,
+                live_result=live_result,
+            )
             self.issues.extend(self._json_issues(live_result) or [f"live_status:{live_status}"])
             mapped = self._map_blocked_status(live_result, default=INPUT_FAILED)
             if mode == "live-input-series" and self._movement_started(live_result):
@@ -209,6 +230,14 @@ class LiveTestRunner:
                 detail=";".join(exc.issues),
             )
             return self._finish(BLOCKED_PROMOTION_REFERENCE_MISMATCH)
+        except ReferenceCaptureError as exc:
+            self.issues.extend(exc.issues)
+            self._state(
+                "capture-reference",
+                BLOCKED_REFERENCE_CAPTURE,
+                detail=";".join(exc.issues),
+            )
+            return self._finish(BLOCKED_REFERENCE_CAPTURE)
         except Exception as exc:  # noqa: BLE001 - final summary must capture unexpected failures.
             self.issues.append(f"internal_error:{type(exc).__name__}:{exc}")
             self._state("internal-error", FAILED_INTERNAL_ERROR, detail=str(exc))
@@ -275,10 +304,7 @@ class LiveTestRunner:
             ],
         )
         if reference.exit_code != 0 or self._get(reference.json_data, "Status") != "captured":
-            raise RuntimeError(
-                "reference capture failed:"
-                f" exit={reference.exit_code};status={self._get(reference.json_data, 'Status')}"
-            )
+            raise ReferenceCaptureError(self._reference_capture_issues(reference))
 
         pose_args = [
             "-ProcessName",
@@ -580,6 +606,17 @@ class LiveTestRunner:
     def _process_name(self) -> str:
         return str(self.profile.get("processName", "rift_x64"))
 
+    def _reference_capture_issues(self, result: Any) -> list[str]:
+        status = self._get(getattr(result, "json_data", None), "Status")
+        issues = [f"reference_capture_failed:exit={getattr(result, 'exit_code', None)};status={status}"]
+        parse_error = getattr(result, "parse_error", None)
+        if parse_error:
+            issues.append(f"reference_capture_json_parse_failed:{parse_error}")
+        stderr = str(getattr(result, "stderr", "") or "")
+        if "No usable RRAPICOORD1 marker" in stderr:
+            issues.append("reference_marker_unavailable:no_usable_rrapicoord1")
+        return issues
+
     def _proof_anchor_file(self) -> str:
         return str(
             self.profile.get(
@@ -754,8 +791,39 @@ class LiveTestRunner:
             "coordinateDelta": self._delta(self._get(live_result, "CoordinateDelta")),
             "issues": self._json_issues(live_result) or self._json_issues(dry_run),
         }
+        recording = self._record_coordinate_pulse(
+            pulse_index=pulse_index,
+            stage=stage,
+            dry_run=dry_run,
+            live_result=live_result,
+        )
+        if recording:
+            item["coordinateRecording"] = recording
         self.series_pulses.append(item)
         self._write_progress("running")
+
+    def _record_coordinate_pulse(
+        self,
+        *,
+        pulse_index: int,
+        stage: str,
+        dry_run: dict[str, Any] | None,
+        live_result: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        recording = record_pulse_coordinates(
+            run_dir=self.run_dir,
+            profile_name=self.profile_name,
+            profile=self.profile,
+            process_id=self.process_id,
+            target_window_handle=self.target_window_handle,
+            pulse_index=pulse_index,
+            stage=stage,
+            dry_run=dry_run,
+            live_result=live_result,
+        )
+        if recording:
+            self.coordinate_recordings.append(recording)
+        return recording
 
     def _series_movement_started(self) -> bool:
         return any(
@@ -813,6 +881,9 @@ class LiveTestRunner:
             )
             summary["completedPulseCount"] = self._completed_series_pulse_count()
             summary["seriesCoordinateDelta"] = self._series_coordinate_delta()
+        if self.coordinate_recordings:
+            summary["coordinateRecordings"] = self.coordinate_recordings
+            summary["coordinateSamplesFile"] = self.coordinate_recordings[-1].get("samplesFile")
         summary["runProgressFile"] = str(self.progress_file)
         write_json(self.run_dir / "run-summary.json", summary)
         if self.profile.get("writeMarkdownSummary", True):
@@ -867,6 +938,9 @@ class LiveTestRunner:
             )
             snapshot["completedPulseCount"] = self._completed_series_pulse_count()
             snapshot["seriesCoordinateDelta"] = self._series_coordinate_delta()
+        if self.coordinate_recordings:
+            snapshot["coordinateRecordings"] = self.coordinate_recordings
+            snapshot["coordinateSamplesFile"] = self.coordinate_recordings[-1].get("samplesFile")
         write_json(self.progress_file, snapshot)
         self._write_latest_pointer(status, run_progress_file=self.progress_file)
 
