@@ -187,6 +187,50 @@ This adds `ReferenceCoordinate`, `ReferenceMatchCount`, and per-candidate
 reference delta first. A reference match is still **candidate scoring only**; it
 does not satisfy the movement proof-anchor gate by itself.
 
+When `RiftReaderApiProbe` is loaded, generate the same reference-file format
+directly from the live `RRAPICOORD1` marker instead of hand-writing x/y/z:
+
+```powershell
+.\scripts\capture-rift-api-reference-coordinate.ps1 `
+  -ProcessId <current_rift_pid> `
+  -TargetWindowHandle <current_rift_hwnd> `
+  -OutputFile .\scripts\captures\same-time-reference-coordinate.json
+```
+
+The helper scans process memory read-only for `RRAPICOORD1`. The preferred
+reference is the newest usable marker with `status=pass`, `source=rift-api`,
+and `savedVariablesUse=none`. If the current client/addon layout stores the
+probe fields and player `x/y/z` in companion live unit-payload records instead
+of one contiguous marker string, the helper may accept a
+`rift-api-unit-payload-companion` reference, but only when the same scan also
+contains `RRAPICOORD1`, `source=rift-api`, and
+`view=Inspect.Unit.Detail(player)` context. This fallback is still a read-only
+live process-memory scan, not a SavedVariables file path. The helper writes a
+`captured_at_utc` UTC `Z` timestamp, sends no input, uses no Cheat Engine path,
+and still produces only reference evidence for scoring or multi-pose
+promotion.
+
+If the default `512`-byte scan context sees the live `RRAPICOORD1` probe but
+not the companion unit-detail payload, rerun the reference helper with a wider
+read-only context before falling back to manual inspection:
+
+```powershell
+.\scripts\capture-rift-api-reference-coordinate.ps1 `
+  -ProcessId <current_rift_pid> `
+  -TargetWindowHandle <current_rift_hwnd> `
+  -ScanContextBytes 4096 `
+  -MaxHits 512 `
+  -OutputFile .\scripts\captures\same-time-reference-coordinate.json
+```
+
+`SourcePreviewMatchesReadback` is an exact drift check against the historical
+candidate artifact's stored `value_preview`/best memory values. When a candidate
+file comes from an older passive pose, this can be `false` even while the same
+current-process address is strongly validated by a same-time
+`ReferenceMatchesReadback=true` API reference. Prefer the same-time reference
+fields for current-pose evidence; do not treat a historical source-preview
+mismatch as a movement unlock or blocker by itself.
+
 The wrapper also has an offline decode-only mode for regression testing or
 post-processing an existing readback:
 
@@ -214,6 +258,31 @@ movement-grade proof anchor without Cheat Engine, capture at least two
 same-PID/same-candidate readback summaries at distinct manually moved poses,
 each with a fresh same-time reference coordinate. Then promote the candidate:
 
+1. Capture the current still pose:
+
+   ```powershell
+   .\scripts\capture-riftscan-proof-pose.ps1 `
+     -ProcessId <current_rift_pid> `
+     -TargetWindowHandle <current_rift_hwnd> `
+     -PoseLabel pose-current `
+     -ReferenceMaxAgeSeconds 180 `
+     -Json
+   ```
+
+2. Manually move the character at least `1m` but keep the same RIFT PID/HWND,
+   then capture the moved pose:
+
+   ```powershell
+   .\scripts\capture-riftscan-proof-pose.ps1 `
+     -ProcessId <current_rift_pid> `
+     -TargetWindowHandle <current_rift_hwnd> `
+     -PoseLabel pose-moved `
+     -ReferenceMaxAgeSeconds 180 `
+     -Json
+   ```
+
+3. Promote the same candidate from the two readback wrapper summaries:
+
 ```powershell
 .\scripts\promote-riftscan-reference-match-to-proof-anchor.ps1 `
   -ReadbackSummaryFile `
@@ -228,6 +297,8 @@ each with a fresh same-time reference coordinate. Then promote the candidate:
   -MaxEvidenceAgeSeconds 120 `
   -Json
 ```
+
+4. Re-run the hard movement preflight below before any automated movement.
 
 The promotion script is fail-closed. It requires current PID match,
 `NoCheatEngine=true`, `MovementSent=false`, same candidate address across poses,
@@ -270,11 +341,47 @@ before any auto-turn key pulse and immediately before the final
 `--navigate-waypoints` command. If the current PID/HWND does not satisfy the
 proof-anchor gate, the prototype fails closed before sending input.
 
+## Gated exact-target forward-smoke wrapper
+
+For the smallest active forward proof, prefer the dedicated one-pulse wrapper
+instead of ad hoc manual key posting:
+
+```powershell
+.\scripts\invoke-gated-forward-smoke.ps1 `
+  -ProcessId <current_rift_pid> `
+  -TargetWindowHandle <current_rift_hwnd> `
+  -HoldMilliseconds 250 `
+  -PulseCount 1 `
+  -Json
+```
+
+The wrapper is intentionally narrow:
+
+- sends only `W`;
+- requires exact PID and HWND;
+- runs `assert-current-proof-coord-anchor-readback.ps1` immediately before
+  input and immediately after each pulse;
+- enforces a pre-input proof-age budget with
+  `-MinimumPostReadbackAgeBudgetSeconds 15` by default, so a proof anchor that
+  is about to cross the age gate blocks before input instead of failing only
+  after movement;
+- defaults to foreground-gated input through `post-rift-key.ps1
+  -RequireTargetForeground`;
+- refuses holds above `1000 ms` and refuses more than `3` pulses;
+- does not refresh proof anchors, use Cheat Engine, or treat SavedVariables as
+  live truth;
+- writes a structured summary with pre/post coordinates and computed delta.
+
+Use `-DryRun` for a no-input wrapper preflight. Use
+`-AllowBackgroundPostMessage` only when foreground `SendInput` is intentionally
+not desired; exact PID/HWND validation still applies.
+
 Offline regression:
 
 ```powershell
 .\scripts\test-assert-current-proof-coord-anchor.ps1
 .\scripts\navigation\test-run-a-to-b-proof-anchor-gate.ps1
+.\scripts\test-invoke-gated-forward-smoke.ps1
 ```
 
 ## Current restarted-PID evidence from 2026-05-06

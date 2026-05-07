@@ -258,6 +258,57 @@ function Get-JsonPropertyValue {
     return $null
 }
 
+function ConvertTo-UtcDateTimeOffset {
+    param(
+        $Value,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) {
+        return $null
+    }
+
+    if ($Value -is [DateTimeOffset]) {
+        return ([DateTimeOffset]$Value).ToUniversalTime()
+    }
+
+    if ($Value -is [DateTime]) {
+        $dateTime = [DateTime]$Value
+        if ($dateTime.Kind -eq [DateTimeKind]::Utc) {
+            return ([DateTimeOffset]::new($dateTime)).ToUniversalTime()
+        }
+
+        if ($dateTime.Kind -eq [DateTimeKind]::Local) {
+            return ([DateTimeOffset]::new($dateTime)).ToUniversalTime()
+        }
+    }
+
+    try {
+        return [DateTimeOffset]::Parse([string]$Value, [System.Globalization.CultureInfo]::InvariantCulture).ToUniversalTime()
+    }
+    catch {
+        throw "Could not parse $Description timestamp '$Value': $($_.Exception.Message)"
+    }
+}
+
+function ConvertTo-UtcTimestampString {
+    param(
+        $Value,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $timestamp = ConvertTo-UtcDateTimeOffset -Value $Value -Description $Description
+    if ($null -eq $timestamp) {
+        return $null
+    }
+
+    return $timestamp.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
 function Parse-HexUInt64 {
     param([Parameter(Mandatory = $true)][string]$Value)
 
@@ -382,9 +433,9 @@ function Resolve-ReferenceCoordinate {
 
         $capturedAtValue = Get-JsonPropertyValue -InputObject $document -Names @('captured_at_utc', 'capturedAtUtc', 'timestamp_utc', 'timestampUtc', 'recorded_at_utc', 'recordedAtUtc')
         if ($null -ne $capturedAtValue -and -not [string]::IsNullOrWhiteSpace([string]$capturedAtValue)) {
-            $capturedAt = [DateTimeOffset]::Parse([string]$capturedAtValue, [System.Globalization.CultureInfo]::InvariantCulture)
-            $capturedAtUtc = $capturedAt.ToUniversalTime().ToString('O')
-            $ageSeconds = ([DateTimeOffset]::UtcNow - $capturedAt.ToUniversalTime()).TotalSeconds
+            $capturedAt = ConvertTo-UtcDateTimeOffset -Value $capturedAtValue -Description 'reference coordinate'
+            $capturedAtUtc = $capturedAt.ToString('O')
+            $ageSeconds = ([DateTimeOffset]::UtcNow - $capturedAt).TotalSeconds
         }
         elseif ($ReferenceMaxAgeSeconds -gt 0) {
             throw "ReferenceMaxAgeSeconds was set, but reference file '$referenceFilePath' did not contain a captured_at_utc/capturedAtUtc timestamp."
@@ -463,7 +514,9 @@ function New-CandidateReadbackSummary {
 
         $ReferenceCoordinate = $null,
 
-        [double]$ReferenceTolerance = 0.25
+        [double]$ReferenceTolerance = 0.25,
+
+        [double]$SourcePreviewTolerance = 0.0001
     )
 
     $candidateByRegionName = @{}
@@ -512,7 +565,7 @@ function New-CandidateReadbackSummary {
                 $offset = [int]$entry.CandidateOffsetInRegion
                 $entry.DecodedSamples.Add([pscustomobject][ordered]@{
                         SampleIndex = [int]$sample.SampleIndex
-                        RecordedAtUtc = [string]$sample.RecordedAtUtc
+                        RecordedAtUtc = ConvertTo-UtcTimestampString -Value $sample.RecordedAtUtc -Description ("readback sample {0}" -f $sample.SampleIndex)
                         X = Read-Float32At -Bytes $bytes -Offset $offset
                         Y = Read-Float32At -Bytes $bytes -Offset ($offset + 4)
                         Z = Read-Float32At -Bytes $bytes -Offset ($offset + 8)
@@ -566,8 +619,10 @@ function New-CandidateReadbackSummary {
                 DecodedSampleCount = $decodedSamples.Count
                 MaxAbsDeltaAcrossReadbackSamples = $maxAbsDelta
                 MaxAbsDeltaFromSourcePreview = $previewMaxAbsDelta
+                SourcePreviewTolerance = $SourcePreviewTolerance
+                SourcePreviewComparisonKind = 'candidate_artifact_value_preview_exact_drift_check'
                 StableAcrossReadbackSamples = ($decodedSamples.Count -gt 0 -and $null -ne $maxAbsDelta -and $maxAbsDelta -le 0.000001)
-                SourcePreviewMatchesReadback = if ($null -eq $previewMaxAbsDelta) { $null } else { $previewMaxAbsDelta -le 0.0001 }
+                SourcePreviewMatchesReadback = if ($null -eq $previewMaxAbsDelta) { $null } else { $previewMaxAbsDelta -le $SourcePreviewTolerance }
                 ReferenceMaxAbsDelta = if ($null -eq $referenceDelta) { $null } else { [double]$referenceDelta.MaxAbsDelta }
                 ReferencePlanarDistance = if ($null -eq $referenceDelta) { $null } else { [double]$referenceDelta.PlanarDistance }
                 ReferenceSpatialDistance = if ($null -eq $referenceDelta) { $null } else { [double]$referenceDelta.SpatialDistance }
@@ -618,6 +673,9 @@ function New-BestReferenceMatchSummary {
                 ReferencePlanarDistance = [double]$_.ReferencePlanarDistance
                 ReferenceSpatialDistance = [double]$_.ReferenceSpatialDistance
                 StableAcrossReadbackSamples = [bool]$_.StableAcrossReadbackSamples
+                MaxAbsDeltaFromSourcePreview = if ($null -eq $_.MaxAbsDeltaFromSourcePreview) { $null } else { [double]$_.MaxAbsDeltaFromSourcePreview }
+                SourcePreviewTolerance = if ($null -eq $_.SourcePreviewTolerance) { $null } else { [double]$_.SourcePreviewTolerance }
+                SourcePreviewComparisonKind = [string]$_.SourcePreviewComparisonKind
                 SourcePreviewMatchesReadback = if ($null -eq $_.SourcePreviewMatchesReadback) { $null } else { [bool]$_.SourcePreviewMatchesReadback }
                 DecodedSampleCount = [int]$_.DecodedSampleCount
                 FirstDecodedSample = if ($firstSample.Count -eq 0) {
@@ -701,6 +759,13 @@ if (-not [string]::IsNullOrWhiteSpace($DecodeOnlyWatchsetFile) -or -not [string]
     $decodeWatchset = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $resolvedDecodeWatchsetFile -Raw) -Depth 80
     $decodeCandidateReadbacks = @(New-CandidateReadbackSummary -Watchset $decodeWatchset -SamplesFile $resolvedDecodeSamplesFile -ReferenceCoordinate $referenceCoordinate -ReferenceTolerance $effectiveReferenceTolerance)
     $decodeBestReferenceMatches = @(New-BestReferenceMatchSummary -CandidateReadbacks $decodeCandidateReadbacks -TopCount $TopReferenceMatches)
+    $decodeSourcePreviewMatchCount = @($decodeCandidateReadbacks | Where-Object { $null -ne $_.SourcePreviewMatchesReadback -and [bool]$_.SourcePreviewMatchesReadback }).Count
+    $decodeReferenceMatchCount = @($decodeCandidateReadbacks | Where-Object { $null -ne $_.ReferenceMatchesReadback -and [bool]$_.ReferenceMatchesReadback }).Count
+    $decodeWarnings = [System.Collections.Generic.List[string]]::new()
+    if ($decodeReferenceMatchCount -gt 0 -and $decodeSourcePreviewMatchCount -eq 0) {
+        $decodeWarnings.Add('SourcePreviewMatchesReadback compares against the historical candidate artifact value preview; false does not invalidate same-time ReferenceMatchesReadback=true evidence.') | Out-Null
+    }
+
     $decodeSummary = [pscustomObject][ordered]@{
         SchemaVersion = 1
         Mode = 'riftscan-riftreader-readback-decode'
@@ -716,15 +781,17 @@ if (-not [string]::IsNullOrWhiteSpace($DecodeOnlyWatchsetFile) -or -not [string]
         CandidateCount = [int]$decodeWatchset.CandidateCount
         DecodedCandidateCount = @($decodeCandidateReadbacks | Where-Object { $_.DecodedSampleCount -gt 0 }).Count
         StableDecodedCandidateCount = @($decodeCandidateReadbacks | Where-Object { [bool]$_.StableAcrossReadbackSamples }).Count
-        SourcePreviewMatchCount = @($decodeCandidateReadbacks | Where-Object { $null -ne $_.SourcePreviewMatchesReadback -and [bool]$_.SourcePreviewMatchesReadback }).Count
+        SourcePreviewMatchCount = $decodeSourcePreviewMatchCount
         ReferenceCoordinate = $referenceCoordinate
-        ReferenceMatchCount = @($decodeCandidateReadbacks | Where-Object { $null -ne $_.ReferenceMatchesReadback -and [bool]$_.ReferenceMatchesReadback }).Count
+        ReferenceMatchCount = $decodeReferenceMatchCount
         BestReferenceMatchLimit = $TopReferenceMatches
         BestReferenceMatchCount = $decodeBestReferenceMatches.Count
         BestReferenceMatches = @($decodeBestReferenceMatches)
         CandidateReadbacks = @($decodeCandidateReadbacks)
         CanonicalCoordSource = 'none-candidate-watchset-only'
         MovementGate = 'blocked_until_current_process_validated_coord_trace_anchor_or_equivalent_canonical_source'
+        WarningCount = $decodeWarnings.Count
+        Warnings = @($decodeWarnings.ToArray())
     }
 
     if (-not [string]::IsNullOrWhiteSpace($DecodeOnlyOutputFile)) {
@@ -1019,6 +1086,9 @@ else {
     $warnings.Add('Fresh candidate readback does not satisfy RiftReader movement polling invariants by itself.') | Out-Null
     $warnings.Add('Movement remains blocked unless a current-process canonical coord-trace proof anchor or validated equivalent is separately validated.') | Out-Null
 }
+if ($referenceMatchCount -gt 0 -and $sourcePreviewMatchCount -eq 0) {
+    $warnings.Add('SourcePreviewMatchesReadback compares against the historical candidate artifact value preview; false does not invalidate same-time ReferenceMatchesReadback=true evidence.') | Out-Null
+}
 
 $summaryPath = Join-Path $resolvedOutputRoot ("riftscan-riftreader-currentpid-{0}-readback-wrapper-summary-{1}.json" -f $targetProcessId, $stamp)
 $summary = [pscustomobject][ordered]@{
@@ -1062,6 +1132,8 @@ $summary = [pscustomobject][ordered]@{
     CandidateReadbacks = @($candidateReadbacks)
     CanonicalCoordSource = $canonicalCoordSource
     MovementGate = $movementGate
+    SummaryFile = $summaryPath
+    WarningCount = $warnings.Count
     Warnings = @($warnings.ToArray())
     Commands = [pscustomobject][ordered]@{
         ProofAnchor = Get-CommandSummary -CommandResult $proofAnchorCommand

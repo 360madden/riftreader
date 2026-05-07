@@ -1,30 +1,164 @@
 # Current Truth
 
-_Last updated: May 6, 2026 23:23 EDT / May 7, 2026 03:23 UTC (live `rift_x64` PID `47560`, HWND `0x2122E`). Fresh RiftScan-first candidate `rift-addon-coordinate-candidate-000001` was imported into RiftReader, promoted as the no-CE proof anchor, and revalidated after a proof-gated forward pulse. Revalidate before any additional live movement because the proof-anchor age gate is intentionally short-lived._
+_Last updated: May 7, 2026 07:17 EDT / 11:17 UTC (live `rift_x64` PID `47560`, HWND `0x2122E`). Latest live movement truth is now the first gated-wrapper `W` 250 ms forward smoke. The wrapper preflight was green and sent one exact-target pulse; its internal post-readback failed closed only because the proof anchor crossed the 60-second age gate during postcheck. A no-input post-pulse reference/readback was immediately captured, re-promoted, and the hard current-readback gate returned `MovementAllowed=true`. The wrapper was then hardened with a pre-input proof-age-budget guard._
 
 ## Current status
 
 | Area | Status |
 |---|---|
-| Live target from latest resume check | `rift_x64` PID `47560`, HWND `0x2122E` (session-bound; re-check before live use) |
-| Current coordinate proof | **latest validation passed; time-bound, revalidate before more movement** |
-| Latest no-input validation | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260506-232245.json` returned `Status=valid`, `MovementAllowed=true` |
-| Current coordinate | `X=7437.0498046875`, `Y=885.2205810546875`, `Z=3054.30517578125` at `2026-05-07T03:22:49.0520397Z` |
-| Fresh proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` generated `2026-05-07T03:22:38.8570044Z` |
-| Proof method | `no-ce-riftscan-reference-multisample`, canonical source kind `riftscan-reference-validated-candidate` |
+| Live target from latest smoke | `rift_x64` PID `47560`, HWND `0x2122E`; MCP binding confirmed exact window, focused foreground target before input |
+| Current coordinate proof | **green after first gated-wrapper pulse post-recovery**; post-readback `Status=valid`, `MovementAllowed=true` at `2026-05-07T11:17:40.5792893+00:00` |
+| Latest hard post-smoke readback | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260507-071736.json` |
+| Current coordinate | `X=7437.916015625`, `Y=885.2205810546875`, `Z=3049.859130859375` at `2026-05-07T11:17:40.4096580Z` |
+| Latest proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` generated `2026-05-07T11:17:32.0507730+00:00` |
+| Latest proof method | `no-ce-riftscan-reference-multisample`, canonical source kind `riftscan-reference-validated-candidate` |
 | Proof candidate | `rift-addon-coordinate-candidate-000001` at `0x2400EA32120`, source base `0x2400E970000`, source offset `0xC2120`, proof region `0x2400EA320E0`, proof offset `64` |
+| Latest promotion evidence | 2 poses (`older still -> post-wrapper fresh current`); reference planar displacement `4.534089553592799`; max candidate/reference delta error `0.003989062500295404` |
+| Latest reference kind | `rift-api-unit-payload-companion` from read-only wide-context memory scan; `SavedVariablesUsedAsLiveTruth=false`; reference/readback max delta `0.00398437500007276` |
+| Current-readback quality | `ReadbackIntegrityStatus=ok`, samples `3`, failures `0`, stable delta `0.0` |
+| Latest active input | first gated-wrapper exact-target `W` pulse for `250 ms`; baseline screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-071621-832.png`; frame-change screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-071648-391.png`; final screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-071653-129.png` |
+| Latest movement proof delta | `dX=0.06640625`, `dY=0.0`, `dZ=-0.3388671875`, planar `0.3453125552354311`, spatial `0.3453125552354311` |
+| Wrapper internal postcheck | `blocked-post-readback` because `proof_anchor_age_out_of_range_seconds:61.302`; post-pulse recovery re-promotion/readback was green |
 | RiftScan source | `C:\RIFT MODDING\Riftscan\sessions\codex-current-coord-region-passive-20260506-230940` / `C:\RIFT MODDING\Riftscan\reports\generated\codex-current-coord-region-passive-20260506-230940-addon-coordinate-matches.json` |
 | RiftScan match quality | `candidate_count=1`, `support_count=3`, `best_max_abs_distance=0`, exact match to no-CE RiftReader readback seed |
-| Promotion evidence | 2 poses (`pose B -> pose C`); reference planar displacement `1.2165525060594347`; max candidate/reference delta error `0.0368164062501819` |
-| Proof-gated forward smoke | **passed**; 1000 ms `W` pulse after valid preflight changed proof coords by planar distance `1.2391483387792066` |
 | Cheat Engine | **not used**; CE / CE Lua / debugger / watchpoints remain forbidden unless explicitly reauthorized |
 | SavedVariables as live truth | **not used**; SavedVariables remain post-save snapshots only |
-| Movement gate | **open only at latest recorded preflight**; rerun preflight before more movement/navigation |
-| Movement/input operational state | Resumed by explicit user approval for this test; continue only through exact-window, proof-gated runs |
+| Movement gate | **satisfied at latest post-recovery validation** by `satisfied_by_current_process_proof_anchor_current_readback`; because the age gate is intentionally short, rerun the hardened wrapper dry-run or hard preflight immediately before any future live input |
+| Gated forward-smoke wrapper | `C:\RIFT MODDING\RiftReader\scripts\invoke-gated-forward-smoke.ps1` now includes `MinimumPostReadbackAgeBudgetSeconds` to block before input when too little proof age remains for post-readback |
+| Movement/input operational state | Active input resumed only after hard gate passed; one wrapper-mediated exact-target `W` 250 ms pulse has now been proved, and future small forward pulses should use only the hardened wrapper |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-06-144456-current-readback-coord-truth-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-06-233226-riftscan-first-proof-anchor-resume-handoff.md` |
 
-## May 6/7 RiftScan-first no-CE forward movement proof
+## May 7 continuation: first gated-wrapper forward smoke passed after post-recovery
+
+The wrapper path was tested live after a fresh no-CE proof refresh:
+
+| Fact | Value |
+|---|---|
+| Pre-wrapper proof refresh reference | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-wrapper-refresh-before-live-20260507-111447\current-api-reference-wide-context.json` |
+| Pre-wrapper pose summary | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-wrapper-refresh-before-live-20260507-111447\riftscan-proof-current-before-gated-wrapper-20260507-111520\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-071521.json` |
+| Pre-wrapper proof anchor generated | `2026-05-07T11:15:39.9032533+00:00` |
+| Wrapper dry-run | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-forward-smoke-currentpid-47560-summary-20260507-111556.json`, `Status=dry-run-valid` |
+| Baseline screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-071621-832.png` |
+| Wrapper live summary | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-forward-smoke-currentpid-47560-summary-20260507-111630.json` |
+| Input sent | exact-target `W`, `250 ms`, `post-rift-key.ps1 -RequireTargetForeground`; `SendInput` failed and AutoHotkey fallback reported success |
+| Frame change | `true`, change percent `13.7569`; screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-071648-391.png` |
+| Final screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-071653-129.png` |
+| Wrapper postcheck status | `blocked-post-readback` only because the proof-anchor age was `61.302s`, just past the 60-second gate |
+| Post-pulse recovery reference | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-wrapper-post-pulse-recovery-20260507-111705\post-wrapper-api-reference-wide-context.json` |
+| Post-pulse recovery pose | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-wrapper-post-pulse-recovery-20260507-111705\riftscan-proof-post-gated-wrapper-pulse-20260507-111713\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-071714.json` |
+| Post-pulse proof anchor generated | `2026-05-07T11:17:32.0507730+00:00` |
+| Post-pulse hard readback | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260507-071736.json`, `Status=valid`, `MovementAllowed=true` |
+| Coordinate delta | `dX=0.06640625`, `dY=0.0`, `dZ=-0.3388671875`, planar `0.3453125552354311` |
+| Wrapper hardening | `MinimumPostReadbackAgeBudgetSeconds` added so future runs block before input if not enough proof-age budget remains |
+
+Operational interpretation:
+
+- The first wrapper-mediated `W` pulse did move the proof coordinate and visual frame.
+- The wrapper's original postcheck failed for timing, not coordinate/proof quality; the post-pulse no-input recovery proved the current coordinate again.
+- The code is now safer than the run just performed: it refuses to send if the proof anchor is too close to age expiry for the postcheck.
+- No Cheat Engine path and no SavedVariables live truth were used.
+
+## Historical May 7 continuation: third repeat forward smoke passed
+
+This continuation again failed closed first because the prior proof anchor had aged past the 60-second gate. A default 512-byte `RRAPICOORD1` scan had live API context but not the companion unit-detail `x/y/z` payload. A read-only unit-payload scan confirmed the live `Atank` payload was present, then a wider 4096-byte `RRAPICOORD1` context scan captured the companion payload through the helper fallback. The proof anchor was re-promoted, the hard gate passed, and only then was the third `W` pulse sent.
+
+Refresh and pre-smoke artifacts:
+
+- expired preflight summary: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260507-065223.json`
+- failed default context scan: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-proof-pose-current-refresh-before-third-smoke-20260507-105238\rift-api-reference-scan-currentpid-47560-20260507-105259-attempt3.json`
+- unit-payload inspection scan: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-proof-pose-current-refresh-before-third-smoke-20260507-105238\rift-api-unit-payload-scan-currentpid-47560-name-atank.json`
+- fresh wide-context reference: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-proof-pose-current-refresh-before-third-smoke-20260507-105238\pose-current-refresh-before-third-smoke-api-reference-wide-context.json`
+- fresh wide-context scan: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-proof-pose-current-refresh-before-third-smoke-20260507-105238\rift-api-reference-scan-currentpid-47560-20260507-105404.json`
+- fresh recovered-reference pose summary: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-proof-pose-current-third-smoke-reference-recovered-20260507-105424\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-065425.json`
+- refreshed proof anchor: `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`
+- pre-smoke hard gate summary: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260507-065446.json`
+- pre-smoke proof-anchor preflight file: `C:\RIFT MODDING\RiftReader\scripts\captures\assert-current-proof-coord-anchor-currentpid-47560-readback-preflight-20260507-065446.json`
+
+Third forward smoke artifacts:
+
+- baseline screenshot: `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-065509-596.png`
+- frame-change screenshot: `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-065517-786.png`
+- final screenshot: `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260507-065522-118.png`
+- post-smoke hard gate summary: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260507-065532.json`
+- post-smoke proof-anchor preflight file: `C:\RIFT MODDING\RiftReader\scripts\captures\assert-current-proof-coord-anchor-currentpid-47560-readback-preflight-20260507-065532.json`
+- post-smoke watchset file: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-watchset-20260507-065532.json`
+- post-smoke readback session: `C:\RIFT MODDING\RiftReader\scripts\sessions\proof-anchor-currentpid-47560-readback-20260507-065532`
+
+Promotion facts:
+
+| Fact | Value |
+|---|---|
+| Candidate | `rift-addon-coordinate-candidate-000001` |
+| Candidate address | `0x2400EA32120` |
+| Region address / offset | `0x2400EA320E0` / `64` |
+| Pose count | `2` |
+| Reference planar displacement | `3.8614090795978067` |
+| Max candidate/reference delta error | `0.0028953125001862645` |
+| Proof method | `no-ce-riftscan-reference-multisample` |
+| Reference kind | `rift-api-unit-payload-companion` |
+| No CE | `true` |
+| Movement sent during promotion/preflight | `false` |
+
+Third forward smoke proof facts:
+
+| Fact | Value |
+|---|---|
+| Input | exact-target `W`, `250 ms`, `window-message` backend |
+| Pre-smoke coordinate | `X=7437.787109375`, `Y=885.2205810546875`, `Z=3050.5166015625` at `2026-05-07T10:54:50.5192134Z` |
+| Post-smoke coordinate | `X=7437.849609375`, `Y=885.2205810546875`, `Z=3050.197998046875` at `2026-05-07T10:55:36.6703454Z` |
+| Delta | `dX=0.0625`, `dY=0.0`, `dZ=-0.318603515625` |
+| Planar movement | `0.3246759155967834` |
+| Three-pulse planar series movement | `0.9529119785083983` |
+| Post-smoke status | `valid` |
+| Post-smoke MovementAllowed | `true` |
+| Post-smoke read failures | `0` |
+| Stable across post-smoke samples | `true` |
+| Frame change | `true`, change percent `8.7708` |
+
+Operational interpretation:
+
+- This is a **current-session, exact PID/HWND, no-CE** coordinate proof and three-pulse active forward-smoke proof.
+- Three tiny active `W` pulses have now produced measurable proof-coordinate deltas and the proof anchor remained valid afterward.
+- The companion-payload reference fallback is bounded to scans that also contain live Rift API probe context; it is not a SavedVariables path.
+- The proof anchor is age-gated; before any further live input, rerun:
+
+  ```powershell
+  .\scripts\invoke-gated-forward-smoke.ps1 `
+    -ProcessId 47560 `
+    -TargetWindowHandle 0x2122E `
+    -HoldMilliseconds 250 `
+    -PulseCount 1 `
+    -Json
+  ```
+
+- The gated wrapper performs the hard current-readback preflight before input
+  and the hard current-readback postcheck after each pulse. Use `-DryRun` to run
+  its no-input gate path only.
+
+## May 7 continuation: gated wrapper added after live proof
+
+After the third live smoke, the ad hoc exact-target key-posting flow was
+captured as a narrow fail-closed wrapper:
+
+| Item | Value |
+|---|---|
+| Wrapper | `C:\RIFT MODDING\RiftReader\scripts\invoke-gated-forward-smoke.ps1` |
+| Regression | `C:\RIFT MODDING\RiftReader\scripts\test-invoke-gated-forward-smoke.ps1` |
+| Default input | exactly one `W` pulse, `250 ms` |
+| Safety caps | `HoldMilliseconds <= 1000`; `PulseCount <= 3` |
+| Required target | exact `ProcessId` and `TargetWindowHandle` |
+| Pre-input gate | `assert-current-proof-coord-anchor-readback.ps1` must return `Status=valid` and `MovementAllowed=true` |
+| Post-input gate | same current-readback gate must remain green after each pulse |
+| Age-budget gate | `MinimumPostReadbackAgeBudgetSeconds=15` by default; the wrapper blocks before input if the proof anchor is too close to expiry for a post-readback check |
+| Default input backend | `post-rift-key.ps1 -RequireTargetForeground` |
+| No-input mode | `-DryRun` |
+| Live no-input dry run | `C:\RIFT MODDING\RiftReader\scripts\captures\gated-forward-smoke-currentpid-47560-summary-20260507-111124.json` |
+| Dry-run result | `blocked-preflight`; `MovementAttempted=false`; `MovementSent=false`; issue `proof_anchor_age_out_of_range_seconds:1006.028` |
+| Live input through wrapper | first run sent one `W` 250 ms pulse: `C:\RIFT MODDING\RiftReader\scripts\captures\gated-forward-smoke-currentpid-47560-summary-20260507-111630.json`; postcheck timed out on age, then post-recovery validation passed |
+| CE / SavedVariables | no CE path; SavedVariables are not used as live truth |
+
+## Historical May 6/7 RiftScan-first no-CE forward movement proof
 
 The resumed lane now follows the user-corrected workflow: use RiftScan for candidate acquisition, then let RiftReader import/read back/promote only fresh candidates. The older `api-probe-triplet-000007` wording is superseded by the RiftScan candidate below.
 
@@ -544,6 +678,7 @@ These checks passed after the April 28 update and the small script fixes:
 - `C:\RIFT MODDING\RiftReader\scripts\test-actor-orientation-stimulus.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\profile-actor-orientation-keys.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\invoke-gated-forward-smoke.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\refresh-readerbridge-export.ps1`
 - `C:\RIFT MODDING\RiftReader\scripts\navigation\test-navigation-proof-suite.ps1`
 
