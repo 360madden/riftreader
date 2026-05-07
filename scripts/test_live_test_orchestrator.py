@@ -309,6 +309,70 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             issues = runner._validate_promotion_reference_target()
             self.assertIn("promotion_reference_pid_mismatch:actual=999;expected=123", issues)
 
+    def test_progress_file_is_written_incrementally(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="Forward250",
+                profile={
+                    "mode": "live-input",
+                    "input": {"key": "w", "holdMilliseconds": 250, "pulseCount": 1},
+                    "outputRoot": str(root / "captures"),
+                    "writeMarkdownSummary": False,
+                },
+                process_id=123,
+                target_window_handle="0x123",
+                live=True,
+            )
+
+            runner._state("verify-target", "passed", detail="pid=123;hwnd=0x123")
+
+            progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+            self.assertEqual(progress["status"], "running")
+            self.assertFalse(progress["finalSummaryWritten"])
+            self.assertEqual(progress["states"][0]["state"], "verify-target")
+
+            latest = json.loads(
+                (root / "scripts" / "captures" / "latest-live-test-run.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(latest["runProgressFile"], str(runner.progress_file))
+            self.assertFalse(latest["finalSummaryWritten"])
+
+    def test_final_summary_marks_progress_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "writeMarkdownSummary": False,
+                },
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+
+            summary = runner._finish(
+                "passed-proof-only",
+                final_json={
+                    "Status": "valid",
+                    "MovementSent": False,
+                    "MovementAttempted": False,
+                    "CurrentCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0},
+                },
+            )
+
+            progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+            self.assertTrue(progress["finalSummaryWritten"])
+            self.assertEqual(progress["status"], "passed-proof-only")
+            self.assertEqual(summary["runProgressFile"], str(runner.progress_file))
+
     def test_baseline_pool_selects_compatible_displaced_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -1,6 +1,6 @@
 # Python Live-Testing Orchestrator Plan
 
-_Last updated: May 7, 2026 12:03 EDT._
+_Last updated: May 7, 2026 12:19 EDT._
 
 ## Verdict
 
@@ -209,6 +209,24 @@ summaries with enough reference displacement before adding the fresh summary.
 | Selected summaries | `3` summaries promoted into the current proof anchor |
 | Latest proof anchor pose count | `3` |
 | Latest proof max reference displacement | `2.4753908943841862` |
+
+
+## May 7 update - interruption-safe run progress checkpoints passed
+
+The runner now writes `run-progress.json` incrementally after state and series
+pulse changes, and `scripts\captures\latest-live-test-run.json` points to both
+the progress file and final summary. This makes interrupted live tests diagnosable
+without blindly rerunning input.
+
+| Validation | Result |
+|---|---|
+| Proof command | `python scripts\live_test.py --profile ProofOnly --pid 47560 --hwnd 0x2122E` |
+| Run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-summary.json` |
+| Run progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-progress.json` |
+| Latest pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` |
+| Final summary written | `true` |
+| Movement sent | `false` |
+| Current coordinate | `X=7437.462890625`, `Y=885.2191772460938`, `Z=3055.73779296875` |
 
 ## State machine
 

@@ -75,6 +75,7 @@ class LiveTestRunner:
             output_root = repo_root / output_root
         self.run_dir = output_root / f"live-test-{profile_name}-{stamp}"
         self.child_dir = self.run_dir / "child-outputs"
+        self.progress_file = self.run_dir / "run-progress.json"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.child_dir.mkdir(parents=True, exist_ok=True)
 
@@ -83,6 +84,7 @@ class LiveTestRunner:
         try:
             write_json(self.run_dir / "profile-effective.json", self.profile)
             write_json(self.run_dir / "run-manifest.json", self._manifest())
+            self._write_progress("running")
             self._state("load-profile", "passed", detail=str(self.profile.get("profilesFile")))
 
             target = verify_target(
@@ -753,6 +755,7 @@ class LiveTestRunner:
             "issues": self._json_issues(live_result) or self._json_issues(dry_run),
         }
         self.series_pulses.append(item)
+        self._write_progress("running")
 
     def _series_movement_started(self) -> bool:
         return any(
@@ -810,20 +813,82 @@ class LiveTestRunner:
             )
             summary["completedPulseCount"] = self._completed_series_pulse_count()
             summary["seriesCoordinateDelta"] = self._series_coordinate_delta()
+        summary["runProgressFile"] = str(self.progress_file)
         write_json(self.run_dir / "run-summary.json", summary)
         if self.profile.get("writeMarkdownSummary", True):
             write_markdown_summary(self.run_dir / "run-summary.md", summary)
+        self._write_progress(status, final_json=final_json)
+        self._write_latest_pointer(status, run_summary_file=self.run_dir / "run-summary.json")
+        return summary
+
+    def _write_progress(self, status: str, *, final_json: dict[str, Any] | None = None) -> None:
+        post = self._get(final_json, "PostReadback") if final_json else None
+        current_source = post if isinstance(post, dict) else final_json
+        movement_sent = bool(self._get(final_json, "MovementSent")) if final_json else False
+        movement_attempted = (
+            bool(self._get(final_json, "MovementAttempted")) if final_json else False
+        )
+        if self.series_pulses:
+            movement_sent = movement_sent or any(
+                bool(pulse.get("movementSent")) for pulse in self.series_pulses
+            )
+            movement_attempted = movement_attempted or any(
+                bool(pulse.get("movementAttempted")) for pulse in self.series_pulses
+            )
+
+        snapshot = {
+            "schemaVersion": 1,
+            "mode": "rift-live-test-progress",
+            "profileName": self.profile_name,
+            "status": status,
+            "updatedAtUtc": datetime.now(timezone.utc).isoformat(),
+            "runDirectory": str(self.run_dir),
+            "runSummaryFile": str(self.run_dir / "run-summary.json"),
+            "runProgressFile": str(self.progress_file),
+            "live": self.live,
+            "processId": self.process_id,
+            "targetWindowHandle": self.target_window_handle,
+            "movementSent": movement_sent,
+            "movementAttempted": movement_attempted,
+            "currentCoordinate": self._coordinate(self._get(current_source, "CurrentCoordinate")),
+            "coordinateDelta": self._delta(self._get(final_json, "CoordinateDelta")),
+            "issues": self.issues,
+            "states": self.states,
+            "childOutputsDirectory": str(self.child_dir),
+            "autoRefreshAttemptsUsed": self.auto_refresh_attempts_used,
+            "noCheatEngine": True,
+            "savedVariablesUsedAsLiveTruth": False,
+            "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
+        }
+        if self.series_pulses:
+            snapshot["seriesPulses"] = self.series_pulses
+            snapshot["requestedPulseCount"] = int(
+                (self.profile.get("input") or {}).get("pulseCount", len(self.series_pulses))
+            )
+            snapshot["completedPulseCount"] = self._completed_series_pulse_count()
+            snapshot["seriesCoordinateDelta"] = self._series_coordinate_delta()
+        write_json(self.progress_file, snapshot)
+        self._write_latest_pointer(status, run_progress_file=self.progress_file)
+
+    def _write_latest_pointer(
+        self,
+        status: str,
+        *,
+        run_summary_file: Path | None = None,
+        run_progress_file: Path | None = None,
+    ) -> None:
         write_json(
             self.repo_root / "scripts" / "captures" / "latest-live-test-run.json",
             {
-                "runSummaryFile": str(self.run_dir / "run-summary.json"),
+                "runSummaryFile": str(run_summary_file or (self.run_dir / "run-summary.json")),
+                "runProgressFile": str(run_progress_file or self.progress_file),
                 "runDirectory": str(self.run_dir),
                 "profileName": self.profile_name,
                 "status": status,
-                "generatedAtUtc": summary["generatedAtUtc"],
+                "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
+                "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
             },
         )
-        return summary
 
     def _manifest(self) -> dict[str, Any]:
         return {
@@ -861,6 +926,7 @@ class LiveTestRunner:
         if summaryFile:
             item["summaryFile"] = summaryFile
         self.states.append(item)
+        self._write_progress("running")
 
     @staticmethod
     def _get(payload: Any, name: str, default: Any = None) -> Any:

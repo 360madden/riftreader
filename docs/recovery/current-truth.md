@@ -1,26 +1,43 @@
 # Current Truth
 
-_Last updated: May 7, 2026 12:03 EDT / 16:03 UTC (live `rift_x64` PID `47560`, HWND `0x2122E`). Latest no-input proof truth is the Python dynamic-baseline-pool `ProofOnly` validation. Latest live movement truth remains the Python-owned per-pulse `ForwardSeries3x250 --live` smoke with 3/3 exact-target `W` 250 ms pulses._
+_Last updated: May 7, 2026 12:19 EDT / 16:19 UTC (live `rift_x64` PID `47560`, HWND `0x2122E`). Latest no-input proof truth is the Python `ProofOnly` validation with interruption-safe `run-progress.json` checkpointing. Latest live movement truth remains the Python-owned per-pulse `ForwardSeries3x250 --live` smoke with 3/3 exact-target `W` 250 ms pulses._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `47560`, HWND `0x2122E` |
-| Latest no-input proof | **green after dynamic baseline pool selection**; `ProofOnly` summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-160239\run-summary.json` |
-| Latest movement truth | `ForwardSeries3x250 --live` passed 3/3 per-pulse gated `W` 250 ms pulses; run summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260507-145404\run-summary.json` |
-| Current coordinate | `X=7437.40673828125`, `Y=885.2205810546875`, `Z=3055.98486328125` at `2026-05-07T16:03:06.7356655Z` |
-| Latest proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` generated `2026-05-07T16:03:01.4741365+00:00` with pose count `3` |
-| Latest active-input series delta | planar `0.9534727619043354`, `dX=0.22412109375`, `dZ=-0.9267578125` |
-| Dynamic baseline pool | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-promotion-baselines.json`; entries `2` |
-| Latest baseline capture | `RefreshBaseline` passed no-input; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260507-160159\run-summary.json` |
-| Latest baseline selection | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-160239\promotion-baseline-selection-attempt-1.json`; status `selected`, compatible displaced count `2` |
-| Promotion selected summaries | `3` summaries; max reference displacement `2.4753908943841862`; max delta error `0.0063136718749774445` |
-| Movement gate | satisfied by latest proof/current-readback path; future movement should still go through `scripts\live_test.py` with exact current PID/HWND and `--live` for input profiles |
-| Python live-test orchestrator | Dynamic-baseline-pool validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md` |
+| Latest no-input proof | **green after run-progress checkpoint validation**; `ProofOnly` summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-summary.json` |
+| Latest run progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-progress.json`; `finalSummaryWritten=true` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` now includes both `runSummaryFile` and `runProgressFile` |
+| Latest movement truth | `ForwardSeries3x250 --live` passed 3/3 per-pulse gated `W` 250 ms pulses |
+| Current coordinate | `X=7437.462890625`, `Y=885.2191772460938`, `Z=3055.73779296875` at `2026-05-07T16:18:16.0931490Z` |
+| Latest proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` generated `2026-05-07T16:18:10.7659885+00:00` with pose count `3` |
+| Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; if `finalSummaryWritten=false`, use `states` and `seriesPulses` from progress. |
+| Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md` |
 | CE / SavedVariables | no CE; no SavedVariables live truth |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-07-120330-python-baseline-pool-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-07-121900-run-progress-checkpoint-handoff.md` |
+
+## May 7 continuation: interruption-safe progress checkpoint validated
+
+The orchestrator now writes `run-progress.json` incrementally during a run and
+updates `scripts\captures\latest-live-test-run.json` with both progress and
+summary paths. This directly addresses interrupted live tests: if the final
+summary is missing, the progress file still shows the latest state and any
+series pulses already completed.
+
+| Fact | Value |
+|---|---|
+| Validation command | `python scripts\live_test.py --profile ProofOnly --pid 47560 --hwnd 0x2122E` |
+| Run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-summary.json` |
+| Run progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-progress.json` |
+| Latest pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` |
+| Status | `passed-proof-only` |
+| Movement sent | `false` |
+| Final summary written | `true` |
+
+
 
 ## May 7 continuation: dynamic promotion baseline pool validated
 
