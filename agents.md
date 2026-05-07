@@ -107,6 +107,39 @@ and prefer `gpt-5.4` if any “No-spark” condition is true.
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
 
+## Workflow/helper-app implementation language policy
+
+From this point forward, do **not** add new live-test workflow brains, helper
+apps, orchestration state machines, JSON/report processors, or multi-step
+automation in PowerShell by default.
+
+Use this split unless the user explicitly authorizes an exception:
+
+| Layer | Default tool | Hard rule |
+|---|---|---|
+| User convenience launchers | `.cmd` | Keep dumb: `cd` to repo, call Python, pass through args. No JSON parsing, no branching-heavy workflow logic, no proof decisions. |
+| Workflow automation / live-test orchestration | Python | Python owns state machines, subprocess calls, JSON parsing, age-budget timing, summaries, and fail-closed decisions. |
+| Helper apps / operator tooling | Python first | Prefer Python for CLIs, TUIs, small local helper apps, report writers, and workflow utilities. |
+| Low-level memory/process engine | Existing C#/.NET | Keep process-memory/readback/native engine code in the existing .NET projects unless a focused migration is requested. |
+| PowerShell `.ps1` | Legacy leaf adapter only | Existing proven `.ps1` scripts may be called by Python, but do not create new PowerShell orchestration unless there is a narrow Windows-native reason and it is documented. |
+
+Practical requirements for new workflow/helper code:
+
+- Prefer `python .\scripts\<name>.py ...` as the real entry point.
+- If a friendly launcher is needed, add a minimal `.cmd` wrapper that only calls
+  Python and forwards `%*`.
+- Use Python `subprocess.run([...])` argument lists; do not compose shell
+  command strings for workflow control.
+- Require child tools to emit JSON where possible; parse and validate that JSON
+  in Python.
+- Emit compact `run-summary.json` and, when useful, `run-summary.md` from the
+  Python controller.
+- Keep fail-closed states explicit, e.g. `target-drift`, `proof-expired`,
+  `low-age-budget`, `dry-run-blocked`, `input-failed`, `post-readback-failed`.
+- Do **not** rewrite all existing `.ps1` scripts just to satisfy this policy.
+  First place Python above the proven scripts as the orchestrator; only port
+  brittle PowerShell leaf scripts one at a time after behavior is locked.
+
 ## Cross-repo ChromaLink boundary
 
 - Treat ChromaLink as an external **provider** repo and RiftReader as a

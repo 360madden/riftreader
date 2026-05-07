@@ -1,0 +1,83 @@
+{
+  "defaults": {
+    "processName": "rift_x64",
+    "proofAnchorMaxAgeSeconds": 60,
+    "minimumPostReadbackAgeBudgetSeconds": 20,
+    "referenceMaxAgeSeconds": 180,
+    "referenceTolerance": 0.25,
+    "readbackSampleCount": 3,
+    "readbackIntervalMilliseconds": 100,
+    "scanContextBytes": 4096,
+    "maxHits": 512,
+    "autoRefreshProofOnExpired": true,
+    "autoRefreshProofOnLowAgeBudget": true,
+    "maxAutoRefreshAttempts": 1,
+    "requireExactTarget": true,
+    "requireLiveFlagForInput": true,
+    "writeMarkdownSummary": true,
+    "childCommandTimeoutSeconds": 180,
+    "candidateId": "rift-addon-coordinate-candidate-000001",
+    "proofAnchorFile": "scripts/captures/telemetry-proof-coord-anchor.json",
+    "promotionBaselinePoolFile": "scripts/captures/live-test-promotion-baselines.json",
+    "promotionReferenceReadbackSummary": "scripts/captures/riftscan-proof-pose-current-warning-count-smoke-20260507-043815/riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-003823.json",
+    "maxPromotionBaselineCandidates": 6,
+    "minReferenceDisplacement": 1.0,
+    "maxDeltaError": 0.25,
+    "maxEvidenceAgeSeconds": 0,
+    "outputRoot": "scripts/captures",
+    "maxHoldMilliseconds": 1000,
+    "maxPulseCount": 3
+  },
+  "profiles": {
+    "ProofOnly": {
+      "mode": "proof-only",
+      "input": null
+    },
+    "RecoverAfterPulse": {
+      "mode": "recover-proof",
+      "input": null
+    },
+    "RefreshBaseline": {
+      "mode": "baseline-only",
+      "input": null
+    },
+    "Forward250": {
+      "mode": "live-input",
+      "input": {
+        "key": "w",
+        "holdMilliseconds": 250,
+        "pulseCount": 1,
+        "interPulseDelayMilliseconds": 150
+      },
+      "recording": {
+        "screenshots": false,
+        "coordSamples": true,
+        "preMilliseconds": 750,
+        "postMilliseconds": 1250
+      },
+      "stopRules": {
+        "stopOnPostReadbackFailure": true
+      }
+    },
+    "ForwardSeries3x250": {
+      "mode": "live-input-series",
+      "input": {
+        "key": "w",
+        "holdMilliseconds": 250,
+        "pulseCount": 3,
+        "interPulseDelayMilliseconds": 300
+      },
+      "gates": {
+        "dryRunBeforeSeries": true,
+        "postReadbackAfterEachPulse": true,
+        "refreshBetweenPulsesIfAgeBudgetLow": true
+      },
+      "recording": {
+        "screenshots": false,
+        "coordSamples": true,
+        "preMilliseconds": 750,
+        "postMilliseconds": 1500
+      }
+    }
+  }
+}

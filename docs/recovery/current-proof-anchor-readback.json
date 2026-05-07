@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-07T07:17:40.5792893-04:00",
-  "status": "valid-after-gated-wrapper-forward-smoke-post-recovery",
+  "lastUpdatedUtc": "2026-05-07T16:03:07.235598+00:00",
+  "status": "valid-after-dynamic-baseline-pool-proofonly",
   "movementGate": {
     "activeMovementInputResumedByUser": true,
     "latestReadbackStatus": "valid",
     "latestMovementAllowed": true,
-    "note": "The gated forward-smoke wrapper dry-run passed, then one exact-target W 250 ms wrapper pulse was sent. The wrapper internal post-readback failed closed only because the 60-second proof-anchor age expired during postcheck; a no-input post-pulse API/reference readback was immediately captured, re-promoted, and hard current-readback validation returned MovementAllowed=true. The wrapper was hardened afterward with a pre-input age-budget guard.",
+    "note": "Dynamic baseline pool RefreshBaseline and ProofOnly no-input validation passed; latest movement truth remains ForwardSeries3x250 3/3 pulses.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -36,35 +36,24 @@
     ]
   },
   "latestValidation": {
-    "generatedAtUtc": "2026-05-07T07:17:40.5792893-04:00",
-    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-071736.json",
-    "preflightFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\assert-current-proof-coord-anchor-currentpid-47560-readback-preflight-20260507-071736.json",
+    "generatedAtUtc": "2026-05-07T16:03:07.235598+00:00",
+    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-120302.json",
     "status": "valid",
     "movementAllowed": true,
     "noCheatEngine": true,
     "movementSent": false,
-    "canonicalCoordSource": "proof-anchor-current-readback",
-    "movementGateLabel": "satisfied_by_current_process_proof_anchor_current_readback",
-    "proofAnchorMaxAgeSeconds": 60,
-    "issues": [],
     "currentCoordinate": {
-      "x": 7437.916015625,
+      "x": 7437.40673828125,
       "y": 885.2205810546875,
-      "z": 3049.859130859375,
-      "recordedAtUtc": "2026-05-07T11:17:40.409658Z"
+      "z": 3055.98486328125,
+      "recordedAtUtc": "2026-05-07T16:03:06.7356655Z"
     },
-    "stableAcrossReadbackSamples": true,
-    "maxAbsDeltaAcrossReadbackSamples": 0.0,
-    "readbackRecordedSampleCount": 3,
-    "readbackTotalRegionReadFailures": 0,
-    "readbackIntegrityStatus": "ok",
-    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "watchsetFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-watchset-20260507-071736.json",
-    "readbackSessionPath": "C:\\RIFT MODDING\\RiftReader\\scripts\\sessions\\proof-anchor-currentpid-47560-readback-20260507-071736"
+    "issues": [],
+    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
   },
   "proofAnchorCache": {
     "file": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "generatedAtUtc": "2026-05-07T07:17:32.050773-04:00",
+    "generatedAtUtc": "2026-05-07T16:03:01.4741365+00:00",
     "proofMethod": "no-ce-riftscan-reference-multisample",
     "canonicalCoordSourceKind": "riftscan-reference-validated-candidate",
     "proofValidationStatus": "validated",
@@ -74,19 +63,20 @@
     "candidateOffsetInRegion": 64,
     "noCheatEngine": true,
     "movementSent": false,
-    "poseCount": 2,
-    "maxReferencePlanarDisplacement": 4.534089553592799,
-    "maxDeltaError": 0.003989062500295404,
+    "poseCount": 3,
+    "maxReferencePlanarDisplacement": 2.4753908943841862,
+    "maxDeltaError": 0.0063136718749774445,
     "readbackSummaryFiles": [
       "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-proof-pose-current-warning-count-smoke-20260507-043815\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-003823.json",
-      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-wrapper-post-pulse-recovery-20260507-111705\\riftscan-proof-post-gated-wrapper-pulse-20260507-111713\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-071714.json"
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\riftscan-proof-ForwardSeries3x250-attempt-2-20260507-145531\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-105532.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-160239\\riftscan-proof-ProofOnly-attempt-1-20260507-160253\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-120254.json"
     ],
-    "validationScope": "current-session-exact-pid-hwnd-valid-after-first-gated-wrapper-250ms-forward-smoke-post-recovery",
+    "validationScope": "dynamic-baseline-pool-proofonly-current-session",
     "usableForMovementAtLatestResumeRecheck": true,
     "expiredAtLatestResumeRecheck": false,
     "expiredReason": null,
-    "latestResumeRecheckUtc": "2026-05-07T07:17:40.5792893-04:00",
-    "requiredRefresh": "rerun the hardened wrapper dry-run or hard proof-anchor current-readback preflight immediately before future input; wrapper now blocks if insufficient proof age remains for post-readback."
+    "latestResumeRecheckUtc": "2026-05-07T16:03:07.235598+00:00",
+    "requiredRefresh": "Use scripts/live_test.py with exact current PID/HWND. Promotion now selects compatible displaced summaries from the Python baseline pool, proof anchor evidence, and configured fallback."
   },
   "forwardMovementTests": {
     "candidatePromotionPulse": {
@@ -120,11 +110,26 @@
     }
   },
   "sourceArtifacts": {
-    "latestHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-06-233226-riftscan-first-proof-anchor-resume-handoff.md",
-    "supersededHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-06-125036-riftscan-riftreader-no-ce-proof-anchor-handoff.md"
+    "latestHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-07-120330-python-baseline-pool-handoff.md",
+    "liveProofHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-07-072508-gated-wrapper-forward-smoke-handoff.md",
+    "supersededHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-06-233226-riftscan-first-proof-anchor-resume-handoff.md",
+    "liveTestingPlan": "C:\\RIFT MODDING\\RiftReader\\docs\\live-testing-python-orchestrator-plan.md",
+    "latestPythonLiveRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\run-summary.json",
+    "latestPythonLiveWrapperSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144325.json",
+    "latestPythonSeriesRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\run-summary.json",
+    "latestPythonSeriesWrapperSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145544.json",
+    "latestBaselineCaptureRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260507-160159\\run-summary.json",
+    "latestProofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-160239\\run-summary.json",
+    "latestPromotionBaselinePool": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-promotion-baselines.json",
+    "latestPromotionBaselineSelection": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-160239\\promotion-baseline-selection-attempt-1.json"
   },
-  "nextRequiredAction": "Use the hardened gated wrapper only after refreshing proof; do not send more ad hoc forward pulses. The wrapper should block before input unless the gate is valid and enough proof-age budget remains for the post-readback.",
+  "nextRequiredAction": "Next slice: add partial-series recovery/resume or recorder; dynamic baseline pool is now validated for no-input proof refresh.",
   "notes": [
+    "Dynamic promotion baseline pool validated at 2026-05-07T16:03Z: RefreshBaseline captured a no-input pose, ProofOnly selected compatible displaced summaries and passed post-readback.",
+    "Python ForwardSeries3x250 live run at 2026-05-07T14:55Z passed 3/3 per-pulse gated inputs with one auto proof refresh before pulse 3.",
+    "Python orchestrator live run at 2026-05-07T14:43Z passed Forward250 --live with exact PID/HWND, one W 250 ms pulse, post-readback valid, no CE, no SavedVariables live truth.",
+    "Input profiles now require --live unconditionally and reject requireLiveFlagForInput=false.",
+    "Resume run at 2026-05-07T13:49Z passed one additional hardened wrapper W 250 ms pulse; post-readback remained valid and MovementAllowed=true.",
     "This tracked pointer now reflects the May 7 first gated-wrapper W 250 ms forward-smoke proof and post-pulse recovery validation.",
     "The wrapper preflight was green and input was sent; its internal post-readback failed closed because the proof anchor crossed the 60-second age gate during postcheck.",
     "A no-input post-pulse reference/readback was immediately captured and re-promoted; the hard current-readback gate then returned Status=valid and MovementAllowed=true.",
@@ -133,10 +138,10 @@
     "Future live movement should use the gated wrapper only; refresh proof first and preserve exact PID/HWND targeting."
   ],
   "latestResumeRecheck": {
-    "generatedAtUtc": "2026-05-07T07:17:40.5792893-04:00",
+    "generatedAtUtc": "2026-05-07T13:49:35.8512343Z",
     "status": "valid",
-    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-071736.json",
-    "preflightFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\assert-current-proof-coord-anchor-currentpid-47560-readback-preflight-20260507-071736.json",
+    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-094931.json",
+    "preflightFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\assert-current-proof-coord-anchor-currentpid-47560-readback-preflight-20260507-094931.json",
     "movementAllowed": true,
     "movementSent": false,
     "noCheatEngine": true,
@@ -146,15 +151,15 @@
     "referencePlanarDisplacement": 4.534089553592799,
     "maxDeltaError": 0.003989062500295404,
     "currentCoordinate": {
-      "x": 7437.916015625,
+      "x": 7437.97802734375,
       "y": 885.2205810546875,
-      "z": 3049.859130859375,
-      "recordedAtUtc": "2026-05-07T11:17:40.409658Z"
+      "z": 3049.539794921875,
+      "recordedAtUtc": "2026-05-07T13:49:35.6276265Z"
     },
-    "latestForwardSmokeStatus": "passed-first-gated-wrapper-pulse-post-recovered",
-    "latestForwardSmokePlanarDistance": 0.3453125552354311,
+    "latestForwardSmokeStatus": "passed-resume-gated-wrapper-pulse",
+    "latestForwardSmokePlanarDistance": 0.3253012361509452,
     "seriesPlanarDistanceFromFirstPreSmoke": null,
-    "nextRequiredAction": "Future live input should use invoke-gated-forward-smoke.ps1 after a fresh no-CE proof refresh; the wrapper now blocks before input if the proof anchor has less than the required post-readback age budget remaining."
+    "nextRequiredAction": "Future live input must refresh proof and pass invoke-gated-forward-smoke.ps1 -DryRun immediately first."
   },
   "manualMovedPoseRecovery": {
     "status": "promoted-after-reference-recovery",
@@ -171,52 +176,49 @@
     }
   },
   "latestForwardSmoke": {
-    "status": "passed-third",
+    "status": "passed-python-orchestrator-forward250",
     "input": {
       "keyChord": "w",
       "holdMilliseconds": 250,
-      "keyboardInputMethod": "window-message",
+      "keyboardInputMethod": "scripts/live_test.py -> invoke-gated-forward-smoke.ps1 -> post-rift-key.ps1 -RequireTargetForeground",
       "processId": 47560,
       "targetWindowHandle": "0x2122E"
     },
-    "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260507-065509-596.png",
-    "frameChangeScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260507-065517-786.png",
-    "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260507-065522-118.png",
-    "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-065446.json",
-    "postReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-065532.json",
+    "baselineScreenshot": null,
+    "frameChangeScreenshot": null,
+    "finalScreenshot": null,
+    "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-104326.json",
+    "postReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-104333.json",
     "preCoordinate": {
-      "x": 7437.787109375,
+      "x": 7436.310546875,
       "y": 885.2205810546875,
-      "z": 3050.5166015625,
-      "recordedAtUtc": "2026-05-07T10:54:50.5192134Z"
+      "z": 3057.74267578125,
+      "recordedAtUtc": "2026-05-07T14:43:30.0975176Z"
     },
     "postCoordinate": {
-      "x": 7437.849609375,
+      "x": 7436.35498046875,
       "y": 885.2205810546875,
-      "z": 3050.197998046875,
-      "recordedAtUtc": "2026-05-07T10:55:36.6703454Z"
+      "z": 3057.44140625,
+      "recordedAtUtc": "2026-05-07T14:43:38.4287423Z"
     },
     "coordinateDelta": {
-      "deltaX": 0.0625,
+      "deltaX": 0.04443359375,
       "deltaY": 0.0,
-      "deltaZ": -0.318603515625,
-      "planarDistance": 0.3246759155967834,
-      "spatialDistance": 0.3246759155967834
+      "deltaZ": -0.30126953125,
+      "planarDistance": 0.30452861066430975,
+      "spatialDistance": 0.30452861066430975
     },
-    "seriesCoordinateDeltaFromFirstPreSmoke": {
-      "deltaX": 0.18359375,
-      "deltaY": 0.0,
-      "deltaZ": -0.93505859375,
-      "planarDistance": 0.9529119785083983,
-      "spatialDistance": 0.9529119785083983
-    },
+    "seriesCoordinateDeltaFromFirstPreSmoke": null,
     "postMovementAllowed": true,
     "postReadbackIntegrityStatus": "ok",
     "postReadbackTotalRegionReadFailures": 0,
     "postStableAcrossReadbackSamples": true,
-    "frameChangePercent": 8.7708,
+    "frameChangePercent": null,
     "noCheatEngine": true,
-    "savedVariablesUsedAsLiveTruth": false
+    "savedVariablesUsedAsLiveTruth": false,
+    "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144325.json",
+    "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144320.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\run-summary.json"
   },
   "refreshBeforeForwardSmoke": {
     "expiredPreflightSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-065223.json",
@@ -321,58 +323,431 @@
       "frameChangePercent": 8.7708,
       "noCheatEngine": true,
       "savedVariablesUsedAsLiveTruth": false
+    },
+    {
+      "status": "passed-resume-gated-wrapper-pulse",
+      "input": {
+        "keyChord": "w",
+        "holdMilliseconds": 250,
+        "keyboardInputMethod": "invoke-gated-forward-smoke.ps1 -> post-rift-key.ps1 -RequireTargetForeground",
+        "processId": 47560,
+        "targetWindowHandle": "0x2122E"
+      },
+      "baselineScreenshot": null,
+      "frameChangeScreenshot": null,
+      "finalScreenshot": null,
+      "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-094923.json",
+      "postReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-094931.json",
+      "preCoordinate": {
+        "x": 7437.916015625,
+        "y": 885.2205810546875,
+        "z": 3049.859130859375,
+        "recordedAtUtc": "2026-05-07T13:49:27.1705093Z"
+      },
+      "postCoordinate": {
+        "x": 7437.97802734375,
+        "y": 885.2205810546875,
+        "z": 3049.539794921875,
+        "recordedAtUtc": "2026-05-07T13:49:35.6276265Z"
+      },
+      "coordinateDelta": {
+        "deltaX": 0.06201171875,
+        "deltaY": 0.0,
+        "deltaZ": -0.3193359375,
+        "planarDistance": 0.3253012361509452,
+        "spatialDistance": 0.3253012361509452
+      },
+      "seriesCoordinateDeltaFromFirstPreSmoke": null,
+      "postMovementAllowed": true,
+      "postReadbackIntegrityStatus": "ok",
+      "postReadbackTotalRegionReadFailures": 0,
+      "postStableAcrossReadbackSamples": true,
+      "frameChangePercent": null,
+      "noCheatEngine": true,
+      "savedVariablesUsedAsLiveTruth": false,
+      "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-forward-smoke-currentpid-47560-summary-20260507-134922.json",
+      "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-forward-smoke-currentpid-47560-summary-20260507-134917.json"
+    },
+    {
+      "status": "passed-python-orchestrator-forward250",
+      "input": {
+        "keyChord": "w",
+        "holdMilliseconds": 250,
+        "keyboardInputMethod": "scripts/live_test.py -> invoke-gated-forward-smoke.ps1 -> post-rift-key.ps1 -RequireTargetForeground",
+        "processId": 47560,
+        "targetWindowHandle": "0x2122E"
+      },
+      "baselineScreenshot": null,
+      "frameChangeScreenshot": null,
+      "finalScreenshot": null,
+      "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-104326.json",
+      "postReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-104333.json",
+      "preCoordinate": {
+        "x": 7436.310546875,
+        "y": 885.2205810546875,
+        "z": 3057.74267578125,
+        "recordedAtUtc": "2026-05-07T14:43:30.0975176Z"
+      },
+      "postCoordinate": {
+        "x": 7436.35498046875,
+        "y": 885.2205810546875,
+        "z": 3057.44140625,
+        "recordedAtUtc": "2026-05-07T14:43:38.4287423Z"
+      },
+      "coordinateDelta": {
+        "deltaX": 0.04443359375,
+        "deltaY": 0.0,
+        "deltaZ": -0.30126953125,
+        "planarDistance": 0.30452861066430975,
+        "spatialDistance": 0.30452861066430975
+      },
+      "seriesCoordinateDeltaFromFirstPreSmoke": null,
+      "postMovementAllowed": true,
+      "postReadbackIntegrityStatus": "ok",
+      "postReadbackTotalRegionReadFailures": 0,
+      "postStableAcrossReadbackSamples": true,
+      "frameChangePercent": null,
+      "noCheatEngine": true,
+      "savedVariablesUsedAsLiveTruth": false,
+      "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144325.json",
+      "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144320.json",
+      "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\run-summary.json"
+    },
+    {
+      "status": "passed-python-forward-series-3x250",
+      "input": {
+        "keyChord": "w",
+        "holdMilliseconds": 250,
+        "pulseCount": 3,
+        "keyboardInputMethod": "scripts/live_test.py per-pulse loop -> invoke-gated-forward-smoke.ps1 -> post-rift-key.ps1 -RequireTargetForeground",
+        "processId": 47560,
+        "targetWindowHandle": "0x2122E"
+      },
+      "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\run-summary.json",
+      "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145544.json",
+      "completedPulseCount": 3,
+      "requestedPulseCount": 3,
+      "seriesPulses": [
+        {
+          "pulseIndex": 1,
+          "status": "passed",
+          "stage": "live-input",
+          "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145435.json",
+          "liveSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145441.json",
+          "movementSent": true,
+          "movementAttempted": true,
+          "preCoordinate": {
+            "x": 7436.37841796875,
+            "y": 885.2205810546875,
+            "z": 3057.343017578125,
+            "recordedAtUtc": "2026-05-07T14:54:46.4169265Z"
+          },
+          "postCoordinate": {
+            "x": 7436.4501953125,
+            "y": 885.2205810546875,
+            "z": 3057.048095703125,
+            "recordedAtUtc": "2026-05-07T14:54:57.4577626Z"
+          },
+          "coordinateDelta": {
+            "deltaX": 0.07177734375,
+            "deltaY": 0.0,
+            "deltaZ": -0.294921875,
+            "planarDistance": 0.3035307223813123,
+            "spatialDistance": 0.3035307223813123
+          },
+          "issues": []
+        },
+        {
+          "pulseIndex": 2,
+          "status": "passed",
+          "stage": "live-input",
+          "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145458.json",
+          "liveSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145503.json",
+          "movementSent": true,
+          "movementAttempted": true,
+          "preCoordinate": {
+            "x": 7436.4501953125,
+            "y": 885.2205810546875,
+            "z": 3057.048095703125,
+            "recordedAtUtc": "2026-05-07T14:55:08.5528368Z"
+          },
+          "postCoordinate": {
+            "x": 7436.52587890625,
+            "y": 885.2205810546875,
+            "z": 3056.731689453125,
+            "recordedAtUtc": "2026-05-07T14:55:15.5308253Z"
+          },
+          "coordinateDelta": {
+            "deltaX": 0.07568359375,
+            "deltaY": 0.0,
+            "deltaZ": -0.31640625,
+            "planarDistance": 0.32533201717933874,
+            "spatialDistance": 0.32533201717933874
+          },
+          "issues": []
+        },
+        {
+          "pulseIndex": 3,
+          "status": "passed",
+          "stage": "live-input",
+          "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145539.json",
+          "liveSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145544.json",
+          "movementSent": true,
+          "movementAttempted": true,
+          "preCoordinate": {
+            "x": 7436.52587890625,
+            "y": 885.2205810546875,
+            "z": 3056.731689453125,
+            "recordedAtUtc": "2026-05-07T14:55:49.7435887Z"
+          },
+          "postCoordinate": {
+            "x": 7436.6025390625,
+            "y": 885.2205810546875,
+            "z": 3056.416259765625,
+            "recordedAtUtc": "2026-05-07T14:55:56.3626433Z"
+          },
+          "coordinateDelta": {
+            "deltaX": 0.07666015625,
+            "deltaY": 0.0,
+            "deltaZ": -0.3154296875,
+            "planarDistance": 0.3246115637382964,
+            "spatialDistance": 0.3246115637382964
+          },
+          "issues": []
+        }
+      ],
+      "seriesCoordinateDelta": {
+        "deltaX": 0.22412109375,
+        "deltaY": 0.0,
+        "deltaZ": -0.9267578125,
+        "planarDistance": 0.9534727619043354,
+        "spatialDistance": 0.9534727619043354
+      },
+      "postCoordinate": {
+        "x": 7436.6025390625,
+        "y": 885.2205810546875,
+        "z": 3056.416259765625,
+        "recordedAtUtc": "2026-05-07T14:55:56.3626433Z"
+      },
+      "postMovementAllowed": true,
+      "postReadbackIntegrityStatus": "ok",
+      "postReadbackTotalRegionReadFailures": 0,
+      "postStableAcrossReadbackSamples": true,
+      "autoRefreshAttemptsUsed": 1,
+      "noCheatEngine": true,
+      "savedVariablesUsedAsLiveTruth": false
     }
   ],
   "latestGatedWrapperPulse": {
-    "status": "input-sent-post-recovered-valid",
-    "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-forward-smoke-currentpid-47560-summary-20260507-111630.json",
-    "wrapperStatus": "blocked-post-readback",
-    "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-forward-smoke-currentpid-47560-summary-20260507-111556.json",
+    "status": "passed-python-orchestrator-forward250",
     "input": {
       "keyChord": "w",
       "holdMilliseconds": 250,
-      "keyboardInputMethod": "post-rift-key RequireTargetForeground with AutoHotkey fallback",
+      "keyboardInputMethod": "scripts/live_test.py -> invoke-gated-forward-smoke.ps1 -> post-rift-key.ps1 -RequireTargetForeground",
       "processId": 47560,
       "targetWindowHandle": "0x2122E"
     },
-    "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260507-071621-832.png",
-    "frameChangeScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260507-071648-391.png",
-    "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260507-071653-129.png",
-    "frameChangePercent": 13.7569,
-    "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-071631.json",
-    "wrapperInternalPostReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-071639.json",
-    "wrapperInternalPostReadbackStatus": "failed-age-expired-only",
-    "wrapperInternalPostReadbackIssue": "proof_anchor_age_out_of_range_seconds:61.302",
-    "postRecoveryReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-wrapper-post-pulse-recovery-20260507-111705\\post-wrapper-api-reference-wide-context.json",
-    "postRecoveryReferenceScanFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-wrapper-post-pulse-recovery-20260507-111705\\rift-api-reference-scan-currentpid-47560-20260507-111705.json",
-    "postRecoveryReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\gated-wrapper-post-pulse-recovery-20260507-111705\\riftscan-proof-post-gated-wrapper-pulse-20260507-111713\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-071714.json",
-    "postRecoveryProofAnchorGeneratedAtUtc": "2026-05-07T07:17:32.050773-04:00",
-    "postRecoveryHardReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-071736.json",
+    "baselineScreenshot": null,
+    "frameChangeScreenshot": null,
+    "finalScreenshot": null,
+    "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-104326.json",
+    "postReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260507-104333.json",
     "preCoordinate": {
-      "x": 7437.849609375,
+      "x": 7436.310546875,
       "y": 885.2205810546875,
-      "z": 3050.197998046875,
-      "recordedAtUtc": "2026-05-07T11:16:35.010328Z"
+      "z": 3057.74267578125,
+      "recordedAtUtc": "2026-05-07T14:43:30.0975176Z"
     },
     "postCoordinate": {
-      "x": 7437.916015625,
+      "x": 7436.35498046875,
       "y": 885.2205810546875,
-      "z": 3049.859130859375,
-      "recordedAtUtc": "2026-05-07T11:17:40.409658Z"
+      "z": 3057.44140625,
+      "recordedAtUtc": "2026-05-07T14:43:38.4287423Z"
     },
     "coordinateDelta": {
-      "deltaX": 0.06640625,
+      "deltaX": 0.04443359375,
       "deltaY": 0.0,
-      "deltaZ": -0.3388671875,
-      "planarDistance": 0.3453125552354311,
-      "spatialDistance": 0.3453125552354311
+      "deltaZ": -0.30126953125,
+      "planarDistance": 0.30452861066430975,
+      "spatialDistance": 0.30452861066430975
+    },
+    "seriesCoordinateDeltaFromFirstPreSmoke": null,
+    "postMovementAllowed": true,
+    "postReadbackIntegrityStatus": "ok",
+    "postReadbackTotalRegionReadFailures": 0,
+    "postStableAcrossReadbackSamples": true,
+    "frameChangePercent": null,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false,
+    "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144325.json",
+    "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\gated-forward-smoke-currentpid-47560-summary-20260507-144320.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\run-summary.json",
+    "wrapperStatus": "passed",
+    "pythonOrchestratorRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\run-summary.json",
+    "wrapperHardeningPreserved": "Python controller passed -ProofCoordAnchorFile and -ProcessName through the dry-run and live wrapper calls; movement remained gated."
+  },
+  "pythonLiveTestingOrchestrator": {
+    "status": "dynamic-baseline-pool-validated",
+    "planDoc": "C:\\RIFT MODDING\\RiftReader\\docs\\live-testing-python-orchestrator-plan.md",
+    "latestHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-07-104425-python-live-testing-orchestrator-implementation-handoff.md",
+    "profilesFile": "C:\\RIFT MODDING\\RiftReader\\configs\\live-test-profiles.json",
+    "latestRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144303\\run-summary.json",
+    "latestRunStatus": "passed",
+    "latestProofOnlySummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-144210\\run-summary.json",
+    "latestNoLiveBlockSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260507-144205\\run-summary.json",
+    "hardInvariants": [
+      "exact PID/HWND required",
+      "--live required unconditionally for input profiles",
+      "no Cheat Engine",
+      "no SavedVariables live truth",
+      "profile caps enforce max hold/pulse counts",
+      "run-summary.json emitted for every run"
+    ],
+    "latestSeriesRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\run-summary.json",
+    "latestSeriesStatus": "passed",
+    "latestSeriesCompletedPulseCount": 3,
+    "latestSeriesRequestedPulseCount": 3,
+    "latestSeriesCoordinateDelta": {
+      "deltaX": 0.22412109375,
+      "deltaY": 0.0,
+      "deltaZ": -0.9267578125,
+      "planarDistance": 0.9534727619043354,
+      "spatialDistance": 0.9534727619043354
+    },
+    "latestBaselineCaptureRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260507-160159\\run-summary.json",
+    "latestProofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-160239\\run-summary.json",
+    "promotionBaselinePoolFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-promotion-baselines.json",
+    "latestPromotionBaselineSelectionFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-160239\\promotion-baseline-selection-attempt-1.json",
+    "latestPromotionBaselineSelectionStatus": "selected",
+    "latestPromotionBaselineCompatibleDisplacedCount": 2,
+    "latestPromotionBaselineSelected": [
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-proof-pose-current-warning-count-smoke-20260507-043815\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-003823.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\riftscan-proof-ForwardSeries3x250-attempt-2-20260507-145531\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-105532.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260507-160239\\riftscan-proof-ProofOnly-attempt-1-20260507-160253\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260507-120254.json"
+    ]
+  },
+  "latestForwardSeries": {
+    "status": "passed-python-forward-series-3x250",
+    "input": {
+      "keyChord": "w",
+      "holdMilliseconds": 250,
+      "pulseCount": 3,
+      "keyboardInputMethod": "scripts/live_test.py per-pulse loop -> invoke-gated-forward-smoke.ps1 -> post-rift-key.ps1 -RequireTargetForeground",
+      "processId": 47560,
+      "targetWindowHandle": "0x2122E"
+    },
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\run-summary.json",
+    "wrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145544.json",
+    "completedPulseCount": 3,
+    "requestedPulseCount": 3,
+    "seriesPulses": [
+      {
+        "pulseIndex": 1,
+        "status": "passed",
+        "stage": "live-input",
+        "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145435.json",
+        "liveSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145441.json",
+        "movementSent": true,
+        "movementAttempted": true,
+        "preCoordinate": {
+          "x": 7436.37841796875,
+          "y": 885.2205810546875,
+          "z": 3057.343017578125,
+          "recordedAtUtc": "2026-05-07T14:54:46.4169265Z"
+        },
+        "postCoordinate": {
+          "x": 7436.4501953125,
+          "y": 885.2205810546875,
+          "z": 3057.048095703125,
+          "recordedAtUtc": "2026-05-07T14:54:57.4577626Z"
+        },
+        "coordinateDelta": {
+          "deltaX": 0.07177734375,
+          "deltaY": 0.0,
+          "deltaZ": -0.294921875,
+          "planarDistance": 0.3035307223813123,
+          "spatialDistance": 0.3035307223813123
+        },
+        "issues": []
+      },
+      {
+        "pulseIndex": 2,
+        "status": "passed",
+        "stage": "live-input",
+        "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145458.json",
+        "liveSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145503.json",
+        "movementSent": true,
+        "movementAttempted": true,
+        "preCoordinate": {
+          "x": 7436.4501953125,
+          "y": 885.2205810546875,
+          "z": 3057.048095703125,
+          "recordedAtUtc": "2026-05-07T14:55:08.5528368Z"
+        },
+        "postCoordinate": {
+          "x": 7436.52587890625,
+          "y": 885.2205810546875,
+          "z": 3056.731689453125,
+          "recordedAtUtc": "2026-05-07T14:55:15.5308253Z"
+        },
+        "coordinateDelta": {
+          "deltaX": 0.07568359375,
+          "deltaY": 0.0,
+          "deltaZ": -0.31640625,
+          "planarDistance": 0.32533201717933874,
+          "spatialDistance": 0.32533201717933874
+        },
+        "issues": []
+      },
+      {
+        "pulseIndex": 3,
+        "status": "passed",
+        "stage": "live-input",
+        "dryRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145539.json",
+        "liveSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260507-145404\\gated-forward-smoke-currentpid-47560-summary-20260507-145544.json",
+        "movementSent": true,
+        "movementAttempted": true,
+        "preCoordinate": {
+          "x": 7436.52587890625,
+          "y": 885.2205810546875,
+          "z": 3056.731689453125,
+          "recordedAtUtc": "2026-05-07T14:55:49.7435887Z"
+        },
+        "postCoordinate": {
+          "x": 7436.6025390625,
+          "y": 885.2205810546875,
+          "z": 3056.416259765625,
+          "recordedAtUtc": "2026-05-07T14:55:56.3626433Z"
+        },
+        "coordinateDelta": {
+          "deltaX": 0.07666015625,
+          "deltaY": 0.0,
+          "deltaZ": -0.3154296875,
+          "planarDistance": 0.3246115637382964,
+          "spatialDistance": 0.3246115637382964
+        },
+        "issues": []
+      }
+    ],
+    "seriesCoordinateDelta": {
+      "deltaX": 0.22412109375,
+      "deltaY": 0.0,
+      "deltaZ": -0.9267578125,
+      "planarDistance": 0.9534727619043354,
+      "spatialDistance": 0.9534727619043354
+    },
+    "postCoordinate": {
+      "x": 7436.6025390625,
+      "y": 885.2205810546875,
+      "z": 3056.416259765625,
+      "recordedAtUtc": "2026-05-07T14:55:56.3626433Z"
     },
     "postMovementAllowed": true,
     "postReadbackIntegrityStatus": "ok",
     "postReadbackTotalRegionReadFailures": 0,
     "postStableAcrossReadbackSamples": true,
+    "autoRefreshAttemptsUsed": 1,
     "noCheatEngine": true,
-    "savedVariablesUsedAsLiveTruth": false,
-    "wrapperHardeningAdded": "MinimumPostReadbackAgeBudgetSeconds pre-input guard prevents sending when too little proof-age budget remains."
+    "savedVariablesUsedAsLiveTruth": false
   }
 }

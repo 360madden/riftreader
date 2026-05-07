@@ -86,6 +86,71 @@ for read-only contract review or docs-only coordination notes, but not for
 provider schema/API/client changes unless the user explicitly scopes the change
 as low-risk and reversible.
 
+## Workflow automation language decision tree
+
+Codex is too slow to be the real-time controller for live movement windows.
+Time-sensitive live workflows must be automated as deterministic local
+controllers, with Codex acting as planner/reviewer.
+
+From this point forward, new workflow/helper-app implementation should follow
+this practical split:
+
+| Question | Default answer |
+|---|---|
+| Is this a double-click or terminal convenience entry point? | Use a tiny `.cmd` launcher. |
+| Is this multi-step workflow, proof refresh, live-test orchestration, JSON/report processing, or state-machine control? | Use Python. |
+| Is this a helper app, operator CLI/TUI, run-summary parser, report writer, or evidence packager? | Use Python first. |
+| Is this low-level process-memory reading, native process inspection, or existing reader engine work? | Keep it in the existing C#/.NET code. |
+| Is this PowerShell? | Treat it as a legacy leaf adapter unless a narrow Windows-native need is documented. |
+
+### Required pattern for new live-test workflow automation
+
+New automation such as a gated movement experiment should use this structure:
+
+| Layer | Responsibility |
+|---|---|
+| `.cmd` launcher | `cd /d "C:\RIFT MODDING\RiftReader"` and call Python with `%*`; no decisions. |
+| Python controller | Profiles, state machine, subprocess argument lists, JSON parsing, timeout handling, proof-age budget, summaries, and fail-closed statuses. |
+| Existing `.ps1` leaves | Temporary compatibility adapters for already-proven commands only. |
+| .NET reader | Memory/readback/process engine. |
+
+The Python controller should:
+
+1. Verify exact target process and window.
+2. Refresh proof without Cheat Engine or SavedVariables live truth.
+3. Promote only current, same-PID/same-HWND evidence.
+4. Run a no-input dry-run gate.
+5. Send at most the configured bounded input when all gates are green.
+6. Immediately perform post-readback.
+7. Write one compact `run-summary.json`; write `run-summary.md` when useful.
+8. Fail closed with explicit machine-readable labels.
+
+### PowerShell use limits
+
+Do **not** add new PowerShell workflow brains. Avoid using `.ps1` for:
+
+| Avoid in PowerShell | Use Python because |
+|---|---|
+| Multi-step orchestration | Python is clearer and more testable for state machines. |
+| JSON parsing/rewriting | Python JSON handling is less brittle. |
+| Subprocess fan-out | Python `subprocess.run([...])` avoids quoting and array-binding bugs. |
+| Proof-age timing chains | Python can keep refresh, dry-run, input, and postcheck tightly chained. |
+| Helper apps / operator tooling | Python scales better into CLI/TUI/reporting code. |
+
+PowerShell is still acceptable when:
+
+| Allowed use | Constraint |
+|---|---|
+| Existing proven `.ps1` leaf command | May be invoked by Python until replaced. |
+| Narrow Windows-native operation | Keep it focused, documented, and covered by validation. |
+| Temporary compatibility shim | No broad state machine or proof decision logic. |
+
+Do not rewrite all existing `.ps1` files immediately. The safest migration is:
+
+1. Put a Python controller above the current proven commands.
+2. Validate the controller with the live workflow in bounded profiles.
+3. Port brittle PowerShell leaves one at a time only after behavior is locked.
+
 ## Recommendation list format
 
 When recommendations add real value, use a **Top 10 recommended next actions**

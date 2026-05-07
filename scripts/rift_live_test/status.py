@@ -1,0 +1,15 @@
+PASSED = "passed"
+PASSED_BASELINE_CAPTURED = "passed-baseline-captured"
+PASSED_PROOF_ONLY = "passed-proof-only"
+BLOCKED_TARGET_MISMATCH = "blocked-target-mismatch"
+BLOCKED_LIVE_FLAG_REQUIRED = "blocked-live-flag-required"
+BLOCKED_PROMOTION_REFERENCE_MISMATCH = "blocked-promotion-reference-mismatch"
+BLOCKED_PROOF_EXPIRED = "blocked-proof-expired"
+BLOCKED_LOW_AGE_BUDGET = "blocked-low-age-budget"
+BLOCKED_DRY_RUN = "blocked-dry-run"
+INPUT_FAILED = "input-failed"
+POST_READBACK_FAILED = "post-readback-failed"
+PARTIAL_SERIES_STOPPED = "partial-series-stopped"
+FAILED_INTERNAL_ERROR = "failed-internal-error"
+
+SUCCESS_STATUSES = {PASSED, PASSED_BASELINE_CAPTURED, PASSED_PROOF_ONLY}
