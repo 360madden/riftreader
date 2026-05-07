@@ -100,13 +100,18 @@ function Get-ScoreValue {
         }
     }
 
+    $supportCount = Get-JsonPropertyValue -InputObject $InputObject -Name 'support_count'
+    if ($null -ne $supportCount) {
+        return [double]$supportCount
+    }
+
     return 0.0
 }
 
 function Get-CandidateOffsetHex {
     param($Candidate)
 
-    foreach ($name in @('x_offset_hex', 'offset_hex')) {
+    foreach ($name in @('x_offset_hex', 'offset_hex', 'source_offset_hex')) {
         $value = Get-StringValue -InputObject $Candidate -Name $name
         if (-not [string]::IsNullOrWhiteSpace($value)) {
             return $value
@@ -199,6 +204,10 @@ function Normalize-Candidate {
     )
 
     $baseAddressHex = Get-StringValue -InputObject $Candidate -Name 'base_address_hex'
+    if ([string]::IsNullOrWhiteSpace($baseAddressHex)) {
+        $baseAddressHex = Get-StringValue -InputObject $Candidate -Name 'source_base_address_hex'
+    }
+
     $offsetHex = Get-CandidateOffsetHex -Candidate $Candidate
     if ([string]::IsNullOrWhiteSpace($baseAddressHex) -or [string]::IsNullOrWhiteSpace($offsetHex)) {
         return $null
@@ -211,6 +220,10 @@ function Normalize-Candidate {
     }
 
     $classification = Get-StringValue -InputObject $Candidate -Name 'classification'
+    if ([string]::IsNullOrWhiteSpace($classification) -and -not [string]::IsNullOrWhiteSpace((Get-StringValue -InputObject $Candidate -Name 'source_region_id'))) {
+        $classification = 'addon_coordinate_match_candidate'
+    }
+
     $promotionStatus = Get-StringValue -InputObject $Candidate -Name 'promotion_status'
     $truthReadiness = Get-StringValue -InputObject $Candidate -Name 'truth_readiness'
     $corroborationStatus = Get-StringValue -InputObject $Candidate -Name 'corroboration_status'
@@ -219,6 +232,15 @@ function Normalize-Candidate {
     $stimulusLabel = Get-StringValue -InputObject $Candidate -Name 'stimulus_label'
     $warning = Get-StringValue -InputObject $Candidate -Name 'warning'
     $valuePreview = Get-JsonPropertyValue -InputObject $Candidate -Name 'value_preview'
+    if ($null -eq $valuePreview) {
+        $bestMemoryX = Get-JsonPropertyValue -InputObject $Candidate -Name 'best_memory_x'
+        $bestMemoryY = Get-JsonPropertyValue -InputObject $Candidate -Name 'best_memory_y'
+        $bestMemoryZ = Get-JsonPropertyValue -InputObject $Candidate -Name 'best_memory_z'
+        if ($null -ne $bestMemoryX -and $null -ne $bestMemoryY -and $null -ne $bestMemoryZ) {
+            $valuePreview = @([double]$bestMemoryX, [double]$bestMemoryY, [double]$bestMemoryZ)
+        }
+    }
+
     $score = Get-ScoreValue -InputObject $Candidate
 
     if ($score -lt $MinScore) {

@@ -705,6 +705,9 @@ if (-not [string]::IsNullOrWhiteSpace($DecodeOnlyWatchsetFile) -or -not [string]
         SchemaVersion = 1
         Mode = 'riftscan-riftreader-readback-decode'
         GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        ProcessName = [string](Get-JsonPropertyValue -InputObject $decodeWatchset -Names @('ProcessName', 'process_name'))
+        ProcessId = Get-JsonPropertyValue -InputObject $decodeWatchset -Names @('ProcessId', 'process_id', 'pid')
+        TargetWindowHandle = [string](Get-JsonPropertyValue -InputObject $decodeWatchset -Names @('TargetWindowHandle', 'target_window_handle', 'window_handle', 'hwnd'))
         NoCheatEngine = $true
         MovementSent = $false
         MovementAllowed = $false

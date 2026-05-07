@@ -118,6 +118,44 @@ try {
     Assert-Equal -Actual $promotionWatchset.Regions[0].Length -Expected 12 -Message 'Zero-context region should be exactly vec3 length.'
     Assert-True -Condition (-not [bool]$promotionWatchset.MovementAllowed) -Message 'Promotion-derived watchset must still block movement.'
 
+    $addonMatchFile = Join-Path $tempRoot 'addon-coordinate-matches.json'
+    $addonMatchOut = Join-Path $tempRoot 'addon-match-watchset.json'
+    $addonMatch = [ordered]@{
+        result_schema_version = 'riftscan.rift_session_addon_coordinate_match_result.v1'
+        success = $true
+        candidates = @(
+            [ordered]@{
+                candidate_id = 'rift-addon-coordinate-candidate-000001'
+                source_region_id = 'region-000001'
+                source_base_address_hex = '0x5000'
+                source_offset_hex = '0xC0'
+                source_absolute_address_hex = '0x50C0'
+                axis_order = 'xyz'
+                support_count = 3
+                best_memory_x = 10.25
+                best_memory_y = 20.5
+                best_memory_z = 30.75
+                validation_status = 'candidate_unverified'
+                evidence_summary = 'fixture addon coordinate match'
+            }
+        )
+    }
+    $addonMatch | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $addonMatchFile -Encoding UTF8
+
+    & $importer -CandidateFile $addonMatchFile -OutputFile $addonMatchOut -TopCount 4 -ContextBytes 16 -Json | Out-Null
+
+    $addonMatchWatchset = Get-Content -LiteralPath $addonMatchOut -Raw | ConvertFrom-Json -Depth 40
+    Assert-Equal -Actual $addonMatchWatchset.CandidateCount -Expected 1 -Message 'Addon coordinate match candidate should be imported directly.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].CandidateId -Expected 'rift-addon-coordinate-candidate-000001' -Message 'Addon match candidate id should be preserved.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].AddressHex -Expected '0x50C0' -Message 'Addon match absolute address should be base plus source offset.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].XOffsetHex -Expected '0xC0' -Message 'Addon match X offset should use source_offset_hex.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].YOffsetHex -Expected '0xC4' -Message 'Addon match Y offset should default to source_offset_hex+4.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].ZOffsetHex -Expected '0xC8' -Message 'Addon match Z offset should default to source_offset_hex+8.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].Classification -Expected 'addon_coordinate_match_candidate' -Message 'Addon match candidates should get a useful classification fallback.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].Score -Expected 3 -Message 'Addon match candidate score should use support_count when no explicit score exists.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].ValuePreview[2] -Expected 30.75 -Message 'Addon match candidate value preview should be derived from best memory xyz.'
+    Assert-Equal -Actual $addonMatchWatchset.Regions[0].Address -Expected '0x50B0' -Message 'Addon match region should include requested pre-context.'
+
     Write-Host 'RiftScan coordinate candidate importer regression passed.' -ForegroundColor Green
 }
 finally {

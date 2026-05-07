@@ -70,6 +70,9 @@ try {
     $watchset = [ordered]@{
         SchemaVersion = 1
         Mode = 'riftscan-coordinate-candidate-watchset'
+        ProcessName = 'rift_x64'
+        ProcessId = 4242
+        TargetWindowHandle = '0x1234'
         CandidateCount = 2
         NoCheatEngine = $true
         MovementAllowed = $false
@@ -157,6 +160,9 @@ try {
     Assert-True -Condition ([bool]$summary.NoCheatEngine) -Message 'Decode-only summary must mark NoCheatEngine=true.'
     Assert-True -Condition (-not [bool]$summary.MovementSent) -Message 'Decode-only summary must not report movement.'
     Assert-True -Condition (-not [bool]$summary.MovementAllowed) -Message 'Decode-only summary must not allow movement.'
+    Assert-Equal -Actual $summary.ProcessName -Expected 'rift_x64' -Message 'Decode-only summary should preserve watchset process name.'
+    Assert-Equal -Actual $summary.ProcessId -Expected 4242 -Message 'Decode-only summary should preserve watchset process id.'
+    Assert-Equal -Actual $summary.TargetWindowHandle -Expected '0x1234' -Message 'Decode-only summary should preserve watchset target window handle.'
     Assert-Equal -Actual $summary.CandidateCount -Expected 2 -Message 'Candidate count should match fixture watchset.'
     Assert-Equal -Actual $summary.DecodedCandidateCount -Expected 2 -Message 'Both fixture candidates should decode.'
     Assert-Equal -Actual $summary.StableDecodedCandidateCount -Expected 2 -Message 'Both fixture candidates should be stable.'

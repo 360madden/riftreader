@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-proof-anchor-readback-pointer",
+  "lastUpdatedUtc": "2026-05-07T03:22:49.2429810Z",
+  "status": "latest-validation-valid-time-bound",
+  "movementGate": {
+    "activeMovementInputResumedByUser": true,
+    "latestReadbackStatus": "valid",
+    "latestMovementAllowed": true,
+    "note": "Fresh no-CE RiftScan-first proof anchor was promoted, and the latest current-readback preflight was valid for the current PID/HWND with ProofAnchorMaxAgeSeconds=60. Do not assume it remains current after the age window; rerun preflight before additional live movement.",
+    "coordinateProofGateSatisfiedAtLatestValidation": true,
+    "currentlyRequiresRevalidationBeforeMoreMovement": true
+  },
+  "target": {
+    "processName": "rift_x64",
+    "processId": 47560,
+    "targetWindowHandle": "0x2122E"
+  },
+  "riftscanCandidateSource": {
+    "riftScanRoot": "C:\\RIFT MODDING\\Riftscan",
+    "sessionPath": "C:\\RIFT MODDING\\Riftscan\\sessions\\codex-current-coord-region-passive-20260506-230940",
+    "matchFile": "C:\\RIFT MODDING\\Riftscan\\reports\\generated\\codex-current-coord-region-passive-20260506-230940-addon-coordinate-matches.json",
+    "candidateId": "rift-addon-coordinate-candidate-000001",
+    "sourceRegionId": "region-001892",
+    "sourceBaseAddressHex": "0x2400E970000",
+    "sourceOffsetHex": "0xC2120",
+    "sourceAbsoluteAddressHex": "0x2400EA32120",
+    "axisOrder": "xyz",
+    "supportCount": 3,
+    "bestMaxAbsDistance": 0,
+    "notes": [
+      "RiftScan supplied the candidate; RiftReader imported/read back/promoted it.",
+      "The candidate is movement-grade only through the validated proof-anchor artifact and current-readback preflight gate."
+    ]
+  },
+  "latestValidation": {
+    "generatedAtUtc": "2026-05-07T03:22:49.2429810Z",
+    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260506-232245.json",
+    "preflightFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\assert-current-proof-coord-anchor-currentpid-47560-readback-preflight-20260506-232245.json",
+    "status": "valid",
+    "movementAllowed": true,
+    "noCheatEngine": true,
+    "movementSent": false,
+    "canonicalCoordSource": "proof-anchor-current-readback",
+    "movementGateLabel": "satisfied_by_current_process_proof_anchor_current_readback",
+    "proofAnchorMaxAgeSeconds": 60,
+    "issues": [],
+    "currentCoordinate": {
+      "x": 7437.0498046875,
+      "y": 885.2205810546875,
+      "z": 3054.30517578125,
+      "recordedAtUtc": "2026-05-07T03:22:49.0520397Z"
+    },
+    "stableAcrossReadbackSamples": true,
+    "maxAbsDeltaAcrossReadbackSamples": 0.0
+  },
+  "proofAnchorCache": {
+    "file": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "generatedAtUtc": "2026-05-07T03:22:38.8570044Z",
+    "proofMethod": "no-ce-riftscan-reference-multisample",
+    "canonicalCoordSourceKind": "riftscan-reference-validated-candidate",
+    "proofValidationStatus": "validated",
+    "candidateId": "rift-addon-coordinate-candidate-000001",
+    "candidateAddressHex": "0x2400EA32120",
+    "regionAddressHex": "0x2400EA320E0",
+    "candidateOffsetInRegion": 64,
+    "noCheatEngine": true,
+    "movementSent": false,
+    "poseCount": 2,
+    "maxReferencePlanarDisplacement": 1.2165525060594347,
+    "maxDeltaError": 0.0368164062501819,
+    "readbackSummaryFiles": [
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-pivot-pose-b-readback-20260506-231548\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-ui-reference.json",
+      "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-pivot-pose-c-readback-20260506-232117\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260506-232223.json"
+    ]
+  },
+  "forwardMovementTests": {
+    "candidatePromotionPulse": {
+      "status": "passed",
+      "holdMilliseconds": 1000,
+      "poseAReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-pivot-candidate-readback-20260506-231205\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-ui-reference.json",
+      "poseBReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-pivot-pose-b-readback-20260506-231548\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-ui-reference.json",
+      "poseBReferenceMaxAbsDelta": 0.021484375
+    },
+    "proofGatedPulse": {
+      "status": "passed",
+      "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260506-232057-700.png",
+      "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260506-232107-504.png",
+      "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260506-232110-751.png",
+      "holdMilliseconds": 1000,
+      "preReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260506-232031.json",
+      "postReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-47560-readback-summary-20260506-232117.json",
+      "coordinateDelta": {
+        "deltaX": 0.23681640625,
+        "deltaY": 0.0,
+        "deltaZ": -1.21630859375,
+        "planarDistance": 1.2391483387792066,
+        "spatialDistance": 1.2391483387792066
+      }
+    },
+    "postPulseRePromotion": {
+      "status": "passed",
+      "poseCReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-pivot-pose-c-readback-20260506-232117\\pose-c-ui-marker-reference.json",
+      "poseCReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-pivot-pose-c-readback-20260506-232117\\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260506-232223.json",
+      "poseCReferenceMaxAbsDelta": 0.0498046875
+    }
+  },
+  "sourceArtifacts": {
+    "latestHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-06-144456-current-readback-coord-truth-handoff.md",
+    "supersededHandoff": "C:\\RIFT MODDING\\RiftReader\\docs\\handoffs\\2026-05-06-125036-riftscan-riftreader-no-ce-proof-anchor-handoff.md"
+  },
+  "nextRequiredAction": "Before any additional movement/navigation work, rerun the current-readback preflight for the exact PID/HWND because the proof-anchor age gate is intentionally short-lived.",
+  "notes": [
+    "This tracked pointer records the latest RiftScan-first resume validation result and supersedes the earlier stale-cache/api-probe wording.",
+    "No Cheat Engine, CE Lua, debugger watchpoints, or SavedVariables live truth were used.",
+    "The proof is exact-PID/HWND/session-bound; after RIFT restart or HWND/PID change, rerun target discovery and no-CE proof promotion/readback."
+  ]
+}

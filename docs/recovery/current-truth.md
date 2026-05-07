@@ -1,8 +1,78 @@
 # Current Truth
 
-_Last updated: April 30, 2026 post-restart recheck (live `rift_x64` PID `32468`, HWND `0x15908B2`; yaw/facing re-found and promoted as `0x2C9A013A490 @ +0xD4`, but movement-grade coord proof/watchset is blocked after restart)._
+_Last updated: May 6, 2026 23:23 EDT / May 7, 2026 03:23 UTC (live `rift_x64` PID `47560`, HWND `0x2122E`). Fresh RiftScan-first candidate `rift-addon-coordinate-candidate-000001` was imported into RiftReader, promoted as the no-CE proof anchor, and revalidated after a proof-gated forward pulse. Revalidate before any additional live movement because the proof-anchor age gate is intentionally short-lived._
 
 ## Current status
+
+| Area | Status |
+|---|---|
+| Live target from latest resume check | `rift_x64` PID `47560`, HWND `0x2122E` (session-bound; re-check before live use) |
+| Current coordinate proof | **latest validation passed; time-bound, revalidate before more movement** |
+| Latest no-input validation | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260506-232245.json` returned `Status=valid`, `MovementAllowed=true` |
+| Current coordinate | `X=7437.0498046875`, `Y=885.2205810546875`, `Z=3054.30517578125` at `2026-05-07T03:22:49.0520397Z` |
+| Fresh proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` generated `2026-05-07T03:22:38.8570044Z` |
+| Proof method | `no-ce-riftscan-reference-multisample`, canonical source kind `riftscan-reference-validated-candidate` |
+| Proof candidate | `rift-addon-coordinate-candidate-000001` at `0x2400EA32120`, source base `0x2400E970000`, source offset `0xC2120`, proof region `0x2400EA320E0`, proof offset `64` |
+| RiftScan source | `C:\RIFT MODDING\Riftscan\sessions\codex-current-coord-region-passive-20260506-230940` / `C:\RIFT MODDING\Riftscan\reports\generated\codex-current-coord-region-passive-20260506-230940-addon-coordinate-matches.json` |
+| RiftScan match quality | `candidate_count=1`, `support_count=3`, `best_max_abs_distance=0`, exact match to no-CE RiftReader readback seed |
+| Promotion evidence | 2 poses (`pose B -> pose C`); reference planar displacement `1.2165525060594347`; max candidate/reference delta error `0.0368164062501819` |
+| Proof-gated forward smoke | **passed**; 1000 ms `W` pulse after valid preflight changed proof coords by planar distance `1.2391483387792066` |
+| Cheat Engine | **not used**; CE / CE Lua / debugger / watchpoints remain forbidden unless explicitly reauthorized |
+| SavedVariables as live truth | **not used**; SavedVariables remain post-save snapshots only |
+| Movement gate | **open only at latest recorded preflight**; rerun preflight before more movement/navigation |
+| Movement/input operational state | Resumed by explicit user approval for this test; continue only through exact-window, proof-gated runs |
+| Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-06-144456-current-readback-coord-truth-handoff.md` |
+
+## May 6/7 RiftScan-first no-CE forward movement proof
+
+The resumed lane now follows the user-corrected workflow: use RiftScan for candidate acquisition, then let RiftReader import/read back/promote only fresh candidates. The older `api-probe-triplet-000007` wording is superseded by the RiftScan candidate below.
+
+1. Re-bound exact live target: PID `47560`, HWND `0x2122E`.
+2. Seeded RiftScan with a same-session no-CE RiftReader readback coordinate, then captured the containing memory region read-only:
+   - RiftScan session: `C:\RIFT MODDING\Riftscan\sessions\codex-current-coord-region-passive-20260506-230940`
+   - RiftScan match file: `C:\RIFT MODDING\Riftscan\reports\generated\codex-current-coord-region-passive-20260506-230940-addon-coordinate-matches.json`
+   - candidate: `rift-addon-coordinate-candidate-000001`
+   - absolute address: `0x2400EA32120`
+   - source base/offset: `0x2400E970000 + 0xC2120`
+   - support: `3` snapshots; `best_max_abs_distance=0`
+3. Imported the fresh RiftScan match into RiftReader and validated readback at pose A:
+   - summary: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-pivot-candidate-readback-20260506-231205\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-ui-reference.json`
+   - reference/readback max delta: `0.0365722656251819`
+4. Captured pose B after a bounded `1000 ms W` pulse used for candidate proof displacement:
+   - summary: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-pivot-pose-b-readback-20260506-231548\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-ui-reference.json`
+   - reference/readback max delta: `0.021484375`
+5. Promoted the fresh no-CE proof anchor from poses A/B and validated the default current-readback gate:
+   - first promotion time: `2026-05-07T03:20:26.3697670Z`
+   - validation summary: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260506-232031.json`
+   - status: `valid`; movement gate: `satisfied_by_current_process_proof_anchor_current_readback`
+6. Ran a proof-gated forward smoke (`1000 ms W`) after the valid preflight:
+   - baseline screenshot: `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260506-232057-700.png`
+   - changed screenshot: `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260506-232107-504.png`
+   - final screenshot: `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260506-232110-751.png`
+   - pre-readback: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260506-232031.json`
+   - post-readback: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260506-232117.json`
+   - coordinate delta: `dX=0.23681640625`, `dY=0`, `dZ=-1.21630859375`, planar `1.2391483387792066`
+7. Captured pose C after the proof-gated pulse and re-promoted the anchor from poses B/C:
+   - pose C reference: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-pivot-pose-c-readback-20260506-232117\pose-c-ui-marker-reference.json`
+   - pose C summary: `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-pivot-pose-c-readback-20260506-232117\riftscan-riftreader-currentpid-47560-readback-wrapper-summary-20260506-232223.json`
+   - final proof anchor generated: `2026-05-07T03:22:38.8570044Z`
+   - max reference planar displacement: `1.2165525060594347`
+   - max candidate/reference delta error: `0.0368164062501819`
+8. Verified the current proof-anchor readback gate again:
+   - summary: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-47560-readback-summary-20260506-232245.json`
+   - status: `valid`; `MovementAllowed=true`; `ProofAnchorMaxAgeSeconds=60`
+   - current coordinate: `X=7437.0498046875`, `Y=885.2205810546875`, `Z=3054.30517578125`
+
+Operational interpretation:
+
+- The latest recorded proof was movement-grade for the exact live PID/HWND during its proof-anchor age window.
+- Do not reuse it after process restart, HWND change, or proof-anchor age expiry; rerun target discovery and preflight.
+- The current proof source is a no-CE RiftScan/RiftReader validated candidate, not a CE coord-trace source.
+- SavedVariables were not used as live truth.
+- CE remains out of bounds unless explicitly reauthorized.
+
+## Historical April 30 status snapshot
 
 | Area | Status |
 |---|---|
