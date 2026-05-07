@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "mode": "rift-live-test-progress",
+  "profileName": "FixtureBlockedReference",
+  "status": "blocked-reference-capture",
+  "updatedAtUtc": "2026-05-07T17:05:00Z",
+  "runDirectory": "scripts\\rift_live_test\\testdata",
+  "runSummaryFile": "scripts\\rift_live_test\\testdata\\run-summary.json",
+  "runProgressFile": "scripts\\rift_live_test\\testdata\\progress-blocked-reference.json",
+  "live": false,
+  "processId": 47560,
+  "targetWindowHandle": "0x2122E",
+  "movementSent": false,
+  "movementAttempted": false,
+  "currentCoordinate": null,
+  "coordinateDelta": null,
+  "issues": [
+    "reference_capture_failed:exit=1;status=None",
+    "reference_marker_unavailable:no_usable_rrapicoord1"
+  ],
+  "states": [
+    {
+      "state": "load-profile",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-07T16:36:12Z"
+    },
+    {
+      "state": "verify-target",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-07T16:36:13Z",
+      "detail": "pid=47560;hwnd=0x2122E"
+    },
+    {
+      "state": "capture-reference",
+      "status": "blocked-reference-capture",
+      "recordedAtUtc": "2026-05-07T16:36:20Z",
+      "detail": "reference_marker_unavailable:no_usable_rrapicoord1"
+    }
+  ],
+  "childOutputsDirectory": "scripts\\rift_live_test\\testdata\\child-outputs",
+  "latestChildCommand": {
+    "label": "capture-reference",
+    "status": "completed",
+    "exitCode": 1,
+    "durationSeconds": 2.18,
+    "parseError": "No JSON object or array found in command output",
+    "ok": false,
+    "outputFile": "scripts\\rift_live_test\\testdata\\child-outputs\\002-capture-reference.json"
+  },
+  "autoRefreshAttemptsUsed": 0,
+  "runGates": {
+    "profileMode": "proof-only",
+    "requireExactTarget": true,
+    "requireLiveFlagForInput": true,
+    "proofAnchorFile": "scripts\\rift_live_test\\testdata\\telemetry-proof-coord-anchor.json",
+    "proofAnchorMaxAgeSeconds": 60,
+    "minimumPostReadbackAgeBudgetSeconds": 20,
+    "referenceMaxAgeSeconds": 180,
+    "maxAutoRefreshAttempts": 1,
+    "autoRefreshAttemptsUsed": 0,
+    "noCheatEngine": true,
+    "savedVariablesLiveTruthAllowed": false
+  },
+  "noCheatEngine": true,
+  "savedVariablesUsedAsLiveTruth": false,
+  "finalSummaryWritten": false,
+  "coordinateRecordings": [],
+  "coordinateSamplesFile": null,
+  "runHealth": {
+    "state": "blocked",
+    "status": "blocked-reference-capture",
+    "ok": false,
+    "ageSeconds": 0,
+    "issueCount": 2,
+    "primaryIssue": "reference_capture_failed:exit=1;status=None",
+    "movementSent": false,
+    "movementAttempted": false,
+    "finalSummaryWritten": false,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false
+  }
+}

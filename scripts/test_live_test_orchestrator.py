@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import base64
+import contextlib
+import io
 import json
+import subprocess
+from datetime import datetime, timezone
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -12,14 +16,61 @@ from rift_live_test.baselines import (
     record_baseline_summary,
     select_baselines_for_fresh_summary,
 )
-from rift_live_test.commands import extract_first_json
+from rift_live_test.commands import JsonCommandResult, extract_first_json, run_json_command
+from rift_live_test.gui import (
+    demo_progress_payload,
+    format_child_command,
+    format_elapsed,
+    format_coord,
+    format_delta,
+    format_issues,
+    format_latest_state,
+    format_progress_age,
+    format_proof_budget,
+    format_recorder,
+    format_run_health,
+    format_run_gates,
+    format_safety,
+    format_summary_file,
+    format_inspect_json,
+    format_inspect_summary,
+    inspect_latest_progress,
+    inspect_progress_file,
+    issue_severity,
+    main as gui_main,
+    progress_health,
+    profile_gui_poll_milliseconds,
+    resolve_progress_file_arg,
+    validate_progress_contract,
+    resolve_latest_run,
+    start_progress_gui,
+    status_color,
+    write_demo_progress,
+)
 from rift_live_test.profiles import load_profile
-from rift_live_test.runner import LiveTestRunner
+import rift_live_test.reports as reports
+from rift_live_test.reports import write_json, write_markdown_summary
+from rift_live_test.runner import LiveTestRunner, classify_run_health
 from rift_live_test.status import (
     BLOCKED_LIVE_FLAG_REQUIRED,
     BLOCKED_REFERENCE_CAPTURE,
     BLOCKED_TARGET_MISMATCH,
 )
+from rift_live_test.target import verify_target
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def testdata_path(name: str) -> Path:
+    return Path(__file__).resolve().parent / "rift_live_test" / "testdata" / name
+
+
+def datetime_from_text(value: str) -> datetime:
+    text = value[:-1] + "+00:00" if value.endswith("Z") else value
+    parsed = datetime.fromisoformat(text)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 class LiveTestOrchestratorTests(unittest.TestCase):
@@ -62,6 +113,720 @@ class LiveTestOrchestratorTests(unittest.TestCase):
         self.assertEqual(payload["Status"], "valid")
         self.assertEqual(text, '{"Status":"valid"}')
 
+    def test_gui_formatters_are_compact(self) -> None:
+        self.assertEqual(status_color("passed"), "ok")
+        self.assertEqual(status_color("blocked-reference-capture"), "bad")
+        self.assertIn(
+            "X=1.235",
+            format_coord(
+                {
+                    "x": 1.23456,
+                    "y": 2.0,
+                    "z": 3.0,
+                    "recordedAtUtc": "2026-05-07T16:38:15.4855135Z",
+                }
+            ),
+        )
+        self.assertIn(
+            "planar=0.226",
+            format_delta(
+                {
+                    "deltaX": 0.05,
+                    "deltaY": 0.0,
+                    "deltaZ": -0.22,
+                    "planarDistance": 0.2259,
+                }
+            ),
+        )
+        payload = demo_progress_payload(
+            run_dir=Path("C:/demo/run"),
+            progress_file=Path("C:/demo/run/run-progress.json"),
+        )
+        self.assertEqual(format_latest_state(payload["states"]), "live-input: passed")
+        self.assertEqual(format_recorder(payload["coordinateRecordings"]), "1 pulse(s), 9 sample(s)")
+        self.assertEqual(format_elapsed(payload), "28m 48s")
+        self.assertEqual(
+            format_child_command(payload["latestChildCommand"]),
+            "live-input: completed (exit=0, json=passed, 0.4s)",
+        )
+        self.assertEqual(
+            format_run_gates(payload["runGates"]),
+            "live-input • exact target • live flag",
+        )
+        self.assertIn("anchor≤60s", format_proof_budget(payload["runGates"]))
+        self.assertIn("no CE", format_safety(payload))
+        self.assertIn("pending", format_summary_file(payload))
+        health = progress_health(payload, now=datetime_from_text("2026-05-07T17:05:01Z"))
+        self.assertEqual(health["state"], "running")
+        self.assertEqual(health["latestChildStatus"], "completed")
+        self.assertTrue(health["latestChildOk"])
+        self.assertIn("child=completed:ok", format_run_health({"runHealth": health}))
+        self.assertEqual(issue_severity("target_window_handle_invalid:not-a-hwnd"), "error")
+        self.assertEqual(issue_severity("proof_anchor_remaining_age_budget_too_low"), "warn")
+        self.assertIn("ERROR • blocked-reference-capture", format_issues(["blocked-reference-capture"]))
+        self.assertEqual(
+            format_progress_age(
+                payload,
+                now=datetime_from_text("2026-05-07T17:06:05Z"),
+            ),
+            "stale: 1m 05s since update",
+        )
+
+    def test_write_json_overwrites_atomically_with_valid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "nested" / "artifact.json"
+            write_json(path, {"status": "old"})
+            write_json(path, {"status": "new", "count": 2})
+
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["status"], "new")
+            self.assertEqual(list(path.parent.glob("*.tmp")), [])
+
+    def test_write_json_retries_atomic_replace_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "artifact.json"
+            real_replace = reports.os.replace
+            calls = 0
+
+            def flaky_replace(source: Path, destination: Path) -> None:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise PermissionError("transient reader lock")
+                real_replace(source, destination)
+
+            with patch("rift_live_test.reports.os.replace", side_effect=flaky_replace), patch(
+                "rift_live_test.reports.time.sleep"
+            ) as sleep:
+                write_json(path, {"status": "new"})
+
+            self.assertEqual(calls, 2)
+            sleep.assert_called_once()
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["status"], "new")
+
+    def test_markdown_summary_includes_run_health(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "run-summary.md"
+            write_markdown_summary(
+                path,
+                {
+                    "profileName": "ProofOnly",
+                    "status": "blocked-target-mismatch",
+                    "ok": False,
+                    "generatedAtUtc": "2026-05-07T00:00:00Z",
+                    "runDirectory": str(Path(temp)),
+                    "live": False,
+                    "movementSent": False,
+                    "runHealth": {
+                        "state": "blocked",
+                        "issueCount": 1,
+                        "primaryIssue": "target_window_handle_invalid:not-a-hwnd",
+                        "movementSent": False,
+                        "movementAttempted": False,
+                        "finalSummaryWritten": True,
+                        "noCheatEngine": True,
+                        "savedVariablesUsedAsLiveTruth": False,
+                    },
+                    "states": [],
+                },
+            )
+
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("## Run health", text)
+            self.assertIn("| State | `blocked` |", text)
+            self.assertIn("target_window_handle_invalid:not-a-hwnd", text)
+
+    def test_run_json_command_timeout_returns_artifact_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            with patch("rift_live_test.commands.subprocess.run") as run:
+                run.side_effect = TimeoutError("wrong timeout type")
+                with self.assertRaises(TimeoutError):
+                    run_json_command(["demo"], cwd=Path(temp), label="demo", timeout_seconds=1)
+
+            with patch("rift_live_test.commands.subprocess.run") as run:
+                run.side_effect = subprocess.TimeoutExpired(
+                    cmd=["demo"],
+                    timeout=1,
+                    output=b"partial stdout",
+                    stderr=b"partial stderr",
+                )
+                result = run_json_command(["demo"], cwd=Path(temp), label="demo", timeout_seconds=1)
+
+            self.assertEqual(result.exit_code, 124)
+            self.assertFalse(result.ok)
+            self.assertIn("partial stdout", result.stdout)
+            self.assertIn("partial stderr", result.stderr)
+            self.assertIn("timed out", result.parse_error)
+
+    def test_verify_target_rejects_invalid_hwnd_without_win32_calls(self) -> None:
+        with patch("rift_live_test.target.os.name", "nt"), patch(
+            "rift_live_test.target.ctypes.WinDLL",
+            create=True,
+        ) as windll:
+            result = verify_target(123, "not-a-hwnd")
+
+        windll.assert_not_called()
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["status"], "invalid-hwnd")
+        self.assertIn("target_window_handle_invalid:not-a-hwnd", result["issues"])
+
+    def test_run_health_classifies_statuses(self) -> None:
+        self.assertEqual(classify_run_health("passed"), "ok")
+        self.assertEqual(classify_run_health("running"), "running")
+        self.assertEqual(classify_run_health("partial-series-stopped"), "warning")
+        self.assertEqual(classify_run_health("blocked-target-mismatch"), "blocked")
+        self.assertEqual(classify_run_health("failed-internal-error"), "failed")
+
+    def test_gui_launch_can_be_disabled_by_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            info = start_progress_gui(
+                repo_root=root,
+                progress_file=root / "run-progress.json",
+                run_dir=root,
+                profile_name="ProofOnly",
+                profile={"showGui": False},
+            )
+            self.assertFalse(info["enabled"])
+            self.assertEqual(info["reason"], "profile_showGui_false")
+
+    def test_gui_launch_uses_subprocess_argument_list(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            script = root / "scripts" / "live_test_gui.py"
+            script.parent.mkdir(parents=True)
+            script.write_text("# placeholder\n", encoding="utf-8")
+            with patch("rift_live_test.gui.subprocess.Popen") as popen:
+                popen.return_value = SimpleNamespace(pid=456)
+                info = start_progress_gui(
+                    repo_root=root,
+                    progress_file=root / "run-progress.json",
+                    run_dir=root,
+                    profile_name="Forward250",
+                    profile={"showGui": True, "guiPollMilliseconds": 750},
+                )
+
+            self.assertTrue(info["enabled"])
+            self.assertEqual(info["processId"], 456)
+            args = popen.call_args.args[0]
+            self.assertIsInstance(args, list)
+            self.assertIn("--progress-file", args)
+            self.assertIn("--poll-ms", args)
+            self.assertEqual(args[args.index("--poll-ms") + 1], "750")
+
+    def test_gui_poll_interval_is_clamped_and_fails_safe(self) -> None:
+        self.assertEqual(profile_gui_poll_milliseconds({"guiPollMilliseconds": 100}), 250)
+        self.assertEqual(profile_gui_poll_milliseconds({"guiPollMilliseconds": "bad"}), 500)
+
+    def test_gui_launch_failure_is_reported_not_raised(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            script = root / "scripts" / "live_test_gui.py"
+            script.parent.mkdir(parents=True)
+            script.write_text("# placeholder\n", encoding="utf-8")
+            with patch("rift_live_test.gui.subprocess.Popen", side_effect=OSError("no gui")):
+                info = start_progress_gui(
+                    repo_root=root,
+                    progress_file=root / "run-progress.json",
+                    run_dir=root,
+                    profile_name="Forward250",
+                    profile={"showGui": True},
+                )
+
+            self.assertFalse(info["enabled"])
+            self.assertTrue(info["requested"])
+            self.assertIn("OSError:no gui", info["error"])
+
+    def test_gui_demo_progress_is_offline_and_informational(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            progress = root / "run-progress.json"
+            payload = write_demo_progress(progress_file=progress, run_dir=root)
+
+            self.assertTrue(progress.exists())
+            self.assertEqual(payload["profileName"], "GuiDemo")
+            self.assertIn("runHealth", payload)
+            self.assertTrue(payload["noCheatEngine"])
+            self.assertFalse(payload["savedVariablesUsedAsLiveTruth"])
+            self.assertTrue(payload["coordinateRecordings"])
+            loaded = json.loads(progress.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["status"], "running")
+
+    def test_gui_demo_blocked_scenario_is_offline_and_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            payload = write_demo_progress(
+                progress_file=root / "run-progress.json",
+                run_dir=root,
+                scenario="blocked",
+            )
+
+            self.assertEqual(payload["status"], "blocked-target-mismatch")
+            self.assertFalse(payload["live"])
+            self.assertFalse(payload["movementSent"])
+            self.assertEqual(payload["coordinateRecordings"], [])
+            self.assertIn("target_window_handle_invalid:not-a-hwnd", payload["issues"])
+
+    def test_gui_demo_reference_and_proof_blocked_scenarios(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            reference = write_demo_progress(
+                progress_file=root / "reference" / "run-progress.json",
+                run_dir=root / "reference",
+                scenario="blocked-reference",
+            )
+            proof = write_demo_progress(
+                progress_file=root / "proof" / "run-progress.json",
+                run_dir=root / "proof",
+                scenario="blocked-proof",
+            )
+
+            self.assertEqual(reference["status"], "blocked-reference-capture")
+            self.assertFalse(reference["movementSent"])
+            self.assertIn("parseError", reference["latestChildCommand"])
+            self.assertEqual(proof["status"], "blocked-proof-expired")
+            self.assertFalse(proof["movementSent"])
+            self.assertEqual(proof["latestChildCommand"]["jsonStatus"], "blocked-preflight-proof-expired")
+
+    def test_gui_demo_cli_can_write_without_opening_window(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            code = gui_main(
+                [
+                    "--demo",
+                    "--write-demo-only",
+                    "--demo-scenario",
+                    "blocked",
+                    "--demo-output-root",
+                    str(root),
+                    "--profile-name",
+                    "DemoProfile",
+                ]
+            )
+
+            progress = root / "run-progress.json"
+            self.assertEqual(code, 0)
+            self.assertTrue(progress.exists())
+            payload = json.loads(progress.read_text(encoding="utf-8"))
+            self.assertEqual(payload["profileName"], "DemoProfile")
+            self.assertEqual(payload["status"], "blocked-target-mismatch")
+
+    def test_gui_demo_payload_uses_requested_paths(self) -> None:
+        run_dir = Path("C:/demo/run")
+        progress_file = run_dir / "progress.json"
+        payload = demo_progress_payload(
+            run_dir=run_dir,
+            progress_file=progress_file,
+            profile_name="Preview",
+        )
+
+        self.assertEqual(payload["profileName"], "Preview")
+        self.assertEqual(payload["runProgressFile"], str(progress_file))
+        self.assertIn("recorder", payload["coordinateSamplesFile"])
+
+    def test_inspect_progress_reports_health_without_gui(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            progress = root / "run-progress.json"
+            write_demo_progress(progress_file=progress, run_dir=root, scenario="blocked-reference")
+
+            result = inspect_progress_file(progress)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["status"], "progress-valid")
+            self.assertEqual(result["runStatus"], "blocked-reference-capture")
+            self.assertEqual(result["runHealth"]["state"], "blocked")
+            self.assertEqual(result["contract"]["status"], "valid")
+            self.assertFalse(result["runSummaryFileExists"])
+            self.assertEqual(result["issueCount"], 2)
+
+    def test_inspect_progress_reports_malformed_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            progress = Path(temp) / "run-progress.json"
+            progress.write_text("{bad json", encoding="utf-8")
+
+            result = inspect_progress_file(progress)
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["status"], "progress-unreadable")
+
+    def test_inspect_progress_reports_contract_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            progress = Path(temp) / "run-progress.json"
+            write_json(
+                progress,
+                {
+                    "schemaVersion": 1,
+                    "mode": "rift-live-test-progress",
+                    "profileName": "BadProgress",
+                    "status": "running",
+                    "updatedAtUtc": "2026-05-07T00:00:00Z",
+                    "runDirectory": str(Path(temp)),
+                    "runProgressFile": str(progress),
+                    "noCheatEngine": False,
+                    "savedVariablesUsedAsLiveTruth": True,
+                    "issues": [],
+                    "states": [],
+                    "runHealth": {},
+                    "runGates": {},
+                },
+            )
+
+            result = inspect_progress_file(progress)
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["status"], "progress-valid")
+            self.assertEqual(result["contract"]["status"], "invalid")
+            self.assertIn("safety_no_cheat_engine_not_true", result["contract"]["issues"])
+
+    def test_validate_progress_contract_allows_missing_new_health_as_warning(self) -> None:
+        payload = demo_progress_payload(run_dir=Path("C:/demo/run"), progress_file=Path("C:/demo/run/progress.json"))
+        payload.pop("runHealth")
+
+        contract = validate_progress_contract(payload)
+
+        self.assertTrue(contract["ok"])
+        self.assertEqual(contract["status"], "warning")
+        self.assertIn("runHealth_missing", contract["issues"])
+
+    def test_inspect_progress_cli_exits_without_opening_window(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            progress = Path(temp) / "run-progress.json"
+            write_demo_progress(progress_file=progress, run_dir=Path(temp), scenario="blocked-proof")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = gui_main(["--inspect-progress", "--progress-file", str(progress)])
+
+            self.assertEqual(code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["status"], "progress-valid")
+            self.assertEqual(payload["runHealth"]["state"], "blocked")
+
+    def test_inspect_progress_cli_compact_json_outputs_single_line(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            progress = Path(temp) / "run-progress.json"
+            write_demo_progress(progress_file=progress, run_dir=Path(temp), scenario="blocked-proof")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = gui_main(
+                    [
+                        "--inspect-progress",
+                        "--progress-file",
+                        str(progress),
+                        "--compact-json",
+                    ]
+                )
+
+            text = stdout.getvalue()
+            payload = json.loads(text)
+            self.assertEqual(code, 0)
+            self.assertEqual(text.count("\n"), 1)
+            self.assertNotIn("\n  ", text)
+            self.assertEqual(payload["runHealth"]["state"], "blocked")
+
+    def test_format_inspect_json_supports_pretty_and_compact(self) -> None:
+        payload = {"status": "progress-valid", "ok": True}
+
+        self.assertIn("\n  ", format_inspect_json(payload))
+        self.assertEqual(
+            format_inspect_json(payload, compact=True),
+            '{"status":"progress-valid","ok":true}',
+        )
+
+    def test_format_inspect_summary_is_human_readable(self) -> None:
+        result = inspect_progress_file(testdata_path("progress-blocked-reference.json"))
+
+        text = format_inspect_summary(result)
+
+        self.assertIn("RiftReader live-test inspect summary", text)
+        self.assertIn("Run status: blocked-reference-capture", text)
+        self.assertIn("Run health: blocked", text)
+        self.assertIn("Contract: valid", text)
+
+    def test_inspect_progress_cli_summary_outputs_text(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--inspect-progress",
+                    "--progress-file",
+                    str(testdata_path("progress-blocked-reference.json")),
+                    "--summary",
+                ]
+            )
+
+        text = stdout.getvalue()
+        self.assertEqual(code, 0)
+        self.assertIn("Run status: blocked-reference-capture", text)
+        self.assertIn("Run health: blocked", text)
+        self.assertNotIn('"runHealth"', text)
+
+    def test_inspect_progress_cli_accepts_run_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_demo_progress(progress_file=root / "run-progress.json", run_dir=root, scenario="blocked")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = gui_main(["--inspect-progress", "--run-directory", str(root)])
+
+            self.assertEqual(code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["runStatus"], "blocked-target-mismatch")
+
+    def test_inspect_progress_cli_fail_on_warning_keeps_clean_contract_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_demo_progress(
+                progress_file=root / "run-progress.json",
+                run_dir=root,
+                scenario="blocked-reference",
+            )
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = gui_main(
+                    [
+                        "--inspect-progress",
+                        "--run-directory",
+                        str(root),
+                        "--fail-on-warning",
+                    ]
+                )
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(code, 0)
+            self.assertTrue(payload["strict"]["ok"])
+            self.assertEqual(payload["strict"]["warnings"], [])
+
+    def test_inspect_progress_cli_fail_on_warning_exits_nonzero_for_contract_warning(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--inspect-progress",
+                    "--progress-file",
+                    str(testdata_path("progress-passed.json")),
+                    "--fail-on-warning",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(code, 1)
+        self.assertFalse(payload["strict"]["ok"])
+        self.assertIn(
+            "contract:run_summary_marked_written_but_missing",
+            payload["strict"]["warnings"],
+        )
+
+    def test_inspect_progress_cli_fail_on_warning_exits_nonzero_for_stale_progress(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--inspect-progress",
+                    "--progress-file",
+                    str(testdata_path("progress-running.json")),
+                    "--stale-after-seconds",
+                    "1",
+                    "--fail-on-warning",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(code, 1)
+        self.assertIn("run_health_state:stale", payload["strict"]["warnings"])
+
+    def test_checked_in_progress_fixtures_validate(self) -> None:
+        running = inspect_progress_file(
+            testdata_path("progress-running.json"),
+            now=datetime_from_text("2026-05-07T17:06:00Z"),
+            stale_after_seconds=30,
+        )
+        passed = inspect_progress_file(testdata_path("progress-passed.json"))
+        blocked = inspect_progress_file(testdata_path("progress-blocked-reference.json"))
+
+        self.assertTrue(running["ok"])
+        self.assertEqual(running["runHealth"]["state"], "stale")
+        self.assertEqual(running["contract"]["status"], "valid")
+        self.assertTrue(passed["ok"])
+        self.assertEqual(passed["runHealth"]["state"], "ok")
+        self.assertEqual(passed["contract"]["status"], "warning")
+        self.assertIn(
+            "run_summary_marked_written_but_missing",
+            passed["contract"]["issues"],
+        )
+        self.assertFalse(passed["runSummaryFileExists"])
+        self.assertTrue(blocked["ok"])
+        self.assertEqual(blocked["runHealth"]["state"], "blocked")
+        self.assertEqual(blocked["contract"]["status"], "valid")
+
+    def test_checked_in_latest_pointer_fixture_resolves(self) -> None:
+        latest = resolve_latest_run(
+            repo_root=repo_root(),
+            pointer_file=testdata_path("latest-pointer.json"),
+        )
+
+        self.assertEqual(latest["profileName"], "FixturePassed")
+        self.assertTrue(latest["progressFileExists"])
+        self.assertFalse(latest["runSummaryFileExists"])
+        self.assertEqual(latest["status"], "passed")
+        self.assertEqual(latest["runHealth"]["state"], "ok")
+        self.assertTrue(latest["finalSummaryWritten"])
+        self.assertEqual(latest["progressFile"], testdata_path("progress-passed.json"))
+
+    def test_checked_in_latest_pointer_drift_fixture_reports_warning(self) -> None:
+        latest = resolve_latest_run(
+            repo_root=repo_root(),
+            pointer_file=testdata_path("latest-pointer-drift.json"),
+        )
+        result = inspect_latest_progress(
+            latest,
+            now=datetime_from_text("2026-05-07T17:05:10Z"),
+            stale_after_seconds=30,
+        )
+
+        freshness = result["latestPointer"]["freshness"]
+        self.assertEqual(latest["profileName"], "FixtureDriftedLatest")
+        self.assertTrue(latest["progressFileExists"])
+        self.assertEqual(result["runHealth"]["state"], "running")
+        self.assertEqual(freshness["status"], "warning")
+        self.assertEqual(freshness["timestampGapSeconds"], 125)
+        self.assertIn("latest_pointer_timestamp_drift_seconds:125", freshness["issues"])
+        self.assertIn(
+            "latest_pointer_status_mismatch:pointer=passed;progress=running",
+            freshness["issues"],
+        )
+        self.assertIn(
+            "latest_pointer_health_mismatch:pointer=ok;progress=running",
+            freshness["issues"],
+        )
+
+    def test_latest_inspect_cli_includes_pointer_metadata(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--latest",
+                    "--latest-pointer",
+                    str(testdata_path("latest-pointer.json")),
+                    "--inspect-progress",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(payload["runHealth"]["state"], "ok")
+        self.assertEqual(payload["runHealth"]["latestChildStatus"], "completed")
+        self.assertTrue(payload["runHealth"]["latestChildOk"])
+        self.assertEqual(payload["latestPointer"]["status"], "passed")
+        self.assertEqual(payload["latestPointer"]["freshness"]["status"], "ok")
+        self.assertEqual(payload["latestPointer"]["freshness"]["timestampGapSeconds"], 0)
+        self.assertEqual(payload["latestPointer"]["runHealth"]["state"], "ok")
+        self.assertTrue(payload["latestPointer"]["progressFileExists"])
+        self.assertFalse(payload["latestPointer"]["runSummaryFileExists"])
+
+    def test_latest_inspect_cli_fail_on_warning_exits_nonzero_for_freshness_warning(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--latest",
+                    "--latest-pointer",
+                    str(testdata_path("latest-pointer-drift.json")),
+                    "--inspect-progress",
+                    "--fail-on-warning",
+                    "--compact-json",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(code, 1)
+        self.assertFalse(payload["strict"]["ok"])
+        self.assertTrue(
+            any(
+                warning.startswith("latest_pointer_freshness:latest_pointer_status_mismatch")
+                for warning in payload["strict"]["warnings"]
+            )
+        )
+
+    def test_latest_inspect_cli_summary_with_strict_warnings(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--latest",
+                    "--latest-pointer",
+                    str(testdata_path("latest-pointer-drift.json")),
+                    "--inspect-progress",
+                    "--fail-on-warning",
+                    "--summary",
+                ]
+            )
+
+        text = stdout.getvalue()
+        self.assertEqual(code, 1)
+        self.assertIn("Latest pointer freshness: warning", text)
+        self.assertIn("Strict: failed", text)
+        self.assertIn("latest_pointer_status_mismatch:pointer=passed;progress=running", text)
+
+    def test_resolve_progress_file_arg_prefers_explicit_file(self) -> None:
+        self.assertEqual(
+            resolve_progress_file_arg("C:/explicit/progress.json", "C:/run"),
+            Path("C:/explicit/progress.json"),
+        )
+        self.assertEqual(
+            resolve_progress_file_arg(None, "C:/run"),
+            Path("C:/run") / "run-progress.json",
+        )
+
+    def test_resolve_latest_run_uses_latest_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "scripts" / "captures" / "latest-live-test-run.json"
+            pointer.parent.mkdir(parents=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "runProgressFile": "scripts/captures/run-a/run-progress.json",
+                        "runDirectory": "scripts/captures/run-a",
+                        "profileName": "ProofOnly",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            latest = resolve_latest_run(repo_root=root)
+
+            self.assertEqual(latest["profileName"], "ProofOnly")
+            self.assertFalse(latest["progressFileExists"])
+            self.assertEqual(
+                latest["progressFile"],
+                root / "scripts" / "captures" / "run-a" / "run-progress.json",
+            )
+            self.assertEqual(latest["runDirectory"], root / "scripts" / "captures" / "run-a")
+
+    def test_latest_gui_main_reports_missing_pointer_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = gui_main(
+                    [
+                        "--latest",
+                        "--latest-pointer",
+                        str(Path(temp) / "missing-latest.json"),
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            self.assertIn("latest-run-unavailable", stderr.getvalue())
+
+    def test_resolve_latest_run_rejects_malformed_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "latest.json"
+            pointer.write_text("[1, 2, 3]", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "root must be an object"):
+                resolve_latest_run(repo_root=root, pointer_file=pointer)
+
     def test_profile_merges_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -73,6 +838,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                         "defaults": {
                             "processName": "rift_x64",
                             "outputRoot": "captures",
+                            "showGui": True,
                             "promotionReferenceReadbackSummary": "old.json",
                             "maxHoldMilliseconds": 1000,
                             "maxPulseCount": 3,
@@ -289,6 +1055,62 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 self.assertIn("-ProofCoordAnchorFile", argv)
                 self.assertEqual(argv[argv.index("-ProofCoordAnchorFile") + 1], str(proof_anchor))
 
+    def test_run_command_updates_latest_child_command_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "writeMarkdownSummary": False,
+                },
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+            with patch(
+                "rift_live_test.runner.run_json_command",
+                return_value=JsonCommandResult(
+                    label="demo-child",
+                    args=["demo"],
+                    exit_code=0,
+                    stdout='{"Status":"valid"}',
+                    stderr="",
+                    json_data={"Status": "valid"},
+                    json_text='{"Status":"valid"}',
+                    parse_error=None,
+                ),
+            ):
+                runner._run_command("demo-child", ["demo"])
+
+            self.assertEqual(runner.latest_child_command["label"], "demo-child")
+            self.assertEqual(runner.latest_child_command["status"], "completed")
+            self.assertEqual(runner.latest_child_command["exitCode"], 0)
+            self.assertIn("durationSeconds", runner.latest_child_command)
+            self.assertIsNone(runner.latest_child_command["parseError"])
+            progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+            self.assertEqual(progress["latestChildCommand"]["jsonStatus"], "valid")
+
+    def test_child_command_status_accepts_proof_validation_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={"outputRoot": str(root / "captures")},
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+
+            self.assertEqual(
+                runner._command_json_status({"ProofValidationStatus": "validated"}),
+                "validated",
+            )
+
     def test_promote_command_receives_process_name_and_proof_anchor_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -372,6 +1194,10 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertEqual(progress["status"], "running")
             self.assertFalse(progress["finalSummaryWritten"])
             self.assertEqual(progress["states"][0]["state"], "verify-target")
+            self.assertTrue(progress["runGates"]["requireExactTarget"])
+            self.assertTrue(progress["runGates"]["requireLiveFlagForInput"])
+            self.assertEqual(progress["runHealth"]["state"], "running")
+            self.assertFalse(progress["runHealth"]["finalSummaryWritten"])
 
             latest = json.loads(
                 (root / "scripts" / "captures" / "latest-live-test-run.json").read_text(
@@ -411,7 +1237,10 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
             self.assertTrue(progress["finalSummaryWritten"])
             self.assertEqual(progress["status"], "passed-proof-only")
+            self.assertEqual(progress["runHealth"]["state"], "ok")
+            self.assertTrue(progress["runHealth"]["finalSummaryWritten"])
             self.assertEqual(summary["runProgressFile"], str(runner.progress_file))
+            self.assertEqual(summary["runHealth"]["state"], "ok")
 
     def test_baseline_pool_selects_compatible_displaced_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

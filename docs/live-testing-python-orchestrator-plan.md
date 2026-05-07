@@ -1,6 +1,6 @@
 # Python Live-Testing Orchestrator Plan
 
-_Last updated: May 7, 2026 12:38 EDT._
+_Last updated: May 7, 2026 14:15 EDT._
 
 ## Verdict
 
@@ -46,6 +46,7 @@ These should remain non-negotiable even while improving speed:
 | Profile caps enforce max hold and pulse count | Prevent runaway input. |
 | Post-readback is always attempted after input | Confirms proof survived the live action. |
 | Every run writes a summary | No mystery live tests. |
+| GUI is information-only | The HUD may read progress JSON, but it must not expose movement or orchestration controls. |
 
 ## Speed-focused relaxations
 
@@ -65,6 +66,7 @@ These are intentionally allowed to improve development velocity:
 ```text
 scripts/
   live_test.py
+  live_test_gui.py
   rift_live_test/
     __init__.py
     commands.py
@@ -74,6 +76,7 @@ scripts/
     proof.py
     input.py
     recorder.py
+    gui.py
     reports.py
     status.py
 
@@ -115,6 +118,13 @@ The first Python-controller slice implements these entry points:
 | Entry point | Purpose |
 |---|---|
 | `scripts\live_test.py` | Main Python profile runner. |
+| `scripts\live_test_gui.py` | Read-only Tk HUD process for live progress display. |
+| `cmd\live-gui-demo.cmd` | Dumb launcher for an offline HUD preview with generated demo progress. |
+| `cmd\live-gui-latest.cmd` | Dumb launcher for opening the latest recorded run progress. |
+| `cmd\live-gui-inspect-latest.cmd` | Dumb launcher for printing latest-run health without opening a window. |
+| `docs\live-testing-gui-operator-guide.md` | Short operator guide for HUD/inspect commands and post-crash order. |
+| `docs\live-testing-progress-contract.md` | Progress/latest-pointer contract reference. |
+| `scripts\rift_live_test\testdata\*.json` | Checked-in progress/latest-pointer fixtures for contract validation. |
 | `configs\live-test-profiles.json` | Presets for `ProofOnly`, `RecoverAfterPulse`, `Forward250`, and `ForwardSeries3x250`. |
 | `cmd\live-proof-only.cmd` | Dumb launcher for proof-only validation. |
 | `cmd\live-forward-250.cmd` | Dumb launcher for the current one-pulse forward profile. |
@@ -245,6 +255,91 @@ returned by the gated wrapper.
 | `seriesPulses[].coordinateRecording` | Pulse-local sample count, phase counts, and recorded delta. |
 | `run-summary.md` coordinate recording table | Human-readable evidence summary. |
 
+## May 7 update - minimalist read-only GUI HUD implemented
+
+The orchestrator can now launch a small Tk-based information HUD by default for
+profile-driven runs. It watches `run-progress.json` and displays status lights,
+labels, elapsed time, latest state/child command, current target, gate settings,
+proof-age budget, safety flags, movement/coordinate info, recorder state, final
+summary status, issues, and recent state history. It includes an `Options` menu
+with a status-light legend, but all entries are informational/disabled for now:
+no movement, retry, proof, scan, or stop controls are exposed through the GUI.
+
+The progress and summary JSON now include a compact `runGates` object so the HUD
+can show the active safety contract without parsing the effective profile:
+profile mode, exact-target requirement, `--live` gate, proof/reference age caps,
+post-readback age budget, auto-refresh usage, no-CE status, and the
+SavedVariables live-truth prohibition.
+
+The same polish pass tightened the orchestrator artifact path: JSON/markdown
+artifacts are written through atomic replace, child command timeouts are captured
+as child-result artifacts instead of escaping as unstructured internal errors,
+and `latestChildCommand` now records duration, parse errors, and common JSON
+status fields such as `Status` or `ProofValidationStatus`.
+
+The HUD also supports `--latest`, which resolves
+`scripts\captures\latest-live-test-run.json` and opens the referenced progress
+file. Missing or malformed latest-run pointers fail cleanly with a compact JSON
+error instead of a traceback. Demo mode supports
+`--demo-scenario running|passed|blocked|blocked-reference|blocked-proof` so
+success, stale/running, target mismatch, reference-capture failure, and
+proof-expiry states can be previewed without RIFT. The live-info grid includes
+run/progress identity rows, progress age, and stale-running markers so a stalled
+run or unexpected artifact source is visually obvious without log inspection.
+Issue lines are prefixed with `ERROR`, `WARN`, or `INFO` to make blockers easier
+to scan while preserving the raw issue text.
+
+The orchestrator now emits a compact `runHealth` object into progress, summary,
+and latest-pointer artifacts. It normalizes health into `ok`, `running`,
+`warning`, `blocked`, `failed`, or `stale` and carries issue count, primary
+issue, movement flags, latest-child status, final-summary status, and safety
+flags. The GUI CLI also supports `--inspect-progress` to print this health
+summary headlessly for operator checks and automation smoke tests.
+
+`--inspect-progress` now accepts either `--progress-file` or `--run-directory`
+and validates a small progress contract in addition to parsing JSON. It checks
+schema/mode, required identity and timestamp fields, required safety flags
+(`noCheatEngine=true`, `savedVariablesUsedAsLiveTruth=false`), list/object field
+shapes, final-summary path existence, and presence of the newer `runHealth` /
+`runGates` metadata. Older artifacts missing `runHealth`/`runGates` are reported
+as warnings; safety/schema violations fail the inspect command. Markdown
+summaries include a **Run health** table so the same normalized state is visible
+in handoff artifacts.
+
+When `--latest` is combined with `--inspect-progress`, the headless output now
+also includes a `latestPointer` object with pointer status, generated timestamp,
+pointer health, and resolved progress/summary file existence. This keeps the
+latest-run launcher useful after interrupted runs where pointer metadata and
+progress metadata may differ. The nested `latestPointer.freshness` object warns
+on timestamp drift, pointer/progress status mismatch, or pointer/progress
+health-state mismatch before an operator reruns any live profile.
+`--fail-on-warning` turns those warnings, contract warnings, and stale/warning
+run health into a nonzero inspect exit while still printing the full JSON result.
+`--compact-json` can be combined with strict mode to print the same inspect
+payload as one-line JSON for scripts.
+`--summary` prints the same inspect result as a short human-readable status
+block for operator triage without changing exit behavior.
+
+Checked-in fixtures now cover running, passed, blocked reference-capture,
+normal latest-pointer, and drifted latest-pointer artifacts. The unit suite
+validates them through the same inspection logic, including stale-health and
+latest-pointer freshness behavior, so schema or safety-contract drift is caught
+without needing a live game window.
+
+| Field | Default |
+|---|---|
+| `showGui` | `true` in profile defaults. |
+| `guiPollMilliseconds` | `500`. |
+| `guiAlwaysOnTop` | `false` initially to reduce focus-steal risk. |
+| CLI override | `--no-gui` disables the HUD for a single invocation. |
+| Offline preview | `python scripts\live_test_gui.py --demo` or `cmd\live-gui-demo.cmd`. |
+| Latest run preview | `python scripts\live_test_gui.py --latest` or `cmd\live-gui-latest.cmd`. |
+| Latest run inspect | `python scripts\live_test_gui.py --latest --inspect-progress` or `cmd\live-gui-inspect-latest.cmd`. |
+| Strict inspect gate | `python scripts\live_test_gui.py --latest --inspect-progress --fail-on-warning`. |
+| Compact strict inspect | `python scripts\live_test_gui.py --latest --inspect-progress --fail-on-warning --compact-json`. |
+| Human inspect summary | `python scripts\live_test_gui.py --latest --inspect-progress --summary`. |
+| Headless demo artifact | `python scripts\live_test_gui.py --demo --write-demo-only`. |
+
 ## State machine
 
 | State | Purpose | Failure behavior |
@@ -346,6 +441,7 @@ Each run should write one timestamped folder:
 scripts/captures/live-test-Forward250-YYYYMMDD-HHMMSS/
   run-manifest.json
   profile-effective.json
+  gui-start.json
   run-summary.json
   run-summary.md
   child-outputs/

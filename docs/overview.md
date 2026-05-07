@@ -46,6 +46,19 @@ Full doc:
 - `C:\RIFT MODDING\RiftReader\docs\navigation-waypoint-v1.md`
 - `C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`
 
+## Live Testing Orchestrator HUD
+
+The Python live-test orchestrator can launch a read-only information HUD and can
+inspect run progress headlessly without opening a window. These tools read
+`run-progress.json` / `latest-live-test-run.json` artifacts only; they do not
+send input, retry runs, refresh proof, or use Cheat Engine.
+
+Use these docs first:
+
+- `C:\RIFT MODDING\RiftReader\docs\live-testing-gui-operator-guide.md`
+- `C:\RIFT MODDING\RiftReader\docs\live-testing-progress-contract.md`
+- `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md`
+
 The current prototype should stay focused on:
 
 - explicit process targeting

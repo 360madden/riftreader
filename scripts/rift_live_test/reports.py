@@ -1,13 +1,33 @@
 from __future__ import annotations
 
 import json
+import os
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 
-def write_json(path: Path, data: Any) -> None:
+def write_text_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    try:
+        temp_path.write_text(text, encoding="utf-8")
+        for attempt in range(5):
+            try:
+                os.replace(temp_path, path)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.05)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def write_json(path: Path, data: Any) -> None:
+    write_text_atomic(path, json.dumps(data, indent=2) + "\n")
 
 
 def write_markdown_summary(path: Path, summary: dict[str, Any]) -> None:
@@ -53,6 +73,26 @@ def write_markdown_summary(path: Path, summary: dict[str, Any]) -> None:
                 f"dY `{series_delta.get('deltaY')}`, "
                 f"dZ `{series_delta.get('deltaZ')}`"
             )
+    if summary.get("runHealth"):
+        health = summary["runHealth"]
+        lines.extend(
+            [
+                "",
+                "## Run health",
+                "",
+                "| Field | Value |",
+                "|---|---|",
+                f"| State | `{health.get('state')}` |",
+                f"| Issue count | `{health.get('issueCount')}` |",
+                f"| Primary issue | `{health.get('primaryIssue')}` |",
+                f"| Movement sent | `{str(health.get('movementSent')).lower()}` |",
+                f"| Movement attempted | `{str(health.get('movementAttempted')).lower()}` |",
+                f"| Final summary written | `{str(health.get('finalSummaryWritten')).lower()}` |",
+                f"| No Cheat Engine | `{str(health.get('noCheatEngine')).lower()}` |",
+                "| SavedVariables live truth | "
+                f"`{str(health.get('savedVariablesUsedAsLiveTruth')).lower()}` |",
+            ]
+        )
     if summary.get("issues"):
         lines.extend(["", "## Issues"])
         for issue in summary["issues"]:
@@ -96,4 +136,4 @@ def write_markdown_summary(path: Path, summary: dict[str, Any]) -> None:
     for state in summary.get("states", []):
         detail = state.get("detail") or state.get("summaryFile") or ""
         lines.append(f"| `{state.get('state')}` | `{state.get('status')}` | `{detail}` |")
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    write_text_atomic(path, "\n".join(lines).rstrip() + "\n")

@@ -24,9 +24,19 @@ def verify_target(
             "issues": ["windows_hwnd_verification_required"],
         }
 
+    try:
+        hwnd = _parse_hwnd(target_window_handle)
+    except (TypeError, ValueError):
+        return {
+            "status": "invalid-hwnd",
+            "valid": False,
+            "processId": process_id,
+            "targetWindowHandle": target_window_handle,
+            "expectedProcessName": expected_process_name,
+            "issues": [f"target_window_handle_invalid:{target_window_handle}"],
+        }
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    hwnd = _parse_hwnd(target_window_handle)
     result: dict[str, Any] = {
         "status": "unknown",
         "valid": False,

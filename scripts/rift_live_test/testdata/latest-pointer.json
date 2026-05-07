@@ -1,0 +1,21 @@
+{
+  "runProgressFile": "scripts/rift_live_test/testdata/progress-passed.json",
+  "runDirectory": "scripts/rift_live_test/testdata",
+  "profileName": "FixturePassed",
+  "status": "passed",
+  "runHealth": {
+    "state": "ok",
+    "status": "passed",
+    "ok": true,
+    "ageSeconds": 0,
+    "issueCount": 0,
+    "primaryIssue": null,
+    "movementSent": true,
+    "movementAttempted": true,
+    "finalSummaryWritten": true,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "generatedAtUtc": "2026-05-07T17:05:00+00:00",
+  "finalSummaryWritten": true
+}

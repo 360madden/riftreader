@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "mode": "rift-live-test-progress",
+  "profileName": "FixtureRunning",
+  "status": "running",
+  "updatedAtUtc": "2026-05-07T17:05:00Z",
+  "runDirectory": "scripts\\rift_live_test\\testdata",
+  "runSummaryFile": "scripts\\rift_live_test\\testdata\\run-summary.json",
+  "runProgressFile": "scripts\\rift_live_test\\testdata\\progress-running.json",
+  "live": true,
+  "processId": 47560,
+  "targetWindowHandle": "0x2122E",
+  "movementSent": true,
+  "movementAttempted": true,
+  "currentCoordinate": {
+    "x": 7437.5146484375,
+    "y": 885.2191772460938,
+    "z": 3055.517822265625,
+    "recordedAtUtc": "2026-05-07T16:38:15.4855135Z"
+  },
+  "coordinateDelta": {
+    "deltaX": 0.0517578125,
+    "deltaY": 0.0,
+    "deltaZ": -0.219970703125,
+    "planarDistance": 0.225977833842375,
+    "spatialDistance": 0.225977833842375
+  },
+  "issues": [],
+  "states": [
+    {
+      "state": "load-profile",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-07T16:36:12Z",
+      "detail": "demo profile loaded"
+    },
+    {
+      "state": "verify-target",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-07T16:36:13Z",
+      "detail": "pid=47560;hwnd=0x2122E"
+    },
+    {
+      "state": "proof-refresh",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-07T16:37:44Z",
+      "summaryFile": "scripts\\rift_live_test\\testdata\\demo-proof-summary.json"
+    },
+    {
+      "state": "live-input",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-07T16:38:16Z",
+      "summaryFile": "scripts\\rift_live_test\\testdata\\run-summary.json"
+    }
+  ],
+  "childOutputsDirectory": "scripts\\rift_live_test\\testdata\\child-outputs",
+  "latestChildCommand": {
+    "label": "live-input",
+    "status": "completed",
+    "exitCode": 0,
+    "jsonStatus": "passed",
+    "durationSeconds": 0.42,
+    "ok": true,
+    "outputFile": "scripts\\rift_live_test\\testdata\\child-outputs\\006-live-input.json"
+  },
+  "autoRefreshAttemptsUsed": 0,
+  "runGates": {
+    "profileMode": "live-input",
+    "requireExactTarget": true,
+    "requireLiveFlagForInput": true,
+    "proofAnchorFile": "scripts\\rift_live_test\\testdata\\telemetry-proof-coord-anchor.json",
+    "proofAnchorMaxAgeSeconds": 60,
+    "minimumPostReadbackAgeBudgetSeconds": 20,
+    "referenceMaxAgeSeconds": 180,
+    "maxAutoRefreshAttempts": 1,
+    "autoRefreshAttemptsUsed": 0,
+    "noCheatEngine": true,
+    "savedVariablesLiveTruthAllowed": false
+  },
+  "noCheatEngine": true,
+  "savedVariablesUsedAsLiveTruth": false,
+  "finalSummaryWritten": false,
+  "coordinateRecordings": [
+    {
+      "pulseIndex": 1,
+      "sampleCount": 9,
+      "samplesFile": "scripts\\rift_live_test\\testdata\\recorder\\coord-samples.ndjson",
+      "pulseSummaryFile": "scripts\\rift_live_test\\testdata\\recorder\\coord-pulse-001-summary.json",
+      "phases": {
+        "dry-run-preflight": 3,
+        "live-preflight": 3,
+        "live-post-readback": 3
+      }
+    }
+  ],
+  "coordinateSamplesFile": "scripts\\rift_live_test\\testdata\\recorder\\coord-samples.ndjson",
+  "runHealth": {
+    "state": "running",
+    "status": "running",
+    "ok": false,
+    "ageSeconds": 0,
+    "issueCount": 0,
+    "primaryIssue": null,
+    "movementSent": true,
+    "movementAttempted": true,
+    "finalSummaryWritten": false,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false
+  }
+}

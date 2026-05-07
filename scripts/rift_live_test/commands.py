@@ -44,14 +44,31 @@ def run_json_command(
     label: str,
     timeout_seconds: int | None = None,
 ) -> JsonCommandResult:
-    completed = subprocess.run(
-        args,
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        timeout=timeout_seconds,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            args,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = _timeout_stream_to_text(exc.stdout or exc.output)
+        stderr = _timeout_stream_to_text(exc.stderr)
+        timeout_text = f"Command timed out after {timeout_seconds} seconds"
+        stderr = "\n".join(part for part in (stderr, timeout_text) if part)
+        return JsonCommandResult(
+            label=label,
+            args=args,
+            exit_code=124,
+            stdout=stdout,
+            stderr=stderr,
+            json_data=None,
+            json_text=None,
+            parse_error=timeout_text,
+        )
+
     combined = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
     json_data = None
     json_text = None
@@ -77,6 +94,14 @@ def run_json_command(
         json_text=json_text,
         parse_error=parse_error,
     )
+
+
+def _timeout_stream_to_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
 
 
 def command_envelope(result: JsonCommandResult) -> dict[str, Any]:

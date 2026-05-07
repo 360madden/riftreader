@@ -34,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profiles-file", default=None, help="Optional profile JSON path.")
     parser.add_argument("--output-root", default=None, help="Optional output root override.")
     parser.add_argument("--live", action="store_true", help="Allow live input profiles.")
+    parser.add_argument(
+        "--no-gui",
+        action="store_true",
+        help="Disable the read-only informational run HUD for this invocation.",
+    )
     parser.add_argument("--list-profiles", action="store_true", help="List profiles and exit.")
     parser.add_argument(
         "--validate-profiles",
@@ -87,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
         profile["processName"] = args.process_name
     if args.output_root:
         profile["outputRoot"] = args.output_root
+    if args.no_gui:
+        profile["showGui"] = False
 
     runner = LiveTestRunner(
         repo_root=repo_root,

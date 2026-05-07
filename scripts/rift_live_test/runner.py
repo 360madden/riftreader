@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ from .commands import (
     pwsh_file_command,
     run_json_command,
 )
+from .gui import start_progress_gui
 from .reports import write_json, write_markdown_summary
 from .recorder import record_pulse_coordinates
 from .status import (
@@ -53,6 +55,21 @@ class ReferenceCaptureError(RuntimeError):
         self.issues = issues
 
 
+def classify_run_health(status: str) -> str:
+    text = str(status or "").lower()
+    if text in SUCCESS_STATUSES or text.startswith("passed"):
+        return "ok"
+    if text == "running" or text == "refreshing":
+        return "running"
+    if "partial" in text or "low-age" in text or "age-budget" in text:
+        return "warning"
+    if text.startswith("blocked"):
+        return "blocked"
+    if text.startswith("failed") or text.endswith("failed") or "internal-error" in text:
+        return "failed"
+    return "unknown"
+
+
 class LiveTestRunner:
     def __init__(
         self,
@@ -77,6 +94,8 @@ class LiveTestRunner:
         self.proof_refresh_sequence = 0
         self.series_pulses: list[dict[str, Any]] = []
         self.coordinate_recordings: list[dict[str, Any]] = []
+        self.gui_info: dict[str, Any] | None = None
+        self.latest_child_command: dict[str, Any] | None = None
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_root = Path(str(profile.get("outputRoot", repo_root / "scripts" / "captures")))
@@ -92,6 +111,7 @@ class LiveTestRunner:
         status = FAILED_INTERNAL_ERROR
         try:
             write_json(self.run_dir / "profile-effective.json", self.profile)
+            self.gui_info = self._start_gui()
             write_json(self.run_dir / "run-manifest.json", self._manifest())
             self._write_progress("running")
             self._state("load-profile", "passed", detail=str(self.profile.get("profilesFile")))
@@ -592,16 +612,56 @@ class LiveTestRunner:
         return self._run_command(label, pwsh_file_command(script_path, args))
 
     def _run_command(self, label: str, args: list[str]):
-        result = run_json_command(
-            args,
-            cwd=self.repo_root,
-            label=label,
-            timeout_seconds=int(self.profile.get("childCommandTimeoutSeconds", 180)),
-        )
-        self.child_index += 1
         safe_label = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in label).strip("-")
-        write_json(self.child_dir / f"{self.child_index:03d}-{safe_label}.json", command_envelope(result))
+        child_number = self.child_index + 1
+        output_file = self.child_dir / f"{child_number:03d}-{safe_label}.json"
+        started_monotonic = time.monotonic()
+        self.latest_child_command = {
+            "label": label,
+            "status": "running",
+            "startedAtUtc": datetime.now(timezone.utc).isoformat(),
+            "outputFile": str(output_file),
+        }
+        self._write_progress("running")
+        try:
+            result = run_json_command(
+                args,
+                cwd=self.repo_root,
+                label=label,
+                timeout_seconds=int(self.profile.get("childCommandTimeoutSeconds", 180)),
+            )
+        except Exception as exc:  # noqa: BLE001 - preserve latest command context before bubbling up.
+            self.latest_child_command = {
+                **self.latest_child_command,
+                "status": "failed",
+                "completedAtUtc": datetime.now(timezone.utc).isoformat(),
+                "durationSeconds": round(time.monotonic() - started_monotonic, 3),
+                "error": f"{type(exc).__name__}:{exc}",
+            }
+            self._write_progress("running")
+            raise
+
+        self.child_index = child_number
+        write_json(output_file, command_envelope(result))
+        self.latest_child_command = {
+            **self.latest_child_command,
+            "status": "completed",
+            "completedAtUtc": datetime.now(timezone.utc).isoformat(),
+            "durationSeconds": round(time.monotonic() - started_monotonic, 3),
+            "exitCode": result.exit_code,
+            "jsonStatus": self._command_json_status(result.json_data),
+            "parseError": result.parse_error,
+            "ok": result.ok,
+        }
+        self._write_progress("running")
         return result
+
+    def _command_json_status(self, payload: Any) -> Any:
+        for key in ("Status", "ProofValidationStatus", "status"):
+            value = self._get(payload, key)
+            if value:
+                return value
+        return None
 
     def _process_name(self) -> str:
         return str(self.profile.get("processName", "rift_x64"))
@@ -871,9 +931,20 @@ class LiveTestRunner:
             "childOutputsDirectory": str(self.child_dir),
             "runManifestFile": str(self.run_dir / "run-manifest.json"),
             "autoRefreshAttemptsUsed": self.auto_refresh_attempts_used,
+            "runGates": self._run_gates(),
+            "runHealth": self._run_health(
+                status,
+                movement_sent=movement_sent,
+                movement_attempted=movement_attempted,
+                final_summary_written=True,
+            ),
             "noCheatEngine": True,
             "savedVariablesUsedAsLiveTruth": False,
         }
+        if self.gui_info:
+            summary["gui"] = self.gui_info
+        if self.latest_child_command:
+            summary["latestChildCommand"] = self.latest_child_command
         if self.series_pulses:
             summary["seriesPulses"] = self.series_pulses
             summary["requestedPulseCount"] = int(
@@ -927,10 +998,21 @@ class LiveTestRunner:
             "states": self.states,
             "childOutputsDirectory": str(self.child_dir),
             "autoRefreshAttemptsUsed": self.auto_refresh_attempts_used,
+            "runGates": self._run_gates(),
+            "runHealth": self._run_health(
+                status,
+                movement_sent=movement_sent,
+                movement_attempted=movement_attempted,
+                final_summary_written=(self.run_dir / "run-summary.json").exists(),
+            ),
             "noCheatEngine": True,
             "savedVariablesUsedAsLiveTruth": False,
             "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
         }
+        if self.gui_info:
+            snapshot["gui"] = self.gui_info
+        if self.latest_child_command:
+            snapshot["latestChildCommand"] = self.latest_child_command
         if self.series_pulses:
             snapshot["seriesPulses"] = self.series_pulses
             snapshot["requestedPulseCount"] = int(
@@ -959,6 +1041,10 @@ class LiveTestRunner:
                 "runDirectory": str(self.run_dir),
                 "profileName": self.profile_name,
                 "status": status,
+                "runHealth": self._run_health(
+                    status,
+                    final_summary_written=(self.run_dir / "run-summary.json").exists(),
+                ),
                 "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
                 "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
             },
@@ -978,9 +1064,70 @@ class LiveTestRunner:
             "targetWindowHandle": self.target_window_handle,
             "processName": self.profile.get("processName", "rift_x64"),
             "maxAutoRefreshAttempts": int(self.profile.get("maxAutoRefreshAttempts", 0)),
+            "runGates": self._run_gates(),
+            "gui": self.gui_info,
             "noCheatEngine": True,
             "savedVariablesUsedAsLiveTruth": False,
         }
+
+    def _run_gates(self) -> dict[str, Any]:
+        return {
+            "profileMode": self.profile.get("mode"),
+            "requireExactTarget": bool(self.profile.get("requireExactTarget", True)),
+            "requireLiveFlagForInput": bool(self.profile.get("requireLiveFlagForInput", True)),
+            "proofAnchorFile": self.profile.get("proofAnchorFile"),
+            "proofAnchorMaxAgeSeconds": self.profile.get("proofAnchorMaxAgeSeconds"),
+            "minimumPostReadbackAgeBudgetSeconds": self.profile.get(
+                "minimumPostReadbackAgeBudgetSeconds"
+            ),
+            "referenceMaxAgeSeconds": self.profile.get("referenceMaxAgeSeconds"),
+            "maxAutoRefreshAttempts": int(self.profile.get("maxAutoRefreshAttempts", 0)),
+            "autoRefreshAttemptsUsed": self.auto_refresh_attempts_used,
+            "noCheatEngine": True,
+            "savedVariablesLiveTruthAllowed": False,
+        }
+
+    def _run_health(
+        self,
+        status: str,
+        *,
+        movement_sent: bool | None = None,
+        movement_attempted: bool | None = None,
+        final_summary_written: bool | None = None,
+    ) -> dict[str, Any]:
+        latest_child_status = None
+        latest_child_ok = None
+        if self.latest_child_command:
+            latest_child_status = self.latest_child_command.get("status")
+            latest_child_ok = self.latest_child_command.get("ok")
+
+        return {
+            "state": classify_run_health(status),
+            "status": status,
+            "ok": status in SUCCESS_STATUSES,
+            "issueCount": len(self.issues),
+            "primaryIssue": self.issues[0] if self.issues else None,
+            "movementSent": bool(movement_sent) if movement_sent is not None else None,
+            "movementAttempted": (
+                bool(movement_attempted) if movement_attempted is not None else None
+            ),
+            "finalSummaryWritten": bool(final_summary_written),
+            "latestChildStatus": latest_child_status,
+            "latestChildOk": latest_child_ok,
+            "noCheatEngine": True,
+            "savedVariablesUsedAsLiveTruth": False,
+        }
+
+    def _start_gui(self) -> dict[str, Any]:
+        info = start_progress_gui(
+            repo_root=self.repo_root,
+            progress_file=self.progress_file,
+            run_dir=self.run_dir,
+            profile_name=self.profile_name,
+            profile=self.profile,
+        )
+        write_json(self.run_dir / "gui-start.json", info)
+        return info
 
     def _state(
         self,
