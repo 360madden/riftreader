@@ -1,30 +1,47 @@
 # Current Truth
 
-_Last updated: May 8, 2026 04:44 EDT / 08:44 UTC (offline profiler hardening after the latest live validation; live proof snapshot remains from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth remains **movement-grade and 2m waypoint-smoke validated**, but auto-turn is still **blocked**. Targeted keybind-surface inspection found no plaintext movement bindings in AppData/Documents configs outside AddOns, but binary `C:\Program Files (x86)\Glyph\Games\RIFT\Live\codex_keys.dat` shows W/S/A/D with arrow alternates followed by Q/E. After the SendInput struct fix, true foreground SendInput `q/e` delivered without AutoHotkey fallback but still no-turned twice each at 125ms; true SendInput `d` and arrows also no-turn, while post-message `d` remains inconsistent/opposite-sign. Post-profile `ProofOnly` passed. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC. No new live input was sent during the 04:44 EDT profiler-retry hardening slice._
+_Last updated: May 8, 2026 04:52 EDT / 08:52 UTC (latest live validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth remains **movement-grade and 2m waypoint-smoke validated**, but auto-turn is still **blocked**. Targeted keybind-surface inspection found no plaintext movement bindings in AppData/Documents configs outside AddOns, but binary `C:\Program Files (x86)\Glyph\Games\RIFT\Live\codex_keys.dat` shows W/S/A/D with arrow alternates followed by Q/E. After the SendInput struct fix, true foreground SendInput `q/e`, `d`, and arrows delivered without AutoHotkey fallback but still no-turned; the retry-enabled `Right` 250ms x2 profile at 04:51 EDT also no-turned twice with yaw delta `0.0` and proof-coordinate delta `0.0`. Post-message `d` remains inconsistent/opposite-sign. Post-profile `ProofOnly` passed. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
-| Latest no-input proof | Post-q/e-profile `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-083654\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-043717.json`; `movementSent=false` |
+| Latest no-input proof | Post-Right-retry `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-085153\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-045227.json`; `movementSent=false` |
 | Latest current-session candidate | `rift-addon-coordinate-candidate-000001` at `0x202FEA3E180` from `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
 | Latest actor-facing truth | Current PID behavior-backed lead promoted: `0X202E570DB20 @ +0xD4`; D/A validation produced reversible yaw deltas `71.9515/71.4643` degrees with `PlayerCoordDeltaMagnitude=0.0` |
-| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-083654\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
-| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-q/e-profile `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-083654\run-summary.json` |
+| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-085153\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-Right-retry `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-085153\run-summary.json` |
 | Latest movement truth | **Current-session movement proof passed**: `Forward250 --live`, `ForwardSeries3x250 --live`, fixed-bearing 1m waypoint smoke, and fixed-bearing 2m waypoint smoke all passed on PID `33912` / HWND `0xE0DB2` |
 | Latest waypoint smoke | 2m `run-a-to-b-prototype` succeeded with route `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\smoke-test-waypoints-2m-fixed-bearing.json`; 4 pulses, stop reason `arrived`, distance `2.000000000000236m -> 0.6994920167255987m` |
-| Current coordinate | Post-q/e-profile `ProofOnly` coordinate `X=7436.64013671875`, `Y=885.2191772460938`, `Z=3055.749267578125` at `2026-05-08T08:37:21.8530173Z` |
-| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-q/e-profile proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
-| Latest validation | May 8 04:37 EDT: targeted keybind-surface search found binary `codex_keys.dat` with W/S/A/D + arrow alternates followed by Q/E; true foreground SendInput `q/e` delivered without AutoHotkey fallback but yaw delta stayed `0.0` for two 125ms attempts each, zero proof-coordinate delta, no promoted backend; no CE and no SavedVariables live truth |
+| Current coordinate | Post-Right-retry `ProofOnly` coordinate `X=7436.64013671875`, `Y=885.2191772460938`, `Z=3055.749267578125` at `2026-05-08T08:52:31.5703437Z` |
+| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-Right-retry proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
+| Latest validation | May 8 04:52 EDT: retry-enabled true foreground SendInput `Right` 250ms x2 delivered without AutoHotkey fallback, with proof refresh before each attempt and `--proof-refresh-retries 1`; yaw delta stayed `0.0`, proof-coordinate delta stayed `0.0`, no promoted backend; post-profile `ProofOnly` passed; no CE and no SavedVariables live truth |
 | Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; for the latest navigation smoke inspect `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\a-to-b-prototype-2m-fixed-bearing.ndjson` |
 | Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md`; turn-key profiler `C:\RIFT MODDING\RiftReader\scripts\profile_turn_keys.py` added and live-tested; offline hardening added `--proof-refresh-retries` so transient per-attempt proof-refresh failures can retry before blocking input |
-| Compact turn-key evidence report | `C:\RIFT MODDING\RiftReader\docs\recovery\turn-key-profile-evidence.md` and `.json`; generated by `C:\RIFT MODDING\RiftReader\scripts\summarize_turn_key_profiles.py`; latest report shows zero promoted candidates across the newest 12 current-PID profile summaries |
+| Compact turn-key evidence report | `C:\RIFT MODDING\RiftReader\docs\recovery\turn-key-profile-evidence.md` and `.json`; generated by `C:\RIFT MODDING\RiftReader\scripts\summarize_turn_key_profiles.py`; latest report shows zero promoted candidates across the newest 12 current-PID profile summaries, including the retry-enabled `Right` 250ms x2 run |
 | CE / SavedVariables | no CE; no SavedVariables live truth; `/reloadui` refresh was an intentional post-save snapshot before route generation |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
 | Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-031200-current-pid-33912-autoturn-blocked-handoff.md` |
 
 
+
+## May 8 continuation: retry-enabled Right turn profile still no-turn
+
+| Fact | Value |
+|---|---|
+| Target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Exact bind/focus | `find_game_window(processId=33912, windowHandle="0xE0DB2")` and `focus_game_window()` returned foreground target |
+| Baseline screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-044910-768.png` |
+| Profile command | `python .\scripts\profile_turn_keys.py --pid 33912 --hwnd 0xE0DB2 --process-name rift_x64 --keys Right --input-modes foreground-sendinput --repeat 2 --hold-ms 250 --post-input-wait-ms 250 --live --refresh-proof-before-each-attempt --proof-refresh-retries 1` |
+| Profile summary | `C:\RIFT MODDING\RiftReader\scripts\captures\turn-key-profile-currentpid-33912-20260508-084929\turn-key-profile-summary.json`; status `completed-no-promoted-turn-candidate`; script exit `1` because no backend was promoted |
+| Proof refresh behavior | Both attempts ran `ProofOnly` first and succeeded on try `1`; retry capacity was configured (`maxAttemptCount=2`) but no retry was needed |
+| Input delivery | Both `Right` attempts delivered via true `foreground-sendinput`; `sendInputFailed=false`, `autoHotkeyFallbackUsed=false` |
+| Turn result | Both attempts had yaw delta `0.0` and proof-coordinate planar delta `0.0`; classifications `no-turn`, so `Right` foreground SendInput remains not promoted |
+| Visual verification | `wait_for_frame_change` after profile reported `changed=true`, `3.5674%`; comparison screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-045131-890.png`; final capture `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-045136-336.png` |
+| Post-profile proof | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-085153\run-summary.json`; current coordinate `7436.64013671875,885.2191772460938,3055.749267578125`; `movementSent=false`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-045227.json` |
+| Safety | no CE; exact PID/HWND; proof refresh before each attempt; no SavedVariables live truth; no proof-coordinate movement |
+| Next boundary | Auto-turn remains blocked. Do not run turn-then-forward navigation until a backend produces at least two same-sign yaw deltas with zero proof-coordinate movement. |
 
 ## May 8 continuation: turn-key profiler proof-refresh retry hardening
 
