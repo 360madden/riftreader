@@ -439,7 +439,9 @@ function Send-KeyInput {
     $size = [Runtime.InteropServices.Marshal]::SizeOf([type][RiftKeyNative+INPUT])
     $sent = [RiftKeyNative]::SendInput([uint32]1, @($input), $size)
     if ($sent -ne 1) {
-        throw "SendInput sent $sent of 1 keyboard inputs for virtual key $VirtualKey."
+        $lastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        $lastErrorMessage = ([System.ComponentModel.Win32Exception]::new($lastError)).Message
+        throw "SendInput sent $sent of 1 keyboard inputs for virtual key $VirtualKey. LastWin32Error=$lastError ($lastErrorMessage)."
     }
 }
 
