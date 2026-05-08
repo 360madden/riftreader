@@ -266,6 +266,18 @@ def decide_readiness(candidate_search: dict[str, Any], yaw_validation: dict[str,
                 "why": "Candidate search exists, but no behavior-backed yaw validation artifact was available.",
             }
         )
+    elif as_int(yaw_validation.get("truthLikeCandidateCount")) > 1:
+        status = "yaw-ambiguous-needs-disambiguation"
+        decision = "disambiguate-truth-like-yaw-candidates"
+        warnings.append(
+            "multiple truth-like yaw candidates were found; do not promote a best row by score alone"
+        )
+        recommended_actions.append(
+            {
+                "action": "Disambiguate truth-like yaw candidates with a stronger current-session validation run before facing promotion.",
+                "why": "More than one candidate passed the truth-like yaw gate, so the canonical player actor yaw source is still ambiguous.",
+            }
+        )
     elif as_int(yaw_validation.get("truthLikeCandidateCount")) > 0 and as_int(yaw_validation.get("reversibleCandidateCount")) > 0:
         status = "yaw-ready-for-facing-proof-suite"
         decision = "run-facing-proof-suite-before-promotion"

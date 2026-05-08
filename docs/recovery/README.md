@@ -56,6 +56,18 @@ ledger evidence contract. The ledger can downrank candidate yaw sources before
 behavior validation, but it cannot promote actor-facing truth; promotion still
 requires behavior-backed yaw proof plus
 `C:\RIFT MODDING\RiftReader\scripts\test-actor-facing-proof-suite.ps1`.
+The current promoted actor-yaw disambiguation packet is
+`C:\RIFT MODDING\RiftReader\docs\recovery\current-actor-yaw-disambiguation.json`;
+validate it against the behavior-backed lead with
+`python C:\RIFT MODDING\RiftReader\scripts\validate_current_actor_yaw_disambiguation.py`
+before treating `scripts\actor-facing-behavior-backed-lead.json` as current
+actor-facing truth. For a compact operator view, run
+`python C:\RIFT MODDING\RiftReader\scripts\actor_yaw_current_truth_status.py --json`.
+For a no-input live readback smoke against an exact target, run
+`python C:\RIFT MODDING\RiftReader\scripts\actor_yaw_readback_smoke.py --pid <PID> --hwnd <HWND> --process-name rift_x64 --json`.
+The smoke refuses output paths inside RiftScan and updates
+`C:\RIFT MODDING\RiftReader\scripts\captures\latest-actor-yaw-readback-smoke.json`
+when it runs with default pointer behavior.
 
 ## Historical May 6/7 no-CE proof note
 
@@ -110,6 +122,8 @@ Start with:
 6. `C:\RIFT MODDING\RiftReader\docs\player-actor-yaw-candidate-ledger.md`
    when the task touches player actor-yaw discovery candidate evidence,
    ledger penalties, or pre-promotion yaw ranking
+7. `C:\RIFT MODDING\RiftReader\docs\recovery\current-actor-yaw-disambiguation.json`
+   when the task touches promoted current-session actor-yaw truth
 
 ## Rules
 

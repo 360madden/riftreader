@@ -88,6 +88,53 @@ class ActorYawDiscoveryReadinessTests(unittest.TestCase):
             self.assertIn("yaw-ready-for-facing-proof-suite", markdown)
             self.assertIn("Facing promotion allowed | `False`", markdown)
 
+    def test_multiple_truth_like_yaw_candidates_require_disambiguation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_root = Path(temp)
+            candidate_search = temp_root / "candidate-search.json"
+            yaw_validation = temp_root / "yaw-validation.json"
+            write_json(
+                candidate_search,
+                {
+                    "Mode": "player-orientation-candidate-search",
+                    "CandidateCount": 0,
+                    "PointerHopCandidateCount": 3,
+                    "PointerHopCandidates": [],
+                },
+            )
+            write_json(
+                yaw_validation,
+                {
+                    "Mode": "actor-yaw-candidate-test",
+                    "ValidationSummary": {
+                        "ValidationFocus": "player-actor-yaw-discovery",
+                        "CandidateCount": 3,
+                        "TruthLikeCandidateCount": 3,
+                        "ResponsiveCandidateCount": 3,
+                        "ReversibleCandidateCount": 3,
+                        "FacingPromotionAttempted": False,
+                        "DownstreamFacingUse": "not-promoted-by-this-script",
+                        "BestCandidate": {
+                            "CandidateKey": "0xAAA|0xD4",
+                            "SourceAddress": "0xAAA",
+                            "BasisForwardOffset": "0xD4",
+                            "TruthLike": True,
+                            "CandidateResponsive": True,
+                            "Reversible": True,
+                            "YawDiscoveryStatus": "truth-like",
+                        },
+                    },
+                },
+            )
+
+            summary = build_summary(candidate_search, yaw_validation)
+
+            self.assertEqual("yaw-ambiguous-needs-disambiguation", summary["readiness"]["status"])
+            self.assertEqual("disambiguate-truth-like-yaw-candidates", summary["readiness"]["decision"])
+            self.assertFalse(summary["readiness"]["movementAllowed"])
+            self.assertFalse(summary["readiness"]["facingPromotionAllowed"])
+            self.assertIn("multiple truth-like yaw candidates", " ".join(summary["readiness"]["warnings"]))
+
     def test_candidate_search_without_yaw_validation_requires_behavior_validation(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_root = Path(temp)

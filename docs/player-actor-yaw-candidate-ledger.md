@@ -134,7 +134,9 @@ Before downstream actor-facing/navigation use:
 1. Re-bind the exact live PID/HWND.
 2. Re-run the yaw candidate search against current-session data.
 3. Run `scripts\test-actor-yaw-candidates.ps1` and require behavior-responsive
-   yaw evidence.
+   yaw evidence. If more than one truth-like yaw candidate survives, treat
+   readiness as `yaw-ambiguous-needs-disambiguation` and do not promote the
+   best row by score alone.
 4. Keep `FacingPromotionAttempted=false` in yaw-candidate output unless the
    separate actor-facing promotion path actually ran.
 5. Run `scripts\test-actor-facing-proof-suite.ps1`.

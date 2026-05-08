@@ -71,8 +71,8 @@ Write-Host ("Process:                     {0}" -f $ProcessName)
 Write-Host ("Candidate count:             {0}" -f $result.CandidateCount)
 Write-Host ("Pointer-hop candidate count: {0}" -f $result.PointerHopCandidateCount)
 
-$bestPointerHop = $result.BestPointerHopCandidate
-$bestLocal = $result.BestCandidate
+$bestPointerHop = if ($result.PSObject.Properties['BestPointerHopCandidate']) { $result.BestPointerHopCandidate } else { $null }
+$bestLocal = if ($result.PSObject.Properties['BestCandidate']) { $result.BestCandidate } else { $null }
 
 if ($null -ne $bestPointerHop) {
     Write-Host ("Best pointer-hop candidate:  {0} @ {1}" -f $bestPointerHop.Address, $bestPointerHop.BasisPrimaryForwardOffset)
