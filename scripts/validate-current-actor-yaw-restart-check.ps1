@@ -139,22 +139,68 @@ if ($null -ne $packet) {
             Add-Failure -Failures $failures -Message "actorFacing.validation section is required."
         }
         else {
-            $forwardDelta = [double](Get-PropertyValue -Object $validation -Name 'forwardYawDeltaDegrees')
-            $reverseDelta = [double](Get-PropertyValue -Object $validation -Name 'reverseYawDeltaDegrees')
-            if ([Math]::Abs($forwardDelta) -lt 30.0) {
-                Add-Failure -Failures $failures -Message "actorFacing.validation.forwardYawDeltaDegrees is too small to prove behavior-backed yaw."
-            }
+            $validationMethod = [string](Get-PropertyValue -Object $validation -Name 'method')
+            if ($validationMethod -eq 'isolated-disambiguation-survivor-plus-no-input-readback') {
+                if (-not [bool](Get-PropertyValue -Object $validation -Name 'truthLike')) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.truthLike must be true for isolated disambiguation restart baselines."
+                }
 
-            if ([Math]::Abs($reverseDelta) -lt 30.0) {
-                Add-Failure -Failures $failures -Message "actorFacing.validation.reverseYawDeltaDegrees is too small to prove behavior-backed yaw."
-            }
+                if (-not [bool](Get-PropertyValue -Object $validation -Name 'candidateResponsive')) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.candidateResponsive must be true for isolated disambiguation restart baselines."
+                }
 
-            if ([Math]::Sign($forwardDelta) -eq [Math]::Sign($reverseDelta)) {
-                Add-Failure -Failures $failures -Message "actorFacing.validation yaw deltas must reverse direction."
-            }
+                $reversibleCandidateCount = [int](Get-PropertyValue -Object $validation -Name 'reversibleCandidateCount')
+                $reversibleCycleCount = [int](Get-PropertyValue -Object $validation -Name 'reversibleCycleCount')
+                if ($reversibleCandidateCount -lt 1 -and $reversibleCycleCount -lt 1) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation must record at least one reversible candidate/cycle."
+                }
 
-            if ([double](Get-PropertyValue -Object $validation -Name 'playerCoordDeltaMagnitude') -ne 0.0) {
-                Add-Failure -Failures $failures -Message "actorFacing.validation.playerCoordDeltaMagnitude must be 0.0 for turn-only proof."
+                if ([double](Get-PropertyValue -Object $validation -Name 'playerCoordDeltaMagnitude') -ne 0.0) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.playerCoordDeltaMagnitude must be 0.0 for turn-only proof."
+                }
+
+                if ([string](Get-PropertyValue -Object $validation -Name 'readPlayerOrientationStatus') -ne 'passed') {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.readPlayerOrientationStatus must be 'passed'."
+                }
+
+                if ([string](Get-PropertyValue -Object $validation -Name 'captureActorOrientationStatus') -ne 'passed') {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.captureActorOrientationStatus must be 'passed'."
+                }
+
+                if ([bool](Get-PropertyValue -Object $validation -Name 'movementSent')) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.movementSent must be false for restart baselines."
+                }
+
+                if (-not [bool](Get-PropertyValue -Object $validation -Name 'noCheatEngine')) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.noCheatEngine must be true."
+                }
+
+                if ([bool](Get-PropertyValue -Object $validation -Name 'writesToRiftScan')) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.writesToRiftScan must be false."
+                }
+
+                if ([bool](Get-PropertyValue -Object $validation -Name 'savedVariablesUsedAsLiveTruth')) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.savedVariablesUsedAsLiveTruth must be false."
+                }
+            }
+            else {
+                $forwardDelta = [double](Get-PropertyValue -Object $validation -Name 'forwardYawDeltaDegrees')
+                $reverseDelta = [double](Get-PropertyValue -Object $validation -Name 'reverseYawDeltaDegrees')
+                if ([Math]::Abs($forwardDelta) -lt 30.0) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.forwardYawDeltaDegrees is too small to prove behavior-backed yaw."
+                }
+
+                if ([Math]::Abs($reverseDelta) -lt 30.0) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.reverseYawDeltaDegrees is too small to prove behavior-backed yaw."
+                }
+
+                if ([Math]::Sign($forwardDelta) -eq [Math]::Sign($reverseDelta)) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation yaw deltas must reverse direction."
+                }
+
+                if ([double](Get-PropertyValue -Object $validation -Name 'playerCoordDeltaMagnitude') -ne 0.0) {
+                    Add-Failure -Failures $failures -Message "actorFacing.validation.playerCoordDeltaMagnitude must be 0.0 for turn-only proof."
+                }
             }
         }
     }
@@ -175,8 +221,31 @@ if ($null -ne $packet) {
             Add-Failure -Failures $failures -Message "movementGate.activeMovementAllowed must be false unless coordinate.status is proof-grade-after-restart."
         }
 
-        if ($coordStatus -ne 'proof-grade-after-restart' -and [string](Get-PropertyValue -Object $packet -Name 'status') -ne 'yaw-current-coord-proof-blocked') {
-            Add-Failure -Failures $failures -Message "packet.status must be 'yaw-current-coord-proof-blocked' while coordinates are not proof-grade."
+        $packetStatus = [string](Get-PropertyValue -Object $packet -Name 'status')
+        $allowedNonRestartProofStatuses = @(
+            'yaw-current-coord-proof-blocked',
+            'phase2-pre-restart-baseline-ready'
+        )
+        if ($coordStatus -ne 'proof-grade-after-restart' -and $packetStatus -notin $allowedNonRestartProofStatuses) {
+            Add-Failure -Failures $failures -Message "packet.status must be an allowed non-restart-proof status while coordinates are not proof-grade-after-restart."
+        }
+
+        if ($coordStatus -eq 'proof-grade-before-restart') {
+            if ([string](Get-PropertyValue -Object $coordinate -Name 'latestProofOnlyStatus') -ne 'passed-proof-only') {
+                Add-Failure -Failures $failures -Message "coordinate.latestProofOnlyStatus must be 'passed-proof-only' for proof-grade-before-restart packets."
+            }
+
+            if ([bool](Get-PropertyValue -Object $coordinate -Name 'movementSent')) {
+                Add-Failure -Failures $failures -Message "coordinate.movementSent must be false for proof-grade-before-restart packets."
+            }
+
+            if (-not [bool](Get-PropertyValue -Object $coordinate -Name 'noCheatEngine')) {
+                Add-Failure -Failures $failures -Message "coordinate.noCheatEngine must be true for proof-grade-before-restart packets."
+            }
+
+            if ([bool](Get-PropertyValue -Object $coordinate -Name 'savedVariablesUsedAsLiveTruth')) {
+                Add-Failure -Failures $failures -Message "coordinate.savedVariablesUsedAsLiveTruth must be false for proof-grade-before-restart packets."
+            }
         }
     }
 

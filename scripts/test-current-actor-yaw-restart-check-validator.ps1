@@ -63,11 +63,52 @@ function New-TestLead {
 }
 
 function New-TestPacket {
+    param(
+        [switch]$CurrentDisambiguationBaseline
+    )
+
+    $validation = [pscustomobject]@{
+        forwardYawDeltaDegrees = 72.0
+        reverseYawDeltaDegrees = -71.0
+        playerCoordDeltaMagnitude = 0.0
+    }
+    $status = 'yaw-current-coord-proof-blocked'
+    $coordinate = [pscustomobject]@{
+        status = 'not-proof-grade-after-restart'
+    }
+
+    if ($CurrentDisambiguationBaseline) {
+        $validation = [pscustomobject]@{
+            method = 'isolated-disambiguation-survivor-plus-no-input-readback'
+            yawDeltaDegrees = -17.2
+            reverseYawDeltaDegrees = -32.4
+            truthLike = $true
+            candidateResponsive = $true
+            reversibleCandidateCount = 1
+            reversibleCycleCount = 1
+            playerCoordDeltaMagnitude = 0.0
+            readPlayerOrientationStatus = 'passed'
+            captureActorOrientationStatus = 'passed'
+            movementSent = $false
+            noCheatEngine = $true
+            writesToRiftScan = $false
+            savedVariablesUsedAsLiveTruth = $false
+        }
+        $status = 'phase2-pre-restart-baseline-ready'
+        $coordinate = [pscustomobject]@{
+            status = 'proof-grade-before-restart'
+            latestProofOnlyStatus = 'passed-proof-only'
+            movementSent = $false
+            noCheatEngine = $true
+            savedVariablesUsedAsLiveTruth = $false
+        }
+    }
+
     return [pscustomobject]@{
         schemaVersion = 1
         mode = 'current-actor-yaw-restart-check'
         lastUpdatedUtc = '2026-05-08T00:00:00Z'
-        status = 'yaw-current-coord-proof-blocked'
+        status = $status
         sessionBound = $true
         target = [pscustomobject]@{
             processName = 'rift_x64'
@@ -80,15 +121,9 @@ function New-TestPacket {
             sourceAddress = '0xABCDEF00'
             basisForwardOffset = '0xD4'
             yawFormula = 'atan2(forwardZ, forwardX)'
-            validation = [pscustomobject]@{
-                forwardYawDeltaDegrees = 72.0
-                reverseYawDeltaDegrees = -71.0
-                playerCoordDeltaMagnitude = 0.0
-            }
+            validation = $validation
         }
-        coordinate = [pscustomobject]@{
-            status = 'not-proof-grade-after-restart'
-        }
+        coordinate = $coordinate
         movementGate = [pscustomobject]@{
             activeMovementAllowed = $false
         }
@@ -104,6 +139,13 @@ try {
     $passResult = ($passOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
     Assert-Equal -Actual ([string]$passResult.status) -Expected 'pass' -Message 'Restart packet validation status mismatch.'
 
+    Write-JsonFile -Path $packetFile -Value (New-TestPacket -CurrentDisambiguationBaseline)
+    $currentBaselineOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $validatorScript -PacketFile $packetFile -LeadFile $leadFile -Json 2>&1
+    Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Expected current disambiguation baseline validation to pass: {0}" -f ($currentBaselineOutput -join [Environment]::NewLine))
+    $currentBaselineResult = ($currentBaselineOutput -join [Environment]::NewLine) | ConvertFrom-Json -Depth 80
+    Assert-Equal -Actual ([string]$currentBaselineResult.status) -Expected 'pass' -Message 'Current baseline packet validation status mismatch.'
+
+    Write-JsonFile -Path $packetFile -Value (New-TestPacket)
     $badPacket = Get-Content -LiteralPath $packetFile -Raw | ConvertFrom-Json -Depth 80
     $badPacket.actorFacing.sourceAddress = '0xDEADBEEF'
     Write-JsonFile -Path $badPacketFile -Value $badPacket

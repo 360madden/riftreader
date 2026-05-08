@@ -1,66 +1,138 @@
 {
   "schemaVersion": 1,
   "mode": "current-actor-yaw-restart-check",
-  "lastUpdatedUtc": "2026-04-30T16:31:52.8845931Z",
-  "status": "yaw-current-coord-proof-blocked",
+  "lastUpdatedUtc": "2026-05-08T19:55:16.844923+00:00",
+  "status": "phase2-pre-restart-baseline-ready",
   "sessionBound": true,
   "target": {
     "processName": "rift_x64",
-    "processId": 32468,
-    "targetWindowHandle": "0x15908B2",
-    "processStartTimeUtc": "2026-04-30T16:03:29.7977969Z",
+    "processId": 33912,
+    "targetWindowHandle": "0xE0DB2",
+    "processStartTimeUtc": "2026-05-08T02:38:08.7156673Z",
+    "mainWindowTitle": "RIFT",
+    "responding": true,
+    "verification": {
+      "status": "valid",
+      "valid": true,
+      "processId": 33912,
+      "targetWindowHandle": "0xE0DB2",
+      "expectedProcessName": "rift_x64",
+      "issues": [],
+      "windowProcessId": 33912,
+      "processImagePath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+      "processName": "rift_x64"
+    },
     "character": "Atank",
-    "location": "Sanctum Watch"
+    "location": "Sanctum of the Vigil"
   },
   "actorFacing": {
     "status": "behavior-backed-current-session",
-    "sourceAddress": "0x2C9A013A490",
+    "sourceAddress": "0x202CA5D23E0",
     "basisForwardOffset": "0xD4",
+    "candidateKey": "0x202CA5D23E0|0xD4",
     "yawFormula": "atan2(forwardZ, forwardX)",
     "pitchFormula": "atan2(forwardY, sqrt(forwardX^2 + forwardZ^2))",
     "duplicateAgreementStrong": false,
-    "currentYawDegrees": 125.08155427081634,
+    "currentYawDegrees": 10.57930852495044,
+    "currentPitchDegrees": -20.235676196524945,
+    "basisSignature": {
+      "status": "captured",
+      "file": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-readback-smoke-currentpid-33912-20260508-194107\\capture-actor-orientation.json",
+      "basisName": "Basis@0xD4",
+      "forward": {
+        "X": 0.9202260971069336,
+        "Y": -0.3450939953327179,
+        "Z": 0.17187169194221497
+      },
+      "up": {
+        "X": 0.1803077608346939,
+        "Y": 0.7776039242744446,
+        "Z": 0.5997254848480225
+      },
+      "right": {
+        "X": -0.3408772945404053,
+        "Y": -0.5210615396499634,
+        "Z": 0.7793704271316528
+      },
+      "determinant": 0.9937136408821162,
+      "isOrthonormal": true,
+      "preferredYawDegrees": 10.57930852495044,
+      "preferredPitchDegrees": -20.235676196524945,
+      "preferredMagnitude": 0.9977203084544471
+    },
     "validation": {
-      "method": "exact-window AutoHotkey D/A manual confirmation after Rift restart",
-      "forwardYawDeltaDegrees": -128.30902263553332,
-      "reverseYawDeltaDegrees": 127.86392807812392,
+      "method": "isolated-disambiguation-survivor-plus-no-input-readback",
+      "validationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-disambiguation-currentpid-33912-20260508-085406\\validation-202ca5d23e0-d4.json",
+      "disambiguationArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-actor-yaw-disambiguation.json",
+      "readbackSmokeSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-readback-smoke-currentpid-33912-20260508-194107\\run-summary.json",
+      "yawDeltaDegrees": -17.21091784158969,
+      "reverseYawDeltaDegrees": -32.432108622009935,
+      "truthLike": true,
+      "candidateResponsive": true,
+      "reversibleCandidateCount": 1,
+      "reversibleCycleCount": 1,
       "playerCoordDeltaMagnitude": 0.0,
-      "validationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\manual-yaw-basis-confirmation-after-restart.json"
+      "readPlayerOrientationStatus": "passed",
+      "captureActorOrientationStatus": "passed",
+      "readPlayerSelectedSourceAddress": "0x202CA5D23E0",
+      "captureSelectedSourceAddress": "0x202CA5D23E0",
+      "readPlayerBasisForwardOffset": "0xD4",
+      "captureBasisForwardOffset": "0xD4",
+      "movementSent": false,
+      "noCheatEngine": true,
+      "writesToRiftScan": false,
+      "savedVariablesUsedAsLiveTruth": false
     },
     "leadFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\actor-facing-behavior-backed-lead.json"
   },
   "coordinate": {
-    "status": "not-proof-grade-after-restart",
-    "latestReadMode": "read-player-current",
-    "latestReadAddress": "0x2C9ABD62850",
-    "anchorProvenance": "heuristic",
-    "selectionSource": "cached-anchor",
-    "coordMatchesWithinTolerance": true,
+    "status": "proof-grade-before-restart",
+    "latestReadMode": "ProofOnly",
+    "latestProofOnlyStatus": "passed-proof-only",
+    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-194205\\run-summary.json",
+    "proofOnlyRunDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-194205",
+    "proofReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-154337.json",
     "sample": {
-      "x": 7267.44,
-      "y": 876.20996,
-      "z": 3052.27
+      "x": 7446.0859375,
+      "y": 887.2490234375,
+      "z": 3027.576904296875,
+      "recordedAtUtc": "2026-05-08T19:43:47.2788961Z"
     },
-    "proofCoordAnchorStatus": "failed",
-    "proofCoordAnchorFailure": "debug-register access trace armed but received no verified hits against explicit current coord candidates"
+    "movementSent": false,
+    "movementAttempted": false,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false
   },
   "movementGate": {
     "activeMovementAllowed": false,
-    "reason": "Movement-grade coord proof/watchset was not rebuilt after restart."
+    "reason": "Phase 2 is restart/rebind actor-yaw recovery only; movement and auto-turn remain blocked."
   },
-  "staleOrHistorical": {
-    "previousCurrentActorTruthPacket": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-actor-truth.json",
-    "previousYawSource": "0x216F2F26020 @ +0x60/+0x94",
-    "previousProcessId": 41220,
-    "note": "Previous packet is stale after Rift restart because PID 41220 is gone."
+  "phase2": {
+    "readyForRestartRebind": true,
+    "scope": "actor-yaw-restart-rebind-only",
+    "fallbackOrder": [
+      "Rebind exact new PID/HWND and run actor_yaw_readback_smoke.py first.",
+      "If direct readback fails, search near the prior behavior-backed source/candidate structure.",
+      "If narrow rebind fails, rerun orientation candidate search with ledger penalties.",
+      "Promote only after controlled turn-only yaw validation and zero proof-coordinate movement.",
+      "Keep movement and auto-turn blocked until separate gates pass."
+    ]
+  },
+  "safety": {
+    "noCheatEngine": true,
+    "movementSent": false,
+    "movementAttempted": false,
+    "movementAllowed": false,
+    "writesToRiftScan": false,
+    "savedVariablesUsedAsLiveTruth": false
   },
   "artifacts": {
-    "artifactRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848",
-    "candidateSearch": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\player-orientation-candidate-search-after-restart.json",
-    "candidateScreen": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\actor-yaw-validation-candidate-screen-after-restart.json",
-    "manualConfirmation": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\manual-yaw-basis-confirmation-after-restart.json",
-    "failedProofCoordAnchor": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\proof-coord-anchor.stdout.json",
-    "failedExplicitCoordTrace": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\coord-trace-explicit-current2-after-restart.failed.json",
-    "finalReadPlayerCurrent": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-recheck-after-restart-20260430-121848\\read-player-current-final-after-restart.json"
+    "disambiguationPacket": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-actor-yaw-disambiguation.json",
+    "leadFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\actor-facing-behavior-backed-lead.json",
+    "latestActorYawReadbackPointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-actor-yaw-readback-smoke.json",
+    "latestActorYawReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-yaw-readback-smoke-currentpid-33912-20260508-194107\\run-summary.json",
+    "latestProofOnlyPointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "latestProofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-194205\\run-summary.json",
+    "latestProofOnlyReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-154337.json"
   }
 }
