@@ -91,6 +91,7 @@ def summarize_file(path: Path, repo_root: Path) -> dict[str, Any]:
         "inputSent": summary.get("inputSent"),
         "movementDetected": summary.get("movementDetected"),
         "promotedCandidateCount": len(summary.get("promotedCandidates") or []),
+        "promotedCandidates": summary.get("promotedCandidates") or [],
         "issues": summary.get("issues") or [],
         "summaryFile": str(path),
         "summaryFileRelative": relative(str(path), repo_root),

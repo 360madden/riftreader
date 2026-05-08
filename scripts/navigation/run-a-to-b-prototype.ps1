@@ -27,6 +27,7 @@ param(
     [int]$PostTurnSampleDelayMilliseconds = 150,
     [int]$MaxTurnPulses = 12,
     [switch]$AutoTurnUsePostMessage,
+    [string]$AutoTurnBackendEvidenceFile,
     [double]$AutoTurnWorseningToleranceDegrees = 0.5,
     [int]$AutoTurnMaxWorseningPulses = 2,
     [double]$AutoTurnMinImprovementDegrees = 0.25,
@@ -60,6 +61,13 @@ else {
     $LogFile
 }
 $resolvedLogFile = [System.IO.Path]::GetFullPath($LogFile)
+$AutoTurnBackendEvidenceFile = if ([string]::IsNullOrWhiteSpace($AutoTurnBackendEvidenceFile)) {
+    Join-Path $repoRoot 'docs\recovery\turn-key-profile-evidence.json'
+}
+else {
+    $AutoTurnBackendEvidenceFile
+}
+$resolvedAutoTurnBackendEvidenceFile = [System.IO.Path]::GetFullPath($AutoTurnBackendEvidenceFile)
 $actorOrientationScript = Join-Path $repoRoot 'scripts\capture-actor-orientation.ps1'
 $orientationParityScript = Join-Path $PSScriptRoot 'assert-orientation-reader-parity.ps1'
 
@@ -601,6 +609,95 @@ function Get-OptionalPropertyValue {
     return $property.Value
 }
 
+function Get-AutoTurnInputMode {
+    if ($AutoTurnUsePostMessage) {
+        return 'post-message'
+    }
+
+    return 'foreground-sendinput'
+}
+
+function Get-PromotedTurnCandidates {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Document
+    )
+
+    $promoted = New-Object System.Collections.Generic.List[object]
+    $directCandidates = Get-OptionalPropertyValue -Document $Document -PropertyName 'promotedCandidates'
+    foreach ($candidate in @($directCandidates)) {
+        if ($null -ne $candidate) {
+            $promoted.Add($candidate) | Out-Null
+        }
+    }
+
+    $summaryRows = Get-OptionalPropertyValue -Document $Document -PropertyName 'summaries'
+    foreach ($summary in @($summaryRows)) {
+        if ($null -eq $summary) {
+            continue
+        }
+
+        $summaryCandidates = Get-OptionalPropertyValue -Document $summary -PropertyName 'promotedCandidates'
+        foreach ($candidate in @($summaryCandidates)) {
+            if ($null -ne $candidate) {
+                $promoted.Add($candidate) | Out-Null
+            }
+        }
+    }
+
+    return @($promoted.ToArray())
+}
+
+function Assert-PromotedAutoTurnBackend {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        [Parameter(Mandatory = $true)]
+        [string]$InputMode,
+        [Parameter(Mandatory = $true)]
+        [string]$EvidenceFile
+    )
+
+    if (-not (Test-Path -LiteralPath $EvidenceFile)) {
+        throw "Auto-turn backend evidence file was not found: $EvidenceFile"
+    }
+
+    $document = Get-Content -LiteralPath $EvidenceFile -Raw | ConvertFrom-Json -Depth 100
+    $promotedCandidates = @(Get-PromotedTurnCandidates -Document $document)
+    $matchingCandidates = @($promotedCandidates | Where-Object {
+            $candidateKey = [string](Get-OptionalPropertyValue -Document $_ -PropertyName 'key')
+            $candidateMode = [string](Get-OptionalPropertyValue -Document $_ -PropertyName 'inputMode')
+            $candidateShell = [string](Get-OptionalPropertyValue -Document $_ -PropertyName 'shell')
+            [string]::Equals($candidateKey, $Key, [System.StringComparison]::Ordinal) -and
+            [string]::Equals($candidateMode, $InputMode, [System.StringComparison]::Ordinal) -and
+            ([string]::IsNullOrWhiteSpace($candidateShell) -or [string]::Equals($candidateShell, 'pwsh', [System.StringComparison]::OrdinalIgnoreCase))
+        })
+
+    if ($matchingCandidates.Count -le 0) {
+        Write-SessionLog -Step 'auto-turn-backend-guard' -ExitCode 1 -Arguments @('-Key', $Key, '-InputMode', $InputMode, '-EvidenceFile', $EvidenceFile) -Output 'No promoted turn backend matched the requested auto-turn key/input mode.' -Metadata @{
+            autoTurnBackendGuard = [ordered]@{
+                key = $Key
+                inputMode = $InputMode
+                evidenceFile = $EvidenceFile
+                promotedCandidateCount = $promotedCandidates.Count
+            }
+        }
+        throw ("Auto-turn backend guard failed. No promoted turn backend matching key '{0}' and inputMode '{1}' was found in '{2}'. Run scripts\\profile_turn_keys.py and pass evidence containing a matching promoted candidate before using -AutoTurnBeforeMove." -f $Key, $InputMode, $EvidenceFile)
+    }
+
+    $candidate = $matchingCandidates[0]
+    Write-SessionLog -Step 'auto-turn-backend-guard' -ExitCode 0 -Arguments @('-Key', $Key, '-InputMode', $InputMode, '-EvidenceFile', $EvidenceFile) -Output 'Promoted turn backend guard passed.' -Metadata @{
+        autoTurnBackendGuard = [ordered]@{
+            key = $Key
+            inputMode = $InputMode
+            evidenceFile = $EvidenceFile
+            promotedCandidate = $candidate
+        }
+    }
+    Write-Host ("[NavPrototype] Auto-turn backend guard passed: key={0} inputMode={1} evidence={2}" -f $Key, $InputMode, $EvidenceFile) -ForegroundColor DarkGray
+    return $candidate
+}
+
 function Write-PreflightSummary {
     param($Preflight)
 
@@ -713,7 +810,7 @@ function Invoke-TurnKeyPulse {
     }
 
     [void](Assert-ProofCoordMovementPreflight -Reason ("auto-turn-key:{0}" -f $PulseIndex))
-    $inputMode = if ($AutoTurnUsePostMessage) { 'post-message' } else { 'foreground-sendinput' }
+    $inputMode = Get-AutoTurnInputMode
     $postKeyModeArguments = @('-SkipBackgroundFocus')
     if (-not $AutoTurnUsePostMessage) {
         $postKeyModeArguments += '-RequireTargetForeground'
@@ -786,6 +883,9 @@ function Invoke-AutoTurnAlignment {
             throw ("Auto-turn requested but the current turn direction was not usable: '{0}'." -f $turnDirection)
         }
     }
+
+    $inputMode = Get-AutoTurnInputMode
+    [void](Assert-PromotedAutoTurnBackend -Key $turnKey -InputMode $inputMode -EvidenceFile $resolvedAutoTurnBackendEvidenceFile)
 
     Write-Host ""
     Write-Host ("[NavPrototype] Auto-turn enabled: target <= {0:N3} deg using '{1}' for {2}." -f [double]$AutoTurnWithinDegrees, $turnKey, $turnDirection) -ForegroundColor Yellow
