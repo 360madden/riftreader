@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T07:55:12Z",
-  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-turn-key-profile-arrow-no-turn",
+  "lastUpdatedUtc": "2026-05-08T08:04:22Z",
+  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-turn-key-profile-long-d-inconsistent",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "post-arrow-turn-key-profile-proofonly-passed",
+    "latestReadbackStatus": "post-long-d-profile-proofonly-passed",
     "latestMovementAllowed": true,
-    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. The May 8 turn-key profile runner is available, but live post-message and foreground SendInput profiling did not promote a reliable turn backend: d produced one 8.384 degree post-message candidate and then no-turn repeats; foreground SendInput d also no-turned; a produced no turn; foreground SendInput Left/Right arrows also no-turned; no coordinate movement was detected during profiled attempts. Any further movement still requires fresh proof/preflight and auto-turn should not enter forward navigation until turn input convergence is proven.",
+    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. The May 8 turn-key profile runner is available, but live post-message and foreground SendInput profiling did not promote a reliable turn backend: d produced one 8.384 degree post-message candidate and then no-turn repeats; foreground SendInput d also no-turned; a produced no turn; foreground SendInput Left/Right arrows also no-turned; a longer 500ms d profile kept foreground SendInput at no-turn and produced opposite-sign post-message yaw deltas (+10.233 then -10.992), so it is still not promotable; no coordinate movement was detected during profiled attempts. Any further movement still requires fresh proof/preflight and auto-turn should not enter forward navigation until turn input convergence is proven.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -101,8 +101,9 @@
     "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
     "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
   },
-  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice remains blocked: the Python turn-key profiler found no promoted turn key/backend candidate across post-message and foreground SendInput d/a trials or foreground Left/Right arrow trials. Before any auto-turn-to-forward movement, re-bind exact target, run fresh proof/preflight, and prove a repeatable turn backend with at least two same-sign yaw deltas and zero proof-coordinate movement.",
+  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice remains blocked: the Python turn-key profiler found no promoted turn key/backend candidate across post-message and foreground SendInput d/a trials, foreground Left/Right arrow trials, or longer 500ms d trials. Before any auto-turn-to-forward movement, re-bind exact target, run fresh proof/preflight, and prove a repeatable turn backend with at least two same-sign yaw deltas and zero proof-coordinate movement.",
   "notes": [
+    "May 8 longer 500ms d profile added to turn-key evidence: foreground SendInput d no-turned twice; post-message d produced opposite-sign yaw deltas +10.233 then -10.992 with zero proof-coordinate delta, so it remains unpromoted; post-profile ProofOnly passed.",
     "May 8 foreground SendInput Left/Right arrow probe added to turn-key profile evidence: exact foreground target, input exit 0 for both keys, yaw delta 0.0, proof-coordinate delta 0.0, no CE; arrows are also not a promoted turn backend.",
     "May 8 foreground SendInput d probe added to turn-key profile evidence: exact foreground target, input exit 0, yaw delta 0.0, proof-coordinate delta 0.0, no CE; still no promoted turn backend.",
     "May 8 Python turn-key profile runner added and live-tested: post-message a produced no turn, post-message d produced one 8.384 degree candidate but then no-turn repeats, so no turn key/backend was promoted; all profiled attempts had zero proof-coordinate movement and no CE.",
@@ -168,18 +169,18 @@
     "candidateCount": 12
   },
   "latestProofOnly": {
-    "generatedAtUtc": "2026-05-08T07:52:55.403423Z",
+    "generatedAtUtc": "2026-05-08T08:04:22.340918Z",
     "status": "passed-proof-only",
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075123\\proof-refreshes\\002-pwsh-foreground-sendinput-Right-r1\\live-test-ProofOnly-20260508-075225\\run-summary.json",
-    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075123\\proof-refreshes\\002-pwsh-foreground-sendinput-Right-r1\\live-test-ProofOnly-20260508-075225\\run-progress.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-035250.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-080354\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-080354\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-040417.json",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
       "x": 7436.64013671875,
       "y": 885.2191772460938,
       "z": 3055.749267578125,
-      "recordedAtUtc": "2026-05-08T07:52:54.9073506Z"
+      "recordedAtUtc": "2026-05-08T08:04:21.8201629Z"
     },
     "noCheatEngine": true,
     "savedVariablesUsedAsLiveTruth": false
@@ -298,16 +299,16 @@
     "nextRequiredAction": "Treat auto-turn as blocked until the effective live turn key/backend is profiled and proven to change actor-facing reliably; do not allow auto-turn to proceed into forward navigation unless alignment is within threshold after fresh proof."
   },
   "latestTurnKeyProfileValidation": {
-    "generatedAtUtc": "2026-05-08T07:55:12Z",
+    "generatedAtUtc": "2026-05-08T08:04:22Z",
     "status": "blocked-no-promoted-turn-key-backend",
-    "primaryIssue": "post_message_and_foreground_sendinput_turn_key_results_are_inconsistent_or_no_turn_including_arrows",
+    "primaryIssue": "post_message_and_foreground_sendinput_turn_key_results_are_inconsistent_or_no_turn_including_arrows_and_long_d",
     "runnerScript": "C:\\RIFT MODDING\\RiftReader\\scripts\\profile_turn_keys.py",
     "planOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072834\\turn-key-profile-summary.json",
     "multiKeyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072955\\turn-key-profile-summary.json",
     "singleCandidateRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073539\\turn-key-profile-summary.json",
     "repeatDRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073726\\turn-key-profile-summary.json",
-    "latestProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075123\\proof-refreshes\\002-pwsh-foreground-sendinput-Right-r1\\live-test-ProofOnly-20260508-075225\\run-summary.json",
-    "latestProofOnlyReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-035250.json",
+    "latestProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-080354\\run-summary.json",
+    "latestProofOnlyReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-040417.json",
     "inputSent": true,
     "movementDetected": false,
     "movementSent": false,
@@ -334,6 +335,12 @@
         "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-035508-125.png",
         "changePercent": 6.552,
         "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-035512-416.png"
+      },
+      {
+        "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-035900-316.png",
+        "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-040336-284.png",
+        "changePercent": 50.8006,
+        "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-040340-508.png"
       }
     ],
     "evidence": [
@@ -342,15 +349,17 @@
       "Single d live profile with per-attempt proof refresh: post-message d produced yaw delta -8.3837 degrees with proof-coordinate delta 0.0, but this was only one candidate and therefore not promoted.",
       "Repeat d live profile with per-attempt proof refresh: both post-message d attempts had yaw delta 0.0 and proof-coordinate delta 0.0, so d was not repeatable enough to promote.",
       "Foreground SendInput d live profile with exact foreground target and per-attempt proof refresh: input exit 0, yaw delta 0.0 degrees, proof-coordinate delta 0.0, so foreground d was also no-turn and not promotable.",
-      "Foreground SendInput Left/Right live profile with exact foreground target and per-attempt ProofOnly refresh: both inputs exited 0, both yaw deltas were 0.0 degrees, proof-coordinate delta stayed 0.0, and visual frame comparison changed 6.552%, so arrows are also no-turn and not promotable."
+      "Foreground SendInput Left/Right live profile with exact foreground target and per-attempt ProofOnly refresh: both inputs exited 0, both yaw deltas were 0.0 degrees, proof-coordinate delta stayed 0.0, and visual frame comparison changed 6.552%, so arrows are also no-turn and not promotable.",
+      "Longer 500ms d live profile with exact foreground target and per-attempt ProofOnly refresh: foreground SendInput d no-turned twice; post-message d produced turn-candidate yaw deltas +10.2325 then -10.9922 degrees with zero proof-coordinate delta, but opposite signs mean no repeatable same-direction backend was promoted."
     ],
     "codeHardening": [
       "Added Python scripts/profile_turn_keys.py orchestration for exact PID/HWND turn-key profiling.",
       "Added per-attempt ProofOnly refresh support for slow but fresh proof-gated key trials.",
       "Profiler writes JSON and Markdown summaries, records before/after actor-facing yaw and proof-coordinate readbacks, and fails closed on coordinate movement."
     ],
-    "nextRequiredAction": "Do not re-run auto-turn-to-forward until a turn backend is promoted. Post-message and foreground SendInput d/a plus foreground Left/Right arrows are not promoted; next inspect Rift keybind/backend behavior or try a deliberately longer but proof-refreshed single-key profile with visual/yaw readback.",
+    "nextRequiredAction": "Do not re-run auto-turn-to-forward until a turn backend is promoted. Post-message and foreground SendInput d/a, foreground Left/Right arrows, and longer 500ms d trials are not promoted; next inspect Rift keybind/backend behavior and effective target message handling before more key-duration experiments.",
     "foregroundSendInputDRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-074456\\turn-key-profile-summary.json",
-    "foregroundSendInputArrowRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075123\\turn-key-profile-summary.json"
+    "foregroundSendInputArrowRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075123\\turn-key-profile-summary.json",
+    "longD500RunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075910\\turn-key-profile-summary.json"
   }
 }
