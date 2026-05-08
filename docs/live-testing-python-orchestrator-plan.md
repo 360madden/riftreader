@@ -122,6 +122,7 @@ The first Python-controller slice implements these entry points:
 | `cmd\live-gui-demo.cmd` | Dumb launcher for an offline HUD preview with generated demo progress. |
 | `cmd\live-gui-latest.cmd` | Dumb launcher for opening the latest recorded run progress. |
 | `cmd\live-gui-inspect-latest.cmd` | Dumb launcher for printing latest-run health without opening a window. |
+| `cmd\live-gui-inspect-latest-ok.cmd` | Dumb launcher for latest-run strict inspect plus `--require-ok-run`. |
 | `docs\live-testing-gui-operator-guide.md` | Short operator guide for HUD/inspect commands and post-crash order. |
 | `docs\live-testing-progress-contract.md` | Progress/latest-pointer contract reference. |
 | `scripts\rift_live_test\testdata\*.json` | Checked-in progress/latest-pointer fixtures for contract validation. |
@@ -319,6 +320,13 @@ run health into a nonzero inspect exit while still printing the full JSON result
 payload as one-line JSON for scripts.
 `--summary` prints the same inspect result as a short human-readable status
 block for operator triage without changing exit behavior.
+`--require-ok-run` is a separate opt-in gate for scripts that need the inspected
+run itself to have passed; this prevents a valid blocked-run artifact from being
+misread as movement-ready.
+The runner also refuses to update the repo latest-run pointer from an external
+`outputRoot` by default. External/temp runs remain inspectable by explicit path,
+but they no longer silently replace repo-local latest truth unless a profile
+sets `updateLatestPointerForExternalOutputRoot=true`.
 
 Checked-in fixtures now cover running, passed, blocked reference-capture,
 normal latest-pointer, and drifted latest-pointer artifacts. The unit suite
@@ -336,6 +344,7 @@ without needing a live game window.
 | Latest run preview | `python scripts\live_test_gui.py --latest` or `cmd\live-gui-latest.cmd`. |
 | Latest run inspect | `python scripts\live_test_gui.py --latest --inspect-progress` or `cmd\live-gui-inspect-latest.cmd`. |
 | Strict inspect gate | `python scripts\live_test_gui.py --latest --inspect-progress --fail-on-warning`. |
+| Require latest run success | `python scripts\live_test_gui.py --latest --inspect-progress --fail-on-warning --require-ok-run` or `cmd\live-gui-inspect-latest-ok.cmd`. |
 | Compact strict inspect | `python scripts\live_test_gui.py --latest --inspect-progress --fail-on-warning --compact-json`. |
 | Human inspect summary | `python scripts\live_test_gui.py --latest --inspect-progress --summary`. |
 | Headless demo artifact | `python scripts\live_test_gui.py --demo --write-demo-only`. |

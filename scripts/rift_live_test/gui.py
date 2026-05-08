@@ -151,6 +151,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="With --inspect-progress, exit nonzero on contract/freshness/stale warnings.",
     )
     parser.add_argument(
+        "--require-ok-run",
+        action="store_true",
+        help="With --inspect-progress, exit nonzero unless the inspected run health is ok.",
+    )
+    parser.add_argument(
         "--compact-json",
         action="store_true",
         help="With --inspect-progress, print one-line JSON for scripts.",
@@ -176,6 +181,8 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().error("--demo and --latest are mutually exclusive")
     if args.fail_on_warning and not args.inspect_progress:
         build_parser().error("--fail-on-warning requires --inspect-progress")
+    if args.require_ok_run and not args.inspect_progress:
+        build_parser().error("--require-ok-run requires --inspect-progress")
     if args.compact_json and not args.inspect_progress:
         build_parser().error("--compact-json requires --inspect-progress")
     if args.summary and not args.inspect_progress:
@@ -264,6 +271,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.fail_on_warning:
             apply_strict_inspect_gate(result)
+        if args.require_ok_run:
+            apply_run_success_gate(result)
         print(
             format_inspect_summary(result)
             if args.summary
@@ -309,13 +318,19 @@ def resolve_latest_run(
         if summary_value
         else run_dir / "run-summary.json"
     )
+    run_dir_inside_repo = path_is_relative_to(run_dir, repo_root)
+    progress_file_inside_repo = path_is_relative_to(progress_file, repo_root)
+    summary_file_inside_repo = path_is_relative_to(summary_file, repo_root)
     return {
         "pointerFile": pointer,
         "progressFile": progress_file,
         "progressFileExists": progress_file.exists(),
+        "progressFileInsideRepo": progress_file_inside_repo,
         "runSummaryFile": summary_file,
         "runSummaryFileExists": summary_file.exists(),
+        "runSummaryFileInsideRepo": summary_file_inside_repo,
         "runDirectory": run_dir,
+        "runDirectoryInsideRepo": run_dir_inside_repo,
         "profileName": data.get("profileName") or "LatestRun",
         "status": data.get("status"),
         "runHealth": data.get("runHealth") if isinstance(data.get("runHealth"), dict) else None,
@@ -364,9 +379,12 @@ def latest_pointer_summary(
         "finalSummaryWritten": bool(latest.get("finalSummaryWritten")),
         "progressFile": str(latest.get("progressFile")),
         "progressFileExists": bool(latest.get("progressFileExists")),
+        "progressFileInsideRepo": bool(latest.get("progressFileInsideRepo")),
         "runDirectory": str(latest.get("runDirectory")),
+        "runDirectoryInsideRepo": bool(latest.get("runDirectoryInsideRepo")),
         "runSummaryFile": str(latest.get("runSummaryFile")),
         "runSummaryFileExists": bool(latest.get("runSummaryFileExists")),
+        "runSummaryFileInsideRepo": bool(latest.get("runSummaryFileInsideRepo")),
     }
 
 
@@ -413,6 +431,11 @@ def latest_pointer_freshness(
     if pointer_state and progress_state and pointer_state != progress_state:
         issues.append(f"latest_pointer_health_mismatch:pointer={pointer_state};progress={progress_state}")
 
+    if latest.get("runDirectoryInsideRepo") is False:
+        issues.append("latest_pointer_run_directory_outside_repo")
+    if latest.get("progressFileInsideRepo") is False:
+        issues.append("latest_pointer_progress_file_outside_repo")
+
     return {
         "status": "warning" if issues else "ok",
         "pointerGeneratedAtUtc": pointer_generated_at,
@@ -434,6 +457,24 @@ def apply_strict_inspect_gate(result: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def apply_run_success_gate(result: dict[str, Any]) -> dict[str, Any]:
+    health = result.get("runHealth") if isinstance(result.get("runHealth"), dict) else {}
+    health_ok = bool(health.get("ok"))
+    issues: list[str] = []
+    if not bool(result.get("ok")):
+        issues.append(f"inspect_not_ok:status={result.get('status') or 'unknown'}")
+    if not health_ok:
+        state = health.get("state") or "unknown"
+        status = health.get("status") or result.get("runStatus") or "unknown"
+        issues.append(f"run_not_ok:state={state};status={status}")
+    result["runGate"] = {
+        "requireOkRun": True,
+        "ok": bool(result.get("ok")) and health_ok,
+        "issues": issues,
+    }
+    return result
+
+
 def format_inspect_json(result: dict[str, Any], *, compact: bool = False) -> str:
     if compact:
         return json.dumps(result, separators=(",", ":"))
@@ -449,6 +490,7 @@ def format_inspect_summary(result: dict[str, Any]) -> str:
         else None
     )
     strict = result.get("strict") if isinstance(result.get("strict"), dict) else None
+    run_gate = result.get("runGate") if isinstance(result.get("runGate"), dict) else None
 
     lines = [
         "RiftReader live-test inspect summary",
@@ -498,14 +540,26 @@ def format_inspect_summary(result: dict[str, Any]) -> str:
             lines.append("Strict warnings:")
             lines.extend(f"- {warning}" for warning in warnings)
 
+    if run_gate is not None:
+        run_gate_ok = bool(run_gate.get("ok"))
+        lines.append(f"Run gate: {'passed' if run_gate_ok else 'failed'}")
+        issues = run_gate.get("issues") if isinstance(run_gate.get("issues"), list) else []
+        if issues:
+            lines.append("Run gate issues:")
+            lines.extend(f"- {issue}" for issue in issues)
+
     return "\n".join(lines)
 
 
 def inspect_exit_ok(result: dict[str, Any]) -> bool:
+    ok = bool(result.get("ok"))
     strict = result.get("strict") if isinstance(result.get("strict"), dict) else None
     if strict is not None:
-        return bool(strict.get("ok"))
-    return bool(result.get("ok"))
+        ok = ok and bool(strict.get("ok"))
+    run_gate = result.get("runGate") if isinstance(result.get("runGate"), dict) else None
+    if run_gate is not None:
+        ok = ok and bool(run_gate.get("ok"))
+    return ok
 
 
 def inspect_result_warnings(result: dict[str, Any]) -> list[str]:
@@ -539,6 +593,14 @@ def inspect_result_warnings(result: dict[str, Any]) -> list[str]:
 def repo_relative_path(repo_root: Path, value: Any) -> Path:
     path = Path(str(value))
     return path if path.is_absolute() else (repo_root / path).resolve()
+
+
+def path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 def resolve_progress_file_arg(progress_file: Any, run_directory: Any = None) -> Path | None:

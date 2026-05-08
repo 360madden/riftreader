@@ -210,15 +210,17 @@ live process-memory scan, not a SavedVariables file path. The helper writes a
 and still produces only reference evidence for scoring or multi-pose
 promotion.
 
-If the default `512`-byte scan context sees the live `RRAPICOORD1` probe but
-not the companion unit-detail payload, rerun the reference helper with a wider
-read-only context before falling back to manual inspection:
+If a narrow scan context sees the live `RRAPICOORD1` probe but not the companion
+unit-detail payload, rerun the reference helper with the current live-test
+default wider read-only context before falling back to manual inspection. A
+`4096`-byte context has been observed to miss the full usable marker/payload in
+the May 8, 2026 client session; prefer `16384` for proof-gated live-test runs.
 
 ```powershell
 .\scripts\capture-rift-api-reference-coordinate.ps1 `
   -ProcessId <current_rift_pid> `
   -TargetWindowHandle <current_rift_hwnd> `
-  -ScanContextBytes 4096 `
+  -ScanContextBytes 16384 `
   -MaxHits 512 `
   -OutputFile .\scripts\captures\same-time-reference-coordinate.json
 ```

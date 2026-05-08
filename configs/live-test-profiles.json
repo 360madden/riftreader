@@ -7,7 +7,7 @@
     "referenceTolerance": 0.25,
     "readbackSampleCount": 3,
     "readbackIntervalMilliseconds": 100,
-    "scanContextBytes": 4096,
+    "scanContextBytes": 16384,
     "maxHits": 512,
     "autoRefreshProofOnExpired": true,
     "autoRefreshProofOnLowAgeBudget": true,

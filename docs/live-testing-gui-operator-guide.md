@@ -21,11 +21,13 @@ touch Cheat Engine.
 | Open latest run HUD | `cmd\live-gui-latest.cmd` |
 | Inspect latest run without opening a window | `cmd\live-gui-inspect-latest.cmd` |
 | Strict latest inspect gate | `cmd\live-gui-inspect-latest.cmd --fail-on-warning` |
+| Require latest run success | `cmd\live-gui-inspect-latest-ok.cmd` |
 | Compact latest inspect JSON | `cmd\live-gui-inspect-latest.cmd --compact-json` |
 | Latest inspect summary | `cmd\live-gui-inspect-latest.cmd --summary` |
 | Inspect explicit progress file | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json>` |
 | Inspect a run directory | `python scripts\live_test_gui.py --inspect-progress --run-directory <run-dir>` |
 | Strict explicit progress gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning` |
+| Explicit run-success gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning --require-ok-run` |
 | Compact strict gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning --compact-json` |
 | Human-readable strict gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning --summary` |
 
@@ -43,8 +45,9 @@ touch Cheat Engine.
 | `contract.issues` | Missing fields, shape problems, or safety invariant violations. |
 | `runSummaryFileExists` | Whether the referenced final summary path currently exists. |
 | `latestPointer` | Present for `--latest`; includes pointer status, timestamp, health, and resolved file existence. |
-| `latestPointer.freshness` | Present for `--latest`; warns when pointer timestamp/status/health disagrees with the referenced progress artifact. |
+| `latestPointer.freshness` | Present for `--latest`; warns when pointer timestamp/status/health disagrees with the referenced progress artifact, or when the repo latest pointer targets artifacts outside this repo tree. |
 | `strict` | Present when `--fail-on-warning` is used; contains strict gate status and warning list. |
+| `runGate` | Present when `--require-ok-run` is used; fails when the inspected run health is not `ok`. |
 
 Safety invariant failures are hard errors:
 
@@ -58,9 +61,24 @@ For latest-run inspection, `latestPointer.freshness.status=warning` means the
 pointer and progress artifact may not describe the same instant. Inspect the
 reported `issues` before rerunning any live profile.
 
+Freshness warnings such as `latest_pointer_run_directory_outside_repo` or
+`latest_pointer_progress_file_outside_repo` mean the repo latest pointer targets
+a temp or external output-root run. Treat that as operator context, not durable
+current truth, until a repo-local proof run supersedes it.
+
+New external `--output-root` runs no longer update the repo latest pointer by
+default. If a run's progress artifact says
+`latestPointer.skipReason=output_root_outside_repo`, inspect that run directly
+with `--run-directory` or `--progress-file`; do not expect `--latest` to move.
+
 Use `--fail-on-warning` when the inspect command is acting as an automation
 gate. It still prints JSON, but exits nonzero for contract warnings, stale or
 warning health, and latest-pointer freshness warnings.
+
+Use `--require-ok-run` when the automation must prove the inspected run itself
+passed. This is intentionally separate from `--fail-on-warning`: a blocked run
+can have a valid, fresh artifact contract, but it should not satisfy a
+"latest run passed" gate.
 
 Use `--compact-json` with `--inspect-progress` when scripts need one-line JSON.
 It changes formatting only; it does not change validation or exit behavior.
@@ -92,6 +110,10 @@ schema or safety-contract drift is caught offline.
 After a RIFT crash or restart, use this order:
 
 1. `cmd\live-gui-inspect-latest.cmd`
-2. `python scripts\live_test.py --profile ProofOnly --pid <pid> --hwnd <hwnd> --no-gui`
-3. `python scripts\live_test.py --profile ProofOnly --pid <pid> --hwnd <hwnd>`
-4. Only after those pass, consider a live input profile with explicit approval.
+2. If you need an automation gate for a known-good latest run, use
+   `cmd\live-gui-inspect-latest-ok.cmd`.
+   Expect this to fail after a blocked/crash-adjacent run; inspect the issue
+   instead of treating it as movement-ready.
+3. `python scripts\live_test.py --profile ProofOnly --pid <pid> --hwnd <hwnd> --no-gui`
+4. `python scripts\live_test.py --profile ProofOnly --pid <pid> --hwnd <hwnd>`
+5. Only after those pass, consider a live input profile with explicit approval.

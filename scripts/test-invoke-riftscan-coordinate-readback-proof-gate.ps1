@@ -69,6 +69,11 @@ Assert-Contains `
 
 Assert-Contains `
     -Text $scriptText `
+    -Needle '$decodedSamples = @($decodedSamples)' `
+    -Message 'Readback proof-anchor path must normalize decoded samples to an array before strict Count access.'
+
+Assert-Contains `
+    -Text $scriptText `
     -Needle 'proof-anchor-preflight-validated-current-readback' `
     -Message 'Readback summary must distinguish current readback support from metadata-only proof preflight.'
 

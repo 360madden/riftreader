@@ -53,6 +53,7 @@ from rift_live_test.reports import write_json, write_markdown_summary
 from rift_live_test.runner import LiveTestRunner, classify_run_health
 from rift_live_test.status import (
     BLOCKED_LIVE_FLAG_REQUIRED,
+    BLOCKED_PROMOTION_REFERENCE_MISMATCH,
     BLOCKED_REFERENCE_CAPTURE,
     BLOCKED_TARGET_MISMATCH,
 )
@@ -336,6 +337,18 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertTrue(info["requested"])
             self.assertIn("OSError:no gui", info["error"])
 
+    def test_latest_ok_cmd_launcher_is_dumb_wrapper(self) -> None:
+        launcher = repo_root() / "cmd" / "live-gui-inspect-latest-ok.cmd"
+        text = launcher.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+        self.assertEqual(
+            text,
+            '@echo off\n'
+            'cd /d "C:\\RIFT MODDING\\RiftReader"\n'
+            "python scripts\\live_test_gui.py --latest --inspect-progress "
+            "--fail-on-warning --require-ok-run %*\n",
+        )
+
     def test_gui_demo_progress_is_offline_and_informational(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -596,6 +609,52 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertTrue(payload["strict"]["ok"])
             self.assertEqual(payload["strict"]["warnings"], [])
 
+    def test_inspect_progress_cli_require_ok_run_exits_nonzero_for_blocked_health(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_demo_progress(
+                progress_file=root / "run-progress.json",
+                run_dir=root,
+                scenario="blocked-reference",
+            )
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = gui_main(
+                    [
+                        "--inspect-progress",
+                        "--run-directory",
+                        str(root),
+                        "--require-ok-run",
+                    ]
+                )
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(code, 1)
+            self.assertFalse(payload["runGate"]["ok"])
+            self.assertIn(
+                "run_not_ok:state=blocked;status=blocked-reference-capture",
+                payload["runGate"]["issues"],
+            )
+
+    def test_inspect_progress_cli_require_ok_run_passes_for_ok_health(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = gui_main(
+                [
+                    "--latest",
+                    "--latest-pointer",
+                    str(testdata_path("latest-pointer.json")),
+                    "--inspect-progress",
+                    "--require-ok-run",
+                    "--compact-json",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["runGate"]["ok"])
+        self.assertEqual(payload["runGate"]["issues"], [])
+
     def test_inspect_progress_cli_fail_on_warning_exits_nonzero_for_contract_warning(self) -> None:
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
@@ -699,6 +758,42 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             freshness["issues"],
         )
 
+    def test_latest_pointer_outside_repo_reports_freshness_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as repo_temp:
+            with tempfile.TemporaryDirectory() as external_temp:
+                root = Path(repo_temp)
+                external_run = Path(external_temp) / "live-test-ProofOnly"
+                progress_file = external_run / "run-progress.json"
+                progress = write_demo_progress(
+                    progress_file=progress_file,
+                    run_dir=external_run,
+                    scenario="passed",
+                )
+                pointer = root / "scripts" / "captures" / "latest-live-test-run.json"
+                write_json(
+                    pointer,
+                    {
+                        "runProgressFile": str(progress_file),
+                        "runSummaryFile": str(external_run / "run-summary.json"),
+                        "runDirectory": str(external_run),
+                        "profileName": "ExternalFixture",
+                        "status": progress["status"],
+                        "runHealth": progress["runHealth"],
+                        "generatedAtUtc": progress["updatedAtUtc"],
+                        "finalSummaryWritten": progress["finalSummaryWritten"],
+                    },
+                )
+
+                latest = resolve_latest_run(repo_root=root, pointer_file=pointer)
+                result = inspect_latest_progress(latest)
+
+        freshness = result["latestPointer"]["freshness"]
+        self.assertFalse(latest["runDirectoryInsideRepo"])
+        self.assertFalse(latest["progressFileInsideRepo"])
+        self.assertEqual(freshness["status"], "warning")
+        self.assertIn("latest_pointer_run_directory_outside_repo", freshness["issues"])
+        self.assertIn("latest_pointer_progress_file_outside_repo", freshness["issues"])
+
     def test_latest_inspect_cli_includes_pointer_metadata(self) -> None:
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
@@ -766,6 +861,31 @@ class LiveTestOrchestratorTests(unittest.TestCase):
         self.assertIn("Latest pointer freshness: warning", text)
         self.assertIn("Strict: failed", text)
         self.assertIn("latest_pointer_status_mismatch:pointer=passed;progress=running", text)
+
+    def test_latest_inspect_cli_summary_with_require_ok_run_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_demo_progress(
+                progress_file=root / "run-progress.json",
+                run_dir=root,
+                scenario="blocked",
+            )
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = gui_main(
+                    [
+                        "--inspect-progress",
+                        "--run-directory",
+                        str(root),
+                        "--require-ok-run",
+                        "--summary",
+                    ]
+                )
+
+            text = stdout.getvalue()
+            self.assertEqual(code, 1)
+            self.assertIn("Run gate: failed", text)
+            self.assertIn("run_not_ok:state=blocked;status=blocked-target-mismatch", text)
 
     def test_resolve_progress_file_arg_prefers_explicit_file(self) -> None:
         self.assertEqual(
@@ -1020,6 +1140,75 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertIn("reference_marker_unavailable:no_usable_rrapicoord1", summary["issues"])
             self.assertFalse(summary["movementSent"])
 
+    def test_promotion_baseline_block_preserves_fresh_pose_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            fresh = root / "fresh-summary.json"
+            fresh.write_text("{}", encoding="utf-8")
+            profile = {
+                "mode": "proof-only",
+                "input": None,
+                "outputRoot": str(root / "captures"),
+                "writeMarkdownSummary": False,
+            }
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile=profile,
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+            captured = {
+                "poseReadbackSummaryFile": str(fresh),
+                "currentCoordinate": {
+                    "X": 4.0,
+                    "Y": 5.0,
+                    "Z": 6.0,
+                    "RecordedAtUtc": "2026-05-08T00:00:00Z",
+                },
+            }
+            diagnostics = {
+                "status": "no-compatible-displaced-baseline",
+                "freshSummaryFile": str(fresh),
+                "selected": [],
+                "candidateCount": 1,
+                "compatibleDisplacedCount": 0,
+                "candidates": [],
+            }
+            with patch(
+                "rift_live_test.runner.verify_target",
+                return_value={"valid": True, "status": "valid", "targetWindowHandle": "0x123"},
+            ), patch.object(
+                runner,
+                "_capture_proof_pose",
+                return_value=captured,
+            ), patch.object(
+                runner,
+                "_select_promotion_readback_files",
+                return_value=([], diagnostics),
+            ):
+                summary = runner.run()
+
+            self.assertEqual(summary["status"], BLOCKED_PROMOTION_REFERENCE_MISMATCH)
+            self.assertEqual(summary["summaryFile"], str(fresh))
+            self.assertEqual(summary["currentCoordinate"]["x"], 4.0)
+            self.assertEqual(summary["currentCoordinate"]["y"], 5.0)
+            self.assertEqual(summary["currentCoordinate"]["z"], 6.0)
+            self.assertFalse(summary["movementSent"])
+            self.assertFalse(summary["movementAttempted"])
+            self.assertEqual(summary["states"][-1]["summaryFile"], str(fresh))
+
+            progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+            self.assertEqual(progress["currentCoordinate"]["x"], 4.0)
+            self.assertFalse(progress["movementSent"])
+            selection = json.loads(
+                (runner.run_dir / "promotion-baseline-selection.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(selection["freshCurrentCoordinate"]["X"], 4.0)
+
     def test_child_commands_receive_process_name_and_proof_anchor_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1198,6 +1387,8 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertTrue(progress["runGates"]["requireLiveFlagForInput"])
             self.assertEqual(progress["runHealth"]["state"], "running")
             self.assertFalse(progress["runHealth"]["finalSummaryWritten"])
+            self.assertTrue(progress["latestPointer"]["updateAllowed"])
+            self.assertIsNone(progress["latestPointer"]["skipReason"])
 
             latest = json.loads(
                 (root / "scripts" / "captures" / "latest-live-test-run.json").read_text(
@@ -1206,6 +1397,66 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             )
             self.assertEqual(latest["runProgressFile"], str(runner.progress_file))
             self.assertFalse(latest["finalSummaryWritten"])
+            self.assertTrue(latest["runDirectoryInsideRepo"])
+
+    def test_external_output_root_does_not_update_repo_latest_pointer_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as repo_temp:
+            with tempfile.TemporaryDirectory() as external_temp:
+                root = Path(repo_temp)
+                pointer = root / "scripts" / "captures" / "latest-live-test-run.json"
+                write_json(pointer, {"status": "existing", "sentinel": True})
+                runner = LiveTestRunner(
+                    repo_root=root,
+                    profile_name="ProofOnly",
+                    profile={
+                        "mode": "proof-only",
+                        "input": None,
+                        "outputRoot": str(Path(external_temp) / "captures"),
+                        "writeMarkdownSummary": False,
+                    },
+                    process_id=123,
+                    target_window_handle="0x123",
+                    live=False,
+                )
+
+                runner._state("verify-target", "passed", detail="pid=123;hwnd=0x123")
+
+                progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+                latest = json.loads(pointer.read_text(encoding="utf-8"))
+
+        self.assertEqual(latest, {"status": "existing", "sentinel": True})
+        self.assertFalse(progress["latestPointer"]["updateAllowed"])
+        self.assertEqual(progress["latestPointer"]["skipReason"], "output_root_outside_repo")
+        self.assertFalse(progress["latestPointer"]["runDirectoryInsideRepo"])
+
+    def test_external_output_root_can_opt_into_repo_latest_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as repo_temp:
+            with tempfile.TemporaryDirectory() as external_temp:
+                root = Path(repo_temp)
+                runner = LiveTestRunner(
+                    repo_root=root,
+                    profile_name="ProofOnly",
+                    profile={
+                        "mode": "proof-only",
+                        "input": None,
+                        "outputRoot": str(Path(external_temp) / "captures"),
+                        "updateLatestPointerForExternalOutputRoot": True,
+                        "writeMarkdownSummary": False,
+                    },
+                    process_id=123,
+                    target_window_handle="0x123",
+                    live=False,
+                )
+
+                runner._state("verify-target", "passed", detail="pid=123;hwnd=0x123")
+
+                pointer = root / "scripts" / "captures" / "latest-live-test-run.json"
+                latest = json.loads(pointer.read_text(encoding="utf-8"))
+                progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+
+        self.assertTrue(progress["latestPointer"]["updateAllowed"])
+        self.assertTrue(latest["runProgressFile"].endswith("run-progress.json"))
+        self.assertFalse(latest["runDirectoryInsideRepo"])
 
     def test_final_summary_marks_progress_complete(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1241,6 +1492,13 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertTrue(progress["runHealth"]["finalSummaryWritten"])
             self.assertEqual(summary["runProgressFile"], str(runner.progress_file))
             self.assertEqual(summary["runHealth"]["state"], "ok")
+            latest = json.loads(
+                (root / "scripts" / "captures" / "latest-live-test-run.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertFalse(latest["runHealth"]["movementSent"])
+            self.assertFalse(latest["runHealth"]["movementAttempted"])
 
     def test_baseline_pool_selects_compatible_displaced_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -1,23 +1,45 @@
 # Current Truth
 
-_Last updated: May 7, 2026 12:19 EDT / 16:19 UTC (live `rift_x64` PID `47560`, HWND `0x2122E`). Latest no-input proof truth is the Python `ProofOnly` validation with interruption-safe `run-progress.json` checkpointing. Latest live movement truth remains the Python-owned per-pulse `ForwardSeries3x250 --live` smoke with 3/3 exact-target `W` 250 ms pulses._
+_Last updated: May 8, 2026 00:53 EDT / 04:53 UTC (live `rift_x64` PID `33912`, HWND `0xE0DB2`). Latest current-session truth is **blocked but advanced**: RiftScan reacquired a no-CE current-PID coordinate candidate, the prior no-input `ProofOnly` correctly blocked before a displaced same-target baseline existed, and the latest `RefreshBaseline` now captured a displaced no-input pose about `3.023m` from the prior proof coordinate. Movement remains blocked until `ProofOnly` re-runs and promotes the current-session proof. Latest live movement truth remains the historical May 7 Python-owned `ForwardSeries3x250 --live` smoke on PID `47560`; it is not valid for current PID `33912` without re-promotion._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
-| Live target | `rift_x64` PID `47560`, HWND `0x2122E` |
-| Latest no-input proof | **green after run-progress checkpoint validation**; `ProofOnly` summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-summary.json` |
-| Latest run progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260507-161726\run-progress.json`; `finalSummaryWritten=true` |
-| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` now includes both `runSummaryFile` and `runProgressFile` |
-| Latest movement truth | `ForwardSeries3x250 --live` passed 3/3 per-pulse gated `W` 250 ms pulses |
-| Current coordinate | `X=7437.462890625`, `Y=885.2191772460938`, `Z=3055.73779296875` at `2026-05-07T16:18:16.0931490Z` |
-| Latest proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` generated `2026-05-07T16:18:10.7659885+00:00` with pose count `3` |
+| Live target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Latest no-input proof | **blocked before latest displaced baseline**; `ProofOnly` summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-044728\run-summary.json`; issue `promotion_baseline_unavailable:compatibleDisplacedCount=0`; rerun `ProofOnly` now that `RefreshBaseline` captured a displaced pose |
+| Latest current-session candidate | `rift-addon-coordinate-candidate-000001` at `0x202FEA3E180` from `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
+| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260508-045224\run-progress.json`; `passed-baseline-captured`, `movementSent=false`, `movementAttempted=false` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to `RefreshBaseline` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260508-045224\run-summary.json` |
+| Latest movement truth | Historical only for old PID `47560`: `ForwardSeries3x250 --live` passed 3/3 per-pulse gated `W` 250 ms pulses; historical pointer archived at `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-07-pid47560-historical.json` |
+| Current coordinate | Latest baseline pose `X=7438.64990234375`, `Y=885.2191772460938`, `Z=3049.527587890625` at `2026-05-08T04:52:43.0836487Z` |
+| Latest proof anchor | Old PID `47560` proof anchor is historical/stale for PID `33912`; latest current-PID displaced baseline is captured, but movement is blocked until `ProofOnly` promotes the current proof and fresh preflight passes |
 | Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; if `finalSummaryWritten=false`, use `states` and `seriesPulses` from progress. |
 | Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md` |
 | CE / SavedVariables | no CE; no SavedVariables live truth |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-07-121900-run-progress-checkpoint-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-005330-post-refreshbaseline-proofonly-needed-handoff.md` |
+
+## May 8 continuation: current PID candidate reacquired, movement still blocked
+
+The game window is back on `rift_x64` PID `33912`, HWND `0xE0DB2`. Forward
+movement approval is recorded, but the live movement gate is still proof-gated.
+No Codex-sent movement/input was sent in this reacquisition pass.
+
+| Fact | Value |
+|---|---|
+| Current target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| RiftScan inventory | `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-inventory-20260508-042443.json` |
+| RiftScan session | `C:\RIFT MODDING\Riftscan\sessions\currentpid-33912-reacquire-exact16m-20260508-042613` |
+| RiftScan match file | `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
+| Candidate | `rift-addon-coordinate-candidate-000001`, `0x202FE9F0000 + 0x4E180 = 0x202FEA3E180` |
+| Candidate readback | `ReferenceMatchCount=1`, `StableDecodedCandidateCount=1`, `ReadbackTotalRegionReadFailures=0` |
+| Baseline capture | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260508-045224\run-summary.json`, status `passed-baseline-captured`; displaced about `3.023m` from prior blocked proof coordinate |
+| ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-044728\run-summary.json`, status `blocked-promotion-reference-mismatch` |
+| Blocker | Prior `ProofOnly` blocked before the latest displaced baseline; next required step is rerun `ProofOnly` to attempt promotion |
+| Config hardening | `configs\live-test-profiles.json` now uses `scanContextBytes=16384`; `4096` missed the usable `RRAPICOORD1` context in this session |
+| Next required action | rerun `ProofOnly`; if it passes, focus/capture exact target and run bounded `Forward250 --live` |
+| Safety boundary | no CE; no SavedVariables live truth; no Codex-sent input until current proof promotion and preflight are green |
 
 ## May 7 continuation: interruption-safe progress checkpoint validated
 

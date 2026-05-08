@@ -33,6 +33,7 @@ File: `run-progress.json`
 | `latestChildCommand` | Optional | Current or most recent child command. |
 | `runGates` | Recommended | Active safety gate settings. Missing is a warning for older artifacts. |
 | `runHealth` | Recommended | Normalized health summary. Missing is a warning for older artifacts. |
+| `latestPointer` | Recommended | Whether this run is allowed to update the repo latest-run pointer and why. |
 | `noCheatEngine` | Yes | Must be `true`. |
 | `savedVariablesUsedAsLiveTruth` | Yes | Must be `false`. |
 | `finalSummaryWritten` | Recommended | Whether `run-summary.json` has been written. |
@@ -67,8 +68,17 @@ File: `scripts\captures\latest-live-test-run.json`
 | `profileName` | Latest profile name. |
 | `status` | Latest run status. |
 | `runHealth` | Latest normalized run health. |
+| `runDirectoryInsideRepo` | Whether the latest run directory is inside this repo tree. |
+| `progressFileInsideRepo` | Whether the latest progress file is inside this repo tree. |
+| `runSummaryFileInsideRepo` | Whether the latest summary file is inside this repo tree. |
 | `generatedAtUtc` | Pointer write timestamp. |
 | `finalSummaryWritten` | Whether final summary was written. |
+
+By default, the runner does not update this repo-level pointer when
+`outputRoot` resolves outside the repo tree. Such runs still write their own
+`run-progress.json` and `run-summary.json`, but `latestPointer.updateAllowed`
+is `false` with `skipReason=output_root_outside_repo` unless the profile
+explicitly opts in with `updateLatestPointerForExternalOutputRoot=true`.
 
 ## Inspect contract result
 
@@ -84,9 +94,10 @@ File: `scripts\captures\latest-live-test-run.json`
 | `contract.status` | `valid`, `warning`, or `invalid`. |
 | `contract.issues` | Contract warnings/errors. |
 | `runSummaryFileExists` | Whether the referenced final summary exists at inspect time. |
-| `latestPointer` | Present only with `--latest`; contains pointer status, generated timestamp, pointer health, resolved progress path, and resolved summary path state. |
-| `latestPointer.freshness` | Present only with `--latest`; compares pointer timestamp/status/health with the referenced progress artifact. |
+| `latestPointer` | Present only with `--latest`; contains pointer status, generated timestamp, pointer health, resolved progress path, resolved summary path state, and repo-local path flags. |
+| `latestPointer.freshness` | Present only with `--latest`; compares pointer timestamp/status/health with the referenced progress artifact and warns on external artifact paths. |
 | `strict` | Present only when `--fail-on-warning` is used. |
+| `runGate` | Present only when `--require-ok-run` is used. |
 
 ### `latestPointer.freshness`
 
@@ -97,7 +108,14 @@ File: `scripts\captures\latest-live-test-run.json`
 | `progressUpdatedAtUtc` | Timestamp from the referenced `run-progress.json`. |
 | `timestampGapSeconds` | Absolute timestamp gap when both timestamps parse. |
 | `driftWarningSeconds` | Gap threshold used for warning. |
-| `issues` | Drift, timestamp parse/missing, status mismatch, or health-state mismatch warnings. |
+| `issues` | Drift, timestamp parse/missing, status mismatch, health-state mismatch, or external-artifact warnings. |
+
+External-artifact warnings include:
+
+| Issue | Meaning |
+|---|---|
+| `latest_pointer_run_directory_outside_repo` | The repo latest pointer targets a run directory outside the repo tree. |
+| `latest_pointer_progress_file_outside_repo` | The repo latest pointer targets a progress file outside the repo tree. |
 
 ### `strict`
 
@@ -113,6 +131,20 @@ File: `scripts\captures\latest-live-test-run.json`
 Hard failures include unsupported schema/mode, missing required fields, invalid
 safety flags, and invalid required field shapes. Missing newer metadata such as
 `runHealth` or `runGates` is a warning for backward compatibility.
+
+### `runGate`
+
+`--require-ok-run` adds this object and exits nonzero when `runGate.ok=false`.
+
+| Field | Meaning |
+|---|---|
+| `requireOkRun` | Always `true` when the gate is active. |
+| `ok` | `true` only when inspect parsing/contract checks pass and `runHealth.ok=true`. |
+| `issues` | Reasons the run did not satisfy the gate, such as `run_not_ok:state=blocked;status=blocked-target-mismatch`. |
+
+Use this when a script needs the latest inspected run to have actually passed.
+Do not rely on `--fail-on-warning` alone for that meaning; strict mode validates
+warnings/freshness, while `--require-ok-run` validates run success.
 
 `--compact-json` changes only whitespace formatting to one-line JSON. It does
 not change fields, validation, or exit codes.

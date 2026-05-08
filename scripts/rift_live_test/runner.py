@@ -43,10 +43,16 @@ from .target import verify_target
 
 
 class PromotionBaselineError(RuntimeError):
-    def __init__(self, issues: list[str], diagnostics: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        issues: list[str],
+        diagnostics: dict[str, Any] | None = None,
+        final_json: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__("promotion baseline selection failed")
         self.issues = issues
         self.diagnostics = diagnostics or {}
+        self.final_json = final_json or {}
 
 
 class ReferenceCaptureError(RuntimeError):
@@ -104,6 +110,7 @@ class LiveTestRunner:
         self.run_dir = output_root / f"live-test-{profile_name}-{stamp}"
         self.child_dir = self.run_dir / "child-outputs"
         self.progress_file = self.run_dir / "run-progress.json"
+        self.latest_pointer_file = self.repo_root / "scripts" / "captures" / "latest-live-test-run.json"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.child_dir.mkdir(parents=True, exist_ok=True)
 
@@ -248,8 +255,9 @@ class LiveTestRunner:
                 "promote-proof",
                 BLOCKED_PROMOTION_REFERENCE_MISMATCH,
                 detail=";".join(exc.issues),
+                summaryFile=self._get(exc.final_json, "SummaryFile"),
             )
-            return self._finish(BLOCKED_PROMOTION_REFERENCE_MISMATCH)
+            return self._finish(BLOCKED_PROMOTION_REFERENCE_MISMATCH, final_json=exc.final_json)
         except ReferenceCaptureError as exc:
             self.issues.extend(exc.issues)
             self._state(
@@ -280,12 +288,21 @@ class LiveTestRunner:
         selected, diagnostics = self._select_promotion_readback_files(Path(str(fresh_summary)))
         write_json(self.run_dir / f"promotion-baseline-selection-attempt-{attempt}.json", diagnostics)
         if len(selected) < 2:
+            diagnostics.setdefault("freshCurrentCoordinate", captured.get("currentCoordinate"))
             raise PromotionBaselineError(
                 [
                     "promotion_baseline_unavailable:"
                     f"compatibleDisplacedCount={diagnostics.get('compatibleDisplacedCount', 0)}"
                 ],
                 diagnostics,
+                {
+                    "Status": BLOCKED_PROMOTION_REFERENCE_MISMATCH,
+                    "MovementSent": False,
+                    "MovementAttempted": False,
+                    "SummaryFile": fresh_summary,
+                    "CurrentCoordinate": captured.get("currentCoordinate"),
+                    "PromotionBaselineSelection": diagnostics,
+                },
             )
 
         promote = self._run_promote(selected)
@@ -938,6 +955,7 @@ class LiveTestRunner:
                 movement_attempted=movement_attempted,
                 final_summary_written=True,
             ),
+            "latestPointer": self._latest_pointer_metadata(),
             "noCheatEngine": True,
             "savedVariablesUsedAsLiveTruth": False,
         }
@@ -960,7 +978,12 @@ class LiveTestRunner:
         if self.profile.get("writeMarkdownSummary", True):
             write_markdown_summary(self.run_dir / "run-summary.md", summary)
         self._write_progress(status, final_json=final_json)
-        self._write_latest_pointer(status, run_summary_file=self.run_dir / "run-summary.json")
+        self._write_latest_pointer(
+            status,
+            run_summary_file=self.run_dir / "run-summary.json",
+            movement_sent=movement_sent,
+            movement_attempted=movement_attempted,
+        )
         return summary
 
     def _write_progress(self, status: str, *, final_json: dict[str, Any] | None = None) -> None:
@@ -1005,6 +1028,7 @@ class LiveTestRunner:
                 movement_attempted=movement_attempted,
                 final_summary_written=(self.run_dir / "run-summary.json").exists(),
             ),
+            "latestPointer": self._latest_pointer_metadata(),
             "noCheatEngine": True,
             "savedVariablesUsedAsLiveTruth": False,
             "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
@@ -1024,7 +1048,12 @@ class LiveTestRunner:
             snapshot["coordinateRecordings"] = self.coordinate_recordings
             snapshot["coordinateSamplesFile"] = self.coordinate_recordings[-1].get("samplesFile")
         write_json(self.progress_file, snapshot)
-        self._write_latest_pointer(status, run_progress_file=self.progress_file)
+        self._write_latest_pointer(
+            status,
+            run_progress_file=self.progress_file,
+            movement_sent=movement_sent,
+            movement_attempted=movement_attempted,
+        )
 
     def _write_latest_pointer(
         self,
@@ -1032,9 +1061,14 @@ class LiveTestRunner:
         *,
         run_summary_file: Path | None = None,
         run_progress_file: Path | None = None,
+        movement_sent: bool | None = None,
+        movement_attempted: bool | None = None,
     ) -> None:
+        metadata = self._latest_pointer_metadata()
+        if not metadata["updateAllowed"]:
+            return
         write_json(
-            self.repo_root / "scripts" / "captures" / "latest-live-test-run.json",
+            self.latest_pointer_file,
             {
                 "runSummaryFile": str(run_summary_file or (self.run_dir / "run-summary.json")),
                 "runProgressFile": str(run_progress_file or self.progress_file),
@@ -1043,12 +1077,42 @@ class LiveTestRunner:
                 "status": status,
                 "runHealth": self._run_health(
                     status,
+                    movement_sent=movement_sent,
+                    movement_attempted=movement_attempted,
                     final_summary_written=(self.run_dir / "run-summary.json").exists(),
                 ),
+                "runDirectoryInsideRepo": metadata["runDirectoryInsideRepo"],
+                "progressFileInsideRepo": metadata["progressFileInsideRepo"],
+                "runSummaryFileInsideRepo": metadata["runSummaryFileInsideRepo"],
                 "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
                 "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
             },
         )
+
+    def _latest_pointer_metadata(self) -> dict[str, Any]:
+        update_requested = bool(self.profile.get("updateLatestPointer", True))
+        allow_external = bool(self.profile.get("updateLatestPointerForExternalOutputRoot", False))
+        run_dir_inside_repo = path_is_relative_to(self.run_dir, self.repo_root)
+        progress_file_inside_repo = path_is_relative_to(self.progress_file, self.repo_root)
+        summary_file_inside_repo = path_is_relative_to(
+            self.run_dir / "run-summary.json",
+            self.repo_root,
+        )
+        update_allowed = update_requested and (run_dir_inside_repo or allow_external)
+        skip_reason = None
+        if not update_requested:
+            skip_reason = "disabled_by_profile"
+        elif not run_dir_inside_repo and not allow_external:
+            skip_reason = "output_root_outside_repo"
+        return {
+            "path": str(self.latest_pointer_file),
+            "updateRequested": update_requested,
+            "updateAllowed": update_allowed,
+            "skipReason": skip_reason,
+            "runDirectoryInsideRepo": run_dir_inside_repo,
+            "progressFileInsideRepo": progress_file_inside_repo,
+            "runSummaryFileInsideRepo": summary_file_inside_repo,
+        }
 
     def _manifest(self) -> dict[str, Any]:
         return {
@@ -1065,6 +1129,7 @@ class LiveTestRunner:
             "processName": self.profile.get("processName", "rift_x64"),
             "maxAutoRefreshAttempts": int(self.profile.get("maxAutoRefreshAttempts", 0)),
             "runGates": self._run_gates(),
+            "latestPointer": self._latest_pointer_metadata(),
             "gui": self.gui_info,
             "noCheatEngine": True,
             "savedVariablesUsedAsLiveTruth": False,
@@ -1083,6 +1148,10 @@ class LiveTestRunner:
             "referenceMaxAgeSeconds": self.profile.get("referenceMaxAgeSeconds"),
             "maxAutoRefreshAttempts": int(self.profile.get("maxAutoRefreshAttempts", 0)),
             "autoRefreshAttemptsUsed": self.auto_refresh_attempts_used,
+            "updateLatestPointer": bool(self.profile.get("updateLatestPointer", True)),
+            "updateLatestPointerForExternalOutputRoot": bool(
+                self.profile.get("updateLatestPointerForExternalOutputRoot", False)
+            ),
             "noCheatEngine": True,
             "savedVariablesLiveTruthAllowed": False,
         }
@@ -1268,3 +1337,11 @@ class LiveTestRunner:
             "planarDistance": value.get("PlanarDistance"),
             "spatialDistance": value.get("SpatialDistance"),
         }
+
+
+def path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False

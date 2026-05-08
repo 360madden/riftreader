@@ -1007,6 +1007,7 @@ if (-not [string]::IsNullOrWhiteSpace($proofAnchorCandidateId)) {
 
     $anchorCandidate = if ($anchorCandidateReadback.Count -eq 0) { $null } else { $anchorCandidateReadback[0] }
     $decodedSamples = if ($null -eq $anchorCandidate) { @() } else { @($anchorCandidate.DecodedSamples) }
+    $decodedSamples = @($decodedSamples)
     $firstDecodedSample = if ($decodedSamples.Count -eq 0) { $null } else { $decodedSamples[0] }
     $addressMatches = $false
     if ($null -ne $anchorCandidate -and -not [string]::IsNullOrWhiteSpace($proofAnchorCandidateAddressHex)) {
