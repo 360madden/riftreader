@@ -157,6 +157,36 @@ Practical requirements for new workflow/helper code:
 - Never claim RiftReader integration is complete because ChromaLink provider
   tests passed; record separate RiftReader-side validation.
 
+## Cross-repo RiftScan boundary
+
+- Treat `C:\RIFT MODDING\Riftscan` as an external **candidate/evidence
+  provider** for RiftReader unless the user explicitly authorizes a RiftScan
+  edit or capture/write pass in the current conversation.
+- Do not modify files under `C:\RIFT MODDING\Riftscan` from a RiftReader-focused
+  task by default. Reading existing reports, sessions, handoffs, and generated
+  artifacts is allowed when it helps RiftReader choose the best discovery path.
+- When the boundary is "do not modify RiftScan", consume only existing RiftScan
+  outputs such as `reports\generated\*-addon-coordinate-matches.json`,
+  existing session candidate files, or paths recorded in
+  `docs\recovery\current-proof-anchor-readback.json`.
+- Do not run RiftReader wrappers in a mode that creates new RiftScan sessions or
+  reports unless writes were explicitly authorized. In particular,
+  `scripts\invoke-riftscan-coordinate-readback.ps1` without `-CandidateFile`
+  can create RiftScan capture/session output; use an existing `-CandidateFile`
+  or `scripts\riftscan_coordination.py` instead.
+- When provider feedback is useful but RiftScan remains read-only, write a
+  RiftReader-owned packet with `scripts\riftscan_feedback.py`; do not place
+  feedback artifacts under `C:\RIFT MODDING\Riftscan`.
+- After every major handoff/commit/push/discovery milestone, run
+  `scripts\riftscan_milestone_review.py` for a combined strategy gate before
+  expanding scope or attempting live work.
+- Before committing this coordination lane, prefer
+  `scripts\validate_riftscan_coordination.py` to rerun the no-CE/read-only
+  RiftScan validation suite from one Python entry point.
+- RiftScan candidates remain candidate evidence until RiftReader validates and
+  promotes them with current PID/HWND proof. Never claim movement/navigation
+  truth solely from a RiftScan provider artifact.
+
 ## Live movement / polling invariant
 
 - **Current no-CE live boundary:** do **not** use Cheat Engine, CE Lua,

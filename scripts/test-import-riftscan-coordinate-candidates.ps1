@@ -32,6 +32,21 @@ function Assert-True {
     }
 }
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [int]$Depth = 40
+    )
+
+    $command = Get-Command -Name ConvertFrom-Json -CommandType Cmdlet
+    if ($command.Parameters.ContainsKey('Depth')) {
+        return $Text | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $Text | ConvertFrom-Json
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $importer = Join-Path $repoRoot 'scripts\import-riftscan-coordinate-candidates.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-riftscan-import-' + [System.Guid]::NewGuid().ToString('N'))
@@ -48,7 +63,7 @@ try {
 
     & $importer -CandidateFile $jsonlFile -OutputFile $jsonlOut -ProcessId 1234 -TargetWindowHandle 0x123 -TopCount 1 -ContextBytes 16 -Json | Out-Null
 
-    $jsonlWatchset = Get-Content -LiteralPath $jsonlOut -Raw | ConvertFrom-Json -Depth 40
+    $jsonlWatchset = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $jsonlOut -Raw) -Depth 40
     Assert-Equal -Actual $jsonlWatchset.Mode -Expected 'riftscan-coordinate-candidate-watchset' -Message 'Unexpected JSONL watchset mode.'
     Assert-Equal -Actual $jsonlWatchset.CandidateCount -Expected 1 -Message 'TopCount should cap JSONL candidates.'
     Assert-Equal -Actual $jsonlWatchset.Candidates[0].CandidateId -Expected 'vec3-truth-000001' -Message 'Highest score JSONL candidate should be selected.'
@@ -108,7 +123,7 @@ try {
 
     & $importer -CandidateFile $promotionFile -OutputFile $promotionOut -TopCount 4 -ContextBytes 0 -Json | Out-Null
 
-    $promotionWatchset = Get-Content -LiteralPath $promotionOut -Raw | ConvertFrom-Json -Depth 40
+    $promotionWatchset = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $promotionOut -Raw) -Depth 40
     Assert-Equal -Actual $promotionWatchset.CandidateCount -Expected 1 -Message 'Blocked promotion candidates should be excluded by default.'
     Assert-Equal -Actual $promotionWatchset.Candidates[0].CandidateId -Expected 'vec3-promoted-000001' -Message 'Expected unblocked promoted candidate.'
     Assert-Equal -Actual $promotionWatchset.Candidates[0].AddressHex -Expected '0x3048' -Message 'Promotion candidate absolute address should be base plus x_offset_hex.'
@@ -132,6 +147,7 @@ try {
                 source_absolute_address_hex = '0x50C0'
                 axis_order = 'xyz'
                 support_count = 3
+                best_max_abs_distance = 0.003
                 best_memory_x = 10.25
                 best_memory_y = 20.5
                 best_memory_z = 30.75
@@ -144,7 +160,7 @@ try {
 
     & $importer -CandidateFile $addonMatchFile -OutputFile $addonMatchOut -TopCount 4 -ContextBytes 16 -Json | Out-Null
 
-    $addonMatchWatchset = Get-Content -LiteralPath $addonMatchOut -Raw | ConvertFrom-Json -Depth 40
+    $addonMatchWatchset = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $addonMatchOut -Raw) -Depth 40
     Assert-Equal -Actual $addonMatchWatchset.CandidateCount -Expected 1 -Message 'Addon coordinate match candidate should be imported directly.'
     Assert-Equal -Actual $addonMatchWatchset.Candidates[0].CandidateId -Expected 'rift-addon-coordinate-candidate-000001' -Message 'Addon match candidate id should be preserved.'
     Assert-Equal -Actual $addonMatchWatchset.Candidates[0].AddressHex -Expected '0x50C0' -Message 'Addon match absolute address should be base plus source offset.'
@@ -153,8 +169,79 @@ try {
     Assert-Equal -Actual $addonMatchWatchset.Candidates[0].ZOffsetHex -Expected '0xC8' -Message 'Addon match Z offset should default to source_offset_hex+8.'
     Assert-Equal -Actual $addonMatchWatchset.Candidates[0].Classification -Expected 'addon_coordinate_match_candidate' -Message 'Addon match candidates should get a useful classification fallback.'
     Assert-Equal -Actual $addonMatchWatchset.Candidates[0].Score -Expected 3 -Message 'Addon match candidate score should use support_count when no explicit score exists.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].AxisOrder -Expected 'xyz' -Message 'Addon match candidate axis order should be preserved.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].SupportCount -Expected 3 -Message 'Addon match support count should be preserved.'
+    Assert-Equal -Actual $addonMatchWatchset.Candidates[0].BestMaxAbsDistance -Expected 0.003 -Message 'Addon match best distance should be preserved.'
     Assert-Equal -Actual $addonMatchWatchset.Candidates[0].ValuePreview[2] -Expected 30.75 -Message 'Addon match candidate value preview should be derived from best memory xyz.'
     Assert-Equal -Actual $addonMatchWatchset.Regions[0].Address -Expected '0x50B0' -Message 'Addon match region should include requested pre-context.'
+
+    $addonRankFile = Join-Path $tempRoot 'addon-coordinate-rank-matches.json'
+    $addonRankOut = Join-Path $tempRoot 'addon-rank-watchset.json'
+    $addonRank = [ordered]@{
+        result_schema_version = 'riftscan.rift_session_addon_coordinate_match_result.v1'
+        success = $true
+        candidates = @(
+            [ordered]@{
+                candidate_id = 'aaa-worse-distance'
+                source_region_id = 'region-000002'
+                source_base_address_hex = '0x6000'
+                source_offset_hex = '0xC0'
+                source_absolute_address_hex = '0x60C0'
+                axis_order = 'xyz'
+                support_count = 3
+                observation_support_count = 1
+                best_max_abs_distance = 1.5
+            },
+            [ordered]@{
+                candidate_id = 'zzz-better-distance'
+                source_region_id = 'region-000003'
+                source_base_address_hex = '0x7000'
+                source_offset_hex = '0xC0'
+                source_absolute_address_hex = '0x70C0'
+                axis_order = 'xyz'
+                support_count = 3
+                observation_support_count = 1
+                best_max_abs_distance = 0.01
+            }
+        )
+    }
+    $addonRank | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $addonRankFile -Encoding UTF8
+
+    & $importer -CandidateFile $addonRankFile -OutputFile $addonRankOut -TopCount 1 -ContextBytes 16 -Json | Out-Null
+
+    $addonRankWatchset = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $addonRankOut -Raw) -Depth 40
+    Assert-Equal -Actual $addonRankWatchset.Candidates[0].CandidateId -Expected 'zzz-better-distance' -Message 'Addon match ranking should prefer lower best_max_abs_distance when support is tied.'
+
+    $badAxisFile = Join-Path $tempRoot 'addon-coordinate-bad-axis.json'
+    $badAxisOut = Join-Path $tempRoot 'addon-bad-axis-watchset.json'
+    $badAxis = [ordered]@{
+        result_schema_version = 'riftscan.rift_session_addon_coordinate_match_result.v1'
+        success = $true
+        candidates = @(
+            [ordered]@{
+                candidate_id = 'bad-axis'
+                source_region_id = 'region-000004'
+                source_base_address_hex = '0x8000'
+                source_offset_hex = '0xC0'
+                axis_order = 'xzy'
+                support_count = 3
+            }
+        )
+    }
+    $badAxis | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $badAxisFile -Encoding UTF8
+
+    $badAxisFailed = $false
+    $badAxisMessage = ''
+    try {
+        & $importer -CandidateFile $badAxisFile -OutputFile $badAxisOut -TopCount 1 -ContextBytes 16 -Json | Out-Null
+    }
+    catch {
+        $badAxisFailed = $true
+        $badAxisMessage = $_.Exception.Message
+    }
+
+    Assert-True -Condition $badAxisFailed -Message 'Importer should fail closed for unsupported axis_order.'
+    Assert-True -Condition ($badAxisMessage -like '*unsupported axis_order*') -Message 'Unsupported axis failure should mention axis_order.'
 
     Write-Host 'RiftScan coordinate candidate importer regression passed.' -ForegroundColor Green
 }

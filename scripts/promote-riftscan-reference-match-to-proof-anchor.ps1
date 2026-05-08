@@ -264,6 +264,29 @@ foreach ($summaryFile in $resolvedSummaryFiles) {
         throw "Summary '$summaryFile' PID '$summaryProcessId' does not match target PID $targetProcessId."
     }
 
+    $summaryProcessName = [string](Get-DocumentPropertyValue -Document $summary -Name 'ProcessName' -Default '')
+    if ([string]::IsNullOrWhiteSpace($summaryProcessName)) {
+        throw "Summary '$summaryFile' is missing ProcessName."
+    }
+
+    $expectedProcessName = Get-NormalizedProcessName -Name $targetProcessName
+    $actualProcessName = Get-NormalizedProcessName -Name $summaryProcessName
+    if (-not [string]::Equals($actualProcessName, $expectedProcessName, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Summary '$summaryFile' process name '$summaryProcessName' does not match target process '$targetProcessName'."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($targetHandleHex)) {
+        $summaryWindowHandle = [string](Get-DocumentPropertyValue -Document $summary -Name 'TargetWindowHandle' -Default '')
+        if ([string]::IsNullOrWhiteSpace($summaryWindowHandle)) {
+            throw "Summary '$summaryFile' is missing TargetWindowHandle while target HWND is '$targetHandleHex'."
+        }
+
+        $summaryWindowHandleHex = Format-WindowHandle -Handle (ConvertTo-WindowHandle -HandleText $summaryWindowHandle)
+        if (-not [string]::Equals($summaryWindowHandleHex, $targetHandleHex, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Summary '$summaryFile' HWND '$summaryWindowHandle' does not match target HWND '$targetHandleHex'."
+        }
+    }
+
     $generatedAtValue = Get-DocumentPropertyValue -Document $summary -Name 'GeneratedAtUtc'
     $summaryAgeSeconds = $null
     if ($null -ne $generatedAtValue -and -not [string]::IsNullOrWhiteSpace([string]$generatedAtValue)) {
@@ -365,13 +388,13 @@ foreach ($pose in $poseArray) {
 
 $deltaEvidence = [System.Collections.Generic.List[object]]::new()
 $maxReferenceDisplacement = 0.0
-$maxDeltaError = 0.0
+$observedMaxDeltaError = 0.0
 for ($index = 1; $index -lt $poseArray.Count; $index++) {
     $referenceDelta = New-PointDelta -A $firstPose.Reference -B $poseArray[$index].Reference
     $candidateDelta = New-PointDelta -A $firstPose.CandidateSample -B $poseArray[$index].CandidateSample
     $deltaError = New-DeltaError -CandidateDelta $candidateDelta -ReferenceDelta $referenceDelta
     $maxReferenceDisplacement = [Math]::Max($maxReferenceDisplacement, [double]$referenceDelta.PlanarDistance)
-    $maxDeltaError = [Math]::Max($maxDeltaError, [double]$deltaError.MaxAbsError)
+    $observedMaxDeltaError = [Math]::Max($observedMaxDeltaError, [double]$deltaError.MaxAbsError)
 
     $deltaEvidence.Add([pscustomobject][ordered]@{
         PoseIndex = $index
@@ -385,8 +408,8 @@ if ($maxReferenceDisplacement -lt $MinReferenceDisplacement) {
     throw ("Reference displacement is too small for no-CE proof promotion: maxPlanarDisplacement={0:0.000000}; required={1:0.000000}." -f $maxReferenceDisplacement, $MinReferenceDisplacement)
 }
 
-if ($maxDeltaError -gt $MaxDeltaError) {
-    throw ("Candidate delta does not track reference movement closely enough: maxDeltaError={0:0.000000}; allowed={1:0.000000}." -f $maxDeltaError, $MaxDeltaError)
+if ($observedMaxDeltaError -gt $MaxDeltaError) {
+    throw ("Candidate delta does not track reference movement closely enough: maxDeltaError={0:0.000000}; allowed={1:0.000000}." -f $observedMaxDeltaError, $MaxDeltaError)
 }
 
 $result = [pscustomobject][ordered]@{
@@ -411,7 +434,7 @@ $result = [pscustomobject][ordered]@{
     CoordZRelativeOffset = 8
     Match = [pscustomobject][ordered]@{
         CoordMatchesWithinTolerance = $true
-        MaxDeltaError = $maxDeltaError
+        MaxDeltaError = $observedMaxDeltaError
         MaxReferencePlanarDisplacement = $maxReferenceDisplacement
         MinReferenceDisplacement = $MinReferenceDisplacement
         MaxAllowedDeltaError = $MaxDeltaError
@@ -423,7 +446,7 @@ $result = [pscustomobject][ordered]@{
         CandidateOffsetInRegion = $candidateOffset
         PoseCount = $poseArray.Count
         MaxReferencePlanarDisplacement = $maxReferenceDisplacement
-        MaxDeltaError = $maxDeltaError
+        MaxDeltaError = $observedMaxDeltaError
         ReadbackSummaryFiles = @($resolvedSummaryFiles)
         Poses = @($poseArray)
         DeltaEvidence = @($deltaEvidence.ToArray())
@@ -454,5 +477,5 @@ Write-Host ("PID/HWND:        {0} / {1}" -f $targetProcessId, $targetHandleHex)
 Write-Host ("Candidate:       {0} @ {1}" -f $CandidateId, $candidateAddress)
 Write-Host ("Pose count:      {0}" -f $poseArray.Count)
 Write-Host ("Max ref move:    {0:0.000000}" -f $maxReferenceDisplacement)
-Write-Host ("Max delta error: {0:0.000000}" -f $maxDeltaError)
+Write-Host ("Max delta error: {0:0.000000}" -f $observedMaxDeltaError)
 Write-Host 'CE usage:        none'

@@ -53,6 +53,15 @@ try {
                 ParentAddress = '0x0'
                 RootAddress = '0x100000'
                 SearchScore = 100
+            },
+            [ordered]@{
+                Rank = 2
+                SourceAddress = '0x100000'
+                BasisForwardOffset = '0x94'
+                DiscoveryMode = 'test-fixture-duplicate-basis'
+                ParentAddress = '0x0'
+                RootAddress = '0x100000'
+                SearchScore = 95
             }
         )
     }
@@ -101,6 +110,15 @@ if ($Arguments -contains '--address') {
     Write-Single -Offset 0x78 -Value 0.0
     Write-Single -Offset 0x7C -Value 0.0
     Write-Single -Offset 0x80 -Value 1.0
+    Write-Single -Offset 0x94 -Value 1.0
+    Write-Single -Offset 0x98 -Value 0.0
+    Write-Single -Offset 0x9C -Value 0.0
+    Write-Single -Offset 0xA0 -Value 0.0
+    Write-Single -Offset 0xA4 -Value 1.0
+    Write-Single -Offset 0xA8 -Value 0.0
+    Write-Single -Offset 0xAC -Value 0.0
+    Write-Single -Offset 0xB0 -Value 0.0
+    Write-Single -Offset 0xB4 -Value 1.0
 
     [pscustomobject]@{
         BytesHex = -join ($bytes | ForEach-Object { $_.ToString('X2', [System.Globalization.CultureInfo]::InvariantCulture) })
@@ -124,25 +142,37 @@ exit /b %ERRORLEVEL%
         $jsonRunOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $tempScriptFile `
             -CandidateScreenFile $candidateScreenFile `
             -OutputFile $jsonOutputFile `
-            -TopCount 1 `
+            -TopCount 2 `
             -SkipStimulus `
             -Json 2>&1
         Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("JSON yaw candidate run failed: {0}" -f ($jsonRunOutput -join [Environment]::NewLine))
 
         $document = Get-Content -LiteralPath $jsonOutputFile -Raw | ConvertFrom-Json -Depth 80
+        Assert-True -Condition ($document.ValidationFocus -eq 'player-actor-yaw-discovery') -Message 'Yaw candidate output should declare player actor yaw as the validation focus.'
+        Assert-True -Condition (-not [bool]$document.FacingPromotionAttempted) -Message 'Yaw candidate output must not claim actor-facing promotion.'
+        Assert-True -Condition ($document.ValidationSummary.ValidationFocus -eq 'player-actor-yaw-discovery') -Message 'Validation summary should preserve yaw-first focus.'
+        Assert-True -Condition ($document.ValidationSummary.CandidateCount -eq 2) -Message 'Validation summary should count both fixture candidates.'
+        Assert-True -Condition ($document.ValidationSummary.SameSourceMultiOffsetGroupCount -eq 1) -Message 'Validation summary should expose same-source multi-offset groups.'
+        Assert-True -Condition ($document.ValidationSummary.DownstreamFacingUse -eq 'not-promoted-by-this-script') -Message 'Validation summary should not promote actor-facing.'
         $result = @($document.Results)[0]
         Assert-True -Condition ($null -ne $result) -Message 'Yaw candidate output did not contain a result row.'
+        Assert-True -Condition ($result.CandidateKey -eq '0x100000|0x60') -Message 'Yaw candidate result row should include a stable CandidateKey.'
         Assert-True -Condition ($null -ne $result.PSObject.Properties['Reversible']) -Message 'Yaw candidate result row did not include the Reversible property.'
         Assert-True -Condition ($null -eq $result.Reversible) -Message 'Single-pass yaw candidate run should emit Reversible=null.'
         Assert-True -Condition (-not [bool]$result.TruthLike) -Message 'No-stimulus fixture should not be truth-like.'
+        Assert-True -Condition ($document.ValidationSummary.BestCandidate.CandidateKey -eq '0x100000|0x60') -Message 'Best yaw candidate summary should use stable CandidateKey.'
+        Assert-True -Condition ($document.ValidationSummary.BestCandidate.YawDiscoveryStatus -eq 'candidate-only') -Message 'No-stimulus fixture should be candidate-only.'
 
         $textRunOutput = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $tempScriptFile `
             -CandidateScreenFile $candidateScreenFile `
             -OutputFile $textOutputFile `
-            -TopCount 1 `
+            -TopCount 2 `
             -SkipStimulus 2>&1
         Assert-True -Condition ($LASTEXITCODE -eq 0) -Message ("Text yaw candidate run failed: {0}" -f ($textRunOutput -join [Environment]::NewLine))
-        Assert-True -Condition (([string]::Join([Environment]::NewLine, $textRunOutput)) -match 'reversible=') -Message 'Human-readable yaw candidate output did not include reversible=.'
+        $textOutput = [string]::Join([Environment]::NewLine, $textRunOutput)
+        Assert-True -Condition ($textOutput -match 'reversible=') -Message 'Human-readable yaw candidate output did not include reversible=.'
+        Assert-True -Condition ($textOutput -match 'Best yaw candidate:') -Message 'Human-readable yaw candidate output did not include the best yaw candidate summary.'
+        Assert-True -Condition ($textOutput -match 'Facing promotion:\s+not attempted') -Message 'Human-readable yaw candidate output should state that actor-facing promotion was not attempted.'
     }
     finally {
         $env:PATH = $oldPath

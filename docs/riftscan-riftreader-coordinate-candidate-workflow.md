@@ -12,6 +12,9 @@ artifact exists.
 
 - **No Cheat Engine** for live RiftReader work unless the user explicitly
   re-authorizes CE in the current conversation.
+- When the active boundary is **do not modify RiftScan**, treat
+  `C:\RIFT MODDING\Riftscan` as read-only: inspect existing reports/sessions
+  only, and write new coordination summaries under RiftReader.
 - RiftScan candidates are **candidate evidence only**.
 - A RiftScan candidate watchset is **not** a RiftReader movement proof anchor.
 - Active movement remains blocked until RiftReader has a current-process
@@ -137,6 +140,115 @@ If you already have a RiftScan candidate artifact, pass it directly:
   -TargetWindowHandle <current_rift_hwnd> `
   -CandidateFile 'C:\RIFT MODDING\Riftscan\sessions\<session>\vec3_candidates.jsonl'
 ```
+
+Important: running `invoke-riftscan-coordinate-readback.ps1` **without**
+`-CandidateFile` can create a fresh RiftScan passive capture/session under the
+RiftScan repo. Do not use that mode while RiftScan is read-only. Prefer an
+existing candidate or match file from the current-proof pointer or from
+`reports\generated`.
+
+## Read-only coordination checkpoint
+
+Use the Python coordination checkpoint before expanding discovery scope, after a
+handoff/commit/push milestone, or whenever the current target PID/HWND may have
+drifted:
+
+```powershell
+python .\scripts\riftscan_coordination.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --write-summary
+```
+
+This tool:
+
+1. Reads `docs\recovery\current-proof-anchor-readback.json`.
+2. Reads existing RiftScan `reports\generated\*-addon-coordinate-matches.json`
+   files for the requested PID.
+3. Selects the safest existing candidate source for RiftReader to consume.
+4. Emits command arrays that always include `-CandidateFile` when using
+   RiftScan-derived candidates.
+5. Writes summaries only under RiftReader and refuses to write inside the
+   RiftScan repo.
+
+The checkpoint is intentionally read-only for RiftScan: it does not run
+`riftscan capture`, does not create sessions/reports in RiftScan, sends no
+input, uses no Cheat Engine path, and does not promote candidate evidence into
+movement truth.
+
+## RiftReader-owned provider feedback packet
+
+When RiftReader needs to summarize what it learned for later RiftScan/provider
+review, write the packet under RiftReader, not inside the RiftScan repo:
+
+```powershell
+python .\scripts\riftscan_feedback.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --write-summary
+```
+
+This packet wraps the same read-only coordination plan and adds RiftReader
+artifact pointers such as current truth, the current proof pointer, the newest
+handoff, and latest coordination output. It records
+`feedbackWritesToRiftScan=false`, `writeAllowed=false`, `movementSent=false`,
+and `noCheatEngine=true`, then refuses any output path under
+`C:\RIFT MODDING\Riftscan`.
+
+Use the packet for offline review/report generation/provider-feedback review.
+Do **not** treat it as permission for movement, live capture, process attach,
+memory read, offset validation, `/reloadui`, RiftReader commands, or any
+RiftScan write.
+
+## Major milestone strategy checkpoint
+
+After every handoff, commit, push, target change, or broad discovery milestone,
+run the combined strategy checkpoint:
+
+```powershell
+python .\scripts\riftscan_milestone_review.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --write-summary `
+  --write-markdown `
+  --update-latest-pointer
+```
+
+This wraps the coordination plan and feedback packet into a short review with
+blocker/warning checks, a strategy decision, a selected candidate source, and
+next command arrays. It always writes under RiftReader, refuses output under
+RiftScan, sends no input, uses no CE path, and never grants movement permission
+by itself. If it returns `blocked`, do not expand discovery until the blocker is
+resolved. If it returns `ready-for-read-only-proof`, use explicit
+`-CandidateFile` read-only proof first and still run fresh `ProofOnly` before
+any movement.
+
+## Aggregate validation runner
+
+Before committing a coordination/discovery milestone, run the Python aggregate
+validation runner instead of hand-copying the long validation batch:
+
+```powershell
+python .\scripts\validate_riftscan_coordination.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --write-summary `
+  --write-markdown `
+  --update-latest-pointer
+```
+
+The runner uses Python `subprocess.run([...])` argument lists, sends no input,
+uses no CE path, writes nothing to RiftScan, runs the RiftScan/RiftReader
+coordination regressions, smoke-checks the milestone review status, and verifies
+`git -C C:\RIFT MODDING\Riftscan status --short --branch` has no provider
+working-tree changes. With `--write-summary --write-markdown --update-latest-pointer`, it writes
+durable validation evidence under RiftReader `scripts\captures` and refreshes
+`scripts\captures\latest-riftscan-validation.json` for handoff/resume lookup. Use
+`--dry-run --compact-json` when you only need to audit the exact commands.
 
 If you have a trusted same-time external reference coordinate, for example from
 an overlay/OCR/manual note captured at the same moment, provide it for candidate
@@ -475,14 +587,18 @@ Conclusion:
 After RiftReader samples the current process:
 
 1. Keep the RiftReader session artifact path beside the original RiftScan
-   candidate file.
-2. If a candidate window is stable/current-looking, add a corroboration or
-   review note in RiftScan rather than deleting alternatives.
-3. If a candidate fails, mark it with the observed reason and keep it replayable
-   as `soft_rejected` / `blocked_current_pid_mismatch` / `stale_session` rather
-   than dropping it.
-4. Prefer another RiftScan capture/compare pass over broad RiftReader heuristic
-   scanning.
+   candidate file in RiftReader-side docs or feedback packets.
+2. While RiftScan is read-only, generate
+   `scripts\captures\riftscan-feedback-packet-*.json` with
+   `scripts\riftscan_feedback.py` instead of writing notes into RiftScan.
+3. Only if the user explicitly authorizes a RiftScan edit/write pass, copy the
+   reviewed outcome into RiftScan as a corroboration/rejection note; preserve
+   alternatives as replayable evidence rather than deleting them.
+4. If a candidate fails, record the observed reason as
+   `soft_rejected` / `blocked_current_pid_mismatch` / `stale_session` in the
+   RiftReader-owned packet first.
+5. Prefer another authorized RiftScan capture/compare pass over broad
+   RiftReader heuristic scanning.
 
 ## Promotion rule
 

@@ -144,8 +144,20 @@ function Invoke-ExternalCommand {
             Set-Location -LiteralPath $WorkingDirectory
         }
 
-        $output = & $FilePath @Arguments 2>&1
-        $exitCode = $LASTEXITCODE
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            # Windows PowerShell can promote redirected native stderr from a
+            # child pwsh/powershell process into a terminating NativeCommandError
+            # when the caller has ErrorActionPreference=Stop. This wrapper needs
+            # to capture failing helper output so it can return a structured
+            # blocker instead of aborting before summary generation.
+            $ErrorActionPreference = 'Continue'
+            $output = & $FilePath @Arguments 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
         $text = $output -join [Environment]::NewLine
         if ($exitCode -ne 0 -and -not $AllowFailure) {
             throw "Command failed (`$LASTEXITCODE=$exitCode): $FilePath $($Arguments -join ' ')`n$text"
@@ -184,6 +196,92 @@ function Invoke-PowerShellScript {
         ) + $Arguments) -WorkingDirectory $repoRoot -AllowFailure:$AllowFailure
 }
 
+function ConvertTo-WindowHandleInt64 {
+    param([string]$HandleText)
+
+    if ([string]::IsNullOrWhiteSpace($HandleText)) {
+        return $null
+    }
+
+    if ($HandleText.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return [Int64]([UInt64]::Parse($HandleText.Substring(2), [System.Globalization.NumberStyles]::AllowHexSpecifier, [System.Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    return [Int64]::Parse($HandleText, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Format-WindowHandleText {
+    param($HandleText)
+
+    $value = ConvertTo-WindowHandleInt64 -HandleText ([string]$HandleText)
+    if ($null -eq $value) {
+        return ''
+    }
+
+    return ('0x{0:X}' -f $value)
+}
+
+function Normalize-ProcessName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return ''
+    }
+
+    $trimmed = $Name.Trim()
+    if ($trimmed.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $trimmed.Substring(0, $trimmed.Length - 4)
+    }
+
+    return $trimmed
+}
+
+function Assert-PointerTargetMatchesRequest {
+    param(
+        $Pointer,
+        [Parameter(Mandatory = $true)]
+        [string]$PointerPath
+    )
+
+    $target = Get-JsonPropertyValue -InputObject $Pointer -Names @('target')
+    if ($null -eq $target) {
+        throw "Current proof pointer '$PointerPath' is missing target metadata."
+    }
+
+    if ($ProcessId -gt 0) {
+        $pointerProcessId = Get-JsonPropertyValue -InputObject $target -Names @('processId', 'ProcessId', 'pid')
+        if ($null -eq $pointerProcessId -or [int]$pointerProcessId -ne $ProcessId) {
+            throw "Current proof pointer '$PointerPath' target PID '$pointerProcessId' does not match requested PID $ProcessId."
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
+        $pointerProcessName = [string](Get-JsonPropertyValue -InputObject $target -Names @('processName', 'ProcessName'))
+        if ([string]::IsNullOrWhiteSpace($pointerProcessName)) {
+            throw "Current proof pointer '$PointerPath' is missing target processName."
+        }
+
+        $expectedProcessName = Normalize-ProcessName -Name $ProcessName
+        $actualProcessName = Normalize-ProcessName -Name $pointerProcessName
+        if (-not [string]::Equals($actualProcessName, $expectedProcessName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Current proof pointer '$PointerPath' target process '$pointerProcessName' does not match requested process '$ProcessName'."
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        $pointerWindowHandle = [string](Get-JsonPropertyValue -InputObject $target -Names @('targetWindowHandle', 'TargetWindowHandle', 'hwnd'))
+        if ([string]::IsNullOrWhiteSpace($pointerWindowHandle)) {
+            throw "Current proof pointer '$PointerPath' is missing targetWindowHandle."
+        }
+
+        $expectedWindowHandle = Format-WindowHandleText -HandleText $TargetWindowHandle
+        $actualWindowHandle = Format-WindowHandleText -HandleText $pointerWindowHandle
+        if (-not [string]::Equals($actualWindowHandle, $expectedWindowHandle, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Current proof pointer '$PointerPath' target HWND '$pointerWindowHandle' does not match requested HWND '$TargetWindowHandle'."
+        }
+    }
+}
+
 function Resolve-CandidateFile {
     if (-not [string]::IsNullOrWhiteSpace($CandidateFile)) {
         $resolved = [System.IO.Path]::GetFullPath($CandidateFile)
@@ -191,7 +289,12 @@ function Resolve-CandidateFile {
             throw "Candidate file was not found: $resolved"
         }
 
-        return $resolved
+        return [pscustomobject][ordered]@{
+            CandidateFile = $resolved
+            ResolvedFromPointer = $false
+            CurrentProofPointerFile = $null
+            CandidateSource = $null
+        }
     }
 
     $pointerPath = [System.IO.Path]::GetFullPath($CurrentProofPointerFile)
@@ -200,10 +303,20 @@ function Resolve-CandidateFile {
     }
 
     $pointer = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $pointerPath -Raw) -Depth 80
+    Assert-PointerTargetMatchesRequest -Pointer $pointer -PointerPath $pointerPath
     $source = Get-JsonPropertyValue -InputObject $pointer -Names @('riftscanCandidateSource')
+    if ($null -eq $source) {
+        throw "CandidateFile was not supplied and '$pointerPath' does not contain riftscanCandidateSource."
+    }
+
     $matchFile = [string](Get-JsonPropertyValue -InputObject $source -Names @('matchFile'))
     if ([string]::IsNullOrWhiteSpace($matchFile)) {
         throw "CandidateFile was not supplied and '$pointerPath' does not contain riftscanCandidateSource.matchFile."
+    }
+
+    $candidateId = [string](Get-JsonPropertyValue -InputObject $source -Names @('candidateId'))
+    if ([string]::IsNullOrWhiteSpace($candidateId)) {
+        throw "CandidateFile was not supplied and '$pointerPath' does not contain riftscanCandidateSource.candidateId."
     }
 
     $resolvedMatchFile = [System.IO.Path]::GetFullPath($matchFile)
@@ -211,7 +324,12 @@ function Resolve-CandidateFile {
         throw "Candidate file from '$pointerPath' was not found: $resolvedMatchFile"
     }
 
-    return $resolvedMatchFile
+    return [pscustomobject][ordered]@{
+        CandidateFile = $resolvedMatchFile
+        ResolvedFromPointer = $true
+        CurrentProofPointerFile = $pointerPath
+        CandidateSource = ConvertTo-JsonSafeValue -Value $source
+    }
 }
 
 function ConvertTo-SafePathSegment {
@@ -235,7 +353,8 @@ if ($ReferenceMaxAgeSeconds -lt 0 -or $ReadbackSampleCount -le 0 -or $ReadbackIn
     throw "ReferenceMaxAgeSeconds must be zero or greater; ReadbackSampleCount and TopReferenceMatches must be greater than zero; ReadbackIntervalMilliseconds must be zero or greater."
 }
 
-$resolvedCandidateFile = Resolve-CandidateFile
+$candidateResolution = Resolve-CandidateFile
+$resolvedCandidateFile = [string]$candidateResolution.CandidateFile
 $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
@@ -374,6 +493,9 @@ $summary = [pscustomobject][ordered]@{
     MovementSent = $false
     MovementAllowed = [bool](Get-JsonPropertyValue -InputObject $readbackSummary -Names @('MovementAllowed'))
     CandidateFile = $resolvedCandidateFile
+    CandidateResolvedFromPointer = [bool]$candidateResolution.ResolvedFromPointer
+    CurrentProofPointerFile = $candidateResolution.CurrentProofPointerFile
+    CandidateSource = $candidateResolution.CandidateSource
     ReferenceCaptured = $referenceCaptured
     ReferenceFile = $resolvedReferenceFile
     ReferenceCaptureExitCode = if ($null -eq $referenceCommand) { $null } else { $referenceCommand.ExitCode }

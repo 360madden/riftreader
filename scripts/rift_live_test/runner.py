@@ -396,6 +396,7 @@ class LiveTestRunner:
         script_path = self.repo_root / "scripts" / "promote-riftscan-reference-match-to-proof-anchor.ps1"
         array_literal = "@(" + ",".join(ps_quote(path) for path in readback_summary_files) + ")"
         output_file = self._proof_anchor_file()
+        candidate_id = self._candidate_id()
         script = " ".join(
             [
                 "&",
@@ -403,7 +404,7 @@ class LiveTestRunner:
                 "-ReadbackSummaryFile",
                 array_literal,
                 "-CandidateId",
-                ps_quote(str(self.profile.get("candidateId", "rift-addon-coordinate-candidate-000001"))),
+                ps_quote(candidate_id),
                 "-ProcessName",
                 ps_quote(self._process_name()),
                 "-ProcessId",
@@ -724,10 +725,35 @@ class LiveTestRunner:
             process_id=self.process_id,
             target_window_handle=self.target_window_handle,
             process_name=self._process_name(),
-            candidate_id=str(self.profile.get("candidateId", "rift-addon-coordinate-candidate-000001")),
+            candidate_id=self._candidate_id(),
             min_reference_displacement=float(self.profile.get("minReferenceDisplacement", 1.0)),
             max_count=int(self.profile.get("maxPromotionBaselineCandidates", 6)),
         )
+
+    def _current_proof_pointer_file(self) -> Path:
+        configured = self.profile.get("currentProofPointerFile")
+        if configured:
+            path = Path(str(configured))
+            return path if path.is_absolute() else self.repo_root / path
+        return self.repo_root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+
+    def _candidate_id(self) -> str:
+        source = str(self.profile.get("candidateIdSource", "current-proof-pointer")).lower()
+        fallback = str(self.profile.get("candidateId", "rift-addon-coordinate-candidate-000001"))
+        if source in {"profile", "config"}:
+            return fallback
+
+        pointer_file = self._current_proof_pointer_file()
+        try:
+            pointer = json.loads(pointer_file.read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - stale/missing pointer should fall back to profile config.
+            return fallback
+        candidate_source = pointer.get("riftscanCandidateSource")
+        if isinstance(candidate_source, dict):
+            pointer_candidate = candidate_source.get("candidateId")
+            if pointer_candidate:
+                return str(pointer_candidate)
+        return fallback
 
     @staticmethod
     def _summary_coordinate(summary_file: Path) -> dict[str, Any] | None:
@@ -1146,6 +1172,8 @@ class LiveTestRunner:
                 "minimumPostReadbackAgeBudgetSeconds"
             ),
             "referenceMaxAgeSeconds": self.profile.get("referenceMaxAgeSeconds"),
+            "candidateId": self._candidate_id(),
+            "candidateIdSource": self.profile.get("candidateIdSource", "current-proof-pointer"),
             "maxAutoRefreshAttempts": int(self.profile.get("maxAutoRefreshAttempts", 0)),
             "autoRefreshAttemptsUsed": self.auto_refresh_attempts_used,
             "updateLatestPointer": bool(self.profile.get("updateLatestPointer", True)),

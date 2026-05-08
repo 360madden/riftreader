@@ -108,6 +108,60 @@ function Get-ScoreValue {
     return 0.0
 }
 
+function Get-NullableDoubleValue {
+    param($InputObject, [Parameter(Mandatory = $true)][string]$Name)
+
+    $value = Get-JsonPropertyValue -InputObject $InputObject -Name $Name
+    if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [double]$value
+}
+
+function Get-NullableIntValue {
+    param($InputObject, [Parameter(Mandatory = $true)][string]$Name)
+
+    $value = Get-JsonPropertyValue -InputObject $InputObject -Name $Name
+    if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [int]$value
+}
+
+function Get-CandidateRankScore {
+    param(
+        $InputObject,
+        [Parameter(Mandatory = $true)]
+        [double]$BaseScore
+    )
+
+    $supportCount = Get-NullableDoubleValue -InputObject $InputObject -Name 'support_count'
+    $observationSupportCount = Get-NullableDoubleValue -InputObject $InputObject -Name 'observation_support_count'
+    $bestMaxAbsDistance = Get-NullableDoubleValue -InputObject $InputObject -Name 'best_max_abs_distance'
+    $validationStatus = Get-StringValue -InputObject $InputObject -Name 'validation_status'
+    $rankScore = $BaseScore
+
+    if ($null -ne $supportCount) {
+        $rankScore += ($supportCount * 1000.0)
+    }
+
+    if ($null -ne $observationSupportCount) {
+        $rankScore += ($observationSupportCount * 100.0)
+    }
+
+    if ($null -ne $bestMaxAbsDistance) {
+        $rankScore += [Math]::Max(0.0, 100.0 - [Math]::Min(100.0, ([double]$bestMaxAbsDistance * 100.0)))
+    }
+
+    if ($validationStatus -like '*validated*' -or $validationStatus -like '*corroborated*') {
+        $rankScore += 50.0
+    }
+
+    return $rankScore
+}
+
 function Get-CandidateOffsetHex {
     param($Candidate)
 
@@ -219,6 +273,12 @@ function Normalize-Candidate {
         $candidateId = 'riftscan-candidate-{0:000000}' -f $Index
     }
 
+    $axisOrder = Get-StringValue -InputObject $Candidate -Name 'axis_order'
+    $effectiveAxisOrder = if ([string]::IsNullOrWhiteSpace($axisOrder)) { 'xyz' } else { $axisOrder.Trim().ToLowerInvariant() }
+    if (-not [string]::Equals($effectiveAxisOrder, 'xyz', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Candidate '$candidateId' uses unsupported axis_order '$axisOrder'; only contiguous xyz float triplets are currently supported."
+    }
+
     $classification = Get-StringValue -InputObject $Candidate -Name 'classification'
     if ([string]::IsNullOrWhiteSpace($classification) -and -not [string]::IsNullOrWhiteSpace((Get-StringValue -InputObject $Candidate -Name 'source_region_id'))) {
         $classification = 'addon_coordinate_match_candidate'
@@ -242,6 +302,10 @@ function Normalize-Candidate {
     }
 
     $score = Get-ScoreValue -InputObject $Candidate
+    $rankScore = Get-CandidateRankScore -InputObject $Candidate -BaseScore $score
+    $supportCount = Get-NullableIntValue -InputObject $Candidate -Name 'support_count'
+    $observationSupportCount = Get-NullableIntValue -InputObject $Candidate -Name 'observation_support_count'
+    $bestMaxAbsDistance = Get-NullableDoubleValue -InputObject $Candidate -Name 'best_max_abs_distance'
 
     if ($score -lt $MinScore) {
         return $null
@@ -286,6 +350,11 @@ function Normalize-Candidate {
         RegionLength = $regionLength
         ContextBytes = $context
         Score = $score
+        RankScore = $rankScore
+        AxisOrder = $effectiveAxisOrder
+        SupportCount = $supportCount
+        ObservationSupportCount = $observationSupportCount
+        BestMaxAbsDistance = $bestMaxAbsDistance
         Classification = $classification
         PromotionStatus = $promotionStatus
         TruthReadiness = $truthReadiness
@@ -314,7 +383,7 @@ foreach ($candidate in $documents) {
 
 $selected = @(
     $normalized.ToArray() |
-        Sort-Object @{ Expression = { -1 * [double]$_.Score } }, CandidateId |
+        Sort-Object @{ Expression = { -1 * [double]$_.RankScore } }, @{ Expression = { -1 * [double]$_.Score } }, CandidateId |
         Select-Object -First ([Math]::Max(1, $TopCount))
 )
 

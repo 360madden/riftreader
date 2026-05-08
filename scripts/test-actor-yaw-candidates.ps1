@@ -558,6 +558,125 @@ function Get-ComparableMagnitude {
     return [Math]::Abs([double]$Value)
 }
 
+function Get-ActorYawDiscoveryStatus {
+    param($Result)
+
+    if ($null -eq $Result) {
+        return 'missing'
+    }
+
+    $beforeReadSucceeded = if ($Result.PSObject.Properties['BeforeReadSucceeded']) { $Result.BeforeReadSucceeded } else { $true }
+    $afterReadSucceeded = if ($Result.PSObject.Properties['AfterReadSucceeded']) { $Result.AfterReadSucceeded } else { $true }
+    if (-not [bool]$beforeReadSucceeded -or -not [bool]$afterReadSucceeded) {
+        return 'read-failed'
+    }
+
+    if ([bool]$Result.TruthLike) {
+        return 'truth-like'
+    }
+
+    if ($Result.PSObject.Properties['Reversible'] -and $null -ne $Result.Reversible -and [bool]$Result.Reversible) {
+        return 'reversible-candidate'
+    }
+
+    if ([bool]$Result.CandidateResponsive) {
+        return 'responsive-candidate'
+    }
+
+    return 'candidate-only'
+}
+
+function New-ActorYawResultSummary {
+    param($Result)
+
+    if ($null -eq $Result) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        CandidateKey = if ($Result.PSObject.Properties['CandidateKey']) { [string]$Result.CandidateKey } else { Get-CandidateSnapshotKey -AddressHex ([string]$Result.SourceAddress) -ForwardOffsetHex ([string]$Result.BasisForwardOffset) }
+        Rank = $Result.Rank
+        SourceAddress = [string]$Result.SourceAddress
+        BasisForwardOffset = [string]$Result.BasisForwardOffset
+        DiscoveryMode = [string]$Result.DiscoveryMode
+        SearchScore = $Result.SearchScore
+        YawDeltaDegrees = $Result.YawDeltaDegrees
+        ReverseYawDeltaDegrees = if ($Result.PSObject.Properties['ReverseYawDeltaDegrees']) { $Result.ReverseYawDeltaDegrees } else { $null }
+        Reversible = if ($Result.PSObject.Properties['Reversible']) { $Result.Reversible } else { $null }
+        ReversibleCycleCount = if ($Result.PSObject.Properties['ReversibleCycleCount']) { $Result.ReversibleCycleCount } else { $null }
+        CandidateResponsive = $Result.CandidateResponsive
+        PlayerStayedMostlyStill = $Result.PlayerStayedMostlyStill
+        TruthLike = $Result.TruthLike
+        YawDiscoveryStatus = Get-ActorYawDiscoveryStatus -Result $Result
+    }
+}
+
+function New-ActorYawValidationSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Results
+    )
+
+    $resultArray = @($Results)
+    $truthLike = @($resultArray | Where-Object { $_.TruthLike })
+    $responsive = @($resultArray | Where-Object { $_.CandidateResponsive })
+    $reversible = @($resultArray | Where-Object { $_.PSObject.Properties['Reversible'] -and $null -ne $_.Reversible -and [bool]$_.Reversible })
+    $bestCandidate = $resultArray |
+        Sort-Object `
+            @{ Expression = { if ($_.TruthLike) { 0 } elseif ($_.CandidateResponsive) { 1 } else { 2 } } }, `
+            @{ Expression = { if ($_.PSObject.Properties['Reversible'] -and $null -ne $_.Reversible -and [bool]$_.Reversible) { 0 } else { 1 } } }, `
+            @{ Expression = { -1 * (Get-ComparableMagnitude -Value $_.YawDeltaDegrees) } }, `
+            CandidateKey |
+        Select-Object -First 1
+
+    $sameSourceGroups = @(
+        $resultArray |
+            Group-Object SourceAddress |
+            Where-Object { $_.Count -gt 1 } |
+            ForEach-Object {
+                $groupRows = @($_.Group)
+                [pscustomobject][ordered]@{
+                    SourceAddress = [string]$_.Name
+                    CandidateCount = $groupRows.Count
+                    CandidateKeys = @($groupRows | ForEach-Object {
+                            if ($_.PSObject.Properties['CandidateKey']) {
+                                [string]$_.CandidateKey
+                            }
+                            else {
+                                Get-CandidateSnapshotKey -AddressHex ([string]$_.SourceAddress) -ForwardOffsetHex ([string]$_.BasisForwardOffset)
+                            }
+                        })
+                    BasisForwardOffsets = @($groupRows | ForEach-Object { [string]$_.BasisForwardOffset })
+                    TruthLikeCandidateCount = @($groupRows | Where-Object { $_.TruthLike }).Count
+                    ResponsiveCandidateCount = @($groupRows | Where-Object { $_.CandidateResponsive }).Count
+                }
+            })
+
+    $recommendation = if ($truthLike.Count -gt 0) {
+        'Yaw candidate evidence has truth-like rows; keep this as yaw discovery output and require the actor-facing proof suite before downstream facing/navigation promotion.'
+    }
+    elseif ($responsive.Count -gt 0) {
+        'Yaw-responsive candidates exist, but none are truth-like; rerun with reverse stimulus or more samples before promotion.'
+    }
+    else {
+        'No yaw-responsive candidates found; expand or refresh the player actor yaw discovery candidate screen before facing promotion.'
+    }
+
+    return [pscustomobject][ordered]@{
+        ValidationFocus = 'player-actor-yaw-discovery'
+        CandidateCount = $resultArray.Count
+        TruthLikeCandidateCount = $truthLike.Count
+        ResponsiveCandidateCount = $responsive.Count
+        ReversibleCandidateCount = $reversible.Count
+        SameSourceMultiOffsetGroupCount = $sameSourceGroups.Count
+        SameSourceMultiOffsetGroups = @($sameSourceGroups)
+        BestCandidate = New-ActorYawResultSummary -Result $bestCandidate
+        FacingPromotionAttempted = $false
+        DownstreamFacingUse = 'not-promoted-by-this-script'
+        Recommendation = $recommendation
+    }
+}
+
 function Get-CandidateSnapshot {
     param(
         [Parameter(Mandatory = $true)][string]$AddressHex,
@@ -1002,6 +1121,7 @@ if (-not $useAdvancedValidation) {
 
         $results.Add([pscustomobject]@{
                 Rank = $row.Rank
+                CandidateKey = $snapshotKey
                 SourceAddress = $address
                 BasisForwardOffset = [string]$row.BasisForwardOffset
                 DiscoveryMode = [string]$row.DiscoveryMode
@@ -1223,6 +1343,7 @@ else {
 
         $results.Add([pscustomobject]@{
                 Rank = $row.Rank
+                CandidateKey = $snapshotKey
                 SourceAddress = [string]$row.SourceAddress
                 BasisForwardOffset = [string]$row.BasisForwardOffset
                 DiscoveryMode = [string]$row.DiscoveryMode
@@ -1256,6 +1377,9 @@ else {
     $document.Cycles = $cycles.ToArray()
 }
 
+$document.ValidationFocus = 'player-actor-yaw-discovery'
+$document.FacingPromotionAttempted = $false
+$document.ValidationSummary = New-ActorYawValidationSummary -Results $results.ToArray()
 $document.Notes = @(
     $(if ($SkipStimulus -or $StimulusMode -eq 'Manual') { 'Read-only candidate validation using direct memory reads around a manual turn window.' } else { "Read-only candidate validation using direct memory reads plus a controlled $StimulusMode turn key stimulus." }),
     $(if ($useAdvancedValidation) {
@@ -1268,7 +1392,8 @@ $document.Notes = @(
         }
         else { 'Single-pass mode performs one before/after comparison per candidate.' }),
     'No debugger attach, breakpoint tracing, or debug scanning was used.',
-    'A candidate is marked truth-like when its yaw response clears the configured threshold while player coordinate drift stays under the configured limit.')
+    'A candidate is marked truth-like when its yaw response clears the configured threshold while player coordinate drift stays under the configured limit.',
+    'This script validates player actor yaw discovery candidates only; actor-facing promotion still requires the actor-facing proof suite.')
 
 $outputDirectory = Split-Path -Parent $resolvedOutputFile
 if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
@@ -1295,6 +1420,10 @@ else {
 }
 Write-Host "Candidates tested:        $($results.Count)"
 Write-Host "Truth-like candidates:    $(@($results | Where-Object { $_.TruthLike }).Count)"
+if ($null -ne $document.ValidationSummary.BestCandidate) {
+    Write-Host ("Best yaw candidate:       {0} @ {1} ({2})" -f $document.ValidationSummary.BestCandidate.SourceAddress, $document.ValidationSummary.BestCandidate.BasisForwardOffset, $document.ValidationSummary.BestCandidate.YawDiscoveryStatus)
+}
+Write-Host "Facing promotion:         not attempted"
 foreach ($result in $results) {
     $yawDeltaDegrees = if ($null -eq $result.YawDeltaDegrees) { 0.0 } else { [double]$result.YawDeltaDegrees }
     $coordDeltaMagnitude = if ($null -eq $result.PlayerCoordDeltaMagnitude) { 0.0 } else { [double]$result.PlayerCoordDeltaMagnitude }

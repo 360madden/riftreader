@@ -1012,6 +1012,61 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cannot disable requireLiveFlagForInput"):
                 load_profile(root, config, "UnsafeForward")
 
+    def test_runner_prefers_current_pointer_candidate_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "mode": "current-proof-anchor-readback-pointer",
+                        "riftscanCandidateSource": {
+                            "candidateId": "fresh-riftscan-candidate-000123",
+                            "matchFile": "C:/Riftscan/reports/generated/fresh.json",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "candidateId": "stale-profile-candidate",
+                    "candidateIdSource": "current-proof-pointer",
+                },
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+
+            self.assertEqual(runner._candidate_id(), "fresh-riftscan-candidate-000123")
+            self.assertEqual(runner._run_gates()["candidateId"], "fresh-riftscan-candidate-000123")
+
+    def test_runner_can_use_profile_candidate_id_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "candidateId": "explicit-profile-candidate",
+                    "candidateIdSource": "profile",
+                },
+                process_id=123,
+                target_window_handle="0x123",
+                live=False,
+            )
+
+            self.assertEqual(runner._candidate_id(), "explicit-profile-candidate")
+
     def test_live_retry_is_blocked_after_any_movement_started(self) -> None:
         payload = {
             "Status": "blocked-preflight-age-budget",

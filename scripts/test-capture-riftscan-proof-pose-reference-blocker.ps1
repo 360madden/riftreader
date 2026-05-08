@@ -35,6 +35,21 @@ function Assert-True {
     }
 }
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [int]$Depth = 80
+    )
+
+    $command = Get-Command -Name ConvertFrom-Json -CommandType Cmdlet
+    if ($command.Parameters.ContainsKey('Depth')) {
+        return $Text | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $Text | ConvertFrom-Json
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $script = Join-Path $repoRoot 'scripts\capture-riftscan-proof-pose.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-riftscan-proof-pose-blocker-' + [System.Guid]::NewGuid().ToString('N'))
@@ -94,12 +109,14 @@ exit 0
         -ReadbackScript $readbackScript `
         -Json
 
-    $summary = $summaryJson | ConvertFrom-Json -Depth 30
+    $summary = ConvertFrom-JsonCompat -Text ($summaryJson -join [Environment]::NewLine) -Depth 30
     Assert-Equal -Actual $summary.Mode -Expected 'riftscan-proof-pose-capture' -Message 'Unexpected summary mode.'
     Assert-Equal -Actual $summary.Status -Expected 'blocked-reference-unavailable' -Message 'Reference failure should be structured as a blocker status.'
     Assert-True -Condition ([bool]$summary.NoCheatEngine) -Message 'Wrapper must preserve no-CE boundary.'
     Assert-True -Condition (-not [bool]$summary.MovementSent) -Message 'Wrapper must not send movement.'
     Assert-True -Condition (-not [bool]$summary.MovementAllowed) -Message 'Movement must remain blocked.'
+    Assert-Equal -Actual $summary.CandidateFile -Expected ([System.IO.Path]::GetFullPath($candidateFile)) -Message 'Explicit candidate file should be preserved.'
+    Assert-True -Condition (-not [bool]$summary.CandidateResolvedFromPointer) -Message 'Explicit CandidateFile should not be marked pointer-resolved.'
     Assert-True -Condition (-not [bool]$summary.ReferenceCaptured) -Message 'ReferenceCaptured must be false when helper fails.'
     Assert-Equal -Actual $summary.ReferenceCaptureExitCode -Expected 1 -Message 'Reference helper exit code should be preserved.'
     Assert-True -Condition ([string]::IsNullOrWhiteSpace([string]$summary.ReferenceFile)) -Message 'ReferenceFile should be empty when no reference is captured.'

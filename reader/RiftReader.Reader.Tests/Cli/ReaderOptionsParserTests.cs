@@ -23,6 +23,41 @@ public sealed class ReaderOptionsParserTests
     }
 
     [Fact]
+    public void Parse_AcceptsFindPlayerOrientationCandidateWithLedgerFile()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--find-player-orientation-candidate",
+            "--orientation-candidate-ledger-file", @"C:\temp\orientation-candidate-ledger.ndjson",
+            "--max-hits", "8",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.FindPlayerOrientationCandidate);
+        Assert.Equal("rift_x64", options.ProcessName);
+        Assert.Equal(@"C:\temp\orientation-candidate-ledger.ndjson", options.OrientationCandidateLedgerFile);
+        Assert.Equal(8, options.MaxHits);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_RejectsOrientationCandidateLedgerFileOutsideFindPlayerOrientationCandidateMode()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--read-player-current",
+            "--orientation-candidate-ledger-file", @"C:\temp\orientation-candidate-ledger.ndjson"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--orientation-candidate-ledger-file can only be used with --find-player-orientation-candidate.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Parse_AcceptsCaptureNavigationWaypointMode()
     {
         var result = ReaderOptionsParser.Parse(
