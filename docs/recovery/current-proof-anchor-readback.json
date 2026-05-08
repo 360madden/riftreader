@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T09:06:36Z",
-  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-postmessage-arrows-no-turn",
+  "lastUpdatedUtc": "2026-05-08T10:24:55Z",
+  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-on-demand-proofonly-passed",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "post-postmessage-arrow-profile-proofonly-passed",
+    "latestReadbackStatus": "on-demand-proofonly-passed",
     "latestMovementAllowed": true,
-    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. No reliable turn backend is promoted. With the proof pointer schema restored, post-message Left/Right 250ms x2 delivered to the exact HWND but no-turned across all four attempts with zero proof-coordinate delta. Retry-enabled true foreground SendInput Right also no-turned twice. True SendInput d, Left/Right, and q/e also no-turn; post-message d remains inconsistent/opposite-sign. Any further movement still requires fresh proof/preflight and auto-turn should not enter forward navigation until turn input convergence is proven.",
+    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. On-demand ProofOnly refreshed successfully at 2026-05-08T10:24:55Z with movementSent=false. No reliable turn backend is promoted, so auto-turn remains blocked even though coordinate truth is valid. Any further movement still requires fresh proof/preflight because the proof gate is age-limited.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -103,6 +103,7 @@
   },
   "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice remains blocked: the Python turn-key profiler found no promoted turn key/backend candidate across post-message and foreground d/a trials, foreground Left/Right arrow trials before and after the SendInput fix, true SendInput q/e trials, longer 500ms d trials, or true SendInput d trials after the INPUT-size fix. Before any auto-turn-to-forward movement, re-bind exact target, run fresh proof/preflight, and prove a repeatable turn backend with at least two same-sign yaw deltas and zero proof-coordinate movement.",
   "notes": [
+    "May 8 on-demand coord anchor ProofOnly refresh passed on PID 33912 / HWND 0xE0DB2 at 10:24:55Z; movementSent=false; no CE; no SavedVariables live truth.",
     "May 8 post-message Left/Right arrow rerun added after restoring the proof pointer schema: all four attempts delivered with effectiveMode=post-message but yaw delta stayed 0.0 and proof-coordinate delta stayed 0.0; post-profile ProofOnly passed.",
     "May 8 proof pointer schema was restored after a bad local update replaced docs/recovery/current-proof-anchor-readback.json with a raw readback summary; ProofOnly then passed again and scripts/test_current_proof_pointer.py now guards the required riftscanCandidateSource.matchFile field.",
     "May 8 retry-enabled true foreground SendInput Right profile added: Right delivered without fallback twice at 250ms after fresh proof, but yaw delta stayed 0.0 and proof-coordinate delta stayed 0.0; post-profile ProofOnly passed.",
@@ -177,18 +178,18 @@
     "candidateCount": 12
   },
   "latestProofOnly": {
-    "generatedAtUtc": "2026-05-08T09:06:36.244467+00:00",
+    "generatedAtUtc": "2026-05-08T10:24:55.399227+00:00",
     "status": "passed-proof-only",
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-090608\\run-summary.json",
-    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-090608\\run-progress.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-050631.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-102345\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-102345\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-062445.json",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
       "x": 7436.64013671875,
       "y": 885.2191772460938,
       "z": 3055.749267578125,
-      "recordedAtUtc": "2026-05-08T09:06:35.7478456Z"
+      "recordedAtUtc": "2026-05-08T10:24:54.3463325Z"
     },
     "noCheatEngine": true,
     "savedVariablesUsedAsLiveTruth": false

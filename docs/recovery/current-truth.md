@@ -1,22 +1,22 @@
 # Current Truth
 
-_Last updated: May 8, 2026 05:06 EDT / 09:06 UTC (latest live validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth remains **movement-grade and 2m waypoint-smoke validated**, but auto-turn is still **blocked**. Targeted keybind-surface inspection found no plaintext movement bindings in AppData/Documents configs outside AddOns, but binary `C:\Program Files (x86)\Glyph\Games\RIFT\Live\codex_keys.dat` shows W/S/A/D with arrow alternates followed by Q/E. After the SendInput struct fix, true foreground SendInput `q/e`, `d`, and arrows delivered without AutoHotkey fallback but still no-turned; retry-enabled `Right` 250ms x2 also no-turned. After restoring the current-proof pointer schema, exact-HWND post-message `Left/Right` 250ms x2 delivered but no-turned across all four attempts with proof-coordinate delta `0.0`. Post-message `d` remains inconsistent/opposite-sign. Post-profile `ProofOnly` passed. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
+_Last updated: May 8, 2026 06:24 EDT / 10:24 UTC (latest on-demand coord-anchor proof refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth remains **movement-grade and 2m waypoint-smoke validated**, but auto-turn is still **blocked**. Targeted keybind-surface inspection found no plaintext movement bindings in AppData/Documents configs outside AddOns, but binary `C:\Program Files (x86)\Glyph\Games\RIFT\Live\codex_keys.dat` shows W/S/A/D with arrow alternates followed by Q/E. After the SendInput struct fix, true foreground SendInput `q/e`, `d`, and arrows delivered without AutoHotkey fallback but still no-turned; retry-enabled `Right` 250ms x2 also no-turned. After restoring the current-proof pointer schema, exact-HWND post-message `Left/Right` 250ms x2 delivered but no-turned across all four attempts with proof-coordinate delta `0.0`. Post-message `d` remains inconsistent/opposite-sign. Post-profile `ProofOnly` passed. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
-| Latest no-input proof | Post-post-message-arrow-profile `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-090608\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-050631.json`; `movementSent=false` |
+| Latest no-input proof | On-demand coord-anchor `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-102345\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-062445.json`; `movementSent=false` |
 | Latest current-session candidate | `rift-addon-coordinate-candidate-000001` at `0x202FEA3E180` from `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
 | Latest actor-facing truth | Current PID behavior-backed lead promoted: `0X202E570DB20 @ +0xD4`; D/A validation produced reversible yaw deltas `71.9515/71.4643` degrees with `PlayerCoordDeltaMagnitude=0.0` |
-| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-090608\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
-| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-post-message-arrow-profile `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-090608\run-summary.json` |
+| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-102345\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to on-demand coord-anchor `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-102345\run-summary.json` |
 | Latest movement truth | **Current-session movement proof passed**: `Forward250 --live`, `ForwardSeries3x250 --live`, fixed-bearing 1m waypoint smoke, and fixed-bearing 2m waypoint smoke all passed on PID `33912` / HWND `0xE0DB2` |
 | Latest waypoint smoke | 2m `run-a-to-b-prototype` succeeded with route `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\smoke-test-waypoints-2m-fixed-bearing.json`; 4 pulses, stop reason `arrived`, distance `2.000000000000236m -> 0.6994920167255987m` |
-| Current coordinate | Post-post-message-arrow-profile `ProofOnly` coordinate `X=7436.64013671875`, `Y=885.2191772460938`, `Z=3055.749267578125` at `2026-05-08T09:06:35.7478456Z` |
-| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-post-message-arrow-profile proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
-| Latest validation | May 8 05:06 EDT: after restoring the current-proof pointer schema, exact-HWND post-message `Left/Right` 250ms x2 delivered with proof refresh before each attempt and `--proof-refresh-retries 1`; yaw delta stayed `0.0` and proof-coordinate delta stayed `0.0` across all four attempts, no promoted backend; post-profile `ProofOnly` passed; no CE and no SavedVariables live truth |
+| Current coordinate | On-demand coord-anchor `ProofOnly` coordinate `X=7436.64013671875`, `Y=885.2191772460938`, `Z=3055.749267578125` at `2026-05-08T10:24:54.3463325Z` |
+| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest on-demand `ProofOnly`; proof is age-gated, so re-bind exact target and run fresh preflight before later movement |
+| Latest validation | May 8 06:24 EDT: on-demand coord-anchor `ProofOnly` passed on current PID/HWND; coordinate unchanged at `7436.64013671875,885.2191772460938,3055.749267578125`; `movementSent=false`; no CE and no SavedVariables live truth. Auto-turn remains blocked because no turn backend is promoted. |
 | Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; for the latest navigation smoke inspect `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\a-to-b-prototype-2m-fixed-bearing.ndjson` |
 | Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md`; turn-key profiler `C:\RIFT MODDING\RiftReader\scripts\profile_turn_keys.py` added and live-tested; offline hardening added `--proof-refresh-retries` so transient per-attempt proof-refresh failures can retry before blocking input |
 | Auto-turn code gate | `C:\RIFT MODDING\RiftReader\scripts\navigation\run-a-to-b-prototype.ps1` now requires promoted backend evidence before pulsing an auto-turn key; current compact evidence has zero promoted candidates, so misaligned `-AutoTurnBeforeMove` fails closed before turn input |
@@ -27,6 +27,21 @@ _Last updated: May 8, 2026 05:06 EDT / 09:06 UTC (latest live validation refresh
 | Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-031200-current-pid-33912-autoturn-blocked-handoff.md` |
 
 
+
+
+## May 8 continuation: on-demand coord anchor proof refreshed
+
+| Fact | Value |
+|---|---|
+| Reason | User asked whether the coord anchor required a client restart; refreshed proof immediately to remove stale-age ambiguity |
+| Target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Proof run | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-102345\run-summary.json` |
+| Readback | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-062445.json` |
+| Status | `passed-proof-only` |
+| Coordinate | `7436.64013671875,885.2191772460938,3055.749267578125` at `2026-05-08T10:24:54.3463325Z` |
+| Movement | `movementSent=false`; `movementAttempted=false` |
+| Safety | no CE; no SavedVariables live truth; exact PID/HWND |
+| Restart needed | No restart needed for coord truth while PID `33912` / HWND `0xE0DB2` remains alive; only fresh proof/preflight is needed before movement |
 
 ## May 8 continuation: auto-turn now requires promoted backend evidence
 
