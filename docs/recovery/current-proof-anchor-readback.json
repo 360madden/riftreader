@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T05:40:20Z",
-  "status": "movement-grade-current-session-waypoint-smoke-passed",
+  "lastUpdatedUtc": "2026-05-08T06:28:08Z",
+  "status": "movement-grade-current-session-2m-waypoint-smoke-passed",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "post-navigation-proofonly-passed-after-waypoint-smoke",
+    "latestReadbackStatus": "post-navigation-proofonly-passed-after-2m-waypoint-smoke",
     "latestMovementAllowed": true,
-    "note": "Current PID/HWND proof promoted and ProofOnly, Forward250, ForwardSeries3x250, actor-facing promotion, and fixed-bearing A/B waypoint smoke passed with no CE. Any further movement still requires a fresh proof/preflight because proof anchors are age-gated.",
+    "note": "Current PID/HWND proof promoted and ProofOnly, Forward250, ForwardSeries3x250, actor-facing promotion, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke passed with no CE. Any further movement still requires a fresh proof/preflight because proof anchors are age-gated.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -39,46 +39,56 @@
     ]
   },
   "latestValidation": {
-    "generatedAtUtc": "2026-05-08T05:39:16.495Z",
+    "generatedAtUtc": "2026-05-08T06:27:24.469Z",
     "status": "success",
     "primaryIssue": null,
     "mode": "navigate-waypoints",
-    "routeFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\smoke-test-waypoints-fixed-movement-bearing.json",
-    "sessionLogFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-fixed-movement-bearing.ndjson",
-    "stdoutFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\run-a-to-b-prototype-fixed-movement-bearing.stdout.txt",
+    "routeFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-0622-2m\\smoke-test-waypoints-2m-fixed-bearing.json",
+    "routeGenerationStdoutFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-0622-2m\\new-forward-smoke-route-2m.stdout.txt",
+    "sessionLogFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-0622-2m\\a-to-b-prototype-2m-fixed-bearing.ndjson",
+    "stdoutFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-0622-2m\\run-a-to-b-prototype-2m-fixed-bearing.stdout.txt",
     "movementAllowed": true,
     "noCheatEngine": true,
     "savedVariablesUsedAsLiveTruth": false,
     "movementSent": true,
     "movementAttempted": true,
     "anchorSource": "coord-trace-anchor",
-    "initialPlanarDistance": 1.0000000000003622,
-    "finalPlanarDistance": 0.6652750379001031,
-    "pulseCount": 1,
+    "initialPlanarDistance": 2.000000000000236,
+    "finalPlanarDistance": 0.6994920167255987,
+    "planarMoved": 1.300808376453264,
+    "pulseCount": 4,
     "stopReason": "arrived",
     "arrivalRadius": 0.7,
+    "elapsedMilliseconds": 10250,
     "initialCoordinate": {
-      "x": 7435.94921875,
+      "x": 7436.18359375,
       "y": 885.2191772460938,
-      "z": 3059.5537109375
+      "z": 3057.8369140625
     },
     "currentCoordinate": {
-      "x": 7435.66650390625,
+      "x": 7436.4345703125,
       "y": 885.2191772460938,
-      "z": 3059.3740234375,
-      "recordedAtUtc": "2026-05-08T05:39:16.495Z"
+      "z": 3056.560546875,
+      "recordedAtUtc": "2026-05-08T06:27:24.469Z"
     },
     "destinationCoordinate": {
-      "x": 7435.122945326888,
+      "x": 7436.544502140536,
       "y": 885.2191772460938,
-      "z": 3058.990441703244
+      "z": 3055.8697472842014
     },
-    "movementBearingDegrees": -145.71781003282072,
+    "movementBearingDegrees": -79.60378349460011,
     "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "postNavigationProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-053953\\run-summary.json",
-    "postNavigationReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-014015.json",
-    "summaryMarkdownFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-fixed-movement-bearing-summary.md",
-    "summaryJsonFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-fixed-movement-bearing-summary.json"
+    "postNavigationProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-062740\\run-summary.json",
+    "postNavigationReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-022802.json",
+    "summaryMarkdownFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-0622-2m\\a-to-b-prototype-2m-fixed-bearing-summary.md",
+    "summaryJsonFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-0622-2m\\a-to-b-prototype-2m-fixed-bearing-summary.json",
+    "visualVerification": {
+      "changed": true,
+      "changePercent": 39.8806,
+      "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-022630-072.png",
+      "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-022731-069.png"
+    },
+    "wrapperNote": "run-a-to-b-prototype produced success/arrived in the session log; the outer ad hoc PowerShell wrapper threw after Tee-Object because $LASTEXITCODE was blank, so the NDJSON session-result is the authoritative run result."
   },
   "config": {
     "liveTestProfilesFile": "C:\\RIFT MODDING\\RiftReader\\configs\\live-test-profiles.json",
@@ -91,8 +101,9 @@
     "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
     "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
   },
-  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250 and a fixed-bearing A/B waypoint smoke. Before any further movement, re-bind the exact target and run a fresh proof/preflight because proof anchors are age-gated; next safe expansion is a slightly longer route or auto-turn validation.",
+  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. Before any further movement, re-bind the exact target and run a fresh proof/preflight because proof anchors are age-gated; next safe expansion is auto-turn validation with a deliberately offset route.",
   "notes": [
+    "May 8 current PID 33912 / HWND 0xE0DB2 2m fixed-bearing A/B waypoint smoke passed: 4 pulses, arrived, distance 2.0000m -> 0.6995m, visual frame change 39.8806%, followed by post-navigation ProofOnly pass.",
     "May 8 current PID 33912 / HWND 0xE0DB2 ProofOnly, Forward250 --live, ForwardSeries3x250 --live, actor-facing promotion, and fixed-bearing A/B waypoint smoke all passed with no CE and no SavedVariables live truth.",
     "Actor-facing behavior-backed lead is current-session source 0X202E570DB20 at +0xD4.",
     "Navigation bearing was corrected after live W-key proof showed the previous actor-facing-to-movement mapping was 180 degrees opposite actual forward movement.",
@@ -153,20 +164,21 @@
     "candidateCount": 12
   },
   "latestProofOnly": {
-    "generatedAtUtc": "2026-05-08T01:40:19.671871-04:00",
+    "generatedAtUtc": "2026-05-08T06:28:07.641128+00:00",
     "status": "passed-proof-only",
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-053953\\run-summary.json",
-    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-053953\\run-progress.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-014015.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-062740\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-062740\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-022802.json",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
-      "x": 7435.66650390625,
+      "x": 7436.4345703125,
       "y": 885.2191772460938,
-      "z": 3059.3740234375,
-      "recordedAtUtc": "2026-05-08T05:40:19.187178Z"
+      "z": 3056.560546875,
+      "recordedAtUtc": "2026-05-08T06:28:07.1262070Z"
     },
-    "noCheatEngine": true
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false
   },
   "latestForward250": {
     "generatedAtUtc": "2026-05-08T01:03:27.177493-04:00",
@@ -248,5 +260,10 @@
     "initialPlanarDistance": 1.0000000000003622,
     "finalPlanarDistance": 1.6380741268526757,
     "interpretation": "The route used the prior movement-bearing convention and pointed opposite actual W-key movement; this triggered fail-closed no-progress behavior."
+  },
+  "candidate": {
+    "notes": [
+      "Candidate readback matched same-time RRAPICOORD1 reference and has since been movement-validated through Forward250, ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke on PID 33912."
+    ]
   }
 }

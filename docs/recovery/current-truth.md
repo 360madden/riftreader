@@ -1,28 +1,45 @@
 # Current Truth
 
-_Last updated: May 8, 2026 02:18 EDT / 06:18 UTC (latest offline validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth is now **movement-grade and waypoint-smoke validated**: no-input `ProofOnly` passed after the latest navigation run, `Forward250 --live` passed, `ForwardSeries3x250 --live` passed 3/3 proof-gated pulses, actor-facing was re-promoted on the current PID, and a 1m A/B waypoint smoke passed after correcting the actor-facing-to-forward-key movement bearing convention. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
+_Last updated: May 8, 2026 02:29 EDT / 06:29 UTC (latest live validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth is now **movement-grade and 2m waypoint-smoke validated**: no-input `ProofOnly` passed after the latest 2m navigation run, `Forward250 --live` passed, `ForwardSeries3x250 --live` passed 3/3 proof-gated pulses, actor-facing was re-promoted on the current PID, a 1m A/B waypoint smoke passed, and a 2m A/B waypoint smoke passed after correcting the actor-facing-to-forward-key movement bearing convention. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
-| Latest no-input proof | Post-navigation `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-014015.json`; `movementSent=false` |
+| Latest no-input proof | Post-2m-navigation `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-022802.json`; `movementSent=false` |
 | Latest current-session candidate | `rift-addon-coordinate-candidate-000001` at `0x202FEA3E180` from `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
 | Latest actor-facing truth | Current PID behavior-backed lead promoted: `0X202E570DB20 @ +0xD4`; D/A validation produced reversible yaw deltas `71.9515/71.4643` degrees with `PlayerCoordDeltaMagnitude=0.0` |
-| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
-| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-navigation `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-summary.json` |
-| Latest movement truth | **Current-session movement proof passed**: `Forward250 --live`, `ForwardSeries3x250 --live`, and fixed-bearing `run-a-to-b-prototype` waypoint smoke all passed on PID `33912` / HWND `0xE0DB2` |
-| Latest waypoint smoke | `run-a-to-b-prototype` succeeded with route `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\smoke-test-waypoints-fixed-movement-bearing.json`; 1 pulse, stop reason `arrived`, distance `1.0000000000003622m -> 0.6652750379001031m` |
-| Current coordinate | Post-navigation `ProofOnly` coordinate `X=7435.66650390625`, `Y=885.2191772460938`, `Z=3059.3740234375` at `2026-05-08T05:40:19.1871780Z` |
+| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-2m-navigation `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-summary.json` |
+| Latest movement truth | **Current-session movement proof passed**: `Forward250 --live`, `ForwardSeries3x250 --live`, fixed-bearing 1m waypoint smoke, and fixed-bearing 2m waypoint smoke all passed on PID `33912` / HWND `0xE0DB2` |
+| Latest waypoint smoke | 2m `run-a-to-b-prototype` succeeded with route `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\smoke-test-waypoints-2m-fixed-bearing.json`; 4 pulses, stop reason `arrived`, distance `2.000000000000236m -> 0.6994920167255987m` |
+| Current coordinate | Post-2m-navigation `ProofOnly` coordinate `X=7436.4345703125`, `Y=885.2191772460938`, `Z=3056.560546875` at `2026-05-08T06:28:07.1262070Z` |
 | Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-navigation proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
-| Latest offline validation | May 8 02:18 EDT: stale terminology sweep clean; `current-proof-anchor-readback.json` and `actor-facing-behavior-backed-lead.json` parse; current-proof pointer sanity check passed for movement gate, no-CE/no-SavedVariables flags, actor-facing source match, distance improvement, and 15 referenced artifacts; `python .\scripts\live_test.py --validate-profiles` passed 5 profiles; route provenance extension metadata is preserved on waypoint rewrites and TomTom imports; `git diff --check -- . ':(exclude)scripts/captures'` passed; `dotnet test .\reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj --no-restore` passed 79/79 |
-| Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; for the latest navigation smoke inspect `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\a-to-b-prototype-fixed-movement-bearing.ndjson` |
+| Latest validation | May 8 02:29 EDT: 2m route generation refreshed ReaderBridge via intentional `/reloadui`; fresh `ProofOnly` passed; exact PID/HWND 2m A/B smoke passed; visual frame change was `39.8806%`; post-movement `ProofOnly` passed; no CE and no SavedVariables live truth |
+| Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; for the latest navigation smoke inspect `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\a-to-b-prototype-2m-fixed-bearing.ndjson` |
 | Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md` |
 | CE / SavedVariables | no CE; no SavedVariables live truth; `/reloadui` refresh was an intentional post-save snapshot before route generation |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-014050-current-pid-33912-waypoint-smoke-passed-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-022930-current-pid-33912-2m-waypoint-smoke-passed-handoff.md` |
 
+
+## May 8 continuation: 2m fixed-bearing A/B waypoint smoke passed live
+
+| Fact | Value |
+|---|---|
+| Target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Pre-route proof | `python .\scripts\live_test.py --profile ProofOnly --pid 33912 --hwnd 0xE0DB2 --no-gui`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062201\run-summary.json`; `movementSent=false` |
+| Route generation | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\smoke-test-waypoints-2m-fixed-bearing.json`; intentional `/reloadui` post-save refresh succeeded; route bearing `-79.60378349460011` degrees; distance `2.0m`; arrival radius `0.7m` |
+| Pre-move proof | `python .\scripts\live_test.py --profile ProofOnly --pid 33912 --hwnd 0xE0DB2 --no-gui`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062550\run-summary.json`; `movementSent=false` |
+| Facing guard | Preflight distance `2.000m`; destination bearing `-79.604` degrees; forward-key movement bearing/yaw `-79.604` degrees; heading delta `0.000` degrees; source `0x202E570DB20 @ 0xD4` |
+| Passing 2m A/B smoke | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\a-to-b-prototype-2m-fixed-bearing.ndjson`; `Status=success`; `StopReason=arrived`; 4 pulses; distance `2.000000000000236m -> 0.6994920167255987m`; elapsed `10250ms` |
+| Visual verification | `wait_for_frame_change` after the 2m smoke returned `changed=true`, `39.8806%`, screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-022731-069.png` |
+| Post-navigation proof | `python .\scripts\live_test.py --profile ProofOnly --pid 33912 --hwnd 0xE0DB2 --no-gui`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-summary.json`; current coordinate `7436.4345703125,885.2191772460938,3056.560546875`; `movementSent=false` |
+| Route summary Markdown | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\a-to-b-prototype-2m-fixed-bearing-summary.md` |
+| Wrapper note | The navigation session log is authoritative and reports `success/arrived`. An outer ad hoc PowerShell pipeline wrapper threw after `Tee-Object` because `$LASTEXITCODE` was blank; this did not indicate navigation failure. |
+| Safety | no CE; exact PID/HWND; fresh proof before movement; post-navigation ProofOnly passed; SavedVariables were refreshed only via intentional `/reloadui` as a post-save snapshot, not live IPC |
+| Next boundary | Continue with fresh proof before each movement slice. Next live step should be deliberate auto-turn validation with an offset route, not blind longer forward pulses. |
 
 ## May 8 continuation: actor-facing promoted, movement bearing fixed, A/B waypoint smoke passed live
 
