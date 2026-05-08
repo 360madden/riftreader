@@ -110,6 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run live_test.py ProofOnly before every live key attempt. Slow, but keeps the 60s proof gate fresh.",
     )
     parser.add_argument(
+        "--proof-refresh-retries",
+        type=int,
+        default=0,
+        help="Additional proof-refresh retries after a failed refresh. Applies to --refresh-proof-first and --refresh-proof-before-each-attempt.",
+    )
+    parser.add_argument(
         "--proof-profile",
         default="ProofOnly",
         help="Profile name used by --refresh-proof-first.",
@@ -167,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         live=args.live,
         refresh_proof_first=args.refresh_proof_first,
         refresh_proof_before_each_attempt=args.refresh_proof_before_each_attempt,
+        proof_refresh_retries=args.proof_refresh_retries,
         proof_profile=args.proof_profile,
         capture_screenshots=args.capture_screenshots,
         require_screenshots=args.require_screenshots,

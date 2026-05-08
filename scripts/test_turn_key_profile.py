@@ -126,6 +126,63 @@ class TurnKeyProfileTests(unittest.TestCase):
         self.assertTrue(delivery["autoHotkeyFallbackUsed"])
         self.assertEqual(delivery["effectiveMode"], "autohotkey-fallback")
 
+    def test_proof_refresh_retry_returns_first_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = TurnKeyProfileConfig(
+                repo_root=Path(temp_dir),
+                process_id=123,
+                target_window_handle="0x123",
+                proof_refresh_retries=2,
+            )
+
+            class StubProfiler(TurnKeyProfiler):
+                def __init__(self, stub_config: TurnKeyProfileConfig) -> None:
+                    super().__init__(stub_config)
+                    self.calls: list[tuple[str, str]] = []
+
+                def _run_proof_refresh(self, *, label: str, output_subdir: str) -> dict:
+                    self.calls.append((label, output_subdir))
+                    ok = len(self.calls) == 2
+                    return {
+                        "ok": ok,
+                        "summary": {
+                            "status": "passed-proof-only" if ok else "blocked-proof-refresh",
+                            "runDirectory": f"C:/tmp/proof-{len(self.calls)}",
+                        },
+                    }
+
+            profiler = StubProfiler(config)
+            result = profiler._run_proof_refresh_with_retries(
+                label="proof-refresh-before",
+                output_subdir="proof-refreshes/attempt",
+            )
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["attemptCount"], 2)
+            self.assertEqual(result["maxAttemptCount"], 3)
+            self.assertEqual(
+                [attempt["ok"] for attempt in result["attemptResults"]],
+                [False, True],
+            )
+            self.assertEqual(
+                profiler.calls,
+                [
+                    ("proof-refresh-before-try1", "proof-refreshes/attempt/try1"),
+                    ("proof-refresh-before-try2", "proof-refreshes/attempt/try2"),
+                ],
+            )
+
+    def test_validate_rejects_negative_proof_refresh_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = TurnKeyProfileConfig(
+                repo_root=Path(temp_dir),
+                process_id=123,
+                target_window_handle="0x123",
+                proof_refresh_retries=-1,
+            )
+            with self.assertRaisesRegex(ValueError, "proof_refresh_retries"):
+                TurnKeyProfiler(config)._validate_config()
+
     def test_markdown_records_input_delivery(self) -> None:
         text = format_turn_key_markdown(
             {

@@ -40,6 +40,7 @@ class TurnKeyProfileConfig:
     live: bool = False
     refresh_proof_first: bool = False
     refresh_proof_before_each_attempt: bool = False
+    proof_refresh_retries: int = 0
     proof_profile: str = "ProofOnly"
     capture_screenshots: bool = False
     require_screenshots: bool = False
@@ -325,7 +326,7 @@ class TurnKeyProfiler:
 
         proof_refresh = None
         if self.config.live and self.config.refresh_proof_first:
-            proof_refresh = self._run_proof_refresh(
+            proof_refresh = self._run_proof_refresh_with_retries(
                 label="proof-refresh-first",
                 output_subdir="proof-refreshes",
             )
@@ -394,6 +395,8 @@ class TurnKeyProfiler:
             raise ValueError("min_yaw_delta_degrees cannot be negative")
         if self.config.max_coord_delta < 0:
             raise ValueError("max_coord_delta cannot be negative")
+        if self.config.proof_refresh_retries < 0:
+            raise ValueError("proof_refresh_retries cannot be negative")
         invalid_modes = [mode for mode in self.config.input_modes if mode not in VALID_INPUT_MODES]
         if invalid_modes:
             raise ValueError(f"unsupported input modes: {', '.join(invalid_modes)}")
@@ -455,7 +458,7 @@ class TurnKeyProfiler:
         }
 
         if self.config.refresh_proof_before_each_attempt:
-            attempt_proof = self._run_proof_refresh(
+            attempt_proof = self._run_proof_refresh_with_retries(
                 label=f"{attempt_id}-proof-refresh-before",
                 output_subdir=f"proof-refreshes/{attempt_id}",
             )
@@ -591,6 +594,38 @@ class TurnKeyProfiler:
         }
         write_json(self.run_dir / f"{_safe_name(label)}.json", summary)
         return summary
+
+    def _run_proof_refresh_with_retries(self, *, label: str, output_subdir: str) -> dict[str, Any]:
+        max_attempts = 1 + self.config.proof_refresh_retries
+        attempt_results: list[dict[str, Any]] = []
+        latest: dict[str, Any] | None = None
+
+        for index in range(1, max_attempts + 1):
+            retry_label = label if max_attempts == 1 else f"{label}-try{index}"
+            retry_output_subdir = output_subdir if max_attempts == 1 else f"{output_subdir}/try{index}"
+            latest = self._run_proof_refresh(label=retry_label, output_subdir=retry_output_subdir)
+            run_summary = latest.get("summary") if isinstance(latest, dict) else None
+            run_status = run_summary.get("status") if isinstance(run_summary, dict) else None
+            run_directory = run_summary.get("runDirectory") if isinstance(run_summary, dict) else None
+            attempt_results.append(
+                {
+                    "try": index,
+                    "ok": bool(latest.get("ok")) if isinstance(latest, dict) else False,
+                    "status": run_status,
+                    "runDirectory": run_directory,
+                    "label": retry_label,
+                }
+            )
+            if latest.get("ok"):
+                break
+
+        if latest is None:
+            latest = {"ok": False, "summary": None}
+        latest = dict(latest)
+        latest["attemptCount"] = len(attempt_results)
+        latest["maxAttemptCount"] = max_attempts
+        latest["attemptResults"] = attempt_results
+        return latest
 
     def _capture_orientation(self, attempt_id: str, *, phase: str) -> dict[str, Any]:
         script = self.config.repo_root / "scripts" / "capture-actor-orientation.ps1"
@@ -866,6 +901,7 @@ class TurnKeyProfiler:
             "maxCoordDelta": self.config.max_coord_delta,
             "proofMaxAgeSeconds": self.config.proof_max_age_seconds,
             "refreshProofBeforeEachAttempt": self.config.refresh_proof_before_each_attempt,
+            "proofRefreshRetries": self.config.proof_refresh_retries,
             "readbackSampleCount": self.config.readback_sample_count,
             "readbackIntervalMilliseconds": self.config.readback_interval_milliseconds,
             "target": target,
@@ -893,6 +929,7 @@ def format_turn_key_markdown(summary: dict[str, Any]) -> str:
         f"- Movement detected: `{str(summary.get('movementDetected')).lower()}`",
         f"- No Cheat Engine: `{str(summary.get('noCheatEngine')).lower()}`",
         f"- SavedVariables live truth: `{str(summary.get('savedVariablesUsedAsLiveTruth')).lower()}`",
+        f"- Proof refresh retries: `{summary.get('proofRefreshRetries')}`",
         "",
         "## Promoted candidates",
         "",
