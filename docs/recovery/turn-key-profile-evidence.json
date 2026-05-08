@@ -3,76 +3,6 @@
   "summaryCount": 12,
   "summaries": [
     {
-      "generatedAtUtc": "2026-05-08T07:32:48.987912Z",
-      "status": "completed-no-promoted-turn-candidate",
-      "ok": false,
-      "processId": 33912,
-      "targetWindowHandle": "0xE0DB2",
-      "keys": [
-        "a",
-        "d"
-      ],
-      "inputModes": [
-        "post-message"
-      ],
-      "holdMilliseconds": 125,
-      "repeatCount": 2,
-      "inputSent": true,
-      "movementDetected": false,
-      "promotedCandidateCount": 0,
-      "issues": [],
-      "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072955\\turn-key-profile-summary.json",
-      "summaryFileRelative": "scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072955\\turn-key-profile-summary.json",
-      "attemptCount": 4,
-      "classifications": {
-        "before-readback-failed": 3,
-        "no-turn": 1
-      },
-      "deliveries": {
-        "unknown": 4
-      },
-      "maxAbsYawDeltaDegrees": 0.0,
-      "maxCoordPlanarDelta": 0.0,
-      "notableAttempts": [
-        "002-pwsh-post-message-a-r2 a/post-message: before-readback-failed, yaw=None",
-        "003-pwsh-post-message-d-r1 d/post-message: before-readback-failed, yaw=None",
-        "004-pwsh-post-message-d-r2 d/post-message: before-readback-failed, yaw=None"
-      ]
-    },
-    {
-      "generatedAtUtc": "2026-05-08T07:36:45.898650Z",
-      "status": "completed-no-promoted-turn-candidate",
-      "ok": false,
-      "processId": 33912,
-      "targetWindowHandle": "0xE0DB2",
-      "keys": [
-        "d"
-      ],
-      "inputModes": [
-        "post-message"
-      ],
-      "holdMilliseconds": 125,
-      "repeatCount": 1,
-      "inputSent": true,
-      "movementDetected": false,
-      "promotedCandidateCount": 0,
-      "issues": [],
-      "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073539\\turn-key-profile-summary.json",
-      "summaryFileRelative": "scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073539\\turn-key-profile-summary.json",
-      "attemptCount": 1,
-      "classifications": {
-        "turn-candidate": 1
-      },
-      "deliveries": {
-        "unknown": 1
-      },
-      "maxAbsYawDeltaDegrees": 8.38371711655384,
-      "maxCoordPlanarDelta": 0.0,
-      "notableAttempts": [
-        "001-pwsh-post-message-d-r1 d/post-message: turn-candidate, yaw=-8.38371711655384"
-      ]
-    },
-    {
       "generatedAtUtc": "2026-05-08T07:39:33.249972Z",
       "status": "completed-no-promoted-turn-candidate",
       "ok": false,
@@ -391,6 +321,80 @@
       },
       "deliveries": {
         "foreground-sendinput": 2
+      },
+      "maxAbsYawDeltaDegrees": 0.0,
+      "maxCoordPlanarDelta": 0.0,
+      "notableAttempts": []
+    },
+    {
+      "generatedAtUtc": "2026-05-08T08:58:14.014324Z",
+      "status": "completed-no-promoted-turn-candidate",
+      "ok": false,
+      "processId": 33912,
+      "targetWindowHandle": "0xE0DB2",
+      "keys": [
+        "Left",
+        "Right"
+      ],
+      "inputModes": [
+        "post-message"
+      ],
+      "holdMilliseconds": 250,
+      "repeatCount": 2,
+      "inputSent": false,
+      "movementDetected": false,
+      "promotedCandidateCount": 0,
+      "issues": [
+        "001-pwsh-post-message-Left-r1:proof_refresh_before_attempt_failed",
+        "002-pwsh-post-message-Left-r2:proof_refresh_before_attempt_failed",
+        "003-pwsh-post-message-Right-r1:proof_refresh_before_attempt_failed",
+        "004-pwsh-post-message-Right-r2:proof_refresh_before_attempt_failed"
+      ],
+      "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-085519\\turn-key-profile-summary.json",
+      "summaryFileRelative": "scripts\\captures\\turn-key-profile-currentpid-33912-20260508-085519\\turn-key-profile-summary.json",
+      "attemptCount": 4,
+      "classifications": {
+        "proof-refresh-failed": 4
+      },
+      "deliveries": {
+        "unknown": 4
+      },
+      "maxAbsYawDeltaDegrees": 0.0,
+      "maxCoordPlanarDelta": 0.0,
+      "notableAttempts": [
+        "001-pwsh-post-message-Left-r1 Left/post-message: proof-refresh-failed, yaw=None",
+        "002-pwsh-post-message-Left-r2 Left/post-message: proof-refresh-failed, yaw=None",
+        "003-pwsh-post-message-Right-r1 Right/post-message: proof-refresh-failed, yaw=None",
+        "004-pwsh-post-message-Right-r2 Right/post-message: proof-refresh-failed, yaw=None"
+      ]
+    },
+    {
+      "generatedAtUtc": "2026-05-08T09:05:49.892576Z",
+      "status": "completed-no-promoted-turn-candidate",
+      "ok": false,
+      "processId": 33912,
+      "targetWindowHandle": "0xE0DB2",
+      "keys": [
+        "Left",
+        "Right"
+      ],
+      "inputModes": [
+        "post-message"
+      ],
+      "holdMilliseconds": 250,
+      "repeatCount": 2,
+      "inputSent": true,
+      "movementDetected": false,
+      "promotedCandidateCount": 0,
+      "issues": [],
+      "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-090211\\turn-key-profile-summary.json",
+      "summaryFileRelative": "scripts\\captures\\turn-key-profile-currentpid-33912-20260508-090211\\turn-key-profile-summary.json",
+      "attemptCount": 4,
+      "classifications": {
+        "no-turn": 4
+      },
+      "deliveries": {
+        "post-message": 4
       },
       "maxAbsYawDeltaDegrees": 0.0,
       "maxCoordPlanarDelta": 0.0,

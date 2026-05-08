@@ -4,8 +4,6 @@ _Generated from `scripts/summarize_turn_key_profiles.py`. This report is compact
 
 | Generated UTC | Run | Keys | Modes | Hold | Attempts | Classifications | Delivery | Max abs yaw | Max coord delta | Promoted | Issues |
 |---|---|---|---|---:|---:|---|---|---:|---:|---:|---|
-| 2026-05-08T07:32:48.987912Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-072955\turn-key-profile-summary.json` | `a,d` | `post-message` | 125 | 4 | `before-readback-failed:3, no-turn:1` | `unknown:4` | 0.0000 | 0.0000 | 0 | - |
-| 2026-05-08T07:36:45.898650Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-073539\turn-key-profile-summary.json` | `d` | `post-message` | 125 | 1 | `turn-candidate:1` | `unknown:1` | 8.3837 | 0.0000 | 0 | - |
 | 2026-05-08T07:39:33.249972Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-073726\turn-key-profile-summary.json` | `d` | `post-message` | 125 | 2 | `no-turn:2` | `unknown:2` | 0.0000 | 0.0000 | 0 | - |
 | 2026-05-08T07:46:23.930866Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-074456\turn-key-profile-summary.json` | `d` | `foreground-sendinput` | 125 | 1 | `no-turn:1` | `unknown:1` | 0.0000 | 0.0000 | 0 | - |
 | 2026-05-08T07:53:24.559226Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-075123\turn-key-profile-summary.json` | `Left,Right` | `foreground-sendinput` | 125 | 2 | `no-turn:2` | `unknown:2` | 0.0000 | 0.0000 | 0 | - |
@@ -16,17 +14,18 @@ _Generated from `scripts/summarize_turn_key_profiles.py`. This report is compact
 | 2026-05-08T08:24:21.832798Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-082051\turn-key-profile-summary.json` | `Left,Right` | `foreground-sendinput` | 250 | 4 | `no-turn:3, proof-refresh-failed:1` | `foreground-sendinput:3, unknown:1` | 0.0000 | 0.0000 | 0 | `003-pwsh-foreground-sendinput-Right-r1:proof_refresh_before_attempt_failed` |
 | 2026-05-08T08:36:31.482439Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-083210\turn-key-profile-summary.json` | `q,e` | `foreground-sendinput` | 125 | 4 | `no-turn:4` | `foreground-sendinput:4` | 0.0000 | 0.0000 | 0 | - |
 | 2026-05-08T08:51:26.584483Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-084929\turn-key-profile-summary.json` | `Right` | `foreground-sendinput` | 250 | 2 | `no-turn:2` | `foreground-sendinput:2` | 0.0000 | 0.0000 | 0 | - |
+| 2026-05-08T08:58:14.014324Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-085519\turn-key-profile-summary.json` | `Left,Right` | `post-message` | 250 | 4 | `proof-refresh-failed:4` | `unknown:4` | 0.0000 | 0.0000 | 0 | `001-pwsh-post-message-Left-r1:proof_refresh_before_attempt_failed`<br>`002-pwsh-post-message-Left-r2:proof_refresh_before_attempt_failed`<br>`003-pwsh-post-message-Right-r1:proof_refresh_before_attempt_failed` |
+| 2026-05-08T09:05:49.892576Z | `scripts\captures\turn-key-profile-currentpid-33912-20260508-090211\turn-key-profile-summary.json` | `Left,Right` | `post-message` | 250 | 4 | `no-turn:4` | `post-message:4` | 0.0000 | 0.0000 | 0 | - |
 
 ## Notable attempts
 
-- `scripts\captures\turn-key-profile-currentpid-33912-20260508-072955\turn-key-profile-summary.json`
-  - 002-pwsh-post-message-a-r2 a/post-message: before-readback-failed, yaw=None
-  - 003-pwsh-post-message-d-r1 d/post-message: before-readback-failed, yaw=None
-  - 004-pwsh-post-message-d-r2 d/post-message: before-readback-failed, yaw=None
-- `scripts\captures\turn-key-profile-currentpid-33912-20260508-073539\turn-key-profile-summary.json`
-  - 001-pwsh-post-message-d-r1 d/post-message: turn-candidate, yaw=-8.38371711655384
 - `scripts\captures\turn-key-profile-currentpid-33912-20260508-075910\turn-key-profile-summary.json`
   - 003-pwsh-post-message-d-r1 d/post-message: turn-candidate, yaw=10.232531344273667
   - 004-pwsh-post-message-d-r2 d/post-message: turn-candidate, yaw=-10.99219056890891
 - `scripts\captures\turn-key-profile-currentpid-33912-20260508-082051\turn-key-profile-summary.json`
   - 003-pwsh-foreground-sendinput-Right-r1 Right/foreground-sendinput: proof-refresh-failed, yaw=None
+- `scripts\captures\turn-key-profile-currentpid-33912-20260508-085519\turn-key-profile-summary.json`
+  - 001-pwsh-post-message-Left-r1 Left/post-message: proof-refresh-failed, yaw=None
+  - 002-pwsh-post-message-Left-r2 Left/post-message: proof-refresh-failed, yaw=None
+  - 003-pwsh-post-message-Right-r1 Right/post-message: proof-refresh-failed, yaw=None
+  - 004-pwsh-post-message-Right-r2 Right/post-message: proof-refresh-failed, yaw=None
