@@ -26,8 +26,11 @@ param(
     [int]$TurnPulseMilliseconds = 75,
     [int]$PostTurnSampleDelayMilliseconds = 150,
     [int]$MaxTurnPulses = 12,
+    [switch]$AutoTurnUsePostMessage,
     [double]$AutoTurnWorseningToleranceDegrees = 0.5,
     [int]$AutoTurnMaxWorseningPulses = 2,
+    [double]$AutoTurnMinImprovementDegrees = 0.25,
+    [int]$AutoTurnMaxNoImprovementPulses = 2,
     [int]$MaxTravelSeconds,
     [string]$LogFile,
     [int]$ScanContextBytes = 192,
@@ -144,6 +147,14 @@ if ($AutoTurnWorseningToleranceDegrees -lt 0) {
 
 if ($AutoTurnMaxWorseningPulses -le 0) {
     throw "AutoTurnMaxWorseningPulses must be positive."
+}
+
+if ($AutoTurnMinImprovementDegrees -lt 0) {
+    throw "AutoTurnMinImprovementDegrees cannot be negative."
+}
+
+if ($AutoTurnMaxNoImprovementPulses -le 0) {
+    throw "AutoTurnMaxNoImprovementPulses must be positive."
 }
 
 function Write-SessionLog {
@@ -702,22 +713,25 @@ function Invoke-TurnKeyPulse {
     }
 
     [void](Assert-ProofCoordMovementPreflight -Reason ("auto-turn-key:{0}" -f $PulseIndex))
+    $inputMode = if ($AutoTurnUsePostMessage) { 'post-message' } else { 'foreground-sendinput' }
+    $postKeyModeArguments = @('-SkipBackgroundFocus')
+    if (-not $AutoTurnUsePostMessage) {
+        $postKeyModeArguments += '-RequireTargetForeground'
+    }
+
     $scriptArguments = @(
         '-NoProfile',
         '-ExecutionPolicy', 'Bypass',
         '-File', $postKeyScript,
         '-Key', $Key,
         '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
-    ) + (Get-PostKeyTargetArguments) + @(
-        '-SkipBackgroundFocus',
-        '-RequireTargetForeground'
-    )
+    ) + (Get-PostKeyTargetArguments) + $postKeyModeArguments
 
     Write-Host ""
-    Write-Host ("[NavPrototype] Auto-turn pulse {0}: key={1} direction={2} hold={3} ms" -f $PulseIndex, $Key, $Direction, $HoldMilliseconds) -ForegroundColor Yellow
+    Write-Host ("[NavPrototype] Auto-turn pulse {0}: key={1} direction={2} hold={3} ms inputMode={4}" -f $PulseIndex, $Key, $Direction, $HoldMilliseconds, $inputMode) -ForegroundColor Yellow
 
     $nativeResult = Invoke-ProcessText -FilePath 'pwsh' -ArgumentList $scriptArguments
-    Write-SessionLog -Step ("auto-turn-key:{0}" -f $PulseIndex) -ExitCode $nativeResult.ExitCode -Arguments @('-Key', $Key, '-Direction', $Direction, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)) -Output $nativeResult.Text
+    Write-SessionLog -Step ("auto-turn-key:{0}" -f $PulseIndex) -ExitCode $nativeResult.ExitCode -Arguments @('-Key', $Key, '-Direction', $Direction, '-HoldMilliseconds', $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture), '-InputMode', $inputMode) -Output $nativeResult.Text
 
     if ($nativeResult.ExitCode -ne 0) {
         if (-not [string]::IsNullOrWhiteSpace($nativeResult.Text)) {
@@ -756,6 +770,8 @@ function Invoke-AutoTurnAlignment {
                 sourceStatus = $facingState.SourceStatus
                 worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
                 maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                minImprovementDegrees = [double]$AutoTurnMinImprovementDegrees
+                maxNoImprovementPulses = $AutoTurnMaxNoImprovementPulses
                 samples = @($turnSamples.ToArray())
             }
         }
@@ -777,6 +793,7 @@ function Invoke-AutoTurnAlignment {
     $currentPreflight = $Preflight
     $previousDeltaDegrees = [double]$facingState.DeltaDegrees
     $worseningPulseCount = 0
+    $noImprovementPulseCount = 0
     for ($pulse = 1; $pulse -le $MaxTurnPulses; $pulse++) {
         Invoke-TurnKeyPulse -Key $turnKey -HoldMilliseconds $TurnPulseMilliseconds -PulseIndex $pulse -Direction $turnDirection
         Start-Sleep -Milliseconds $PostTurnSampleDelayMilliseconds
@@ -811,6 +828,8 @@ function Invoke-AutoTurnAlignment {
                     sourceStatus = $facingState.SourceStatus
                     worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
                     maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                    minImprovementDegrees = [double]$AutoTurnMinImprovementDegrees
+                    maxNoImprovementPulses = $AutoTurnMaxNoImprovementPulses
                     samples = @($turnSamples.ToArray())
                 }
             }
@@ -824,6 +843,15 @@ function Invoke-AutoTurnAlignment {
         }
         else {
             $worseningPulseCount = 0
+        }
+
+        $deltaImprovementDegrees = [double]$previousDeltaDegrees - [double]$facingState.DeltaDegrees
+        if ($deltaImprovementDegrees -lt [double]$AutoTurnMinImprovementDegrees) {
+            $noImprovementPulseCount++
+            Write-Host ("[NavPrototype] Auto-turn warning: delta improved by only {0:N3} deg (minimum {1:N3}; no-progress {2}/{3})." -f $deltaImprovementDegrees, [double]$AutoTurnMinImprovementDegrees, $noImprovementPulseCount, $AutoTurnMaxNoImprovementPulses) -ForegroundColor Yellow
+        }
+        else {
+            $noImprovementPulseCount = 0
         }
 
         if ($worseningPulseCount -ge $AutoTurnMaxWorseningPulses) {
@@ -840,11 +868,39 @@ function Invoke-AutoTurnAlignment {
                     worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
                     worseningPulseCount = $worseningPulseCount
                     maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                    minImprovementDegrees = [double]$AutoTurnMinImprovementDegrees
+                    noImprovementPulseCount = $noImprovementPulseCount
+                    maxNoImprovementPulses = $AutoTurnMaxNoImprovementPulses
                     samples = @($turnSamples.ToArray())
                 }
             }
 
             throw ("Auto-turn worsened for {0} consecutive pulses. Last delta was {1:N3} deg after starting from {2:N3} deg." -f $worseningPulseCount, [double]$facingState.DeltaDegrees, [double]$previousDeltaDegrees)
+        }
+
+        if ($noImprovementPulseCount -ge $AutoTurnMaxNoImprovementPulses) {
+            Write-SessionLog -Step 'auto-turn' -ExitCode 1 -Arguments @('no-progress') -Output ("delta={0:N3}; previousDelta={1:N3}; minImprovement={2:N3}; turn={3}; noProgress={4}" -f [double]$facingState.DeltaDegrees, [double]$previousDeltaDegrees, [double]$AutoTurnMinImprovementDegrees, ([string]$facingState.TurnDirection ?? 'n/a'), $noImprovementPulseCount) -Metadata @{
+                autoTurn = [ordered]@{
+                    pulses = $pulse
+                    thresholdDegrees = [double]$AutoTurnWithinDegrees
+                    deltaDegrees = [double]$facingState.DeltaDegrees
+                    previousDeltaDegrees = [double]$previousDeltaDegrees
+                    deltaImprovementDegrees = [double]$deltaImprovementDegrees
+                    turnDirection = $facingState.TurnDirection
+                    sourceAddress = $facingState.SourceAddress
+                    basisForwardOffset = $facingState.BasisForwardOffset
+                    sourceStatus = $facingState.SourceStatus
+                    worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
+                    worseningPulseCount = $worseningPulseCount
+                    maxWorseningPulses = $AutoTurnMaxWorseningPulses
+                    minImprovementDegrees = [double]$AutoTurnMinImprovementDegrees
+                    noImprovementPulseCount = $noImprovementPulseCount
+                    maxNoImprovementPulses = $AutoTurnMaxNoImprovementPulses
+                    samples = @($turnSamples.ToArray())
+                }
+            }
+
+            throw ("Auto-turn made insufficient progress for {0} consecutive pulses. Last delta was {1:N3} deg after improving by {2:N3} deg." -f $noImprovementPulseCount, [double]$facingState.DeltaDegrees, [double]$deltaImprovementDegrees)
         }
 
         $turnDirection = [string]$facingState.TurnDirection
@@ -868,6 +924,9 @@ function Invoke-AutoTurnAlignment {
             worseningToleranceDegrees = [double]$AutoTurnWorseningToleranceDegrees
             worseningPulseCount = $worseningPulseCount
             maxWorseningPulses = $AutoTurnMaxWorseningPulses
+            minImprovementDegrees = [double]$AutoTurnMinImprovementDegrees
+            noImprovementPulseCount = $noImprovementPulseCount
+            maxNoImprovementPulses = $AutoTurnMaxNoImprovementPulses
             samples = @($turnSamples.ToArray())
         }
     }

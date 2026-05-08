@@ -1,28 +1,43 @@
 # Current Truth
 
-_Last updated: May 8, 2026 02:29 EDT / 06:29 UTC (latest live validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth is now **movement-grade and 2m waypoint-smoke validated**: no-input `ProofOnly` passed after the latest 2m navigation run, `Forward250 --live` passed, `ForwardSeries3x250 --live` passed 3/3 proof-gated pulses, actor-facing was re-promoted on the current PID, a 1m A/B waypoint smoke passed, and a 2m A/B waypoint smoke passed after correcting the actor-facing-to-forward-key movement bearing convention. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
+_Last updated: May 8, 2026 03:11 EDT / 07:11 UTC (latest live validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth remains **movement-grade and 2m waypoint-smoke validated**, but the deliberate offset-route auto-turn slice is now **blocked on turn-input convergence**: proof-gated turn-key attempts reported successful input delivery, yet actor-facing did not converge below the 7.5 degree threshold and no forward navigation was sent. Post-attempt `ProofOnly` passed. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
-| Latest no-input proof | Post-2m-navigation `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-022802.json`; `movementSent=false` |
+| Latest no-input proof | Post-auto-turn-blocker `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-071016\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-031040.json`; `movementSent=false` |
 | Latest current-session candidate | `rift-addon-coordinate-candidate-000001` at `0x202FEA3E180` from `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
 | Latest actor-facing truth | Current PID behavior-backed lead promoted: `0X202E570DB20 @ +0xD4`; D/A validation produced reversible yaw deltas `71.9515/71.4643` degrees with `PlayerCoordDeltaMagnitude=0.0` |
-| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
-| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-2m-navigation `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-062740\run-summary.json` |
+| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-071016\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-auto-turn-blocker `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-071016\run-summary.json` |
 | Latest movement truth | **Current-session movement proof passed**: `Forward250 --live`, `ForwardSeries3x250 --live`, fixed-bearing 1m waypoint smoke, and fixed-bearing 2m waypoint smoke all passed on PID `33912` / HWND `0xE0DB2` |
 | Latest waypoint smoke | 2m `run-a-to-b-prototype` succeeded with route `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\smoke-test-waypoints-2m-fixed-bearing.json`; 4 pulses, stop reason `arrived`, distance `2.000000000000236m -> 0.6994920167255987m` |
-| Current coordinate | Post-2m-navigation `ProofOnly` coordinate `X=7436.4345703125`, `Y=885.2191772460938`, `Z=3056.560546875` at `2026-05-08T06:28:07.1262070Z` |
-| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-navigation proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
-| Latest validation | May 8 02:29 EDT: 2m route generation refreshed ReaderBridge via intentional `/reloadui`; fresh `ProofOnly` passed; exact PID/HWND 2m A/B smoke passed; visual frame change was `39.8806%`; post-movement `ProofOnly` passed; no CE and no SavedVariables live truth |
+| Current coordinate | Post-auto-turn-blocker `ProofOnly` coordinate `X=7436.5458984375`, `Y=885.2191772460938`, `Z=3056.19580078125` at `2026-05-08T07:10:44.2773765Z` |
+| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-auto-turn-blocker proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
+| Latest validation | May 8 03:11 EDT: offset-route auto-turn remained blocked before forward navigation; turn-key helper exits were successful but actor-facing delta did not converge below `7.5` degrees; post-attempt `ProofOnly` passed; no CE and no SavedVariables live truth |
 | Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; for the latest navigation smoke inspect `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-0622-2m\a-to-b-prototype-2m-fixed-bearing.ndjson` |
 | Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md` |
 | CE / SavedVariables | no CE; no SavedVariables live truth; `/reloadui` refresh was an intentional post-save snapshot before route generation |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-022930-current-pid-33912-2m-waypoint-smoke-passed-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-031200-current-pid-33912-autoturn-blocked-handoff.md` |
 
+
+
+## May 8 continuation: offset-route auto-turn blocked on turn-input convergence
+
+| Fact | Value |
+|---|---|
+| Target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Offset route | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-autoturn-currentpid-33912-20260508-0633-offset20\smoke-test-waypoints-autoturn-offset20.json`; destination was intentionally offset by `20` degrees from the current forward-key bearing |
+| Proof-age blocker | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-autoturn-currentpid-33912-20260508-0633-offset20\a-to-b-prototype-autoturn-offset20-retry.ndjson`; auto-turn improved once but then failed closed on `proof_anchor_age_out_of_range_seconds:65.587`; `Navigation calls=0` |
+| No-convergence blocker | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-autoturn-currentpid-33912-20260508-0633-offset20\a-to-b-prototype-autoturn-offset20-winps-shiftD75-postmessage.ndjson`; key helper reported success, but yaw stayed `-73.08494464580617` and delta stayed `13.651793251539019` degrees across 3 pulses; `Navigation calls=0` |
+| Key/backend probes | Lowercase `d` post-message 250ms produced no yaw delta; uppercase/modified `D` and arrow-key probes produced inconsistent or stale/delayed yaw evidence, so no key/backend is promoted as reliable turn input yet |
+| Code hardening from blocker | `scripts\navigation\run-a-to-b-prototype.ps1` now exposes `-AutoTurnUsePostMessage` for explicit exact-HWND post-message trials and adds a no-progress auto-turn guard (`AutoTurnMinImprovementDegrees`, `AutoTurnMaxNoImprovementPulses`) so non-converging turn pulses fail closed earlier |
+| Post-attempt proof | `python .\scripts\live_test.py --profile ProofOnly --pid 33912 --hwnd 0xE0DB2 --no-gui`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-071016\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-031040.json`; `movementSent=false` |
+| Safety | no CE; exact PID/HWND; no SavedVariables live truth; all auto-turn attempts failed before forward navigation |
+| Next boundary | Treat auto-turn as blocked until the effective live turn key/backend is profiled and proven to change actor-facing reliably. Do not allow auto-turn to enter forward movement unless alignment is already within threshold after a fresh proof/preflight. |
 
 ## May 8 continuation: 2m fixed-bearing A/B waypoint smoke passed live
 

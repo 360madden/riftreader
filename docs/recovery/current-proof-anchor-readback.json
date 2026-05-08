@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T06:28:08Z",
-  "status": "movement-grade-current-session-2m-waypoint-smoke-passed",
+  "lastUpdatedUtc": "2026-05-08T07:11:00Z",
+  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "post-navigation-proofonly-passed-after-2m-waypoint-smoke",
+    "latestReadbackStatus": "post-autoturn-blocker-proofonly-passed",
     "latestMovementAllowed": true,
-    "note": "Current PID/HWND proof promoted and ProofOnly, Forward250, ForwardSeries3x250, actor-facing promotion, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke passed with no CE. Any further movement still requires a fresh proof/preflight because proof anchors are age-gated.",
+    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke, but the May 8 offset-route auto-turn slice is blocked: exact-target turn key posts reported success yet actor-facing did not converge enough for forward navigation. Any further movement still requires fresh proof/preflight and auto-turn should not be allowed to forward-move until turn input convergence is proven.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -101,8 +101,9 @@
     "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
     "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
   },
-  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. Before any further movement, re-bind the exact target and run a fresh proof/preflight because proof anchors are age-gated; next safe expansion is auto-turn validation with a deliberately offset route.",
+  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice is currently blocked by no-converging turn input/readback despite exact target and successful key helper exits. Before any further movement, re-bind exact target, run fresh proof/preflight, and prove the effective turn key/backend before allowing auto-turn to enter forward navigation.",
   "notes": [
+    "May 8 offset-route auto-turn validation is blocked: proof-gated turn-key attempts reported input success but actor-facing did not converge below the 7.5 degree threshold, so no forward navigation was sent; post-attempt ProofOnly passed.",
     "May 8 current PID 33912 / HWND 0xE0DB2 2m fixed-bearing A/B waypoint smoke passed: 4 pulses, arrived, distance 2.0000m -> 0.6995m, visual frame change 39.8806%, followed by post-navigation ProofOnly pass.",
     "May 8 current PID 33912 / HWND 0xE0DB2 ProofOnly, Forward250 --live, ForwardSeries3x250 --live, actor-facing promotion, and fixed-bearing A/B waypoint smoke all passed with no CE and no SavedVariables live truth.",
     "Actor-facing behavior-backed lead is current-session source 0X202E570DB20 at +0xD4.",
@@ -265,5 +266,32 @@
     "notes": [
       "Candidate readback matched same-time RRAPICOORD1 reference and has since been movement-validated through Forward250, ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke on PID 33912."
     ]
+  },
+  "latestAutoTurnValidation": {
+    "generatedAtUtc": "2026-05-08T07:10:57Z",
+    "status": "blocked-auto-turn-no-convergence",
+    "primaryIssue": "turn_key_pulses_reported_success_but_actor_facing_delta_did_not_converge",
+    "routeFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-autoturn-currentpid-33912-20260508-0633-offset20\\smoke-test-waypoints-autoturn-offset20.json",
+    "runRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-autoturn-currentpid-33912-20260508-0633-offset20",
+    "proofAgeBlockedLogFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-autoturn-currentpid-33912-20260508-0633-offset20\\a-to-b-prototype-autoturn-offset20-retry.ndjson",
+    "noConvergenceLogFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-autoturn-currentpid-33912-20260508-0633-offset20\\a-to-b-prototype-autoturn-offset20-winps-shiftD75-postmessage.ndjson",
+    "noConvergenceSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-autoturn-currentpid-33912-20260508-0633-offset20\\a-to-b-prototype-autoturn-offset20-winps-shiftD75-postmessage-summary.md",
+    "postAttemptProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-071016\\run-summary.json",
+    "postAttemptReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-031040.json",
+    "movementSent": false,
+    "navigationCalls": 0,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false,
+    "evidence": [
+      "Initial offset-route auto-turn improved direction once, then proof age expired before forward movement; navigationCalls=0.",
+      "Retry with bounded 125ms pulses failed closed after 3 pulses; yaw/delta stayed at -71.563/11.955 and navigationCalls=0.",
+      "PostMessage/Shift+D experiments still reported key success while final auto-turn delta remained 13.652 degrees, above the 7.5 degree threshold; navigationCalls=0.",
+      "Post-attempt ProofOnly passed on PID 33912/HWND 0xE0DB2 with movementSent=false."
+    ],
+    "codeHardening": [
+      "run-a-to-b-prototype.ps1 now exposes -AutoTurnUsePostMessage for explicit exact-HWND post-message turn trials.",
+      "run-a-to-b-prototype.ps1 now has a no-progress auto-turn guard so repeated non-converging turn pulses fail closed earlier."
+    ],
+    "nextRequiredAction": "Treat auto-turn as blocked until the effective live turn key/backend is profiled and proven to change actor-facing reliably; do not allow auto-turn to proceed into forward navigation unless alignment is within threshold after fresh proof."
   }
 }
