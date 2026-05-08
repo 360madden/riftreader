@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$LogFile,
-    [int]$RecentCount = 10
+    [int]$RecentCount = 10,
+    [string]$MarkdownFile
 )
 
 Set-StrictMode -Version Latest
@@ -124,6 +125,107 @@ function Get-PlanarMoved {
     }
 
     return [Math]::Sqrt([Math]::Pow($finalX - $initialX, 2) + [Math]::Pow($finalZ - $initialZ, 2))
+}
+
+function Format-MarkdownValue {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return ''
+    }
+
+    if ($Value -is [double] -or $Value -is [float] -or $Value -is [decimal]) {
+        return ([double]$Value).ToString('G17', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    return ([string]$Value).Replace('|', '\|').Replace("`r", ' ').Replace("`n", ' ')
+}
+
+function Add-MarkdownRow {
+    param(
+        [System.Collections.Generic.List[string]]$Lines,
+        [Parameter(Mandatory = $true)]
+        [string]$Fact,
+        $Value
+    )
+
+    $Lines.Add(('| {0} | {1} |' -f (Format-MarkdownValue -Value $Fact), (Format-MarkdownValue -Value $Value)))
+}
+
+function Convert-NavigationSummaryToMarkdown {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Summary
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('# A/B navigation log summary')
+    $lines.Add('')
+    $lines.Add(('_Generated: {0}_' -f ([DateTimeOffset]::UtcNow.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture))))
+    $lines.Add('')
+    $lines.Add('## Run counts')
+    $lines.Add('')
+    $lines.Add('| Fact | Value |')
+    $lines.Add('|---|---|')
+    Add-MarkdownRow -Lines $lines -Fact 'Log file' -Value $Summary.logFile
+    Add-MarkdownRow -Lines $lines -Fact 'Total entries' -Value $Summary.totalEntries
+    Add-MarkdownRow -Lines $lines -Fact 'Sessions' -Value $Summary.sessionCount
+    Add-MarkdownRow -Lines $lines -Fact 'Successful sessions' -Value $Summary.successfulSessions
+    Add-MarkdownRow -Lines $lines -Fact 'Failed sessions' -Value $Summary.failedSessions
+    Add-MarkdownRow -Lines $lines -Fact 'Preflights' -Value $Summary.preflightCount
+    Add-MarkdownRow -Lines $lines -Fact 'Navigation calls' -Value $Summary.navigateCount
+    Add-MarkdownRow -Lines $lines -Fact 'Facing checks' -Value $Summary.facingCheckCount
+
+    $navigation = $Summary.lastNavigationSummary
+    if ($null -ne $navigation) {
+        $lines.Add('')
+        $lines.Add('## Latest navigation result')
+        $lines.Add('')
+        $lines.Add('| Fact | Value |')
+        $lines.Add('|---|---|')
+        Add-MarkdownRow -Lines $lines -Fact 'Status' -Value $navigation.status
+        Add-MarkdownRow -Lines $lines -Fact 'Stop reason' -Value $navigation.stopReason
+        Add-MarkdownRow -Lines $lines -Fact 'Pulse count' -Value $navigation.pulseCount
+        Add-MarkdownRow -Lines $lines -Fact 'Anchor source' -Value $navigation.anchorSource
+        Add-MarkdownRow -Lines $lines -Fact 'Initial planar distance' -Value $navigation.initialPlanarDistance
+        Add-MarkdownRow -Lines $lines -Fact 'Final planar distance' -Value $navigation.finalPlanarDistance
+        Add-MarkdownRow -Lines $lines -Fact 'Planar moved' -Value $navigation.planarMoved
+        Add-MarkdownRow -Lines $lines -Fact 'Elapsed milliseconds' -Value $navigation.elapsedMilliseconds
+        Add-MarkdownRow -Lines $lines -Fact 'Start waypoint' -Value $navigation.startWaypointId
+        Add-MarkdownRow -Lines $lines -Fact 'Destination waypoint' -Value $navigation.destinationWaypointId
+        Add-MarkdownRow -Lines $lines -Fact 'Waypoint file' -Value $navigation.waypointFile
+    }
+
+    $lastFacing = $Summary.lastFacingCheck
+    $facing = if ($null -ne $lastFacing) { Get-EntryPropertyValue -Entry $lastFacing -Name 'facing' } else { $null }
+    if ($null -ne $facing) {
+        $lines.Add('')
+        $lines.Add('## Latest facing guard')
+        $lines.Add('')
+        $lines.Add('| Fact | Value |')
+        $lines.Add('|---|---|')
+        Add-MarkdownRow -Lines $lines -Fact 'Yaw degrees' -Value (Get-FirstPropertyValue -Object $facing -Names @('yawDegrees', 'YawDegrees'))
+        Add-MarkdownRow -Lines $lines -Fact 'Bearing degrees' -Value (Get-FirstPropertyValue -Object $facing -Names @('bearingDegrees', 'BearingDegrees'))
+        Add-MarkdownRow -Lines $lines -Fact 'Delta degrees' -Value (Get-FirstPropertyValue -Object $facing -Names @('deltaDegrees', 'DeltaDegrees'))
+        Add-MarkdownRow -Lines $lines -Fact 'Threshold degrees' -Value (Get-FirstPropertyValue -Object $facing -Names @('thresholdDegrees', 'ThresholdDegrees'))
+        Add-MarkdownRow -Lines $lines -Fact 'Turn direction' -Value (Get-FirstPropertyValue -Object $facing -Names @('turnDirection', 'TurnDirection'))
+        Add-MarkdownRow -Lines $lines -Fact 'Source address' -Value (Get-FirstPropertyValue -Object $facing -Names @('sourceAddress', 'SourceAddress'))
+        Add-MarkdownRow -Lines $lines -Fact 'Basis forward offset' -Value (Get-FirstPropertyValue -Object $facing -Names @('basisForwardOffset', 'BasisForwardOffset'))
+    }
+
+    if ($Summary.stopReasonCounts.Count -gt 0) {
+        $lines.Add('')
+        $lines.Add('## Stop reasons')
+        $lines.Add('')
+        $lines.Add('| Stop reason | Count |')
+        $lines.Add('|---|---:|')
+        foreach ($key in $Summary.stopReasonCounts.Keys) {
+            $lines.Add(('| {0} | {1} |' -f (Format-MarkdownValue -Value $key), (Format-MarkdownValue -Value $Summary.stopReasonCounts[$key])))
+        }
+    }
+
+    $lines.Add('')
+    return ($lines -join [Environment]::NewLine)
 }
 
 function Get-NavigationObjectFromEntry {
@@ -262,6 +364,18 @@ $summary = [ordered]@{
     lastFacingCheck = if ($lastFacing.Count -gt 0) { $lastFacing[0] } else { $null }
     stopReasonCounts = $stopReasonCounts
     recentSteps = $recent
+}
+
+if (-not [string]::IsNullOrWhiteSpace($MarkdownFile)) {
+    $resolvedMarkdownFile = [System.IO.Path]::GetFullPath($MarkdownFile)
+    $directory = Split-Path -Parent $resolvedMarkdownFile
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $markdown = Convert-NavigationSummaryToMarkdown -Summary ([pscustomobject]$summary)
+    [System.IO.File]::WriteAllText($resolvedMarkdownFile, $markdown)
+    $summary.markdownFile = $resolvedMarkdownFile
 }
 
 $summary | ConvertTo-Json -Depth 20

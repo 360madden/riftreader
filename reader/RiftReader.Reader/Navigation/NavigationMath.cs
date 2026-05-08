@@ -78,7 +78,7 @@ public static class NavigationMath
         {
             return BuildUnavailableFacingSummary(
                 status: "estimate-unavailable",
-                message: "Actor-facing read did not return a usable movement-space yaw estimate for navigation alignment.");
+                message: "Actor-facing read did not return a usable forward-key movement bearing estimate for navigation alignment.");
         }
 
         var signedDelta = NormalizeDegrees(destinationBearingDegrees - yaw.Value.Degrees);
@@ -128,7 +128,7 @@ public static class NavigationMath
         var yaw = TryComputeNavigationBearing(orientation.PreferredEstimate);
         if (!yaw.HasValue)
         {
-            const string unusableEstimateReason = "Owner-components artifact candidate did not return a usable movement-space yaw estimate.";
+            const string unusableEstimateReason = "Owner-components artifact candidate did not return a usable forward-key movement bearing estimate.";
             return new NavigationFacingSummary(
                 Status: status,
                 SourceKind: sourceKind,
@@ -182,19 +182,21 @@ public static class NavigationMath
             IsFinite(vectorZ) &&
             Math.Sqrt((vectorX * vectorX) + (vectorZ * vectorZ)) > double.Epsilon)
         {
-            var radians = Math.Atan2(vectorX, vectorZ);
+            // Live W-key validation maps the actor-facing basis projection to the
+            // opposite forward-key movement bearing in Rift's X/Z plane.
+            var radians = Math.Atan2(-vectorX, -vectorZ);
             return (radians, NormalizeDegrees(radians * 180d / Math.PI));
         }
 
         if (estimate?.YawRadians is { } yawRadians && IsFinite(yawRadians))
         {
-            var radians = NormalizeRadians((Math.PI / 2d) - yawRadians);
+            var radians = NormalizeRadians((Math.PI / 2d) - yawRadians + Math.PI);
             return (radians, NormalizeDegrees(radians * 180d / Math.PI));
         }
 
         if (estimate?.YawDegrees is { } yawDegrees && IsFinite(yawDegrees))
         {
-            var degrees = NormalizeDegrees(90d - yawDegrees);
+            var degrees = NormalizeDegrees(270d - yawDegrees);
             return (degrees * Math.PI / 180d, degrees);
         }
 

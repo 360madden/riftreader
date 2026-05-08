@@ -398,6 +398,36 @@ public static class WaypointNavigator
                     events);
             }
 
+            if (windowDistanceIncrease >= movement.MinimumProgressDistance)
+            {
+                events.Add(CreateEvent(
+                    type: "stop",
+                    elapsedMilliseconds: stopwatch.ElapsedMilliseconds,
+                    status: "moving-away",
+                    pulseIndex: pulseCount,
+                    position: latestPosition,
+                    planarDistance: currentPlanarDistance,
+                    detail: "Planar distance increased by at least the minimum progress threshold."));
+                return BuildFailure(
+                    processId,
+                    processName,
+                    waypointFile,
+                    startWaypoint,
+                    destinationWaypoint,
+                    pace,
+                    poseSource.AnchorSource,
+                    movement.StartRadius,
+                    arrivalRadius,
+                    pulseCount,
+                    "moving-away",
+                    initialPosition,
+                    latestPosition,
+                    stopwatch.ElapsedMilliseconds,
+                    initialPlanarDistance,
+                    currentPlanarDistance,
+                    events);
+            }
+
             var progress = lastWindowResetDistance - currentPlanarDistance;
             if (progress >= movement.MinimumProgressDistance)
             {

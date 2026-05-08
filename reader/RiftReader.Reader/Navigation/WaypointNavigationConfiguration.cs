@@ -1,11 +1,27 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace RiftReader.Reader.Navigation;
 
 public sealed record NavigationWaypointFileDocument(
     int? SchemaVersion,
+    NavigationWaypointProvenanceDocument? Provenance,
     NavigationMovementOptionsDocument? Movement,
     IReadOnlyList<NavigationWaypointDocument>? Waypoints);
+
+public sealed record NavigationWaypointProvenanceDocument
+{
+    public string? Kind { get; init; }
+
+    public string? NavigationBearingKind { get; init; }
+
+    public string? NavigationBearingSource { get; init; }
+
+    public double? NavigationBearingDegrees { get; init; }
+
+    [JsonExtensionData]
+    public IDictionary<string, JsonElement>? ExtensionData { get; init; }
+}
 
 public sealed record NavigationMovementOptionsDocument(
     string? ForwardKey,

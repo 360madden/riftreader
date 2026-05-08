@@ -1,30 +1,70 @@
 # Current Truth
 
-_Last updated: May 8, 2026 00:53 EDT / 04:53 UTC (live `rift_x64` PID `33912`, HWND `0xE0DB2`). Latest current-session truth is **blocked but advanced**: RiftScan reacquired a no-CE current-PID coordinate candidate, the prior no-input `ProofOnly` correctly blocked before a displaced same-target baseline existed, and the latest `RefreshBaseline` now captured a displaced no-input pose about `3.023m` from the prior proof coordinate. Movement remains blocked until `ProofOnly` re-runs and promotes the current-session proof. Latest live movement truth remains the historical May 7 Python-owned `ForwardSeries3x250 --live` smoke on PID `47560`; it is not valid for current PID `33912` without re-promotion._
+_Last updated: May 8, 2026 02:18 EDT / 06:18 UTC (latest offline validation refresh; live proof snapshot from `rift_x64` PID `33912`, HWND `0xE0DB2`). Current-session movement truth is now **movement-grade and waypoint-smoke validated**: no-input `ProofOnly` passed after the latest navigation run, `Forward250 --live` passed, `ForwardSeries3x250 --live` passed 3/3 proof-gated pulses, actor-facing was re-promoted on the current PID, and a 1m A/B waypoint smoke passed after correcting the actor-facing-to-forward-key movement bearing convention. No CE was used, and SavedVariables were used only as intentionally refreshed post-save snapshots, never as live IPC._
 
 ## Current status
 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
-| Latest no-input proof | **blocked before latest displaced baseline**; `ProofOnly` summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-044728\run-summary.json`; issue `promotion_baseline_unavailable:compatibleDisplacedCount=0`; rerun `ProofOnly` now that `RefreshBaseline` captured a displaced pose |
+| Latest no-input proof | Post-navigation `ProofOnly` passed on current PID `33912` / HWND `0xE0DB2`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-33912-readback-summary-20260508-014015.json`; `movementSent=false` |
 | Latest current-session candidate | `rift-addon-coordinate-candidate-000001` at `0x202FEA3E180` from `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json` |
-| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260508-045224\run-progress.json`; `passed-baseline-captured`, `movementSent=false`, `movementAttempted=false` |
-| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to `RefreshBaseline` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260508-045224\run-summary.json` |
-| Latest movement truth | Historical only for old PID `47560`: `ForwardSeries3x250 --live` passed 3/3 per-pulse gated `W` 250 ms pulses; historical pointer archived at `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-07-pid47560-historical.json` |
-| Current coordinate | Latest baseline pose `X=7438.64990234375`, `Y=885.2191772460938`, `Z=3049.527587890625` at `2026-05-08T04:52:43.0836487Z` |
-| Latest proof anchor | Old PID `47560` proof anchor is historical/stale for PID `33912`; latest current-PID displaced baseline is captured, but movement is blocked until `ProofOnly` promotes the current proof and fresh preflight passes |
-| Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; if `finalSummaryWritten=false`, use `states` and `seriesPulses` from progress. |
+| Latest actor-facing truth | Current PID behavior-backed lead promoted: `0X202E570DB20 @ +0xD4`; D/A validation produced reversible yaw deltas `71.9515/71.4643` degrees with `PlayerCoordDeltaMagnitude=0.0` |
+| Latest runtime progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-progress.json`; status `passed-proof-only`; `movementSent=false` |
+| Latest runtime pointer | `C:\RIFT MODDING\RiftReader\scripts\captures\latest-live-test-run.json` points to post-navigation `ProofOnly` run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-summary.json` |
+| Latest movement truth | **Current-session movement proof passed**: `Forward250 --live`, `ForwardSeries3x250 --live`, and fixed-bearing `run-a-to-b-prototype` waypoint smoke all passed on PID `33912` / HWND `0xE0DB2` |
+| Latest waypoint smoke | `run-a-to-b-prototype` succeeded with route `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\smoke-test-waypoints-fixed-movement-bearing.json`; 1 pulse, stop reason `arrived`, distance `1.0000000000003622m -> 0.6652750379001031m` |
+| Current coordinate | Post-navigation `ProofOnly` coordinate `X=7435.66650390625`, `Y=885.2191772460938`, `Z=3059.3740234375` at `2026-05-08T05:40:19.1871780Z` |
+| Latest proof anchor | Current PID `33912` movement gate was satisfied at latest post-navigation proof; proof is age-gated, so re-bind exact target and run fresh preflight before more movement |
+| Latest offline validation | May 8 02:18 EDT: stale terminology sweep clean; `current-proof-anchor-readback.json` and `actor-facing-behavior-backed-lead.json` parse; current-proof pointer sanity check passed for movement gate, no-CE/no-SavedVariables flags, actor-facing source match, distance improvement, and 15 referenced artifacts; `python .\scripts\live_test.py --validate-profiles` passed 5 profiles; route provenance extension metadata is preserved on waypoint rewrites and TomTom imports; `git diff --check -- . ':(exclude)scripts/captures'` passed; `dotnet test .\reader\RiftReader.Reader.Tests\RiftReader.Reader.Tests.csproj --no-restore` passed 79/79 |
+| Interruption recovery surface | If a run is interrupted, inspect `scripts\captures\latest-live-test-run.json` then `runProgressFile`; for the latest navigation smoke inspect `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\a-to-b-prototype-fixed-movement-bearing.ndjson` |
 | Python live-test orchestrator | Run-progress checkpoint validated; plan `C:\RIFT MODDING\RiftReader\docs\live-testing-python-orchestrator-plan.md` |
-| CE / SavedVariables | no CE; no SavedVariables live truth |
+| CE / SavedVariables | no CE; no SavedVariables live truth; `/reloadui` refresh was an intentional post-save snapshot before route generation |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-005330-post-refreshbaseline-proofonly-needed-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-014050-current-pid-33912-waypoint-smoke-passed-handoff.md` |
 
-## May 8 continuation: current PID candidate reacquired, movement still blocked
 
-The game window is back on `rift_x64` PID `33912`, HWND `0xE0DB2`. Forward
-movement approval is recorded, but the live movement gate is still proof-gated.
-No Codex-sent movement/input was sent in this reacquisition pass.
+## May 8 continuation: actor-facing promoted, movement bearing fixed, A/B waypoint smoke passed live
+
+| Fact | Value |
+|---|---|
+| Target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Actor-facing promotion | `scripts\actor-facing-behavior-backed-lead.json` promoted current PID source `0X202E570DB20` with basis forward offset `0XD4` |
+| Promotion evidence | `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-currentpid-33912-da-20260508-052500\session.json`; `LiveTruthStatus=confirmed`; `PromotionStatus=promoted`; D/A reversible yaw deltas `71.9515/71.4643` degrees; coord drift `0.0` |
+| Default orientation readback | `C:\RIFT MODDING\RiftReader\scripts\captures\actor-facing-currentpid-33912-da-20260508-052500\capture-default-after-promotion.json` resolved through the tracked behavior-backed lead |
+| Initial waypoint attempt | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\a-to-b-prototype-after-facing-promotion-correct-ids.ndjson`; failed safely after 2 pulses with `StopReason=no-progress`; distance increased `1.0000m -> 1.6381m` |
+| Root cause | Live W movement proved the prior actor-facing-to-route bearing was 180 degrees opposite of actual forward-key movement. The route destination was generated in the opposite direction, so distance increased. |
+| Code fix | `reader\RiftReader.Reader\Navigation\NavigationMath.cs` and `scripts\navigation\new-forward-smoke-route.ps1` now map the actor-facing basis projection to the opposite forward-key movement bearing; navigation tests were updated in `reader\RiftReader.Reader.Tests\Navigation\WaypointNavigationTests.cs` |
+| Fixed route | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\smoke-test-waypoints-fixed-movement-bearing.json`; start `7435.94921875,885.2191772460938,3059.5537109375`; destination `7435.122945326888,885.2191772460938,3058.990441703244`; bearing `-145.71781003282072` degrees |
+| Passing A/B smoke | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\a-to-b-prototype-fixed-movement-bearing.ndjson`; `Status=success`; `StopReason=arrived`; 1 pulse; final distance `0.6652750379001031m` within `0.7m` arrival radius |
+| Post-navigation proof | `python scripts\live_test.py --profile ProofOnly --pid 33912 --hwnd 0xE0DB2 --no-gui`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-053953\run-summary.json`; current coordinate `7435.66650390625,885.2191772460938,3059.3740234375` |
+| Visual verification | `wait_for_frame_change` after the fixed A/B smoke returned `changed=true`, `17.9565%`, screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-013920-428.png` |
+| Safety | no CE; exact PID/HWND; fresh proof before movement; post-navigation ProofOnly passed; SavedVariables were only refreshed by `/reloadui` before route generation as a post-save snapshot |
+| Next boundary | Continue with fresh proof before each movement slice. Next live step should be a slightly longer route or auto-turn validation, not blind repeated forward pulses. |
+| Offline hardening after live proof | `WaypointNavigator` now fails closed when a pulse materially increases destination distance before the wider wrong-way tolerance is reached; route generation labels future bearings as `forward-key-movement-bearing`; the waypoint loader validates that bearing kind when present; route provenance extension metadata is preserved on future waypoint rewrites and TomTom imports; `summarize-a-to-b-log.ps1 -MarkdownFile` now emits compact route summaries; `docs\navigation-waypoint-v1.md` documents raw actor yaw vs forward-key movement bearing. |
+| Latest route summary Markdown | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-33912-20260508-051600\a-to-b-prototype-fixed-movement-bearing-summary.md` |
+
+## May 8 continuation: current PID ProofOnly and ForwardSeries3x250 passed live
+
+| Fact | Value |
+|---|---|
+| Target | `rift_x64` PID `33912`, HWND `0xE0DB2` |
+| Exact bind before proof | `find_game_window(processId=33912, windowHandle="0xE0DB2")` returned bound/foreground target |
+| ProofOnly | `python scripts\live_test.py --profile ProofOnly --pid 33912 --hwnd 0xE0DB2 --no-gui`; status `passed-proof-only`; `movementSent=false` |
+| Forward250 | `python scripts\live_test.py --profile Forward250 --pid 33912 --hwnd 0xE0DB2 --live --no-gui`; status `passed`; `movementSent=true`; planar delta `0.326128836893223m` |
+| ForwardSeries3x250 | `python scripts\live_test.py --profile ForwardSeries3x250 --pid 33912 --hwnd 0xE0DB2 --live --no-gui`; status `passed`; completed `3/3` pulses; auto-refresh attempts used `1` |
+| Series delta | `dX=0.20068359375`, `dY=0.0`, `dZ=-0.96044921875`, planar `0.9811914219956779m` |
+| Final coordinate | `X=7436.48828125`, `Y=885.2191772460938`, `Z=3059.8955078125` at `2026-05-08T05:05:55.2929453Z` |
+| Run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260508-050351\run-summary.json` |
+| Run progress | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260508-050351\run-progress.json` |
+| Safety | no CE; no SavedVariables live truth; exact PID/HWND; `--live` required for input profiles |
+| Next boundary | Further movement is allowed only after exact re-bind and fresh proof/preflight because the current proof remains age-gated |
+
+## Earlier May 8: current PID candidate reacquired before movement proof passed
+
+At this earlier checkpoint, the game window was back on `rift_x64` PID `33912`, HWND `0xE0DB2`. Forward
+movement approval was recorded, but the live movement gate was still proof-gated.
+No Codex-sent movement/input was sent in that reacquisition pass.
 
 | Fact | Value |
 |---|---|
@@ -35,11 +75,11 @@ No Codex-sent movement/input was sent in this reacquisition pass.
 | Candidate | `rift-addon-coordinate-candidate-000001`, `0x202FE9F0000 + 0x4E180 = 0x202FEA3E180` |
 | Candidate readback | `ReferenceMatchCount=1`, `StableDecodedCandidateCount=1`, `ReadbackTotalRegionReadFailures=0` |
 | Baseline capture | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-RefreshBaseline-20260508-045224\run-summary.json`, status `passed-baseline-captured`; displaced about `3.023m` from prior blocked proof coordinate |
-| ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-044728\run-summary.json`, status `blocked-promotion-reference-mismatch` |
-| Blocker | Prior `ProofOnly` blocked before the latest displaced baseline; next required step is rerun `ProofOnly` to attempt promotion |
+| Earlier ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-044728\run-summary.json`, status `blocked-promotion-reference-mismatch`; superseded by later passing `ProofOnly` at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-050153\run-summary.json` |
+| Prior blocker | Resolved later by displaced baseline plus passing `ProofOnly`; movement-grade proof now comes from `Forward250` and `ForwardSeries3x250` on PID `33912` |
 | Config hardening | `configs\live-test-profiles.json` now uses `scanContextBytes=16384`; `4096` missed the usable `RRAPICOORD1` context in this session |
-| Next required action | rerun `ProofOnly`; if it passes, focus/capture exact target and run bounded `Forward250 --live` |
-| Safety boundary | no CE; no SavedVariables live truth; no Codex-sent input until current proof promotion and preflight are green |
+| Next required action | Superseded; before further movement, re-bind exact target and run fresh proof/preflight, then use a small waypoint/navigation smoke rather than blind longer forward movement |
+| Safety boundary | no CE; no SavedVariables live truth; input only after current proof promotion and exact-target preflight are green |
 
 ## May 7 continuation: interruption-safe progress checkpoint validated
 

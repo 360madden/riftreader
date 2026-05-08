@@ -16,6 +16,7 @@ public static class WaypointNavigationConfigurationStore
     private static readonly JsonSerializerOptions WriteOptions = new()
     {
         WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
@@ -109,6 +110,7 @@ public static class WaypointNavigationConfigurationStore
 
         var updatedDocument = new NavigationWaypointFileDocument(
             SchemaVersion: document.SchemaVersion ?? SupportedSchemaVersion,
+            Provenance: document.Provenance,
             Movement: document.Movement ?? CreateDefaultMovement(),
             Waypoints: existingWaypoints);
 
@@ -172,6 +174,7 @@ public static class WaypointNavigationConfigurationStore
     private static NavigationWaypointFileDocument CreateDefaultDocument() =>
         new(
             SchemaVersion: SupportedSchemaVersion,
+            Provenance: null,
             Movement: CreateDefaultMovement(),
             Waypoints: []);
 

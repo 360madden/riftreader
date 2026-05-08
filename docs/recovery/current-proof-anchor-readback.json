@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T04:56:03.329376Z",
-  "status": "blocked-current-session-displaced-baseline-captured-proofonly-needed",
+  "lastUpdatedUtc": "2026-05-08T05:40:20Z",
+  "status": "movement-grade-current-session-waypoint-smoke-passed",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "displaced-baseline-captured-proofonly-needed",
-    "latestMovementAllowed": false,
-    "note": "Current PID/HWND candidate readback is stable and a displaced RefreshBaseline pose was captured, but movement remains blocked until ProofOnly promotes the current-session proof and a fresh preflight passes.",
-    "coordinateProofGateSatisfiedAtLatestValidation": false,
+    "latestReadbackStatus": "post-navigation-proofonly-passed-after-waypoint-smoke",
+    "latestMovementAllowed": true,
+    "note": "Current PID/HWND proof promoted and ProofOnly, Forward250, ForwardSeries3x250, actor-facing promotion, and fixed-bearing A/B waypoint smoke passed with no CE. Any further movement still requires a fresh proof/preflight because proof anchors are age-gated.",
+    "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
     "requiresFreshPreflightImmediatelyBeforeMovement": true,
@@ -35,10 +35,98 @@
     "bestMaxAbsDistance": 0,
     "notes": [
       "Current candidate was reacquired with no CE from current PID memory snapshots.",
-      "Candidate readback matched same-time RRAPICOORD1 reference, but promotion still requires a second displaced same-target pose."
+      "Candidate readback matched same-time RRAPICOORD1 reference and has since been movement-validated through Forward250, ForwardSeries3x250, and fixed-bearing A/B waypoint smoke on PID 33912."
     ]
   },
   "latestValidation": {
+    "generatedAtUtc": "2026-05-08T05:39:16.495Z",
+    "status": "success",
+    "primaryIssue": null,
+    "mode": "navigate-waypoints",
+    "routeFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\smoke-test-waypoints-fixed-movement-bearing.json",
+    "sessionLogFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-fixed-movement-bearing.ndjson",
+    "stdoutFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\run-a-to-b-prototype-fixed-movement-bearing.stdout.txt",
+    "movementAllowed": true,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false,
+    "movementSent": true,
+    "movementAttempted": true,
+    "anchorSource": "coord-trace-anchor",
+    "initialPlanarDistance": 1.0000000000003622,
+    "finalPlanarDistance": 0.6652750379001031,
+    "pulseCount": 1,
+    "stopReason": "arrived",
+    "arrivalRadius": 0.7,
+    "initialCoordinate": {
+      "x": 7435.94921875,
+      "y": 885.2191772460938,
+      "z": 3059.5537109375
+    },
+    "currentCoordinate": {
+      "x": 7435.66650390625,
+      "y": 885.2191772460938,
+      "z": 3059.3740234375,
+      "recordedAtUtc": "2026-05-08T05:39:16.495Z"
+    },
+    "destinationCoordinate": {
+      "x": 7435.122945326888,
+      "y": 885.2191772460938,
+      "z": 3058.990441703244
+    },
+    "movementBearingDegrees": -145.71781003282072,
+    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "postNavigationProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-053953\\run-summary.json",
+    "postNavigationReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-014015.json",
+    "summaryMarkdownFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-fixed-movement-bearing-summary.md",
+    "summaryJsonFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-fixed-movement-bearing-summary.json"
+  },
+  "config": {
+    "liveTestProfilesFile": "C:\\RIFT MODDING\\RiftReader\\configs\\live-test-profiles.json",
+    "scanContextBytes": 16384,
+    "scanContextReason": "4096-byte RRAPICOORD1 context missed the usable marker/payload in the May 8 current session; 16384 captured it.",
+    "tempProfilesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-live-test-profiles-wide-20260508-043118.json"
+  },
+  "sourceArtifacts": {
+    "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
+    "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
+  },
+  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250 and a fixed-bearing A/B waypoint smoke. Before any further movement, re-bind the exact target and run a fresh proof/preflight because proof anchors are age-gated; next safe expansion is a slightly longer route or auto-turn validation.",
+  "notes": [
+    "May 8 current PID 33912 / HWND 0xE0DB2 ProofOnly, Forward250 --live, ForwardSeries3x250 --live, actor-facing promotion, and fixed-bearing A/B waypoint smoke all passed with no CE and no SavedVariables live truth.",
+    "Actor-facing behavior-backed lead is current-session source 0X202E570DB20 at +0xD4.",
+    "Navigation bearing was corrected after live W-key proof showed the previous actor-facing-to-movement mapping was 180 degrees opposite actual forward movement.",
+    "No Cheat Engine, CE Lua, debugger attach, or SavedVariables live truth used.",
+    "The old PID 47560 proof anchor is historical and invalid for current PID 33912.",
+    "Offline hardening now labels future route bearings as forward-key-movement-bearing and stops material moving-away pulses earlier.",
+    "Waypoint loader now validates provenance.navigationBearingKind when present so actor-yaw metadata cannot masquerade as forward-key movement bearing.",
+    "A/B navigation logs can now be summarized to compact Markdown with scripts/navigation/summarize-a-to-b-log.ps1 -MarkdownFile.",
+    "docs/navigation-waypoint-v1.md now documents raw actor yaw vs forward-key movement bearing and the accepted route provenance label."
+  ],
+  "latestBaselineCapture": {
+    "generatedAtUtc": "2026-05-08T04:52:44.398627Z",
+    "status": "passed-baseline-captured",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260508-045224\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260508-045224\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260508-045224\\riftscan-proof-RefreshBaseline-attempt-1-20260508-045237\\riftscan-riftreader-currentpid-33912-readback-wrapper-summary-20260508-005239.json",
+    "movementSent": false,
+    "movementAttempted": false,
+    "currentCoordinate": {
+      "x": 7438.64990234375,
+      "y": 885.2191772460938,
+      "z": 3049.527587890625,
+      "recordedAtUtc": "2026-05-08T04:52:43.0836487Z"
+    },
+    "referenceMatchCount": 1,
+    "stableDecodedCandidateCount": 1,
+    "readbackTotalRegionReadFailures": 0,
+    "planarDisplacementFromPriorProofMeters": 3.023004594510392,
+    "deltaFromPriorProof": {
+      "deltaX": 0.61767578125,
+      "deltaZ": -2.959228515625
+    }
+  },
+  "previousBlockedValidation": {
     "generatedAtUtc": "2026-05-08T04:48:02.174914Z",
     "status": "blocked-promotion-reference-mismatch",
     "primaryIssue": "promotion_baseline_unavailable:compatibleDisplacedCount=0",
@@ -64,44 +152,101 @@
     "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
     "candidateCount": 12
   },
-  "config": {
-    "liveTestProfilesFile": "C:\\RIFT MODDING\\RiftReader\\configs\\live-test-profiles.json",
-    "scanContextBytes": 16384,
-    "scanContextReason": "4096-byte RRAPICOORD1 context missed the usable marker/payload in the May 8 current session; 16384 captured it.",
-    "tempProfilesFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-live-test-profiles-wide-20260508-043118.json"
-  },
-  "sourceArtifacts": {
-    "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
-    "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
-    "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
-  },
-  "nextRequiredAction": "Run ProofOnly on PID 33912 / HWND 0xE0DB2 using the newly captured displaced baseline. Only if ProofOnly passes should live movement proceed with exact target/focus/capture and a bounded Forward250 --live pulse.",
-  "notes": [
-    "No Cheat Engine, CE Lua, debugger attach, or SavedVariables live truth used.",
-    "No Codex-sent movement/input was sent in the May 8 current PID reacquisition pass.",
-    "The old PID 47560 proof anchor is historical and invalid for current PID 33912."
-  ],
-  "latestBaselineCapture": {
-    "generatedAtUtc": "2026-05-08T04:52:44.398627Z",
-    "status": "passed-baseline-captured",
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260508-045224\\run-summary.json",
-    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260508-045224\\run-progress.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260508-045224\\riftscan-proof-RefreshBaseline-attempt-1-20260508-045237\\riftscan-riftreader-currentpid-33912-readback-wrapper-summary-20260508-005239.json",
+  "latestProofOnly": {
+    "generatedAtUtc": "2026-05-08T01:40:19.671871-04:00",
+    "status": "passed-proof-only",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-053953\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-053953\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-014015.json",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
-      "x": 7438.64990234375,
+      "x": 7435.66650390625,
       "y": 885.2191772460938,
-      "z": 3049.527587890625,
-      "recordedAtUtc": "2026-05-08T04:52:43.0836487Z"
+      "z": 3059.3740234375,
+      "recordedAtUtc": "2026-05-08T05:40:19.187178Z"
     },
-    "referenceMatchCount": 1,
-    "stableDecodedCandidateCount": 1,
-    "readbackTotalRegionReadFailures": 0,
-    "planarDisplacementFromPriorProofMeters": 3.023004594510392,
-    "deltaFromPriorProof": {
-      "deltaX": 0.61767578125,
-      "deltaZ": -2.959228515625
-    }
+    "noCheatEngine": true
+  },
+  "latestForward250": {
+    "generatedAtUtc": "2026-05-08T01:03:27.177493-04:00",
+    "status": "passed",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260508-050245\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260508-050245\\run-progress.json",
+    "liveWrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260508-050245\\gated-forward-smoke-currentpid-33912-summary-20260508-050312.json",
+    "movementSent": true,
+    "movementAttempted": true,
+    "currentCoordinate": {
+      "x": 7436.28759765625,
+      "y": 885.2191772460938,
+      "z": 3060.85595703125,
+      "recordedAtUtc": "2026-05-08T05:03:26.4588955Z"
+    },
+    "coordinateDelta": {
+      "deltaX": 0.0673828125,
+      "deltaY": 0.0,
+      "deltaZ": -0.319091796875,
+      "planarDistance": 0.326128836893223,
+      "spatialDistance": 0.326128836893223
+    },
+    "noCheatEngine": true
+  },
+  "latestForwardSeries3x250": {
+    "generatedAtUtc": "2026-05-08T01:05:56.009808-04:00",
+    "status": "passed",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260508-050351\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260508-050351\\run-progress.json",
+    "liveWrapperSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260508-050351\\gated-forward-smoke-currentpid-33912-summary-20260508-050542.json",
+    "movementSent": true,
+    "movementAttempted": true,
+    "currentCoordinate": {
+      "x": 7436.48828125,
+      "y": 885.2191772460938,
+      "z": 3059.8955078125,
+      "recordedAtUtc": "2026-05-08T05:05:55.2929453Z"
+    },
+    "coordinateDelta": {
+      "deltaX": 0.0673828125,
+      "deltaY": 0.0,
+      "deltaZ": -0.32080078125,
+      "planarDistance": 0.3278011358598693,
+      "spatialDistance": 0.3278011358598693
+    },
+    "seriesCoordinateDelta": {
+      "deltaX": 0.20068359375,
+      "deltaY": 0.0,
+      "deltaZ": -0.96044921875,
+      "planarDistance": 0.9811914219956779,
+      "spatialDistance": 0.9811914219956779
+    },
+    "requestedPulseCount": 3,
+    "completedPulseCount": 3,
+    "autoRefreshAttemptsUsed": 1,
+    "noCheatEngine": true
+  },
+  "latestActorFacing": {
+    "generatedAtUtc": "2026-05-08T05:25:53.6137659Z",
+    "status": "preferred-solved-lead",
+    "sourceAddress": "0X202E570DB20",
+    "basisForwardOffset": "0XD4",
+    "processId": 33912,
+    "processStartTimeUtc": "2026-05-08T02:38:08.7156673Z",
+    "sessionFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-currentpid-33912-da-20260508-052500\\session.json",
+    "validationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-currentpid-33912-da-20260508-052500\\validation.json",
+    "captureDefaultAfterPromotion": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\actor-facing-currentpid-33912-da-20260508-052500\\capture-default-after-promotion.json",
+    "forwardPeakYawDegrees": 71.95151659375365,
+    "reversePeakYawDegrees": 71.46425624990664,
+    "playerCoordDeltaMagnitude": 0.0
+  },
+  "previousWaypointSmokeFailureBeforeFix": {
+    "generatedAtUtc": "2026-05-08T05:32:35.337Z",
+    "status": "failure",
+    "stopReason": "no-progress",
+    "routeFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\smoke-test-waypoints-after-facing-promotion.json",
+    "sessionLogFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-33912-20260508-051600\\a-to-b-prototype-after-facing-promotion-correct-ids.ndjson",
+    "pulseCount": 2,
+    "initialPlanarDistance": 1.0000000000003622,
+    "finalPlanarDistance": 1.6380741268526757,
+    "interpretation": "The route used the prior movement-bearing convention and pointed opposite actual W-key movement; this triggered fail-closed no-progress behavior."
   }
 }

@@ -5,6 +5,7 @@ namespace RiftReader.Reader.Navigation;
 public static class WaypointNavigationConfigurationLoader
 {
     private const int SupportedSchemaVersion = 1;
+    private const string ForwardKeyMovementBearingKind = "forward-key-movement-bearing";
 
     public static WaypointNavigationConfiguration? TryLoad(string? filePath, out string? error)
     {
@@ -55,6 +56,14 @@ public static class WaypointNavigationConfigurationLoader
         if (document.Waypoints is null || document.Waypoints.Count == 0)
         {
             error = $"Navigation waypoint file '{sourceFile}' did not contain any waypoints.";
+            return null;
+        }
+
+        var navigationBearingKind = document.Provenance?.NavigationBearingKind;
+        if (!string.IsNullOrWhiteSpace(navigationBearingKind) &&
+            !string.Equals(navigationBearingKind.Trim(), ForwardKeyMovementBearingKind, StringComparison.OrdinalIgnoreCase))
+        {
+            error = $"Navigation waypoint file '{sourceFile}' contains unsupported provenance.navigationBearingKind '{navigationBearingKind}'. Expected '{ForwardKeyMovementBearingKind}'.";
             return null;
         }
 

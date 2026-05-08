@@ -52,6 +52,7 @@ public static class TomTomWaypointImporter
     private static readonly JsonSerializerOptions WriteOptions = new()
     {
         WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
@@ -242,6 +243,7 @@ public static class TomTomWaypointImporter
 
         var document = new NavigationWaypointFileDocument(
             SchemaVersion: existingDocument.SchemaVersion ?? SupportedSchemaVersion,
+            Provenance: existingDocument.Provenance,
             Movement: existingDocument.Movement ?? CreateDefaultMovement(),
             Waypoints: preservedWaypoints);
 
@@ -374,6 +376,7 @@ public static class TomTomWaypointImporter
         {
             document = new NavigationWaypointFileDocument(
                 SchemaVersion: SupportedSchemaVersion,
+                Provenance: null,
                 Movement: CreateDefaultMovement(),
                 Waypoints: []);
             error = null;

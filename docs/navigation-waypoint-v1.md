@@ -80,17 +80,31 @@ proof-grade movement truth.
 ### Facing / movement bearing policy
 
 Navigation compares destination bearings against the actor-facing **basis
-vector mapped into movement-space bearing**. The raw actor-facing estimate is
-still derived from the `Basis@0xD4.Forward` row, but route generation and
-auto-turn planning must use the movement-space bearing:
+vector mapped into forward-key movement bearing**. The raw actor-facing
+estimate is still derived from the `Basis@0xD4.Forward` row, but route
+generation and auto-turn planning must use the movement bearing proven by live
+`W` input:
 
-- raw basis estimate: `atan2(forwardZ, forwardX)`
-- navigation/movement bearing: `atan2(forwardX, forwardZ)`
+- raw actor yaw estimate: `atan2(forwardZ, forwardX)`
+- forward-key movement bearing: `atan2(-forwardX, -forwardZ)`
+- route provenance label: `provenance.navigationBearingKind =
+  "forward-key-movement-bearing"`
 
-This mapping was required by the April 23 active smoke run: using the raw yaw
-as a route bearing sent the character across the destination vector and caused
-`no-progress`; using movement-space bearing aligned forward pulses with the
-strict coord-trace route.
+Do not treat raw actor yaw as a route bearing. On May 8, 2026, a current-PID
+live A/B smoke proved the prior movement-space convention was 180 degrees
+opposite actual `W` movement: the first route failed safely with `no-progress`
+and distance worsened from `1.0000m` to `1.6381m`; the fixed-bearing route then
+arrived after one pulse, reducing distance from `1.0000m` to `0.6653m`.
+
+Waypoint files may omit provenance for older hand-authored routes, but when
+`provenance.navigationBearingKind` is present the loader only accepts
+`forward-key-movement-bearing`. Unsupported labels fail closed so `actor-yaw`
+metadata cannot masquerade as movement-bearing metadata.
+
+Waypoint rewrites keep the schema field names in camel case and preserve
+unknown `provenance` extension fields. This is intentional because generated
+smoke routes carry process/session/proof metadata beyond the fields that the
+loader actively validates.
 
 ### State machine
 
@@ -119,6 +133,12 @@ Schema:
 ```json
 {
   "schemaVersion": 1,
+  "provenance": {
+    "kind": "smoke-route",
+    "navigationBearingKind": "forward-key-movement-bearing",
+    "navigationBearingSource": "actor-facing-basis-opposite-xz-projection",
+    "navigationBearingDegrees": -145.71781003282072
+  },
   "movement": {
     "forwardKey": "w",
     "runKey": null,

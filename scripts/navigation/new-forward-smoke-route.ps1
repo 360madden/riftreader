@@ -363,15 +363,17 @@ function Get-NavigationBearingRadians {
         if ([double]::IsFinite($vectorX) -and
             [double]::IsFinite($vectorZ) -and
             ([Math]::Sqrt(($vectorX * $vectorX) + ($vectorZ * $vectorZ)) -gt [double]::Epsilon)) {
-            return [Math]::Atan2($vectorX, $vectorZ)
+            # Live W-key validation maps the actor-facing basis projection to the
+            # opposite forward-key movement bearing in Rift's X/Z plane.
+            return [Math]::Atan2(-$vectorX, -$vectorZ)
         }
     }
 
     if ($null -ne $PreferredEstimate.YawRadians) {
-        return Normalize-Radians -Radians (([Math]::PI / 2.0) - [double]$PreferredEstimate.YawRadians)
+        return Normalize-Radians -Radians (([Math]::PI / 2.0) - [double]$PreferredEstimate.YawRadians + [Math]::PI)
     }
 
-    throw "Actor orientation did not return a usable movement-space navigation bearing."
+    throw "Actor orientation did not return a usable forward-key movement bearing."
 }
 
 if ($DistanceForward -le 0) {
@@ -478,11 +480,14 @@ $document = [ordered]@{
         basisPrimaryForwardOffset = $basisPrimaryForwardOffset
         basisDuplicateForwardOffset = $basisDuplicateForwardOffset
         yawDegrees = [double]$readerOrientation.PreferredEstimate.YawDegrees
+        navigationBearingKind = 'forward-key-movement-bearing'
+        navigationBearingSource = 'actor-facing-basis-opposite-xz-projection'
         navigationBearingDegrees = Convert-RadiansToDegrees -Radians $navigationBearingRadians
         distanceForward = $DistanceForward
         bearingOffsetDegrees = $BearingOffsetDegrees
         notes = @(
             'Generated from the current live player position and live actor-facing reader.',
+            'navigationBearingDegrees is the forward-key movement bearing, not raw actor yaw.',
             'Regenerate this smoke route after a Rift restart, zone move, or major position change before treating it as a current-session validation route.'
         )
     }
@@ -553,6 +558,8 @@ $json = $document | ConvertTo-Json -Depth 20
     readerBridgeDeltaZ = $readerBridgeDeltaZ
     yawRadians = if ($null -ne $yawRadians) { [double]$yawRadians } else { $null }
     yawDegrees = [double]$readerOrientation.PreferredEstimate.YawDegrees
+    navigationBearingKind = 'forward-key-movement-bearing'
+    navigationBearingSource = 'actor-facing-basis-opposite-xz-projection'
     navigationBearingRadians = [double]$navigationBearingRadians
     navigationBearingDegrees = Convert-RadiansToDegrees -Radians $navigationBearingRadians
     bearingOffsetDegrees = $BearingOffsetDegrees

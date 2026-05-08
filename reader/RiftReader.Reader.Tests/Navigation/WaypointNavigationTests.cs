@@ -86,6 +86,173 @@ public sealed class WaypointNavigationConfigurationLoaderTests
         }
     }
 
+    [Fact]
+    public void TryLoad_AcceptsForwardKeyMovementBearingProvenance()
+    {
+        var filePath = CreateTempWaypointFile(
+            """
+            {
+              "schemaVersion": 1,
+              "provenance": {
+                "kind": "smoke-route",
+                "navigationBearingKind": "forward-key-movement-bearing",
+                "navigationBearingSource": "actor-facing-basis-opposite-xz-projection",
+                "navigationBearingDegrees": -145.71781003282072
+              },
+              "movement": {
+                "forwardKey": "w",
+                "defaultPace": "keep",
+                "forwardPulseMilliseconds": 250,
+                "postPulseSampleDelayMilliseconds": 150,
+                "startRadius": 2.0,
+                "defaultArrivalRadius": 1.5,
+                "noProgressWindowMilliseconds": 1500,
+                "minimumProgressDistance": 0.35,
+                "wrongWayToleranceDistance": 0.75,
+                "maxTravelSeconds": 30
+              },
+              "waypoints": [
+                { "id": "start", "x": 0.0, "y": 0.0, "z": 0.0 },
+                { "id": "destination", "x": -1.0, "y": 0.0, "z": -1.0 }
+              ]
+            }
+            """);
+
+        try
+        {
+            var configuration = WaypointNavigationConfigurationLoader.TryLoad(filePath, out var error);
+
+            Assert.NotNull(configuration);
+            Assert.Null(error);
+        }
+        finally
+        {
+            DeleteTempWaypointFile(filePath);
+        }
+    }
+
+    [Fact]
+    public void TryLoad_RejectsUnsupportedNavigationBearingKind()
+    {
+        var filePath = CreateTempWaypointFile(
+            """
+            {
+              "schemaVersion": 1,
+              "provenance": {
+                "kind": "smoke-route",
+                "navigationBearingKind": "actor-yaw"
+              },
+              "movement": {
+                "forwardKey": "w",
+                "defaultPace": "keep",
+                "forwardPulseMilliseconds": 250,
+                "postPulseSampleDelayMilliseconds": 150,
+                "startRadius": 2.0,
+                "defaultArrivalRadius": 1.5,
+                "noProgressWindowMilliseconds": 1500,
+                "minimumProgressDistance": 0.35,
+                "wrongWayToleranceDistance": 0.75,
+                "maxTravelSeconds": 30
+              },
+              "waypoints": [
+                { "id": "start", "x": 0.0, "y": 0.0, "z": 0.0 },
+                { "id": "destination", "x": -1.0, "y": 0.0, "z": -1.0 }
+              ]
+            }
+            """);
+
+        try
+        {
+            var configuration = WaypointNavigationConfigurationLoader.TryLoad(filePath, out var error);
+
+            Assert.Null(configuration);
+            Assert.Contains("provenance.navigationBearingKind", error, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("forward-key-movement-bearing", error, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteTempWaypointFile(filePath);
+        }
+    }
+
+    [Fact]
+    public void TryUpsertWaypoint_PreservesExtendedProvenanceMetadata()
+    {
+        var filePath = CreateTempWaypointFile(
+            """
+            {
+              "schemaVersion": 1,
+              "provenance": {
+                "kind": "smoke-route",
+                "generatedAtUtc": "2026-05-08T05:36:00.0000000Z",
+                "processId": 33912,
+                "readerBridgeCoord": {
+                  "x": 7435.94921875,
+                  "y": 885.2191772460938,
+                  "z": 3059.5537109375
+                },
+                "navigationBearingKind": "forward-key-movement-bearing",
+                "navigationBearingSource": "actor-facing-basis-opposite-xz-projection",
+                "navigationBearingDegrees": -145.71781003282072
+              },
+              "movement": {
+                "forwardKey": "w",
+                "defaultPace": "keep",
+                "forwardPulseMilliseconds": 250,
+                "postPulseSampleDelayMilliseconds": 150,
+                "startRadius": 2.0,
+                "defaultArrivalRadius": 1.5,
+                "noProgressWindowMilliseconds": 1500,
+                "minimumProgressDistance": 0.35,
+                "wrongWayToleranceDistance": 0.75,
+                "maxTravelSeconds": 30
+              },
+              "waypoints": [
+                { "id": "start", "x": 0.0, "y": 0.0, "z": 0.0 }
+              ]
+            }
+            """);
+
+        try
+        {
+            var waypoint = WaypointNavigationConfigurationStore.TryUpsertWaypoint(
+                filePath,
+                waypointId: "destination",
+                sample: new NavigationPoseSample("0xABC", -1d, 0d, -1d),
+                label: "Destination",
+                zone: null,
+                arrivalRadius: null,
+                pace: null,
+                resolvedFile: out _,
+                created: out var created,
+                error: out var error);
+
+            Assert.NotNull(waypoint);
+            Assert.True(created);
+            Assert.Null(error);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(filePath));
+            var provenance = document.RootElement.GetProperty("provenance");
+            Assert.Equal("smoke-route", provenance.GetProperty("kind").GetString());
+            Assert.Equal("2026-05-08T05:36:00.0000000Z", provenance.GetProperty("generatedAtUtc").GetString());
+            Assert.Equal(33912, provenance.GetProperty("processId").GetInt32());
+            Assert.Equal("forward-key-movement-bearing", provenance.GetProperty("navigationBearingKind").GetString());
+            Assert.Equal(
+                "actor-facing-basis-opposite-xz-projection",
+                provenance.GetProperty("navigationBearingSource").GetString());
+            Assert.InRange(provenance.GetProperty("navigationBearingDegrees").GetDouble(), -145.718d, -145.717d);
+
+            var readerBridgeCoord = provenance.GetProperty("readerBridgeCoord");
+            Assert.Equal(7435.94921875d, readerBridgeCoord.GetProperty("x").GetDouble());
+            Assert.Equal(885.2191772460938d, readerBridgeCoord.GetProperty("y").GetDouble());
+            Assert.Equal(3059.5537109375d, readerBridgeCoord.GetProperty("z").GetDouble());
+        }
+        finally
+        {
+            DeleteTempWaypointFile(filePath);
+        }
+    }
+
     private static string CreateTempWaypointFile(string json)
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), "RiftReader.Tests", Guid.NewGuid().ToString("N"));
@@ -199,11 +366,11 @@ public sealed class NavigationMathTests
         Assert.Equal("0x1234", facing.SelectedSourceAddress);
         Assert.Equal("0xD4", facing.BasisPrimaryForwardOffset);
         Assert.Equal("live-behavior-backed-lead", facing.ResolutionMode);
-        Assert.Equal(45d, facing.YawDegrees);
+        Assert.Equal(-135d, facing.YawDegrees);
         Assert.Equal(0d, facing.PitchDegrees);
-        Assert.Equal(45d, facing.SignedBearingDeltaDegrees);
-        Assert.Equal(45d, facing.AbsoluteBearingDeltaDegrees);
-        Assert.Equal("right", facing.SuggestedTurnDirection);
+        Assert.Equal(-135d, facing.SignedBearingDeltaDegrees);
+        Assert.Equal(135d, facing.AbsoluteBearingDeltaDegrees);
+        Assert.Equal("left", facing.SuggestedTurnDirection);
         Assert.Null(facing.Reason);
     }
 
@@ -245,12 +412,63 @@ public sealed class NavigationMathTests
             Estimates: Array.Empty<PlayerOrientationVectorEstimate>(),
             Notes: Array.Empty<string>());
 
-        var facing = NavigationMath.BuildFacingSummary(orientation, destinationBearingDegrees: 90d);
+        var facing = NavigationMath.BuildFacingSummary(orientation, destinationBearingDegrees: -90d);
 
         Assert.Equal("available", facing.Status);
-        Assert.Equal(90d, facing.YawDegrees);
+        Assert.Equal(-90d, facing.YawDegrees);
         Assert.Equal(0d, facing.SignedBearingDeltaDegrees);
         Assert.Equal(0d, facing.AbsoluteBearingDeltaDegrees);
+        Assert.Equal("aligned", facing.SuggestedTurnDirection);
+    }
+
+    [Fact]
+    public void BuildFacingSummary_MapsCurrentLiveVectorIntoForwardKeyMovementBearing()
+    {
+        var orientation = new PlayerOrientationReadResult(
+            Mode: "player-orientation-live",
+            ArtifactFile: @"C:\RIFT MODDING\RiftReader\scripts\actor-facing-behavior-backed-lead.json",
+            ArtifactLoadedAtUtc: new DateTimeOffset(2026, 5, 8, 5, 25, 53, TimeSpan.Zero),
+            ArtifactGeneratedAtUtc: new DateTimeOffset(2026, 5, 8, 5, 25, 53, TimeSpan.Zero),
+            SnapshotFile: null,
+            SnapshotLoadedAtUtc: null,
+            PlayerName: "Atank",
+            PlayerLevel: 45,
+            PlayerGuild: null,
+            PlayerLocation: null,
+            PlayerCoord: null,
+            SelectedSourceAddress: "0X202E570DB20",
+            SelectedEntryAddress: null,
+            SelectedEntryIndex: null,
+            SelectedEntryMatchesSelectedSource: false,
+            SelectedEntryRoleHints: Array.Empty<string>(),
+            ResolutionMode: "live-behavior-backed-lead",
+            BasisPrimaryForwardOffset: "0xD4",
+            BasisDuplicateForwardOffset: null,
+            PreferredEstimate: new PlayerOrientationVectorEstimate(
+                Name: "Basis@0xD4.Forward",
+                Vector: new ValidatorCoordinateSnapshot(
+                    0.5359871983528137d,
+                    -0.307448148727417d,
+                    0.7862527370452881d),
+                YawRadians: 0.9724592370734517d,
+                YawDegrees: 55.71781003282074d,
+                PitchRadians: -0.31251012330777345d,
+                PitchDegrees: -17.905511120648356d,
+                Magnitude: 1.0000000037326107d),
+            BasisPrimaryEstimate: null,
+            BasisDuplicateEstimate: null,
+            BasisDuplicateDeltaMagnitude: null,
+            BasisDuplicateAgreementStrong: null,
+            Estimates: Array.Empty<PlayerOrientationVectorEstimate>(),
+            Notes: Array.Empty<string>());
+
+        var facing = NavigationMath.BuildFacingSummary(
+            orientation,
+            destinationBearingDegrees: -145.71781003282072d);
+
+        Assert.Equal("available", facing.Status);
+        Assert.InRange(facing.YawDegrees.GetValueOrDefault(), -145.718d, -145.717d);
+        Assert.InRange(facing.AbsoluteBearingDeltaDegrees.GetValueOrDefault(), 0d, 0.000001d);
         Assert.Equal("aligned", facing.SuggestedTurnDirection);
     }
 
@@ -298,7 +516,7 @@ public sealed class NavigationMathTests
         Assert.Equal("behavior-backed-memory-facing", facing.SourceKind);
         Assert.Null(facing.AbsoluteBearingDeltaDegrees);
         Assert.Null(facing.SuggestedTurnDirection);
-        Assert.Contains("usable movement-space yaw estimate", facing.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("usable forward-key movement bearing estimate", facing.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -319,10 +537,10 @@ public sealed class NavigationMathTests
         Assert.Equal("0x1234", facing.SelectedSourceAddress);
         Assert.Equal("0x60", facing.BasisPrimaryForwardOffset);
         Assert.Equal("0x94", facing.BasisDuplicateForwardOffset);
-        Assert.Equal(90d, facing.YawDegrees);
-        Assert.Equal(-30d, facing.SignedBearingDeltaDegrees);
-        Assert.Equal(30d, facing.AbsoluteBearingDeltaDegrees);
-        Assert.Equal("left", facing.SuggestedTurnDirection);
+        Assert.Equal(-90d, facing.YawDegrees);
+        Assert.Equal(150d, facing.SignedBearingDeltaDegrees);
+        Assert.Equal(150d, facing.AbsoluteBearingDeltaDegrees);
+        Assert.Equal("right", facing.SuggestedTurnDirection);
         Assert.Contains("fallback candidate only", facing.Reason, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("not canonical/actionable", facing.Reason, StringComparison.OrdinalIgnoreCase);
     }
@@ -346,9 +564,9 @@ public sealed class NavigationMathTests
         Assert.Equal("unavailable", turnPlan.Status);
         Assert.Equal("owner-components-artifact-candidate-facing", turnPlan.SourceKind);
         Assert.Equal("artifact-owner-components", turnPlan.ResolutionMode);
-        Assert.Equal(90d, turnPlan.CurrentYawDegrees);
-        Assert.Equal(-30d, turnPlan.SignedBearingDeltaDegrees);
-        Assert.Equal(30d, turnPlan.AbsoluteBearingDeltaDegrees);
+        Assert.Equal(-90d, turnPlan.CurrentYawDegrees);
+        Assert.Equal(150d, turnPlan.SignedBearingDeltaDegrees);
+        Assert.Equal(150d, turnPlan.AbsoluteBearingDeltaDegrees);
         Assert.Null(turnPlan.SuggestedTurnDirection);
         Assert.False(turnPlan.WithinAlignmentThreshold);
         Assert.Contains("fallback candidate only", turnPlan.Reason, StringComparison.OrdinalIgnoreCase);
@@ -1236,6 +1454,39 @@ public sealed class WaypointNavigatorTests
         Assert.Equal("failure", result.Status);
         Assert.Equal("moving-away", result.StopReason);
         Assert.Equal(1, result.PulseCount);
+    }
+
+    [Fact]
+    public void Run_StopsWhenDistanceMateriallyIncreasesBeforeWrongWayTolerance()
+    {
+        var poseSource = new FakePoseSource(
+            Success(0d, 0d, 0d),
+            Success(-0.4d, 0d, 0d));
+        var movementBackend = new FakeMovementBackend();
+
+        var result = WaypointNavigator.Run(
+            processId: 100,
+            processName: "rift_x64",
+            waypointFile: "waypoints.json",
+            movement: CreateMovement(
+                postPulseSampleDelayMilliseconds: 0,
+                minimumProgressDistance: 0.35d,
+                wrongWayToleranceDistance: 1.0d),
+            startWaypoint: StartWaypoint,
+            destinationWaypoint: DestinationWaypoint,
+            poseSource: poseSource,
+            movementBackend: movementBackend,
+            pace: NavigationPace.Keep,
+            arrivalRadius: 1.5d,
+            maxTravelSeconds: 30);
+
+        Assert.Equal("failure", result.Status);
+        Assert.Equal("moving-away", result.StopReason);
+        Assert.Equal(1, result.PulseCount);
+        Assert.NotNull(result.Events);
+        var stopEvent = Assert.Single(result.Events!, navigationEvent => navigationEvent.Type == "stop");
+        Assert.Equal("moving-away", stopEvent.Status);
+        Assert.Contains("minimum progress threshold", stopEvent.Detail, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
