@@ -11,6 +11,7 @@ from rift_live_test.turn_keys import (
     format_turn_key_markdown,
     normalize_degrees,
     planar_coord_delta,
+    summarize_input_delivery,
 )
 
 
@@ -111,7 +112,57 @@ class TurnKeyProfileTests(unittest.TestCase):
         self.assertIn("No Cheat Engine: `true`", text)
         self.assertIn("SavedVariables live truth: `false`", text)
 
+    def test_input_delivery_detects_sendinput_fallback(self) -> None:
+        delivery = summarize_input_delivery(
+            requested_input_mode="foreground-sendinput",
+            stdout=(
+                "WARNING: Foreground SendInput path failed; attempting AutoHotkey fallback. "
+                "SendInput sent 0 of 1 keyboard inputs for virtual key 68.\n"
+                "[RiftKey] AutoHotkey fallback SUCCESS\n"
+                "[RiftKey] SUCCESS\n"
+            ),
+        )
+        self.assertTrue(delivery["sendInputFailed"])
+        self.assertTrue(delivery["autoHotkeyFallbackUsed"])
+        self.assertEqual(delivery["effectiveMode"], "autohotkey-fallback")
+
+    def test_markdown_records_input_delivery(self) -> None:
+        text = format_turn_key_markdown(
+            {
+                "status": "completed-no-promoted-turn-candidate",
+                "ok": False,
+                "generatedAtUtc": "2026-05-08T00:00:00Z",
+                "runDirectory": "C:/tmp/run",
+                "processName": "rift_x64",
+                "processId": 123,
+                "targetWindowHandle": "0x123",
+                "live": True,
+                "inputSent": True,
+                "movementDetected": False,
+                "noCheatEngine": True,
+                "savedVariablesUsedAsLiveTruth": False,
+                "attempts": [
+                    {
+                        "attemptId": "001",
+                        "key": "d",
+                        "inputMode": "foreground-sendinput",
+                        "shell": "pwsh",
+                        "classification": "no-turn",
+                        "yawDeltaDegrees": 0.0,
+                        "coordDelta": {"planarDistance": 0.0},
+                        "inputCommand": {
+                            "exitCode": 0,
+                            "inputDelivery": {"effectiveMode": "autohotkey-fallback"},
+                        },
+                    }
+                ],
+                "promotedCandidates": [],
+                "issues": [],
+            }
+        )
+        self.assertIn("| Attempt | Key | Mode | Delivery | Shell |", text)
+        self.assertIn("`autohotkey-fallback`", text)
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -230,19 +230,60 @@ def _write_text_command_envelope(
     exit_code: int,
     stdout: str,
     stderr: str,
+    requested_input_mode: str | None = None,
 ) -> dict[str, Any]:
+    delivery = summarize_input_delivery(
+        stdout=stdout,
+        stderr=stderr,
+        requested_input_mode=requested_input_mode,
+    )
     envelope = {
         "label": label,
         "args": args,
         "exitCode": exit_code,
         "stdout": stdout,
         "stderr": stderr,
+        "inputDelivery": delivery,
     }
     write_json(path, envelope)
     return {
         "label": label,
         "exitCode": exit_code,
         "outputFile": str(path),
+        "inputDelivery": delivery,
+    }
+
+
+def summarize_input_delivery(
+    *,
+    stdout: str,
+    stderr: str = "",
+    requested_input_mode: str | None = None,
+) -> dict[str, Any]:
+    text = "\n".join(part for part in (stdout or "", stderr or "") if part)
+    sendinput_failed = (
+        "Foreground SendInput path failed" in text
+        or "SendInput sent 0 of 1 keyboard inputs" in text
+    )
+    ahk_fallback = "AutoHotkey fallback SUCCESS" in text
+    success = "[RiftKey] SUCCESS" in text
+    if ahk_fallback:
+        effective_mode = "autohotkey-fallback"
+    elif sendinput_failed:
+        effective_mode = "sendinput-failed"
+    elif success and requested_input_mode:
+        effective_mode = requested_input_mode
+    elif success:
+        effective_mode = "helper-success"
+    else:
+        effective_mode = "unknown"
+
+    return {
+        "requestedInputMode": requested_input_mode,
+        "successMarker": success,
+        "sendInputFailed": sendinput_failed,
+        "autoHotkeyFallbackUsed": ahk_fallback,
+        "effectiveMode": effective_mode,
     }
 
 
@@ -679,6 +720,7 @@ class TurnKeyProfiler:
                 exit_code=completed.returncode,
                 stdout=completed.stdout,
                 stderr=completed.stderr,
+                requested_input_mode=input_mode,
             )
         except subprocess.TimeoutExpired as exc:
             stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else str(exc.stdout or "")
@@ -698,6 +740,7 @@ class TurnKeyProfiler:
                 exit_code=124,
                 stdout=stdout,
                 stderr=stderr,
+                requested_input_mode=input_mode,
             )
 
     def _post_key_command(self, *, key: str, input_mode: str, shell: str) -> list[str]:
@@ -871,16 +914,18 @@ def format_turn_key_markdown(summary: dict[str, Any]) -> str:
             "",
             "## Attempts",
             "",
-            "| Attempt | Key | Mode | Shell | Classification | Yaw delta | Planar coord delta | Input exit |",
-            "|---|---|---|---|---|---:|---:|---:|",
+            "| Attempt | Key | Mode | Delivery | Shell | Classification | Yaw delta | Planar coord delta | Input exit |",
+            "|---|---|---|---|---|---|---:|---:|---:|",
         ]
     )
     for attempt in summary.get("attempts") or []:
         coord_delta = attempt.get("coordDelta") or {}
         input_command = attempt.get("inputCommand") or {}
+        input_delivery = input_command.get("inputDelivery") or {}
         lines.append(
             f"| `{attempt.get('attemptId')}` | `{attempt.get('key')}` | "
-            f"`{attempt.get('inputMode')}` | `{attempt.get('shell')}` | "
+            f"`{attempt.get('inputMode')}` | `{input_delivery.get('effectiveMode')}` | "
+            f"`{attempt.get('shell')}` | "
             f"`{attempt.get('classification')}` | `{attempt.get('yawDeltaDegrees')}` | "
             f"`{coord_delta.get('planarDistance')}` | `{input_command.get('exitCode')}` |"
         )
