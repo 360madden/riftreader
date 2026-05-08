@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T08:25:08Z",
-  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-sendinput-fixed-arrows-no-turn",
+  "lastUpdatedUtc": "2026-05-08T08:37:22Z",
+  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-qe-no-turn",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "post-sendinput-arrow-profile-proofonly-passed",
+    "latestReadbackStatus": "post-qe-profile-proofonly-passed",
     "latestMovementAllowed": true,
-    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. No reliable turn backend is promoted. Foreground SendInput now uses the correct 40-byte INPUT union and delivers without AutoHotkey fallback, but true SendInput d still no-turned at 125ms and 500ms, and true SendInput Left/Right arrows also no-turned at 250ms. Post-message d remains inconsistent/opposite-sign. One Right-arrow attempt failed closed before input when ProofOnly reference capture could not find a usable RRAPICOORD1 marker; a later Right-arrow attempt refreshed proof and no-turned. No coordinate movement was detected during profiled attempts. Any further movement still requires fresh proof/preflight and auto-turn should not enter forward navigation until turn input convergence is proven.",
+    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. No reliable turn backend is promoted. Targeted keybind-surface inspection found no plaintext movement bindings in AppData/Documents configs, but did find binary codex_keys.dat in the RIFT Live folder; its leading bytes show W/S/A/D paired with arrow alternates followed by Q/E, making Q/E the next plausible turn/strafe pair. Post-fix true foreground SendInput q/e delivered without AutoHotkey fallback but no-turned twice each at 125ms, with zero proof-coordinate delta. True SendInput d and Left/Right also no-turn; post-message d remains inconsistent/opposite-sign. Any further movement still requires fresh proof/preflight and auto-turn should not enter forward navigation until turn input convergence is proven.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -101,8 +101,10 @@
     "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
     "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
   },
-  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice remains blocked: the Python turn-key profiler found no promoted turn key/backend candidate across post-message and foreground d/a trials, foreground Left/Right arrow trials before and after the SendInput fix, longer 500ms d trials, or true SendInput d trials after the INPUT-size fix. Before any auto-turn-to-forward movement, re-bind exact target, run fresh proof/preflight, and prove a repeatable turn backend with at least two same-sign yaw deltas and zero proof-coordinate movement.",
+  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice remains blocked: the Python turn-key profiler found no promoted turn key/backend candidate across post-message and foreground d/a trials, foreground Left/Right arrow trials before and after the SendInput fix, true SendInput q/e trials, longer 500ms d trials, or true SendInput d trials after the INPUT-size fix. Before any auto-turn-to-forward movement, re-bind exact target, run fresh proof/preflight, and prove a repeatable turn backend with at least two same-sign yaw deltas and zero proof-coordinate movement.",
   "notes": [
+    "May 8 q/e true SendInput profile added from keybind-surface lead: codex_keys.dat suggested Q/E as the next plausible pair, but q/e delivered without fallback and no-turned twice each at 125ms with zero proof-coordinate delta; post-profile ProofOnly passed.",
+    "May 8 targeted keybind-surface search: no plaintext movement binding hits in AppData/Documents configs outside AddOns; binary C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\codex_keys.dat contains leading W/S/A/D + arrow alternate entries followed by Q/E.",
     "May 8 post-fix true SendInput Left/Right arrow profile added: Left no-turned twice; Right first attempt failed closed before input on proof-refresh reference capture, then Right no-turned once after fresh proof; all delivered attempts had zero proof-coordinate delta.",
     "May 8 SendInput root cause fixed: post-rift-key.ps1 INPUT union now includes mouse/hardware variants so cbSize is 40 instead of 32; true foreground SendInput d no-turned at 125ms and 500ms with zero proof-coordinate delta, so d remains unpromoted.",
     "May 8 longer 500ms d profile added to turn-key evidence: foreground-sendinput mode fell back to AutoHotkey and no-turned twice; post-message d produced opposite-sign yaw deltas +10.233 then -10.992 with zero proof-coordinate delta, so it remains unpromoted; post-profile ProofOnly passed.",
@@ -171,18 +173,18 @@
     "candidateCount": 12
   },
   "latestProofOnly": {
-    "generatedAtUtc": "2026-05-08T08:25:07.607938Z",
+    "generatedAtUtc": "2026-05-08T08:37:22.348608Z",
     "status": "passed-proof-only",
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-082438\\run-summary.json",
-    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-082438\\run-progress.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-042502.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-083654\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-083654\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-043717.json",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
       "x": 7436.64013671875,
       "y": 885.2191772460938,
       "z": 3055.749267578125,
-      "recordedAtUtc": "2026-05-08T08:25:07.0671213Z"
+      "recordedAtUtc": "2026-05-08T08:37:21.8530173Z"
     },
     "noCheatEngine": true,
     "savedVariablesUsedAsLiveTruth": false
@@ -301,16 +303,16 @@
     "nextRequiredAction": "Treat auto-turn as blocked until the effective live turn key/backend is profiled and proven to change actor-facing reliably; do not allow auto-turn to proceed into forward navigation unless alignment is within threshold after fresh proof."
   },
   "latestTurnKeyProfileValidation": {
-    "generatedAtUtc": "2026-05-08T08:25:08Z",
+    "generatedAtUtc": "2026-05-08T08:37:22Z",
     "status": "blocked-no-promoted-turn-key-backend",
-    "primaryIssue": "true_sendinput_d_and_arrows_no_turn_post_message_d_inconsistent_no_promoted_backend",
+    "primaryIssue": "true_sendinput_wasd_arrows_qe_no_turn_post_message_d_inconsistent_no_promoted_backend",
     "runnerScript": "C:\\RIFT MODDING\\RiftReader\\scripts\\profile_turn_keys.py",
     "planOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072834\\turn-key-profile-summary.json",
     "multiKeyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072955\\turn-key-profile-summary.json",
     "singleCandidateRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073539\\turn-key-profile-summary.json",
     "repeatDRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073726\\turn-key-profile-summary.json",
-    "latestProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-082438\\run-summary.json",
-    "latestProofOnlyReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-042502.json",
+    "latestProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-083654\\run-summary.json",
+    "latestProofOnlyReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-043717.json",
     "inputSent": true,
     "movementDetected": false,
     "movementSent": false,
@@ -361,6 +363,12 @@
         "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-042426-989.png",
         "changePercent": 2.0857,
         "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-042432-595.png"
+      },
+      {
+        "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-043203-215.png",
+        "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-043637-695.png",
+        "changePercent": 3.6376,
+        "finalScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-043643-390.png"
       }
     ],
     "evidence": [
@@ -374,7 +382,9 @@
       "SendInput root cause: post-rift-key.ps1 was passing a 32-byte INPUT structure because the INPUT union only contained KEYBDINPUT; adding MOUSEINPUT/HARDWAREINPUT makes Marshal.SizeOf(INPUT)=40 and resolved LastWin32Error=87 invalid-parameter SendInput failures.",
       "Post-fix true foreground SendInput d profile at 125ms: sendInputFailed=false, autoHotkeyFallbackUsed=false, yaw delta 0.0 degrees, proof-coordinate delta 0.0, so true SendInput d still no-turned.",
       "Post-fix true foreground SendInput d profile at 500ms x2: both attempts had sendInputFailed=false, autoHotkeyFallbackUsed=false, yaw delta 0.0 degrees, proof-coordinate delta 0.0, so true SendInput d is not promotable.",
-      "Post-fix true foreground SendInput Left/Right profile at 250ms: Left no-turned twice; Right r1 failed closed before input on ProofOnly reference capture (no usable RRAPICOORD1), then Right r2 delivered with sendInputFailed=false/autoHotkeyFallbackUsed=false and yaw delta 0.0; all completed attempts had proof-coordinate delta 0.0, so arrows are still not promotable."
+      "Post-fix true foreground SendInput Left/Right profile at 250ms: Left no-turned twice; Right r1 failed closed before input on ProofOnly reference capture (no usable RRAPICOORD1), then Right r2 delivered with sendInputFailed=false/autoHotkeyFallbackUsed=false and yaw delta 0.0; all completed attempts had proof-coordinate delta 0.0, so arrows are still not promotable.",
+      "Targeted keybind-surface search found no plaintext movement binding hits in AppData/Documents configs outside AddOns; binary codex_keys.dat in the RIFT Live folder contains leading W/S/A/D entries paired with arrow alternates followed by Q/E.",
+      "Post-fix true foreground SendInput q/e profile at 125ms x2: q and e both delivered with sendInputFailed=false/autoHotkeyFallbackUsed=false, all four yaw deltas were 0.0 degrees, all proof-coordinate deltas were 0.0, so q/e are not promotable turn backends."
     ],
     "codeHardening": [
       "Added Python scripts/profile_turn_keys.py orchestration for exact PID/HWND turn-key profiling.",
@@ -385,12 +395,14 @@
       "post-rift-key.ps1 now declares the full INPUT union so SendInput receives the correct 40-byte cbSize on x64.",
       "Validated post-rift-key.ps1 Add-Type layout with Marshal.SizeOf(INPUT)=40, KEYBDINPUT=24, MOUSEINPUT=32."
     ],
-    "nextRequiredAction": "Do not re-run auto-turn-to-forward until a turn backend is promoted. True foreground SendInput d and arrows deliver without fallback but still no-turn; post-message d can move yaw but remains inconsistent/opposite-sign. Next inspect actual Rift keybind semantics or discover a non-keyboard turn surface before more duration-only keyboard experiments.",
+    "nextRequiredAction": "Do not re-run auto-turn-to-forward until a turn backend is promoted. True foreground SendInput d, arrows, and q/e deliver without fallback but still no-turn; post-message d can move yaw but remains inconsistent/opposite-sign. Next inspect actual in-client keybind semantics/UI state or discover a non-keyboard turn surface before more keyboard experiments.",
     "foregroundSendInputDRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-074456\\turn-key-profile-summary.json",
     "foregroundSendInputArrowRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075123\\turn-key-profile-summary.json",
     "longD500RunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-075910\\turn-key-profile-summary.json",
     "postInputFixD125RunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-081354\\turn-key-profile-summary.json",
     "postInputFixD500RunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-081531\\turn-key-profile-summary.json",
-    "postInputFixArrow250RunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-082051\\turn-key-profile-summary.json"
+    "postInputFixArrow250RunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-082051\\turn-key-profile-summary.json",
+    "keybindSurfaceFile": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\codex_keys.dat",
+    "postInputFixQERunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-083210\\turn-key-profile-summary.json"
   }
 }
