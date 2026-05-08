@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "lastUpdatedUtc": "2026-05-08T07:11:00Z",
-  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked",
+  "lastUpdatedUtc": "2026-05-08T07:40:00Z",
+  "status": "movement-grade-current-session-2m-waypoint-smoke-passed-autoturn-blocked-turn-key-profile-inconclusive",
   "movementGate": {
     "activeMovementInputApprovedByUser": true,
-    "latestReadbackStatus": "post-autoturn-blocker-proofonly-passed",
+    "latestReadbackStatus": "post-turn-key-profile-proofonly-passed",
     "latestMovementAllowed": true,
-    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke, but the May 8 offset-route auto-turn slice is blocked: exact-target turn key posts reported success yet actor-facing did not converge enough for forward navigation. Any further movement still requires fresh proof/preflight and auto-turn should not be allowed to forward-move until turn input convergence is proven.",
+    "note": "Current PID/HWND proof remains movement-grade through the prior 2m waypoint smoke. The May 8 turn-key profile runner is now available, but live post-message d/a profiling did not promote a reliable turn backend: d produced one 8.384 degree candidate and then two no-turn repeats; a produced no turn; no coordinate movement was detected during profiled attempts. Any further movement still requires fresh proof/preflight and auto-turn should not enter forward navigation until turn input convergence is proven.",
     "coordinateProofGateSatisfiedAtLatestValidation": true,
     "currentlyRequiresRevalidationBeforeMoreMovement": true,
     "requiresSecondDisplacedPoseBeforeMovement": false,
@@ -101,8 +101,9 @@
     "currentReferenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613\\api-reference-wide-retry.json",
     "currentReferenceRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\currentpid-33912-riftscan-reacquire-20260508-042613"
   },
-  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice is currently blocked by no-converging turn input/readback despite exact target and successful key helper exits. Before any further movement, re-bind exact target, run fresh proof/preflight, and prove the effective turn key/backend before allowing auto-turn to enter forward navigation.",
+  "nextRequiredAction": "Current PID/HWND movement-gated proof is live validated through ForwardSeries3x250, 1m fixed-bearing A/B waypoint smoke, and 2m fixed-bearing A/B waypoint smoke. The offset-route auto-turn slice remains blocked: the Python turn-key profiler found no promoted turn key/backend candidate. Before any auto-turn-to-forward movement, re-bind exact target, run fresh proof/preflight, and prove a repeatable turn backend with at least two same-sign yaw deltas and zero proof-coordinate movement.",
   "notes": [
+    "May 8 Python turn-key profile runner added and live-tested: post-message a produced no turn, post-message d produced one 8.384 degree candidate but then no-turn repeats, so no turn key/backend was promoted; all profiled attempts had zero proof-coordinate movement and no CE.",
     "May 8 offset-route auto-turn validation is blocked: proof-gated turn-key attempts reported input success but actor-facing did not converge below the 7.5 degree threshold, so no forward navigation was sent; post-attempt ProofOnly passed.",
     "May 8 current PID 33912 / HWND 0xE0DB2 2m fixed-bearing A/B waypoint smoke passed: 4 pulses, arrived, distance 2.0000m -> 0.6995m, visual frame change 39.8806%, followed by post-navigation ProofOnly pass.",
     "May 8 current PID 33912 / HWND 0xE0DB2 ProofOnly, Forward250 --live, ForwardSeries3x250 --live, actor-facing promotion, and fixed-bearing A/B waypoint smoke all passed with no CE and no SavedVariables live truth.",
@@ -165,18 +166,18 @@
     "candidateCount": 12
   },
   "latestProofOnly": {
-    "generatedAtUtc": "2026-05-08T06:28:07.641128+00:00",
+    "generatedAtUtc": "2026-05-08T07:39:04.391737Z",
     "status": "passed-proof-only",
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-062740\\run-summary.json",
-    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260508-062740\\run-progress.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-022802.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073726\\proof-refreshes\\002-pwsh-post-message-d-r2\\live-test-ProofOnly-20260508-073823\\run-summary.json",
+    "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073726\\proof-refreshes\\002-pwsh-post-message-d-r2\\live-test-ProofOnly-20260508-073823\\run-progress.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-033859.json",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
-      "x": 7436.4345703125,
+      "x": 7436.64013671875,
       "y": 885.2191772460938,
-      "z": 3056.560546875,
-      "recordedAtUtc": "2026-05-08T06:28:07.1262070Z"
+      "z": 3055.749267578125,
+      "recordedAtUtc": "2026-05-08T07:39:03.8527638Z"
     },
     "noCheatEngine": true,
     "savedVariablesUsedAsLiveTruth": false
@@ -293,5 +294,46 @@
       "run-a-to-b-prototype.ps1 now has a no-progress auto-turn guard so repeated non-converging turn pulses fail closed earlier."
     ],
     "nextRequiredAction": "Treat auto-turn as blocked until the effective live turn key/backend is profiled and proven to change actor-facing reliably; do not allow auto-turn to proceed into forward navigation unless alignment is within threshold after fresh proof."
+  },
+  "latestTurnKeyProfileValidation": {
+    "generatedAtUtc": "2026-05-08T07:39:33Z",
+    "status": "blocked-no-promoted-turn-key-backend",
+    "primaryIssue": "post_message_turn_key_results_are_inconsistent_or_no_turn",
+    "runnerScript": "C:\\RIFT MODDING\\RiftReader\\scripts\\profile_turn_keys.py",
+    "planOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072834\\turn-key-profile-summary.json",
+    "multiKeyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-072955\\turn-key-profile-summary.json",
+    "singleCandidateRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073539\\turn-key-profile-summary.json",
+    "repeatDRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073726\\turn-key-profile-summary.json",
+    "latestProofOnlyRunSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-key-profile-currentpid-33912-20260508-073726\\proof-refreshes\\002-pwsh-post-message-d-r2\\live-test-ProofOnly-20260508-073823\\run-summary.json",
+    "latestProofOnlyReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-33912-readback-summary-20260508-033859.json",
+    "inputSent": true,
+    "movementDetected": false,
+    "movementSent": false,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false,
+    "visualChecks": [
+      {
+        "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-033532-168.png",
+        "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-033652-882.png",
+        "changePercent": 45.302
+      },
+      {
+        "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-033716-274.png",
+        "changedScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260508-033939-690.png",
+        "changePercent": 54.2416
+      }
+    ],
+    "evidence": [
+      "Plan-only run verified exact PID 33912 / HWND 0xE0DB2 and emitted no input.",
+      "Multi-key live profile: post-message a input succeeded but yaw delta was 0.0 degrees and coordinate delta was 0.0; later attempts failed closed before input when the 60-second proof gate expired.",
+      "Single d live profile with per-attempt proof refresh: post-message d produced yaw delta -8.3837 degrees with proof-coordinate delta 0.0, but this was only one candidate and therefore not promoted.",
+      "Repeat d live profile with per-attempt proof refresh: both post-message d attempts had yaw delta 0.0 and proof-coordinate delta 0.0, so d was not repeatable enough to promote."
+    ],
+    "codeHardening": [
+      "Added Python scripts/profile_turn_keys.py orchestration for exact PID/HWND turn-key profiling.",
+      "Added per-attempt ProofOnly refresh support for slow but fresh proof-gated key trials.",
+      "Profiler writes JSON and Markdown summaries, records before/after actor-facing yaw and proof-coordinate readbacks, and fails closed on coordinate movement."
+    ],
+    "nextRequiredAction": "Do not re-run auto-turn-to-forward until a turn backend is promoted. Next profile foreground-sendinput with exact foreground confirmation or inspect Rift keybind/backend behavior; keep each live run small and proof-refreshed."
   }
 }

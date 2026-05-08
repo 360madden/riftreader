@@ -281,7 +281,40 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
 ```
 
 The prototype wrapper still exists as a higher-level helper, but the current
-reader-core path is now the authoritative auto-turn entrypoint.
+reader-core path is now the authoritative auto-turn entrypoint. The wrapper
+also exposes two diagnostics-only controls for live blocker work:
+
+| Wrapper switch | Purpose |
+|---|---|
+| `-AutoTurnUsePostMessage` | Use exact-HWND `PostMessage` delivery for turn pulses instead of foreground `SendInput`. |
+| `-AutoTurnMinImprovementDegrees` / `-AutoTurnMaxNoImprovementPulses` | Fail closed when successful key-helper exits do not actually improve actor-facing delta enough across repeated pulses. |
+
+### Turn-key backend profiler
+
+When auto-turn blocks on key delivery or non-converging yaw, profile the turn
+key/backend before running another waypoint attempt:
+
+```powershell
+python C:\RIFT MODDING\RiftReader\scripts\profile_turn_keys.py `
+  --pid 33912 `
+  --hwnd 0xE0DB2 `
+  --keys a d A D Left Right `
+  --input-modes foreground-sendinput post-message `
+  --repeat 2 `
+  --hold-ms 125 `
+  --live `
+  --refresh-proof-first
+```
+
+Without `--live`, the profiler writes a plan and verifies the exact PID/HWND
+target but sends no input. With `--live`, it records before/after
+actor-facing yaw, proof-coordinate readbacks, exact input mode/shell, and
+optional screenshots. It promotes only key/backend combos that produce at least
+two same-sign yaw deltas above the configured threshold without proof-coordinate
+movement. If a key causes coordinate movement, the default is to stop remaining
+attempts and report `blocked-unintended-movement`. If the 60-second proof gate
+expires during a multi-key profile, reduce the key set or use
+`--refresh-proof-before-each-attempt` for a slower but fresher per-attempt run.
 
 ### TomTom waypoint import
 
