@@ -43,3 +43,5 @@ artifacts/window-capture/
 tools/reverse-engineering/downloads/
 tools/reverse-engineering/ReClass.NET/
 tools/reverse-engineering/x64dbg/
+
+.riftreader-local/
