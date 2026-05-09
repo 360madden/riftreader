@@ -518,6 +518,11 @@ internal static class Program
         }
 
         var failures = new List<string>(bootstrapDocuments.Length);
+        var currentPlayerCoordOverride = TryReadCoordTracePlayerCoordOverride(
+            reader,
+            target.ProcessId,
+            target.ProcessName,
+            out var currentPlayerCoordOverrideSource);
 
         for (var index = 0; index < bootstrapDocuments.Length; index++)
         {
@@ -531,7 +536,9 @@ internal static class Program
                     target.ProcessName,
                     document,
                     options.MaxHits,
-                    orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile);
+                    orientationCandidateLedgerFile: options.OrientationCandidateLedgerFile,
+                    playerCoordOverride: currentPlayerCoordOverride,
+                    playerCoordOverrideSource: currentPlayerCoordOverrideSource);
 
                 if (result.CandidateCount == 0 && result.PointerHopCandidateCount == 0)
                 {
@@ -576,6 +583,87 @@ internal static class Program
 
         Console.Error.WriteLine($"Unable to find a live player orientation candidate: {string.Join(" | ", failures)}");
         return 1;
+    }
+
+    private static ValidatorCoordinateSnapshot? TryReadCoordTracePlayerCoordOverride(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        out string? source)
+    {
+        source = null;
+        var proofAnchorFile = Path.Combine(
+            RepositoryPathLocator.FindRepoRoot(),
+            "scripts",
+            "captures",
+            "telemetry-proof-coord-anchor.json");
+        if (File.Exists(proofAnchorFile))
+        {
+            try
+            {
+                var proofAnchor = JsonSerializer.Deserialize<ProofCoordAnchorDocument>(
+                    File.ReadAllText(proofAnchorFile),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (proofAnchor?.ProcessId == processId &&
+                    string.Equals(proofAnchor.ProcessName, processName, StringComparison.OrdinalIgnoreCase) &&
+                    proofAnchor.MatchIsValid &&
+                    TryParseSessionAddress(proofAnchor.CoordRegionAddress, out var coordRegionAddress) &&
+                    TryReadFiniteSingle(reader, checked(coordRegionAddress.ToInt64() + (proofAnchor.CoordXRelativeOffset ?? 0)), out var proofX) &&
+                    TryReadFiniteSingle(reader, checked(coordRegionAddress.ToInt64() + (proofAnchor.CoordYRelativeOffset ?? 4)), out var proofY) &&
+                    TryReadFiniteSingle(reader, checked(coordRegionAddress.ToInt64() + (proofAnchor.CoordZRelativeOffset ?? 8)), out var proofZ))
+                {
+                    source = $"telemetry-proof-coord-anchor-current-memory ({proofAnchorFile})";
+                    return new ValidatorCoordinateSnapshot(proofX, proofY, proofZ);
+                }
+            }
+            catch (Exception)
+            {
+                // Fall back to the legacy trace-anchor document below.
+            }
+        }
+
+        var traceDocument = PlayerCoordTraceAnchorLoader.TryLoad(null, out _);
+        if (traceDocument?.Reader is null ||
+            traceDocument.Reader.ProcessId != processId ||
+            !string.Equals(traceDocument.Reader.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var resolvedAnchor = PlayerCoordAnchorReader.TryResolveObjectAnchor(traceDocument);
+        if (resolvedAnchor is null)
+        {
+            return null;
+        }
+
+        if (!TryReadFiniteSingle(reader, checked(resolvedAnchor.ObjectBaseAddress + resolvedAnchor.CoordXOffset), out var x) ||
+            !TryReadFiniteSingle(reader, checked(resolvedAnchor.ObjectBaseAddress + resolvedAnchor.CoordYOffset), out var y) ||
+            !TryReadFiniteSingle(reader, checked(resolvedAnchor.ObjectBaseAddress + resolvedAnchor.CoordZOffset), out var z))
+        {
+            return null;
+        }
+
+        source = $"coord-trace-anchor-current-memory ({traceDocument.SourceFile ?? "default"})";
+        return new ValidatorCoordinateSnapshot(x, y, z);
+    }
+
+    private static bool TryReadFiniteSingle(ProcessMemoryReader reader, long address, out double value)
+    {
+        value = 0d;
+        if (!reader.TryReadBytes(new nint(address), sizeof(float), out var bytes, out _) ||
+            bytes.Length != sizeof(float))
+        {
+            return false;
+        }
+
+        var single = BitConverter.ToSingle(bytes, 0);
+        if (!float.IsFinite(single))
+        {
+            return false;
+        }
+
+        value = single;
+        return true;
     }
 
     private static IReadOnlyList<ReaderBridgeSnapshotDocument> BuildPlayerCurrentBootstrapDocuments(

@@ -444,6 +444,16 @@ function Get-CoordDeltaMagnitude {
 }
 
 function Get-PlayerCurrent {
+    $proofAnchorFailure = $null
+    if ($ProcessId -gt 0 -or -not [string]::IsNullOrWhiteSpace($TargetWindowHandle)) {
+        try {
+            return Get-PlayerCurrentFromProofAnchor -FallbackReason 'preferred-proof-anchor-current-memory'
+        }
+        catch {
+            $proofAnchorFailure = $_.Exception.Message
+        }
+    }
+
     try {
         $arguments = @(Get-ReaderTargetArguments) + @(
             '--read-player-current',
@@ -458,7 +468,8 @@ function Get-PlayerCurrent {
                 return Get-PlayerCurrentFromProofAnchor -FallbackReason $readerFailure
             }
             catch {
-                throw ("Reader command failed and proof-anchor coordinate fallback was unavailable. Reader: {0} Proof fallback: {1}" -f $readerFailure, $_.Exception.Message)
+                $proofError = if ([string]::IsNullOrWhiteSpace($proofAnchorFailure)) { $_.Exception.Message } else { $proofAnchorFailure }
+                throw ("Reader command failed and proof-anchor coordinate fallback was unavailable. Reader: {0} Proof fallback: {1}" -f $readerFailure, $proofError)
             }
         }
 
@@ -501,7 +512,12 @@ function Get-PlayerCurrentFromProofAnchor {
         throw "Proof anchor process '$($anchor.ProcessName)' does not match requested process '$ProcessName'."
     }
 
-    if ($anchor.TraceMatchesProcess -ne $true -or $anchor.Match.CoordMatchesWithinTolerance -ne $true) {
+    $anchorMatchesProcess = $anchor.TraceMatchesProcess -eq $true
+    if (-not $anchorMatchesProcess -and $ProcessId -gt 0 -and $anchor.ProcessId -eq $ProcessId) {
+        $anchorMatchesProcess = $true
+    }
+
+    if (-not $anchorMatchesProcess -or $anchor.Match.CoordMatchesWithinTolerance -ne $true) {
         throw "Proof anchor is not currently marked process-matched and coord-matched."
     }
 

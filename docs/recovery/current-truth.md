@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: May 9, 2026 00:30 EDT / May 9, 2026 04:30 UTC (current live target `rift_x64` PID `49504`, HWND `0x5121A`; latest live no-turn waypoint smoke confirms real persisted navigation JSON now records `MovementBackend=native-window-message`. Run status `success`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`; post-movement `ProofOnly` passed with `movementSent=false`. Latest push handoff: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-003000-backend-metadata-live-confirmed-handoff.md`.)_
+_Last updated: May 9, 2026 00:45 EDT / May 9, 2026 04:45 UTC (current live target `rift_x64` PID `49504`, HWND `0x5121A`; latest slice hardened actor-yaw candidate discovery to prefer proof-coordinate current memory over stale ReaderBridge/bootstrap coordinates and stopped before yaw stimulus because visual baseline capture is blocked. Last live movement truth remains the no-turn backend-metadata waypoint smoke with `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`. Latest push handoff: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-004500-actor-yaw-proofcoord-gate-handoff.md`.)_
 
 
 ## Newest live-session status (authoritative)
@@ -8,8 +8,8 @@ _Last updated: May 9, 2026 00:30 EDT / May 9, 2026 04:30 UTC (current live targe
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `49504`, HWND `0x5121A` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-003000-backend-metadata-live-confirmed-handoff.md` |
-| Current live-input gate | **Green as of 00:26 EDT**. Latest visual gate `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-002611\visual-gate-status.json` reports `passed-visual-baseline`, `readyForLiveInput=true`; pre-movement MCP baseline capture `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260509-002832-404.png` succeeded for the exact window. |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-004500-actor-yaw-proofcoord-gate-handoff.md` |
+| Current live-input gate | **Blocked as of 00:44 EDT**. Latest visual gate `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-004400\visual-gate-status.json` reports `blocked-visual-baseline`, `readyForLiveInput=false`, blocker `desktop-capture-access-denied`; MCP `capture_game_window` also failed with `The handle is invalid.` No yaw stimulus was sent after this blocker. |
 | Latest no-input proof | Post-backend-metadata live confirmation `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-042916\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260509-002944.json`; `movementSent=false`; `currentProofPointerUpdate.updated=true` |
 | Latest movement truth | Native exact-HWND C# backend no-turn `--navigate-waypoints` smoke passed at `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-backend-metadata-live-currentpid-49504-20260509-0028\navigate-waypoints-run-summary.json` with `Status=success`, `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`; prior native smoke remains `C:\RIFT MODDING\RiftReader\scripts\captures\native-backend-smoke-currentpid-49504-20260509-0006\navigate-waypoints-run-summary.json`. |
 | Latest recorded coordinate snapshot | `X=7395.18603515625`, `Y=876.5137939453125`, `Z=3050.689453125` at `2026-05-09T04:29:50.4256024Z` from post-backend-metadata-confirmation `ProofOnly`; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
@@ -21,6 +21,20 @@ _Last updated: May 9, 2026 00:30 EDT / May 9, 2026 04:30 UTC (current live targe
 | Input backend | C# waypoint navigation now uses `MovementBackendFactory`; exact-HWND targets use native `WindowMessageMovementBackend` (`PostMessageW`) and this path is live-validated for no-turn forward waypoint movement. Navigation run/route summaries now record `MovementBackend` (`native-window-message`, `powershell-window-message`, `powershell-sendinput-foreground`, `not-created`, or `unknown`) instead of relying on console stderr. |
 | Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus/visual-baseline gate before movement; default ReaderBridge SavedVariables are no longer silently trusted by navigation read/move modes unless explicitly supplied |
 | Remaining blocker | Auto-turn remains blocked by stale actor-facing truth for PID `49504`; observed-forward no-turn waypoint smoke and durable summary writing are green, but actor-facing/auto-turn promotion still needs current-session behavior-backed proof. |
+
+## May 9 continuation: actor-yaw proof-coordinate gate hardened; visual baseline blocked yaw stimulus
+
+| Fact | Value |
+|---|---|
+| Scope | Isolated actor-facing/turn-backend prep; no route execution and no yaw/turn stimulus after the visual blocker. |
+| No-input current actor-yaw status | `python .\scripts\actor_yaw_current_truth_status.py --json` still reports the promoted actor-yaw lead as session-bound to old PID `33912` / HWND `0xE0DB2`; it is not current for PID `49504`. |
+| No-input current-PID readback | `C:\RIFT MODDING\RiftReader\scripts\captures\actor-yaw-readback-smoke-currentpid-49504-20260509-043414\run-summary.json` failed safely: both reader and capture orientation paths rejected the stale behavior-backed lead because it predates current process start. |
+| Root cause found | Fresh actor-yaw candidate search initially reused stale ReaderBridge/bootstrap coordinates (`7389.3896484375,872.92999267578,3050.9899902344`) instead of the current post-ProofOnly proof coordinate (`7395.18603515625,876.5137939453125,3050.689453125`). |
+| Code hardening | `--find-player-orientation-candidate` now prefers `telemetry-proof-coord-anchor.json` current memory coordinates when available for the requested process, and records a `Player coordinate override source` note in JSON. `scripts\test-actor-yaw-candidates.ps1` now prefers the proof anchor for player coord drift when exact PID/HWND is supplied. |
+| Fresh candidate search after hardening | `C:\RIFT MODDING\RiftReader\scripts\captures\actor-yaw-currentpid-49504-20260509-0035\player-orientation-candidate-search-proofcoord.json`; `PlayerCoord=7395.18603515625,876.5137939453125,3050.689453125`, note `telemetry-proof-coord-anchor-current-memory`, best pointer-hop candidate `0x24A26F40DC0 @ 0xD4`. |
+| Live input blocker | `find_game_window` resolved exact PID/HWND, but `capture_game_window` failed with `The handle is invalid`; `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-004400\visual-gate-status.json` is `blocked-visual-baseline`, `readyForLiveInput=false`, `desktop-capture-access-denied`. |
+| Strategy checkpoint | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-0045-actor-yaw-proofcoord-gate.json`; status `ready-for-read-only-proof`; review is not movement permission. |
+| Remaining blocker | Restore desktop/window capture, rerun visual gate and fresh `ProofOnly`, then run the bounded yaw candidate stimulus against the proof-coordinate candidate screen. |
 
 ## May 9 continuation: backend metadata live confirmation passed
 
@@ -168,7 +182,7 @@ _Last updated: May 9, 2026 00:30 EDT / May 9, 2026 04:30 UTC (current live targe
 | Compact turn-key evidence report | `C:\RIFT MODDING\RiftReader\docs\recovery\turn-key-profile-evidence.md` and `.json`; generated by `C:\RIFT MODDING\RiftReader\scripts\summarize_turn_key_profiles.py`; latest report shows zero promoted candidates across the newest 12 current-PID profile summaries, including retry-enabled `Right` and post-message `Left/Right` arrow runs |
 | CE / SavedVariables | no CE; no SavedVariables live truth; `/reloadui` refresh was an intentional post-save snapshot before route generation |
 | Latest tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-003000-backend-metadata-live-confirmed-handoff.md` |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-004500-actor-yaw-proofcoord-gate-handoff.md` |
 
 
 

@@ -36,10 +36,12 @@ public static class PlayerOrientationCandidateFinder
         ReaderBridgeSnapshotDocument snapshotDocument,
         int maxHits,
         IReadOnlyList<PlayerOrientationProbeSeed>? probeSeeds = null,
-        string? orientationCandidateLedgerFile = null)
+        string? orientationCandidateLedgerFile = null,
+        ValidatorCoordinateSnapshot? playerCoordOverride = null,
+        string? playerCoordOverrideSource = null)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
-        var coord = player.Coord ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain current player coordinates.");
+        var coord = playerCoordOverride ?? player.Coord ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain current player coordinates.");
         if (coord.X is null || coord.Y is null || coord.Z is null)
         {
             throw new InvalidOperationException("ReaderBridge player coordinates were incomplete.");
@@ -110,6 +112,7 @@ public static class PlayerOrientationCandidateFinder
                 processId,
                 processName,
                 snapshotDocument,
+                coord,
                 normalizedProbeSeeds,
                 diagnostics,
                 ledger.EvidenceByCandidate,
@@ -132,14 +135,20 @@ public static class PlayerOrientationCandidateFinder
             BestPointerHopCandidate: pointerHopCandidates.FirstOrDefault(),
             PointerHopCandidates: pointerHopCandidates,
             Diagnostics: diagnosticsRecord,
-            Notes: BuildSearchNotes(normalizedProbeSeeds, diagnosticsRecord, ledger, pointerHopCandidates));
+            Notes: BuildSearchNotes(
+                normalizedProbeSeeds,
+                diagnosticsRecord,
+                ledger,
+                pointerHopCandidates,
+                playerCoordOverrideSource));
     }
 
     private static IReadOnlyList<string> BuildSearchNotes(
         IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
         PlayerOrientationProbeDiagnostics diagnostics,
         OrientationCandidateLedger ledger,
-        IReadOnlyList<PlayerOrientationPointerHopCandidate> pointerHopCandidates)
+        IReadOnlyList<PlayerOrientationPointerHopCandidate> pointerHopCandidates,
+        string? playerCoordOverrideSource)
     {
         var notes = new List<string>
         {
@@ -148,6 +157,11 @@ public static class PlayerOrientationCandidateFinder
             "The search now performs a bounded local sweep around coord hits instead of relying only on the original fixed offsets.",
             "When local coord-window candidates fail, the finder also follows first-hop and second-hop readable pointers from grouped player-signature family roots and explicit live probe seeds."
         };
+
+        if (!string.IsNullOrWhiteSpace(playerCoordOverrideSource))
+        {
+            notes.Add($"Player coordinate override source: {playerCoordOverrideSource}.");
+        }
 
         if (probeSeeds.Count > 0)
         {
@@ -626,13 +640,13 @@ public static class PlayerOrientationCandidateFinder
         int processId,
         string processName,
         ReaderBridgeSnapshotDocument snapshotDocument,
+        ValidatorCoordinateSnapshot coord,
         IReadOnlyList<PlayerOrientationProbeSeed> probeSeeds,
         OrientationProbeDiagnosticsAccumulator diagnostics,
         IReadOnlyDictionary<string, OrientationCandidateLedgerEvidence> ledgerEvidenceByCandidate,
         int maxHits)
     {
         var player = snapshotDocument.Current?.Player ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain a current player.");
-        var coord = player.Coord ?? throw new InvalidOperationException("ReaderBridge snapshot did not contain current player coordinates.");
         if (coord.X is null || coord.Y is null || coord.Z is null)
         {
             return Array.Empty<PlayerOrientationPointerHopCandidate>();
