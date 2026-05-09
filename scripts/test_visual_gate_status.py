@@ -6,6 +6,7 @@ from rift_live_test.visual_gate_status import (
     VISUAL_GATE_BLOCKED_CAPTURE,
     VISUAL_GATE_BLOCKED_TARGET,
     VISUAL_GATE_PASSED,
+    _focus_envelope_confirms_foreground,
     build_visual_gate_recovery_recommendations,
     build_visual_gate_verdict,
 )
@@ -160,6 +161,35 @@ class VisualGateStatusTests(unittest.TestCase):
         ids = [item["id"] for item in recommendations]
         self.assertIn("restore-interactive-desktop-capture", ids)
         self.assertIn("keep-live-input-blocked", ids)
+
+    def test_focus_exit_zero_without_foreground_is_not_confirmed(self) -> None:
+        self.assertFalse(
+            _focus_envelope_confirms_foreground(
+                {
+                    "label": "focus-window",
+                    "exitCode": 0,
+                    "json": {"isForeground": False, "isVisible": True},
+                }
+            )
+        )
+
+    def test_focus_not_foreground_gets_restore_focus_recommendation(self) -> None:
+        recommendations = build_visual_gate_recovery_recommendations(["focus-window-not-foreground"])
+
+        ids = [item["id"] for item in recommendations]
+        self.assertIn("restore-focus", ids)
+        self.assertIn("keep-live-input-blocked", ids)
+
+    def test_focus_not_foreground_does_not_add_generic_focus_failed(self) -> None:
+        verdict = build_visual_gate_verdict(
+            target_resolved=True,
+            focus_ok=False,
+            attempts=[],
+            existing_blockers=["focus-window-not-foreground"],
+        )
+
+        self.assertIn("focus-window-not-foreground", verdict["blockers"])
+        self.assertNotIn("focus-window-failed", verdict["blockers"])
 
 
 if __name__ == "__main__":

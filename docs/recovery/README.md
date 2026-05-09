@@ -2,7 +2,7 @@
 
 Start here if artifacts, notes, or workflow state drift or get corrupted.
 
-Last reviewed: May 9, 2026 00:57 EDT / May 9, 2026 04:57 UTC.
+Last reviewed: May 9, 2026 01:05 EDT / May 9, 2026 05:05 UTC.
 
 ## Coordinate freshness rule
 
@@ -38,7 +38,7 @@ As of the May 8, 2026 current-PID lane, start coord-truth recovery with:
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`
 - newest handoff:
-  `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-005700-visual-gate-blocker-retry-hardened-handoff.md`
+  `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-010500-visual-gate-focus-blocker-handoff.md`
 
 The latest live target captured in this lane is `rift_x64` PID `49504` / HWND
 `0x5121A` while that client remains alive. Current-session forward movement is
@@ -59,8 +59,8 @@ no-HWND fallback. This backend is now live-validated for no-turn observed-forwar
 waypoint movement via the native exact-HWND path; rerun the visual gate and
 fresh `ProofOnly` before any further live input.
 The latest visual gate retry is currently blocked, so live input remains
-disabled until desktop/window capture is restored and a new full visual gate
-returns `readyForLiveInput=true`.
+disabled until foreground focus plus desktop/window capture are restored and a
+new full visual gate returns `readyForLiveInput=true`.
 
 Current proof-pointer candidate source:
 
@@ -80,8 +80,8 @@ Current proof-pointer candidate source:
   - route: `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\smoke-test-waypoints-2m-observed-forward.json`
   - post-run read: `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\post-navigation-read-current.json`
 - latest visual-baseline gate:
-  - `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-005541\visual-gate-status.json`
-  - current status: `blocked-visual-baseline`; failure classes `desktop-capture-access-denied`, `desktop-copyfromscreen-invalid-handle`, `capture-methods-return-black-or-flat-content`; rerun with `python .\scripts\check_live_visual_gate.py --pid 49504 --hwnd 0x5121A --process-name rift_x64 --title-contains RIFT --full` after restoring capture access.
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-010348\visual-gate-status.json`
+  - current status: `blocked-visual-baseline`; `focusConfirmedForeground=false`; blockers include `focus-window-not-foreground`, `desktop-capture-access-denied`, `desktop-copyfromscreen-invalid-handle`, `capture-methods-return-black-or-flat-content`; rerun with `python .\scripts\check_live_visual_gate.py --pid 49504 --hwnd 0x5121A --process-name rift_x64 --title-contains RIFT --full` after restoring foreground focus and capture access.
 
 Navigation-specific stale snapshot rule: `ReaderBridgeExport.lua` is a post-save
 SavedVariables snapshot, not live IPC. Navigation read/move modes now ignore the

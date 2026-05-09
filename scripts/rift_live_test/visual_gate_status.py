@@ -77,6 +77,8 @@ def run_visual_gate(options: VisualGateOptions) -> dict[str, Any]:
             window = focus_result.json_data
         if focus_result.exit_code != 0:
             blockers.append("focus-window-failed")
+        elif not _focus_envelope_confirms_foreground(focus_envelope):
+            blockers.append("focus-window-not-foreground")
 
     if inspect_result.ok:
         copy_sanity = _run_copyfromscreen_sanity(
@@ -140,7 +142,7 @@ def run_visual_gate(options: VisualGateOptions) -> dict[str, Any]:
 
     verdict = build_visual_gate_verdict(
         target_resolved=inspect_result.ok,
-        focus_ok=(not options.focus_first) or (focus_envelope is not None and focus_envelope["exitCode"] == 0),
+        focus_ok=(not options.focus_first) or _focus_envelope_confirms_foreground(focus_envelope),
         attempts=attempts,
         existing_blockers=blockers,
     )
@@ -163,6 +165,7 @@ def run_visual_gate(options: VisualGateOptions) -> dict[str, Any]:
         "processName": options.process_name,
         "titleContains": options.title_contains,
         "focusFirst": options.focus_first,
+        "focusConfirmedForeground": (not options.focus_first) or _focus_envelope_confirms_foreground(focus_envelope),
         "full": options.full,
         "window": window,
         "usableCaptureMethod": verdict["usableCaptureMethod"],
@@ -203,7 +206,7 @@ def build_visual_gate_verdict(
 
     if not target_resolved and "target-window-not-resolved" not in blockers:
         blockers.append("target-window-not-resolved")
-    if not focus_ok and "focus-window-failed" not in blockers:
+    if not focus_ok and not _has_focus_blocker(blockers):
         blockers.append("focus-window-failed")
     capture_failure_classifications: list[str] = []
     if target_resolved and usable_capture is None:
@@ -236,7 +239,7 @@ def build_visual_gate_recovery_recommendations(blockers: list[str]) -> list[dict
             "Movement input must not be sent unless the gate can bind the intended RIFT window.",
         )
 
-    if "focus-window-failed" in blocker_set:
+    if blocker_set & {"focus-window-failed", "focus-window-not-foreground"}:
         add(
             "restore-focus",
             "Restore/unminimize the Rift window and foreground it, then rerun the visual gate.",
@@ -274,6 +277,10 @@ def build_visual_gate_recovery_recommendations(blockers: list[str]) -> list[dict
     return recommendations
 
 
+def _has_focus_blocker(blockers: list[str]) -> bool:
+    return any(blocker in {"focus-window-failed", "focus-window-not-foreground"} for blocker in blockers)
+
+
 def _command_envelope(result: JsonCommandResult) -> dict[str, Any]:
     envelope = command_envelope(result)
     args = list(envelope.get("args") or [])
@@ -282,6 +289,14 @@ def _command_envelope(result: JsonCommandResult) -> dict[str, Any]:
             args[index + 1] = "<encoded-copyfromscreen-sanity-script>"
     envelope["args"] = args
     return envelope
+
+
+def _focus_envelope_confirms_foreground(envelope: dict[str, Any] | None) -> bool:
+    if envelope is None or envelope.get("exitCode") != 0:
+        return False
+
+    data = envelope.get("json")
+    return isinstance(data, dict) and data.get("isForeground") is True
 
 
 def _attempt_has_usable_capture(attempt: dict[str, Any]) -> bool:
@@ -555,6 +570,7 @@ def _write_markdown_summary(summary: dict[str, Any], path: Path) -> None:
 |---|---|
 | Status | `{summary.get('status')}` |
 | Ready for live input | `{summary.get('readyForLiveInput')}` |
+| Focus confirmed foreground | `{summary.get('focusConfirmedForeground')}` |
 | Target | PID `{summary.get('processId')}`, HWND `{summary.get('targetWindowHandle')}` |
 | Usable capture method | `{summary.get('usableCaptureMethod')}` |
 | Blockers | `{', '.join(summary.get('blockers') or [])}` |
