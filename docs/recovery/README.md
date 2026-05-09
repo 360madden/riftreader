@@ -2,7 +2,7 @@
 
 Start here if artifacts, notes, or workflow state drift or get corrupted.
 
-Last reviewed: May 8, 2026 23:42 EDT / May 9, 2026 03:42 UTC.
+Last reviewed: May 9, 2026 00:08 EDT / May 9, 2026 04:08 UTC.
 
 ## Coordinate freshness rule
 
@@ -38,7 +38,7 @@ As of the May 8, 2026 current-PID lane, start coord-truth recovery with:
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`
 - newest handoff:
-  `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-233500-native-window-message-backend-handoff.md`
+  `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-000800-native-backend-live-smoke-passed-handoff.md`
 
 The latest live target captured in this lane is `rift_x64` PID `49504` / HWND
 `0x5121A` while that client remains alive. Current-session forward movement is
@@ -55,8 +55,9 @@ for PID `49504` and no turn backend is promoted.
 The current C# waypoint movement path now selects a native exact-HWND
 `WindowMessageMovementBackend` for targets with a resolved HWND. The old
 `PowerShellMovementBackend` / `post-rift-key.ps1` path remains only as the
-no-HWND fallback. This backend change was code/test validated only; rerun the
-visual gate and fresh `ProofOnly` before live input.
+no-HWND fallback. This backend is now live-validated for no-turn observed-forward
+waypoint movement via the native exact-HWND path; rerun the visual gate and
+fresh `ProofOnly` before any further live input.
 
 Current proof-pointer candidate source:
 
