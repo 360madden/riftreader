@@ -217,6 +217,7 @@ public sealed class ReaderOptionsParserTests
             "--turn-max-pulses", "8",
             "--turn-worsening-tolerance", "0.75",
             "--turn-max-worsening-pulses", "3",
+            "--navigation-run-summary-file", @"C:\temp\navigation-run.json",
             "--verbose-navigation-events",
             "--json"
         ]);
@@ -234,6 +235,7 @@ public sealed class ReaderOptionsParserTests
         Assert.Equal(8, options.TurnMaxPulses);
         Assert.Equal(0.75d, options.TurnWorseningToleranceDegrees);
         Assert.Equal(3, options.TurnMaxWorseningPulses);
+        Assert.Equal(@"C:\temp\navigation-run.json", options.NavigationRunSummaryFile);
         Assert.True(options.VerboseNavigationEvents);
     }
 
@@ -275,6 +277,7 @@ public sealed class ReaderOptionsParserTests
             "--via-waypoint", "point_b",
             "--destination-waypoint", "point_c",
             "--navigation-waypoint-file", @"C:\temp\waypoints.json",
+            "--navigation-run-summary-file", @"C:\temp\route-run.json",
             "--auto-turn-before-move",
             "--auto-turn-within-degrees", "6.5",
             "--turn-max-pulses", "4",
@@ -290,10 +293,26 @@ public sealed class ReaderOptionsParserTests
         Assert.Equal(["point_b"], options.ViaWaypointIds);
         Assert.Equal("point_c", options.DestinationWaypointId);
         Assert.Equal(@"C:\temp\waypoints.json", options.NavigationWaypointFile);
+        Assert.Equal(@"C:\temp\route-run.json", options.NavigationRunSummaryFile);
         Assert.True(options.AutoTurnBeforeMove);
         Assert.Equal(6.5d, options.AutoTurnWithinDegrees);
         Assert.Equal(4, options.TurnMaxPulses);
         Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_RejectsNavigationRunSummaryFileOutsideMovementModes()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--read-navigation-current",
+            "--destination-waypoint", "point_b",
+            "--navigation-run-summary-file", @"C:\temp\navigation-run.json"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--navigation-run-summary-file can only be used with --navigate-waypoints or --navigate-waypoint-route.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

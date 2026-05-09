@@ -102,6 +102,7 @@ public sealed class PowerShellMovementBackend(
 
     private ProcessStartInfo BuildStartInfo(string key, int holdMilliseconds)
     {
+        var hasExactWindowTarget = !string.IsNullOrWhiteSpace(targetWindowHandle);
         var startInfo = new ProcessStartInfo
         {
             FileName = "pwsh",
@@ -128,22 +129,36 @@ public sealed class PowerShellMovementBackend(
             startInfo.ArgumentList.Add(targetProcessId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
-        if (!string.IsNullOrWhiteSpace(targetWindowHandle))
+        if (hasExactWindowTarget)
         {
             startInfo.ArgumentList.Add("-TargetWindowHandle");
-            startInfo.ArgumentList.Add(targetWindowHandle);
+            startInfo.ArgumentList.Add(targetWindowHandle!);
         }
 
         startInfo.ArgumentList.Add("-SkipBackgroundFocus");
-        startInfo.ArgumentList.Add("-RequireTargetForeground");
+        if (hasExactWindowTarget)
+        {
+            startInfo.ArgumentList.Add("-UseWindowMessage");
+        }
+        else
+        {
+            startInfo.ArgumentList.Add("-RequireTargetForeground");
+        }
 
         return startInfo;
     }
 
-    private static void RunLiveInteractionCountdown()
+    private void RunLiveInteractionCountdown()
     {
         Console.Error.WriteLine("[Navigation] Live movement will start in 10 seconds.");
-        Console.Error.WriteLine("[Navigation] Keep the Rift window focused. Movement will abort if focus is lost.");
+        if (!string.IsNullOrWhiteSpace(targetWindowHandle))
+        {
+            Console.Error.WriteLine($"[Navigation] Using exact-HWND window-message input for {targetWindowHandle}.");
+        }
+        else
+        {
+            Console.Error.WriteLine("[Navigation] Keep the Rift window focused. Movement will abort if focus is lost.");
+        }
 
         for (var remaining = LiveInteractionCountdownSeconds; remaining >= 1; remaining--)
         {

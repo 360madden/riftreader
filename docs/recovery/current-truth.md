@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: May 8, 2026 19:09 EDT / 23:09 UTC (current restarted/live target is `rift_x64` PID `49504`, HWND `0x5121A`. Fresh `ProofOnly` passed with `movementSent=false` and auto-refreshed the current proof pointer; `Forward250 --live` and `ForwardSeries3x250 --live` passed using exact-HWND `window-message` input; no CE and no SavedVariables live truth. The prior PID `33912` proof pointer is archived as historical-only.)_
+_Last updated: May 8, 2026 23:20 EDT / May 9, 2026 03:20 UTC (current live target is `rift_x64` PID `49504`, HWND `0x5121A`. A transient visual-baseline blocker was found, recorded, then cleared; the latest visual gate passed and a fresh exact-HWND `--navigate-waypoints` live run with `--navigation-run-summary-file` passed. Latest post-run `ProofOnly` also passed with `movementSent=false`. Navigation movement uses exact-HWND window-message input when a HWND is available, and navigation read modes no longer silently trust default ReaderBridge SavedVariables as live truth. No CE and no SavedVariables live truth. Auto-turn remains blocked by stale actor-facing truth. Latest push handoff: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-232000-final-push-handoff.md`.)_
 
 
 ## Newest live-session status (authoritative)
@@ -8,16 +8,78 @@ _Last updated: May 8, 2026 19:09 EDT / 23:09 UTC (current restarted/live target 
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `49504`, HWND `0x5121A` |
-| Latest no-input proof | `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-230828\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260508-190905.json`; `movementSent=false`; `currentProofPointerUpdate.updated=true` |
-| Latest movement truth | `Forward250 --live` passed at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-Forward250-20260508-222839`; `ForwardSeries3x250 --live` passed at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260508-223119`; series total planar movement `0.920973126486372m` |
-| Latest recorded coordinate snapshot | `X=7448.482421875`, `Y=889.2151489257812`, `Z=3024.538330078125` at `2026-05-08T23:09:13.2600494Z`; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-232000-final-push-handoff.md` |
+| Current live-input gate | **Green as of 23:10-23:11 EDT**. Latest visual gate `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260508-231046\visual-gate-status.json` reports `passed-visual-baseline`, `readyForLiveInput=true`; MCP baseline capture `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-231130-399.png` succeeded for the exact window. |
+| Latest no-input proof | Post-navigation `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-031334\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260508-231419.json`; `movementSent=false`; `currentProofPointerUpdate.updated=true` |
+| Latest movement truth | `Forward250 --live` passed at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-Forward250-20260509-020026` with planar movement `0.309514567172569m`; `ForwardSeries3x250 --live` passed at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260509-020624` with all `3/3` pulses and series total planar movement `1.0194439320789634m`; first 2m observed-forward `--navigate-waypoints` smoke passed with `4` pulses and final planar `0.6606430399933529m`; latest durable-summary 2m observed-forward `--navigate-waypoints` run passed with `5` pulses, stop reason `arrived`, final planar `0.3942869934100385m`, and wrote `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\navigate-waypoints-run-summary.json` |
+| Latest recorded coordinate snapshot | `X=7392.33203125`, `Y=874.7553100585938`, `Z=3050.837646484375` at `2026-05-09T03:14:25.9468120Z` from post-navigation `ProofOnly`; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
 | Coordinate freshness rule | PID/HWND/process-start match is targeting preflight only. Current/non-stale coordinate truth requires fresh live API/runtime coordinate vs immediate memory readback (**API-now vs memory-now**), per-axis delta within tolerance, and a recorded verdict. If API is stale/missing, memory readback fails, or delta exceeds tolerance, block movement and use artifacts only as reacquisition seeds. |
 | Current proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`; candidate `api-coord-hit-000005` at `0x24A01358880`; movement-grade only through current proof-anchor/readback gates |
 | Current tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` targets PID `49504` / HWND `0x5121A` and is auto-refreshed only after same-target `ProofOnly` success |
 | Archived stale pointer | Prior PID `33912` / HWND `0xE0DB2` pointer preserved at `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-08-pid33912-hwndE0DB2-historical.json`; historical-only, not current proof |
-| RiftScan/provider state | No current-PID RiftScan provider artifact was created; the current pointer uses a RiftReader-owned API-bootstrap candidate file and the milestone review is `ready-for-read-only-proof` without falling back to old PID `33912` |
-| Input backend | Gated movement now defaults to exact-HWND `window-message`; foreground `SendInput` previously returned success with zero coordinate delta |
-| Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus gate before movement |
+| RiftScan/provider state | No current-PID RiftScan provider artifact was created; the current pointer uses a RiftReader-owned API-bootstrap candidate file. Latest milestone review `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-031702.json` is `ready-for-read-only-proof`; it is a strategy gate, not movement permission. |
+| Input backend | Gated live-test movement defaults to exact-HWND `window-message`; C# waypoint navigation now passes `ProcessTarget.MainWindowHandleHex` into `PowerShellMovementBackend` and uses `-UseWindowMessage` instead of foreground-required `SendInput` when a HWND is available |
+| Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus/visual-baseline gate before movement; default ReaderBridge SavedVariables are no longer silently trusted by navigation read/move modes unless explicitly supplied |
+| Remaining blocker | Auto-turn remains blocked by stale actor-facing truth for PID `49504`; observed-forward no-turn waypoint smoke and durable summary writing are green, but actor-facing/auto-turn promotion still needs current-session behavior-backed proof. |
+
+## May 8 continuation: durable navigation summary live pass
+
+| Fact | Value |
+|---|---|
+| Visual gate before movement | `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260508-231046\visual-gate-status.json`; status `passed-visual-baseline`; `readyForLiveInput=true`. |
+| MCP baseline | `find_game_window` and `focus_game_window` bound the exact PID/HWND foreground; `capture_game_window` saved `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-231130-399.png`. |
+| Pre-movement proof | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-031137\run-summary.json`; coordinate `7390.728515625,873.7625732421875,3050.921630859375`; `movementSent=false`. |
+| Route | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\smoke-test-waypoints-2m-observed-forward.json`; generated from pre-movement ProofOnly plus current-session ForwardSeries displacement. |
+| Plan/read precheck | `plan-navigation-route.json` total planar distance `1.9999999999996247m`; `pre-navigation-read-current.json` reported `AnchorSource=coord-trace-anchor`, `WithinArrivalRadius=false`, initial planar `1.9999999999996247m`. |
+| Live waypoint result | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\navigate-waypoints-run-summary.json`; status `success`; `PulseCount=5`; `StopReason=arrived`; final planar `0.3942869934100385m` inside `0.75m` arrival radius. |
+| Visual change after input | `wait_for_frame_change` from the baseline screenshot saved `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-231323-029.png`; `changePercent=34.2978`; final capture `capture-20260508-231327-998.png`. |
+| Post-movement proof | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-031334\run-summary.json`; coordinate `7392.33203125,874.7553100585938,3050.837646484375`; `movementSent=false`; pointer updated. |
+| Post-movement read | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\post-navigation-read-current.json`; `WithinArrivalRadius=true`; planar distance `0.3942869934100385m`. |
+| Strategy checkpoint | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-031702.json`; status `ready-for-read-only-proof`; review is not movement permission. |
+
+## May 8 continuation: transient visual-baseline gate blocker (resolved)
+
+| Fact | Value |
+|---|---|
+| Current status | Historical/resolved blocker. The later visual gate at `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260508-231046\visual-gate-status.json` passed. |
+| Purpose | Determine whether it was safe to continue live testing after the successful observed-forward waypoint smoke. No game input was sent during the blocked diagnostic slice. |
+| Target | `rift_x64` PID `49504`, HWND `0x5121A`; window still resolves as visible and not minimized, client rect `639x354`. |
+| New reusable preflight | `python .\scripts\check_live_visual_gate.py --pid 49504 --hwnd 0x5121A --process-name rift_x64 --title-contains RIFT --full` |
+| Latest visual gate summary | `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260508-230651\visual-gate-status.json`; Markdown companion `visual-gate-status.md`. |
+| Gate verdict | `blocked-visual-baseline`; `readyForLiveInput=false`; blocker `desktop-capture-access-denied`; `movementSent=false`; `inputSent=false`; `noCheatEngine=true`; `savedVariablesUsedAsLiveTruth=false`. |
+| CopyFromScreen evidence | Desktop 1x1 and RIFT client sanity captures both failed with `Exception calling "CopyFromScreen" ... "The handle is invalid."`; Rift MCP `capture_game_window` fails the same way. |
+| PrintWindow / WGC evidence | PrintWindow wrote a diagnostic sidecar but failed usable quality; WGC window and monitor captures completed mechanically but returned black/flat content; DXGI Desktop Duplication failed with `E_ACCESSDENIED / Access is denied`. |
+| Blocker interpretation | This is not a coordinate-proof blocker and not a target-resolution blocker. The current Windows/session capture path is not producing a usable visual baseline, so live input is blocked by policy until the desktop/capture state is restored. |
+| Operator recovery | Wake/unlock/reconnect the desktop or otherwise restore an interactive visible display, then rerun the visual gate before any fresh `ProofOnly` or movement run. |
+
+## May 8 continuation: observed-forward 2m waypoint smoke passed
+
+| Fact | Value |
+|---|---|
+| Route source | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-49504-20260508-2218-2m\smoke-test-waypoints-2m-fixed-bearing.json`; generated from latest ProofOnly current coordinate plus observed current-session `ForwardSeries3x250` displacement, not actor-facing truth. |
+| Code fix before live run | `reader/RiftReader.Reader/Program.cs` now passes the resolved main window handle into waypoint navigation; `reader/RiftReader.Reader/Navigation/MovementBackend.cs` uses exact-HWND `-UseWindowMessage` and only falls back to `-RequireTargetForeground` when no HWND is available. |
+| Route-builder helper | `python .\scripts\build_observed_forward_smoke_route.py --proof-summary <ProofOnly> --forward-series-summary <ForwardSeries3x250> --output-file <route>` builds a current-session route while rejecting low-signal or mismatched target evidence. |
+| Durable navigation summaries | `--navigation-run-summary-file <path>` is now available on `--navigate-waypoints` and `--navigate-waypoint-route`; a no-input smoke wrote `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-49504-20260508-2218-2m\navigation-run-summary-file-smoke.json` with `PulseCount=0`, `StopReason=start-mismatch`. |
+| Pre-movement proof | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-023425\run-summary.json`; coordinate `X=7389.39111328125`, `Y=872.928466796875`, `Z=3050.994140625`; no movement. |
+| Live waypoint result | `--navigate-waypoints` succeeded using exact-HWND window-message input; `PulseCount=4`, `StopReason=arrived`, initial planar distance `1.9999999999996247m`, final planar distance `0.6606430399933529m`, arrival radius `0.75m`. Transcript-derived summary: `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-49504-20260508-2218-2m\navigate-waypoints-result-transcript.json`. |
+| Post-movement proof | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-023644\run-summary.json`; coordinate `X=7390.728515625`, `Y=873.7625732421875`, `Z=3050.921630859375`; no movement. |
+| Post-movement navigation read | After patching navigation reads to ignore default SavedVariables, `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-49504-20260508-2218-2m\post-waypoint-read-navigation-current.json` reports `AnchorSource=coord-trace-anchor`, `WithinArrivalRadius=true`, and final planar distance `0.6606430399933529m`. |
+| Visual evidence | Baseline `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-223415-608.png`; frame change `capture-20260508-223628-326.png` (`changePercent=51.0323`); final capture `capture-20260508-223634-616.png`. |
+| Remaining blocker | `Facing.Status=fallback-candidate`; behavior-backed actor-facing lead is stale for PID `49504`, so auto-turn and actor-facing-driven route generation remain blocked. |
+| Strategy checkpoint | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-024109.json`; status `ready-for-read-only-proof`, movement permission still requires fresh proof immediately before any new movement. |
+
+## May 8 continuation: ForwardSeries refresh-budget fix and live pass
+
+| Fact | Value |
+|---|---|
+| Root cause fixed | `ForwardSeries3x250` needed more than one proof refresh because each proof/readback-gated pulse consumes much of the 60s proof-anchor budget. With `maxAutoRefreshAttempts=1`, pulse 3 blocked safely before input. |
+| Config fix | `C:\RIFT MODDING\RiftReader\configs\live-test-profiles.json` sets `ForwardSeries3x250.maxAutoRefreshAttempts` to `3`. |
+| Failed-safe evidence before fix | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260509-020234\run-summary.json`; status `partial-series-stopped`; completed `2/3`; issue `proof_anchor_remaining_age_budget_too_low:remainingSeconds=13.455;requiredSeconds=20`; pulse 3 sent no input. |
+| Passed evidence after fix | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260509-020624\run-summary.json`; status `passed`; completed `3/3`; total planar movement `1.0194439320789634m`; auto-refresh attempts used `2/3`. |
+| Validation | `python .\scripts\live_test.py --validate-profiles`; `python .\scripts\test_live_test_orchestrator.py` passed `75/75`; live run used exact PID/HWND, no CE, no SavedVariables live truth. |
+| Visual checkpoint | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260508-221004-971.png` |
+| Handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-221056-forwardseries-refresh-budget-passed-handoff.md` |
+| Remaining blocker | Auto-turn remains blocked by stale actor-facing truth for PID `49504`; observed-forward waypoint smoke is now green, but auto-turn/facing promotion still needs current-session behavior-backed proof. |
 
 ## Historical/mixed prior status snapshot
 

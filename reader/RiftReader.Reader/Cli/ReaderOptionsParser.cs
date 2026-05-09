@@ -24,10 +24,10 @@ Usage:
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --plan-navigation-route --start-waypoint <id> [--via-waypoint <id> ...] --destination-waypoint <id> [--navigation-waypoint-file <path>] [--json]
-  RiftReader.Reader --process-name <name> --navigate-waypoint-route --start-waypoint <id> [--via-waypoint <id> ...] --destination-waypoint <id> [--navigation-waypoint-file <path>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoint-route --start-waypoint <id> [--via-waypoint <id> ...] --destination-waypoint <id> [--navigation-waypoint-file <path>] [--navigation-run-summary-file <path>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--json]
   RiftReader.Reader --process-name <name> --capture-navigation-waypoint <id> [--navigation-waypoint-file <path>] [--waypoint-label <text>] [--waypoint-zone <text>] [--waypoint-arrival-radius <distance>] [--waypoint-pace run|walk|keep] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --import-tomtom-waypoints --tomtom-saved-variables-file <path> [--navigation-waypoint-file <path>] [--tomtom-list <name> ...] [--tomtom-zone <zoneId>] [--tomtom-default-y <value>] [--tomtom-id-prefix <prefix>] [--tomtom-arrival-radius <distance>] [--tomtom-pace run|walk|keep] [--json]
-  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--verbose-navigation-events] [--scan-context <bytes>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --navigate-waypoints --start-waypoint <id> --destination-waypoint <id> [--navigation-waypoint-file <path>] [--navigation-run-summary-file <path>] [--pace run|walk|keep] [--arrival-radius <distance>] [--max-travel-seconds <seconds>] [--auto-turn-before-move] [--auto-turn-within-degrees <degrees>] [--turn-left-key <key>] [--turn-right-key <key>] [--turn-pulse-ms <ms>] [--turn-post-sample-delay-ms <ms>] [--turn-settle-delay-ms <ms>] [--turn-max-pulses <count>] [--turn-worsening-tolerance <degrees>] [--turn-max-worsening-pulses <count>] [--verbose-navigation-events] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --session-summary --session-directory <path> [--json]
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --telemetry-preflight [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics] [--json]
@@ -226,6 +226,7 @@ Examples:
         string? tomTomIdPrefix = null;
         double? tomTomArrivalRadius = null;
         string? tomTomPace = null;
+        string? navigationRunSummaryFile = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -678,6 +679,20 @@ Examples:
                     }
 
                     navigationWaypointFile = navigationWaypointFileValue;
+                    break;
+
+                case "--navigation-run-summary-file":
+                    if (!TryReadNext(args, ref index, out var navigationRunSummaryFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --navigation-run-summary-file.", UsageText);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(navigationRunSummaryFileValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Navigation run summary file must not be blank.", UsageText);
+                    }
+
+                    navigationRunSummaryFile = navigationRunSummaryFileValue.Trim();
                     break;
 
                 case "--start-waypoint":
@@ -1894,6 +1909,11 @@ Examples:
             return ReaderOptionsParseResult.Fail("--navigation-waypoint-file can only be used with --read-navigation-current, --plan-navigation-route, --navigate-waypoint-route, --capture-navigation-waypoint, or --navigate-waypoints.", UsageText);
         }
 
+        if (navigationRunSummaryFile is not null && !navigateWaypoints && !navigateWaypointRoute)
+        {
+            return ReaderOptionsParseResult.Fail("--navigation-run-summary-file can only be used with --navigate-waypoints or --navigate-waypoint-route.", UsageText);
+        }
+
         if (startWaypointId is not null && !planNavigationRoute && !navigateWaypointRoute && !navigateWaypoints)
         {
             return ReaderOptionsParseResult.Fail("--start-waypoint can only be used with --plan-navigation-route, --navigate-waypoint-route, or --navigate-waypoints.", UsageText);
@@ -2535,7 +2555,8 @@ Examples:
                     TelemetryEventLogFile: telemetryEventLogFile,
                     TelemetryDiagnosticsLogFile: telemetryDiagnosticsLogFile,
                     TelemetryProofAnchorFile: telemetryProofAnchorFile,
-                    VerboseNavigationEvents: verboseNavigationEvents),
+                    VerboseNavigationEvents: verboseNavigationEvents,
+                    NavigationRunSummaryFile: navigationRunSummaryFile),
             UsageText);
     }
 

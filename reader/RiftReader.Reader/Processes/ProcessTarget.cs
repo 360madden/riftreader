@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace RiftReader.Reader.Processes;
 
@@ -9,12 +10,16 @@ public sealed record ProcessTarget(
     string? ModuleName,
     string? MainWindowTitle)
 {
+    [JsonIgnore]
+    public string? MainWindowHandleHex { get; init; }
+
     public static ProcessTarget FromProcess(Process process)
     {
         ArgumentNullException.ThrowIfNull(process);
 
         string? moduleName = null;
         string? mainWindowTitle = null;
+        string? mainWindowHandleHex = null;
 
         try
         {
@@ -40,6 +45,22 @@ public sealed record ProcessTarget(
             mainWindowTitle = null;
         }
 
-        return new ProcessTarget(process.Id, process.ProcessName, moduleName, mainWindowTitle);
+        try
+        {
+            var mainWindowHandle = process.MainWindowHandle;
+            if (mainWindowHandle != IntPtr.Zero)
+            {
+                mainWindowHandleHex = $"0x{mainWindowHandle.ToInt64():X}";
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            mainWindowHandleHex = null;
+        }
+
+        return new ProcessTarget(process.Id, process.ProcessName, moduleName, mainWindowTitle)
+        {
+            MainWindowHandleHex = mainWindowHandleHex
+        };
     }
 }

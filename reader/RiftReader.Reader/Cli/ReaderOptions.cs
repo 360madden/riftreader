@@ -97,4 +97,5 @@ public sealed record ReaderOptions(
     double? TomTomDefaultY = null,
     string? TomTomIdPrefix = null,
     double? TomTomArrivalRadius = null,
-    string? TomTomPace = null);
+    string? TomTomPace = null,
+    string? NavigationRunSummaryFile = null);

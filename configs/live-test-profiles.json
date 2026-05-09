@@ -68,6 +68,7 @@
     "ForwardSeries3x250": {
       "mode": "live-input-series",
       "minimumMovementPlanarDistance": 0.05,
+      "maxAutoRefreshAttempts": 3,
       "input": {
         "key": "w",
         "holdMilliseconds": 250,

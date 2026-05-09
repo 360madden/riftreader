@@ -832,7 +832,7 @@ internal static class Program
         var resolvedConfiguration = configuration!;
         var resolvedDestinationWaypoint = destinationWaypoint!;
 
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var snapshotDocument = TryLoadExplicitReaderBridgeSnapshot(options.ReaderBridgeSnapshotFile);
         var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
         var poseSource = NavigationPoseSourceFactory.TryCreate(
             reader,
@@ -941,16 +941,11 @@ internal static class Program
                 stopReason: "route-plan-invalid",
                 issues: plan.Issues);
 
-            if (options.JsonOutput)
-            {
-                Console.WriteLine(JsonOutput.Serialize(planFailure));
-            }
-            else
-            {
-                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(planFailure));
-            }
-
-            return 1;
+            return EmitNavigationResult(
+                options,
+                planFailure,
+                success: false,
+                result => NavigationRouteRunResultTextFormatter.Format(result));
         }
 
         if (!TryResolveNavigationAutoTurnOptions(options, out var autoTurnOptions, out var autoTurnError))
@@ -959,7 +954,7 @@ internal static class Program
             return 1;
         }
 
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var snapshotDocument = TryLoadExplicitReaderBridgeSnapshot(options.ReaderBridgeSnapshotFile);
         var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
         var poseSource = NavigationPoseSourceFactory.TryCreate(
             reader,
@@ -980,23 +975,23 @@ internal static class Program
                 stopReason: "anchor-unavailable",
                 issues: [poseError ?? "Unable to resolve a navigation pose anchor."]);
 
-            if (options.JsonOutput)
-            {
-                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
-            }
-            else
+            if (!options.JsonOutput)
             {
                 Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
-                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
             }
 
-            return 1;
+            return EmitNavigationResult(
+                options,
+                anchorFailure,
+                success: false,
+                result => NavigationRouteRunResultTextFormatter.Format(result));
         }
 
         var movementBackend = new PowerShellMovementBackend(
             NavigationPathResolver.ResolveMovementScriptFile(),
             target.ProcessName,
-            target.ProcessId);
+            target.ProcessId,
+            target.MainWindowHandleHex);
         movementBackend.PrepareForMovement();
 
         if (!NavigationProofCoordAnchorRefresher.TryRefresh(target.ProcessName, target.ProcessId, out var refreshError))
@@ -1008,17 +1003,16 @@ internal static class Program
                 stopReason: "anchor-unavailable",
                 issues: [refreshError ?? "Unable to refresh the proof coord anchor before live navigation started."]);
 
-            if (options.JsonOutput)
-            {
-                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
-            }
-            else
+            if (!options.JsonOutput)
             {
                 Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
-                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
             }
 
-            return 1;
+            return EmitNavigationResult(
+                options,
+                anchorFailure,
+                success: false,
+                result => NavigationRouteRunResultTextFormatter.Format(result));
         }
 
         var refreshedPoseSource = NavigationPoseSourceFactory.TryCreate(
@@ -1040,17 +1034,16 @@ internal static class Program
                 stopReason: "anchor-unavailable",
                 issues: [refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming."]);
 
-            if (options.JsonOutput)
-            {
-                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
-            }
-            else
+            if (!options.JsonOutput)
             {
                 Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
-                Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(anchorFailure));
             }
 
-            return 1;
+            return EmitNavigationResult(
+                options,
+                anchorFailure,
+                success: false,
+                result => NavigationRouteRunResultTextFormatter.Format(result));
         }
 
         Func<NavigationRouteSegmentTurnRequest, NavigationTurnResult>? turnBeforeSegment = null;
@@ -1081,14 +1074,11 @@ internal static class Program
             movementBackend,
             turnBeforeSegment);
 
-        if (options.JsonOutput)
-        {
-            Console.WriteLine(JsonOutput.Serialize(result));
-            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
-        }
-
-        Console.WriteLine(NavigationRouteRunResultTextFormatter.Format(result));
-        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        return EmitNavigationResult(
+            options,
+            result,
+            success: string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase),
+            result => NavigationRouteRunResultTextFormatter.Format(result));
     }
 
     private static bool TryResolveRouteWaypoints(
@@ -1289,7 +1279,7 @@ internal static class Program
         var resolvedStartWaypoint = startWaypoint!;
         var resolvedDestinationWaypoint = destinationWaypoint!;
 
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var snapshotDocument = TryLoadExplicitReaderBridgeSnapshot(options.ReaderBridgeSnapshotFile);
         var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
         var poseSource = NavigationPoseSourceFactory.TryCreate(
             reader,
@@ -1313,17 +1303,16 @@ internal static class Program
                 resolvedConfiguration.Movement.StartRadius,
                 "anchor-unavailable");
 
-            if (options.JsonOutput)
-            {
-                Console.WriteLine(JsonOutput.Serialize(anchorFailure));
-            }
-            else
+            if (!options.JsonOutput)
             {
                 Console.Error.WriteLine(poseError ?? "Unable to resolve a navigation pose anchor.");
-                Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
             }
 
-            return 1;
+            return EmitNavigationResult(
+                options,
+                anchorFailure,
+                success: false,
+                result => NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
         }
 
         var effectivePace = ResolveEffectivePace(options.Pace, resolvedDestinationWaypoint, resolvedConfiguration.Movement);
@@ -1338,7 +1327,8 @@ internal static class Program
         var movementBackend = new PowerShellMovementBackend(
             NavigationPathResolver.ResolveMovementScriptFile(),
             target.ProcessName,
-            target.ProcessId);
+            target.ProcessId,
+            target.MainWindowHandleHex);
         var initialMovementDistance = NavigationMath.ComputePlanarDistance(
             resolvedDestinationWaypoint.X - poseSource.InitialSample.X,
             resolvedDestinationWaypoint.Z - poseSource.InitialSample.Z);
@@ -1358,17 +1348,16 @@ internal static class Program
                     resolvedConfiguration.Movement.StartRadius,
                     "anchor-unavailable");
 
-                if (options.JsonOutput)
-                {
-                    Console.WriteLine(JsonOutput.Serialize(anchorFailure));
-                }
-                else
+                if (!options.JsonOutput)
                 {
                     Console.Error.WriteLine(refreshError ?? "Unable to refresh the proof coord anchor before live navigation started.");
-                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
                 }
 
-                return 1;
+                return EmitNavigationResult(
+                    options,
+                    anchorFailure,
+                    success: false,
+                    result => NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
             }
 
             var refreshedPoseSource = NavigationPoseSourceFactory.TryCreate(
@@ -1393,17 +1382,16 @@ internal static class Program
                     resolvedConfiguration.Movement.StartRadius,
                     "anchor-unavailable");
 
-                if (options.JsonOutput)
-                {
-                    Console.WriteLine(JsonOutput.Serialize(anchorFailure));
-                }
-                else
+                if (!options.JsonOutput)
                 {
                     Console.Error.WriteLine(refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming.");
-                    Console.WriteLine(NavigationRunResultTextFormatter.Format(anchorFailure, options.VerboseNavigationEvents));
                 }
 
-                return 1;
+                return EmitNavigationResult(
+                    options,
+                    anchorFailure,
+                    success: false,
+                    result => NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
             }
 
             poseSource = refreshedPoseSource;
@@ -1441,17 +1429,16 @@ internal static class Program
                     poseSource.Source.AnchorSource,
                     turnResult);
 
-                if (options.JsonOutput)
-                {
-                    Console.WriteLine(JsonOutput.Serialize(turnFailure));
-                }
-                else
+                if (!options.JsonOutput)
                 {
                     Console.Error.WriteLine(turnResult.Reason ?? "Auto-turn failed before forward movement could start.");
-                    Console.WriteLine(NavigationRunResultTextFormatter.Format(turnFailure, options.VerboseNavigationEvents));
                 }
 
-                return 1;
+                return EmitNavigationResult(
+                    options,
+                    turnFailure,
+                    success: false,
+                    result => NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
             }
         }
 
@@ -1473,19 +1460,16 @@ internal static class Program
             result = result with { TurnResult = turnResult };
         }
 
-        if (options.JsonOutput)
-        {
-            Console.WriteLine(JsonOutput.Serialize(result));
-            return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
-        }
-
-        Console.WriteLine(NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
-        return string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        return EmitNavigationResult(
+            options,
+            result,
+            success: string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase),
+            result => NavigationRunResultTextFormatter.Format(result, options.VerboseNavigationEvents));
     }
 
     private static int RunCaptureNavigationWaypointMode(ReaderOptions options, ProcessTarget target, ProcessMemoryReader reader)
     {
-        var snapshotDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out _);
+        var snapshotDocument = TryLoadExplicitReaderBridgeSnapshot(options.ReaderBridgeSnapshotFile);
         var inspectionRadius = Math.Max(options.ScanContextBytes, 192);
         var poseSource = NavigationPoseSourceFactory.TryCreate(
             reader,
@@ -1996,6 +1980,67 @@ internal static class Program
 
         error = "A process selector was not provided.";
         return null;
+    }
+
+    private static ReaderBridgeSnapshotDocument? TryLoadExplicitReaderBridgeSnapshot(string? snapshotFile)
+    {
+        // Navigation modes must not silently trust the default ReaderBridge
+        // SavedVariables file as live truth. It is a post-save snapshot and can
+        // lag behind proof-anchor memory immediately after movement.
+        return string.IsNullOrWhiteSpace(snapshotFile)
+            ? null
+            : ReaderBridgeSnapshotLoader.TryLoad(snapshotFile, out _);
+    }
+
+    private static int EmitNavigationResult<T>(
+        ReaderOptions options,
+        T result,
+        bool success,
+        Func<T, string> textFormatter)
+    {
+        var summaryWritten = TryWriteNavigationRunSummary(options.NavigationRunSummaryFile, result, out var summaryError);
+        if (!summaryWritten && !string.IsNullOrWhiteSpace(summaryError))
+        {
+            Console.Error.WriteLine(summaryError);
+        }
+
+        if (options.JsonOutput)
+        {
+            Console.WriteLine(JsonOutput.Serialize(result));
+        }
+        else
+        {
+            Console.WriteLine(textFormatter(result));
+        }
+
+        return success && summaryWritten ? 0 : 1;
+    }
+
+    private static bool TryWriteNavigationRunSummary<T>(string? summaryFile, T result, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(summaryFile))
+        {
+            return true;
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(summaryFile);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(fullPath, JsonOutput.Serialize(result));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Unable to write navigation run summary file '{summaryFile}': {ex.Message}";
+            return false;
+        }
     }
 
     private static bool TryLoadWaypointNavigationConfiguration(

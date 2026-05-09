@@ -38,25 +38,46 @@ As of the May 8, 2026 current-PID lane, start coord-truth recovery with:
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`
 - `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`
 - newest handoff:
-  `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-063335-current-pid-33912-visible-hud-proof-passed-handoff.md`
+  `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-08-232000-final-push-handoff.md`
 
-The latest live target is `rift_x64` PID `33912` / HWND `0xE0DB2` while that
-client remains alive. Current-session coordinate truth is movement-grade through
-the previous `Forward250`, `ForwardSeries3x250`, fixed-bearing 1m waypoint
-smoke, and fixed-bearing 2m waypoint smoke. The latest visible-HUD `ProofOnly`
-run sent no movement and passed on the same target. Auto-turn remains blocked
-because no turn backend is promoted.
+The latest live target captured in this lane is `rift_x64` PID `49504` / HWND
+`0x5121A` while that client remains alive. Current-session forward movement is
+validated through `Forward250`, refreshed `ForwardSeries3x250`, and a 2m
+observed-forward `--navigate-waypoints` smoke. The waypoint smoke used a route
+built from current-session observed W-key displacement, not actor-facing truth,
+and arrived within the `0.75m` radius after 4 pulses. A later durable-summary
+waypoint run also passed with `5` pulses, stop reason `arrived`, final planar
+distance `0.3942869934100385m`, and wrote
+`C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\navigate-waypoints-run-summary.json`.
+Auto-turn remains blocked because the behavior-backed actor-facing lead is stale
+for PID `49504` and no turn backend is promoted.
 
-Current RiftScan-backed candidate source:
+Current proof-pointer candidate source:
 
-- candidate: `rift-addon-coordinate-candidate-000001`
-- current absolute address: `0x202FEA3E180`
-- RiftScan match file:
-  `C:\RIFT MODDING\Riftscan\reports\generated\currentpid-33912-reacquire-exact16m-20260508-042613-addon-coordinate-matches.json`
+- candidate: `api-coord-hit-000005`
+- current absolute address: `0x24A01358880`
+- candidate file:
+  `C:\RIFT MODDING\RiftReader\scripts\captures\reacquire-currentpid-49504-20260508-211304\api-bootstrap-vec3-candidates.json`
 - tracked pointer:
   `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`
-- latest visible-HUD proof summary:
-  `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-103043\run-summary.json`
+- latest no-input proof summary:
+  `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-031334\run-summary.json`
+- latest movement proof summaries:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260509-020624\run-summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-49504-20260508-2218-2m\navigate-waypoints-result-transcript.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\navigate-waypoints-run-summary.json`
+- latest waypoint route/readback:
+  - route: `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\smoke-test-waypoints-2m-observed-forward.json`
+  - post-run read: `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-summary-currentpid-49504-20260508-2312\post-navigation-read-current.json`
+- latest visual-baseline gate:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260508-231046\visual-gate-status.json`
+  - rerun with `python .\scripts\check_live_visual_gate.py --pid 49504 --hwnd 0x5121A --process-name rift_x64 --title-contains RIFT --full`
+
+Navigation-specific stale snapshot rule: `ReaderBridgeExport.lua` is a post-save
+SavedVariables snapshot, not live IPC. Navigation read/move modes now ignore the
+default ReaderBridge SavedVariables snapshot unless a snapshot path is explicitly
+provided; proof-grade currentness should come from the current proof coord anchor
+or another freshness-proven live surface.
 
 RiftScan is a read-only provider for RiftReader unless the user explicitly
 authorizes a RiftScan edit/capture/write pass. Use
@@ -73,9 +94,10 @@ persist the no-CE/read-only validation suite plus
 creates new RiftScan sessions/reports when the boundary is read-only; pass an
 existing `-CandidateFile`.
 
-Movement remains allowed only after rerunning the current proof-anchor readback
-preflight for the exact live PID/HWND because the proof age gate is short-lived.
-CE plus SavedVariables live-truth paths remain forbidden for this lane.
+Movement remains allowed only after the visual-baseline gate passes and then the
+current proof-anchor readback preflight is rerun for the exact live PID/HWND
+because the proof age gate is short-lived. CE plus SavedVariables live-truth
+paths remain forbidden for this lane.
 
 For player actor-yaw discovery, use
 `C:\RIFT MODDING\RiftReader\docs\player-actor-yaw-candidate-ledger.md` as the

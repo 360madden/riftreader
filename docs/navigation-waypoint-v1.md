@@ -280,6 +280,13 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
   --verbose-navigation-events
 ```
 
+For durable run evidence, add `--navigation-run-summary-file <path>` to
+`--navigate-waypoints` or `--navigate-waypoint-route`. The reader writes the
+same JSON result object that `--json` prints, including fail-closed results such
+as `start-mismatch`, `anchor-unavailable`, and `input-failed`. This is preferred
+for live smoke evidence because it avoids copying result JSON from the terminal
+transcript after movement.
+
 The prototype wrapper still exists as a higher-level helper, but the current
 reader-core path is now the authoritative auto-turn entrypoint. The wrapper
 also exposes two diagnostics-only controls for live blocker work:
@@ -354,6 +361,7 @@ Use repeated `--tomtom-list <name>` to import only selected TomTom lists, and
 | `--navigate-waypoint-route` | Active v3 route-chain execution gate |
 | `--via-waypoint <id>` | Optional repeated midpoint for route modes |
 | `--navigate-waypoints` | Active waypoint travel |
+| `--navigation-run-summary-file <path>` | Optional durable JSON result path for `--navigate-waypoints` and `--navigate-waypoint-route` |
 | `--start-waypoint <id>` | Required for active/route waypoint modes |
 | `--destination-waypoint <id>` | Required for active/route waypoint modes and read-only destination preflight |
 | `--pace run\|walk\|keep` | Optional pace override |
