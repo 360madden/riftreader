@@ -42,6 +42,8 @@ from .status import (
     SUCCESS_STATUSES,
 )
 from .target import verify_target
+from .target_control import TargetControlOptions, run_target_control
+from .target_control_summary import compact_target_control_summary, target_control_state_detail
 
 
 class PromotionBaselineError(RuntimeError):
@@ -118,6 +120,7 @@ class LiveTestRunner:
         self.gui_info: dict[str, Any] | None = None
         self.latest_child_command: dict[str, Any] | None = None
         self.current_proof_pointer_update: dict[str, Any] | None = None
+        self.target_control_summary: dict[str, Any] | None = None
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_root = Path(str(profile.get("outputRoot", repo_root / "scripts" / "captures")))
@@ -155,6 +158,7 @@ class LiveTestRunner:
                 "passed",
                 detail=f"pid={self.process_id};hwnd={target.get('targetWindowHandle')}",
             )
+            self._record_target_control_preflight()
 
             mode = str(self.profile.get("mode"))
             has_input = isinstance(self.profile.get("input"), dict)
@@ -304,6 +308,50 @@ class LiveTestRunner:
             self.issues.append(f"internal_error:{type(exc).__name__}:{exc}")
             self._state("internal-error", FAILED_INTERNAL_ERROR, detail=str(exc))
             return self._finish(status)
+
+    def _record_target_control_preflight(self) -> None:
+        output_dir = self.run_dir / "target-control"
+        try:
+            summary = run_target_control(
+                TargetControlOptions(
+                    repo_root=self.repo_root,
+                    process_id=self.process_id,
+                    window_handle=self.target_window_handle,
+                    process_name=self._process_name(),
+                    title_contains=str(self.profile.get("titleContains", "RIFT")),
+                    output_dir=output_dir,
+                    retries=int(self.profile.get("targetControlRetries", 5)),
+                    settle_ms=int(self.profile.get("targetControlSettleMilliseconds", 400)),
+                    strong_assist=bool(self.profile.get("targetControlStrongAssist", True)),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - target-control must record failure without hiding root run status.
+            summary = {
+                "schemaVersion": 1,
+                "status": "target-control-record-failed",
+                "classification": "target-control-exception",
+                "ok": False,
+                "readyForReadOnlyProof": False,
+                "readyForVisualGate": False,
+                "readyForLiveInput": False,
+                "summaryPath": None,
+                "blockers": [f"target_control_exception:{type(exc).__name__}:{exc}"],
+                "warnings": [],
+                "capabilities": {},
+                "movementSent": False,
+                "inputSent": False,
+                "screenshotKeySent": False,
+                "reloaduiSent": False,
+                "noCheatEngine": True,
+            }
+        self.target_control_summary = compact_target_control_summary(summary)
+        write_json(self.child_dir / "002-target-control.json", summary)
+        self._state(
+            "target-control",
+            str(self.target_control_summary.get("status", "unknown")),
+            detail=target_control_state_detail(self.target_control_summary),
+            summaryFile=self.target_control_summary.get("summaryPath"),
+        )
 
     def _refresh_proof_next(self) -> dict[str, Any]:
         self.proof_refresh_sequence += 1
@@ -1540,6 +1588,7 @@ class LiveTestRunner:
             "live": self.live,
             "processId": self.process_id,
             "targetWindowHandle": self.target_window_handle,
+            "targetControl": self.target_control_summary,
             "movementSent": movement_sent,
             "movementAttempted": movement_attempted,
             "currentCoordinate": self._coordinate(self._get(current_source, "CurrentCoordinate")),
@@ -1974,6 +2023,7 @@ class LiveTestRunner:
                 "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
                 "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
                 "currentProofPointerUpdate": self.current_proof_pointer_update,
+            "targetControl": self.target_control_summary,
             },
         )
 
