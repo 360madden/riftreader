@@ -50,6 +50,14 @@ function ConvertFrom-JsonCompat {
     return $Text | ConvertFrom-Json
 }
 
+function Get-PowerShellExecutable {
+    if (Get-Command -Name pwsh -CommandType Application -ErrorAction SilentlyContinue) {
+        return 'pwsh'
+    }
+
+    return 'powershell'
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $script = Join-Path $repoRoot 'scripts\capture-riftscan-proof-pose.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('RiftReader-riftscan-proof-pose-pointer-' + [System.Guid]::NewGuid().ToString('N'))
@@ -233,10 +241,14 @@ exit 0
     Assert-Equal -Actual $summary.CandidateSource.sourceAbsoluteAddressHex -Expected '0x10000120' -Message 'Pointer address source should be preserved.'
     Assert-Equal -Actual $summary.Commands.Readback.Arguments[([Array]::IndexOf($summary.Commands.Readback.Arguments, '-CandidateFile') + 1)] -Expected ([System.IO.Path]::GetFullPath($candidateFile)) -Message 'Readback command should receive pointer-resolved candidate file.'
 
-    $failed = $false
-    $failureMessage = ''
+    $previousErrorActionPreference = $ErrorActionPreference
     try {
-        & $script `
+        $ErrorActionPreference = 'Continue'
+        $mismatchOutput = & (Get-PowerShellExecutable) `
+            -NoLogo `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File $script `
             -CurrentProofPointerFile $pointerFile `
             -OutputRoot $tempRoot `
             -PoseLabel fixture-pointer-mismatch `
@@ -245,15 +257,33 @@ exit 0
             -ProcessName rift_x64 `
             -ReferenceScript $referenceScript `
             -ReadbackScript $readbackScript `
-            -Json | Out-Null
+            -Json 2>&1
+        $mismatchExitCode = $LASTEXITCODE
     }
-    catch {
-        $failed = $true
-        $failureMessage = $_.Exception.Message
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
     }
 
-    Assert-True -Condition $failed -Message 'PID mismatch should fail closed before readback.'
-    Assert-True -Condition ($failureMessage -like '*target PID*does not match requested PID 9999*') -Message "PID mismatch should report pointer target mismatch. Actual: $failureMessage"
+    Assert-Equal -Actual $mismatchExitCode -Expected 1 -Message 'PID mismatch should fail closed before readback.'
+    $mismatchSummary = ConvertFrom-JsonCompat -Text ($mismatchOutput -join [Environment]::NewLine) -Depth 80
+    Assert-Equal -Actual $mismatchSummary.Mode -Expected 'riftscan-proof-pose-capture' -Message 'Target-drift summary should preserve wrapper mode.'
+    Assert-Equal -Actual $mismatchSummary.Status -Expected 'blocked-target-drift' -Message 'PID mismatch should be classified as target drift, not generic failure.'
+    Assert-True -Condition ([bool]$mismatchSummary.NoCheatEngine) -Message 'Target-drift blocker must preserve no-CE boundary.'
+    Assert-True -Condition (-not [bool]$mismatchSummary.MovementSent) -Message 'Target-drift blocker must not send movement.'
+    Assert-True -Condition (-not [bool]$mismatchSummary.MovementAllowed) -Message 'Target-drift blocker must block movement.'
+    Assert-True -Condition ([bool]$mismatchSummary.ReferenceCaptured) -Message 'Target-drift blocker should preserve freshly reacquired API/reference state when available.'
+    Assert-Equal -Actual $mismatchSummary.ReferenceCaptureExitCode -Expected 0 -Message 'Reference reacquire should succeed in the mismatch fixture.'
+    Assert-True -Condition ($null -eq $mismatchSummary.CandidateFile) -Message 'Target-drift blocker must not promote stale pointer candidate as current.'
+    Assert-True -Condition (-not [bool]$mismatchSummary.CandidateResolvedFromPointer) -Message 'Target-drift blocker must not mark stale candidate as resolved.'
+    Assert-True -Condition ($null -eq $mismatchSummary.Commands.Readback) -Message 'Readback must not run after pointer target drift.'
+    Assert-Equal -Actual $mismatchSummary.MovementGate -Expected 'blocked_until_current_process_proof_anchor_is_rebuilt_after_target_drift' -Message 'Target drift should set an explicit movement gate.'
+    Assert-Equal -Actual $mismatchSummary.TargetDrift.source -Expected 'current-proof-pointer-target-check' -Message 'Target drift should identify the failed guard.'
+    Assert-True -Condition (($mismatchSummary.TargetDrift.issues -join ';') -like '*target PID*does not match requested PID 9999*') -Message 'Target drift summary should include the PID mismatch evidence.'
+    Assert-Equal -Actual $mismatchSummary.PreservedHistoricalEvidence.classification -Expected 'historical-target-epoch-evidence' -Message 'Stale pointer should be preserved as historical evidence.'
+    Assert-Equal -Actual $mismatchSummary.PreservedHistoricalEvidence.readStatus -Expected 'read' -Message 'Historical pointer evidence should remain readable.'
+    Assert-Equal -Actual $mismatchSummary.PreservedHistoricalEvidence.target.processId -Expected 4242 -Message 'Historical pointer target should be preserved.'
+    Assert-Equal -Actual $mismatchSummary.PreservedHistoricalEvidence.reacquireHints.candidateId -Expected 'fixture-candidate-000001' -Message 'Historical candidate id should survive as a reacquire hint.'
+    Assert-Equal -Actual $mismatchSummary.PreservedHistoricalEvidence.reacquireHints.sourceAbsoluteAddressHex -Expected '0x10000120' -Message 'Historical absolute address should survive only as a reacquire hint.'
 
     Write-Host 'RiftScan proof pose pointer-resolution regression passed.' -ForegroundColor Green
 }

@@ -55,12 +55,13 @@ class RiftScanValidationTests(unittest.TestCase):
             self.assertEqual(riftscan_status.kind, "riftscan-status-clean")
             self.assertEqual(riftscan_status.command[:3], ["git", "-C", str(riftscan)])
 
-    def test_validate_milestone_stdout_requires_ready_readonly_no_movement(self) -> None:
+    def test_validate_milestone_stdout_accepts_ready_or_safe_blocked_no_movement(self) -> None:
         payload = {
             "status": "ready-for-read-only-proof",
             "strategy": {
                 "decision": "proceed-read-only-proof-first",
                 "movementAllowedByReview": False,
+                "readOnlyProofAllowedByReview": True,
             },
             "riftScanBoundary": {
                 "writeAllowed": False,
@@ -71,6 +72,16 @@ class RiftScanValidationTests(unittest.TestCase):
         ok, detail = validate_milestone_stdout(json.dumps(payload))
         self.assertTrue(ok, detail)
         self.assertEqual(detail, "ready-for-read-only-proof")
+
+        payload["status"] = "blocked"
+        payload["strategy"] = {
+            "decision": "block",
+            "movementAllowedByReview": False,
+            "readOnlyProofAllowedByReview": False,
+        }
+        ok, detail = validate_milestone_stdout(json.dumps(payload))
+        self.assertTrue(ok, detail)
+        self.assertEqual(detail, "safe-blocked")
 
         payload["strategy"]["movementAllowedByReview"] = True
         ok, detail = validate_milestone_stdout(json.dumps(payload))

@@ -202,17 +202,23 @@ def validate_milestone_stdout(stdout: str) -> tuple[bool, str]:
         if isinstance(payload.get("riftScanBoundary"), dict)
         else {}
     )
-    if status != "ready-for-read-only-proof":
-        return False, f"milestone status was {status!r}"
-    if strategy.get("decision") != "proceed-read-only-proof-first":
-        return False, f"milestone decision was {strategy.get('decision')!r}"
     if strategy.get("movementAllowedByReview") is not False:
         return False, "milestone review unexpectedly allowed movement"
     if boundary.get("writeAllowed") is not False:
         return False, "milestone boundary unexpectedly allowed RiftScan writes"
     if boundary.get("noCheatEngine") is not True:
         return False, "milestone boundary did not record noCheatEngine=true"
-    return True, "ready-for-read-only-proof"
+    if status == "ready-for-read-only-proof":
+        if strategy.get("decision") != "proceed-read-only-proof-first":
+            return False, f"milestone decision was {strategy.get('decision')!r}"
+        return True, "ready-for-read-only-proof"
+    if status == "blocked":
+        if strategy.get("decision") != "block":
+            return False, f"blocked milestone decision was {strategy.get('decision')!r}"
+        if strategy.get("readOnlyProofAllowedByReview") is not False:
+            return False, "blocked milestone unexpectedly allowed read-only proof"
+        return True, "safe-blocked"
+    return False, f"milestone status was {status!r}"
 
 
 def validate_riftscan_status(stdout: str) -> tuple[bool, str]:
@@ -267,13 +273,15 @@ def run_step(step: ValidationStep, *, timeout_seconds: int) -> dict[str, Any]:
             "stderr": tail_text(exc.stderr or ""),
         }
 
-    passed = completed.returncode == 0
-    detail = "exit-code"
-    if passed and step.kind == "milestone-json":
+    if step.kind == "milestone-json":
         passed, detail = validate_milestone_stdout(completed.stdout)
-    elif passed and step.kind == "riftscan-status-clean":
+    else:
+        passed = completed.returncode == 0
+        detail = "exit-code"
+
+    if passed and step.kind == "riftscan-status-clean":
         passed, detail = validate_riftscan_status(completed.stdout)
-    elif not passed:
+    elif not passed and step.kind != "milestone-json":
         detail = f"exit {completed.returncode}"
 
     return {

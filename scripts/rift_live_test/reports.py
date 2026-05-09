@@ -93,6 +93,22 @@ def write_markdown_summary(path: Path, summary: dict[str, Any]) -> None:
                 f"`{str(health.get('savedVariablesUsedAsLiveTruth')).lower()}` |",
             ]
         )
+    if summary.get("currentProofPointerUpdate"):
+        update = summary["currentProofPointerUpdate"]
+        archive = update.get("archivedSupersededPointer") if isinstance(update, dict) else None
+        archive_path = archive.get("path") if isinstance(archive, dict) else None
+        lines.extend(
+            [
+                "",
+                "## Current proof pointer update",
+                "",
+                "| Field | Value |",
+                "|---|---|",
+                f"| Updated | `{str(update.get('updated')).lower()}` |",
+                f"| Pointer | `{update.get('path')}` |",
+                f"| Archived superseded pointer | `{archive_path}` |",
+            ]
+        )
     if summary.get("issues"):
         lines.extend(["", "## Issues"])
         for issue in summary["issues"]:

@@ -271,6 +271,8 @@ exit 0
     Assert-True -Condition (Test-Path -LiteralPath ([string]$successSummary.SummaryFile) -PathType Leaf) -Message 'Wrapper summary file should be written.'
     Assert-True -Condition (Test-Path -LiteralPath $keyMarkerFile -PathType Leaf) -Message 'Key script should be invoked on green preflight.'
     Assert-True -Condition ((Get-Content -LiteralPath $keyMarkerFile -Raw) -like '*-RequireTargetForeground*') -Message 'Wrapper should require target foreground by default.'
+    Assert-True -Condition ((Get-Content -LiteralPath $keyMarkerFile -Raw) -like '*-UseWindowMessage*') -Message 'Wrapper should use the proven exact-HWND window-message backend by default.'
+    Assert-Equal -Actual $successSummary.InputBackend -Expected 'window-message' -Message 'Summary should record the selected input backend.'
     Assert-Equal -Actual ([int](Get-Content -LiteralPath $stateFile -Raw)) -Expected 2 -Message 'Success wrapper should run preflight before and after input.'
 
     Remove-Item -LiteralPath $keyMarkerFile -Force

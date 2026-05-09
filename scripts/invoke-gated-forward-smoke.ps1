@@ -17,6 +17,8 @@ param(
     [string]$OutputRoot = (Join-Path $PSScriptRoot 'captures'),
     [string]$PreflightScript = (Join-Path $PSScriptRoot 'assert-current-proof-coord-anchor-readback.ps1'),
     [string]$KeyScript = (Join-Path $PSScriptRoot 'post-rift-key.ps1'),
+    [ValidateSet('window-message', 'send-input')]
+    [string]$InputBackend = 'window-message',
     [switch]$UseCacheOnly,
     [switch]$AllowBackgroundPostMessage,
     [switch]$DryRun,
@@ -480,6 +482,10 @@ function New-KeyArguments {
         $arguments += '-RequireTargetForeground'
     }
 
+    if ([string]::Equals($InputBackend, 'window-message', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $arguments += '-UseWindowMessage'
+    }
+
     return @($arguments)
 }
 
@@ -515,6 +521,7 @@ function New-BaseSummary {
         ReadbackIntervalMilliseconds = $ReadbackIntervalMilliseconds
         MaxHoldMilliseconds = $maxHoldMilliseconds
         MaxPulseCount = $maxPulseCount
+        InputBackend = $InputBackend
         RequireTargetForeground = (-not [bool]$AllowBackgroundPostMessage)
         AllowBackgroundPostMessage = [bool]$AllowBackgroundPostMessage
         DryRun = [bool]$DryRun

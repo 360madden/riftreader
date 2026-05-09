@@ -2496,7 +2496,7 @@ internal static class Program
 
         if (options.ScanReaderBridgePlayerCoords)
         {
-            var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(null, out var loadError);
+            var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);
             var validatorDocument = ValidatorSnapshotLoader.TryLoad(null, out var validatorLoadError);
             var bootstrapDocuments = BuildPlayerCurrentBootstrapDocuments(readerBridgeDocument, validatorDocument);
             var sequenceResult = TryScanBootstrapPlayerCoords(

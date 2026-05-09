@@ -7,7 +7,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .riftscan_coordination import DEFAULT_RIFTSCAN_ROOT, is_relative_to, normalize_hwnd
+from .riftscan_coordination import (
+    DEFAULT_RIFTSCAN_ROOT,
+    coerce_int,
+    is_relative_to,
+    normalize_hwnd,
+    read_json_file,
+)
 from .riftscan_feedback import build_feedback_packet
 
 
@@ -182,6 +188,88 @@ def build_recommended_actions(review_status_value: str) -> list[dict[str, str]]:
     ]
 
 
+def _first_present(mapping: dict[str, Any], *names: str) -> Any:
+    for name in names:
+        value = mapping.get(name)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _target_from_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
+    process_id = coerce_int(_first_present(mapping, "processId", "ProcessId", "pid"))
+    target_window_handle = _first_present(
+        mapping,
+        "targetWindowHandle",
+        "TargetWindowHandle",
+        "hwnd",
+    )
+    process_name = _first_present(mapping, "processName", "ProcessName")
+    return {
+        "processId": process_id,
+        "targetWindowHandle": normalize_hwnd(target_window_handle),
+        "processName": process_name,
+    }
+
+
+def infer_latest_live_target(repo_root: Path) -> dict[str, Any]:
+    """Infer the current target from the latest live-test pointer/run summary.
+
+    The docs/recovery proof pointer can legitimately lag after a client restart.
+    This review is normally run after live milestones, so defaulting to the most
+    recent live-test target prevents stale PID/HWND recommendations.
+    """
+    pointer_path = repo_root / "scripts" / "captures" / "latest-live-test-run.json"
+    result: dict[str, Any] = {
+        "source": "latest-live-test-run",
+        "path": str(pointer_path),
+        "exists": pointer_path.exists(),
+        "processId": None,
+        "targetWindowHandle": None,
+        "processName": None,
+        "issues": [],
+    }
+    if not pointer_path.exists():
+        result["issues"].append("latest_live_test_pointer_missing")
+        return result
+
+    try:
+        pointer = read_json_file(pointer_path)
+    except Exception as exc:  # noqa: BLE001 - review should report stale/unreadable target state.
+        result["issues"].append(f"latest_live_test_pointer_unreadable:{type(exc).__name__}:{exc}")
+        return result
+
+    candidate_sources: list[tuple[str, dict[str, Any]]] = [("latest-live-test-pointer", pointer)]
+    for key in ("runSummaryFile", "runProgressFile"):
+        file_value = pointer.get(key)
+        if not file_value:
+            continue
+        file_path = Path(str(file_value))
+        try:
+            candidate_sources.append((key, read_json_file(file_path)))
+        except Exception as exc:  # noqa: BLE001 - keep going with other sources.
+            result["issues"].append(f"{key}_target_unreadable:{type(exc).__name__}:{exc}")
+
+    for source_name, data in candidate_sources:
+        target = _target_from_mapping(data)
+        if target["processId"] is not None:
+            result["processId"] = target["processId"]
+        if target["targetWindowHandle"]:
+            result["targetWindowHandle"] = target["targetWindowHandle"]
+        if target["processName"]:
+            result["processName"] = target["processName"]
+
+        if result["processId"] is not None and result["targetWindowHandle"]:
+            result["source"] = source_name
+            break
+
+    if result["processId"] is None:
+        result["issues"].append("latest_live_test_target_pid_missing")
+    if not result["targetWindowHandle"]:
+        result["issues"].append("latest_live_test_target_hwnd_missing")
+    return result
+
+
 def build_milestone_review(
     *,
     repo_root: Path,
@@ -193,14 +281,25 @@ def build_milestone_review(
     process_name: str | None = "rift_x64",
     limit: int = 8,
 ) -> dict[str, Any]:
+    inferred_target = infer_latest_live_target(repo_root)
+    effective_process_id = process_id
+    if effective_process_id is None:
+        effective_process_id = coerce_int(inferred_target.get("processId"))
+    effective_target_window_handle = target_window_handle
+    if not effective_target_window_handle:
+        effective_target_window_handle = inferred_target.get("targetWindowHandle")
+    effective_process_name = process_name
+    if not effective_process_name:
+        effective_process_name = inferred_target.get("processName") or "rift_x64"
+
     packet = build_feedback_packet(
         repo_root=repo_root,
         riftscan_root=riftscan_root,
         current_proof_pointer=current_proof_pointer,
         candidate_consumer_summary=candidate_consumer_summary,
-        process_id=process_id,
-        target_window_handle=target_window_handle,
-        process_name=process_name,
+        process_id=effective_process_id,
+        target_window_handle=effective_target_window_handle,
+        process_name=effective_process_name,
         limit=limit,
     )
     checks = build_checks(packet)
@@ -218,9 +317,15 @@ def build_milestone_review(
         "repoRoot": str(repo_root),
         "riftScanBoundary": packet.get("riftScanBoundary"),
         "requestedTarget": {
-            "processName": process_name,
-            "processId": process_id,
-            "targetWindowHandle": normalize_hwnd(target_window_handle),
+            "processName": effective_process_name,
+            "processId": effective_process_id,
+            "targetWindowHandle": normalize_hwnd(effective_target_window_handle),
+        },
+        "targetInference": {
+            **inferred_target,
+            "explicitProcessId": process_id,
+            "explicitTargetWindowHandle": normalize_hwnd(target_window_handle),
+            "explicitProcessName": process_name,
         },
         "selectedCandidate": packet.get("selectedCandidate"),
         "currentProofPointer": packet.get("currentProofPointer"),

@@ -29,9 +29,11 @@ from .status import (
     BLOCKED_PROMOTION_REFERENCE_MISMATCH,
     BLOCKED_PROOF_EXPIRED,
     BLOCKED_REFERENCE_CAPTURE,
+    BLOCKED_TARGET_DRIFT,
     BLOCKED_TARGET_MISMATCH,
     FAILED_INTERNAL_ERROR,
     INPUT_FAILED,
+    INPUT_NO_MOVEMENT,
     PASSED,
     PASSED_BASELINE_CAPTURED,
     PASSED_PROOF_ONLY,
@@ -61,6 +63,17 @@ class ReferenceCaptureError(RuntimeError):
         self.issues = issues
 
 
+class TargetDriftError(RuntimeError):
+    def __init__(
+        self,
+        issues: list[str],
+        final_json: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__("target drift detected")
+        self.issues = issues
+        self.final_json = final_json or {}
+
+
 def classify_run_health(status: str) -> str:
     text = str(status or "").lower()
     if text in SUCCESS_STATUSES or text.startswith("passed"):
@@ -69,6 +82,8 @@ def classify_run_health(status: str) -> str:
         return "running"
     if "partial" in text or "low-age" in text or "age-budget" in text:
         return "warning"
+    if text == INPUT_NO_MOVEMENT or "no-movement" in text:
+        return "failed"
     if text.startswith("blocked"):
         return "blocked"
     if text.startswith("failed") or text.endswith("failed") or "internal-error" in text:
@@ -102,6 +117,7 @@ class LiveTestRunner:
         self.coordinate_recordings: list[dict[str, Any]] = []
         self.gui_info: dict[str, Any] | None = None
         self.latest_child_command: dict[str, Any] | None = None
+        self.current_proof_pointer_update: dict[str, Any] | None = None
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_root = Path(str(profile.get("outputRoot", repo_root / "scripts" / "captures")))
@@ -233,6 +249,15 @@ class LiveTestRunner:
                     dry_run=dry,
                     live_result=live_result,
                 )
+                movement_issue = self._movement_delta_issue(live_result)
+                if movement_issue:
+                    self.issues.append(movement_issue)
+                    self._state(
+                        "live-input",
+                        INPUT_NO_MOVEMENT,
+                        summaryFile=self._get(live_result, "SummaryFile"),
+                    )
+                    return self._finish(INPUT_NO_MOVEMENT, final_json=live_result)
                 self._state("live-input", "passed", summaryFile=self._get(live_result, "SummaryFile"))
                 return self._finish(PASSED, final_json=live_result)
 
@@ -248,6 +273,15 @@ class LiveTestRunner:
                 mapped = PARTIAL_SERIES_STOPPED
             self._state("live-input", mapped, summaryFile=self._get(live_result, "SummaryFile"))
             return self._finish(mapped, final_json=live_result)
+        except TargetDriftError as exc:
+            self.issues.extend(exc.issues)
+            self._state(
+                "target-drift-reacquire",
+                BLOCKED_TARGET_DRIFT,
+                detail=";".join(exc.issues),
+                summaryFile=self._get(exc.final_json, "SummaryFile"),
+            )
+            return self._finish(BLOCKED_TARGET_DRIFT, final_json=exc.final_json)
         except PromotionBaselineError as exc:
             self.issues.extend(exc.issues)
             write_json(self.run_dir / "promotion-baseline-selection.json", exc.diagnostics)
@@ -343,6 +377,18 @@ class LiveTestRunner:
         if reference.exit_code != 0 or self._get(reference.json_data, "Status") != "captured":
             raise ReferenceCaptureError(self._reference_capture_issues(reference))
 
+        candidate_file = self._proof_pose_candidate_file()
+        if candidate_file is None:
+            pointer_drift = self._current_proof_pointer_target_drift()
+            if pointer_drift.get("issues"):
+                final = self._write_target_drift_reacquire_summary(
+                    issues=[str(issue) for issue in pointer_drift["issues"]],
+                    reference_file=reference_file,
+                    source="current-proof-pointer-target-check",
+                    details=pointer_drift,
+                )
+                raise TargetDriftError([str(issue) for issue in pointer_drift["issues"]], final)
+
         pose_args = [
             "-ProcessName",
             self._process_name(),
@@ -366,11 +412,23 @@ class LiveTestRunner:
             str(int(self.profile.get("readbackIntervalMilliseconds", 100))),
             "-Json",
         ]
-        candidate_file = self.profile.get("candidateFile")
         if candidate_file:
             pose_args[0:0] = ["-CandidateFile", str(candidate_file)]
         pose = self._run_ps1("capture-proof-pose", "capture-riftscan-proof-pose.ps1", pose_args)
         if pose.exit_code != 0 or self._get(pose.json_data, "Status") != "captured":
+            drift_issues = self._target_drift_issues_from_command(pose)
+            if drift_issues:
+                final = self._write_target_drift_reacquire_summary(
+                    issues=drift_issues,
+                    reference_file=reference_file,
+                    source="capture-proof-pose-target-check",
+                    details={
+                        "poseExitCode": pose.exit_code,
+                        "poseStatus": self._get(pose.json_data, "Status"),
+                        "poseParseError": getattr(pose, "parse_error", None),
+                    },
+                )
+                raise TargetDriftError(drift_issues, final)
             raise RuntimeError(
                 "proof pose failed:"
                 f" exit={pose.exit_code};status={self._get(pose.json_data, 'Status')}"
@@ -546,6 +604,27 @@ class LiveTestRunner:
 
             live_status = self._get(live_result, "Status")
             if live_status == "passed":
+                movement_issue = self._movement_delta_issue(live_result)
+                if movement_issue:
+                    self.issues.append(movement_issue)
+                    mapped = (
+                        PARTIAL_SERIES_STOPPED
+                        if self._series_movement_started()
+                        else INPUT_NO_MOVEMENT
+                    )
+                    self._append_series_pulse(
+                        pulse_index=pulse_index,
+                        status=mapped,
+                        stage="live-input",
+                        dry_run=dry,
+                        live_result=live_result,
+                    )
+                    self._state(
+                        live_label,
+                        mapped,
+                        summaryFile=self._get(live_result, "SummaryFile"),
+                    )
+                    return self._finish(mapped, final_json=live_result)
                 self._append_series_pulse(
                     pulse_index=pulse_index,
                     status="passed",
@@ -616,6 +695,8 @@ class LiveTestRunner:
             str(int(self.profile.get("readbackIntervalMilliseconds", 100))),
             "-ProofCoordAnchorFile",
             self._proof_anchor_file(),
+            "-InputBackend",
+            str(self.profile.get("inputBackend", "window-message")),
             "-OutputRoot",
             str(self.run_dir),
             "-Json",
@@ -695,6 +776,304 @@ class LiveTestRunner:
             issues.append("reference_marker_unavailable:no_usable_rrapicoord1")
         return issues
 
+    def _current_proof_pointer_target_drift(self) -> dict[str, Any]:
+        if self.profile.get("candidateFile"):
+            return {
+                "checked": False,
+                "reason": "explicit_candidate_file_supplied",
+                "issues": [],
+            }
+
+        pointer_file = self._current_proof_pointer_file()
+        result: dict[str, Any] = {
+            "checked": True,
+            "pointerFile": str(pointer_file),
+            "requestedTarget": {
+                "processId": self.process_id,
+                "processName": self._process_name(),
+                "targetWindowHandle": self.target_window_handle,
+            },
+            "issues": [],
+        }
+        try:
+            pointer = json.loads(pointer_file.read_text(encoding="utf-8-sig"))
+        except FileNotFoundError:
+            result["checked"] = False
+            result["reason"] = "current_proof_pointer_missing"
+            return result
+        except Exception as exc:  # noqa: BLE001 - invalid pointer is target-state evidence.
+            result["issues"] = [
+                f"target_drift:current_proof_pointer_unreadable:{type(exc).__name__}:{exc}"
+            ]
+            return result
+
+        preserved_evidence = self._extract_current_proof_pointer_evidence(pointer)
+        if preserved_evidence:
+            result["preservedEvidence"] = preserved_evidence
+
+        target = self._first_mapping_value(pointer, "target")
+        if not isinstance(target, dict):
+            result["issues"] = ["target_drift:current_proof_pointer_missing_target_metadata"]
+            return result
+
+        pointer_process_id = self._coerce_int(
+            self._first_mapping_value(target, "processId", "ProcessId", "pid")
+        )
+        pointer_process_name = self._first_mapping_value(target, "processName", "ProcessName")
+        pointer_window_handle = self._first_mapping_value(
+            target,
+            "targetWindowHandle",
+            "TargetWindowHandle",
+            "hwnd",
+        )
+        pointer_window_int = self._coerce_int(pointer_window_handle)
+        requested_window_int = self._coerce_int(self.target_window_handle)
+
+        result["pointerTarget"] = {
+            "processId": pointer_process_id,
+            "processName": pointer_process_name,
+            "targetWindowHandle": pointer_window_handle,
+        }
+
+        issues: list[str] = []
+        if pointer_process_id is None or pointer_process_id != int(self.process_id):
+            issues.append(
+                "target_drift:current_proof_pointer_pid_mismatch:"
+                f"actual={pointer_process_id};expected={self.process_id}"
+            )
+
+        if pointer_process_name is None or not str(pointer_process_name).strip():
+            issues.append("target_drift:current_proof_pointer_process_name_missing")
+        else:
+            actual_name = self._normalize_process_name(str(pointer_process_name))
+            expected_name = self._normalize_process_name(self._process_name())
+            if actual_name.lower() != expected_name.lower():
+                issues.append(
+                    "target_drift:current_proof_pointer_process_name_mismatch:"
+                    f"actual={actual_name};expected={expected_name}"
+                )
+
+        if pointer_window_handle is None or not str(pointer_window_handle).strip():
+            issues.append("target_drift:current_proof_pointer_hwnd_missing")
+        elif (
+            pointer_window_int is not None
+            and requested_window_int is not None
+            and pointer_window_int != requested_window_int
+        ):
+            issues.append(
+                "target_drift:current_proof_pointer_hwnd_mismatch:"
+                f"actual=0x{pointer_window_int:X};expected=0x{requested_window_int:X}"
+            )
+
+        result["issues"] = issues
+        return result
+
+    def _write_target_drift_reacquire_summary(
+        self,
+        *,
+        issues: list[str],
+        reference_file: Path,
+        source: str,
+        details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        current_coordinate = self._reference_coordinate(reference_file)
+        summary_path = self.run_dir / "target-drift-reacquire-current-state.json"
+        payload = {
+            "SchemaVersion": 1,
+            "Mode": "target-drift-reacquire-current-state",
+            "GeneratedAtUtc": datetime.now(timezone.utc).isoformat(),
+            "Status": BLOCKED_TARGET_DRIFT,
+            "MovementSent": False,
+            "MovementAttempted": False,
+            "ProcessName": self._process_name(),
+            "ProcessId": self.process_id,
+            "TargetWindowHandle": self.target_window_handle,
+            "CurrentCoordinate": current_coordinate,
+            "ReferenceFile": str(reference_file),
+            "ReacquireStatus": (
+                "api-reference-captured" if current_coordinate else "api-reference-captured-no-coordinate"
+            ),
+            "ProofPointerFile": str(self._current_proof_pointer_file()),
+            "TargetDrift": {
+                "source": source,
+                "issues": issues,
+                "details": details or {},
+                "movementGate": "blocked",
+                "proofAnchorPromoted": False,
+                "reason": (
+                    "The live target changed underneath the cached proof pointer. "
+                    "The runner reacquired current API coordinate state but did not "
+                    "promote a movement-grade proof anchor."
+                ),
+            },
+            "PreservedHistoricalEvidence": (
+                details.get("preservedEvidence")
+                if isinstance(details, dict) and details.get("preservedEvidence")
+                else None
+            ),
+            "MovementGate": "blocked_until_current_process_proof_anchor_is_rebuilt_after_target_drift",
+            "SummaryFile": str(summary_path),
+            "NoCheatEngine": True,
+            "SavedVariablesUsedAsLiveTruth": False,
+            "Issues": issues,
+        }
+        if payload["PreservedHistoricalEvidence"] is None:
+            payload.pop("PreservedHistoricalEvidence")
+        write_json(summary_path, payload)
+        return payload
+
+    def _reference_coordinate(self, reference_file: Path) -> dict[str, Any] | None:
+        try:
+            data = json.loads(reference_file.read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - coordinate is best-effort reporting.
+            return None
+
+        coordinate = self._first_mapping_value(data, "CurrentCoordinate", "coordinate")
+        if not isinstance(coordinate, dict):
+            return None
+
+        x = self._first_mapping_value(coordinate, "X", "x")
+        y = self._first_mapping_value(coordinate, "Y", "y")
+        z = self._first_mapping_value(coordinate, "Z", "z")
+        if x is None or y is None or z is None:
+            return None
+        return {
+            "X": x,
+            "Y": y,
+            "Z": z,
+            "RecordedAtUtc": self._first_mapping_value(
+                coordinate,
+                "RecordedAtUtc",
+                "recordedAtUtc",
+                "captured_at_utc",
+            )
+            or self._first_mapping_value(data, "CapturedAtUtc", "captured_at_utc"),
+        }
+
+    @staticmethod
+    def _first_mapping_value(payload: Any, *names: str) -> Any:
+        if not isinstance(payload, dict):
+            return None
+        for name in names:
+            if name in payload:
+                return payload[name]
+        return None
+
+    def _extract_current_proof_pointer_evidence(self, pointer: dict[str, Any]) -> dict[str, Any] | None:
+        if not isinstance(pointer, dict):
+            return None
+
+        evidence: dict[str, Any] = {
+            "classification": "historical-target-epoch-evidence",
+            "reusePolicy": (
+                "do-not-use-as-current-proof; preserve for audit/reacquire hints only; "
+                "candidate addresses and readbacks must be rescored against the current PID/HWND"
+            ),
+        }
+        for key in (
+            "lastUpdatedUtc",
+            "status",
+            "target",
+            "riftscanCandidateSource",
+            "latestValidation",
+            "latestProofOnly",
+            "latestBaselineCapture",
+            "latestForward250",
+            "latestForwardSeries3x250",
+        ):
+            value = pointer.get(key)
+            if value:
+                evidence[key] = value
+
+        source = pointer.get("riftscanCandidateSource")
+        if isinstance(source, dict):
+            for key in (
+                "candidateId",
+                "matchFile",
+                "truthSummaryFile",
+                "inventoryFile",
+                "sessionPath",
+                "sourceAbsoluteAddressHex",
+                "sourceBaseAddressHex",
+                "sourceOffsetHex",
+            ):
+                value = source.get(key)
+                if value:
+                    evidence.setdefault("reacquireHints", {})[key] = value
+        return evidence if len(evidence) > 2 else None
+
+    @classmethod
+    def _target_drift_issues_from_command(cls, result: Any) -> list[str]:
+        collected: list[str] = []
+        payload = getattr(result, "json_data", None)
+        for issue in cls._json_issues(payload):
+            if cls._looks_like_target_drift_text(issue):
+                cls._append_unique(collected, issue)
+
+        text = "\n".join(
+            str(value or "")
+            for value in (
+                getattr(result, "stderr", None),
+                getattr(result, "stdout", None),
+                getattr(result, "parse_error", None),
+            )
+        )
+        if cls._looks_like_target_drift_text(text):
+            cls._append_unique(
+                collected,
+                "target_drift:current_proof_pointer_or_anchor_target_mismatch",
+            )
+            for line in text.splitlines():
+                clean = line.strip()
+                if clean and cls._looks_like_target_drift_text(clean):
+                    cls._append_unique(collected, clean)
+        return collected
+
+    @classmethod
+    def _is_target_drift_payload(cls, payload: dict[str, Any] | None) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        if str(payload.get("Status") or "") == BLOCKED_TARGET_DRIFT:
+            return True
+        return any(cls._looks_like_target_drift_text(issue) for issue in cls._json_issues(payload))
+
+    @staticmethod
+    def _looks_like_target_drift_text(value: Any) -> bool:
+        text = str(value or "").lower()
+        if not text:
+            return False
+        pointer_mismatch = (
+            "current proof pointer" in text
+            and (
+                "does not match requested pid" in text
+                or "does not match requested hwnd" in text
+                or "does not match requested process" in text
+                or "missing target metadata" in text
+                or "missing targetwindowhandle" in text
+                or "missing target processname" in text
+            )
+        )
+        target_window_drift = "target window handle" in text and (
+            "belongs to pid" in text
+            or "not pid" in text
+            or "not a valid window" in text
+        )
+        return pointer_mismatch or target_window_drift or any(
+            phrase in text
+            for phrase in (
+                "target_drift:",
+                "proof_anchor_pid_mismatch",
+                "proof_anchor_process_mismatch",
+                "window_pid_mismatch:",
+            )
+        )
+
+    @staticmethod
+    def _append_unique(items: list[str], value: Any) -> None:
+        text = str(value).strip()
+        if text and text not in items:
+            items.append(text)
+
     def _proof_anchor_file(self) -> str:
         return str(
             self.profile.get(
@@ -702,6 +1081,13 @@ class LiveTestRunner:
                 self.repo_root / "scripts" / "captures" / "telemetry-proof-coord-anchor.json",
             )
         )
+
+    def _resolve_path(self, value: Any) -> Path:
+        path = Path(str(value))
+        return path if path.is_absolute() else self.repo_root / path
+
+    def _proof_anchor_path(self) -> Path:
+        return self._resolve_path(self._proof_anchor_file())
 
     def _promotion_baseline_pool_file(self) -> Path:
         return Path(
@@ -737,11 +1123,173 @@ class LiveTestRunner:
             return path if path.is_absolute() else self.repo_root / path
         return self.repo_root / "docs" / "recovery" / "current-proof-anchor-readback.json"
 
+    def _current_proof_anchor(self) -> dict[str, Any] | None:
+        try:
+            anchor = json.loads(self._proof_anchor_path().read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - stale/missing anchor is not fatal for fallback lookup.
+            return None
+        return anchor if isinstance(anchor, dict) else None
+
+    def _target_issues_for_document(self, document: dict[str, Any], *, label: str) -> list[str]:
+        issues: list[str] = []
+        process_id = self._coerce_int(
+            self._first_mapping_value(document, "ProcessId", "processId", "pid")
+        )
+        process_name = self._first_mapping_value(document, "ProcessName", "processName")
+        window_handle = self._first_mapping_value(
+            document,
+            "TargetWindowHandle",
+            "targetWindowHandle",
+            "hwnd",
+        )
+        window_int = self._coerce_int(window_handle)
+        requested_window_int = self._coerce_int(self.target_window_handle)
+
+        if process_id is None or process_id != int(self.process_id):
+            issues.append(f"{label}_pid_mismatch:actual={process_id};expected={self.process_id}")
+
+        if process_name is None or not str(process_name).strip():
+            issues.append(f"{label}_process_name_missing")
+        else:
+            actual_name = self._normalize_process_name(str(process_name))
+            expected_name = self._normalize_process_name(self._process_name())
+            if actual_name.lower() != expected_name.lower():
+                issues.append(
+                    f"{label}_process_name_mismatch:actual={actual_name};expected={expected_name}"
+                )
+
+        if window_handle is None or not str(window_handle).strip():
+            issues.append(f"{label}_hwnd_missing")
+        elif (
+            window_int is not None
+            and requested_window_int is not None
+            and window_int != requested_window_int
+        ):
+            issues.append(f"{label}_hwnd_mismatch:actual=0x{window_int:X};expected=0x{requested_window_int:X}")
+        return issues
+
+    def _current_proof_anchor_candidate_id(self) -> str | None:
+        anchor = self._current_proof_anchor()
+        if not anchor or self._target_issues_for_document(anchor, label="proof_anchor"):
+            return None
+        evidence = anchor.get("Evidence")
+        if isinstance(evidence, dict) and evidence.get("CandidateId"):
+            return str(evidence["CandidateId"])
+        return None
+
+    def _proof_pose_candidate_file(self) -> Path | None:
+        explicit = self.profile.get("candidateFile")
+        if explicit:
+            return self._resolve_path(explicit)
+
+        anchor = self._current_proof_anchor()
+        if not anchor or self._target_issues_for_document(anchor, label="proof_anchor"):
+            return None
+
+        evidence = anchor.get("Evidence")
+        if not isinstance(evidence, dict):
+            return None
+
+        readback_files = evidence.get("ReadbackSummaryFiles")
+        if not isinstance(readback_files, list):
+            readback_files = []
+        for summary_value in reversed(readback_files):
+            source = self._source_candidate_file_from_readback_summary(summary_value)
+            if source is not None:
+                return source
+
+        return self._write_candidate_file_from_current_proof_anchor(anchor, evidence)
+
+    def _source_candidate_file_from_readback_summary(self, summary_value: Any) -> Path | None:
+        if not summary_value:
+            return None
+        summary_path = self._resolve_path(summary_value)
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - old summary may be missing; try the next one.
+            return None
+        if not isinstance(summary, dict):
+            return None
+        source_candidate_file = summary.get("SourceCandidateFile")
+        if not source_candidate_file:
+            return None
+        source_path = self._resolve_path(source_candidate_file)
+        return source_path if source_path.exists() else None
+
+    def _candidate_record_from_candidate_file(
+        self,
+        candidate_file: Path,
+        candidate_id: Any,
+    ) -> dict[str, Any] | None:
+        try:
+            data = json.loads(candidate_file.read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - candidate-file detail is best-effort metadata.
+            return None
+        candidates = data.get("candidates") if isinstance(data, dict) else None
+        if not isinstance(candidates, list):
+            return None
+        expected = str(candidate_id)
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            actual = self._first_mapping_value(candidate, "candidate_id", "candidateId", "id")
+            if actual is not None and str(actual) == expected:
+                return candidate
+        return None
+
+    def _write_candidate_file_from_current_proof_anchor(
+        self,
+        anchor: dict[str, Any],
+        evidence: dict[str, Any],
+    ) -> Path | None:
+        candidate_id = evidence.get("CandidateId")
+        address = evidence.get("CandidateAddressHex") or anchor.get("ObjectBaseAddress")
+        if not candidate_id or not address:
+            return None
+
+        candidate_file = self.run_dir / "current-proof-anchor-candidate-seed.json"
+        current = self._first_pose_candidate_sample(evidence)
+        payload: dict[str, Any] = {
+            "candidates": [
+                {
+                    "candidate_id": str(candidate_id),
+                    "source_base_address_hex": str(address),
+                    "source_offset_hex": "0x0",
+                    "source_absolute_address_hex": str(address),
+                    "axis_order": "xyz",
+                    "support_count": int(evidence.get("PoseCount") or 1),
+                    "validation_status": "current_proof_anchor_seed",
+                    "evidence_summary": (
+                        "Synthesized from a current-target proof anchor so stale recovery "
+                        "pointers cannot override newer same-PID/HWND evidence."
+                    ),
+                }
+            ]
+        }
+        if current:
+            payload["candidates"][0]["best_memory_x"] = current.get("X")
+            payload["candidates"][0]["best_memory_y"] = current.get("Y")
+            payload["candidates"][0]["best_memory_z"] = current.get("Z")
+        write_json(candidate_file, payload)
+        return candidate_file
+
+    @staticmethod
+    def _first_pose_candidate_sample(evidence: dict[str, Any]) -> dict[str, Any] | None:
+        poses = evidence.get("Poses")
+        if not isinstance(poses, list) or not poses:
+            return None
+        sample = poses[-1].get("CandidateSample") if isinstance(poses[-1], dict) else None
+        return sample if isinstance(sample, dict) else None
+
     def _candidate_id(self) -> str:
         source = str(self.profile.get("candidateIdSource", "current-proof-pointer")).lower()
         fallback = str(self.profile.get("candidateId", "rift-addon-coordinate-candidate-000001"))
         if source in {"profile", "config"}:
             return fallback
+
+        anchor_candidate = self._current_proof_anchor_candidate_id()
+        if anchor_candidate:
+            return anchor_candidate
 
         pointer_file = self._current_proof_pointer_file()
         try:
@@ -830,6 +1378,8 @@ class LiveTestRunner:
         return issues
 
     def _can_refresh_for(self, payload: dict[str, Any] | None) -> bool:
+        if self._is_target_drift_payload(payload):
+            return False
         if self.auto_refresh_attempts_used >= int(self.profile.get("maxAutoRefreshAttempts", 0)):
             return False
         issues = "\n".join(self._json_issues(payload))
@@ -853,6 +1403,8 @@ class LiveTestRunner:
     def _map_blocked_status(self, payload: dict[str, Any] | None, *, default: str) -> str:
         status = str(self._get(payload, "Status") or "")
         issues = "\n".join(self._json_issues(payload))
+        if self._is_target_drift_payload(payload):
+            return BLOCKED_TARGET_DRIFT
         if "proof_anchor_remaining_age_budget_too_low" in issues or "age-budget" in status:
             return BLOCKED_LOW_AGE_BUDGET
         if "proof_anchor_age_out_of_range" in issues:
@@ -861,9 +1413,33 @@ class LiveTestRunner:
             return BLOCKED_DRY_RUN
         if status == "input-failed":
             return INPUT_FAILED
+        if status == INPUT_NO_MOVEMENT:
+            return INPUT_NO_MOVEMENT
         if status == "blocked-post-readback":
             return POST_READBACK_FAILED
         return default
+
+    def _movement_delta_issue(self, payload: dict[str, Any] | None) -> str | None:
+        minimum = self._minimum_movement_planar_distance()
+        if minimum <= 0.0:
+            return None
+        if not isinstance(payload, dict) or not bool(self._get(payload, "MovementSent")):
+            return None
+
+        delta = self._get(payload, "CoordinateDelta")
+        planar = self._get(delta, "PlanarDistance") if isinstance(delta, dict) else None
+        if planar is None:
+            return f"movement_delta_missing:required={minimum:.6f}"
+        try:
+            planar_value = float(planar)
+        except (TypeError, ValueError):
+            return f"movement_delta_unreadable:actual={planar};required={minimum:.6f}"
+        if planar_value < minimum:
+            return (
+                "movement_delta_below_threshold:"
+                f"planar={planar_value:.6f};required={minimum:.6f}"
+            )
+        return None
 
     def _append_series_pulse(
         self,
@@ -1000,6 +1576,13 @@ class LiveTestRunner:
             summary["coordinateRecordings"] = self.coordinate_recordings
             summary["coordinateSamplesFile"] = self.coordinate_recordings[-1].get("samplesFile")
         summary["runProgressFile"] = str(self.progress_file)
+        self.current_proof_pointer_update = self._maybe_write_current_proof_pointer(
+            status,
+            summary=summary,
+            final_json=final_json,
+        )
+        if self.current_proof_pointer_update:
+            summary["currentProofPointerUpdate"] = self.current_proof_pointer_update
         write_json(self.run_dir / "run-summary.json", summary)
         if self.profile.get("writeMarkdownSummary", True):
             write_markdown_summary(self.run_dir / "run-summary.md", summary)
@@ -1011,6 +1594,282 @@ class LiveTestRunner:
             movement_attempted=movement_attempted,
         )
         return summary
+
+    def _maybe_write_current_proof_pointer(
+        self,
+        status: str,
+        *,
+        summary: dict[str, Any],
+        final_json: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if status != PASSED_PROOF_ONLY:
+            return None
+        if not bool(self.profile.get("updateCurrentProofPointer", True)):
+            return {
+                "updated": False,
+                "skipReason": "disabled_by_profile",
+            }
+        if not path_is_relative_to(self.run_dir, self.repo_root):
+            return {
+                "updated": False,
+                "skipReason": "output_root_outside_repo",
+            }
+
+        anchor = self._current_proof_anchor()
+        if not anchor:
+            return {
+                "updated": False,
+                "skipReason": "proof_anchor_missing_or_unreadable",
+            }
+        target_issues = self._target_issues_for_document(anchor, label="proof_anchor")
+        if target_issues:
+            return {
+                "updated": False,
+                "skipReason": "proof_anchor_target_mismatch",
+                "issues": target_issues,
+            }
+
+        evidence = anchor.get("Evidence")
+        if not isinstance(evidence, dict):
+            return {
+                "updated": False,
+                "skipReason": "proof_anchor_evidence_missing",
+            }
+
+        candidate_file = self._proof_pose_candidate_file()
+        candidate_id = evidence.get("CandidateId")
+        candidate_address = evidence.get("CandidateAddressHex") or anchor.get("ObjectBaseAddress")
+        if not candidate_file or not candidate_id or not candidate_address:
+            return {
+                "updated": False,
+                "skipReason": "candidate_source_unavailable",
+            }
+        candidate_record = self._candidate_record_from_candidate_file(candidate_file, candidate_id)
+        candidate_source_base = self._first_mapping_value(
+            candidate_record or {},
+            "base_address_hex",
+            "source_base_address_hex",
+            "region_id",
+        ) or evidence.get("RegionAddressHex") or anchor.get("CoordRegionAddress") or candidate_address
+        candidate_absolute = self._first_mapping_value(
+            candidate_record or {},
+            "absolute_address_hex",
+            "source_absolute_address_hex",
+        ) or candidate_address
+        candidate_offset = self._first_mapping_value(
+            candidate_record or {},
+            "offset_hex",
+            "source_offset_hex",
+        )
+        offset_int = self._coerce_int(candidate_offset)
+        if offset_int is None:
+            offset_int = self._coerce_int(evidence.get("CandidateOffsetInRegion"))
+        if offset_int is None:
+            base_int = self._coerce_int(candidate_source_base)
+            absolute_int = self._coerce_int(candidate_absolute)
+            if base_int is not None and absolute_int is not None and absolute_int >= base_int:
+                offset_int = absolute_int - base_int
+        candidate_offset_hex = f"0x{offset_int:X}" if offset_int is not None else "0x0"
+        candidate_support = self._coerce_int(
+            self._first_mapping_value(
+                candidate_record or {},
+                "support_count",
+                "snapshot_support",
+                "observation_support_count",
+            )
+        )
+        if candidate_support is None:
+            candidate_support = self._coerce_int(evidence.get("PoseCount")) or 1
+        candidate_best_distance = self._first_mapping_value(
+            candidate_record or {},
+            "best_max_abs_distance",
+            "bestMaxAbsDistance",
+        )
+
+        readback_summary_file = self._get(final_json, "SummaryFile") if final_json else None
+        pointer_file = self._current_proof_pointer_file()
+        pointer_file.parent.mkdir(parents=True, exist_ok=True)
+        existing_pointer = self._load_json_object(pointer_file)
+        archived_pointer = self._archive_existing_current_pointer_if_target_changed(
+            pointer_file,
+            existing_pointer,
+        )
+        payload = {
+            "schemaVersion": 1,
+            "mode": "current-proof-anchor-readback-pointer",
+            "status": "current-target-proofonly-passed",
+            "lastUpdatedUtc": datetime.now(timezone.utc).isoformat(),
+            "target": {
+                "processName": self._process_name(),
+                "processId": self.process_id,
+                "targetWindowHandle": self.target_window_handle,
+            },
+            "currentTruthClassification": {
+                "classification": "current-live-target-proof-anchor",
+                "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+                "staleProtection": (
+                    "This pointer is updated only from same-PID/HWND ProofOnly success; "
+                    "mismatched PID/HWND artifacts are historical-only."
+                ),
+                "savedVariablesUsedAsLiveTruth": False,
+                "noCheatEngine": True,
+            },
+            "riftscanCandidateSource": {
+                "sourceKind": "current-proof-anchor-candidate-file",
+                "compatibilityNote": (
+                    "Field name is retained for existing pointer consumers; the candidate file may be "
+                    "RiftReader-owned evidence and must still be gated by current proof-anchor/readback."
+                ),
+                "riftScanRoot": None,
+                "matchFile": str(candidate_file),
+                "candidateId": str(candidate_id),
+                "sourceBaseAddressHex": str(candidate_source_base),
+                "sourceOffsetHex": candidate_offset_hex,
+                "sourceAbsoluteAddressHex": str(candidate_absolute),
+                "axisOrder": str(
+                    self._first_mapping_value(candidate_record or {}, "axis_order", "axisOrder")
+                    or "xyz"
+                ),
+                "supportCount": int(candidate_support),
+                "proofSupportCount": int(self._coerce_int(evidence.get("PoseCount")) or 1),
+                "bestMaxAbsDistance": (
+                    candidate_best_distance
+                    if candidate_best_distance is not None
+                    else self._get(self._get(anchor, "Match"), "MaxDeltaError")
+                ),
+                "promotedByProofAnchor": True,
+                "proofAnchorFile": str(self._proof_anchor_path()),
+                "notes": [
+                    "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
+                    "Do not treat this pointer as valid after a client restart unless target metadata still matches.",
+                ],
+            },
+            "latestValidation": {
+                "status": self._get(final_json, "Status") if final_json else None,
+                "movementAllowed": self._get(final_json, "MovementAllowed") if final_json else None,
+                "movementSent": False,
+                "noCheatEngine": True,
+                "readbackSummaryFile": readback_summary_file,
+                "proofAnchorFile": str(self._proof_anchor_path()),
+                "proofAnchorCandidateId": str(candidate_id),
+                "proofAnchorCandidateAddressHex": str(candidate_address),
+                "currentCoordinate": self._coordinate(self._get(final_json, "CurrentCoordinate")),
+                "generatedAtUtc": self._get(final_json, "GeneratedAtUtc") if final_json else None,
+            },
+            "latestProofOnly": {
+                "runSummaryFile": str(self.run_dir / "run-summary.json"),
+                "status": status,
+                "generatedAtUtc": summary.get("generatedAtUtc"),
+                "movementSent": False,
+                "movementAttempted": False,
+                "currentCoordinate": summary.get("currentCoordinate"),
+                "coordinateDelta": None,
+                "readbackSummaryFile": readback_summary_file,
+            },
+            "runtimePointers": {
+                "latestRuntimePointer": str(self.latest_pointer_file),
+                "proofCoordAnchorCacheFile": str(self._proof_anchor_path()),
+            },
+            "notes": [
+                "Auto-written after ProofOnly passed for the exact current target.",
+                "This file is a current pointer, not an immutable historical record.",
+            ],
+        }
+        if archived_pointer:
+            payload["historicalSupersededPointer"] = archived_pointer
+        elif isinstance(existing_pointer, dict) and isinstance(
+            existing_pointer.get("historicalSupersededPointer"),
+            dict,
+        ):
+            payload["historicalSupersededPointer"] = existing_pointer["historicalSupersededPointer"]
+
+        if isinstance(existing_pointer, dict) and self._pointer_target_matches_current(existing_pointer):
+            for name in (
+                "latestForward250",
+                "latestForwardSeries3x250",
+                "latestDefaultPointerProofPose",
+            ):
+                if name in existing_pointer:
+                    payload[name] = existing_pointer[name]
+        write_json(pointer_file, payload)
+        return {
+            "updated": True,
+            "path": str(pointer_file),
+            "archivedSupersededPointer": archived_pointer,
+        }
+
+    @staticmethod
+    def _load_json_object(path: Path) -> dict[str, Any] | None:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - missing/unreadable pointer should not block a fresh proof.
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _pointer_target_matches_current(self, pointer: dict[str, Any]) -> bool:
+        target = pointer.get("target") if isinstance(pointer.get("target"), dict) else {}
+        if not isinstance(target, dict):
+            return False
+        pointer_pid = self._coerce_int(
+            self._first_mapping_value(target, "processId", "ProcessId", "pid")
+        )
+        pointer_hwnd = self._coerce_int(
+            self._first_mapping_value(target, "targetWindowHandle", "TargetWindowHandle", "hwnd")
+        )
+        expected_hwnd = self._coerce_int(self.target_window_handle)
+        return (
+            pointer_pid == int(self.process_id)
+            and pointer_hwnd is not None
+            and expected_hwnd is not None
+            and pointer_hwnd == expected_hwnd
+        )
+
+    def _archive_existing_current_pointer_if_target_changed(
+        self,
+        pointer_file: Path,
+        existing_pointer: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not isinstance(existing_pointer, dict) or self._pointer_target_matches_current(existing_pointer):
+            return None
+        target = existing_pointer.get("target") if isinstance(existing_pointer.get("target"), dict) else {}
+        old_pid = self._coerce_int(
+            self._first_mapping_value(target, "processId", "ProcessId", "pid")
+        )
+        old_hwnd = self._coerce_int(
+            self._first_mapping_value(target, "targetWindowHandle", "TargetWindowHandle", "hwnd")
+        )
+        pid_segment = str(old_pid) if old_pid is not None else "unknown"
+        hwnd_segment = f"{old_hwnd:X}" if old_hwnd is not None else "unknown"
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        archive_file = (
+            pointer_file.parent
+            / "historical"
+            / f"current-proof-anchor-readback-{stamp}-pid{pid_segment}-hwnd{hwnd_segment}-historical.json"
+        )
+        archive_file.parent.mkdir(parents=True, exist_ok=True)
+        if not archive_file.exists():
+            archive_payload = dict(existing_pointer)
+            archive_payload["historicalClassification"] = {
+                "classification": "historical-target-epoch-evidence",
+                "archivedAtUtc": datetime.now(timezone.utc).isoformat(),
+                "supersededBy": {
+                    "processName": self._process_name(),
+                    "processId": self.process_id,
+                    "targetWindowHandle": self.target_window_handle,
+                },
+                "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only",
+            }
+            write_json(archive_file, archive_payload)
+        return {
+            "path": str(archive_file),
+            "classification": "historical-target-epoch-evidence",
+            "supersededTarget": {
+                "processName": self._first_mapping_value(target, "processName", "ProcessName"),
+                "processId": old_pid,
+                "targetWindowHandle": f"0x{old_hwnd:X}" if old_hwnd is not None else None,
+            },
+            "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only",
+        }
 
     def _write_progress(self, status: str, *, final_json: dict[str, Any] | None = None) -> None:
         post = self._get(final_json, "PostReadback") if final_json else None
@@ -1063,6 +1922,8 @@ class LiveTestRunner:
             snapshot["gui"] = self.gui_info
         if self.latest_child_command:
             snapshot["latestChildCommand"] = self.latest_child_command
+        if self.current_proof_pointer_update:
+            snapshot["currentProofPointerUpdate"] = self.current_proof_pointer_update
         if self.series_pulses:
             snapshot["seriesPulses"] = self.series_pulses
             snapshot["requestedPulseCount"] = int(
@@ -1112,6 +1973,7 @@ class LiveTestRunner:
                 "runSummaryFileInsideRepo": metadata["runSummaryFileInsideRepo"],
                 "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
                 "finalSummaryWritten": (self.run_dir / "run-summary.json").exists(),
+                "currentProofPointerUpdate": self.current_proof_pointer_update,
             },
         )
 
@@ -1172,6 +2034,8 @@ class LiveTestRunner:
                 "minimumPostReadbackAgeBudgetSeconds"
             ),
             "referenceMaxAgeSeconds": self.profile.get("referenceMaxAgeSeconds"),
+            "minimumMovementPlanarDistance": self._minimum_movement_planar_distance(),
+            "inputBackend": self.profile.get("inputBackend", "window-message"),
             "candidateId": self._candidate_id(),
             "candidateIdSource": self.profile.get("candidateIdSource", "current-proof-pointer"),
             "maxAutoRefreshAttempts": int(self.profile.get("maxAutoRefreshAttempts", 0)),
@@ -1183,6 +2047,12 @@ class LiveTestRunner:
             "noCheatEngine": True,
             "savedVariablesLiveTruthAllowed": False,
         }
+
+    def _minimum_movement_planar_distance(self) -> float:
+        try:
+            return max(0.0, float(self.profile.get("minimumMovementPlanarDistance", 0.0)))
+        except (TypeError, ValueError):
+            return 0.0
 
     def _run_health(
         self,

@@ -19,7 +19,7 @@ Usage:
   RiftReader.Reader [--pid <processId> | --process-name <name>] --read-player-orientation [--owner-components-file <path>] [--json]
   RiftReader.Reader --process-name <name> --capture-readerbridge-best-family [--capture-label <text>] [--capture-file <path>] [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-current [--scan-context <bytes>] [--max-hits <count>] [--json]
-  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
+  RiftReader.Reader --process-name <name> --find-player-orientation-candidate [--readerbridge-snapshot-file <path>] [--orientation-candidate-ledger-file <path>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-player-coord-anchor [--player-coord-trace-file <path>] [--json]
   RiftReader.Reader --process-name <name> --read-target-current [--scan-context <bytes>] [--max-hits <count>] [--json]
   RiftReader.Reader --process-name <name> --read-navigation-current --destination-waypoint <id> [--navigation-waypoint-file <path>] [--arrival-radius <distance>] [--scan-context <bytes>] [--max-hits <count>] [--json]
@@ -57,6 +57,7 @@ Notes:
   - Use --capture-readerbridge-best-family to read the current live values for the top grouped player-signature family and optionally append them to a TSV file.
   - Use --read-player-current to read the current best player-family sample directly from memory and compare it against the latest ReaderBridge export.
   - Use --find-player-orientation-candidate to do a single-process read-only search for live actor/source candidates near current player coordinate hits.
+  - Use --readerbridge-snapshot-file with modes that need an explicit ReaderBridge/bootstrap snapshot; by itself it prints that snapshot.
   - Use --orientation-candidate-ledger-file to downrank candidates that prior live stimulus runs already marked as stable but nonresponsive.
   - Use --read-target-current to read the current target snapshot from memory and compare it against the latest ReaderBridge export.
   - Use --read-navigation-current with --destination-waypoint to summarize the live vector from the current player position to a configured waypoint.
@@ -1175,7 +1176,6 @@ Examples:
                     }
 
                     readerBridgeSnapshotFile = readerBridgeSnapshotFileValue;
-                    readReaderBridgeSnapshot = true;
                     break;
 
                 case "--json":
@@ -1198,6 +1198,41 @@ Examples:
             scanInt32.HasValue ||
             scanFloat.HasValue ||
             scanDouble.HasValue;
+
+        var explicitOperationRequested =
+            sessionSummary ||
+            rankOwnerComponents ||
+            rankStatHubs ||
+            cheatEngineStatHubs ||
+            readPlayerOrientation ||
+            readAddonSnapshot ||
+            readReaderBridgeSnapshot ||
+            captureNavigationWaypoint ||
+            planNavigationRoute ||
+            navigateWaypointRoute ||
+            navigateWaypoints ||
+            readPlayerCurrent ||
+            readPlayerCoordAnchor ||
+            readTargetCurrent ||
+            readNavigationCurrent ||
+            captureReaderBridgeBestFamily ||
+            writeCheatEngineProbe ||
+            recordSession ||
+            listModules ||
+            scanRequested ||
+            findPlayerOrientationCandidate ||
+            telemetryPreflight ||
+            runTelemetryHost ||
+            importTomTomWaypoints ||
+            address.HasValue ||
+            length.HasValue;
+
+        if (!readReaderBridgeSnapshot &&
+            !string.IsNullOrWhiteSpace(readerBridgeSnapshotFile) &&
+            !explicitOperationRequested)
+        {
+            readReaderBridgeSnapshot = true;
+        }
 
         var scanTargetCount = 0;
         if (!string.IsNullOrWhiteSpace(scanString)) scanTargetCount++;
@@ -2461,7 +2496,7 @@ Examples:
                     ReadAddonSnapshot: false,
                     AddonSnapshotFile: null,
                     ReadReaderBridgeSnapshot: false,
-                    ReaderBridgeSnapshotFile: null,
+                    ReaderBridgeSnapshotFile: readerBridgeSnapshotFile,
                     JsonOutput: jsonOutput,
                     FindPlayerOrientationCandidate: findPlayerOrientationCandidate,
                     OrientationCandidateLedgerFile: orientationCandidateLedgerFile,

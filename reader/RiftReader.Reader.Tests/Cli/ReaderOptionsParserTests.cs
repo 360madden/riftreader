@@ -44,6 +44,44 @@ public sealed class ReaderOptionsParserTests
     }
 
     [Fact]
+    public void Parse_AcceptsFindPlayerOrientationCandidateWithExplicitReaderBridgeSnapshotFile()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--pid", "49504",
+            "--readerbridge-snapshot-file", @"C:\temp\readerbridge-bootstrap.lua",
+            "--find-player-orientation-candidate",
+            "--max-hits", "16",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.FindPlayerOrientationCandidate);
+        Assert.False(options.ReadReaderBridgeSnapshot);
+        Assert.Equal(49504, options.ProcessId);
+        Assert.Equal(@"C:\temp\readerbridge-bootstrap.lua", options.ReaderBridgeSnapshotFile);
+        Assert.Equal(16, options.MaxHits);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_TreatsReaderBridgeSnapshotFileAloneAsSnapshotMode()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--readerbridge-snapshot-file", @"C:\temp\readerbridge-bootstrap.lua",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.True(options.ReadReaderBridgeSnapshot);
+        Assert.Equal(@"C:\temp\readerbridge-bootstrap.lua", options.ReaderBridgeSnapshotFile);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
     public void Parse_RejectsOrientationCandidateLedgerFileOutsideFindPlayerOrientationCandidateMode()
     {
         var result = ReaderOptionsParser.Parse(

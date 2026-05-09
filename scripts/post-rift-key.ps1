@@ -10,7 +10,8 @@ param(
     [string]$BackgroundProcessName = "",
     [int]$InterKeyDelayMilliseconds = 20,
     [switch]$SkipBackgroundFocus,
-    [switch]$RequireTargetForeground
+    [switch]$RequireTargetForeground,
+    [switch]$UseWindowMessage
 )
 
 Set-StrictMode -Version Latest
@@ -533,7 +534,8 @@ if ($targetOwnerProcessId -ne $targetProcess.Id) {
 
 $effectiveTargetHandle = Get-EffectiveTargetHandle -TopWindowHandle $targetHandle -TargetThreadId $targetThreadId -TargetProcessId $targetProcess.Id
 $binding = Resolve-KeyBinding -KeyText $Key
-$useSendInput = $RequireTargetForeground.IsPresent
+$useSendInput = $RequireTargetForeground.IsPresent -and -not $UseWindowMessage.IsPresent
+$inputMethodLabel = if ($useSendInput) { 'SendInput' } else { 'WindowMessage' }
 $targetExeName = if ($targetProcess.ProcessName.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
     $targetProcess.ProcessName
 }
@@ -547,6 +549,7 @@ Write-Host "[RiftKey] Target thread : $targetThreadId"
 Write-Host ("[RiftKey] Input target  : 0x{0:X}" -f $effectiveTargetHandle.ToInt64())
 Write-Host "[RiftKey] Key           : $Key"
 Write-Host "[RiftKey] Hold ms       : $HoldMilliseconds"
+Write-Host "[RiftKey] Input method  : $inputMethodLabel"
 
 if (-not $SkipBackgroundFocus -and -not [string]::IsNullOrWhiteSpace($BackgroundProcessName)) {
     $backgroundProcess = $null

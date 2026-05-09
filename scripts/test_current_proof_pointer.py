@@ -27,6 +27,24 @@ class CurrentProofPointerTests(unittest.TestCase):
         self.assertTrue(latest_proof.get("runSummaryFile"))
         self.assertTrue(latest_proof.get("readbackSummaryFile"))
 
+        latest_runtime_pointer = repo_root / "scripts" / "captures" / "latest-live-test-run.json"
+        if not latest_runtime_pointer.exists():
+            return
+
+        runtime_pointer = json.loads(latest_runtime_pointer.read_text(encoding="utf-8-sig"))
+        run_summary_file = runtime_pointer.get("runSummaryFile")
+        if not run_summary_file or not Path(run_summary_file).exists():
+            return
+
+        run_summary = json.loads(Path(run_summary_file).read_text(encoding="utf-8-sig"))
+        runtime_pid = int(run_summary.get("processId") or 0)
+        runtime_hwnd = str(run_summary.get("targetWindowHandle") or "").lower()
+        pointer_pid = int(pointer["target"].get("processId") or 0)
+        pointer_hwnd = str(pointer["target"].get("targetWindowHandle") or "").lower()
+
+        self.assertEqual(pointer_pid, runtime_pid)
+        self.assertEqual(pointer_hwnd, runtime_hwnd)
+
 
 if __name__ == "__main__":
     unittest.main()

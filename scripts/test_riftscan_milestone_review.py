@@ -118,24 +118,56 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _write_latest_live_pointer(root: Path) -> None:
+    def _write_latest_live_pointer(
+        root: Path,
+        *,
+        pid: int = 123,
+        hwnd: str = "0xABC",
+        status: str = "passed-proof-only",
+        profile_name: str = "ProofOnly",
+        movement_sent: bool = False,
+    ) -> None:
         latest_live_pointer = root / "scripts" / "captures" / "latest-live-test-run.json"
-        live_summary = root / "scripts" / "captures" / "live-test-ProofOnly-demo" / "run-summary.json"
-        live_progress = root / "scripts" / "captures" / "live-test-ProofOnly-demo" / "run-progress.json"
+        live_summary = root / "scripts" / "captures" / f"live-test-{profile_name}-demo" / "run-summary.json"
+        live_progress = root / "scripts" / "captures" / f"live-test-{profile_name}-demo" / "run-progress.json"
         live_summary.parent.mkdir(parents=True, exist_ok=True)
-        live_summary.write_text('{"status":"passed-proof-only"}\n', encoding="utf-8")
-        live_progress.write_text('{"status":"passed-proof-only"}\n', encoding="utf-8")
+        live_summary.write_text(
+            json.dumps(
+                {
+                    "status": status,
+                    "processName": "rift_x64",
+                    "processId": pid,
+                    "targetWindowHandle": hwnd,
+                    "movementSent": movement_sent,
+                    "noCheatEngine": True,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        live_progress.write_text(
+            json.dumps(
+                {
+                    "status": status,
+                    "processName": "rift_x64",
+                    "processId": pid,
+                    "targetWindowHandle": hwnd,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         latest_live_pointer.write_text(
             json.dumps(
                 {
                     "runSummaryFile": str(live_summary),
                     "runProgressFile": str(live_progress),
                     "runDirectory": str(live_summary.parent),
-                    "profileName": "ProofOnly",
-                    "status": "passed-proof-only",
+                    "profileName": profile_name,
+                    "status": status,
                     "runHealth": {
                         "ok": True,
-                        "movementSent": False,
+                        "movementSent": movement_sent,
                         "noCheatEngine": True,
                     },
                     "generatedAtUtc": "2026-05-08T10:31:44Z",
@@ -209,6 +241,53 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
             self.assertEqual(review["strategy"]["decision"], "block")
             self.assertIn("pointer_pid_mismatch:actual=123;expected=456", review["issues"])
             self.assertFalse(review["strategy"]["readOnlyProofAllowedByReview"])
+
+    def test_review_infers_latest_live_target_instead_of_stale_docs_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            old_match = riftscan / "reports" / "generated" / "currentpid-123-old-addon-coordinate-matches.json"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            self._write_match(old_match, pid=123)
+            self._write_pointer(pointer, match_file=old_match, pid=123, hwnd="0xABC")
+            self._write_latest_live_pointer(
+                root,
+                pid=456,
+                hwnd="0xDEF",
+                status="passed",
+                profile_name="ForwardSeries3x250",
+                movement_sent=True,
+            )
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["requestedTarget"]["processId"], 456)
+            self.assertEqual(review["requestedTarget"]["targetWindowHandle"], "0xDEF")
+            self.assertEqual(review["targetInference"]["source"], "runSummaryFile")
+            self.assertEqual(review["status"], "blocked")
+            self.assertIn("pointer_pid_mismatch:actual=123;expected=456", review["issues"])
+            self.assertIn("pointer_hwnd_mismatch:actual=0xABC;expected=0xDEF", review["issues"])
+            self.assertNotEqual(review["selectedCandidate"]["source"], "current-proof-pointer")
+            self.assertEqual(
+                review["nextCommands"]["freshProofOnly"],
+                [
+                    "python",
+                    str(root / "scripts" / "live_test.py"),
+                    "--profile",
+                    "ProofOnly",
+                    "--pid",
+                    "456",
+                    "--hwnd",
+                    "0xDEF",
+                    "--process-name",
+                    "rift_x64",
+                ],
+            )
 
     def test_review_writers_refuse_riftscan_output_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

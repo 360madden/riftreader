@@ -30,7 +30,8 @@
     "maxEvidenceAgeSeconds": 0,
     "outputRoot": "scripts/captures",
     "maxHoldMilliseconds": 1000,
-    "maxPulseCount": 3
+    "maxPulseCount": 3,
+    "inputBackend": "window-message"
   },
   "profiles": {
     "ProofOnly": {
@@ -47,6 +48,7 @@
     },
     "Forward250": {
       "mode": "live-input",
+      "minimumMovementPlanarDistance": 0.05,
       "input": {
         "key": "w",
         "holdMilliseconds": 250,
@@ -65,6 +67,7 @@
     },
     "ForwardSeries3x250": {
       "mode": "live-input-series",
+      "minimumMovementPlanarDistance": 0.05,
       "input": {
         "key": "w",
         "holdMilliseconds": 250,

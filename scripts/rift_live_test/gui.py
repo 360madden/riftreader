@@ -1385,7 +1385,7 @@ class ProgressHud:
             "ok"
             if payload.get("movementSent")
             else "bad"
-            if status in {"input-failed", "partial-series-stopped"}
+            if status in {"input-failed", "input-no-movement", "partial-series-stopped"}
             else "idle",
         )
         self._set_light("recorder", "ok" if payload.get("coordinateRecordings") else "idle")
@@ -1417,7 +1417,12 @@ def status_color(status: str) -> str:
     text = status.lower()
     if text.startswith("passed"):
         return "ok"
-    if text.startswith("blocked") or text.startswith("failed") or text.endswith("failed"):
+    if (
+        text.startswith("blocked")
+        or text.startswith("failed")
+        or text.endswith("failed")
+        or "no-movement" in text
+    ):
         return "bad"
     if "partial" in text or "refresh" in text or text == "running":
         return "warn"

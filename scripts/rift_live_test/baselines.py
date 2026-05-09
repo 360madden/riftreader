@@ -121,6 +121,13 @@ def summary_is_compatible(
     return not issues, issues
 
 
+def issues_are_target_epoch_only(issues: list[str]) -> bool:
+    if not issues:
+        return False
+    target_prefixes = ("pid_mismatch:", "hwnd_mismatch:", "process_name_mismatch:")
+    return all(any(issue.startswith(prefix) for prefix in target_prefixes) for issue in issues)
+
+
 def load_pool_entries(pool_file: Path) -> list[dict[str, Any]]:
     if not pool_file.exists():
         return []
@@ -214,7 +221,14 @@ def select_baselines_for_fresh_summary(
             candidate_id=candidate_id,
         )
         if not compatible:
-            item["status"] = "incompatible"
+            if issues_are_target_epoch_only(issues):
+                item["status"] = "historical-target-mismatch"
+                item["reusePolicy"] = (
+                    "preserve-as-historical-evidence-only; do not use for "
+                    "current-process promotion unless reacquired and rescored"
+                )
+            else:
+                item["status"] = "incompatible"
             item["issues"] = issues
             candidates.append(item)
             continue

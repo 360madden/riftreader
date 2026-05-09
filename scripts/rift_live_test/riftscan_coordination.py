@@ -420,7 +420,7 @@ def choose_candidate(
             "candidateFile": pointer_match_summary["path"],
             "candidateId": pointer_candidate_id,
             "recommendedAction": "use-existing-pointer-candidate-with-fresh-proof",
-            "why": "The current RiftReader proof pointer references an existing RiftScan match file with the expected candidate schema for the requested target.",
+            "why": "The current RiftReader proof pointer references an existing candidate file with the expected schema for the requested target.",
         }
 
     for match in latest_matches:

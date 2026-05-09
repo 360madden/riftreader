@@ -332,6 +332,67 @@ function Resolve-CandidateFile {
     }
 }
 
+function Test-TargetDriftMessage {
+    param([string]$Message)
+
+    $text = [string]$Message
+    return ($text -like "Current proof pointer * target PID * does not match requested PID *" -or
+        $text -like "Current proof pointer * target HWND * does not match requested HWND *" -or
+        $text -like "Current proof pointer * target process * does not match requested process *" -or
+        $text -like "Current proof pointer * is missing target metadata*" -or
+        $text -like "Current proof pointer * is missing target processName*" -or
+        $text -like "Current proof pointer * is missing targetWindowHandle*")
+}
+
+function Get-PreservedHistoricalPointerEvidence {
+    param([string]$PointerPath)
+
+    $evidence = [ordered]@{
+        classification = 'historical-target-epoch-evidence'
+        reusePolicy = 'do-not-use-as-current-proof; preserve for audit/reacquire hints only; candidate addresses and readbacks must be rescored against the current PID/HWND'
+        pointerFile = $PointerPath
+    }
+
+    if (-not (Test-Path -LiteralPath $PointerPath -PathType Leaf)) {
+        $evidence['readStatus'] = 'missing'
+        return [pscustomobject]$evidence
+    }
+
+    try {
+        $pointer = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $PointerPath -Raw) -Depth 80
+    }
+    catch {
+        $evidence['readStatus'] = 'unreadable'
+        $evidence['readError'] = $_.Exception.Message
+        return [pscustomobject]$evidence
+    }
+
+    $evidence['readStatus'] = 'read'
+    foreach ($name in @('lastUpdatedUtc', 'status', 'target', 'riftscanCandidateSource', 'latestValidation', 'latestProofOnly', 'latestBaselineCapture', 'latestForward250', 'latestForwardSeries3x250')) {
+        $value = Get-JsonPropertyValue -InputObject $pointer -Names @($name)
+        if ($null -ne $value) {
+            $evidence[$name] = ConvertTo-JsonSafeValue -Value $value
+        }
+    }
+
+    $source = Get-JsonPropertyValue -InputObject $pointer -Names @('riftscanCandidateSource')
+    if ($null -ne $source) {
+        $hints = [ordered]@{}
+        foreach ($name in @('candidateId', 'matchFile', 'truthSummaryFile', 'inventoryFile', 'sessionPath', 'sourceAbsoluteAddressHex', 'sourceBaseAddressHex', 'sourceOffsetHex')) {
+            $value = Get-JsonPropertyValue -InputObject $source -Names @($name)
+            if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
+                $hints[$name] = [string]$value
+            }
+        }
+
+        if ($hints.Count -gt 0) {
+            $evidence['reacquireHints'] = [pscustomobject]$hints
+        }
+    }
+
+    return [pscustomobject]$evidence
+}
+
 function ConvertTo-SafePathSegment {
     param([string]$Value)
 
@@ -353,8 +414,6 @@ if ($ReferenceMaxAgeSeconds -lt 0 -or $ReadbackSampleCount -le 0 -or $ReadbackIn
     throw "ReferenceMaxAgeSeconds must be zero or greater; ReadbackSampleCount and TopReferenceMatches must be greater than zero; ReadbackIntervalMilliseconds must be zero or greater."
 }
 
-$candidateResolution = Resolve-CandidateFile
-$resolvedCandidateFile = [string]$candidateResolution.CandidateFile
 $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
@@ -403,6 +462,94 @@ else {
         throw "Reference file was not found: $resolvedReferenceFile"
     }
 }
+
+$candidateResolution = $null
+try {
+    $candidateResolution = Resolve-CandidateFile
+}
+catch {
+    if (-not (Test-TargetDriftMessage -Message $_.Exception.Message)) {
+        throw
+    }
+
+    $pointerPath = [System.IO.Path]::GetFullPath($CurrentProofPointerFile)
+    $targetDriftSummary = [pscustomobject][ordered]@{
+        SchemaVersion = 1
+        Mode = 'riftscan-proof-pose-capture'
+        GeneratedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        Status = 'blocked-target-drift'
+        PoseLabel = $PoseLabel
+        ProcessName = $ProcessName
+        ProcessId = $ProcessId
+        TargetWindowHandle = $TargetWindowHandle
+        NoCheatEngine = $true
+        MovementSent = $false
+        MovementAllowed = $false
+        CandidateFile = $null
+        CandidateResolvedFromPointer = $false
+        CurrentProofPointerFile = $pointerPath
+        CandidateSource = $null
+        ReferenceCaptured = (-not [string]::IsNullOrWhiteSpace($resolvedReferenceFile) -and (Test-Path -LiteralPath $resolvedReferenceFile -PathType Leaf))
+        ReferenceFile = $resolvedReferenceFile
+        ReferenceCaptureExitCode = if ($null -eq $referenceCommand) { $null } else { $referenceCommand.ExitCode }
+        ReferenceCaptureError = $referenceCaptureError
+        ReadbackSummaryFile = $null
+        OutputRoot = $poseOutputRoot
+        CurrentCoordinate = if ($null -eq $referenceSummary) {
+            $null
+        }
+        else {
+            ConvertTo-JsonSafeValue -Value (Get-JsonPropertyValue -InputObject $referenceSummary -Names @('Coordinate', 'CurrentCoordinate', 'coordinate'))
+        }
+        TargetDrift = [pscustomobject][ordered]@{
+            source = 'current-proof-pointer-target-check'
+            issues = @("target_drift:current_proof_pointer_target_mismatch:$($_.Exception.Message)")
+            movementGate = 'blocked'
+            proofAnchorPromoted = $false
+            reason = 'Current proof pointer belongs to a different target epoch. Current API/reference state was reacquired when available, but movement remains blocked until candidates are rescored against the requested PID/HWND.'
+        }
+        PreservedHistoricalEvidence = Get-PreservedHistoricalPointerEvidence -PointerPath $pointerPath
+        MovementGate = 'blocked_until_current_process_proof_anchor_is_rebuilt_after_target_drift'
+        ReadbackWarningCount = 0
+        ReadbackWarnings = @()
+        WarningCount = 4
+        Warnings = @(
+            'This helper sends no input and uses no Cheat Engine path.',
+            'SavedVariables are not used as live truth.',
+            'The current proof pointer is historical for this target and cannot gate movement.',
+            'Historical pointer data is preserved only as audit/reacquire hints.'
+        )
+        Commands = [pscustomobject][ordered]@{
+            Reference = if ($null -eq $referenceCommand) {
+                $null
+            }
+            else {
+                [pscustomobject][ordered]@{
+                    FilePath = $referenceCommand.FilePath
+                    Arguments = @($referenceCommand.Arguments)
+                    ExitCode = $referenceCommand.ExitCode
+                }
+            }
+            Readback = $null
+        }
+    }
+
+    if ($Json) {
+        $targetDriftSummary | ConvertTo-Json -Depth 32
+        exit 1
+    }
+
+    Write-Host 'RiftScan proof pose capture blocked by target drift.' -ForegroundColor Yellow
+    Write-Host ("Status:       {0}" -f $targetDriftSummary.Status)
+    Write-Host ("PID/HWND:     {0} / {1}" -f $targetDriftSummary.ProcessId, $targetDriftSummary.TargetWindowHandle)
+    Write-Host ("Reference:    {0}" -f $targetDriftSummary.ReferenceFile)
+    Write-Host ("Issue:        {0}" -f (($targetDriftSummary.TargetDrift.Issues) -join '; '))
+    Write-Host 'Movement:     blocked; no input sent'
+    Write-Host 'CE usage:     none'
+    exit 1
+}
+
+$resolvedCandidateFile = [string]$candidateResolution.CandidateFile
 
 $readbackArgs = @(
     '-CandidateFile',

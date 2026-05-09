@@ -55,7 +55,9 @@ from rift_live_test.status import (
     BLOCKED_LIVE_FLAG_REQUIRED,
     BLOCKED_PROMOTION_REFERENCE_MISMATCH,
     BLOCKED_REFERENCE_CAPTURE,
+    BLOCKED_TARGET_DRIFT,
     BLOCKED_TARGET_MISMATCH,
+    INPUT_NO_MOVEMENT,
 )
 from rift_live_test.target import verify_target
 
@@ -227,6 +229,19 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                         "noCheatEngine": True,
                         "savedVariablesUsedAsLiveTruth": False,
                     },
+                    "currentProofPointerUpdate": {
+                        "updated": True,
+                        "path": str(Path(temp) / "docs" / "recovery" / "current-proof-anchor-readback.json"),
+                        "archivedSupersededPointer": {
+                            "path": str(
+                                Path(temp)
+                                / "docs"
+                                / "recovery"
+                                / "historical"
+                                / "old-pointer.json"
+                            )
+                        },
+                    },
                     "states": [],
                 },
             )
@@ -235,6 +250,9 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertIn("## Run health", text)
             self.assertIn("| State | `blocked` |", text)
             self.assertIn("target_window_handle_invalid:not-a-hwnd", text)
+            self.assertIn("## Current proof pointer update", text)
+            self.assertIn("| Updated | `true` |", text)
+            self.assertIn("old-pointer.json", text)
 
     def test_run_json_command_timeout_returns_artifact_result(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -275,6 +293,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
         self.assertEqual(classify_run_health("running"), "running")
         self.assertEqual(classify_run_health("partial-series-stopped"), "warning")
         self.assertEqual(classify_run_health("blocked-target-mismatch"), "blocked")
+        self.assertEqual(classify_run_health("input-no-movement"), "failed")
         self.assertEqual(classify_run_health("failed-internal-error"), "failed")
 
     def test_gui_launch_can_be_disabled_by_profile(self) -> None:
@@ -1047,6 +1066,237 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertEqual(runner._candidate_id(), "fresh-riftscan-candidate-000123")
             self.assertEqual(runner._run_gates()["candidateId"], "fresh-riftscan-candidate-000123")
 
+    def test_current_proof_anchor_wins_over_stale_pointer_for_candidate_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True)
+            write_json(
+                pointer,
+                {
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "target": {
+                        "processId": 33912,
+                        "processName": "rift_x64",
+                        "targetWindowHandle": "0xE0DB2",
+                    },
+                    "riftscanCandidateSource": {
+                        "candidateId": "old-pointer-candidate",
+                        "matchFile": "C:/Riftscan/reports/generated/old.json",
+                    },
+                },
+            )
+            candidate_file = root / "current-candidates.json"
+            write_json(
+                candidate_file,
+                {
+                    "candidates": [
+                        {
+                            "candidate_id": "current-anchor-candidate",
+                            "source_base_address_hex": "0x20000000",
+                            "source_offset_hex": "0x100",
+                        }
+                    ]
+                },
+            )
+            readback_summary = root / "current-readback-summary.json"
+            write_json(readback_summary, {"SourceCandidateFile": str(candidate_file)})
+            proof_anchor = root / "scripts" / "captures" / "telemetry-proof-coord-anchor.json"
+            proof_anchor.parent.mkdir(parents=True)
+            write_json(
+                proof_anchor,
+                {
+                    "Mode": "proof-coord-anchor",
+                    "ProcessName": "rift_x64",
+                    "ProcessId": 49504,
+                    "TargetWindowHandle": "0x5121A",
+                    "ObjectBaseAddress": "0x20000100",
+                    "Evidence": {
+                        "CandidateId": "current-anchor-candidate",
+                        "CandidateAddressHex": "0x20000100",
+                        "PoseCount": 2,
+                        "ReadbackSummaryFiles": [str(readback_summary)],
+                    },
+                },
+            )
+            stale_pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            write_json(
+                stale_pointer,
+                {
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 33912,
+                        "targetWindowHandle": "0xE0DB2",
+                    },
+                    "riftscanCandidateSource": {
+                        "matchFile": "C:/old.json",
+                        "candidateId": "old-candidate",
+                    },
+                },
+            )
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "candidateId": "profile-fallback-candidate",
+                    "candidateIdSource": "current-proof-pointer",
+                    "proofAnchorFile": str(proof_anchor),
+                },
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+
+            self.assertEqual(runner._candidate_id(), "current-anchor-candidate")
+            self.assertEqual(runner._proof_pose_candidate_file(), candidate_file)
+            self.assertEqual(runner._run_gates()["candidateId"], "current-anchor-candidate")
+
+    def test_stale_pointer_does_not_block_refresh_when_current_anchor_has_candidate_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True)
+            write_json(
+                pointer,
+                {
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "target": {
+                        "processId": 33912,
+                        "processName": "rift_x64",
+                        "targetWindowHandle": "0xE0DB2",
+                    },
+                    "riftscanCandidateSource": {"candidateId": "old-pointer-candidate"},
+                },
+            )
+            candidate_file = root / "current-candidates.json"
+            write_json(
+                candidate_file,
+                {
+                    "candidates": [
+                        {
+                            "candidate_id": "current-anchor-candidate",
+                            "source_base_address_hex": "0x20000000",
+                            "source_offset_hex": "0x100",
+                        }
+                    ]
+                },
+            )
+            readback_summary = root / "current-readback-summary.json"
+            write_json(readback_summary, {"SourceCandidateFile": str(candidate_file)})
+            proof_anchor = root / "scripts" / "captures" / "telemetry-proof-coord-anchor.json"
+            proof_anchor.parent.mkdir(parents=True)
+            write_json(
+                proof_anchor,
+                {
+                    "Mode": "proof-coord-anchor",
+                    "ProcessName": "rift_x64",
+                    "ProcessId": 49504,
+                    "TargetWindowHandle": "0x5121A",
+                    "ObjectBaseAddress": "0x20000100",
+                    "Evidence": {
+                        "CandidateId": "current-anchor-candidate",
+                        "CandidateAddressHex": "0x20000100",
+                        "PoseCount": 2,
+                        "ReadbackSummaryFiles": [str(readback_summary)],
+                    },
+                },
+            )
+            stale_pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            write_json(
+                stale_pointer,
+                {
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 33912,
+                        "targetWindowHandle": "0xE0DB2",
+                    },
+                    "riftscanCandidateSource": {
+                        "candidateId": "old-candidate",
+                        "matchFile": str(root / "old-candidates.json"),
+                    },
+                },
+            )
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "proofAnchorFile": str(proof_anchor),
+                },
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+
+            def fake_run_ps1(label: str, script_name: str, args: list[str]):
+                if script_name == "capture-rift-api-reference-coordinate.ps1":
+                    output_file = Path(args[args.index("-OutputFile") + 1])
+                    write_json(
+                        output_file,
+                        {
+                            "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                            "captured_at_utc": "2026-05-08T22:00:00Z",
+                        },
+                    )
+                    return SimpleNamespace(exit_code=0, json_data={"Status": "captured"})
+
+                self.assertEqual(script_name, "capture-riftscan-proof-pose.ps1")
+                self.assertIn("-CandidateFile", args)
+                self.assertEqual(Path(args[args.index("-CandidateFile") + 1]), candidate_file)
+                fresh_summary = root / "fresh-readback-summary.json"
+                write_json(
+                    fresh_summary,
+                    {
+                        "GeneratedAtUtc": "2026-05-08T22:00:01Z",
+                        "ProcessName": "rift_x64",
+                        "ProcessId": 49504,
+                        "TargetWindowHandle": "0x5121A",
+                        "NoCheatEngine": True,
+                        "MovementSent": False,
+                        "ReferenceCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0},
+                        "BestReferenceMatches": [
+                            {
+                                "CandidateId": "current-anchor-candidate",
+                                "ReferenceMatchesReadback": True,
+                                "StableAcrossReadbackSamples": True,
+                                "FirstDecodedSample": {
+                                    "X": 1.0,
+                                    "Y": 2.0,
+                                    "Z": 3.0,
+                                    "RecordedAtUtc": "2026-05-08T22:00:01Z",
+                                },
+                            }
+                        ],
+                    },
+                )
+                return SimpleNamespace(
+                    exit_code=0,
+                    json_data={
+                        "Status": "captured",
+                        "ReadbackSummaryFile": str(fresh_summary),
+                        "CurrentCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0},
+                    },
+                    parse_error=None,
+                    stderr="",
+                    stdout="",
+                )
+
+            with patch.object(runner, "_run_ps1", side_effect=fake_run_ps1):
+                captured = runner._capture_proof_pose_next()
+
+            self.assertEqual(
+                captured["poseReadbackSummaryFile"],
+                str(root / "fresh-readback-summary.json"),
+            )
+            self.assertEqual(captured["currentCoordinate"]["X"], 1.0)
+
     def test_runner_can_use_profile_candidate_id_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1129,6 +1379,65 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertFalse(summary["movementSent"])
             refresh.assert_not_called()
 
+    def test_live_input_does_not_pass_when_sent_key_has_no_coordinate_delta(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            profile = {
+                "mode": "live-input",
+                "input": {"key": "w", "holdMilliseconds": 250, "pulseCount": 1},
+                "outputRoot": str(root / "captures"),
+                "minimumMovementPlanarDistance": 0.05,
+                "writeMarkdownSummary": False,
+            }
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="Forward250",
+                profile=profile,
+                process_id=123,
+                target_window_handle="0x123",
+                live=True,
+            )
+            dry = {"Status": "dry-run-valid", "SummaryFile": "dry.json"}
+            live_result = {
+                "Status": "passed",
+                "SummaryFile": "live.json",
+                "MovementSent": True,
+                "MovementAttempted": True,
+                "CurrentCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0},
+                "PostReadback": {
+                    "CurrentCoordinate": {"X": 1.0, "Y": 2.0, "Z": 3.0}
+                },
+                "CoordinateDelta": {
+                    "DeltaX": 0.0,
+                    "DeltaY": 0.0,
+                    "DeltaZ": 0.0,
+                    "PlanarDistance": 0.0,
+                    "SpatialDistance": 0.0,
+                },
+            }
+
+            with patch(
+                "rift_live_test.runner.verify_target",
+                return_value={"valid": True, "status": "valid", "targetWindowHandle": "0x123"},
+            ), patch.object(
+                runner,
+                "_refresh_proof_next",
+                return_value={"poseReadbackSummaryFile": "fresh.json"},
+            ), patch.object(
+                runner,
+                "_run_gated_wrapper",
+                side_effect=[dry, live_result],
+            ), patch.object(runner, "_record_coordinate_pulse") as recorder:
+                summary = runner.run()
+
+            self.assertEqual(summary["status"], INPUT_NO_MOVEMENT)
+            self.assertFalse(summary["ok"])
+            self.assertTrue(summary["movementSent"])
+            self.assertEqual(summary["runHealth"]["state"], "failed")
+            self.assertIn("movement_delta_below_threshold", summary["issues"][0])
+            self.assertEqual(summary["states"][-1]["status"], INPUT_NO_MOVEMENT)
+            recorder.assert_called_once()
+
     def test_target_mismatch_blocks_before_any_proof_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1194,6 +1503,128 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertEqual(summary["status"], BLOCKED_REFERENCE_CAPTURE)
             self.assertIn("reference_marker_unavailable:no_usable_rrapicoord1", summary["issues"])
             self.assertFalse(summary["movementSent"])
+
+    def test_stale_current_proof_pointer_after_restart_reacquires_current_state_and_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "mode": "current-proof-anchor-readback-pointer",
+                        "target": {
+                            "processId": 33912,
+                            "processName": "rift_x64",
+                            "targetWindowHandle": "0xE0DB2",
+                        },
+                        "riftscanCandidateSource": {
+                            "candidateId": "old-candidate",
+                            "matchFile": "C:/RiftScan/old.json",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile = {
+                "mode": "proof-only",
+                "input": None,
+                "outputRoot": str(root / "captures"),
+                "writeMarkdownSummary": False,
+            }
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile=profile,
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+
+            def fake_run_ps1(label: str, script_name: str, args: list[str]):
+                self.assertEqual(script_name, "capture-rift-api-reference-coordinate.ps1")
+                output_file = Path(args[args.index("-OutputFile") + 1])
+                output_file.write_text(
+                    json.dumps(
+                        {
+                            "source": "rrapicoord1-memory-scan",
+                            "captured_at_utc": "2026-05-08T20:49:00Z",
+                            "coordinate": {"x": 7446.09, "y": 887.25, "z": 3027.58},
+                            "processId": 49504,
+                            "processName": "rift_x64",
+                            "targetWindowHandle": "0x5121A",
+                            "noCheatEngine": True,
+                            "movementSent": False,
+                            "savedVariablesUse": "none",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return SimpleNamespace(exit_code=0, json_data={"Status": "captured"})
+
+            with patch(
+                "rift_live_test.runner.verify_target",
+                return_value={"valid": True, "status": "valid", "targetWindowHandle": "0x5121A"},
+            ), patch.object(runner, "_run_ps1", side_effect=fake_run_ps1) as run_ps1:
+                summary = runner.run()
+
+            self.assertEqual(summary["status"], BLOCKED_TARGET_DRIFT)
+            self.assertEqual(summary["runHealth"]["state"], "blocked")
+            self.assertFalse(summary["movementSent"])
+            self.assertFalse(summary["movementAttempted"])
+            self.assertEqual(summary["currentCoordinate"]["x"], 7446.09)
+            self.assertIn(
+                "target_drift:current_proof_pointer_pid_mismatch:actual=33912;expected=49504",
+                summary["issues"],
+            )
+            self.assertEqual(run_ps1.call_count, 1)
+            self.assertEqual(summary["states"][-1]["state"], "target-drift-reacquire")
+
+            reacquire = json.loads(Path(summary["summaryFile"]).read_text(encoding="utf-8"))
+            self.assertEqual(reacquire["Status"], BLOCKED_TARGET_DRIFT)
+            self.assertEqual(reacquire["ReacquireStatus"], "api-reference-captured")
+            self.assertFalse(reacquire["TargetDrift"]["proofAnchorPromoted"])
+            self.assertEqual(
+                reacquire["PreservedHistoricalEvidence"]["classification"],
+                "historical-target-epoch-evidence",
+            )
+            self.assertEqual(
+                reacquire["PreservedHistoricalEvidence"]["reacquireHints"]["candidateId"],
+                "old-candidate",
+            )
+            self.assertIn(
+                "do-not-use-as-current-proof",
+                reacquire["PreservedHistoricalEvidence"]["reusePolicy"],
+            )
+
+    def test_target_drift_payload_does_not_loop_auto_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="Forward250",
+                profile={
+                    "outputRoot": str(root / "captures"),
+                    "maxAutoRefreshAttempts": 1,
+                    "writeMarkdownSummary": False,
+                },
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+            payload = {
+                "Status": "blocked-preflight",
+                "MovementSent": False,
+                "MovementAttempted": False,
+                "Issues": ["proof_anchor_pid_mismatch:anchor=33912;target=49504"],
+            }
+
+            self.assertFalse(runner._can_refresh_for(payload))
+            self.assertEqual(runner.auto_refresh_attempts_used, 0)
+            self.assertEqual(
+                runner._map_blocked_status(payload, default="blocked-dry-run"),
+                BLOCKED_TARGET_DRIFT,
+            )
 
     def test_promotion_baseline_block_preserves_fresh_pose_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1274,6 +1705,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 "outputRoot": str(root / "captures"),
                 "processName": "rift_x64",
                 "proofAnchorFile": str(proof_anchor),
+                "inputBackend": "window-message",
                 "writeMarkdownSummary": False,
             }
             runner = LiveTestRunner(
@@ -1298,6 +1730,8 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 self.assertIn("-ProcessName", argv)
                 self.assertIn("-ProofCoordAnchorFile", argv)
                 self.assertEqual(argv[argv.index("-ProofCoordAnchorFile") + 1], str(proof_anchor))
+            self.assertIn("-InputBackend", dry_args)
+            self.assertEqual(dry_args[dry_args.index("-InputBackend") + 1], "window-message")
 
     def test_run_command_updates_latest_child_command_progress(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1555,6 +1989,131 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertFalse(latest["runHealth"]["movementSent"])
             self.assertFalse(latest["runHealth"]["movementAttempted"])
 
+    def test_proofonly_success_updates_tracked_current_proof_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_candidate_file = root / "current-candidates.json"
+            write_json(
+                source_candidate_file,
+                {
+                    "candidates": [
+                        {
+                            "candidate_id": "fresh-current-candidate",
+                            "source_base_address_hex": "0x20000000",
+                            "source_offset_hex": "0x80",
+                            "source_absolute_address_hex": "0x20000080",
+                        }
+                    ]
+                },
+            )
+            proof_pose_summary = root / "proof-pose-summary.json"
+            write_json(proof_pose_summary, {"SourceCandidateFile": str(source_candidate_file)})
+            proof_anchor = root / "scripts" / "captures" / "telemetry-proof-coord-anchor.json"
+            proof_anchor.parent.mkdir(parents=True)
+            write_json(
+                proof_anchor,
+                {
+                    "Mode": "proof-coord-anchor",
+                    "ProcessName": "rift_x64",
+                    "ProcessId": 49504,
+                    "TargetWindowHandle": "0x5121A",
+                    "ObjectBaseAddress": "0x20000080",
+                    "Match": {"MaxDeltaError": 0.01},
+                    "Evidence": {
+                        "CandidateId": "fresh-current-candidate",
+                        "CandidateAddressHex": "0x20000080",
+                        "PoseCount": 3,
+                        "ReadbackSummaryFiles": [str(proof_pose_summary)],
+                    },
+                },
+            )
+            stale_pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            write_json(
+                stale_pointer,
+                {
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 33912,
+                        "targetWindowHandle": "0xE0DB2",
+                    },
+                    "riftscanCandidateSource": {
+                        "candidateId": "old-candidate",
+                        "matchFile": str(root / "old-candidates.json"),
+                    },
+                },
+            )
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "proofAnchorFile": str(proof_anchor),
+                    "writeMarkdownSummary": False,
+                },
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+
+            summary = runner._finish(
+                "passed-proof-only",
+                final_json={
+                    "Status": "valid",
+                    "MovementAllowed": True,
+                    "MovementSent": False,
+                    "MovementAttempted": False,
+                    "SummaryFile": str(root / "fresh-readback.json"),
+                    "CurrentCoordinate": {
+                        "X": 1.0,
+                        "Y": 2.0,
+                        "Z": 3.0,
+                        "RecordedAtUtc": "2026-05-08T22:00:00Z",
+                    },
+                },
+            )
+
+            pointer = json.loads(
+                (root / "docs" / "recovery" / "current-proof-anchor-readback.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(pointer["target"]["processId"], 49504)
+            self.assertEqual(pointer["target"]["targetWindowHandle"], "0x5121A")
+            self.assertEqual(pointer["riftscanCandidateSource"]["candidateId"], "fresh-current-candidate")
+            self.assertEqual(pointer["riftscanCandidateSource"]["matchFile"], str(source_candidate_file))
+            self.assertEqual(pointer["riftscanCandidateSource"]["sourceBaseAddressHex"], "0x20000000")
+            self.assertEqual(pointer["riftscanCandidateSource"]["sourceOffsetHex"], "0x80")
+            self.assertEqual(pointer["riftscanCandidateSource"]["sourceAbsoluteAddressHex"], "0x20000080")
+            self.assertEqual(pointer["latestProofOnly"]["status"], "passed-proof-only")
+            self.assertEqual(pointer["latestProofOnly"]["readbackSummaryFile"], str(root / "fresh-readback.json"))
+            self.assertTrue(runner.current_proof_pointer_update["updated"])
+            self.assertTrue(runner.current_proof_pointer_update["archivedSupersededPointer"])
+            self.assertEqual(
+                summary["currentProofPointerUpdate"],
+                runner.current_proof_pointer_update,
+            )
+            progress = json.loads(runner.progress_file.read_text(encoding="utf-8"))
+            self.assertEqual(
+                progress["currentProofPointerUpdate"],
+                runner.current_proof_pointer_update,
+            )
+            latest = json.loads(
+                (root / "scripts" / "captures" / "latest-live-test-run.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                latest["currentProofPointerUpdate"],
+                runner.current_proof_pointer_update,
+            )
+            archive = Path(runner.current_proof_pointer_update["archivedSupersededPointer"]["path"])
+            self.assertTrue(archive.exists())
+            archived = json.loads(archive.read_text(encoding="utf-8"))
+            self.assertEqual(archived["target"]["processId"], 33912)
+
     def test_baseline_pool_selects_compatible_displaced_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1586,7 +2145,8 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertEqual(selected, [str(old.resolve()), str(fresh.resolve())])
             self.assertEqual(diagnostics["compatibleDisplacedCount"], 1)
             wrong = [item for item in diagnostics["candidates"] if "wrong-pid" in item["summaryFile"]][0]
-            self.assertEqual(wrong["status"], "incompatible")
+            self.assertEqual(wrong["status"], "historical-target-mismatch")
+            self.assertIn("preserve-as-historical-evidence-only", wrong["reusePolicy"])
 
     def test_baseline_pool_reports_no_displaced_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
