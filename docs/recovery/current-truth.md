@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: May 9, 2026 00:45 EDT / May 9, 2026 04:45 UTC (current live target `rift_x64` PID `49504`, HWND `0x5121A`; latest slice hardened actor-yaw candidate discovery to prefer proof-coordinate current memory over stale ReaderBridge/bootstrap coordinates and stopped before yaw stimulus because visual baseline capture is blocked. Last live movement truth remains the no-turn backend-metadata waypoint smoke with `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`. Latest push handoff: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-004500-actor-yaw-proofcoord-gate-handoff.md`.)_
+_Last updated: May 9, 2026 00:57 EDT / May 9, 2026 04:57 UTC (current live target `rift_x64` PID `49504`, HWND `0x5121A`; latest slice retried the no-input visual gate and hardened its blocked-capture diagnostics/recovery recommendations. No live input was sent. Last live movement truth remains the no-turn backend-metadata waypoint smoke with `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`. Latest push handoff: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-005700-visual-gate-blocker-retry-hardened-handoff.md`.)_
 
 
 ## Newest live-session status (authoritative)
@@ -8,8 +8,8 @@ _Last updated: May 9, 2026 00:45 EDT / May 9, 2026 04:45 UTC (current live targe
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `49504`, HWND `0x5121A` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-004500-actor-yaw-proofcoord-gate-handoff.md` |
-| Current live-input gate | **Blocked as of 00:44 EDT**. Latest visual gate `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-004400\visual-gate-status.json` reports `blocked-visual-baseline`, `readyForLiveInput=false`, blocker `desktop-capture-access-denied`; MCP `capture_game_window` also failed with `The handle is invalid.` No yaw stimulus was sent after this blocker. |
+| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-005700-visual-gate-blocker-retry-hardened-handoff.md` |
+| Current live-input gate | **Blocked as of 00:55 EDT**. Latest visual gate `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-005541\visual-gate-status.json` reports `blocked-visual-baseline`, `readyForLiveInput=false`, and failure classes `desktop-capture-access-denied`, `desktop-copyfromscreen-invalid-handle`, `capture-methods-return-black-or-flat-content`; no live input was sent. |
 | Latest no-input proof | Post-backend-metadata live confirmation `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-042916\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260509-002944.json`; `movementSent=false`; `currentProofPointerUpdate.updated=true` |
 | Latest movement truth | Native exact-HWND C# backend no-turn `--navigate-waypoints` smoke passed at `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-backend-metadata-live-currentpid-49504-20260509-0028\navigate-waypoints-run-summary.json` with `Status=success`, `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`; prior native smoke remains `C:\RIFT MODDING\RiftReader\scripts\captures\native-backend-smoke-currentpid-49504-20260509-0006\navigate-waypoints-run-summary.json`. |
 | Latest recorded coordinate snapshot | `X=7395.18603515625`, `Y=876.5137939453125`, `Z=3050.689453125` at `2026-05-09T04:29:50.4256024Z` from post-backend-metadata-confirmation `ProofOnly`; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
@@ -17,10 +17,23 @@ _Last updated: May 9, 2026 00:45 EDT / May 9, 2026 04:45 UTC (current live targe
 | Current proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`; candidate `api-coord-hit-000005` at `0x24A01358880`; movement-grade only through current proof-anchor/readback gates |
 | Current tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` targets PID `49504` / HWND `0x5121A` and is auto-refreshed only after same-target `ProofOnly` success |
 | Archived stale pointer | Prior PID `33912` / HWND `0xE0DB2` pointer preserved at `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-08-pid33912-hwndE0DB2-historical.json`; historical-only, not current proof |
-| RiftScan/provider state | No current-PID RiftScan provider artifact was created; the current pointer uses a RiftReader-owned API-bootstrap candidate file. Latest milestone review `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-0030-backend-metadata-live-confirmation.json` is `ready-for-read-only-proof`; it is a strategy gate, not movement permission. |
+| RiftScan/provider state | No current-PID RiftScan provider artifact was created; the current pointer uses a RiftReader-owned API-bootstrap candidate file. Latest milestone review `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-0057-visual-gate-blocker-hardened.json` is `ready-for-read-only-proof`; it is a strategy gate, not movement permission. |
 | Input backend | C# waypoint navigation now uses `MovementBackendFactory`; exact-HWND targets use native `WindowMessageMovementBackend` (`PostMessageW`) and this path is live-validated for no-turn forward waypoint movement. Navigation run/route summaries now record `MovementBackend` (`native-window-message`, `powershell-window-message`, `powershell-sendinput-foreground`, `not-created`, or `unknown`) instead of relying on console stderr. |
 | Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus/visual-baseline gate before movement; default ReaderBridge SavedVariables are no longer silently trusted by navigation read/move modes unless explicitly supplied |
-| Remaining blocker | Auto-turn remains blocked by stale actor-facing truth for PID `49504`; observed-forward no-turn waypoint smoke and durable summary writing are green, but actor-facing/auto-turn promotion still needs current-session behavior-backed proof. |
+| Remaining blocker | Restore desktop/window capture first. Auto-turn remains blocked by stale actor-facing truth for PID `49504`; observed-forward no-turn waypoint smoke and durable summary writing are green, but actor-facing/auto-turn promotion still needs current-session behavior-backed proof after visual gate + fresh `ProofOnly`. |
+
+## May 9 continuation: visual-gate blocker retry diagnostics hardened
+
+| Fact | Value |
+|---|---|
+| Scope | No-input visual-gate retry plus offline diagnostics/reporting hardening; no movement/yaw/turn stimulus sent. |
+| Fresh visual gate | `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-005541\visual-gate-status.json`; `blocked-visual-baseline`; `readyForLiveInput=false`; `movementSent=false`; `inputSent=false`. |
+| Failure classes | `desktop-capture-access-denied`, `desktop-copyfromscreen-invalid-handle`, `capture-methods-return-black-or-flat-content`. |
+| Recovery recommendations | JSON/Markdown now recommend `restore-interactive-desktop-capture`, `restore-visible-window-content`, and `keep-live-input-blocked`. |
+| Code hardening | `scripts\rift_live_test\visual_gate_status.py` now preserves multiple capture failure classifications instead of collapsing to a single blocker, and writes recovery recommendations. |
+| Validation | `python .\scripts\test_visual_gate_status.py` passed `6` tests; `python -m py_compile .\scripts\rift_live_test\visual_gate_status.py .\scripts\test_visual_gate_status.py` passed. |
+| Strategy checkpoint | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260509-0057-visual-gate-blocker-hardened.json`; status `ready-for-read-only-proof`; review is not movement permission. |
+| Remaining blocker | Restore capture access, rerun full visual gate, then rerun fresh `ProofOnly` before any live input. |
 
 ## May 9 continuation: actor-yaw proof-coordinate gate hardened; visual baseline blocked yaw stimulus
 

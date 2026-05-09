@@ -167,6 +167,8 @@ def run_visual_gate(options: VisualGateOptions) -> dict[str, Any]:
         "window": window,
         "usableCaptureMethod": verdict["usableCaptureMethod"],
         "blockers": verdict["blockers"],
+        "captureFailureClassifications": verdict["captureFailureClassifications"],
+        "recoveryRecommendations": build_visual_gate_recovery_recommendations(verdict["blockers"]),
         "cautions": verdict["cautions"],
         "attempts": attempts,
     }
@@ -195,6 +197,7 @@ def build_visual_gate_verdict(
             "readyForLiveInput": True,
             "usableCaptureMethod": usable_capture.get("label"),
             "blockers": blockers,
+            "captureFailureClassifications": [],
             "cautions": _dedupe(cautions),
         }
 
@@ -202,16 +205,73 @@ def build_visual_gate_verdict(
         blockers.append("target-window-not-resolved")
     if not focus_ok and "focus-window-failed" not in blockers:
         blockers.append("focus-window-failed")
+    capture_failure_classifications: list[str] = []
     if target_resolved and usable_capture is None:
-        blockers.append(_classify_capture_blocker(attempts))
+        capture_failure_classifications = _classify_capture_blockers(attempts)
+        blockers.extend(capture_failure_classifications)
 
     return {
         "status": VISUAL_GATE_BLOCKED_TARGET if not target_resolved else VISUAL_GATE_BLOCKED_CAPTURE,
         "readyForLiveInput": False,
         "usableCaptureMethod": None,
         "blockers": _dedupe(blockers),
+        "captureFailureClassifications": _dedupe(capture_failure_classifications),
         "cautions": _dedupe(cautions),
     }
+
+
+def build_visual_gate_recovery_recommendations(blockers: list[str]) -> list[dict[str, str]]:
+    blocker_set = set(blockers)
+    recommendations: list[dict[str, str]] = []
+
+    def add(identifier: str, action: str, why: str) -> None:
+        if any(item["id"] == identifier for item in recommendations):
+            return
+        recommendations.append({"id": identifier, "action": action, "why": why})
+
+    if "target-window-not-resolved" in blocker_set:
+        add(
+            "resolve-target-window",
+            "Re-run the gate with the exact live Rift PID/HWND after confirming the client window still exists.",
+            "Movement input must not be sent unless the gate can bind the intended RIFT window.",
+        )
+
+    if "focus-window-failed" in blocker_set:
+        add(
+            "restore-focus",
+            "Restore/unminimize the Rift window and foreground it, then rerun the visual gate.",
+            "The live-input path requires a known focused/targetable window before any capture or movement proof.",
+        )
+
+    if blocker_set & {"desktop-capture-access-denied", "desktop-copyfromscreen-invalid-handle"}:
+        add(
+            "restore-interactive-desktop-capture",
+            "Unlock/reconnect the interactive desktop or restart the capture host/session, then rerun the full visual gate.",
+            "CopyFromScreen/WGC/DXGI failures mean the automation cannot prove the current window view safely.",
+        )
+
+    if "capture-methods-return-black-or-flat-content" in blocker_set:
+        add(
+            "restore-visible-window-content",
+            "Make Rift visible and unobscured, avoid minimized/off-screen states, then rerun the full visual gate.",
+            "Black or flat captures are not a usable visual baseline for live input verification.",
+        )
+
+    if "no-usable-visual-baseline-capture" in blocker_set:
+        add(
+            "inspect-capture-attempts",
+            "Inspect the visual-gate attempts and rerun with --full before changing live-input behavior.",
+            "The gate did not identify a usable screenshot method or a more specific capture failure.",
+        )
+
+    if blocker_set:
+        add(
+            "keep-live-input-blocked",
+            "Do not send live input until a new visual gate returns readyForLiveInput=true.",
+            "The visual baseline is the final operator safety check before movement or yaw stimulus.",
+        )
+
+    return recommendations
 
 
 def _command_envelope(result: JsonCommandResult) -> dict[str, Any]:
@@ -245,7 +305,7 @@ def _attempt_has_usable_capture(attempt: dict[str, Any]) -> bool:
     return False
 
 
-def _classify_capture_blocker(attempts: list[dict[str, Any]]) -> str:
+def _classify_capture_blockers(attempts: list[dict[str, Any]]) -> list[str]:
     haystack = "\n".join(
         str(part)
         for attempt in attempts
@@ -259,13 +319,20 @@ def _classify_capture_blocker(attempts: list[dict[str, Any]]) -> str:
         if part
     ).lower()
 
+    blockers: list[str] = []
     if "e_accessdenied" in haystack or "access is denied" in haystack:
-        return "desktop-capture-access-denied"
+        blockers.append("desktop-capture-access-denied")
     if "copyfromscreen" in haystack and "handle is invalid" in haystack:
-        return "desktop-copyfromscreen-invalid-handle"
+        blockers.append("desktop-copyfromscreen-invalid-handle")
     if "black" in haystack or "flat" in haystack or "transparent" in haystack:
-        return "capture-methods-return-black-or-flat-content"
-    return "no-usable-visual-baseline-capture"
+        blockers.append("capture-methods-return-black-or-flat-content")
+    if not blockers:
+        blockers.append("no-usable-visual-baseline-capture")
+    return _dedupe(blockers)
+
+
+def _classify_capture_blocker(attempts: list[dict[str, Any]]) -> str:
+    return _classify_capture_blockers(attempts)[0]
 
 
 def _run_window_tool(
@@ -468,6 +535,20 @@ def _write_markdown_summary(summary: dict[str, Any], path: Path) -> None:
         for attempt in summary.get("attempts", [])
         if isinstance(attempt, dict)
     )
+    recovery_rows = "\n".join(
+        f"| `{item.get('id')}` | {item.get('action')} | {item.get('why')} |"
+        for item in summary.get("recoveryRecommendations", [])
+        if isinstance(item, dict)
+    )
+    recovery_section = ""
+    if recovery_rows:
+        recovery_section = f"""
+## Recovery recommendations
+
+| ID | Action | Why |
+|---|---|---|
+{recovery_rows}
+"""
     body = f"""# Visual gate status
 
 | Field | Value |
@@ -477,7 +558,9 @@ def _write_markdown_summary(summary: dict[str, Any], path: Path) -> None:
 | Target | PID `{summary.get('processId')}`, HWND `{summary.get('targetWindowHandle')}` |
 | Usable capture method | `{summary.get('usableCaptureMethod')}` |
 | Blockers | `{', '.join(summary.get('blockers') or [])}` |
+| Capture failure classifications | `{', '.join(summary.get('captureFailureClassifications') or [])}` |
 | Summary JSON | `{summary.get('summaryPath')}` |
+{recovery_section}
 
 ## Attempts
 

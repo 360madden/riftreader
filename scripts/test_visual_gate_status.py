@@ -6,6 +6,7 @@ from rift_live_test.visual_gate_status import (
     VISUAL_GATE_BLOCKED_CAPTURE,
     VISUAL_GATE_BLOCKED_TARGET,
     VISUAL_GATE_PASSED,
+    build_visual_gate_recovery_recommendations,
     build_visual_gate_verdict,
 )
 
@@ -30,6 +31,7 @@ class VisualGateStatusTests(unittest.TestCase):
         self.assertEqual(VISUAL_GATE_PASSED, verdict["status"])
         self.assertTrue(verdict["readyForLiveInput"])
         self.assertEqual("rift-mcp-copyfromscreen-capture", verdict["usableCaptureMethod"])
+        self.assertEqual([], verdict["captureFailureClassifications"])
 
     def test_blocks_when_target_is_missing(self) -> None:
         verdict = build_visual_gate_verdict(
@@ -79,8 +81,9 @@ class VisualGateStatusTests(unittest.TestCase):
         self.assertEqual(VISUAL_GATE_BLOCKED_CAPTURE, verdict["status"])
         self.assertFalse(verdict["readyForLiveInput"])
         self.assertIn("desktop-copyfromscreen-invalid-handle", verdict["blockers"])
+        self.assertIn("desktop-copyfromscreen-invalid-handle", verdict["captureFailureClassifications"])
 
-    def test_access_denied_takes_precedence_over_black_content(self) -> None:
+    def test_records_access_denied_alongside_black_content(self) -> None:
         verdict = build_visual_gate_verdict(
             target_resolved=True,
             focus_ok=True,
@@ -100,6 +103,63 @@ class VisualGateStatusTests(unittest.TestCase):
 
         self.assertEqual(VISUAL_GATE_BLOCKED_CAPTURE, verdict["status"])
         self.assertIn("desktop-capture-access-denied", verdict["blockers"])
+        self.assertIn("capture-methods-return-black-or-flat-content", verdict["blockers"])
+        self.assertEqual(
+            [
+                "desktop-capture-access-denied",
+                "capture-methods-return-black-or-flat-content",
+            ],
+            verdict["captureFailureClassifications"],
+        )
+
+    def test_records_multiple_capture_failure_classes(self) -> None:
+        verdict = build_visual_gate_verdict(
+            target_resolved=True,
+            focus_ok=True,
+            attempts=[
+                {
+                    "label": "copyfromscreen-sanity",
+                    "exitCode": 0,
+                    "json": {
+                        "attempts": [
+                            {
+                                "name": "desktop-sanity",
+                                "ok": False,
+                                "error": 'Exception calling "CopyFromScreen" with "5" argument(s): "The handle is invalid."',
+                            }
+                        ]
+                    },
+                },
+                {
+                    "label": "dxgi-desktop-duplication",
+                    "exitCode": 1,
+                    "json": {"Message": "HRESULT: [0x80070005], ApiCode: [E_ACCESSDENIED], Message: [Access is denied.]"},
+                },
+            ],
+        )
+
+        self.assertEqual(VISUAL_GATE_BLOCKED_CAPTURE, verdict["status"])
+        self.assertEqual(
+            [
+                "desktop-capture-access-denied",
+                "desktop-copyfromscreen-invalid-handle",
+            ],
+            verdict["captureFailureClassifications"],
+        )
+        self.assertIn("desktop-capture-access-denied", verdict["blockers"])
+        self.assertIn("desktop-copyfromscreen-invalid-handle", verdict["blockers"])
+
+    def test_capture_blocker_recommendations_keep_input_blocked(self) -> None:
+        recommendations = build_visual_gate_recovery_recommendations(
+            [
+                "desktop-capture-access-denied",
+                "desktop-copyfromscreen-invalid-handle",
+            ]
+        )
+
+        ids = [item["id"] for item in recommendations]
+        self.assertIn("restore-interactive-desktop-capture", ids)
+        self.assertIn("keep-live-input-blocked", ids)
 
 
 if __name__ == "__main__":
