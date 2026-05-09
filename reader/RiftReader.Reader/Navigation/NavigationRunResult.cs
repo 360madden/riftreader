@@ -20,5 +20,6 @@ public sealed record NavigationRunResult(
     NavigationCoordinate FinalPosition,
     NavigationCoordinate DestinationPosition,
     long ElapsedMilliseconds,
+    string MovementBackend = MovementBackendKinds.Unknown,
     NavigationTurnResult? TurnResult = null,
     IReadOnlyList<NavigationEvent>? Events = null);

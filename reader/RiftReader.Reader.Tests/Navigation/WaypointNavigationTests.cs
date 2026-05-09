@@ -1260,11 +1260,13 @@ public sealed class NavigationRouteRunResultTextFormatterTests
                     pulseCount: 0,
                     finalPlanarDistance: 10d)
             ],
-            Issues: ["Route segment 2 failed with stop reason 'start-mismatch'."]);
+            Issues: ["Route segment 2 failed with stop reason 'start-mismatch'."],
+            MovementBackend: "test-route-backend");
 
         var text = NavigationRouteRunResultTextFormatter.Format(result);
 
         Assert.Contains("Route:                point_a -> point_b -> point_c", text, StringComparison.Ordinal);
+        Assert.Contains("Movement backend:     test-route-backend", text, StringComparison.Ordinal);
         Assert.Contains("Failed segment:       2", text, StringComparison.Ordinal);
         Assert.Contains("Total pulses:         1", text, StringComparison.Ordinal);
         Assert.Contains("Route segment 2 failed", text, StringComparison.Ordinal);
@@ -1858,6 +1860,7 @@ public sealed class NavigationRunResultTextFormatterTests
 
         var text = NavigationRunResultTextFormatter.Format(result);
 
+        Assert.Contains("Movement backend:     unknown", text, StringComparison.Ordinal);
         Assert.Contains("Turn event count:     1", text, StringComparison.Ordinal);
         Assert.Contains("Turn last event:      t=120ms auto-turn/stop [worsening] pulse=2 key=a delta=26.00000 pos=0.00000, 0.00000, 0.00000 note=Auto-turn worsened for 2 consecutive pulses.", text, StringComparison.Ordinal);
         Assert.Contains("Event count:          1", text, StringComparison.Ordinal);
@@ -2135,7 +2138,8 @@ public sealed class NavigationRunResultTextFormatterTests
                 "keep",
                 1.5d,
                 2d,
-                "anchor-unavailable"
+                "anchor-unavailable",
+                MovementBackendKinds.NotCreated
             });
 
         return Assert.IsType<NavigationRunResult>(result);
@@ -2210,7 +2214,7 @@ public sealed class NavigationRunResultJsonOutputTests
             Success(0d, 0d, 0d),
             Success(4.0d, 0d, 0d),
             Success(8.8d, 0d, 0d));
-        var movementBackend = new FakeMovementBackend();
+        var movementBackend = new FakeMovementBackend(backendKind: "test-native-window-message");
 
         var result = WaypointNavigator.Run(
             processId: 100,
@@ -2232,6 +2236,7 @@ public sealed class NavigationRunResultJsonOutputTests
 
         Assert.Equal("success", root.GetProperty("Status").GetString());
         Assert.Equal("arrived", root.GetProperty("StopReason").GetString());
+        Assert.Equal("test-native-window-message", root.GetProperty("MovementBackend").GetString());
         Assert.Equal(2, root.GetProperty("PulseCount").GetInt32());
 
         var events = root.GetProperty("Events").EnumerateArray().ToArray();
@@ -2526,7 +2531,8 @@ public sealed class NavigationRunResultJsonOutputTests
                 "keep",
                 1.5d,
                 2d,
-                "anchor-unavailable"
+                "anchor-unavailable",
+                MovementBackendKinds.NotCreated
             });
 
         return Assert.IsType<NavigationRunResult>(result);
@@ -2559,10 +2565,13 @@ public sealed class NavigationRunResultJsonOutputTests
     }
 
     private sealed class FakeMovementBackend(
-        IEnumerable<MovementCommandResult>? results = null) : IMovementBackend
+        IEnumerable<MovementCommandResult>? results = null,
+        string backendKind = "test-backend") : IMovementBackend
     {
         private readonly Queue<MovementCommandResult> _results =
             new(results ?? Enumerable.Repeat(new MovementCommandResult(true, null), 32));
+
+        public string BackendKind { get; } = backendKind;
 
         public void PrepareForMovement()
         {

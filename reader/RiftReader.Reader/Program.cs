@@ -1000,6 +1000,7 @@ internal static class Program
                 plan,
                 routeWaypoints,
                 anchorSource: poseSource.Source.AnchorSource,
+                movementBackend: movementBackend.BackendKind,
                 stopReason: "anchor-unavailable",
                 issues: [refreshError ?? "Unable to refresh the proof coord anchor before live navigation started."]);
 
@@ -1031,6 +1032,7 @@ internal static class Program
                 plan,
                 routeWaypoints,
                 anchorSource: poseSource.Source.AnchorSource,
+                movementBackend: movementBackend.BackendKind,
                 stopReason: "anchor-unavailable",
                 issues: [refreshPoseError ?? "Unable to reacquire the proof coord anchor after live-interaction arming."]);
 
@@ -1118,7 +1120,8 @@ internal static class Program
         IReadOnlyList<WaypointDefinition> routeWaypoints,
         string anchorSource,
         string stopReason,
-        IReadOnlyList<string> issues)
+        IReadOnlyList<string> issues,
+        string movementBackend = MovementBackendKinds.NotCreated)
     {
         var destinationPosition = routeWaypoints.Count > 0
             ? routeWaypoints[^1].Coordinate
@@ -1146,7 +1149,8 @@ internal static class Program
             DestinationPosition: destinationPosition,
             ElapsedMilliseconds: 0,
             SegmentResults: Array.Empty<NavigationRunResult>(),
-            Issues: issues.ToArray());
+            Issues: issues.ToArray(),
+            MovementBackend: movementBackend);
     }
 
     private static NavigationFacingSummary TryBuildNavigationFacingSummary(
@@ -1346,7 +1350,8 @@ internal static class Program
                     effectivePace,
                     arrivalRadius,
                     resolvedConfiguration.Movement.StartRadius,
-                    "anchor-unavailable");
+                    stopReason: "anchor-unavailable",
+                    movementBackend: movementBackend.BackendKind);
 
                 if (!options.JsonOutput)
                 {
@@ -1380,7 +1385,8 @@ internal static class Program
                     effectivePace,
                     arrivalRadius,
                     resolvedConfiguration.Movement.StartRadius,
-                    "anchor-unavailable");
+                    stopReason: "anchor-unavailable",
+                    movementBackend: movementBackend.BackendKind);
 
                 if (!options.JsonOutput)
                 {
@@ -1427,6 +1433,7 @@ internal static class Program
                     resolvedConfiguration.Movement.StartRadius,
                     poseSource.InitialSample,
                     poseSource.Source.AnchorSource,
+                    movementBackend.BackendKind,
                     turnResult);
 
                 if (!options.JsonOutput)
@@ -2215,7 +2222,8 @@ internal static class Program
         string pace,
         double arrivalRadius,
         double startRadius,
-        string stopReason)
+        string stopReason,
+        string movementBackend = MovementBackendKinds.NotCreated)
     {
         var events = new[]
         {
@@ -2246,6 +2254,7 @@ internal static class Program
             FinalPosition: startWaypoint.Coordinate,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: 0,
+            MovementBackend: movementBackend,
             Events: events);
     }
 
@@ -2259,6 +2268,7 @@ internal static class Program
         double startRadius,
         NavigationPoseSample initialSample,
         string anchorSource,
+        string movementBackend,
         NavigationTurnResult turnResult)
     {
         var initialPosition = new NavigationCoordinate(initialSample.X, initialSample.Y, initialSample.Z);
@@ -2295,6 +2305,7 @@ internal static class Program
             FinalPosition: turnResult.FinalPosition,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: 0,
+            MovementBackend: movementBackend,
             TurnResult: turnResult,
             Events: events);
     }

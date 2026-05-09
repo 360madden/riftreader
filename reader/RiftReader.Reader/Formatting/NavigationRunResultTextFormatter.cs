@@ -17,6 +17,7 @@ public static class NavigationRunResultTextFormatter
             $"Destination waypoint: {result.DestinationWaypointId}",
             $"Pace:                 {result.Pace}",
             $"Anchor source:        {result.AnchorSource}",
+            $"Movement backend:     {result.MovementBackend}",
             $"Start radius:         {FormatDouble(result.StartRadius)}",
             $"Arrival radius:       {FormatDouble(result.ArrivalRadius)}",
             $"Initial planar dist:  {FormatDouble(result.InitialPlanarDistance)}",

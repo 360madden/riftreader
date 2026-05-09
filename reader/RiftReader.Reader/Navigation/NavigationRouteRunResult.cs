@@ -22,4 +22,5 @@ public sealed record NavigationRouteRunResult(
     NavigationCoordinate? DestinationPosition,
     long ElapsedMilliseconds,
     IReadOnlyList<NavigationRunResult> SegmentResults,
-    IReadOnlyList<string> Issues);
+    IReadOnlyList<string> Issues,
+    string MovementBackend = MovementBackendKinds.Unknown);

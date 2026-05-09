@@ -9,6 +9,11 @@ Hybrid Rift tooling project:
 
 Current work is scoped primarily to the **memory reader**.
 
+Current recovery truth lives in
+`C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`. As of
+May 9, 2026, native exact-HWND no-turn waypoint movement has been live-validated
+and navigation run/route summaries explicitly record the movement backend used.
+
 ## Waypoint Navigation V1 (April 16, 2026)
 
 Waypoint navigation v1 now exists in the reader as a **manual-facing assist**
@@ -19,8 +24,9 @@ layer.
 | Control model | Manual-align first by default; optional proof-strict pre-movement auto-turn |
 | Waypoints | External JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
 | Telemetry | Verified coord anchor once, then direct memory coord reads during travel |
-| Movement | Forward key pulses plus optional run / walk toggle; `--auto-turn-before-move` can align before single-segment travel or before each active route segment |
+| Movement | Forward key pulses plus optional run / walk toggle; exact-HWND targets use the native C# `WindowMessageMovementBackend`, while no-HWND fallback remains PowerShell-based |
 | V3 route chain | `--plan-navigation-route` validates ordered start / via / destination route chains without input; `--navigate-waypoint-route` is the explicit active-input route gate with opt-in per-segment auto-turn |
+| Run evidence | `--navigation-run-summary-file` writes durable JSON with explicit `MovementBackend` metadata for single-segment and route navigation results |
 | TomTom import | `--import-tomtom-waypoints` converts TomTom saved `coordX/coordZ` waypoint lists into RiftReader waypoint JSON; imported `Y` defaults to `0` unless `--tomtom-default-y` is provided |
 | Safety | Fail closed on anchor loss, no progress, moving away, input failure, or timeout |
 | Non-goals | No obstacle avoidance, no route graph, no addon waypoint UI |

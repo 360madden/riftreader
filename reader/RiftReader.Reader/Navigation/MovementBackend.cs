@@ -8,6 +8,8 @@ namespace RiftReader.Reader.Navigation;
 
 public interface IMovementBackend
 {
+    string BackendKind => MovementBackendKinds.Unknown;
+
     void PrepareForMovement();
 
     MovementCommandResult PressKey(string key, int holdMilliseconds);
@@ -16,6 +18,15 @@ public interface IMovementBackend
 public sealed record MovementCommandResult(
     bool IsSuccess,
     string? ErrorMessage);
+
+public static class MovementBackendKinds
+{
+    public const string Unknown = "unknown";
+    public const string NotCreated = "not-created";
+    public const string NativeWindowMessage = "native-window-message";
+    public const string PowerShellWindowMessage = "powershell-window-message";
+    public const string PowerShellSendInputForeground = "powershell-sendinput-foreground";
+}
 
 public static class MovementBackendFactory
 {
@@ -87,6 +98,8 @@ public sealed class WindowMessageMovementBackend : IMovementBackend
         _processNameResolver = processNameResolver;
         _sleep = sleep;
     }
+
+    public string BackendKind => MovementBackendKinds.NativeWindowMessage;
 
     public void PrepareForMovement()
     {
@@ -349,6 +362,10 @@ public sealed class PowerShellMovementBackend(
     private const int MinimumCommandTimeoutMilliseconds = 5000;
     private const int LiveInteractionCountdownSeconds = 10;
     private bool _liveInteractionArmed;
+
+    public string BackendKind => string.IsNullOrWhiteSpace(targetWindowHandle)
+        ? MovementBackendKinds.PowerShellSendInputForeground
+        : MovementBackendKinds.PowerShellWindowMessage;
 
     public void PrepareForMovement()
     {

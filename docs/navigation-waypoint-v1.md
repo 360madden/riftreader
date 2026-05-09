@@ -11,7 +11,7 @@ This first slice is intentionally narrow:
 |---|---|
 | Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`; April 23 live v3-prep runs proved deliberately misaligned routes where corrective turn input improved alignment and strict coord-trace forward travel arrived. |
 | Waypoint source | External tracked JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
-| Movement backend | .NET 10 orchestration with native exact-HWND `WindowMessageMovementBackend` for resolved HWND targets; `post-rift-key.ps1` remains the no-HWND fallback |
+| Movement backend | .NET 10 orchestration with native exact-HWND `WindowMessageMovementBackend` for resolved HWND targets; `post-rift-key.ps1` remains the no-HWND fallback; run summaries record the backend as `MovementBackend` |
 | Live telemetry | Active movement requires the validated coord-trace anchor; read-only summaries may still surface fallback anchors when they are explicitly labeled by `anchorSource` |
 | Addon boundary | Addon stays telemetry / validation only in v1 |
 | Safety model | Fail closed on bad start, no progress, moving away, anchor loss, input failure, or timeout |
@@ -286,9 +286,12 @@ dotnet run --project C:\RIFT MODDING\RiftReader\reader\RiftReader.Reader\RiftRea
 For durable run evidence, add `--navigation-run-summary-file <path>` to
 `--navigate-waypoints` or `--navigate-waypoint-route`. The reader writes the
 same JSON result object that `--json` prints, including fail-closed results such
-as `start-mismatch`, `anchor-unavailable`, and `input-failed`. This is preferred
-for live smoke evidence because it avoids copying result JSON from the terminal
-transcript after movement.
+as `start-mismatch`, `anchor-unavailable`, and `input-failed`. Results include
+`MovementBackend` so evidence packets identify whether movement used
+`native-window-message`, `powershell-window-message`,
+`powershell-sendinput-foreground`, `not-created`, or `unknown`. This is
+preferred for live smoke evidence because it avoids copying result JSON from the
+terminal transcript after movement.
 
 The prototype wrapper still exists as a higher-level helper, but the current
 reader-core path is now the authoritative auto-turn entrypoint. The wrapper
@@ -439,6 +442,7 @@ Failure conditions:
 - `destinationWaypointId`
 - `pace`
 - `anchorSource`
+- `movementBackend`
 - `initialPlanarDistance`
 - `finalPlanarDistance`
 - `pulseCount`

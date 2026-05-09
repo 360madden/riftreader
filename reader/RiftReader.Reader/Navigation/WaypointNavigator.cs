@@ -25,6 +25,7 @@ public static class WaypointNavigator
         ArgumentNullException.ThrowIfNull(poseSource);
         ArgumentNullException.ThrowIfNull(movementBackend);
         var events = new List<NavigationEvent>();
+        var movementBackendKind = movementBackend.BackendKind;
 
         if (!poseSource.TryReadCurrent(out var current, out _))
         {
@@ -42,6 +43,7 @@ public static class WaypointNavigator
                 destinationWaypoint,
                 pace,
                 poseSource.AnchorSource,
+                movementBackendKind,
                 movement.StartRadius,
                 arrivalRadius,
                 pulseCount: 0,
@@ -85,6 +87,7 @@ public static class WaypointNavigator
                 destinationWaypoint,
                 pace,
                 poseSource.AnchorSource,
+                movementBackendKind,
                 movement.StartRadius,
                 arrivalRadius,
                 pulseCount: 0,
@@ -114,6 +117,7 @@ public static class WaypointNavigator
                 destinationWaypoint,
                 pace,
                 poseSource.AnchorSource,
+                movementBackendKind,
                 movement.StartRadius,
                 arrivalRadius,
                 initialPlanarDistance,
@@ -143,6 +147,7 @@ public static class WaypointNavigator
                 destinationWaypoint,
                 pace,
                 poseSource.AnchorSource,
+                movementBackendKind,
                 movement.StartRadius,
                 arrivalRadius,
                 pulseCount: 0,
@@ -185,6 +190,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount: 0,
@@ -234,6 +240,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount,
@@ -266,6 +273,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount,
@@ -312,6 +320,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount,
@@ -356,6 +365,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     initialPlanarDistance,
@@ -386,6 +396,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount,
@@ -416,6 +427,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount,
@@ -462,6 +474,7 @@ public static class WaypointNavigator
                     destinationWaypoint,
                     pace,
                     poseSource.AnchorSource,
+                    movementBackendKind,
                     movement.StartRadius,
                     arrivalRadius,
                     pulseCount,
@@ -508,6 +521,7 @@ public static class WaypointNavigator
         WaypointDefinition destinationWaypoint,
         string pace,
         string anchorSource,
+        string movementBackend,
         double startRadius,
         double arrivalRadius,
         double initialPlanarDistance,
@@ -537,6 +551,7 @@ public static class WaypointNavigator
             FinalPosition: finalPosition,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: elapsedMilliseconds,
+            MovementBackend: movementBackend,
             Events: events.ToArray());
 
     private static NavigationRunResult BuildFailure(
@@ -547,6 +562,7 @@ public static class WaypointNavigator
         WaypointDefinition destinationWaypoint,
         string pace,
         string anchorSource,
+        string movementBackend,
         double startRadius,
         double arrivalRadius,
         int pulseCount,
@@ -577,6 +593,7 @@ public static class WaypointNavigator
             FinalPosition: finalPosition,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: elapsedMilliseconds,
+            MovementBackend: movementBackend,
             Events: events?.ToArray());
 
     private static NavigationEvent CreateEvent(

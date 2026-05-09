@@ -15,6 +15,7 @@ public sealed class PowerShellMovementBackendTests
             targetWindowHandle: "0x5121A");
 
         Assert.IsType<WindowMessageMovementBackend>(backend);
+        Assert.Equal(MovementBackendKinds.NativeWindowMessage, backend.BackendKind);
     }
 
     [Fact]
@@ -26,6 +27,7 @@ public sealed class PowerShellMovementBackendTests
             targetProcessId: 49504);
 
         Assert.IsType<PowerShellMovementBackend>(backend);
+        Assert.Equal(MovementBackendKinds.PowerShellSendInputForeground, backend.BackendKind);
     }
 
     [Fact]
@@ -49,6 +51,7 @@ public sealed class PowerShellMovementBackendTests
 
         var result = backend.PressKey("w", 250);
 
+        Assert.Equal(MovementBackendKinds.NativeWindowMessage, backend.BackendKind);
         Assert.True(result.IsSuccess, result.ErrorMessage);
         Assert.Collection(
             nativeMethods.PostedMessages,

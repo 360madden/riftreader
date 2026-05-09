@@ -110,6 +110,7 @@ public static class WaypointRouteNavigator
                         position: turnResult.FinalPosition,
                         detail: turnResult.Reason ?? "Auto-turn failed before route segment movement could start.",
                         turnResult: turnResult,
+                        movementBackend: movementBackend.BackendKind,
                         initialSample: turnSample);
                     segmentResults.Add(turnFailure);
                     issues.Add($"Route segment {segmentIndex} failed with stop reason '{turnFailure.StopReason}'.");
@@ -210,7 +211,8 @@ public static class WaypointRouteNavigator
             DestinationPosition: finalDestination,
             ElapsedMilliseconds: segmentResults.Sum(static segment => segment.ElapsedMilliseconds),
             SegmentResults: segmentResults.ToArray(),
-            Issues: issues.ToArray());
+            Issues: issues.ToArray(),
+            MovementBackend: firstSegment?.MovementBackend ?? MovementBackendKinds.NotCreated);
     }
 
     private static double ComputeFinalPlanarDistance(
@@ -241,6 +243,7 @@ public static class WaypointRouteNavigator
         NavigationCoordinate position,
         string detail,
         NavigationTurnResult? turnResult,
+        string movementBackend = MovementBackendKinds.NotCreated,
         NavigationPoseSample? initialSample = null)
     {
         var initialPosition = initialSample is null
@@ -281,6 +284,7 @@ public static class WaypointRouteNavigator
             FinalPosition: position,
             DestinationPosition: destinationWaypoint.Coordinate,
             ElapsedMilliseconds: 0,
+            MovementBackend: movementBackend,
             TurnResult: turnResult,
             Events: events);
     }

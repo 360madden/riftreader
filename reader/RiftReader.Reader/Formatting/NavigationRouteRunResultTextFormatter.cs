@@ -17,6 +17,7 @@ public static class NavigationRouteRunResultTextFormatter
             $"Destination waypoint: {result.DestinationWaypointId}",
             $"Route:                {string.Join(" -> ", result.WaypointIds)}",
             $"Anchor source:        {result.AnchorSource}",
+            $"Movement backend:     {result.MovementBackend}",
             $"Segment count:        {result.SegmentCount}",
             $"Completed segments:   {result.CompletedSegmentCount}",
             $"Failed segment:       {FormatNullableInt(result.FailedSegmentIndex)}",
