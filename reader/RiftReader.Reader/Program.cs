@@ -987,7 +987,7 @@ internal static class Program
                 result => NavigationRouteRunResultTextFormatter.Format(result));
         }
 
-        var movementBackend = new PowerShellMovementBackend(
+        var movementBackend = MovementBackendFactory.Create(
             NavigationPathResolver.ResolveMovementScriptFile(),
             target.ProcessName,
             target.ProcessId,
@@ -1324,7 +1324,7 @@ internal static class Program
             return 1;
         }
 
-        var movementBackend = new PowerShellMovementBackend(
+        var movementBackend = MovementBackendFactory.Create(
             NavigationPathResolver.ResolveMovementScriptFile(),
             target.ProcessName,
             target.ProcessId,

@@ -6,6 +6,126 @@ namespace RiftReader.Reader.Tests.Navigation;
 public sealed class PowerShellMovementBackendTests
 {
     [Fact]
+    public void Create_UsesNativeWindowMessageBackendWhenExactWindowHandleIsAvailable()
+    {
+        var backend = MovementBackendFactory.Create(
+            "unused.ps1",
+            "rift_x64",
+            targetProcessId: 49504,
+            targetWindowHandle: "0x5121A");
+
+        Assert.IsType<WindowMessageMovementBackend>(backend);
+    }
+
+    [Fact]
+    public void Create_KeepsPowerShellFallbackWhenNoExactWindowHandleIsAvailable()
+    {
+        var backend = MovementBackendFactory.Create(
+            "unused.ps1",
+            "rift_x64",
+            targetProcessId: 49504);
+
+        Assert.IsType<PowerShellMovementBackend>(backend);
+    }
+
+    [Fact]
+    public void NativePressKey_PostsDownAndUpToEffectiveWindowHandle()
+    {
+        var nativeMethods = new FakeWindowMessageNativeMethods
+        {
+            OwnerProcessId = 49504,
+            TargetThreadId = 17,
+            EffectiveTargetHandle = 0x6000,
+            VirtualKeyScan = 0x57,
+            ScanCode = 0x11
+        };
+        var backend = new WindowMessageMovementBackend(
+            "rift_x64",
+            targetProcessId: 49504,
+            targetWindowHandle: "0x5121A",
+            nativeMethods,
+            _ => "rift_x64",
+            _ => { });
+
+        var result = backend.PressKey("w", 250);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.Collection(
+            nativeMethods.PostedMessages,
+            down =>
+            {
+                Assert.Equal(0x6000, down.WindowHandle);
+                Assert.Equal(0x0100u, down.Message);
+                Assert.Equal(0x57, down.WParam);
+                Assert.Equal(1u | (0x11u << 16), ToUInt32(down.LParam));
+            },
+            up =>
+            {
+                Assert.Equal(0x6000, up.WindowHandle);
+                Assert.Equal(0x0101u, up.Message);
+                Assert.Equal(0x57, up.WParam);
+                Assert.Equal(1u | (0x11u << 16) | 0xC0000000u, ToUInt32(up.LParam));
+            });
+    }
+
+    [Fact]
+    public void NativePressKey_FailsClosedWhenWindowHandleBelongsToDifferentPid()
+    {
+        var nativeMethods = new FakeWindowMessageNativeMethods
+        {
+            OwnerProcessId = 12345,
+            TargetThreadId = 17,
+            EffectiveTargetHandle = 0x6000,
+            VirtualKeyScan = 0x57,
+            ScanCode = 0x11
+        };
+        var backend = new WindowMessageMovementBackend(
+            "rift_x64",
+            targetProcessId: 49504,
+            targetWindowHandle: "0x5121A",
+            nativeMethods,
+            _ => "rift_x64",
+            _ => { });
+
+        var result = backend.PressKey("w", 250);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("not requested PID 49504", result.ErrorMessage);
+        Assert.Empty(nativeMethods.PostedMessages);
+    }
+
+    [Fact]
+    public void NativePressKey_RetriesKeyUpWhenPrimaryReleaseFails()
+    {
+        var nativeMethods = new FakeWindowMessageNativeMethods
+        {
+            OwnerProcessId = 49504,
+            TargetThreadId = 17,
+            EffectiveTargetHandle = 0x6000,
+            VirtualKeyScan = 0x57,
+            ScanCode = 0x11,
+            FailedKeyUpPostsRemaining = 1,
+            LastWin32Error = 5
+        };
+        var backend = new WindowMessageMovementBackend(
+            "rift_x64",
+            targetProcessId: 49504,
+            targetWindowHandle: "0x5121A",
+            nativeMethods,
+            _ => "rift_x64",
+            _ => { });
+
+        var result = backend.PressKey("w", 250);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("PostMessage failed", result.ErrorMessage);
+        Assert.Collection(
+            nativeMethods.PostedMessages,
+            down => Assert.Equal(0x0100u, down.Message),
+            retryUp => Assert.Equal(0x0101u, retryUp.Message));
+    }
+
+    [Fact]
     public void PressKey_UsesWindowMessageBackendWhenExactWindowHandleIsAvailable()
     {
         using var fixture = new MovementScriptFixture();
@@ -113,4 +233,75 @@ public sealed class PowerShellMovementBackendTests
             }
         }
     }
+
+    private static uint ToUInt32(nint value)
+    {
+        return unchecked((uint)(int)value);
+    }
+
+    private sealed class FakeWindowMessageNativeMethods : IWindowMessageNativeMethods
+    {
+        public uint OwnerProcessId { get; init; }
+
+        public uint TargetThreadId { get; init; }
+
+        public nint EffectiveTargetHandle { get; init; }
+
+        public short VirtualKeyScan { get; init; }
+
+        public uint ScanCode { get; init; }
+
+        public int FailedKeyUpPostsRemaining { get; set; }
+
+        public int LastWin32Error { get; init; }
+
+        public List<PostedMessage> PostedMessages { get; } = [];
+
+        public bool IsWindow(nint windowHandle)
+        {
+            return windowHandle != nint.Zero;
+        }
+
+        public uint GetWindowThreadProcessId(nint windowHandle, out uint processId)
+        {
+            processId = OwnerProcessId;
+            return TargetThreadId;
+        }
+
+        public nint GetEffectiveTargetHandle(nint topWindowHandle, uint targetThreadId, int targetProcessId)
+        {
+            return EffectiveTargetHandle == nint.Zero
+                ? topWindowHandle
+                : EffectiveTargetHandle;
+        }
+
+        public short VkKeyScan(char character)
+        {
+            return VirtualKeyScan;
+        }
+
+        public uint MapVirtualKey(uint code, uint mapType)
+        {
+            return ScanCode;
+        }
+
+        public bool PostMessage(nint windowHandle, uint message, nint wParam, nint lParam)
+        {
+            if (message == 0x0101u && FailedKeyUpPostsRemaining > 0)
+            {
+                FailedKeyUpPostsRemaining--;
+                return false;
+            }
+
+            PostedMessages.Add(new PostedMessage(windowHandle, message, wParam, lParam));
+            return true;
+        }
+
+        public int GetLastWin32Error()
+        {
+            return LastWin32Error;
+        }
+    }
+
+    private sealed record PostedMessage(nint WindowHandle, uint Message, nint WParam, nint LParam);
 }

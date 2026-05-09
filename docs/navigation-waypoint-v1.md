@@ -11,7 +11,7 @@ This first slice is intentionally narrow:
 |---|---|
 | Control model | **Manual-align first by default**. The reader core can now optionally auto-turn before forward movement with `--auto-turn-before-move`; April 23 live v3-prep runs proved deliberately misaligned routes where corrective turn input improved alignment and strict coord-trace forward travel arrived. |
 | Waypoint source | External tracked JSON at `C:\RIFT MODDING\RiftReader\scripts\navigation\waypoints.json` |
-| Movement backend | .NET 10 orchestration with a thin adapter over `C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1` |
+| Movement backend | .NET 10 orchestration with native exact-HWND `WindowMessageMovementBackend` for resolved HWND targets; `post-rift-key.ps1` remains the no-HWND fallback |
 | Live telemetry | Active movement requires the validated coord-trace anchor; read-only summaries may still surface fallback anchors when they are explicitly labeled by `anchorSource` |
 | Addon boundary | Addon stays telemetry / validation only in v1 |
 | Safety model | Fail closed on bad start, no progress, moving away, anchor loss, input failure, or timeout |
@@ -55,8 +55,11 @@ flowchart TD
     F --> I["Read-navigation-current summary"]
     H --> I
     H --> J["WaypointNavigator"]
-    J --> K["PowerShellMovementBackend"]
-    K --> L["post-rift-key.ps1"]
+    J --> K["MovementBackendFactory"]
+    K --> L["WindowMessageMovementBackend (exact HWND)"]
+    K --> M["PowerShellMovementBackend (no-HWND fallback)"]
+    L --> N["PostMessageW WM_KEYDOWN/WM_KEYUP"]
+    M --> O["post-rift-key.ps1"]
 ```
 
 ### Pose resolution policy
@@ -530,4 +533,3 @@ As of **April 23, 2026**:
 
 For the v3 task plan and current route-chain status, see
 `C:\RIFT MODDING\RiftReader\docs\navigation-v3-plan.md`.
-
