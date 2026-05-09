@@ -195,6 +195,23 @@ Practical requirements for new workflow/helper code:
   conversation after acknowledging the crash risk. If a required proof anchor
   cannot be refreshed without CE, fail closed and block movement instead of
   falling back to a stale/cached or heuristic source.
+- **Coordinate freshness invariant:** do not call a coordinate value current
+  just because an artifact PID/HWND still matches. PID/HWND/process-start match
+  is only a targeting preflight. The default stale/non-stale proof is
+  **API-now vs memory-now**: sample a fresh live API/runtime coordinate, read
+  the memory coordinate from the candidate/anchor immediately, compare X/Y/Z
+  deltas, and only treat the memory coordinate as current when the API source is
+  fresh and the delta is within tolerance. If the API source is stale/missing,
+  the memory read fails, or the delta exceeds tolerance, fail closed and treat
+  the artifact coordinate as a timestamped snapshot/reacquisition seed only.
+- Fresh API/runtime coordinate means ChromaLink `/api/v1/riftreader/world-state`
+  with freshness/contract proof, an explicitly live ReaderBridge/in-game runtime
+  surface, or another current live telemetry source. It does **not** mean
+  `ReaderBridgeExport.lua`, any SavedVariables file, `rift.cfg`, or an old
+  run-summary coordinate.
+- Every coordinate freshness result must record API coordinate + timestamp,
+  memory coordinate + timestamp/address/candidate, PID/HWND/process identity,
+  per-axis deltas, tolerance, and verdict.
 - For any **movement polling**, **forward-hold proof**, or other live
   coordinate-driven capture, resolve a **validated coord-trace anchor** first
   via `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` and

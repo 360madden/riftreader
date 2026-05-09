@@ -39,6 +39,10 @@ Use this skill when the task involves the live Rift client, not static code only
 ## Safety rules
 
 - Do not send input until a window is bound and focused.
+- Do not present cached/artifact coordinates as current. For coordinate
+  freshness, PID/HWND match is only targeting preflight; currentness requires a
+  fresh live API/runtime coordinate compared to an immediate memory read
+  (**API-now vs memory-now**) with per-axis deltas inside tolerance.
 - Treat semantic bindings as untrusted until confirmed. If `tools/rift-game-mcp/config/bindings.json` is incomplete or likely wrong, pass `keyChord` explicitly.
 - Use client-area coordinates only.
 - Prefer a narrow `wait_for_frame_change` region when the expected change is localized.

@@ -4,6 +4,33 @@ Start here if artifacts, notes, or workflow state drift or get corrupted.
 
 Last reviewed: May 8, 2026.
 
+## Coordinate freshness rule
+
+Do not treat a stored coordinate from
+`C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`,
+`run-summary.json`, or another artifact as current just because PID/HWND still
+match. PID/HWND/process-start match is only a targeting preflight.
+
+The required quick stale/non-stale check is **API-now vs memory-now**:
+
+1. Sample a fresh live API/runtime coordinate now.
+2. Immediately read memory from the current proof candidate/anchor.
+3. Compare X/Y/Z deltas.
+4. Pass only when the API source is freshness-proven and all deltas are within
+   tolerance.
+5. Otherwise fail closed, block movement, and treat the artifact coordinate as a
+   timestamped snapshot/reacquisition seed.
+
+Fresh API/runtime sources include a freshness-proven ChromaLink
+`/api/v1/riftreader/world-state` response, an explicitly live ReaderBridge or
+in-game runtime surface, or another current telemetry stream. They do **not**
+include SavedVariables, `ReaderBridgeExport.lua`, `rift.cfg`, screenshots, or an
+old run summary.
+
+Every freshness result should record API coordinate/timestamp/source, memory
+coordinate/timestamp/address/candidate, PID/HWND/process identity, per-axis
+deltas, tolerance, and verdict.
+
 ## Current no-CE coord proof note
 
 As of the May 8, 2026 current-PID lane, start coord-truth recovery with:

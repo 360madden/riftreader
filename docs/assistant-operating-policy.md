@@ -194,6 +194,11 @@ navigation proof:
 
 | Rule | Requirement |
 |---|---|
+| Coordinate freshness | Use **API-now vs memory-now** as the default stale/non-stale gate: sample a fresh live API/runtime coordinate, immediately read the memory coordinate from the current candidate/anchor, compare X/Y/Z deltas, and call it current only if the API source is fresh and the delta is within tolerance |
+| PID/HWND role | Treat PID/HWND/process-start match as targeting preflight only; it never proves that a cached coordinate value is fresh |
+| Fresh API surfaces | Accept only freshness-proven live surfaces such as ChromaLink `/api/v1/riftreader/world-state`, explicitly live ReaderBridge/in-game runtime state, or another current telemetry source; never use SavedVariables, `rift.cfg`, or old run summaries as the API side of the freshness comparison |
+| Freshness failure policy | If API is stale/missing, memory readback fails, or API-vs-memory delta exceeds tolerance, classify the coordinate as stale/mismatch, block movement, and keep artifacts only as reacquisition seeds |
+| Freshness evidence | Record API coordinate/timestamp/source, memory coordinate/timestamp/address/candidate, PID/HWND/process identity, per-axis deltas, tolerance, and verdict |
 | Canonical coord source | Resolve `C:\RIFT MODDING\RiftReader\scripts\resolve-proof-coord-anchor.ps1` first and use the validated coord-trace anchor as the movement source of truth |
 | Coord-trace selection | Allow the proof resolver to choose either the traced object or the trace-linked source object, whichever still matches live ReaderBridge coordinates |
 | Watchset export | Ensure the proof watchset contains the canonical `coord-trace-coords` region derived from that validated coord-trace anchor |

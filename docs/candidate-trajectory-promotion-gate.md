@@ -12,6 +12,9 @@ Do not promote a coordinate candidate from score rank alone.
 
 | Rule | Reason |
 |---|---|
+| Currentness is API-now vs memory-now. | A matching PID/HWND or a high-scoring old artifact does not prove the coordinate value is fresh. |
+| The API side must be a freshness-proven live surface. | Use ChromaLink `/api/v1/riftreader/world-state`, live ReaderBridge/in-game runtime telemetry, or another current telemetry stream; never use SavedVariables, `rift.cfg`, screenshots, or old run summaries as the freshness source. |
+| Record the comparison evidence. | Promotion/freshness artifacts must include API coordinate/timestamp/source, memory coordinate/timestamp/address/candidate, per-axis deltas, tolerance, PID/HWND/process identity, and verdict. |
 | `ReaderBridgeExport.lua` and other SavedVariables files are not live coordinate truth. | RIFT SavedVariables are post-save snapshots and can be stale during movement. |
 | Static-cache, stale, wrong-origin, and stationary-tail-drift candidates are negative evidence only. | They can look plausible over short or stationary windows. |
 | Use `promotion-gate.json` as the final promotion authority. | It enforces classification, score, RMSE, drift, missing-sample, and truth-surface checks. |

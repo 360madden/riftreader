@@ -1,8 +1,25 @@
 # Current Truth
 
-_Last updated: May 8, 2026 09:15 EDT / 13:15 UTC (player actor-yaw disambiguation survivor promoted and validated on `rift_x64` PID `33912`, HWND `0xE0DB2`: `0x202CA5D23E0 @ +0xD4` is now the current behavior-backed actor-facing lead. Post-promotion `read-player-orientation` and `capture-actor-orientation` resolved the promoted lead from live memory; actor-facing proof suite and targeted C# tests passed. No movement, no CE, no RiftScan writes, and no SavedVariables live truth.)_
+_Last updated: May 8, 2026 19:09 EDT / 23:09 UTC (current restarted/live target is `rift_x64` PID `49504`, HWND `0x5121A`. Fresh `ProofOnly` passed with `movementSent=false` and auto-refreshed the current proof pointer; `Forward250 --live` and `ForwardSeries3x250 --live` passed using exact-HWND `window-message` input; no CE and no SavedVariables live truth. The prior PID `33912` proof pointer is archived as historical-only.)_
 
-## Current status
+
+## Newest live-session status (authoritative)
+
+| Fact | Current truth |
+|---|---|
+| Live target | `rift_x64` PID `49504`, HWND `0x5121A` |
+| Latest no-input proof | `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260508-230828\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260508-190905.json`; `movementSent=false`; `currentProofPointerUpdate.updated=true` |
+| Latest movement truth | `Forward250 --live` passed at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-Forward250-20260508-222839`; `ForwardSeries3x250 --live` passed at `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ForwardSeries3x250-20260508-223119`; series total planar movement `0.920973126486372m` |
+| Latest recorded coordinate snapshot | `X=7448.482421875`, `Y=889.2151489257812`, `Z=3024.538330078125` at `2026-05-08T23:09:13.2600494Z`; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
+| Coordinate freshness rule | PID/HWND/process-start match is targeting preflight only. Current/non-stale coordinate truth requires fresh live API/runtime coordinate vs immediate memory readback (**API-now vs memory-now**), per-axis delta within tolerance, and a recorded verdict. If API is stale/missing, memory readback fails, or delta exceeds tolerance, block movement and use artifacts only as reacquisition seeds. |
+| Current proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`; candidate `api-coord-hit-000005` at `0x24A01358880`; movement-grade only through current proof-anchor/readback gates |
+| Current tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` targets PID `49504` / HWND `0x5121A` and is auto-refreshed only after same-target `ProofOnly` success |
+| Archived stale pointer | Prior PID `33912` / HWND `0xE0DB2` pointer preserved at `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-08-pid33912-hwndE0DB2-historical.json`; historical-only, not current proof |
+| RiftScan/provider state | No current-PID RiftScan provider artifact was created; the current pointer uses a RiftReader-owned API-bootstrap candidate file and the milestone review is `ready-for-read-only-proof` without falling back to old PID `33912` |
+| Input backend | Gated movement now defaults to exact-HWND `window-message`; foreground `SendInput` previously returned success with zero coordinate delta |
+| Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus gate before movement |
+
+## Historical/mixed prior status snapshot
 
 | Fact | Current truth |
 |---|---|

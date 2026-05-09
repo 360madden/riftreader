@@ -40,6 +40,7 @@ These should remain non-negotiable even while improving speed:
 | Invariant | Reason |
 |---|---|
 | Exact PID/HWND required | Prevent wrong-window input. |
+| API-now vs memory-now coordinate freshness gate | Prevents cached artifact coordinates from being mistaken for current position. |
 | `--live` required for any input profile | One explicit live boundary per run. |
 | No Cheat Engine unless explicitly reauthorized | Current no-CE live boundary. |
 | No SavedVariables as live truth | SavedVariables are post-save snapshots only. |
@@ -60,6 +61,23 @@ These are intentionally allowed to improve development velocity:
 | Screenshots are profile-controlled, not mandatory for every run | Coordinate proof is enough for some iteration loops. |
 | A failed post-readback stops the series and reports a partial result | Faster evidence without silent retry loops. |
 | Stronger profiles can be enabled after base profiles pass | Avoids being stuck forever on tiny smoke tests. |
+
+## Coordinate freshness workflow
+
+The runner must not classify an artifact coordinate as current only because the
+target PID/HWND still matches. PID/HWND/process-start is a targeting preflight;
+the stale/non-stale coordinate gate is **API-now vs memory-now**:
+
+| Step | Requirement |
+|---|---|
+| API sample | Read a fresh live API/runtime coordinate from a freshness-proven source such as ChromaLink `/api/v1/riftreader/world-state` or explicitly live ReaderBridge/in-game runtime telemetry. |
+| Memory sample | Immediately read X/Y/Z from the current proof candidate/anchor in the same target process. |
+| Delta check | Compare per-axis deltas and require them to be within the profile tolerance. Start with `maxAbsDelta <= 0.05` unless a profile declares a stricter or looser tolerance. |
+| Failure behavior | If API is stale/missing, memory readback fails, or delta exceeds tolerance, report stale/mismatch, block movement, and keep old artifacts only as reacquisition seeds. |
+| Evidence | Write API coord/timestamp/source, memory coord/timestamp/address/candidate, PID/HWND/process identity, per-axis deltas, tolerance, and verdict into the summary/progress artifacts. |
+
+Do not use SavedVariables, `ReaderBridgeExport.lua`, `rift.cfg`, screenshots, or
+old run summaries as the API side of this freshness gate.
 
 ## Proposed file layout
 
@@ -161,6 +179,13 @@ Hardening added after review:
 | `proofAnchorFile` is passed into promotion, readback, and gated wrapper calls | Prevents promoting one anchor and validating/inputting against another. |
 | `processName` is passed through leaf calls | Keeps CLI/profile overrides honest. |
 | Promotion baseline target is checked before refresh | Fails clearly on stale PID/HWND baseline artifacts. |
+| Input profiles enforce a minimum planar coordinate delta | Prevents `MovementSent=true` with zero coordinate movement from being reported as a passed live movement test. |
+| Restart-stale artifacts are classified as historical evidence instead of thrown away | Old PID/HWND pointers and baselines stay visible as audit/reacquire hints, but cannot promote or gate movement until rescored against the current target. |
+| Proof-pose capture reacquires reference before rejecting stale pointers | A restarted game now yields `blocked-target-drift` JSON with current API/reference data and preserved historical pointer hints, not an unstructured throw that loses context. |
+| Current proof anchor wins over stale recovery pointer | If `telemetry-proof-coord-anchor.json` already matches the live PID/HWND, refresh uses its candidate seed instead of letting an older `docs/recovery/current-proof-anchor-readback.json` block the run. |
+| Gated input defaults to exact-HWND window-message backend | Live evidence showed foreground `SendInput` returned success but produced zero coordinate delta; exact-window message input moved the character and remains foreground-gated by the wrapper. |
+| RiftScan milestone review infers the latest live-test target | The strategy gate no longer recommends stale `docs/recovery/current-proof-anchor-readback.json` PID/HWND by default after a successful live run; it binds to `latest-live-test-run.json`/`run-summary.json` unless an explicit target is supplied. |
+| RiftScan validation accepts safe blocked reviews | A blocked milestone review can still validate the no-CE/no-write/no-movement boundary when the current target lacks a RiftScan candidate; this preserves the blocker instead of misrouting to old coordinates. |
 
 Known limits before the next live expansion:
 
@@ -477,6 +502,7 @@ Codex should normally inspect only `run-summary.json` and `run-summary.md`.
 | `passed` | Input/proof/readback succeeded. |
 | `passed-proof-only` | No input; proof valid. |
 | `blocked-target-mismatch` | PID/HWND wrong or stale. |
+| `blocked-target-drift` | Target exists, but cached proof pointer/anchor belongs to a prior PID/HWND; current API state was reacquired and movement stayed blocked until proof is rebuilt. |
 | `blocked-live-flag-required` | Input profile requested but `--live` missing. |
 | `blocked-reference-capture` | Fresh API/reference marker was unavailable; fail closed before proof/input. |
 | `blocked-promotion-reference-mismatch` | Baseline promotion summary is from a different PID/HWND/process. |
