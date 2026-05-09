@@ -25,6 +25,17 @@ Use this skill when the task involves the live Rift client, not static code only
 5. After input, call `wait_for_frame_change`.
 6. Then call `capture_game_window` again if you need to inspect the final state.
 
+
+## Native screenshot rule
+
+- For in-game RIFT screenshot capture, use only `NUM PAD *` / `numpad_multiply`
+  via `scripts/rift_native_screenshot.py` after exact window binding.
+- Never send `Ctrl+P`, `Control+P`, `PrtSc`, or Snipping Tool shortcuts for
+  screenshots. `Ctrl+P` is unbound/forbidden, and Print Screen is intercepted
+  by Windows Snipping Tool on this machine.
+- Treat native screenshots as visual evidence only; they do not replace
+  proof-anchor/readback movement gates.
+
 ## Safety rules
 
 - Do not send input until a window is bound and focused.

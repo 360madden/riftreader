@@ -165,6 +165,28 @@ table with these columns:
 Do **not** include `Model` or `Reasoning` columns unless the user explicitly
 asks for them.
 
+
+## Live screenshot capture invariant
+
+For RIFT native screenshots, the only approved in-game screenshot input is
+**`NUM PAD *`** (`VK_MULTIPLY`, `0x6A`). This was live-proven on May 8,
+2026 against `rift_x64` PID `49504`, HWND `0x5121A`, and produced
+`C:\Users\mrkoo\OneDrive\Documents\RIFT\Screenshots\2026-05-08_200805.jpg`.
+
+| Input | Policy | Reason |
+|---|---|---|
+| `NUM PAD *` | Allowed for native RIFT screenshots | Current verified `Take Screenshot` binding |
+| `Ctrl+P` / `Control+P` | Forbidden | Keybind was removed; helpers must reject it before input |
+| `PrtSc` / Print Screen | Forbidden for automation | Windows 11 Snipping Tool intercepts it on this machine |
+| Snipping Tool / `Win+Shift+S` | Manual fallback only | Interactive, not unattended exact-HWND capture |
+| `Take Screenshot Without UI` | Do not use unless explicitly rebound and re-proven | Currently not bound |
+
+Use `C:\RIFT MODDING\RiftReader\scripts\rift_native_screenshot.py` for native
+screenshot attempts and `C:\RIFT MODDING\RiftReader\docs\recovery\native-rift-screenshot-backend.md`
+for the current command, proof artifact, and troubleshooting rules. A visual
+screenshot is evidence only; it does not replace no-CE proof-anchor/readback
+movement gates.
+
 ## Live movement / polling invariant
 
 Before any live movement polling, forward-hold capture, or coordinate-driven

@@ -527,6 +527,8 @@ Codex should normally inspect only `run-summary.json` and `run-summary.md`.
 |---|---|
 | Add coordinate recorder around pulse | Higher-signal evidence than pre/post only. |
 | Add optional screenshots | Visual proof when useful. |
+| Add native RIFT screenshot backend | Uses the in-game `Take Screenshot` binding (`NUM PAD *`) when GDI/MCP/WGC capture is unreliable. |
+| Forbid `Ctrl+P` screenshot path | That keybind is intentionally removed and must not be retried for screenshots. |
 | Make recording profile-controlled | Avoid slowing every run. |
 
 ### Milestone 5 - Turn/facing profiles
@@ -561,6 +563,7 @@ stable.
 - Do not add a broad plugin system yet.
 - Do not create one script per profile.
 - Keep existing `.ps1` leaves as adapters until each is intentionally ported.
+- For native in-game screenshots, use only `NUM PAD *`; `Ctrl+P` / `Control+P` is a forbidden screenshot chord and must fail closed before input.
 
 ## First recommended build target
 

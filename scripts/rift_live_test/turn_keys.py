@@ -18,6 +18,7 @@ DEFAULT_TURN_KEYS = ["a", "d", "A", "D", "Left", "Right"]
 DEFAULT_INPUT_MODES = ["foreground-sendinput", "post-message"]
 DEFAULT_SHELLS = ["pwsh"]
 VALID_INPUT_MODES = {"foreground-sendinput", "post-message"}
+VALID_SCREENSHOT_BACKENDS = {"wgc", "native-rift"}
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,8 @@ class TurnKeyProfileConfig:
     proof_profile: str = "ProofOnly"
     capture_screenshots: bool = False
     require_screenshots: bool = False
+    screenshot_backend: str = "wgc"
+    native_screenshot_key_chord: str = "numpad_multiply"
     stop_on_movement: bool = True
     output_root: Path | None = None
     command_timeout_seconds: int = 120
@@ -400,6 +403,8 @@ class TurnKeyProfiler:
         invalid_modes = [mode for mode in self.config.input_modes if mode not in VALID_INPUT_MODES]
         if invalid_modes:
             raise ValueError(f"unsupported input modes: {', '.join(invalid_modes)}")
+        if self.config.screenshot_backend not in VALID_SCREENSHOT_BACKENDS:
+            raise ValueError(f"unsupported screenshot backend: {self.config.screenshot_backend}")
 
     def _planned_attempts(self) -> list[dict[str, Any]]:
         attempts: list[dict[str, Any]] = []
@@ -706,6 +711,11 @@ class TurnKeyProfiler:
     def _capture_screenshot(self, attempt_id: str, *, phase: str) -> dict[str, Any] | None:
         if not self.config.capture_screenshots:
             return None
+        if self.config.screenshot_backend == "native-rift":
+            return self._capture_native_rift_screenshot(attempt_id, phase=phase)
+        return self._capture_wgc_screenshot(attempt_id, phase=phase)
+
+    def _capture_wgc_screenshot(self, attempt_id: str, *, phase: str) -> dict[str, Any]:
         script = self.config.repo_root / "scripts" / "capture-rift-window-wgc.ps1"
         output_path = self.screenshot_dir / f"{attempt_id}-{phase}.png"
         args = [
@@ -731,9 +741,43 @@ class TurnKeyProfiler:
             self._next_child_file(f"{attempt_id}-{phase}-screenshot"),
             result,
         )
+        preview["screenshotBackend"] = "wgc"
         preview["screenshotPath"] = str(output_path)
         if isinstance(result.json_data, dict):
             preview["usable"] = result.json_data.get("Usable") or result.json_data.get("usable")
+        return preview
+
+    def _capture_native_rift_screenshot(self, attempt_id: str, *, phase: str) -> dict[str, Any]:
+        script = self.config.repo_root / "scripts" / "rift_native_screenshot.py"
+        args = [
+            sys.executable,
+            str(script),
+            "--pid",
+            str(self.config.process_id),
+            "--hwnd",
+            self.config.target_window_handle,
+            "--output-root",
+            str(self.screenshot_dir),
+            "--key-chord",
+            self.config.native_screenshot_key_chord,
+            "--json",
+        ]
+        result = run_json_command(
+            args,
+            cwd=self.config.repo_root,
+            label=f"{attempt_id}-{phase}-native-screenshot",
+            timeout_seconds=self.config.command_timeout_seconds,
+        )
+        preview = _write_json_command_envelope(
+            self._next_child_file(f"{attempt_id}-{phase}-native-screenshot"),
+            result,
+        )
+        preview["screenshotBackend"] = "native-rift"
+        if isinstance(result.json_data, dict):
+            preview["usable"] = bool(result.json_data.get("ok"))
+            preview["screenshotPath"] = result.json_data.get("artifactPath") or result.json_data.get("screenshotPath")
+            preview["nativeScreenshotStatus"] = result.json_data.get("status")
+            preview["nativeScreenshotKeyChord"] = result.json_data.get("keyChord")
         return preview
 
     def _send_key(self, *, key: str, input_mode: str, shell: str, attempt_id: str) -> dict[str, Any]:
@@ -894,6 +938,10 @@ class TurnKeyProfiler:
             "keys": list(self.config.keys),
             "inputModes": list(self.config.input_modes),
             "shells": list(self.config.shells),
+            "captureScreenshots": self.config.capture_screenshots,
+            "requireScreenshots": self.config.require_screenshots,
+            "screenshotBackend": self.config.screenshot_backend,
+            "nativeScreenshotKeyChord": self.config.native_screenshot_key_chord,
             "repeats": self.config.repeats,
             "holdMilliseconds": self.config.hold_milliseconds,
             "postInputWaitMilliseconds": self.config.post_input_wait_milliseconds,
@@ -930,6 +978,7 @@ def format_turn_key_markdown(summary: dict[str, Any]) -> str:
         f"- No Cheat Engine: `{str(summary.get('noCheatEngine')).lower()}`",
         f"- SavedVariables live truth: `{str(summary.get('savedVariablesUsedAsLiveTruth')).lower()}`",
         f"- Proof refresh retries: `{summary.get('proofRefreshRetries')}`",
+        f"- Screenshots: `{summary.get('screenshotBackend')}` capture=`{str(summary.get('captureScreenshots')).lower()}` require=`{str(summary.get('requireScreenshots')).lower()}`",
         "",
         "## Promoted candidates",
         "",

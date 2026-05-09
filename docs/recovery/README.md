@@ -111,6 +111,13 @@ Start with:
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-14-camera-workflow-branch-audit.md`
 - `C:\RIFT MODDING\RiftReader\docs\analysis\2026-04-22-actor-facing-source-chain-behavior-backed-lead.md`
 
+## Native screenshot recovery note
+
+For screenshot or visual-capture blockers, use
+`C:\RIFT MODDING\RiftReader\docs\recovery\native-rift-screenshot-backend.md`.
+The current RIFT native screenshot key is `NUM PAD *`; `Ctrl+P`, `PrtSc`, and
+Snipping Tool automation are forbidden for RiftReader screenshot workflows.
+
 ## Use these files only
 
 1. `C:\RIFT MODDING\RiftReader\docs\recovery\current-truth.md`

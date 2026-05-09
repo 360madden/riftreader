@@ -18,6 +18,7 @@ from rift_live_test.turn_keys import (
     DEFAULT_TURN_KEYS,
     TurnKeyProfileConfig,
     TurnKeyProfiler,
+    VALID_SCREENSHOT_BACKENDS,
 )
 
 
@@ -123,7 +124,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--capture-screenshots",
         action="store_true",
-        help="Capture before/after WGC screenshots for each attempt.",
+        help="Capture before/after screenshots for each attempt.",
+    )
+    parser.add_argument(
+        "--screenshot-backend",
+        choices=sorted(VALID_SCREENSHOT_BACKENDS),
+        default="wgc",
+        help="Screenshot backend for --capture-screenshots. native-rift sends only the in-game NUM PAD * screenshot key.",
+    )
+    parser.add_argument(
+        "--native-screenshot-key-chord",
+        default="numpad_multiply",
+        help="Native RIFT screenshot chord. Ctrl+P is forbidden; default is NUM PAD *.",
     )
     parser.add_argument(
         "--require-screenshots",
@@ -177,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         proof_profile=args.proof_profile,
         capture_screenshots=args.capture_screenshots,
         require_screenshots=args.require_screenshots,
+        screenshot_backend=args.screenshot_backend,
+        native_screenshot_key_chord=args.native_screenshot_key_chord,
         stop_on_movement=not args.continue_after_movement,
         output_root=output_root,
         command_timeout_seconds=args.command_timeout_seconds,
