@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "handoffKind": "pid30992-proof-recovery-final",
+  "createdLocal": "2026-05-10T05:55:00-04:00",
+  "createdUtc": "2026-05-10T09:55:00Z",
+  "repo": "C:\\RIFT MODDING\\RiftReader",
+  "branch": "main",
+  "status": "proof-recovered-docs-current",
+  "currentTarget": {
+    "processName": "rift_x64",
+    "processId": 30992,
+    "targetWindowHandle": "0xD1008"
+  },
+  "currentProofPointer": {
+    "file": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-proof-anchor-readback.json",
+    "status": "current-target-proofonly-passed",
+    "lastUpdatedUtc": "2026-05-10T09:53:44.001874+00:00",
+    "candidateId": "api-family-hit-000001",
+    "candidateAddressHex": "0x1E804B53C18",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-30992-readback-summary-20260510-055339.json",
+    "latestProofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260510-095259\\run-summary.json",
+    "currentCoordinate": {
+      "x": 7402.0341796875,
+      "y": 871.7628173828125,
+      "z": 3026.4580078125,
+      "recordedAtUtc": "2026-05-10T09:53:43.5120419Z"
+    }
+  },
+  "reacquisitionEvidence": {
+    "oldPointerArchived": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-10-pid49504-hwnd5121A-historical.json",
+    "familyScanCandidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-30992-20260510-082207\\api-family-vec3-candidates.jsonl",
+    "familyScanBestHit": {
+      "candidateAddressHex": "0x1E804B53C18",
+      "referenceMaxAbsDelta": 0.0034324218750043656
+    },
+    "poseAReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-proof-pose-a-currentpid-30992-family-20260510-092123\\riftscan-riftreader-currentpid-30992-readback-wrapper-summary-20260510-052153.json",
+    "poseBReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-riftreader-currentpid-30992-readback-wrapper-summary-20260510-054646.json",
+    "promotionOutput": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\promote-currentpid-30992-family-proof-anchor-20260510-055125.json",
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "promotion": {
+      "proofValidationStatus": "validated",
+      "proofMethod": "no-ce-riftscan-reference-multisample",
+      "maxReferencePlanarDisplacement": 2.7734974400561336,
+      "maxDeltaError": 0.005424609375040745,
+      "poseCount": 2,
+      "movementSent": false,
+      "noCheatEngine": true
+    }
+  },
+  "commits": [
+    {
+      "sha": "04158d8",
+      "message": "Skip partial RRAPICOORD markers during reference capture"
+    },
+    {
+      "sha": "44695ab",
+      "message": "Document Python-first reusable helper policy"
+    },
+    {
+      "sha": "3806c62",
+      "message": "Document Python helper logging criteria"
+    },
+    {
+      "sha": "d66d276",
+      "message": "Add current-PID coordinate family scan helper"
+    },
+    {
+      "sha": "1bce6d1",
+      "message": "Refresh current proof pointer for PID 30992"
+    },
+    {
+      "sha": "92ed4dd",
+      "message": "Update current truth for PID 30992 proof recovery"
+    }
+  ],
+  "safetyBoundary": {
+    "movementSentDuringReacquisition": false,
+    "automatedInputSentDuringReacquisition": false,
+    "manualDisplacementBetweenPoses": true,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false,
+    "githubConnectorWrites": false
+  },
+  "stillBlockedOrNotRevalidated": [
+    "post-restart automated movement/route smoke",
+    "actor-facing",
+    "yaw",
+    "auto-turn",
+    "route execution"
+  ],
+  "nextRecommendedActions": [
+    "Keep GitHub connector read-only.",
+    "Use local Python helpers for complex orchestration.",
+    "Before any bounded movement, rerun target-control, visual gate, and current proof preflight.",
+    "If movement is revalidated, update current-truth.md with the post-restart movement result."
+  ]
+}
