@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-proof-anchor-readback-pointer",
+  "status": "current-target-proofonly-passed",
+  "lastUpdatedUtc": "2026-05-09T12:04:18.144761+00:00",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 49504,
+    "targetWindowHandle": "0x5121A"
+  },
+  "currentTruthClassification": {
+    "classification": "current-live-target-proof-anchor",
+    "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+    "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
+    "savedVariablesUsedAsLiveTruth": false,
+    "noCheatEngine": true
+  },
+  "riftscanCandidateSource": {
+    "sourceKind": "current-proof-anchor-candidate-file",
+    "compatibilityNote": "Field name is retained for existing pointer consumers; the candidate file may be RiftReader-owned evidence and must still be gated by current proof-anchor/readback.",
+    "riftScanRoot": null,
+    "matchFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\reacquire-currentpid-49504-20260508-211304\\api-bootstrap-vec3-candidates.json",
+    "candidateId": "api-coord-hit-000005",
+    "sourceBaseAddressHex": "0x24A01350000",
+    "sourceOffsetHex": "0x8880",
+    "sourceAbsoluteAddressHex": "0x24A01358880",
+    "axisOrder": "xyz",
+    "supportCount": 1,
+    "proofSupportCount": 6,
+    "bestMaxAbsDistance": 0.05,
+    "promotedByProofAnchor": true,
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "notes": [
+      "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
+      "Do not treat this pointer as valid after a client restart unless target metadata still matches."
+    ]
+  },
+  "latestValidation": {
+    "status": "valid",
+    "movementAllowed": true,
+    "movementSent": false,
+    "noCheatEngine": true,
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-49504-readback-summary-20260509-080414.json",
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "proofAnchorCandidateId": "api-coord-hit-000005",
+    "proofAnchorCandidateAddressHex": "0x24A01358880",
+    "currentCoordinate": {
+      "x": 7406.2783203125,
+      "y": 871.7720336914062,
+      "z": 3027.971923828125,
+      "recordedAtUtc": "2026-05-09T12:04:17.6493776Z"
+    },
+    "generatedAtUtc": "2026-05-09T12:04:17.9078064+00:00"
+  },
+  "latestProofOnly": {
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260509-120255\\run-summary.json",
+    "status": "passed-proof-only",
+    "generatedAtUtc": "2026-05-09T12:04:18.136159+00:00",
+    "movementSent": false,
+    "movementAttempted": false,
+    "currentCoordinate": {
+      "x": 7406.2783203125,
+      "y": 871.7720336914062,
+      "z": 3027.971923828125,
+      "recordedAtUtc": "2026-05-09T12:04:17.6493776Z"
+    },
+    "coordinateDelta": null,
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-49504-readback-summary-20260509-080414.json"
+  },
+  "runtimePointers": {
+    "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+  },
+  "notes": [
+    "Auto-written after ProofOnly passed for the exact current target.",
+    "This file is a current pointer, not an immutable historical record."
+  ],
+  "historicalSupersededPointer": {
+    "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-08-pid33912-hwndE0DB2-historical.json",
+    "classification": "historical-target-epoch-evidence",
+    "supersededTarget": {
+      "processName": "rift_x64",
+      "processId": 33912,
+      "targetWindowHandle": "0xE0DB2"
+    },
+    "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
+  },
+  "latestForward250": {
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-Forward250-20260509-020026\\run-summary.json",
+    "status": "passed",
+    "generatedAtUtc": "2026-05-09T02:02:25.230431+00:00",
+    "movementSent": true,
+    "movementAttempted": true,
+    "currentCoordinate": {
+      "x": 7387.75341796875,
+      "y": 871.906982421875,
+      "z": 3051.079345703125,
+      "recordedAtUtc": "2026-05-09T02:02:24.2395044Z"
+    },
+    "coordinateDelta": {
+      "deltaX": 0.30908203125,
+      "deltaY": 0.12200927734375,
+      "deltaZ": -0.016357421875,
+      "planarDistance": 0.309514567172569,
+      "spatialDistance": 0.3326943507935877
+    }
+  },
+  "latestForwardSeries3x250": {
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ForwardSeries3x250-20260509-020624\\run-summary.json",
+    "status": "passed",
+    "generatedAtUtc": "2026-05-09T02:09:58.216734+00:00",
+    "movementSent": true,
+    "movementAttempted": true,
+    "currentCoordinate": {
+      "x": 7389.37158203125,
+      "y": 872.916259765625,
+      "z": 3050.9951171875,
+      "recordedAtUtc": "2026-05-09T02:09:57.2228666Z"
+    },
+    "coordinateDelta": {
+      "deltaX": 0.3935546875,
+      "deltaY": 0.2454833984375,
+      "deltaZ": -0.020263671875,
+      "planarDistance": 0.39407601861960634,
+      "spatialDistance": 0.4642822496709353
+    },
+    "requestedPulseCount": 3,
+    "completedPulseCount": 3,
+    "seriesCoordinateDelta": {
+      "deltaX": 1.01806640625,
+      "deltaY": 0.635009765625,
+      "deltaZ": -0.052978515625,
+      "planarDistance": 1.0194439320789634,
+      "spatialDistance": 1.2010426025298753
+    }
+  },
+  "latestDefaultPointerProofPose": {
+    "status": "captured",
+    "movementAllowed": true,
+    "movementSent": false,
+    "candidateResolvedFromPointer": true,
+    "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-proof-current-pointer-default-proof-fresh-20260508-224550\\riftscan-riftreader-currentpid-49504-readback-wrapper-summary-20260508-184558.json",
+    "outputRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\riftscan-proof-current-pointer-default-proof-fresh-20260508-224550",
+    "proofAnchorStatus": "valid",
+    "movementGate": "satisfied_by_current_process_proof_coord_anchor_preflight"
+  },
+  "historicalClassification": {
+    "classification": "historical-target-epoch-evidence",
+    "archivedAtUtc": "2026-05-10T09:53:44.000374+00:00",
+    "supersededBy": {
+      "processName": "rift_x64",
+      "processId": 30992,
+      "targetWindowHandle": "0xD1008"
+    },
+    "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
+  }
+}
