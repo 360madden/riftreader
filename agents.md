@@ -215,6 +215,66 @@ repeatable workflows. They should be implemented as Python-first helpers or
 documented repo helper apps when practical. PowerShell wrappers should remain
 thin launchers or proven leaf scripts.
 
+## Python helper logging and blocker-reporting criteria
+
+Larger or complex Python helpers must include built-in structured logging,
+error capture, blocker reporting, and smoke-test support. Python orchestration is
+more powerful than interactive shell commands, so the helper must leave enough
+durable evidence to diagnose the next step without rerunning blindly.
+
+### Required criteria for complex Python helpers
+
+| Criterion | Required behavior |
+|---|---|
+| Structured summary | Write a durable JSON summary under `scripts/captures/` or another documented repo-owned output path. |
+| Human summary | Write a compact Markdown summary when the helper produces operator-relevant evidence. |
+| Explicit verdict | Use a top-level `status` such as `passed`, `blocked`, or `failed`; do not rely on console text alone. |
+| Blocker list | Record `blockers` as explicit strings when the workflow cannot safely continue. |
+| Warning list | Record `warnings` for non-fatal but important issues, such as candidate-only evidence or stale historical context. |
+| Error capture | Record exception type, message, and where possible the failed stage. |
+| Command envelopes | For every child process, record command arguments, working directory, exit code, stdout/stderr preview or artifact path, start/end time, and duration. |
+| Absolute paths | Resolve output and child-script paths to absolute paths before invoking `.ps1`, `dotnet`, Git, or external helpers. |
+| Timeout handling | Use finite timeouts for child processes unless a documented reason exists. |
+| Fail-closed behavior | Stop on target mismatch, stale proof pointer, missing candidate, bad JSON, timeout, or unsupported state. |
+| Safety state | Record `movementSent`, `inputSent`, `reloaduiSent`, `screenshotKeySent`, `noCheatEngine`, and provider-write state when relevant. |
+| Artifact paths | Print and write summary paths so the next session can resume without guessing. |
+| Recovery hints | Include a compact `next` or `recommendedActions` section when blocked or failed. |
+| No hidden Git mutation | Do not stage, commit, push, pull, or modify refs unless the helper is explicitly a Git helper. |
+| Smoke mode | Reusable helpers should support `--dry-run`, `--self-test`, or equivalent command-plan validation when practical. |
+
+### Exit-code convention
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Completed successfully and the requested safe action passed. |
+| `1` | Failed due to script error, malformed input, missing dependency, or unexpected exception. |
+| `2` | Blocked safely by a known gate, such as target mismatch, stale pointer, missing candidate, or proof not current. |
+
+### Minimum output contract
+
+Complex helpers should emit or write a final compact object with at least:
+
+```yaml
+status: "passed | blocked | failed"
+blockers: []
+warnings: []
+errors: []
+artifacts:
+  summaryJson: ""
+  summaryMarkdown: ""
+safety:
+  movementSent: false
+  inputSent: false
+  noCheatEngine: true
+  githubConnectorWrites: false
+next:
+  recommendedAction: ""
+```
+
+If a blocker occurs, the helper should preserve enough command output and artifact
+paths for diagnosis. A blocked helper is acceptable; a silent or ambiguous helper
+is not.
+
 ## Cross-repo ChromaLink boundary
 
 - Treat ChromaLink as an external **provider** repo and RiftReader as a
