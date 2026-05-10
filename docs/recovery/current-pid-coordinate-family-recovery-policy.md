@@ -1,6 +1,6 @@
 # Current-PID Coordinate Family Recovery Policy
 
-Created: 2026-05-10 10:30 EDT / 2026-05-10 14:30 UTC  
+Created: 2026-05-10 10:30 EDT / 2026-05-10 14:30 UTC
 Scope: RiftReader proof-anchor recovery after target drift, client restart, PID/HWND change, or stale proof-pointer rejection.
 
 ## Hard rule
