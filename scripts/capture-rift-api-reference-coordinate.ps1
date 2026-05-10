@@ -343,7 +343,17 @@ function Get-RiftApiProbeMarkers {
                 continue
             }
 
-            $fields = Split-RiftApiMarker -Marker $marker
+            try {
+                $fields = Split-RiftApiMarker -Marker $marker
+            }
+            catch {
+                # RRAPICOORD1 startup/progress markers can be intentionally partial, for example
+                # RRAPICOORD1|status=starting|savedVariablesUse=none. They are not usable
+                # reference coordinates, but they also must not abort the scan before a later
+                # status=pass marker can be found.
+                continue
+            }
+
             $status = [string]$fields['status']
             $source = [string]$fields['source']
             $savedVariablesUse = [string]$fields['savedVariablesUse']
