@@ -275,6 +275,28 @@ If a blocker occurs, the helper should preserve enough command output and artifa
 paths for diagnosis. A blocked helper is acceptable; a silent or ambiguous helper
 is not.
 
+<!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_START -->
+## Non-Codex desktop ChatGPT workflow invariant
+
+When Codex is unavailable, quota-blocked, or not being used, the assistant must use the RiftReader **non-Codex desktop ChatGPT workflow**.
+
+Required behavior:
+
+1. treat the GitHub connector as read-only unless the user explicitly authorizes a write in the current turn;
+2. inspect repo files and commits read-only;
+3. deliver repo edits as a downloadable ZIP package or clearly labeled local applier content;
+4. prefer Python appliers with explicit target allowlists, backups under `.riftreader-local/`, JSON summaries, and diff output;
+5. keep PowerShell pasted in chat short and linear;
+6. avoid interactive PowerShell functions, loops, `try/catch`, JSON parsing, here-strings, or `exit` in pasted blocks;
+7. separate apply/review from commit/push unless the user explicitly requests full automation;
+8. use local Git only with explicit paths, never `git add .`;
+9. verify remote commits through the GitHub connector read-only after the user pushes.
+
+If the assistant needs to change docs or code, it should provide the package plus the exact extract/apply commands in chat. The user applies locally, reviews the diff, commits/pushes from PowerShell, and pastes the result for read-only verification.
+
+Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
+<!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_END -->
+
 ## Cross-repo ChromaLink boundary
 
 - Treat ChromaLink as an external **provider** repo and RiftReader as a

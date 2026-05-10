@@ -50,6 +50,21 @@ Durable policy: `docs/recovery/current-pid-coordinate-family-recovery-policy.md`
 A candidate family file is not movement permission. Movement remains blocked until target-control, visual gate, current proof preflight, and same-target `ProofOnly` pass.
 <!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_END -->
 
+<!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_START -->
+## Non-Codex desktop ChatGPT workflow rule
+
+When Codex is not being used, repo changes must follow the local package workflow:
+
+1. ChatGPT inspects GitHub/read-only context and pasted local output;
+2. ChatGPT provides a downloadable ZIP or local applier content;
+3. the user applies it locally in `C:\RIFT MODDING\RiftReader`;
+4. the user reviews `git status`, `git diff`, and `git diff --check`;
+5. the user commits and pushes with explicit paths;
+6. ChatGPT verifies the pushed commit through the GitHub connector read-only.
+
+The GitHub connector is read-only in this lane unless the user explicitly authorizes a write in the current turn. Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
+<!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_END -->
+
 ## Current no-CE coord proof note
 
 As of the May 8, 2026 current-PID lane, start coord-truth recovery with:
