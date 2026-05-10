@@ -140,6 +140,44 @@ Practical requirements for new workflow/helper code:
   First place Python above the proven scripts as the orchestrator; only port
   brittle PowerShell leaf scripts one at a time after behavior is locked.
 
+## PowerShell 7 paste-safety policy
+
+Interactive PowerShell command blocks must be treated as an operator interface, not
+as an informal scratchpad. The repo assistant should prefer paste-safe,
+low-ambiguity commands and avoid raw interactive flow-control blocks.
+
+### Rules for assistant-generated PowerShell
+
+| Situation | Required behavior |
+|---|---|
+| Simple read-only checks | Direct PowerShell paste is acceptable when commands are linear and do not depend on `if` / `else`, loops, or functions. |
+| Branching, loops, functions, `try` / `catch`, here-strings, JSON parsing, or multi-step orchestration | Generate a `.ps1` or Python helper script and provide a single command to run it. Do not rely on interactive paste of complex PowerShell logic. |
+| `if` / `else` logic | Do not provide raw multi-line `if` / `else` blocks for interactive paste unless the whole block is wrapped in a generated script file. This prevents standalone `else` parser failures when pasted in fragments. |
+| Expected output, YAML, checklists, or interpretation notes | Keep them outside executable PowerShell blocks and label them clearly as `DO NOT PASTE`. |
+| Git inspection commands | Use `git --no-pager` for `diff`, `log`, and similar commands to avoid pager stalls. |
+| Git staging | Stage explicit paths only, such as `git add docs/recovery/current-truth.md`; never suggest `git add .` for repo workflow tasks. |
+| Complex repo edits | Prefer Python applier scripts with validation, backup under `.riftreader-local/`, explicit path allowlists, and unified diff output. |
+| Completion visibility | End runnable command blocks with a visible sentinel command when useful, such as `Write-Host "DONE"`, rather than ending with only a comment. |
+| Local validation limits | If the assistant cannot execute the script in the user's Windows/PowerShell environment, it must say so and still proofread for PowerShell 7 syntax and paste safety. |
+
+### Block labeling standard
+
+Use these labels consistently:
+
+| Label | Meaning |
+|---|---|
+| `RUN THIS` | Safe to paste into PowerShell as commands. |
+| `SCRIPT CONTENT` | Save as a file or use an applier; do not paste line-by-line unless explicitly designed for it. |
+| `DO NOT PASTE — expected output` | Reference only. |
+| `DO NOT PASTE — checklist` | Reference only. |
+
+### Default pattern
+
+For anything beyond a short linear command sequence, create or update a local
+script artifact, then run it with one command. This is the preferred pattern for
+vibe-coding workflows in this repo because it reduces partial-paste failures,
+keeps validation reproducible, and makes recovery easier after context switches.
+
 ## Cross-repo ChromaLink boundary
 
 - Treat ChromaLink as an external **provider** repo and RiftReader as a
