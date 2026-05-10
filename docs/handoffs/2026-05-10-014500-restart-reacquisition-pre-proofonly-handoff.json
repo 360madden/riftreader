@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "handoffKind": "restart-reacquisition-pre-proofonly",
+  "createdLocal": "2026-05-10T01:45:00-04:00",
+  "createdUtc": "2026-05-10T05:45:00Z",
+  "repo": "C:\\RIFT MODDING\\RiftReader",
+  "branch": "main",
+  "status": "pre-proofonly-ready",
+  "latestKnownCommit": "5c14961 Document PowerShell paste safety policy",
+  "githubConnectorPolicy": "read-only-only-unless-explicitly-overridden",
+  "powerShellPolicy": "complex PowerShell should be delivered as script artifacts; simple linear commands only for interactive paste",
+  "restartTarget": {
+    "processName": "rift_x64",
+    "processId": 30992,
+    "hwnd": "0xD1008",
+    "windowTitle": "RIFT",
+    "startTimeLocal": "2026-05-10 01:32:32 EDT"
+  },
+  "completedGates": {
+    "repoCleanBeforeRecovery": true,
+    "targetControl": {
+      "status": "passed-target-control",
+      "classification": "exact-hwnd-foreground",
+      "readyForReadOnlyProof": true,
+      "readyForVisualGate": true,
+      "readyForLiveInput": true,
+      "movementSent": false,
+      "inputSent": false,
+      "noCheatEngine": true,
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\target-control-currentpid-30992-20260510-014008\\target-control-status.json"
+    },
+    "visualGateWithTargetControl": {
+      "status": "passed-visual-gate-target-control",
+      "readyForVisualGate": true,
+      "readyForLiveInput": true,
+      "movementSent": false,
+      "inputSent": false,
+      "screenshotKeySent": false,
+      "reloaduiSent": false,
+      "noCheatEngine": true,
+      "blockers": [],
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\visual-gate-target-control-currentpid-30992-20260510-014345\\visual-gate-target-control-status.json"
+    }
+  },
+  "pending": {
+    "freshProofOnly": {
+      "status": "pending",
+      "requiredTargetPid": 30992,
+      "requiredTargetHwnd": "0xD1008"
+    }
+  },
+  "blockedUntilProofOnlyPasses": [
+    "movement",
+    "yaw stimulus",
+    "actor-facing promotion",
+    "auto-turn",
+    "route execution",
+    "screenshot-key input",
+    "/reloadui",
+    "Cheat Engine"
+  ],
+  "nextCommand": "python -u .\\scripts\\live_test.py --profile ProofOnly --pid 30992 --hwnd 0xD1008 --process-name rift_x64 --live --no-gui"
+}
