@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: May 9, 2026 01:05 EDT / May 9, 2026 05:05 UTC (current live target `rift_x64` PID `49504`, HWND `0x5121A`; latest slice hardened the visual gate so focus exit `0` is not considered safe unless the returned snapshot confirms `isForeground=true`. No live input was sent. Last live movement truth remains the no-turn backend-metadata waypoint smoke with `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`. Latest push handoff: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-010500-visual-gate-focus-blocker-handoff.md`.)_
+_Last updated: May 9, 2026 08:04 EDT / May 9, 2026 12:04 UTC (current live target `rift_x64` PID `49504`, HWND `0x5121A`; latest proof-anchor pointer refresh is the 12:04Z same-target `ProofOnly` update recorded in `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`. No movement was sent and no Cheat Engine was used. Last live movement truth remains the no-turn backend-metadata waypoint smoke with `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`. Latest blocker handoff remains `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-010500-visual-gate-focus-blocker-handoff.md`.)_
 
 
 ## Newest live-session status (authoritative)
@@ -10,9 +10,9 @@ _Last updated: May 9, 2026 01:05 EDT / May 9, 2026 05:05 UTC (current live targe
 | Live target | `rift_x64` PID `49504`, HWND `0x5121A` |
 | Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-09-010500-visual-gate-focus-blocker-handoff.md` |
 | Current live-input gate | **Blocked as of 01:03 EDT**. Latest visual gate `C:\RIFT MODDING\RiftReader\scripts\captures\visual-gate-currentpid-49504-20260509-010348\visual-gate-status.json` reports `blocked-visual-baseline`, `readyForLiveInput=false`, `focusConfirmedForeground=false`, blocker `focus-window-not-foreground`, and capture failure classes `desktop-capture-access-denied`, `desktop-copyfromscreen-invalid-handle`, `capture-methods-return-black-or-flat-content`; no live input was sent. |
-| Latest no-input proof | Post-backend-metadata live confirmation `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-042916\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260509-002944.json`; `movementSent=false`; `currentProofPointerUpdate.updated=true` |
+| Latest no-input proof | Post-handoff proof-anchor pointer refresh `ProofOnly` passed on PID `49504` / HWND `0x5121A`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-120255\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260509-080414.json`; `movementSent=false`; `movementAttempted=false`; `currentProofPointerUpdate.updated=true` |
 | Latest movement truth | Native exact-HWND C# backend no-turn `--navigate-waypoints` smoke passed at `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-backend-metadata-live-currentpid-49504-20260509-0028\navigate-waypoints-run-summary.json` with `Status=success`, `MovementBackend=native-window-message`, `PulseCount=4`, `StopReason=arrived`, final planar `0.6847331308384343m`; prior native smoke remains `C:\RIFT MODDING\RiftReader\scripts\captures\native-backend-smoke-currentpid-49504-20260509-0006\navigate-waypoints-run-summary.json`. |
-| Latest recorded coordinate snapshot | `X=7395.18603515625`, `Y=876.5137939453125`, `Z=3050.689453125` at `2026-05-09T04:29:50.4256024Z` from post-backend-metadata-confirmation `ProofOnly`; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
+| Latest recorded coordinate snapshot | `X=7406.2783203125`, `Y=871.7720336914062`, `Z=3027.971923828125` at `2026-05-09T12:04:17.6493776Z` from the 12:04Z post-handoff `ProofOnly` pointer refresh; do not present this value as current-now unless a fresh API-now vs memory-now check passes |
 | Coordinate freshness rule | PID/HWND/process-start match is targeting preflight only. Current/non-stale coordinate truth requires fresh live API/runtime coordinate vs immediate memory readback (**API-now vs memory-now**), per-axis delta within tolerance, and a recorded verdict. If API is stale/missing, memory readback fails, or delta exceeds tolerance, block movement and use artifacts only as reacquisition seeds. |
 | Current proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`; candidate `api-coord-hit-000005` at `0x24A01358880`; movement-grade only through current proof-anchor/readback gates |
 | Current tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` targets PID `49504` / HWND `0x5121A` and is auto-refreshed only after same-target `ProofOnly` success |
@@ -21,6 +21,19 @@ _Last updated: May 9, 2026 01:05 EDT / May 9, 2026 05:05 UTC (current live targe
 | Input backend | C# waypoint navigation now uses `MovementBackendFactory`; exact-HWND targets use native `WindowMessageMovementBackend` (`PostMessageW`) and this path is live-validated for no-turn forward waypoint movement. Navigation run/route summaries now record `MovementBackend` (`native-window-message`, `powershell-window-message`, `powershell-sendinput-foreground`, `not-created`, or `unknown`) instead of relying on console stderr. |
 | Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus/visual-baseline gate before movement; default ReaderBridge SavedVariables are no longer silently trusted by navigation read/move modes unless explicitly supplied |
 | Remaining blocker | Restore foreground focus and desktop/window capture first. Auto-turn remains blocked by stale actor-facing truth for PID `49504`; observed-forward no-turn waypoint smoke and durable summary writing are green, but actor-facing/auto-turn promotion still needs current-session behavior-backed proof after visual gate + fresh `ProofOnly`. |
+
+## May 9 continuation: post-handoff ProofOnly pointer refresh
+
+| Fact | Value |
+|---|---|
+| Scope | Documentation truth update for the newer same-target `ProofOnly` / proof-anchor pointer refresh; no movement, yaw, turn, screenshot-key input, slash command, `/reloadui`, live capture, or Cheat Engine was run in this update. |
+| Target | `rift_x64` PID `49504`, HWND `0x5121A`; target epoch remained the same as the prior visual-gate blocker handoff. |
+| Newest pointer proof | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` now points at the 12:04Z same-target proof refresh. |
+| Latest ProofOnly | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260509-120255\run-summary.json`; status `passed-proof-only`; `movementSent=false`; `movementAttempted=false`. |
+| Latest readback | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-49504-readback-summary-20260509-080414.json`; proof anchor remains `telemetry-proof-coord-anchor.json`; candidate remains `api-coord-hit-000005` at `0x24A01358880`. |
+| Recorded coordinate | `X=7406.2783203125`, `Y=871.7720336914062`, `Z=3027.971923828125` at `2026-05-09T12:04:17.6493776Z`; do not present this as current-now unless a fresh API-now vs memory-now check passes. |
+| Live-input boundary | Visual gate / live input remains blocked unless target-control, visual gate, and fresh `ProofOnly` pass again for the exact target. |
+| Non-promotion | This update does not promote actor-facing, yaw, auto-turn, or route execution truth. |
 
 ## May 9 continuation: visual-gate focus confirmation hardened
 
