@@ -379,6 +379,23 @@ is not.
   `coord-trace-coords` region, treat that as a blocker instead of silently
   recording stale/candidate or heuristic data.
 
+<!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_START -->
+## Current-PID coordinate-family recovery invariant
+
+If the live RIFT PID/HWND changes and `ProofOnly` blocks with target drift, the assistant must not fall back to narrow stale-pointer probing.
+
+Required behavior:
+
+1. state that the tracked proof pointer is stale for the new process epoch;
+2. rediscover or confirm the current PID/HWND;
+3. run target-control and visual gate for the current target;
+4. use the broad `scripts/scan_current_pid_coordinate_family.py` workflow;
+5. validate candidates across poses before promotion;
+6. block movement until same-target `ProofOnly` passes.
+
+Never describe an old absolute proof address, nearby offset probe, SavedVariables snapshot, or single-pose candidate as current movement truth.
+<!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_END -->
+
 ## Cheat Engine preservation
 
 - Treat live Cheat Engine work as potentially ephemeral until the repo has a

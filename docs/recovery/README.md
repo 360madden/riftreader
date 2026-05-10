@@ -31,6 +31,25 @@ Every freshness result should record API coordinate/timestamp/source, memory
 coordinate/timestamp/address/candidate, PID/HWND/process identity, per-axis
 deltas, tolerance, and verdict.
 
+<!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_START -->
+## Current-PID coordinate-family recovery rule
+
+When `ProofOnly` blocks with target drift, PID mismatch, HWND mismatch, or a restarted RIFT client, the tracked proof pointer is stale for the new process epoch. Do **not** probe only the old absolute address or nearby offsets.
+
+Use the broad current-PID coordinate-family recovery policy instead:
+
+1. prove the new PID/HWND with target-control and visual gate;
+2. capture a fresh live `RRAPICOORD` / API-runtime coordinate reference;
+3. run `scripts/scan_current_pid_coordinate_family.py` against the current PID/HWND;
+4. validate the resulting `api-family-vec3-candidates.jsonl` across poses;
+5. promote the proof anchor only after multi-pose no-CE validation;
+6. run same-target `ProofOnly` before updating current truth.
+
+Durable policy: `docs/recovery/current-pid-coordinate-family-recovery-policy.md`.
+
+A candidate family file is not movement permission. Movement remains blocked until target-control, visual gate, current proof preflight, and same-target `ProofOnly` pass.
+<!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_END -->
+
 ## Current no-CE coord proof note
 
 As of the May 8, 2026 current-PID lane, start coord-truth recovery with:
