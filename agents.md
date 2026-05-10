@@ -178,6 +178,43 @@ script artifact, then run it with one command. This is the preferred pattern for
 vibe-coding workflows in this repo because it reduces partial-paste failures,
 keeps validation reproducible, and makes recovery easier after context switches.
 
+## Python-first reusable helper policy
+
+RiftReader recovery and development workflows should treat PowerShell as a
+simple shell/launcher layer, not as the primary orchestration language.
+
+### Tooling rules
+
+| Situation | Required behavior |
+|---|---|
+| Short local checks | Simple PowerShell commands are acceptable. |
+| Git status/log/add/commit/push | Simple PowerShell convenience blocks are acceptable, with explicit paths only. |
+| Branching, loops, JSON parsing, validation, file generation, or multi-step recovery logic | Prefer Python helper scripts. |
+| Existing proven `.ps1` scripts | Keep them when they are historically useful; call them as leaf helpers from Python rather than rewriting them without reason. |
+| New repeatable recovery workflow | Implement as a tracked helper under `scripts/`, not as a disposable one-off block. |
+| One-time documentation/text patch | A temporary applier under `.riftreader-local/` is acceptable if the logic has no reuse value. |
+
+### Reusable-helper promotion criteria
+
+A helper should be kept in the repo when it provides one or more of these:
+
+| Criterion | Meaning |
+|---|---|
+| Repeated workflow | Likely to be used again after restarts, patches, target drift, or proof-anchor recovery. |
+| Safety gate | Prevents unsafe movement, stale proof use, bad target selection, or accidental repo/provider writes. |
+| Artifact contract | Writes durable JSON/Markdown summaries useful for handoffs and future sessions. |
+| Operator value | Reduces manual copy/paste, repeated terminal logic, or context-loss risk. |
+| Testability | Can be syntax-checked, dry-run validated, or regression-tested. |
+| Historical continuity | Preserves proven repo behavior and avoids unnecessary churn. |
+
+### Current workflow implication
+
+Post-restart reacquisition, target-drift recovery, current-PID candidate
+generation, candidate readback, proof-anchor rebuild, and handoff creation are
+repeatable workflows. They should be implemented as Python-first helpers or
+documented repo helper apps when practical. PowerShell wrappers should remain
+thin launchers or proven leaf scripts.
+
 ## Cross-repo ChromaLink boundary
 
 - Treat ChromaLink as an external **provider** repo and RiftReader as a
