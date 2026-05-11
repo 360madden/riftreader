@@ -1,6 +1,6 @@
-# Version: riftreader-measure-csharp-sendinput-current-v0.4.0
-# Total-Character-Count: 20676
-# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Defaults to installer-style progress: one native progress bar plus colorized activity lines below it, while preserving clean JSON stdout.
+# Version: riftreader-measure-csharp-sendinput-current-v0.5.0
+# Total-Character-Count: 22167
+# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Keeps -Json output clean by default and uses installer-style progress only for human mode.
 
 [CmdletBinding()]
 param(
@@ -23,8 +23,8 @@ param(
     [int]$CommandTimeoutSeconds = 180,
     [ValidateRange(10, 60)]
     [int]$ProgressBarWidth = 26,
-    [ValidateSet("Installer", "Live", "Log", "Off")]
-    [string]$ProgressMode = "Installer",
+    [ValidateSet("Auto", "Installer", "Live", "Log", "Off")]
+    [string]$ProgressMode = "Auto",
     [string]$OutputRoot,
     [switch]$NoProgress,
     [switch]$NoActivityLog,
@@ -42,6 +42,20 @@ $StageCount = 6
 $ProgressId = 4101
 $ProgressActivity = "RiftReader measured C# SendInput proof"
 $script:LiveProgressLastLength = 0
+
+$EffectiveProgressMode = $ProgressMode
+if ([string]::Equals($ProgressMode, "Auto", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($Json.IsPresent) {
+        $EffectiveProgressMode = "Off"
+    }
+    else {
+        $EffectiveProgressMode = "Installer"
+    }
+}
+
+if (-not $Json.IsPresent -and [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $NoActivityLog = $true
+}
 
 if (-not (Test-Path -LiteralPath $CaptureScript -PathType Leaf)) {
     throw "API coordinate capture script not found: $CaptureScript"
@@ -105,7 +119,7 @@ function Write-ActivityLogLine {
         [string]$Color = "Cyan"
     )
 
-    if ($NoActivityLog.IsPresent -or $NoProgress.IsPresent -or [string]::Equals($ProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($NoActivityLog.IsPresent -or $NoProgress.IsPresent -or [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
         return
     }
 
@@ -173,14 +187,14 @@ function Write-ProgressEvent {
         [double]$StageFraction = -1.0
     )
 
-    if ($NoProgress.IsPresent -or [string]::Equals($ProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($NoProgress.IsPresent -or [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
         return
     }
 
     $data = Get-ProgressData -Stage $Stage -Name $Name -State $State -ElapsedSeconds $ElapsedSeconds -Detail $Detail -StageFraction $StageFraction
     $isTerminalState = $State -in @("done", "failed", "timeout")
 
-    if ([string]::Equals($ProgressMode, "Installer", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ([string]::Equals($EffectiveProgressMode, "Installer", [System.StringComparison]::OrdinalIgnoreCase)) {
         Write-Progress -Id $ProgressId -Activity $ProgressActivity -Status $data.Status -CurrentOperation $data.Operation -PercentComplete $data.Percent
         Write-ActivityLogLine -Stage $Stage -Name $Name -State $State -ElapsedSeconds $ElapsedSeconds -Detail $Detail -Color $Color
         if ($Stage -eq $StageCount -and $isTerminalState) {
@@ -189,7 +203,7 @@ function Write-ProgressEvent {
         return
     }
 
-    if ([string]::Equals($ProgressMode, "Live", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ([string]::Equals($EffectiveProgressMode, "Live", [System.StringComparison]::OrdinalIgnoreCase)) {
         if ($NoColor.IsPresent) {
             Write-LiveProgressLine -Line $data.Line -IsTerminalState:$isTerminalState
             return
@@ -206,7 +220,6 @@ function Write-ProgressEvent {
         return
     }
 
-    # Log mode: emit every event as a durable line.
     if ($NoColor.IsPresent) {
         [Console]::Error.WriteLine($data.Line)
         return
@@ -354,6 +367,25 @@ function Get-CoordinateDelta {
         PlanarDistance = [Math]::Sqrt(($Dx * $Dx) + ($Dz * $Dz))
         SpatialDistance = [Math]::Sqrt(($Dx * $Dx) + ($Dy * $Dy) + ($Dz * $Dz))
     }
+}
+
+function Write-HumanSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Summary
+    )
+
+    $statusColor = if ([bool]$Summary.ok) { "Green" } else { "Yellow" }
+    Write-Host ""
+    Write-Host "=== C# SendInput measured proof summary ===" -ForegroundColor Cyan
+    Write-Host ("Status        : {0}" -f $Summary.status) -ForegroundColor $statusColor
+    Write-Host ("Target        : {0} PID {1} HWND {2}" -f $Summary.target.processName, $Summary.target.processId, $Summary.target.hwnd)
+    Write-Host ("Method        : {0}" -f $Summary.method)
+    Write-Host ("Before        : X={0} Y={1} Z={2}" -f $Summary.before.X, $Summary.before.Y, $Summary.before.Z)
+    Write-Host ("After         : X={0} Y={1} Z={2}" -f $Summary.after.X, $Summary.after.Y, $Summary.after.Z)
+    Write-Host ("Planar        : {0}" -f $Summary.delta.PlanarDistance) -ForegroundColor $statusColor
+    Write-Host ("Summary JSON  : {0}" -f $Summary.artifacts.summaryJson)
+    Write-Host ("Summary MD    : {0}" -f $Summary.artifacts.summaryMarkdown)
 }
 
 $OverallStartedAt = Get-Date
@@ -601,6 +633,11 @@ else {
     Write-ProgressEvent -Stage 6 -Name "summary" -State "done" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail ("planar={0:0.######}; below-threshold" -f $Delta.PlanarDistance) -Color "Yellow"
 }
 
-Get-Content -LiteralPath $SummaryJson -Raw
+if ($Json.IsPresent) {
+    Get-Content -LiteralPath $SummaryJson -Raw
+}
+else {
+    Write-HumanSummary -Summary $Summary
+}
 
 # END_OF_SCRIPT_MARKER
