@@ -1,5 +1,6 @@
-# Send a key to RIFT using SendInput (real keyboard input, requires foreground focus)
-# Unlike post-rift-key.ps1 (PostMessage), this actually works for gameplay keys.
+# Send a key to RIFT using SendInput (real keyboard input, requires foreground focus).
+# Supports VirtualKey and ScanCode modes. Use ScanCode when a game ignores VK-based SendInput.
+# Movement still requires RIFT to be in gameplay input mode, not chat/text-entry mode.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -12,7 +13,9 @@ param(
     [switch]$Alt,
     [switch]$Shift,
     [switch]$Ctrl,
-    [switch]$NoRefocus
+    [switch]$NoRefocus,
+    [ValidateSet("VirtualKey", "ScanCode")]
+    [string]$InputMode = "VirtualKey"
 )
 
 Set-StrictMode -Version Latest
@@ -55,6 +58,9 @@ public static class RiftSendKeyNative
     public static extern short VkKeyScan(char ch);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -77,9 +83,25 @@ public static class RiftSendKeyNative
 }
 "@
 
-$SW_RESTORE      = 9
-$INPUT_KEYBOARD  = 1
-$KEYEVENTF_KEYUP = 0x0002
+$SW_RESTORE            = 9
+$INPUT_KEYBOARD        = 1
+$KEYEVENTF_EXTENDEDKEY = 0x0001
+$KEYEVENTF_KEYUP       = 0x0002
+$KEYEVENTF_SCANCODE    = 0x0008
+$MAPVK_VK_TO_VSC       = 0
+
+$extendedVirtualKeys = @(
+    0x21, # PAGE UP
+    0x22, # PAGE DOWN
+    0x23, # END
+    0x24, # HOME
+    0x25, # LEFT
+    0x26, # UP
+    0x27, # RIGHT
+    0x28, # DOWN
+    0x2D, # INSERT
+    0x2E  # DELETE
+)
 
 $VK_SHIFT   = 0x10
 $VK_CONTROL = 0x11
@@ -100,14 +122,36 @@ $namedKeys = @{
 }
 
 function New-KeyboardInput {
-    param([int]$VirtualKey, [switch]$KeyUp)
+    param([int]$VirtualKey, [switch]$KeyUp, [string]$Mode = "VirtualKey")
+
     $inp = New-Object RiftSendKeyNative+INPUT
     $inp.type = $INPUT_KEYBOARD
+    $inp.U.ki.time = 0
+    $inp.U.ki.dwExtraInfo = [IntPtr]::Zero
+
+    if ($Mode -eq "ScanCode") {
+        $scanCode = [RiftSendKeyNative]::MapVirtualKey([uint32]$VirtualKey, [uint32]$MAPVK_VK_TO_VSC)
+        if ($scanCode -eq 0) {
+            throw "No scan-code mapping was found for virtual key $VirtualKey."
+        }
+
+        $flags = $KEYEVENTF_SCANCODE
+        if ($extendedVirtualKeys -contains $VirtualKey) {
+            $flags = $flags -bor $KEYEVENTF_EXTENDEDKEY
+        }
+        if ($KeyUp) {
+            $flags = $flags -bor $KEYEVENTF_KEYUP
+        }
+
+        $inp.U.ki.wVk = 0
+        $inp.U.ki.wScan = [uint16]$scanCode
+        $inp.U.ki.dwFlags = [uint32]$flags
+        return $inp
+    }
+
     $inp.U.ki.wVk = [uint16]$VirtualKey
     $inp.U.ki.wScan = 0
     $inp.U.ki.dwFlags = if ($KeyUp) { $KEYEVENTF_KEYUP } else { 0 }
-    $inp.U.ki.time = 0
-    $inp.U.ki.dwExtraInfo = [IntPtr]::Zero
     return $inp
 }
 
@@ -272,23 +316,24 @@ Write-Host "[SendKey] Process:  $($riftProcess.ProcessName) [$($riftProcess.Id)]
 Write-Host "[SendKey] Window:   0x$($hwnd.ToString('X'))"
 Write-Host "[SendKey] Key:      $Key (VK=0x$($vk.ToString('X2')))"
 Write-Host "[SendKey] Hold:     ${HoldMilliseconds}ms"
+Write-Host "[SendKey] InputMode: $InputMode"
 Write-Host "[SendKey] Mods:     Alt=$Alt Shift=$Shift Ctrl=$Ctrl"
 
 # Press modifiers
 $modsDown = @()
-if ($Alt)   { Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_MENU));    $modsDown += $VK_MENU;    Start-Sleep -Milliseconds 20 }
-if ($Shift) { Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_SHIFT));   $modsDown += $VK_SHIFT;   Start-Sleep -Milliseconds 20 }
-if ($Ctrl)  { Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_CONTROL)); $modsDown += $VK_CONTROL; Start-Sleep -Milliseconds 20 }
+if ($Alt)   { Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_MENU -Mode $InputMode));    $modsDown += $VK_MENU;    Start-Sleep -Milliseconds 20 }
+if ($Shift) { Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_SHIFT -Mode $InputMode));   $modsDown += $VK_SHIFT;   Start-Sleep -Milliseconds 20 }
+if ($Ctrl)  { Invoke-SendInput @((New-KeyboardInput -VirtualKey $VK_CONTROL -Mode $InputMode)); $modsDown += $VK_CONTROL; Start-Sleep -Milliseconds 20 }
 
 # Press main key
-Invoke-SendInput @((New-KeyboardInput -VirtualKey $vk))
+Invoke-SendInput @((New-KeyboardInput -VirtualKey $vk -Mode $InputMode))
 Start-Sleep -Milliseconds $HoldMilliseconds
-Invoke-SendInput @((New-KeyboardInput -VirtualKey $vk -KeyUp))
+Invoke-SendInput @((New-KeyboardInput -VirtualKey $vk -KeyUp -Mode $InputMode))
 
 # Release modifiers in reverse
 for ($i = $modsDown.Length - 1; $i -ge 0; $i--) {
     Start-Sleep -Milliseconds 20
-    Invoke-SendInput @((New-KeyboardInput -VirtualKey $modsDown[$i] -KeyUp))
+    Invoke-SendInput @((New-KeyboardInput -VirtualKey $modsDown[$i] -KeyUp -Mode $InputMode))
 }
 
 # Detach thread input
