@@ -1,6 +1,6 @@
-# Version: riftreader-measure-csharp-sendinput-current-v0.2.0
-# Total-Character-Count: 16650
-# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Adds colorized stage-aware progress bars and heartbeat logging to stderr while preserving clean JSON stdout.
+# Version: riftreader-measure-csharp-sendinput-current-v0.4.0
+# Total-Character-Count: 20676
+# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Defaults to installer-style progress: one native progress bar plus colorized activity lines below it, while preserving clean JSON stdout.
 
 [CmdletBinding()]
 param(
@@ -23,8 +23,11 @@ param(
     [int]$CommandTimeoutSeconds = 180,
     [ValidateRange(10, 60)]
     [int]$ProgressBarWidth = 26,
+    [ValidateSet("Installer", "Live", "Log", "Off")]
+    [string]$ProgressMode = "Installer",
     [string]$OutputRoot,
     [switch]$NoProgress,
+    [switch]$NoActivityLog,
     [switch]$NoColor,
     [switch]$Json
 )
@@ -36,6 +39,9 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $CaptureScript = Join-Path $RepoRoot "scripts\capture-rift-api-reference-coordinate.ps1"
 $SenderScript = Join-Path $RepoRoot "scripts\send-rift-key-csharp.ps1"
 $StageCount = 6
+$ProgressId = 4101
+$ProgressActivity = "RiftReader measured C# SendInput proof"
+$script:LiveProgressLastLength = 0
 
 if (-not (Test-Path -LiteralPath $CaptureScript -PathType Leaf)) {
     throw "API coordinate capture script not found: $CaptureScript"
@@ -45,20 +51,15 @@ if (-not (Test-Path -LiteralPath $SenderScript -PathType Leaf)) {
     throw "C# SendInput wrapper not found: $SenderScript"
 }
 
-function Write-ProgressEvent {
+function Get-ProgressData {
     param(
         [Parameter(Mandatory = $true)][int]$Stage,
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string]$State,
         [double]$ElapsedSeconds = 0.0,
         [string]$Detail = "",
-        [string]$Color = "Cyan",
         [double]$StageFraction = -1.0
     )
-
-    if ($NoProgress.IsPresent) {
-        return
-    }
 
     if ($StageFraction -lt 0) {
         if ($State -eq "done") {
@@ -86,6 +87,46 @@ function Write-ProgressEvent {
         $line = "$line $Detail"
     }
 
+    return [pscustomobject]@{
+        Percent = $percent
+        Line = $line
+        Status = "stage=$Stage/$StageCount $Name"
+        Operation = "state=$State elapsed=$elapsedText $Detail".Trim()
+    }
+}
+
+function Write-ActivityLogLine {
+    param(
+        [Parameter(Mandatory = $true)][int]$Stage,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$State,
+        [double]$ElapsedSeconds = 0.0,
+        [string]$Detail = "",
+        [string]$Color = "Cyan"
+    )
+
+    if ($NoActivityLog.IsPresent -or $NoProgress.IsPresent -or [string]::Equals($ProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return
+    }
+
+    if ($State -eq "running") {
+        return
+    }
+
+    $elapsedText = ("{0:0.0}s" -f $ElapsedSeconds)
+    $prefix = switch ($State) {
+        "start" { "[start]" }
+        "done" { "[done] " }
+        "failed" { "[fail] " }
+        "timeout" { "[time] " }
+        default { "[info] " }
+    }
+
+    $line = "$prefix stage=$Stage/$StageCount $($Name.PadRight(31)) elapsed=$elapsedText"
+    if (-not [string]::IsNullOrWhiteSpace($Detail)) {
+        $line = "$line $Detail"
+    }
+
     if ($NoColor.IsPresent) {
         [Console]::Error.WriteLine($line)
         return
@@ -98,6 +139,86 @@ function Write-ProgressEvent {
     }
     finally {
         [Console]::ForegroundColor = $previousColor
+    }
+}
+
+function Write-LiveProgressLine {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Line,
+        [switch]$IsTerminalState
+    )
+
+    $paddingLength = [Math]::Max(0, $script:LiveProgressLastLength - $Line.Length)
+    $paddedLine = "`r" + $Line + (" " * $paddingLength)
+
+    if ($IsTerminalState.IsPresent) {
+        [Console]::Error.WriteLine($paddedLine)
+        $script:LiveProgressLastLength = 0
+        return
+    }
+
+    [Console]::Error.Write($paddedLine)
+    $script:LiveProgressLastLength = $Line.Length
+}
+
+function Write-ProgressEvent {
+    param(
+        [Parameter(Mandatory = $true)][int]$Stage,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$State,
+        [double]$ElapsedSeconds = 0.0,
+        [string]$Detail = "",
+        [string]$Color = "Cyan",
+        [double]$StageFraction = -1.0
+    )
+
+    if ($NoProgress.IsPresent -or [string]::Equals($ProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return
+    }
+
+    $data = Get-ProgressData -Stage $Stage -Name $Name -State $State -ElapsedSeconds $ElapsedSeconds -Detail $Detail -StageFraction $StageFraction
+    $isTerminalState = $State -in @("done", "failed", "timeout")
+
+    if ([string]::Equals($ProgressMode, "Installer", [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Progress -Id $ProgressId -Activity $ProgressActivity -Status $data.Status -CurrentOperation $data.Operation -PercentComplete $data.Percent
+        Write-ActivityLogLine -Stage $Stage -Name $Name -State $State -ElapsedSeconds $ElapsedSeconds -Detail $Detail -Color $Color
+        if ($Stage -eq $StageCount -and $isTerminalState) {
+            Write-Progress -Id $ProgressId -Activity $ProgressActivity -Completed
+        }
+        return
+    }
+
+    if ([string]::Equals($ProgressMode, "Live", [System.StringComparison]::OrdinalIgnoreCase)) {
+        if ($NoColor.IsPresent) {
+            Write-LiveProgressLine -Line $data.Line -IsTerminalState:$isTerminalState
+            return
+        }
+
+        $previousColor = [Console]::ForegroundColor
+        try {
+            [Console]::ForegroundColor = [System.ConsoleColor]::$Color
+            Write-LiveProgressLine -Line $data.Line -IsTerminalState:$isTerminalState
+        }
+        finally {
+            [Console]::ForegroundColor = $previousColor
+        }
+        return
+    }
+
+    # Log mode: emit every event as a durable line.
+    if ($NoColor.IsPresent) {
+        [Console]::Error.WriteLine($data.Line)
+        return
+    }
+
+    $previousLogColor = [Console]::ForegroundColor
+    try {
+        [Console]::ForegroundColor = [System.ConsoleColor]::$Color
+        [Console]::Error.WriteLine($data.Line)
+    }
+    finally {
+        [Console]::ForegroundColor = $previousLogColor
     }
 }
 
@@ -142,9 +263,6 @@ function Invoke-JsonCommand {
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $psi
-
-    $stdoutBuffer = [System.Text.StringBuilder]::new()
-    $stderrBuffer = [System.Text.StringBuilder]::new()
 
     if (-not $process.Start()) {
         throw "Failed to start $StageName command: $FilePath"
