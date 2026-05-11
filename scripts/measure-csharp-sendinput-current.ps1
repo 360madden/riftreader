@@ -1,6 +1,6 @@
-# Version: riftreader-measure-csharp-sendinput-current-v0.5.0
-# Total-Character-Count: 22167
-# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Keeps -Json output clean by default and uses installer-style progress only for human mode.
+# Version: riftreader-measure-csharp-sendinput-current-v0.6.0
+# Total-Character-Count: 19611
+# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Uses stable colorized stage lines by default; -Json emits clean JSON only.
 
 [CmdletBinding()]
 param(
@@ -23,11 +23,10 @@ param(
     [int]$CommandTimeoutSeconds = 180,
     [ValidateRange(10, 60)]
     [int]$ProgressBarWidth = 26,
-    [ValidateSet("Auto", "Installer", "Live", "Log", "Off")]
+    [ValidateSet("Auto", "Steps", "Log", "Off")]
     [string]$ProgressMode = "Auto",
     [string]$OutputRoot,
     [switch]$NoProgress,
-    [switch]$NoActivityLog,
     [switch]$NoColor,
     [switch]$Json
 )
@@ -39,9 +38,6 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $CaptureScript = Join-Path $RepoRoot "scripts\capture-rift-api-reference-coordinate.ps1"
 $SenderScript = Join-Path $RepoRoot "scripts\send-rift-key-csharp.ps1"
 $StageCount = 6
-$ProgressId = 4101
-$ProgressActivity = "RiftReader measured C# SendInput proof"
-$script:LiveProgressLastLength = 0
 
 $EffectiveProgressMode = $ProgressMode
 if ([string]::Equals($ProgressMode, "Auto", [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -49,12 +45,8 @@ if ([string]::Equals($ProgressMode, "Auto", [System.StringComparison]::OrdinalIg
         $EffectiveProgressMode = "Off"
     }
     else {
-        $EffectiveProgressMode = "Installer"
+        $EffectiveProgressMode = "Steps"
     }
-}
-
-if (-not $Json.IsPresent -and [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
-    $NoActivityLog = $true
 }
 
 if (-not (Test-Path -LiteralPath $CaptureScript -PathType Leaf)) {
@@ -65,27 +57,14 @@ if (-not (Test-Path -LiteralPath $SenderScript -PathType Leaf)) {
     throw "C# SendInput wrapper not found: $SenderScript"
 }
 
-function Get-ProgressData {
+function Get-ProgressBar {
     param(
-        [Parameter(Mandatory = $true)][int]$Stage,
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$State,
-        [double]$ElapsedSeconds = 0.0,
-        [string]$Detail = "",
-        [double]$StageFraction = -1.0
-    )
+        [Parameter(Mandatory = $true)]
+        [int]$Stage,
 
-    if ($StageFraction -lt 0) {
-        if ($State -eq "done") {
-            $StageFraction = 1.0
-        }
-        elseif ($State -eq "start") {
-            $StageFraction = 0.0
-        }
-        else {
-            $StageFraction = 0.50
-        }
-    }
+        [Parameter(Mandatory = $true)]
+        [double]$StageFraction
+    )
 
     $fraction = (($Stage - 1) + [Math]::Min([Math]::Max($StageFraction, 0.0), 1.0)) / [double]$StageCount
     $percent = [int][Math]::Round($fraction * 100.0)
@@ -94,49 +73,43 @@ function Get-ProgressData {
     if ($filled -gt $ProgressBarWidth) { $filled = $ProgressBarWidth }
 
     $bar = "[" + ("#" * $filled) + ("-" * ($ProgressBarWidth - $filled)) + "]"
-    $elapsedText = ("{0:0.0}s" -f $ElapsedSeconds)
-    $line = "[progress] stage=$Stage/$StageCount $($Name.PadRight(31)) $bar $percent% state=$State elapsed=$elapsedText"
-
-    if (-not [string]::IsNullOrWhiteSpace($Detail)) {
-        $line = "$line $Detail"
-    }
-
     return [pscustomobject]@{
         Percent = $percent
-        Line = $line
-        Status = "stage=$Stage/$StageCount $Name"
-        Operation = "state=$State elapsed=$elapsedText $Detail".Trim()
+        Bar = $bar
     }
 }
 
-function Write-ActivityLogLine {
+function Write-StableProgress {
     param(
-        [Parameter(Mandatory = $true)][int]$Stage,
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$State,
+        [Parameter(Mandatory = $true)]
+        [string]$Kind,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Stage,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
         [double]$ElapsedSeconds = 0.0,
         [string]$Detail = "",
-        [string]$Color = "Cyan"
+        [string]$Color = "Cyan",
+        [double]$StageFraction = 0.0,
+        [switch]$IncludeBar
     )
 
-    if ($NoActivityLog.IsPresent -or $NoProgress.IsPresent -or [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
-        return
-    }
-
-    if ($State -eq "running") {
+    if ($NoProgress.IsPresent -or [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
         return
     }
 
     $elapsedText = ("{0:0.0}s" -f $ElapsedSeconds)
-    $prefix = switch ($State) {
-        "start" { "[start]" }
-        "done" { "[done] " }
-        "failed" { "[fail] " }
-        "timeout" { "[time] " }
-        default { "[info] " }
+    $label = ("[{0}]" -f $Kind).PadRight(8)
+    $line = "$label stage=$Stage/$StageCount $($Name.PadRight(31)) elapsed=$elapsedText"
+
+    if ($IncludeBar.IsPresent) {
+        $bar = Get-ProgressBar -Stage $Stage -StageFraction $StageFraction
+        $line = "$line $($bar.Bar) $($bar.Percent)%"
     }
 
-    $line = "$prefix stage=$Stage/$StageCount $($Name.PadRight(31)) elapsed=$elapsedText"
     if (-not [string]::IsNullOrWhiteSpace($Detail)) {
         $line = "$line $Detail"
     }
@@ -156,83 +129,39 @@ function Write-ActivityLogLine {
     }
 }
 
-function Write-LiveProgressLine {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Line,
-        [switch]$IsTerminalState
-    )
-
-    $paddingLength = [Math]::Max(0, $script:LiveProgressLastLength - $Line.Length)
-    $paddedLine = "`r" + $Line + (" " * $paddingLength)
-
-    if ($IsTerminalState.IsPresent) {
-        [Console]::Error.WriteLine($paddedLine)
-        $script:LiveProgressLastLength = 0
-        return
-    }
-
-    [Console]::Error.Write($paddedLine)
-    $script:LiveProgressLastLength = $Line.Length
-}
-
 function Write-ProgressEvent {
     param(
-        [Parameter(Mandatory = $true)][int]$Stage,
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$State,
+        [Parameter(Mandatory = $true)]
+        [int]$Stage,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [string]$State,
+
         [double]$ElapsedSeconds = 0.0,
         [string]$Detail = "",
-        [string]$Color = "Cyan",
-        [double]$StageFraction = -1.0
+        [string]$Color = "Cyan"
     )
 
-    if ($NoProgress.IsPresent -or [string]::Equals($EffectiveProgressMode, "Off", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($State -eq "running") {
+        Write-StableProgress -Kind "wait" -Stage $Stage -Name $Name -ElapsedSeconds $ElapsedSeconds -Detail $Detail -Color "Yellow" -StageFraction 0.50
         return
     }
 
-    $data = Get-ProgressData -Stage $Stage -Name $Name -State $State -ElapsedSeconds $ElapsedSeconds -Detail $Detail -StageFraction $StageFraction
-    $isTerminalState = $State -in @("done", "failed", "timeout")
-
-    if ([string]::Equals($EffectiveProgressMode, "Installer", [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-Progress -Id $ProgressId -Activity $ProgressActivity -Status $data.Status -CurrentOperation $data.Operation -PercentComplete $data.Percent
-        Write-ActivityLogLine -Stage $Stage -Name $Name -State $State -ElapsedSeconds $ElapsedSeconds -Detail $Detail -Color $Color
-        if ($Stage -eq $StageCount -and $isTerminalState) {
-            Write-Progress -Id $ProgressId -Activity $ProgressActivity -Completed
-        }
-        return
+    $kind = switch ($State) {
+        "start" { "start" }
+        "done" { "done" }
+        "failed" { "fail" }
+        "timeout" { "time" }
+        default { "info" }
     }
 
-    if ([string]::Equals($EffectiveProgressMode, "Live", [System.StringComparison]::OrdinalIgnoreCase)) {
-        if ($NoColor.IsPresent) {
-            Write-LiveProgressLine -Line $data.Line -IsTerminalState:$isTerminalState
-            return
-        }
+    $fraction = if ($State -eq "done") { 1.0 } elseif ($State -eq "start") { 0.0 } else { 0.95 }
+    $includeBar = $State -in @("start", "done", "failed", "timeout")
 
-        $previousColor = [Console]::ForegroundColor
-        try {
-            [Console]::ForegroundColor = [System.ConsoleColor]::$Color
-            Write-LiveProgressLine -Line $data.Line -IsTerminalState:$isTerminalState
-        }
-        finally {
-            [Console]::ForegroundColor = $previousColor
-        }
-        return
-    }
-
-    if ($NoColor.IsPresent) {
-        [Console]::Error.WriteLine($data.Line)
-        return
-    }
-
-    $previousLogColor = [Console]::ForegroundColor
-    try {
-        [Console]::ForegroundColor = [System.ConsoleColor]::$Color
-        [Console]::Error.WriteLine($data.Line)
-    }
-    finally {
-        [Console]::ForegroundColor = $previousLogColor
-    }
+    Write-StableProgress -Kind $kind -Stage $Stage -Name $Name -ElapsedSeconds $ElapsedSeconds -Detail $Detail -Color $Color -StageFraction $fraction -IncludeBar:($includeBar)
 }
 
 function Invoke-JsonCommand {
@@ -294,12 +223,12 @@ function Invoke-JsonCommand {
                 try { $process.Kill() } catch { }
             }
 
-            Write-ProgressEvent -Stage $Stage -Name $StageName -State "timeout" -ElapsedSeconds $elapsed -Detail "limit=${CommandTimeoutSeconds}s" -Color "Red" -StageFraction 0.95
+            Write-ProgressEvent -Stage $Stage -Name $StageName -State "timeout" -ElapsedSeconds $elapsed -Detail "limit=${CommandTimeoutSeconds}s" -Color "Red"
             throw "$StageName timed out after ${CommandTimeoutSeconds}s."
         }
 
         if ($elapsed -ge $nextHeartbeatAt) {
-            Write-ProgressEvent -Stage $Stage -Name $StageName -State "running" -ElapsedSeconds $elapsed -Detail "heartbeat" -Color "Yellow" -StageFraction 0.50
+            Write-ProgressEvent -Stage $Stage -Name $StageName -State "running" -ElapsedSeconds $elapsed -Detail "heartbeat"
             $nextHeartbeatAt += [Math]::Max(1, $HeartbeatSeconds)
         }
     }
@@ -372,7 +301,7 @@ function Get-CoordinateDelta {
 function Write-HumanSummary {
     param(
         [Parameter(Mandatory = $true)]
-        [hashtable]$Summary
+        $Summary
     )
 
     $statusColor = if ([bool]$Summary.ok) { "Green" } else { "Yellow" }
@@ -384,6 +313,9 @@ function Write-HumanSummary {
     Write-Host ("Before        : X={0} Y={1} Z={2}" -f $Summary.before.X, $Summary.before.Y, $Summary.before.Z)
     Write-Host ("After         : X={0} Y={1} Z={2}" -f $Summary.after.X, $Summary.after.Y, $Summary.after.Z)
     Write-Host ("Planar        : {0}" -f $Summary.delta.PlanarDistance) -ForegroundColor $statusColor
+    Write-Host ("Before scan   : {0:0.0}s" -f $Summary.stageTimings.beforeApiCoordinateSeconds)
+    Write-Host ("Input send    : {0:0.0}s" -f $Summary.stageTimings.csharpSendInputStimulusSeconds)
+    Write-Host ("After scan    : {0:0.0}s" -f $Summary.stageTimings.afterApiCoordinateSeconds)
     Write-Host ("Summary JSON  : {0}" -f $Summary.artifacts.summaryJson)
     Write-Host ("Summary MD    : {0}" -f $Summary.artifacts.summaryMarkdown)
 }
