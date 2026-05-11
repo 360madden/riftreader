@@ -1,6 +1,6 @@
-# Version: riftreader-measure-csharp-sendinput-current-v0.1.0
-# Total-Character-Count: 10359
-# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Auto-discovers the current exact RIFT PID/HWND, sends no Esc, uses no Cheat Engine, and writes JSON/Markdown proof artifacts.
+# Version: riftreader-measure-csharp-sendinput-current-v0.2.0
+# Total-Character-Count: 16650
+# Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Adds colorized stage-aware progress bars and heartbeat logging to stderr while preserving clean JSON stdout.
 
 [CmdletBinding()]
 param(
@@ -19,7 +19,13 @@ param(
     [int]$BeforeScanAttempts = 5,
     [int]$AfterScanAttempts = 8,
     [int]$ScanRetryDelayMilliseconds = 1000,
+    [int]$HeartbeatSeconds = 5,
+    [int]$CommandTimeoutSeconds = 180,
+    [ValidateRange(10, 60)]
+    [int]$ProgressBarWidth = 26,
     [string]$OutputRoot,
+    [switch]$NoProgress,
+    [switch]$NoColor,
     [switch]$Json
 )
 
@@ -29,6 +35,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $CaptureScript = Join-Path $RepoRoot "scripts\capture-rift-api-reference-coordinate.ps1"
 $SenderScript = Join-Path $RepoRoot "scripts\send-rift-key-csharp.ps1"
+$StageCount = 6
 
 if (-not (Test-Path -LiteralPath $CaptureScript -PathType Leaf)) {
     throw "API coordinate capture script not found: $CaptureScript"
@@ -38,10 +45,59 @@ if (-not (Test-Path -LiteralPath $SenderScript -PathType Leaf)) {
     throw "C# SendInput wrapper not found: $SenderScript"
 }
 
-function Write-ProgressLine {
-    param([string]$Message)
-    if (-not $Json.IsPresent) {
-        Write-Host $Message
+function Write-ProgressEvent {
+    param(
+        [Parameter(Mandatory = $true)][int]$Stage,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$State,
+        [double]$ElapsedSeconds = 0.0,
+        [string]$Detail = "",
+        [string]$Color = "Cyan",
+        [double]$StageFraction = -1.0
+    )
+
+    if ($NoProgress.IsPresent) {
+        return
+    }
+
+    if ($StageFraction -lt 0) {
+        if ($State -eq "done") {
+            $StageFraction = 1.0
+        }
+        elseif ($State -eq "start") {
+            $StageFraction = 0.0
+        }
+        else {
+            $StageFraction = 0.50
+        }
+    }
+
+    $fraction = (($Stage - 1) + [Math]::Min([Math]::Max($StageFraction, 0.0), 1.0)) / [double]$StageCount
+    $percent = [int][Math]::Round($fraction * 100.0)
+    $filled = [int][Math]::Round(($percent / 100.0) * $ProgressBarWidth)
+    if ($filled -lt 0) { $filled = 0 }
+    if ($filled -gt $ProgressBarWidth) { $filled = $ProgressBarWidth }
+
+    $bar = "[" + ("#" * $filled) + ("-" * ($ProgressBarWidth - $filled)) + "]"
+    $elapsedText = ("{0:0.0}s" -f $ElapsedSeconds)
+    $line = "[progress] stage=$Stage/$StageCount $($Name.PadRight(31)) $bar $percent% state=$State elapsed=$elapsedText"
+
+    if (-not [string]::IsNullOrWhiteSpace($Detail)) {
+        $line = "$line $Detail"
+    }
+
+    if ($NoColor.IsPresent) {
+        [Console]::Error.WriteLine($line)
+        return
+    }
+
+    $previousColor = [Console]::ForegroundColor
+    try {
+        [Console]::ForegroundColor = [System.ConsoleColor]::$Color
+        [Console]::Error.WriteLine($line)
+    }
+    finally {
+        [Console]::ForegroundColor = $previousColor
     }
 }
 
@@ -57,24 +113,95 @@ function Invoke-JsonCommand {
         [string[]]$Arguments,
 
         [Parameter(Mandatory = $true)]
-        [string]$ChildOutputRoot
+        [string]$ChildOutputRoot,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Stage,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StageName
     )
 
     $StdoutPath = Join-Path $ChildOutputRoot "$Label.stdout.json"
     $StderrPath = Join-Path $ChildOutputRoot "$Label.stderr.txt"
+    $CommandPath = Join-Path $ChildOutputRoot "$Label.command.json"
 
-    $Output = & $FilePath @Arguments 2> $StderrPath
-    $ExitCode = $LASTEXITCODE
-    $Text = ($Output -join "`n")
-    Set-Content -LiteralPath $StdoutPath -Value $Text -Encoding UTF8
+    $StartedAt = Get-Date
+    Write-ProgressEvent -Stage $Stage -Name $StageName -State "start" -ElapsedSeconds 0.0 -Color "Cyan"
 
-    if ($ExitCode -ne 0) {
-        $ErrText = if (Test-Path -LiteralPath $StderrPath) { Get-Content -LiteralPath $StderrPath -Raw } else { "" }
-        throw "$Label failed with exit code $ExitCode. Stdout=$StdoutPath Stderr=$StderrPath $ErrText"
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = $FilePath
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+
+    foreach ($argument in $Arguments) {
+        [void]$psi.ArgumentList.Add($argument)
     }
 
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $psi
+
+    $stdoutBuffer = [System.Text.StringBuilder]::new()
+    $stderrBuffer = [System.Text.StringBuilder]::new()
+
+    if (-not $process.Start()) {
+        throw "Failed to start $StageName command: $FilePath"
+    }
+
+    $nextHeartbeatAt = if ($HeartbeatSeconds -gt 0) { $HeartbeatSeconds } else { [int]::MaxValue }
+    while (-not $process.HasExited) {
+        Start-Sleep -Milliseconds 200
+        $elapsed = ((Get-Date) - $StartedAt).TotalSeconds
+
+        if ($CommandTimeoutSeconds -gt 0 -and $elapsed -gt $CommandTimeoutSeconds) {
+            try {
+                $process.Kill($true)
+            }
+            catch {
+                try { $process.Kill() } catch { }
+            }
+
+            Write-ProgressEvent -Stage $Stage -Name $StageName -State "timeout" -ElapsedSeconds $elapsed -Detail "limit=${CommandTimeoutSeconds}s" -Color "Red" -StageFraction 0.95
+            throw "$StageName timed out after ${CommandTimeoutSeconds}s."
+        }
+
+        if ($elapsed -ge $nextHeartbeatAt) {
+            Write-ProgressEvent -Stage $Stage -Name $StageName -State "running" -ElapsedSeconds $elapsed -Detail "heartbeat" -Color "Yellow" -StageFraction 0.50
+            $nextHeartbeatAt += [Math]::Max(1, $HeartbeatSeconds)
+        }
+    }
+
+    $stdoutText = $process.StandardOutput.ReadToEnd()
+    $stderrText = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+
+    Set-Content -LiteralPath $StdoutPath -Value $stdoutText -Encoding UTF8
+    Set-Content -LiteralPath $StderrPath -Value $stderrText -Encoding UTF8
+
+    [ordered]@{
+        label = $Label
+        filePath = $FilePath
+        arguments = @($Arguments)
+        startedAtUtc = $StartedAt.ToUniversalTime().ToString("o")
+        completedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+        exitCode = $process.ExitCode
+        stdoutPath = $StdoutPath
+        stderrPath = $StderrPath
+    } | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $CommandPath -Encoding UTF8
+
+    $duration = ((Get-Date) - $StartedAt).TotalSeconds
+
+    if ($process.ExitCode -ne 0) {
+        Write-ProgressEvent -Stage $Stage -Name $StageName -State "failed" -ElapsedSeconds $duration -Detail "exit=$($process.ExitCode)" -Color "Red"
+        throw "$Label failed with exit code $($process.ExitCode). Stdout=$StdoutPath Stderr=$StderrPath $stderrText"
+    }
+
+    Write-ProgressEvent -Stage $Stage -Name $StageName -State "done" -ElapsedSeconds $duration -Detail "exit=0" -Color "Green"
+
     try {
-        $Parsed = $Text | ConvertFrom-Json -Depth 100
+        $Parsed = $stdoutText | ConvertFrom-Json -Depth 100
     }
     catch {
         throw "$Label exited cleanly but did not return valid JSON. Stdout=$StdoutPath"
@@ -84,6 +211,8 @@ function Invoke-JsonCommand {
         Json = $Parsed
         StdoutPath = $StdoutPath
         StderrPath = $StderrPath
+        CommandPath = $CommandPath
+        DurationSeconds = $duration
     }
 }
 
@@ -109,6 +238,9 @@ function Get-CoordinateDelta {
     }
 }
 
+$OverallStartedAt = Get-Date
+
+Write-ProgressEvent -Stage 1 -Name "target-discovery" -State "start" -ElapsedSeconds 0.0 -Color "Cyan"
 $Targets = @(
     Get-Process -Name $ProcessName -ErrorAction Stop |
         Where-Object {
@@ -124,12 +256,14 @@ if ($Targets.Count -ne 1) {
         Format-Table |
         Out-String
 
+    Write-ProgressEvent -Stage 1 -Name "target-discovery" -State "failed" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail "targets=$($Targets.Count)" -Color "Red"
     throw "Expected exactly one windowed RIFT target; found $($Targets.Count).`n$Detail"
 }
 
 $Target = $Targets[0]
 $RiftProcessId = [int]$Target.Id
 $RiftHwnd = "0x{0:X}" -f ([int64]$Target.MainWindowHandle)
+Write-ProgressEvent -Stage 1 -Name "target-discovery" -State "done" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail "pid=$RiftProcessId hwnd=$RiftHwnd" -Color "Green"
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $Stamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -149,11 +283,7 @@ $StimulusFile = Join-Path $RunRoot "csharp-sendinput-stimulus.json"
 $SummaryJson = Join-Path $RunRoot "measured-result.json"
 $SummaryMarkdown = Join-Path $RunRoot "measured-result.md"
 
-Write-ProgressLine "Target PID : $RiftProcessId"
-Write-ProgressLine "Target HWND: $RiftHwnd"
-Write-ProgressLine "RunRoot    : $RunRoot"
-Write-ProgressLine "Method     : C# SendInput $InputMode; key=$Key; hold=${HoldMilliseconds}ms"
-Write-ProgressLine "Safety     : no automatic Esc; no Cheat Engine; no SavedVariables live truth"
+Write-ProgressEvent -Stage 2 -Name "run-context" -State "done" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail "runRoot=$RunRoot" -Color "DarkCyan"
 
 $Before = Invoke-JsonCommand `
     -Label "before-api-coordinate" `
@@ -185,7 +315,9 @@ $Before = Invoke-JsonCommand `
         ([string]$ScanRetryDelayMilliseconds),
         "-Json"
     ) `
-    -ChildOutputRoot $ChildOutputRoot
+    -ChildOutputRoot $ChildOutputRoot `
+    -Stage 3 `
+    -StageName "before-api-coordinate"
 
 if ($Before.Json.Status -ne "captured") {
     throw "Before API coordinate capture did not return Status=captured."
@@ -220,7 +352,9 @@ $Stimulus = Invoke-JsonCommand `
         "--no-refocus",
         "--json"
     ) `
-    -ChildOutputRoot $ChildOutputRoot
+    -ChildOutputRoot $ChildOutputRoot `
+    -Stage 4 `
+    -StageName "csharp-sendinput-stimulus"
 
 $Stimulus.Json | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $StimulusFile -Encoding UTF8
 
@@ -228,7 +362,9 @@ if (-not [bool]$Stimulus.Json.ok) {
     throw "C# SendInput stimulus returned ok=false."
 }
 
+Write-ProgressEvent -Stage 5 -Name "post-stimulus-settle" -State "start" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail "sleep=2s" -Color "Cyan"
 Start-Sleep -Seconds 2
+Write-ProgressEvent -Stage 5 -Name "post-stimulus-settle" -State "done" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Color "Green"
 
 $After = Invoke-JsonCommand `
     -Label "after-api-coordinate" `
@@ -260,7 +396,9 @@ $After = Invoke-JsonCommand `
         ([string]$ScanRetryDelayMilliseconds),
         "-Json"
     ) `
-    -ChildOutputRoot $ChildOutputRoot
+    -ChildOutputRoot $ChildOutputRoot `
+    -Stage 6 `
+    -StageName "after-api-coordinate"
 
 if ($After.Json.Status -ne "captured") {
     throw "After API coordinate capture did not return Status=captured."
@@ -287,6 +425,12 @@ $Summary = [ordered]@{
     before = $BeforeCoordinate
     after = $AfterCoordinate
     delta = $Delta
+    stageTimings = [ordered]@{
+        beforeApiCoordinateSeconds = $Before.DurationSeconds
+        csharpSendInputStimulusSeconds = $Stimulus.DurationSeconds
+        afterApiCoordinateSeconds = $After.DurationSeconds
+        overallSeconds = ((Get-Date) - $OverallStartedAt).TotalSeconds
+    }
     artifacts = [ordered]@{
         runRoot = $RunRoot
         beforeReference = $BeforeFile
@@ -326,8 +470,18 @@ $Summary | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $SummaryJson -En
 | Automatic Esc | `false` |
 | Cheat Engine | `false` |
 | SavedVariables live truth | `false` |
+| Before API seconds | `$($Before.DurationSeconds)` |
+| C# SendInput seconds | `$($Stimulus.DurationSeconds)` |
+| After API seconds | `$($After.DurationSeconds)` |
 | Summary JSON | `$SummaryJson` |
 "@ | Set-Content -LiteralPath $SummaryMarkdown -Encoding UTF8
+
+if ($Moved) {
+    Write-ProgressEvent -Stage 6 -Name "summary" -State "done" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail ("planar={0:0.######}" -f $Delta.PlanarDistance) -Color "Green"
+}
+else {
+    Write-ProgressEvent -Stage 6 -Name "summary" -State "done" -ElapsedSeconds ((Get-Date) - $OverallStartedAt).TotalSeconds -Detail ("planar={0:0.######}; below-threshold" -f $Delta.PlanarDistance) -Color "Yellow"
+}
 
 Get-Content -LiteralPath $SummaryJson -Raw
 
