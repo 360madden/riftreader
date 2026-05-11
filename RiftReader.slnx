@@ -3,4 +3,7 @@
     <Project Path="reader/RiftReader.Reader/RiftReader.Reader.csproj" />
     <Project Path="reader/RiftReader.Reader.Tests/RiftReader.Reader.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/RiftReader.SendInput/RiftReader.SendInput.csproj" />
+  </Folder>
 </Solution>
