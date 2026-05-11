@@ -1,10 +1,29 @@
-# Version: riftreader-promote-current-pid-proof-anchor-from-batch-v0.4.0
-# Total-Character-Count: 10554
-# Purpose: Safely promote the current PID coordinate proof anchor from the latest promotion-ready coordinate-anchor batch summary using existing repo helpers only. Captures stdout/stderr separately, stops on promotion failure, and sends no movement.
+# Version: riftreader-promote-current-pid-proof-anchor-from-batch-v0.1.1
+# Total-Character-Count: 11713
+# Purpose: Safely promote the current PID coordinate proof anchor from the latest promotion-ready coordinate-anchor batch summary using existing repo helpers only. Fixes array-parameter invocation for ReadbackSummaryFile by using encoded PowerShell commands. Sends no movement.
 
 & {
   $ErrorActionPreference = "Stop"
   Set-StrictMode -Version Latest
+
+  function ConvertTo-PowerShellSingleQuotedString {
+    param([Parameter(Mandatory = $true)][string]$Value)
+    return "'" + ($Value -replace "'", "''") + "'"
+  }
+
+  function New-EncodedPowerShellCommandArguments {
+    param([Parameter(Mandatory = $true)][string]$CommandText)
+
+    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($CommandText))
+    return @(
+      "-NoLogo",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-EncodedCommand",
+      $encoded
+    )
+  }
 
   function Invoke-CapturedProcess {
     param(
@@ -187,22 +206,25 @@
   Write-Host "Evidence  : $($ReadbackSummaryFiles.Count) readback summaries"
   Write-Host "RunRoot   : $PromoteRoot"
 
-  $PromoteArgs = @(
-    "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PromoteScript,
-    "-ReadbackSummaryFile"
-  ) + $ReadbackSummaryFiles + @(
-    "-CandidateId", $CandidateId,
-    "-ProcessName", $ProcessName,
-    "-ProcessId", ([string]$RiftPid),
-    "-TargetWindowHandle", $RiftHwnd,
-    "-OutputFile", $ProofAnchorFile,
-    "-MinPoseCount", ([string]$MinimumSupport),
-    "-MinReferenceDisplacement", "1.0",
-    "-MaxDeltaError", "0.25",
-    "-MaxEvidenceAgeSeconds", "14400",
-    "-Json"
-  )
+  $ReadbackArrayLiteral = "@(" + (($ReadbackSummaryFiles | ForEach-Object { ConvertTo-PowerShellSingleQuotedString -Value $_ }) -join ", ") + ")"
 
+  $PromoteCommand = @"
+`$ErrorActionPreference = 'Stop'
+& $(ConvertTo-PowerShellSingleQuotedString -Value $PromoteScript) `
+  -ReadbackSummaryFile $ReadbackArrayLiteral `
+  -CandidateId $(ConvertTo-PowerShellSingleQuotedString -Value $CandidateId) `
+  -ProcessName $(ConvertTo-PowerShellSingleQuotedString -Value $ProcessName) `
+  -ProcessId $RiftPid `
+  -TargetWindowHandle $(ConvertTo-PowerShellSingleQuotedString -Value $RiftHwnd) `
+  -OutputFile $(ConvertTo-PowerShellSingleQuotedString -Value $ProofAnchorFile) `
+  -MinPoseCount $MinimumSupport `
+  -MinReferenceDisplacement 1.0 `
+  -MaxDeltaError 0.25 `
+  -MaxEvidenceAgeSeconds 14400 `
+  -Json
+"@
+
+  $PromoteArgs = New-EncodedPowerShellCommandArguments -CommandText $PromoteCommand
   $PromoteRun = Invoke-CapturedProcess -Label "promotion" -OutputDirectory $PromoteRoot -FilePath "pwsh" -Arguments $PromoteArgs
 
   if ($PromoteRun.ExitCode -ne 0) {
@@ -228,19 +250,21 @@
 
   Write-Host "=== ASSERT CURRENT PROOF ANCHOR READBACK ==="
 
-  $AssertArgs = @(
-    "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $AssertScript,
-    "-ProcessName", $ProcessName,
-    "-ProcessId", ([string]$RiftPid),
-    "-TargetWindowHandle", $RiftHwnd,
-    "-ProofCoordAnchorFile", $ProofAnchorFile,
-    "-OutputRoot", $PromoteRoot,
-    "-ProofAnchorMaxAgeSeconds", "120",
-    "-ReadbackSampleCount", "4",
-    "-ReadbackIntervalMilliseconds", "100",
-    "-Json"
-  )
+  $AssertCommand = @"
+`$ErrorActionPreference = 'Stop'
+& $(ConvertTo-PowerShellSingleQuotedString -Value $AssertScript) `
+  -ProcessName $(ConvertTo-PowerShellSingleQuotedString -Value $ProcessName) `
+  -ProcessId $RiftPid `
+  -TargetWindowHandle $(ConvertTo-PowerShellSingleQuotedString -Value $RiftHwnd) `
+  -ProofCoordAnchorFile $(ConvertTo-PowerShellSingleQuotedString -Value $ProofAnchorFile) `
+  -OutputRoot $(ConvertTo-PowerShellSingleQuotedString -Value $PromoteRoot) `
+  -ProofAnchorMaxAgeSeconds 120 `
+  -ReadbackSampleCount 4 `
+  -ReadbackIntervalMilliseconds 100 `
+  -Json
+"@
 
+  $AssertArgs = New-EncodedPowerShellCommandArguments -CommandText $AssertCommand
   $AssertRun = Invoke-CapturedProcess -Label "assert-current-readback" -OutputDirectory $PromoteRoot -FilePath "pwsh" -Arguments $AssertArgs
 
   if ($AssertRun.ExitCode -ne 0) {
