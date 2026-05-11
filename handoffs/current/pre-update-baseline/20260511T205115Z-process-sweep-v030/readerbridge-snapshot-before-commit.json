@@ -1,0 +1,105 @@
+{
+  "SourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+  "LoadedAtUtc": "2026-05-11T21:01:12.5621732+00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 11286.9765625,
+  "LastReason": "save-begin",
+  "ExportCount": 1932,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "save-begin",
+    "ExportCount": 1932,
+    "GeneratedAtRealtime": 11286.9765625,
+    "SourceMode": "DirectAPI",
+    "SourceAddon": "RiftAPI",
+    "Player": {
+      "Id": "u035400012FA2D207",
+      "Name": "Atank",
+      "Level": 45,
+      "Calling": "warrior",
+      "Guild": "The Regulators",
+      "Relation": "friendly",
+      "Role": "tank",
+      "Player": true,
+      "Hp": 18208,
+      "HpMax": 18208,
+      "HpPct": 100,
+      "Vitality": 100,
+      "ResourceKind": "Power",
+      "Resource": 100,
+      "ResourceMax": 100,
+      "ResourcePct": 100,
+      "Power": 100,
+      "Charge": 0,
+      "ChargeMax": 0,
+      "ChargePct": 0,
+      "Planar": 1,
+      "PlanarMax": 3,
+      "PlanarPct": 33,
+      "Combo": 0,
+      "Zone": "z487C9102D2EA79BE",
+      "LocationName": "Tavril Plaza",
+      "Coord": {
+        "X": 7406.330078125,
+        "Y": 871.76995849609,
+        "Z": 3029.7700195312
+      },
+      "Cast": {
+        "Active": false,
+        "Channeled": false,
+        "Uninterruptible": false,
+        "ProgressPct": 0,
+        "Text": "-"
+      }
+    },
+    "Telemetry": {
+      "Version": 1,
+      "Sequence": 21688,
+      "GeneratedAtRealtime": 11286.9765625,
+      "Capabilities": {
+        "ApiFacingAvailable": false,
+        "ApiYawAvailable": false,
+        "ReaderBridgeAvailable": false,
+        "DirectApiAvailable": true,
+        "NearbyUnitsAvailable": false,
+        "TargetAvailable": false
+      },
+      "Position": {
+        "Coord": {
+          "X": 7406.330078125,
+          "Y": 871.76995849609,
+          "Z": 3029.7700195312
+        },
+        "Zone": "z487C9102D2EA79BE",
+        "LocationName": "Tavril Plaza",
+        "SourceMode": "DirectAPI"
+      },
+      "Movement": {
+        "Dx": 0,
+        "Dy": 0,
+        "Dz": 0,
+        "Distance": 0,
+        "Dt": 0.1904296875,
+        "Speed": 0
+      },
+      "Context": {
+        "PlayerId": "u035400012FA2D207",
+        "TargetPresent": false,
+        "Zone": "z487C9102D2EA79BE",
+        "LocationName": "Tavril Plaza",
+        "SourceAddon": "RiftAPI",
+        "SourceMode": "DirectAPI",
+        "ExportAddon": "ReaderBridgeExport",
+        "ExportVersion": "0.1.0"
+      }
+    },
+    "PlayerBuffLines": [
+      "Rested",
+      "Track Fish"
+    ],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": []
+  }
+}

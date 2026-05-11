@@ -1,0 +1,60 @@
+[
+  [
+    {
+      "ProcessId": 9040,
+      "ProcessName": "GlyphClientApp",
+      "CimName": "GlyphClientApp.exe",
+      "MainWindowTitle": "Glyph",
+      "MainWindowHandle": "0x101074",
+      "StartTimeUtc": "2026-05-10T00:28:45.9431525Z",
+      "CreationDate": "05/09/2026 20:28:45",
+      "Path": "C:\\Program Files (x86)\\Glyph\\GlyphClientApp.exe",
+      "FileLastWriteUtc": "2026-04-13T16:57:23.9955134Z",
+      "FileLengthBytes": 4877248,
+      "Sha256": "C659F755C0D4637CD12BB10B186E7BE43AFBB449B615D8A401795E8CF8DD7DF0",
+      "CommandLine": "\"C:\\Program Files (x86)\\Glyph\\GlyphClientApp.exe\" -hidden"
+    },
+    {
+      "ProcessId": 22696,
+      "ProcessName": "GlyphCrashHandler64",
+      "CimName": "GlyphCrashHandler64.exe",
+      "MainWindowTitle": "",
+      "MainWindowHandle": "0x0",
+      "StartTimeUtc": "2026-05-10T00:28:45.8381428Z",
+      "CreationDate": "05/09/2026 20:28:45",
+      "Path": "C:\\Program Files (x86)\\Glyph\\x64\\GlyphCrashHandler64.exe",
+      "FileLastWriteUtc": "2026-04-13T16:57:24.1501043Z",
+      "FileLengthBytes": 1903616,
+      "Sha256": "7E06E149B39386AE6A58CD611D49FA1084EAD553413B642ADE54C961CB5D543F",
+      "CommandLine": "\"C:\\Program Files (x86)\\Glyph\\x64\\GlyphCrashHandler64.exe\" -launch \"C:\\Program Files (x86)\\Glyph\\GlyphClientApp.exe\" \"C:\\WINDOWS\\system32\" \"-hidden\""
+    },
+    {
+      "ProcessId": 35728,
+      "ProcessName": "rift_x64",
+      "CimName": "rift_x64.exe",
+      "MainWindowTitle": "RIFT",
+      "MainWindowHandle": "0x60E42",
+      "StartTimeUtc": "2026-05-10T13:46:40.6268282Z",
+      "CreationDate": "05/10/2026 09:46:40",
+      "Path": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+      "FileLastWriteUtc": "2026-05-05T11:59:05.6389916Z",
+      "FileLengthBytes": 60044224,
+      "Sha256": "E3F5BAD4285C02BD873915A4F01A729E3013881E9AE82FF4438741D8B903C1BC",
+      "CommandLine": "\"C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe\" -e 1 -h \"\" -k 00000bd4:00000bd0 -l {language} -s 144.217.46.224:6520;144.217.46.224:6521;144.217.46.224:6522;144.217.46.224:6523;144.217.46.224:6524;144.217.46.224:6525;144.217.46.224:6526;144.217.46.224:6527 -A \"\" --authapi=trion_v1_2 -l English"
+    },
+    {
+      "ProcessId": 52044,
+      "ProcessName": "msedge",
+      "CimName": "msedge.exe",
+      "MainWindowTitle": "ChatGPT - RiftReader and 1 more page - Personal - Microsoft​ Edge",
+      "MainWindowHandle": "0x770A5E",
+      "StartTimeUtc": "2026-05-11T02:50:49.3382521Z",
+      "CreationDate": "05/10/2026 22:50:49",
+      "Path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "FileLastWriteUtc": "2026-05-07T07:28:30.4468335Z",
+      "FileLengthBytes": 5216584,
+      "Sha256": "F6E53FC705DD73098103D5405696E7597AB2074BAF6F820AB5B3F66B72A26EA1",
+      "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --no-startup-window"
+    }
+  ]
+]
