@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "proofKind": "riftreader-csharp-sendinput-scancode-movement-proof",
+  "status": "passed-csharp-sendinput-scancode-displacement",
+  "ok": true,
+  "createdUtc": "2026-05-11T04:15:00Z",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 35728,
+    "windowHandle": "0x60E42",
+    "title": "RIFT"
+  },
+  "tool": {
+    "name": "RiftReader.SendInput",
+    "commit": "06d82cd29bc173d4145829513b8eb521c0d9c6f5",
+    "wrapper": "scripts/send-rift-key-csharp.ps1",
+    "project": "tools/RiftReader.SendInput/RiftReader.SendInput.csproj",
+    "method": "scripts/send-rift-key-csharp.ps1 --input-mode ScanCode --key w --hold-ms 750"
+  },
+  "stimulus": {
+    "key": "w",
+    "virtualKey": 87,
+    "virtualKeyHex": "0x57",
+    "scanCode": 17,
+    "scanCodeHex": "0x11",
+    "holdMilliseconds": 750,
+    "inputMode": "ScanCode",
+    "sentInputEvents": 2,
+    "exactHwndForeground": true,
+    "targetProcessForeground": true,
+    "foregroundBeforeWindowHex": "0x250A14",
+    "foregroundAfterWindowHex": "0x60E42"
+  },
+  "coordinateProof": {
+    "source": "fresh RRAPICOORD1 API reference captures before and after stimulus",
+    "before": {
+      "x": 7405.9297,
+      "y": 871.78,
+      "z": 3028.05,
+      "capturedAtUtc": "2026-05-11T04:06:35.7533031Z"
+    },
+    "after": {
+      "x": 7405.0498,
+      "y": 871.78,
+      "z": 3027.7,
+      "capturedAtUtc": "2026-05-11T04:07:04.5383657Z"
+    },
+    "delta": {
+      "deltaX": -0.8798999999999069,
+      "deltaY": 0.0,
+      "deltaZ": -0.3500000000003638,
+      "planarDistance": 0.9469551256527897,
+      "spatialDistance": 0.9469551256527897
+    }
+  },
+  "safety": {
+    "automaticEscUsed": false,
+    "proofAnchorRequiredForBackendCalibration": false,
+    "cheatEngineUsed": false,
+    "savedVariablesLiveTruthUsed": false,
+    "reloadUiUsed": false
+  },
+  "interpretation": {
+    "backendVerdict": "C# SendInput ScanCode is proof-backed for bounded forward movement calibration on this target/session.",
+    "legacyPowerShellSendInputVerdict": "PowerShell send-rift-key.ps1 remains legacy/diagnostic; earlier PowerShell VirtualKey and ScanCode tests delivered but did not produce movement.",
+    "windowMessageVerdict": "post-rift-key.ps1 -SkipBackgroundFocus -UseWindowMessage remains a working alternative backend.",
+    "inputModePolicy": "Do not auto-send Esc. Operator must keep RIFT in gameplay input mode because no reliable chat/text-entry detector exists."
+  },
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\csharp-sendinput-measured-proof-20260511-000537"
+}

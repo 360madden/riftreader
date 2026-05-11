@@ -1309,3 +1309,35 @@ Relevant scripts there:
 
 Do not treat camera outputs as current truth on `main` until the camera path is
 revalidated on the updated client.
+
+<!-- RIFTREADER_CSHARP_SENDINPUT_SCANCODE_PROOF_20260511_START -->
+## May 11, 2026 — C# SendInput ScanCode movement proof
+
+C# `RiftReader.SendInput` is now proof-backed for bounded forward movement calibration.
+
+Measured run:
+
+- target: `rift_x64` PID `35728`, HWND `0x60E42`
+- wrapper: `scripts/send-rift-key-csharp.ps1`
+- project: `tools/RiftReader.SendInput/RiftReader.SendInput.csproj`
+- commit: `06d82cd29bc173d4145829513b8eb521c0d9c6f5`
+- method: `--input-mode ScanCode --key w --hold-ms 750`
+- result: `passed-csharp-sendinput-scancode-displacement`
+- before API coordinate: `X=7405.9297 Y=871.78 Z=3028.05`
+- after API coordinate: `X=7405.0498 Y=871.78 Z=3027.7`
+- planar displacement: `0.9469551256527897`
+- spatial displacement: `0.9469551256527897`
+- exact HWND foreground: `true`
+- target process foreground: `true`
+- automatic `Esc`: `false`
+- CE: `false`
+- SavedVariables live truth: `false`
+
+Current backend truth:
+
+1. `tools/RiftReader.SendInput` / `scripts/send-rift-key-csharp.ps1 --input-mode ScanCode` is proof-backed for bounded forward movement.
+2. Legacy `scripts/send-rift-key.ps1` is superseded for serious SendInput testing because earlier PowerShell VirtualKey/ScanCode runs delivered but did not move.
+3. `scripts/post-rift-key.ps1 -SkipBackgroundFocus -UseWindowMessage` remains a working exact-HWND window-message backend.
+4. Do not auto-send `Esc`; gameplay input mode is operator-managed until a reliable chat/text-entry detector exists.
+5. Proof anchor remains required for navigation/proof promotion, but not for bounded backend calibration.
+<!-- RIFTREADER_CSHARP_SENDINPUT_SCANCODE_PROOF_20260511_END -->

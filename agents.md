@@ -434,3 +434,19 @@ Never describe an old absolute proof address, nearby offset probe, SavedVariable
 
 See `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md` for the
 longer decision tree and examples.
+
+<!-- RIFTREADER_CSHARP_SENDINPUT_SCANCODE_PROOF_20260511_START -->
+## RiftReader live-input backend rule — 2026-05-11
+
+For RIFT movement/backend diagnostics:
+
+- Prefer repo-owned C# `tools/RiftReader.SendInput` via `scripts/send-rift-key-csharp.ps1`.
+- Use `--input-mode ScanCode` first for SendInput movement tests.
+- Treat legacy `scripts/send-rift-key.ps1` as diagnostic/legacy, not the authoritative SendInput implementation.
+- Preserve `scripts/post-rift-key.ps1 -SkipBackgroundFocus -UseWindowMessage` as a working exact-HWND window-message backend.
+- Do not auto-send `Esc`; chat/text-entry mode is operator-managed until a reliable detector exists.
+- Keep pasted chat commands minimal. If a workflow repeats, add or use a repo-owned helper rather than creating untracked inline scripts.
+- Backend calibration may use fresh API coordinate before/after without requiring a current proof anchor. Navigation/proof promotion still requires the normal proof gates.
+
+Proof reference: `docs/recovery/csharp-sendinput-scancode-proof-2026-05-11.md`.
+<!-- RIFTREADER_CSHARP_SENDINPUT_SCANCODE_PROOF_20260511_END -->

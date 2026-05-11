@@ -245,3 +245,27 @@ The current live camera workflow is branch-specific:
   `feature/camera-orientation-discovery`
 - inspected worktree path:
   `C:\RIFT MODDING\RiftReader_camera_feature`
+
+<!-- RIFTREADER_CSHARP_SENDINPUT_SCANCODE_PROOF_20260511_START -->
+## C# SendInput ScanCode proof — 2026-05-11
+
+The repo now has proof-backed C# `SendInput` ScanCode movement evidence.
+
+- Tool: `tools/RiftReader.SendInput`
+- Wrapper: `scripts/send-rift-key-csharp.ps1`
+- Commit: `06d82cd29bc173d4145829513b8eb521c0d9c6f5`
+- Method: `--input-mode ScanCode --key w --hold-ms 750`
+- Target: `rift_x64` PID `35728`, HWND `0x60E42`
+- Result: `passed-csharp-sendinput-scancode-displacement`
+- Measured planar displacement: `0.9469551256527897`
+- Fresh API-coordinate before/after proof:
+  - before: `7405.9297, 871.78, 3028.05`
+  - after: `7405.0498, 871.78, 3027.7`
+- Automatic `Esc`: not used.
+- Cheat Engine: not used.
+- SavedVariables live truth: not used.
+
+See `docs/recovery/csharp-sendinput-scancode-proof-2026-05-11.md` and `.json`.
+
+Policy: C# `RiftReader.SendInput` with ScanCode is the preferred SendInput diagnostic path. Legacy `scripts/send-rift-key.ps1` is superseded for serious SendInput testing. `post-rift-key.ps1 -SkipBackgroundFocus -UseWindowMessage` remains a working exact-HWND window-message backend.
+<!-- RIFTREADER_CSHARP_SENDINPUT_SCANCODE_PROOF_20260511_END -->
