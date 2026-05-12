@@ -1,0 +1,33 @@
+{
+  "version": "riftreader-drive-inbox-contract-v0.1.0",
+  "total_character_count": "1010",
+  "purpose": "Machine-readable contract for using Google Drive as RiftReader artifact transport, archive, inbox, handoff, and status storage.",
+  "drive_root_default": "G:\\My Drive\\RiftReader",
+  "repo_root_default": "C:\\RIFT MODDING\\RiftReader",
+  "source_of_truth": {
+    "local_repo": "C:\\RIFT MODDING\\RiftReader",
+    "remote_repo": "GitHub:360madden/riftreader",
+    "drive_role": "artifact_transport_archive_status_not_source_of_truth"
+  },
+  "directories": [
+    "inbox",
+    "inbox/packages",
+    "inbox/scripts",
+    "inbox/prompts",
+    "inbox/handoffs",
+    "inbox/manifests",
+    "package-archive",
+    "status",
+    "status/imports",
+    "handoffs",
+    "handoffs/current",
+    "logs"
+  ],
+  "import_rules": {
+    "sha256_required": true,
+    "delete_source_default": false,
+    "delete_source_requires_verified_copy": true,
+    "commit_or_push_allowed": false
+  },
+  "END_OF_SCRIPT_MARKER": true
+}
