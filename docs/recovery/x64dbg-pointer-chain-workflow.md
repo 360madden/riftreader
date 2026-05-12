@@ -125,6 +125,33 @@ Before opening a live-debugger session:
 7. Stop after enough hits to explain the owner/source path; do not loop on weak
    hits without new evidence.
 
+## Repo-owned coord-chain planner
+
+Before any live x64dbg attach/watchpoint session, generate a bounded plan packet
+from the current coordinate candidate and fresh API/runtime coordinate:
+
+```powershell
+python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
+  --candidate-address <candidate-address> `
+  --target-pid <PID> `
+  --target-hwnd <HWND> `
+  --process-start-time-utc <process-start-utc> `
+  --api-x <x> --api-y <y> --api-z <z> `
+  --api-sampled-at-utc <api-sampled-at-utc> `
+  --json
+```
+
+This planner is artifact-only: it does not attach x64dbg, set watchpoints, read
+live memory, configure MCP, send movement/input, or promote a chain. It writes a
+summary, a session checklist, and a candidate-packet template under
+`scripts\captures\x64dbg-coord-chain-plan-*`.
+
+If the target is `rift_x64` and no current-turn live-debugger authorization is
+present, the planner still writes the packet but records a warning that live
+attach is not authorized. Passing `--allow-live-debugger` only records that a
+future session was approved for planning purposes; the planner still performs no
+debugger actions.
+
 ## Candidate packet contract
 
 Write debugger-derived candidates as explicit candidate evidence, for example:

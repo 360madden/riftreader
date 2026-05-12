@@ -167,3 +167,17 @@ Do not add an active Codex MCP entry until one of these is true:
    read-only, fail-closed operations.
 
 Until then, use the Python helper directly.
+
+## Follow-on static coord-chain planner
+
+The next integration layer is:
+
+- helper: `C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py`
+- implementation:
+  `C:\RIFT MODDING\RiftReader\scripts\rift_live_test\x64dbg_coord_chain_plan.py`
+- tests: `C:\RIFT MODDING\RiftReader\scripts\test_x64dbg_coord_chain_plan.py`
+
+This planner prepares the coordinate-chain packet and x64dbg session checklist
+for a known current coordinate candidate. It does not attach x64dbg or perform
+debugger actions; it exists to keep the static pointer-chain workflow
+evidence-shaped before any approved live-debugger session.

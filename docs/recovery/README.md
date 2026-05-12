@@ -250,6 +250,9 @@ Snipping Tool automation are forbidden for RiftReader screenshot workflows.
 10. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-automate-readonly-helper-2026-05-12.md`
     when the task touches the read-only x64dbg Automate helper, local plugin
     setup, or the still-deferred active MCP configuration
+11. `C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py`
+    when preparing an artifact-only x64dbg plan for static coordinate
+    pointer-chain discovery from a current candidate address
 
 ## Rules
 
