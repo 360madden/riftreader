@@ -139,6 +139,20 @@ sources:
 | 4 | YARA-on-snapshot helper | Useful for anti-debug/packer/primitive awareness, but should not be on the movement critical path. |
 | 5 | Optional MCP configuration experiment | Only after confirming current Codex Desktop MCP support and keeping write-class tools blocked. |
 
+## Implementation status: 2026-05-12
+
+The first safe port is tracked here:
+
+- helper: `C:\RIFT MODDING\RiftReader\scripts\x64dbg_snapshot_diff.py`
+- implementation: `C:\RIFT MODDING\RiftReader\scripts\rift_live_test\x64dbg_snapshot_diff.py`
+- tests: `C:\RIFT MODDING\RiftReader\scripts\test_x64dbg_snapshot_diff.py`
+- setup/validation note:
+  `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-automate-readonly-helper-2026-05-12.md`
+
+The helper is read-only and artifact-producing. It does not configure Codex MCP.
+An active x64dbg MCP entry remains deferred until write-class tools can be
+blocked by configuration or by a repo-owned shim MCP server.
+
 ## Non-goals
 
 - Do not install or update x64dbg Automate from this note alone.
