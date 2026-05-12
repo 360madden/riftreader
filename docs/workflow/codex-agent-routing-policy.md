@@ -156,4 +156,3 @@ Escalate from lower/medium to stronger reasoning when any of these occur:
 | Can subtasks run independently? | Spawn agents up to the practical maximum. |
 | Are files or responsibilities overlapping? | Do not parallelize edits until ownership is clear. |
 | Is final repo history affected? | Main agent reviews, stages explicit paths, validates, then commits/pushes. |
-
