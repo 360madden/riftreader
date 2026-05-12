@@ -18,6 +18,13 @@ Current evidence is still candidate-only:
 - the older promoted proof anchor for PID `57656` is stale for this process
   epoch and must not be used as current movement truth.
 
+Live x64dbg approval was granted later in the same conversation. The first live
+capture downranked `0x78BF4FE420` as stack/scratch-like evidence and produced a
+stronger access-proven coordinate candidate at `0x20005B30800`. The observed
+coordinate owner/base object was `0x20005B304E0`, with coordinate fields at
+`+0x320/+0x324/+0x328`. See
+`docs/recovery/x64dbg-live-coordinate-access-capture-2026-05-12.md`.
+
 ## Time spent
 
 | Measurement | Value |
@@ -91,12 +98,14 @@ Earlier x64dbg Automate setup action-package timing remains documented in
 | Safe x64dbg local setup | 90% | x64dbg, x64dbg Automate client/plugin, read-only helper, and docs are in place. MCP is intentionally not active. |
 | Coordinate candidate seed | 55% | Current-PID candidate `api-family-hit-000001 @ 0x78BF4FE420` exists, but it is single-scan candidate evidence. |
 | Static-chain evidence capture | 20% | Planner and ingester are ready, but no approved live x64dbg access events have been captured yet. |
-| No-x64dbg chain resolver | 25% | Offline resolver harness and tests exist, but real live/current readback remains blocked until a real `derivedChain` is captured. |
+| Static-chain evidence capture | 40% | Approved live x64dbg captured coordinate access for `0x20005B30800` and object field relationship `0x20005B304E0 + 0x320/+0x324/+0x328`; still single-pose. |
+| No-x64dbg chain resolver | 25% | Offline resolver harness and tests exist, but real live/current readback remains blocked until a stable root chain to `0x20005B304E0` is captured. |
 | Movement/proof truth | 0% for static chain | No static chain has passed API-now vs chain-now, multi-pose, restart validation, and ProofOnly. |
 
-Bottom line: the tooling is far enough along to run the first disciplined
-x64dbg access-event capture, but the stable static coordinate pointer chain is
-not yet proven.
+Bottom line: the first disciplined x64dbg access-event capture has now narrowed
+the problem from "find a coordinate address" to "find a stable root path to
+object `0x20005B304E0`." The stable static coordinate pointer chain is still not
+proven.
 
 ## Next gate
 

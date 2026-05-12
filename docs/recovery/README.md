@@ -178,6 +178,12 @@ Planner, ingester, and resolver harness are schema-ready, but no stable static
 coordinate chain has been discovered or promoted. Do not build or promote from a
 candidate template, heap-only watch address, or guessed offsets.
 
+Latest approved live x64dbg coordinate access capture:
+`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-coordinate-access-capture-2026-05-12.md`.
+It promotes `0x20005B30800` only to access-proven candidate status and narrows
+the next missing piece to a stable root path for object `0x20005B304E0` with
+coordinates at `+0x320/+0x324/+0x328`.
+
 None of these helpers attaches x64dbg, sends input, configures MCP, or promotes
 movement truth.
 
@@ -279,6 +285,9 @@ Snipping Tool automation are forbidden for RiftReader screenshot workflows.
 13. `C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py`
     when resolving a real x64dbg-derived static coordinate chain packet through
     offline/repo-owned resolver gates without x64dbg or movement
+14. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-coordinate-access-capture-2026-05-12.md`
+    when resuming from the first approved live x64dbg coordinate access capture
+    and owner/root discovery for `0x20005B304E0`
 
 ## Rules
 
