@@ -114,6 +114,8 @@ Repo-level assistant workflow rules live in:
 - `C:\RIFT MODDING\RiftReader\agents.md`
 - `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md`
 - `C:\RIFT MODDING\RiftReader\docs\model-routing-template.md`
+- `C:\RIFT MODDING\RiftReader\docs\workflow\codex-agent-routing-policy.md`
+- `C:\RIFT MODDING\RiftReader\docs\agentic-workflow.md`
 
 ## Repository Layout
 

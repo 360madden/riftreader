@@ -1,9 +1,14 @@
 # Agentic Workflow
 
+Status date: 2026-05-12
+
 ## Goal
 
 Move discovery forward with narrow worker scopes, low context drift, and minimal
 idle time between tasks.
+
+This document is the durable Codex subagent companion to
+`docs/workflow/codex-agent-routing-policy.md`.
 
 ## Recommended architecture
 
@@ -23,7 +28,54 @@ idle time between tasks.
 Do **not** use a recursive “manager of managers” tree. Keep one thin
 coordinator and several narrow workers.
 
+## General Codex subagent policy
+
+Use subagents up to the **practical maximum** when work naturally separates into
+independent, non-overlapping lanes.
+
+| Work type | Subagent policy |
+|---|---|
+| Read-only repo discovery | Parallel explorers are encouraged when they answer distinct questions. |
+| Docs/source research | Parallel research is encouraged when source sets are independent. |
+| Disjoint implementation slices | Workers are allowed only with explicit file/module ownership. |
+| Validation while implementation continues | Allowed only when it does not race active edits. |
+| Live input/debugger/movement lanes | Serialize through the top-level integrator; do not run competing live-action workers. |
+| Tiny single-step fixes | Usually keep local; spawning may cost more than it saves. |
+
+### Required assignment contract
+
+Every worker assignment should specify:
+
+1. exact task;
+2. risk class;
+3. read-only vs write authority;
+4. owned files/modules;
+5. files/modules not to touch;
+6. expected output;
+7. validation requested;
+8. stop conditions.
+
+Workers must be told they are not alone in the codebase and must not revert,
+overwrite, or silently conflict with other workers.
+
+## General routing boundary
+
+| Lane | Reasoning route |
+|---|---|
+| Mechanical docs/status/search | Lower reasoning is allowed when bounded and reviewable. |
+| Small reversible code/test patch | Medium reasoning with validation. |
+| Live RIFT input, exact target control, x64dbg/CE, coordinate/facing proof, movement gates | Stronger reasoning only. |
+| Final integration, commit, and push | Top-level integrator only. |
+
+Do not downgrade risky live/debugger/proof work merely because the immediate
+edit looks small. Risk follows the artifact or decision being affected, not line
+count.
+
 ## Worker lanes
+
+The lanes below are a historical discovery-workflow example and should be
+treated as a pattern, not as current live assignments. Rebase lanes from the
+newest handoff/current-truth docs before assigning real work.
 
 ### Lane A — Live discovery / memory graph
 
@@ -178,4 +230,6 @@ Only the top-level integrator:
 - resolves conflicting findings
 - chooses commit boundaries
 - rebases the rolling queue after breakthroughs
+- reviews subagent output before final claims
+- validates the integrated patch before commit/push
 

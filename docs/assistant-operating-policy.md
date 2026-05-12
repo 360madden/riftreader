@@ -68,6 +68,33 @@ If any safety question is uncertain, treat as non-spark and route to
 
 Use `docs/model-routing-template.md` when you want a more structured review.
 
+## Permanent Codex reasoning/subagent routing policy
+
+The durable policy is `docs/workflow/codex-agent-routing-policy.md`.
+
+When using Codex, the assistant should conserve quota by routing safe,
+mechanical work to lower reasoning when practical, but must fail closed to
+stronger reasoning for risky truth, live, debugger, proof, and commit/push
+decisions.
+
+| Task class | Route |
+|---|---|
+| Docs-only, formatting, status boards, source-link collection | Lower reasoning allowed when bounded and reviewable. |
+| Read-only repo discovery with independent questions | Spawn parallel explorers up to the practical maximum. |
+| Small reversible code/test change | Medium reasoning with targeted validation. |
+| Disjoint multi-file implementation slices | Spawn workers only with explicit file ownership and non-overlap. |
+| x64dbg, CE, live RIFT input, exact target selection, coordinate/facing truth, proof watchsets, movement/navigation gates | Stronger reasoning only; do not delegate to lower-intelligence agents. |
+| Commit/push and final integration | Main agent reviews, validates, stages explicit paths, and owns the final decision. |
+
+Lower reasoning is allowed only when the task is bounded, reversible, not a
+truth/proof decision, and validation or direct review can catch likely errors.
+Escalate immediately when evidence conflicts, validation fails unexpectedly, or
+a safety boundary becomes relevant.
+
+Subagents should be used up to the practical maximum for independent work that
+reduces elapsed time. Do not parallelize overlapping edits. Do not delegate the
+critical-path blocker when the main agent can resolve it faster locally.
+
 ## Cross-repo provider/consumer rule
 
 RiftReader may consume ChromaLink, but a RiftReader-focused task must not

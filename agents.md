@@ -50,6 +50,31 @@ Use `spark` unless a task is in the explicit “no-spark” bucket:
 When uncertain, use this template (or equivalent): `docs/model-routing-template.md`
 and prefer `gpt-5.4` if any “No-spark” condition is true.
 
+## Permanent Codex routing and subagent policy
+
+When using Codex in this repo, apply the durable routing policy in
+`docs/workflow/codex-agent-routing-policy.md`.
+
+Default behavior:
+
+| Situation | Required routing |
+|---|---|
+| Docs/status/search-only work | Lower reasoning / lower-intelligence routing is allowed when bounded and reviewable. |
+| Small reversible code/test change | Medium reasoning is acceptable with targeted validation. |
+| Unclear bug, conflicting evidence, or multi-file behavior change | Use stronger reasoning; diagnose before editing. |
+| Live RIFT input, target selection, x64dbg/CE, coordinate truth, actor-facing, proof-watchsets, or movement gates | Stronger reasoning only; never route to lower intelligence. |
+| Commit/push and final integration | Main agent owns review, explicit staging, validation, commit, and push decisions. |
+
+Subagents are allowed **up to the practical maximum** when work naturally splits
+into independent, non-overlapping tasks. Use them aggressively for read-only
+discovery, source review, and disjoint implementation slices, but do not spawn
+agents for tiny single-step fixes where coordination overhead exceeds value.
+
+Before delegating, define the subtask scope, risk class, read/write authority,
+file ownership, and expected output. Workers must be told they are not alone in
+the codebase and must not revert or overwrite others' work. The main agent must
+integrate and validate results before making final claims or committing.
+
 ## Escalation / anti-loop rules
 
 - Start simple. Validate quickly. Escalate only on evidence.
