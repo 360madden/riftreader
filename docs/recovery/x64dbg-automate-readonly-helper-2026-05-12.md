@@ -181,3 +181,34 @@ This planner prepares the coordinate-chain packet and x64dbg session checklist
 for a known current coordinate candidate. It does not attach x64dbg or perform
 debugger actions; it exists to keep the static pointer-chain workflow
 evidence-shaped before any approved live-debugger session.
+
+## Follow-on offline access-event ingester
+
+The next repo-owned bridge after a planned x64dbg session is:
+
+- helper: `C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py`
+- implementation:
+  `C:\RIFT MODDING\RiftReader\scripts\rift_live_test\x64dbg_access_event_ingest.py`
+- tests:
+  `C:\RIFT MODDING\RiftReader\scripts\test_x64dbg_access_event_ingest.py`
+
+This helper ingests manually captured x64dbg watchpoint/access-event JSON and
+emits a candidate-only packet. It remains offline-only: no attach, no live
+memory reads, no MCP server, no input, no movement, and no promotion to
+coordinate truth. It blocks malformed input, missing target identity, non-12-byte
+watch windows, API-vs-memory deltas outside tolerance, unsafe write-access
+events, and instruction/module/RVA mismatches.
+
+Use it only after a live-debugger session has been separately approved and the
+operator has exported/recorded the manual event JSON:
+
+```powershell
+python C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py `
+  --events-json <manual-x64dbg-access-events.json> `
+  --candidate-id <candidate-id> `
+  --json
+```
+
+The output still requires a later repo-owned chain resolver, API-now versus
+chain-now comparison, multi-pose validation, restart validation, and same-target
+ProofOnly before movement can use it.

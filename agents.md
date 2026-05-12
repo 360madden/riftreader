@@ -427,6 +427,21 @@ Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
   recording stale/candidate or heuristic data.
 
 <!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_START -->
+## x64dbg static coordinate-chain invariant
+
+- Treat x64dbg coordinate access events as candidate evidence only until they
+  are converted into a repo-owned chain resolver and validated against fresh
+  API/runtime coordinates.
+- Do not attach x64dbg to `rift_x64.exe` unless the user explicitly authorizes a
+  live-debugger session in the current conversation.
+- Normalize manual watchpoint/access events with
+  `scripts/x64dbg_access_event_ingest.py`; the helper must stay offline-only and
+  must not send input, read live memory, configure MCP, or promote movement
+  truth.
+- A stable coordinate chain requires module/RVA or static-owner provenance,
+  multi-pose API-now versus chain-now agreement, restart validation, and the
+  existing same-target ProofOnly gate before any movement/navigation use.
+
 ## Current-PID coordinate-family recovery invariant
 
 If the live RIFT PID/HWND changes and `ProofOnly` blocks with target drift, the assistant must not fall back to narrow stale-pointer probing.

@@ -161,6 +161,16 @@ Claude/Codex adaptation and source-reference index:
 Current read-only x64dbg Automate helper status:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-automate-readonly-helper-2026-05-12.md`.
 
+Repo-owned x64dbg static-chain helpers:
+
+- `C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py` prepares an
+  artifact-only plan from a current coordinate candidate.
+- `C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py` ingests
+  manually captured x64dbg access events into a candidate-only packet.
+
+Neither helper attaches x64dbg, sends input, configures MCP, or promotes
+movement truth.
+
 For player actor-yaw discovery, use
 `C:\RIFT MODDING\RiftReader\docs\player-actor-yaw-candidate-ledger.md` as the
 ledger evidence contract. The ledger can downrank candidate yaw sources before
@@ -253,6 +263,9 @@ Snipping Tool automation are forbidden for RiftReader screenshot workflows.
 11. `C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py`
     when preparing an artifact-only x64dbg plan for static coordinate
     pointer-chain discovery from a current candidate address
+12. `C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py`
+    when normalizing manually captured x64dbg coordinate access events into a
+    candidate-only packet
 
 ## Rules
 

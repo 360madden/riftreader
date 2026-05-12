@@ -152,6 +152,114 @@ attach is not authorized. Passing `--allow-live-debugger` only records that a
 future session was approved for planning purposes; the planner still performs no
 debugger actions.
 
+## Offline access-event ingester
+
+After an explicitly approved x64dbg session produces manual watchpoint/access
+events, normalize them with the repo-owned offline ingester:
+
+```powershell
+python C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py `
+  --events-json <manual-x64dbg-access-events.json> `
+  --candidate-id <candidate-id> `
+  --max-delta 1.0 `
+  --json
+```
+
+The ingester is artifact-only and offline-only. It parses a manual event JSON
+file, validates target identity, a 12-byte `X/Y/Z` watch window, API-now versus
+memory-now deltas, pose count, instruction provenance, and write-class hazards.
+It writes:
+
+- `summary.json`
+- `summary.md`
+- `normalized-access-events.json`
+- `x64dbg-coordinate-chain-candidate.json`
+
+under `scripts\captures\x64dbg-access-event-ingest-*`.
+
+It does **not** attach x64dbg, read live process memory, configure MCP, send
+input, or promote movement truth. A `passed` ingest only means a candidate packet
+was generated from structurally valid events. The emitted candidate remains
+blocked for movement until a separate repo-owned chain readback and proof gate
+promote it.
+
+Minimal manual event input shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "x64dbg-manual-access-events",
+  "capturedAtUtc": "2026-05-12T21:00:00Z",
+  "process": {
+    "name": "rift_x64",
+    "pid": 63412,
+    "hwnd": "0xB70082",
+    "startTimeUtc": "2026-05-12T15:53:24Z"
+  },
+  "watchWindow": {
+    "baseAddress": "0x78BF4FE420",
+    "sizeBytes": 12,
+    "axisOrder": "xyz",
+    "axisOffsets": {
+      "x": "0x0",
+      "y": "0x4",
+      "z": "0x8"
+    }
+  },
+  "events": [
+    {
+      "eventId": "pose-001-hit-001",
+      "poseId": "pose-001",
+      "hitAtUtc": "2026-05-12T21:00:05Z",
+      "targetStillMatched": true,
+      "access": "read",
+      "truthSurface": {
+        "kind": "api-now",
+        "source": "fresh-api-runtime-coordinate",
+        "sampledAtUtc": "2026-05-12T21:00:05Z",
+        "x": 7376.87,
+        "y": 863.82,
+        "z": 2990.35
+      },
+      "memoryNow": {
+        "address": "0x78BF4FE420",
+        "sampledAtUtc": "2026-05-12T21:00:05Z",
+        "x": 7376.86,
+        "y": 863.83,
+        "z": 2990.35
+      },
+      "instruction": {
+        "module": "rift_x64.exe",
+        "moduleBase": "0x140000000",
+        "address": "0x141234567",
+        "rva": "0x1234567",
+        "bytes": "F30F1001",
+        "disassembly": "movss xmm0, dword ptr [rcx]",
+        "access": "read",
+        "registers": {
+          "rcx": "0x78BF4FE420"
+        },
+        "derivedObjectPointer": "0x78BF4FE420",
+        "fieldOffset": "0x0"
+      }
+    }
+  ]
+}
+```
+
+Static-chain integration order:
+
+1. produce a coord-chain plan from a current candidate and fresh API/runtime
+   coordinate;
+2. collect x64dbg access events only after explicit current-turn debugger
+   approval;
+3. ingest those events offline into a candidate packet;
+4. derive a module/RVA/static-owner chain hypothesis;
+5. resolve that chain with a repo-owned non-x64dbg readback helper;
+6. compare chain-now to fresh API-now across multiple poses;
+7. restart/relog and validate the same chain shape again;
+8. pass the existing same-target proof gate before any movement/navigation use.
+
 ## Candidate packet contract
 
 Write debugger-derived candidates as explicit candidate evidence, for example:
@@ -220,6 +328,14 @@ A chain can move from `candidate` to `proof-candidate` only when all are true:
 | Restart validation | Same chain shape works after relog/restart/client epoch change. |
 | Runtime helper | Repo-owned Python/C# readback can resolve the chain without x64dbg. |
 | Movement gate | Existing proof-only/readback gate accepts the chain before any movement/navigation use. |
+
+The current repo-owned integration intentionally separates evidence levels:
+
+| Level | Meaning | Movement allowed |
+|---|---|---|
+| `candidate` | Manual x64dbg events were normalized and are structurally usable for follow-up chain work. | No |
+| `proof-candidate` | A repo-owned resolver can read chain-now and compare against API-now across poses. | No |
+| promoted proof anchor | Restart validation and same-target ProofOnly pass. | Only through the existing movement gate |
 
 ## Stop conditions
 
