@@ -155,6 +155,9 @@ without fresh API/runtime comparison plus multi-pose and restart validation.
 Durable workflow doc:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`.
 
+Claude/Codex adaptation and source-reference index:
+`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-mcp-claude-to-codex-adaptation.md`.
+
 For player actor-yaw discovery, use
 `C:\RIFT MODDING\RiftReader\docs\player-actor-yaw-candidate-ledger.md` as the
 ledger evidence contract. The ledger can downrank candidate yaw sources before
@@ -238,6 +241,9 @@ Snipping Tool automation are forbidden for RiftReader screenshot workflows.
    when the task touches promoted current-session actor-yaw truth
 8. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`
    when the task touches debugger-assisted pointer-chain discovery
+9. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-mcp-claude-to-codex-adaptation.md`
+   when the task touches x64dbg Automate MCP, Claude-style x64dbg skills, or
+   Codex/Desktop ChatGPT adaptation of those workflows
 
 ## Rules
 
