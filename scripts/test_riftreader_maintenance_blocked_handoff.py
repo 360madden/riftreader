@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Version: riftreader-maintenance-blocked-handoff-helper-tests-v0.1.0
-# Total-Character-Count: 33103
-# Purpose: Offline tests for the RiftReader maintenance-blocked handoff helper. These tests do not require RIFT, Drive, or network access.
+# Version: riftreader-maintenance-blocked-handoff-helper-tests-v0.1.1
+# Total-Character-Count: 3962
+# Purpose: Offline tests for the RiftReader maintenance-blocked handoff helper, including Git path normalization. These tests do not require RIFT, Drive, or network access.
 
 from __future__ import annotations
 
@@ -61,6 +61,14 @@ class MaintenanceBlockedHandoffTests(unittest.TestCase):
             found = helper.find_latest_stage1_summary(root)
             self.assertIsNotNone(found)
             self.assertEqual(found["summary"]["status"], "new")
+
+    def test_repo_relative_uses_git_slashes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            nested = root / "handoffs" / "current" / "RIFTREADER_CURRENT_HANDOFF.md"
+            nested.parent.mkdir(parents=True)
+            nested.write_text("x", encoding="utf-8")
+            self.assertEqual(helper.repo_relative(nested, root), "handoffs/current/RIFTREADER_CURRENT_HANDOFF.md")
 
     def test_run_summary_markdown_contains_next_action(self) -> None:
         doc = {

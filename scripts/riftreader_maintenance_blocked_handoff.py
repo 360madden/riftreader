@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Version: riftreader-maintenance-blocked-handoff-helper-v0.1.0
-# Total-Character-Count: 33103
-# Purpose: Create a RiftReader maintenance-blocked handoff/status package, optionally update Drive status, and optionally commit/push only generated handoff files.
+# Version: riftreader-maintenance-blocked-handoff-helper-v0.1.1
+# Total-Character-Count: 18662
+# Purpose: Create a RiftReader maintenance-blocked handoff/status package, normalize repo paths for Git allowlists, optionally update Drive status, and optionally commit/push only generated handoff files.
 
 from __future__ import annotations
 
@@ -112,6 +112,10 @@ def resolve_repo_root(candidate: str | None) -> Path:
     if not (root / ".git").exists():
         raise RuntimeError(f"not a git repository: {root}")
     return root
+
+
+def repo_relative(path: Path, repo_root: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
 def resolve_powershell() -> str | None:
@@ -354,7 +358,12 @@ def create_handoff(repo_root: Path, drive_root: Path, process_name: str, write_d
 
     return {
         "doc": doc,
-        "repoFiles": [str(handoff_json.relative_to(repo_root)), str(handoff_md.relative_to(repo_root)), str(current_json.relative_to(repo_root)), str(current_md.relative_to(repo_root))],
+        "repoFiles": [
+            repo_relative(handoff_json, repo_root),
+            repo_relative(handoff_md, repo_root),
+            repo_relative(current_json, repo_root),
+            repo_relative(current_md, repo_root),
+        ],
         "driveFiles": drive_written,
         "outDir": str(out_dir),
     }

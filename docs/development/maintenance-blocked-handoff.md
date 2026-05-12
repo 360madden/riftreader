@@ -1,6 +1,6 @@
 # RiftReader Maintenance-Blocked Handoff Helper
 
-Version: v0.1.0
+Version: v0.1.1
 
 ## Purpose
 
@@ -24,6 +24,10 @@ handoffs\current\RIFTREADER_CURRENT_HANDOFF.json
 G:\My Drive\RiftReader\status\RIFTREADER_CURRENT_STATUS.md
 G:\My Drive\RiftReader\status\RIFTREADER_CURRENT_STATUS.json
 ```
+
+## v0.1.1 fix
+
+- Normalizes repo-generated handoff paths to Git-style forward slashes before staged-file allowlist comparison.
 
 ## Safety
 

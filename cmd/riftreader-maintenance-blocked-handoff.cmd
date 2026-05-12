@@ -1,6 +1,6 @@
 @echo off
-REM Version: riftreader-maintenance-blocked-handoff-launcher-v0.1.0
-REM Total-Character-Count: 33103
+REM Version: riftreader-maintenance-blocked-handoff-launcher-v0.1.1
+REM Total-Character-Count: 320
 REM Purpose: Thin launcher for the Python RiftReader maintenance-blocked handoff helper.
 
 cd /d "C:\RIFT MODDING\RiftReader"
