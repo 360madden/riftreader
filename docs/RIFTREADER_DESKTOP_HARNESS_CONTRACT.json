@@ -1,0 +1,39 @@
+{
+  "version": "riftreader-desktop-harness-contract-v0.1.0",
+  "total_character_count": "1190",
+  "purpose": "Machine-readable contract for the RiftReader Desktop ChatGPT Drive harness phase 1.",
+  "repo_root_default": "C:\\RIFT MODDING\\RiftReader",
+  "drive_root_default": "G:\\My Drive\\RiftReader",
+  "current_lane": "drive-integration",
+  "source_of_truth": {
+    "local_repo": "C:\\RIFT MODDING\\RiftReader",
+    "remote_repo": "GitHub:360madden/riftreader",
+    "drive_role": "artifact_transport_archive_status_not_source_of_truth"
+  },
+  "actions": {
+    "status": {
+      "repo_mutation": false,
+      "drive_write_optional": true,
+      "live_rift_operations": false
+    },
+    "prompt": {
+      "repo_mutation": false,
+      "drive_write": true,
+      "live_rift_operations": false
+    },
+    "package": {
+      "repo_mutation": false,
+      "drive_write": true,
+      "live_rift_operations": false
+    }
+  },
+  "safety": {
+    "proofonly_allowed": false,
+    "stage1_promotion_allowed": false,
+    "movement_allowed": false,
+    "live_input_allowed": false,
+    "git_add_dot_allowed": false,
+    "known_proof_residue_may_be_excluded": true
+  },
+  "END_OF_SCRIPT_MARKER": true
+}
