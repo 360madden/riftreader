@@ -1,26 +1,39 @@
 # Current Truth
 
-_Last updated: May 10, 2026 05:53 EDT / May 10, 2026 09:53 UTC (current live target `rift_x64` PID `30992`, HWND `0xD1008`; current proof-anchor was rebuilt through current-PID coordinate-family scan, two-pose no-CE promotion, and fresh same-target `ProofOnly` recorded in `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json`. No automated movement/input was sent and no Cheat Engine was used during reacquisition; the user manually displaced the character between proof poses. Pre-restart movement/yaw/route truth from PID `49504` is historical until revalidated for PID `30992`.)_
-
+_Last updated: May 12, 2026 11:10 UTC (current live target `rift_x64` PID `57656`, HWND `0x5417BC`; post-maintenance coordinate proof anchor rebuilt from Python Stage 1 evidence, promoted candidate `api-family-hit-000001` at `0xCC080EC30C`, and same-target `ProofOnly` passed. No Cheat Engine was used. `ProofOnly` sent no movement. The Stage 1 run did send bounded `W` movement stimulus for proof evidence only; this does not promote route, yaw, actor-facing, auto-turn, or navigation truth.)_
 
 ## Newest live-session status (authoritative)
 
 | Fact | Current truth |
 |---|---|
-| Live target | `rift_x64` PID `30992`, HWND `0xD1008` |
-| Latest handoff | `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-10-014500-restart-reacquisition-pre-proofonly-handoff.md` records the pre-`ProofOnly` restart recovery state; it is now superseded by the 09:53Z proof-pointer refresh. |
-| Current live-input gate | Current proof-anchor/readback is valid for PID `30992`, but no post-restart automated movement or route smoke has been run. Live input remains limited to explicit fresh target-control + visual gate + proof preflight before a bounded movement command. |
-| Latest no-input proof | Restarted-client `ProofOnly` passed on PID `30992` / HWND `0xD1008`; run `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260510-095259\run-summary.json`; readback `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-30992-readback-summary-20260510-055339.json`; `movementSent=false`; `movementAttempted=false`; `currentProofPointerUpdate.updated=true`. |
-| Latest movement truth | No post-restart automated movement truth has been validated for PID `30992`. The prior PID `49504` native exact-HWND waypoint and forward-series movement proofs are historical-only after the client restart and must not be treated as current movement permission. |
-| Latest recorded coordinate snapshot | `X=7402.0341796875`, `Y=871.7628173828125`, `Z=3026.4580078125` at `2026-05-10T09:53:43.5120419Z` from the 09:53Z restarted-client `ProofOnly` pointer refresh; do not present this value as current-now unless a fresh API-now vs memory-now check passes. |
-| Coordinate freshness rule | PID/HWND/process-start match is targeting preflight only. Current/non-stale coordinate truth requires fresh live API/runtime coordinate vs immediate memory readback (**API-now vs memory-now**), per-axis delta within tolerance, and a recorded verdict. If API is stale/missing, memory readback fails, or delta exceeds tolerance, block movement and use artifacts only as reacquisition seeds. |
-| Current proof anchor | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`; candidate `api-family-hit-000001` at `0x1E804B53C18`; proof method `no-ce-riftscan-reference-multisample`; movement-grade only through current proof-anchor/readback gates. |
-| Current tracked pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` targets PID `30992` / HWND `0xD1008` and is auto-refreshed only after same-target `ProofOnly` success. |
-| Archived stale pointer | Prior PID `49504` / HWND `0x5121A` pointer preserved at `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-10-pid49504-hwnd5121A-historical.json`; older PID `33912` / HWND `0xE0DB2` pointer also remains historical-only. |
-| RiftScan/provider state | For PID `30992`, authorized local RiftScan passive generation/readback found stable non-matching candidates; the successful current proof uses a RiftReader-owned broad coordinate-family scan file at `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-30992-20260510-082207\api-family-vec3-candidates.jsonl`. No Cheat Engine path was used. |
-| Input backend | C# waypoint navigation now uses `MovementBackendFactory`; exact-HWND targets use native `WindowMessageMovementBackend` (`PostMessageW`) and this path is live-validated for no-turn forward waypoint movement. Navigation run/route summaries now record `MovementBackend` (`native-window-message`, `powershell-window-message`, `powershell-sendinput-foreground`, `not-created`, or `unknown`) instead of relying on console stderr. |
-| Safety boundary | No Cheat Engine; no SavedVariables as live truth; exact PID/HWND/focus/visual-baseline gate before movement; default ReaderBridge SavedVariables are no longer silently trusted by navigation read/move modes unless explicitly supplied |
-| Remaining blocker | Post-restart coordinate proof is green for PID `30992`, but post-restart automated movement/route smoke, actor-facing, yaw, auto-turn, and route execution truth have not been revalidated. Run fresh target-control, visual gate, and proof preflight before any bounded live input. |
+| Live target | `rift_x64` PID `57656`, HWND `0x5417BC` |
+| Current proof status | Same-target `ProofOnly` passed; current proof pointer was updated. |
+| Current proof anchor | Candidate `api-family-hit-000001` at `0xCC080EC30C`; proof anchor file `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json`. |
+| Latest ProofOnly | Status `passed-proof-only`; summary `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-57656-readback-summary-20260512-071051.json`; `movementSent=false`; `movementAttempted=false`. |
+| Latest coordinate snapshot | `X=7407.42919921875`, `Y=871.8069458007812`, `Z=3030.127685546875` at `2026-05-12T11:10:56.4345281Z` |
+| Stage 1 reacquisition | `C:\RIFT MODDING\RiftReader\scripts\captures\postupdate-proof-reacquire-stage1-python-20260512T103220Z\stage1-python-summary.json` |
+| Promotion batch | `C:\RIFT MODDING\RiftReader\scripts\captures\postupdate-proof-reacquire-stage1-python-20260512T103220Z\coordinate-anchor-batch\coordinate-anchor-batch-summary.json` |
+| Current proof pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\current-proof-anchor-readback.json` |
+| Archived stale pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-12-pid30992-hwndD1008-historical.json` |
+| Coordinate freshness rule | This proof is current for the exact PID/HWND above. Current-now coordinate use still requires fresh readback/API-now checks before movement or navigation. |
+| Safety boundary | No Cheat Engine; no SavedVariables as live truth; route/yaw/actor-facing/auto-turn remain unpromoted after the maintenance return. |
+| Remaining blocker | Post-maintenance coordinate proof is green, but route smoke, actor-facing, yaw, auto-turn, and navigation truth still need separate gated revalidation. |
+
+## May 12 continuation: post-maintenance proof-anchor reacquisition passed
+
+| Fact | Value |
+|---|---|
+| Scope | Post-maintenance current-PID coordinate proof-anchor reacquisition and same-target ProofOnly. |
+| Target | `rift_x64` PID `57656`, HWND `0x5417BC` |
+| Stage 1 result | `promotion-candidate-found`; bounded movement stimulus sent for coordinate evidence; visual gate passed; family scan passed. |
+| Candidate | `api-family-hit-000001` |
+| Anchor address | `0xCC080EC30C` |
+| Promotion status | `validated` |
+| Assert status | `valid`; movement gate `True` |
+| ProofOnly status | `passed-proof-only`; `ok=True` |
+| ProofOnly coordinate | `X=7407.42919921875`, `Y=871.8069458007812`, `Z=3030.127685546875` at `2026-05-12T11:10:56.4345281Z` |
+| No-CE status | `noCheatEngine=true` |
+| Non-promotion | This does not promote actor-facing, yaw, auto-turn, route execution, or navigation. |
 
 ## May 10 continuation: restarted-client proof-anchor reacquisition passed
 
