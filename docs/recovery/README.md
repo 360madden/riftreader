@@ -143,6 +143,18 @@ current proof-anchor readback preflight is rerun for the exact live PID/HWND
 because the proof age gate is short-lived. CE plus SavedVariables live-truth
 paths remain forbidden for this lane.
 
+## x64dbg pointer-chain discovery note
+
+x64dbg is available at `C:\RIFT MODDING\Tools\x64dbg` for bounded
+debugger-assisted pointer-chain discovery. Treat it as a debugger-class live
+tool: do not attach to `rift_x64.exe` unless the user explicitly approves a
+live-debugger session in the current conversation, do not use it at the same
+time as Cheat Engine debugger/watchpoints, and do not promote x64dbg evidence
+without fresh API/runtime comparison plus multi-pose and restart validation.
+
+Durable workflow doc:
+`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`.
+
 For player actor-yaw discovery, use
 `C:\RIFT MODDING\RiftReader\docs\player-actor-yaw-candidate-ledger.md` as the
 ledger evidence contract. The ledger can downrank candidate yaw sources before
@@ -224,6 +236,8 @@ Snipping Tool automation are forbidden for RiftReader screenshot workflows.
    ledger penalties, or pre-promotion yaw ranking
 7. `C:\RIFT MODDING\RiftReader\docs\recovery\current-actor-yaw-disambiguation.json`
    when the task touches promoted current-session actor-yaw truth
+8. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`
+   when the task touches debugger-assisted pointer-chain discovery
 
 ## Rules
 
