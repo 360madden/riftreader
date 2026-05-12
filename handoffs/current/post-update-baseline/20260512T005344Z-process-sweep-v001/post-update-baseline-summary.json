@@ -1,0 +1,21 @@
+{
+  "ok": false,
+  "code": "FAIL_REFRESH_BASELINE_EXIT_NONZERO",
+  "generatedUtc": "2026-05-12T00:54:22.3185856Z",
+  "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "outDir": "C:\\RIFT MODDING\\RiftReader\\handoffs\\current\\post-update-baseline\\20260512T005344Z-process-sweep-v001",
+  "baselineCommit": "a3369171bf771c3d263121edb94e39ab7f23e9f2",
+  "gitHead": "e7018735184c0653fd3fa68ff6e276f7069e320e",
+  "targetProcessId": 39116,
+  "targetHwnd": "0x150A9C",
+  "exeShaChangedSincePreUpdate": false,
+  "readerBridgeExitCode": 0,
+  "refreshBaselineExitCode": 1,
+  "artifacts": {
+    "summary": "post-update-baseline-summary.json",
+    "processIdentity": "post-update-process-identity.json",
+    "refreshBaselineOutput": "refresh-baseline-output.txt",
+    "processCandidates": "process-candidates.json",
+    "readerBridgeOutput": "readerbridge-snapshot-output.txt"
+  }
+}

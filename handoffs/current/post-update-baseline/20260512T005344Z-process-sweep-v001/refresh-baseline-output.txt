@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "mode": "rift-live-test-orchestrator",
+  "profileName": "RefreshBaseline",
+  "status": "blocked-target-drift",
+  "ok": false,
+  "generatedAtUtc": "2026-05-12T00:54:21.949345+00:00",
+  "runDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409",
+  "profileEffectiveFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\profile-effective.json",
+  "live": false,
+  "processId": 39116,
+  "targetWindowHandle": "0x150A9C",
+  "targetControl": {
+    "status": "passed-target-control",
+    "classification": "exact-hwnd-foreground",
+    "ok": true,
+    "readyForReadOnlyProof": true,
+    "readyForVisualGate": true,
+    "readyForLiveInput": true,
+    "summaryPath": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\target-control\\target-control-status.json",
+    "blockers": [],
+    "warnings": [],
+    "capabilities": {
+      "readOnlyProof": true,
+      "visualCapture": true,
+      "exactHwndInput": true,
+      "foregroundSendInput": true,
+      "yawStimulus": false,
+      "autoTurn": false,
+      "samePidForegroundDiagnostic": false
+    }
+  },
+  "movementSent": false,
+  "movementAttempted": false,
+  "currentCoordinate": {
+    "x": 7414.4199,
+    "y": 872.1,
+    "z": 3030.55,
+    "recordedAtUtc": "2026-05-12T00:54:21.7342133Z"
+  },
+  "coordinateDelta": null,
+  "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\target-drift-reacquire-current-state.json",
+  "issues": [
+    "target_drift:current_proof_pointer_pid_mismatch:actual=30992;expected=39116",
+    "target_drift:current_proof_pointer_hwnd_mismatch:actual=0xD1008;expected=0x150A9C"
+  ],
+  "states": [
+    {
+      "state": "load-profile",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-12T00:54:10.009485+00:00",
+      "detail": "C:\\RIFT MODDING\\RiftReader\\configs\\live-test-profiles.json"
+    },
+    {
+      "state": "verify-target",
+      "status": "passed",
+      "recordedAtUtc": "2026-05-12T00:54:10.020821+00:00",
+      "detail": "pid=39116;hwnd=0x150A9C"
+    },
+    {
+      "state": "target-control",
+      "status": "passed-target-control",
+      "recordedAtUtc": "2026-05-12T00:54:10.440421+00:00",
+      "detail": "classification=exact-hwnd-foreground;readyForReadOnlyProof=True;readyForVisualGate=True;readyForLiveInput=True",
+      "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\target-control\\target-control-status.json"
+    },
+    {
+      "state": "promotion-baselines",
+      "status": "loaded",
+      "recordedAtUtc": "2026-05-12T00:54:10.446493+00:00",
+      "detail": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-promotion-baselines.json"
+    },
+    {
+      "state": "target-drift-reacquire",
+      "status": "blocked-target-drift",
+      "recordedAtUtc": "2026-05-12T00:54:21.944851+00:00",
+      "detail": "target_drift:current_proof_pointer_pid_mismatch:actual=30992;expected=39116;target_drift:current_proof_pointer_hwnd_mismatch:actual=0xD1008;expected=0x150A9C",
+      "summaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\target-drift-reacquire-current-state.json"
+    }
+  ],
+  "childOutputsDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\child-outputs",
+  "runManifestFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\run-manifest.json",
+  "autoRefreshAttemptsUsed": 0,
+  "runGates": {
+    "profileMode": "baseline-only",
+    "requireExactTarget": true,
+    "requireLiveFlagForInput": true,
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "proofAnchorMaxAgeSeconds": 60,
+    "minimumPostReadbackAgeBudgetSeconds": 20,
+    "referenceMaxAgeSeconds": 180,
+    "minimumMovementPlanarDistance": 0.0,
+    "inputBackend": "window-message",
+    "candidateId": "api-family-hit-000001",
+    "candidateIdSource": "current-proof-pointer",
+    "maxAutoRefreshAttempts": 1,
+    "autoRefreshAttemptsUsed": 0,
+    "updateLatestPointer": true,
+    "updateLatestPointerForExternalOutputRoot": false,
+    "noCheatEngine": true,
+    "savedVariablesLiveTruthAllowed": false
+  },
+  "runHealth": {
+    "state": "blocked",
+    "status": "blocked-target-drift",
+    "ok": false,
+    "issueCount": 2,
+    "primaryIssue": "target_drift:current_proof_pointer_pid_mismatch:actual=30992;expected=39116",
+    "movementSent": false,
+    "movementAttempted": false,
+    "finalSummaryWritten": true,
+    "latestChildStatus": "completed",
+    "latestChildOk": true,
+    "noCheatEngine": true,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "latestPointer": {
+    "path": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "updateRequested": true,
+    "updateAllowed": true,
+    "skipReason": null,
+    "runDirectoryInsideRepo": true,
+    "progressFileInsideRepo": true,
+    "runSummaryFileInsideRepo": true
+  },
+  "noCheatEngine": true,
+  "savedVariablesUsedAsLiveTruth": false,
+  "gui": {
+    "enabled": false,
+    "requested": false,
+    "reason": "profile_showGui_false",
+    "mode": "read-only-progress-hud"
+  },
+  "latestChildCommand": {
+    "label": "capture-reference",
+    "status": "completed",
+    "startedAtUtc": "2026-05-12T00:54:10.454742+00:00",
+    "outputFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\child-outputs\\001-capture-reference.json",
+    "completedAtUtc": "2026-05-12T00:54:21.936634+00:00",
+    "durationSeconds": 11.482,
+    "exitCode": 0,
+    "jsonStatus": "captured",
+    "parseError": null,
+    "ok": true
+  },
+  "runProgressFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-RefreshBaseline-20260512-005409\\run-progress.json"
+}

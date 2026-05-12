@@ -1,0 +1,14 @@
+{
+  "generatedUtc": "2026-05-12T00:53:47.1909573Z",
+  "baselineCommit": "a3369171bf771c3d263121edb94e39ab7f23e9f2",
+  "preUpdateExeSha256": "E3F5BAD4285C02BD873915A4F01A729E3013881E9AE82FF4438741D8B903C1BC",
+  "processName": "rift_x64",
+  "processId": 39116,
+  "mainWindowTitle": "RIFT",
+  "mainWindowHandle": "0x150A9C",
+  "executablePath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+  "fileLastWriteUtc": "2026-05-05T11:59:05.6389916Z",
+  "fileLengthBytes": 60044224,
+  "sha256": "E3F5BAD4285C02BD873915A4F01A729E3013881E9AE82FF4438741D8B903C1BC",
+  "exeShaChangedSincePreUpdate": false
+}

@@ -1,0 +1,69 @@
+{
+  "SourceFile": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+  "LoadedAtUtc": "2026-05-12T00:54:07.7110094+00:00",
+  "SchemaVersion": 1,
+  "LastExportAt": 116242.7890625,
+  "LastReason": "save-begin",
+  "ExportCount": 1934,
+  "Current": {
+    "SchemaVersion": 1,
+    "Status": "ready",
+    "ExportReason": "save-begin",
+    "ExportCount": 1934,
+    "GeneratedAtRealtime": 116242.7890625,
+    "SourceMode": "DirectAPI",
+    "SourceAddon": "RiftAPI",
+    "Player": {
+      "Id": "player",
+      "Name": "Atank",
+      "Player": true,
+      "Hp": 0,
+      "HpMax": 0,
+      "HpPct": 0,
+      "ResourceKind": "",
+      "Resource": 0,
+      "ResourceMax": 0,
+      "ResourcePct": 0,
+      "Charge": 0,
+      "ChargeMax": 0,
+      "ChargePct": 0,
+      "Planar": 0,
+      "PlanarMax": 0,
+      "PlanarPct": 0,
+      "Cast": {
+        "Active": false,
+        "Channeled": false,
+        "Uninterruptible": false,
+        "ProgressPct": 0,
+        "Text": "-"
+      }
+    },
+    "Telemetry": {
+      "Version": 1,
+      "Sequence": 204151,
+      "GeneratedAtRealtime": 116242.7890625,
+      "Capabilities": {
+        "ApiFacingAvailable": false,
+        "ApiYawAvailable": false,
+        "ReaderBridgeAvailable": false,
+        "DirectApiAvailable": true,
+        "NearbyUnitsAvailable": false,
+        "TargetAvailable": false
+      },
+      "Position": {
+        "SourceMode": "DirectAPI"
+      },
+      "Context": {
+        "TargetPresent": false,
+        "SourceAddon": "RiftAPI",
+        "SourceMode": "DirectAPI",
+        "ExportAddon": "ReaderBridgeExport",
+        "ExportVersion": "0.1.0"
+      }
+    },
+    "PlayerBuffLines": [],
+    "PlayerDebuffLines": [],
+    "TargetBuffLines": [],
+    "TargetDebuffLines": []
+  }
+}
