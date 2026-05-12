@@ -260,6 +260,40 @@ Static-chain integration order:
 7. restart/relog and validate the same chain shape again;
 8. pass the existing same-target proof gate before any movement/navigation use.
 
+Do **not** implement or promote a resolver from the candidate template,
+heap-only watch address, or guessed offsets. Resolver input must contain real
+x64dbg-derived module/RVA or static-owner provenance tied back to captured event
+IDs.
+
+## Offline static-chain resolver harness
+
+After real x64dbg access events have been ingested and a `derivedChain` has been
+filled with module/RVA/static-owner provenance, the repo-owned resolver harness
+can validate the chain shape without x64dbg:
+
+```powershell
+python C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py `
+  --candidate-json <x64dbg-coordinate-chain-candidate.json> `
+  --module-map-json <current-module-map.json> `
+  --memory-image-json <offline-memory-image.json> `
+  --json
+```
+
+The current implementation is intentionally limited:
+
+- no x64dbg attach;
+- no MCP server;
+- no process memory reads;
+- no input or movement;
+- offline memory-image readback only;
+- `movementProofEligible=false` in all outputs.
+
+It fails closed when the packet lacks `derivedChain.module`,
+`derivedChain.rootRva`, offsets, field offsets, current module base, readback
+source, or API-now versus chain-now agreement. A successful self-test only proves
+the resolver contract and pointer-walk convention; it does not prove any live
+RIFT coordinate chain.
+
 ## Candidate packet contract
 
 Write debugger-derived candidates as explicit candidate evidence, for example:

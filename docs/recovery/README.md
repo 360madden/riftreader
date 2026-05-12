@@ -167,8 +167,18 @@ Repo-owned x64dbg static-chain helpers:
   artifact-only plan from a current coordinate candidate.
 - `C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py` ingests
   manually captured x64dbg access events into a candidate-only packet.
+- `C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py` is an
+  offline resolver harness for real x64dbg-derived `derivedChain` packets. It
+  blocks without module/RVA/static-owner evidence and currently performs
+  offline memory-image readback only.
 
-Neither helper attaches x64dbg, sends input, configures MCP, or promotes
+Current static-chain status:
+`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-static-coord-chain-discovery-status-2026-05-12.md`.
+Planner, ingester, and resolver harness are schema-ready, but no stable static
+coordinate chain has been discovered or promoted. Do not build or promote from a
+candidate template, heap-only watch address, or guessed offsets.
+
+None of these helpers attaches x64dbg, sends input, configures MCP, or promotes
 movement truth.
 
 For player actor-yaw discovery, use
@@ -266,6 +276,9 @@ Snipping Tool automation are forbidden for RiftReader screenshot workflows.
 12. `C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py`
     when normalizing manually captured x64dbg coordinate access events into a
     candidate-only packet
+13. `C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py`
+    when resolving a real x64dbg-derived static coordinate chain packet through
+    offline/repo-owned resolver gates without x64dbg or movement
 
 ## Rules
 

@@ -212,3 +212,23 @@ python C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py `
 The output still requires a later repo-owned chain resolver, API-now versus
 chain-now comparison, multi-pose validation, restart validation, and same-target
 ProofOnly before movement can use it.
+
+## Follow-on offline static-chain resolver harness
+
+The resolver harness is:
+
+- helper: `C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py`
+- implementation:
+  `C:\RIFT MODDING\RiftReader\scripts\rift_live_test\x64dbg_static_chain_resolve.py`
+- tests:
+  `C:\RIFT MODDING\RiftReader\scripts\test_x64dbg_static_chain_resolve.py`
+
+It is schema/test ready but intentionally evidence-gated. It should only be used
+with a real x64dbg-derived candidate packet that contains module/RVA or
+static-owner provenance. It blocks placeholder templates, heap-only watch
+addresses, missing current module bases, missing readback sources, and API-now
+versus chain-now mismatches.
+
+The current resolver harness performs offline memory-image readback only. It
+does not attach x64dbg, read the live process, configure MCP, send input, or
+promote movement truth.

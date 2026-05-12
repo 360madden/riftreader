@@ -38,7 +38,7 @@ Earlier x64dbg Automate setup action-package timing remains documented in
 | 2 | Add an access-event ingester | Done: `scripts\x64dbg_access_event_ingest.py` plus implementation and tests. |
 | 3 | Keep live x64dbg attach gated | Done: planner/ingester remain artifact-only/offline; docs and AGENTS policy require current-turn approval before live attach. |
 | 4 | Add chain-readback schema fields | Done at candidate-packet level: `derivedChain`, `rootRva`, `offsets`, `fieldOffsets`, instruction module/RVA provenance, validation gates, and blockers are documented/emitted. |
-| 5 | Build no-x64dbg chain resolver after first good candidate | Blocked by evidence state: no real x64dbg-derived module/RVA/static-owner chain has been captured yet. The next resolver must be built against a real `derivedChain`, not a guessed heap address. |
+| 5 | Build no-x64dbg chain resolver after first good candidate | Partially done as an offline resolver harness: `scripts\x64dbg_static_chain_resolve.py` can validate a real `derivedChain` packet against a module map and offline memory image. Real live/current resolver use remains blocked until x64dbg captures module/RVA/static-owner evidence. |
 | 6 | Require API-now vs chain-now comparison | Done as a documented promotion gate and candidate blocker. The ingester records API-now vs memory-now deltas; final chain-now validation remains a separate resolver step. |
 | 7 | Keep evidence candidate-only until multi-pose/restart proof | Done: emitted packets keep `movementProofEligible=false` and block restart/runtime-readback/proof-only promotion. |
 | 8 | Add restart-validation artifacts/gates | Done in docs and candidate schema; still blocked until a real chain survives restart/relog. |
@@ -52,6 +52,9 @@ Earlier x64dbg Automate setup action-package timing remains documented in
 | `scripts/rift_live_test/x64dbg_access_event_ingest.py` | Offline/manual x64dbg access-event ingester. |
 | `scripts/x64dbg_access_event_ingest.py` | Thin operator wrapper. |
 | `scripts/test_x64dbg_access_event_ingest.py` | Regression tests for safety and validation gates. |
+| `scripts/rift_live_test/x64dbg_static_chain_resolve.py` | Offline static-chain resolver harness for real `derivedChain` packets. |
+| `scripts/x64dbg_static_chain_resolve.py` | Thin operator wrapper for the resolver harness. |
+| `scripts/test_x64dbg_static_chain_resolve.py` | Resolver contract tests using synthetic offline memory images. |
 | `docs/recovery/x64dbg-pointer-chain-workflow.md` | Added access-event ingester workflow and static-chain integration order. |
 | `docs/recovery/x64dbg-automate-readonly-helper-2026-05-12.md` | Added follow-on ingester status. |
 | `docs/recovery/README.md` | Added x64dbg helper index entries. |
@@ -66,6 +69,20 @@ Earlier x64dbg Automate setup action-package timing remains documented in
 | `python scripts\test_x64dbg_coord_chain_plan.py -v` | Passed: 4 tests |
 | `python scripts\test_x64dbg_access_event_ingest.py -v` | Passed: 8 tests |
 | `python scripts\x64dbg_access_event_ingest.py --self-test --json` | Passed and wrote a synthetic candidate-only packet |
+| `python scripts\test_x64dbg_static_chain_resolve.py -v` | Passed: 7 tests |
+| `python scripts\x64dbg_static_chain_resolve.py --self-test --json` | Passed and wrote a synthetic offline resolved-chain packet |
+| `python scripts\x64dbg_static_chain_resolve.py --dry-run --json` | Blocked as expected with `dry-run-no-chain-resolved` |
+
+## Resolver readiness
+
+| Item | State | Notes |
+|---|---|---|
+| Candidate schema | Ready | Planner and ingester emit/accept `derivedChain`, `rootRva`, offsets, field offsets, instruction module/RVA provenance, validation gates, and promotion blockers. |
+| Offline resolver harness | Ready | `scripts\x64dbg_static_chain_resolve.py` can resolve a real packet against a module map and offline memory image. |
+| Real module/RVA/static-owner evidence | Missing | No approved x64dbg access-event capture has produced a real chain yet. |
+| Live/current process chain readback | Not implemented | Intentionally not added until real chain evidence exists; current helper stays offline-only. |
+| Promotion status | Blocked | Requires API-now vs chain-now, multi-pose, restart validation, and same-target ProofOnly. |
+| Allowed next slice | Capture/ingest real events | Do not guess offsets or promote from heap-only watch addresses. |
 
 ## Current discovery progress
 
@@ -74,7 +91,7 @@ Earlier x64dbg Automate setup action-package timing remains documented in
 | Safe x64dbg local setup | 90% | x64dbg, x64dbg Automate client/plugin, read-only helper, and docs are in place. MCP is intentionally not active. |
 | Coordinate candidate seed | 55% | Current-PID candidate `api-family-hit-000001 @ 0x78BF4FE420` exists, but it is single-scan candidate evidence. |
 | Static-chain evidence capture | 20% | Planner and ingester are ready, but no approved live x64dbg access events have been captured yet. |
-| No-x64dbg chain resolver | 10% | Schema/gates exist; resolver should wait until a real `derivedChain` is captured. |
+| No-x64dbg chain resolver | 25% | Offline resolver harness and tests exist, but real live/current readback remains blocked until a real `derivedChain` is captured. |
 | Movement/proof truth | 0% for static chain | No static chain has passed API-now vs chain-now, multi-pose, restart validation, and ProofOnly. |
 
 Bottom line: the tooling is far enough along to run the first disciplined
@@ -90,5 +107,8 @@ Do not promote or move from this evidence. The next meaningful step is:
 3. only if explicitly approved, attach x64dbg to the exact target and capture
    12-byte XYZ access events across at least three poses;
 4. ingest the manual events with `scripts\x64dbg_access_event_ingest.py`;
-5. then implement the no-x64dbg chain resolver against the captured
-   module/RVA/static-owner chain.
+5. fill the `derivedChain` fields from real module/RVA/static-owner evidence;
+6. run `scripts\x64dbg_static_chain_resolve.py` against that packet and a
+   readback source;
+7. only after that, add a live/current readback extension if the offline
+   resolver proves the chain shape.
