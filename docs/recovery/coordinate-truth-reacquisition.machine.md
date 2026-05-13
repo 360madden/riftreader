@@ -234,7 +234,9 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
         "bestCurrentTriplet": "0x1FF07575346"
       },
       "latestPointerScan": {
-        "artifact": "scripts/captures/pointer-family-scan-20260513-061154-710379/summary.json",
+        "artifact": "scripts/captures/pointer-family-scan-20260513-061835-695118/summary.json",
+        "depth": 4,
+        "scannedTargetCount": 25,
         "staticModuleHits": 0,
         "status": "heap-only-no-static-chain"
       },

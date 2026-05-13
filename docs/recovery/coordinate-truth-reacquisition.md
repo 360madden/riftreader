@@ -59,7 +59,7 @@ The May 13 PID `60628` recovery did **not** produce a promoted proof anchor, but
 | Broad snapshot helper | `scripts/capture_current_pid_coordinate_family_snapshot.py`; latest snapshot `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-061344/family-snapshot-summary.json` found `97` triplets, `9` near-reference triplets, and best current triplet `0x1FF07575346`. |
 | x64dbg copy-path lead | `rift_x64.exe+0x47D533` / `rift_x64.exe+0x47D565` around the copy path; useful source evidence appears when `rdx=0x1FF6D600020` and coordinate offset `rdx+0x28` holds current XYZ. |
 | x64dbg batch classifier | `scripts/capture_x64dbg_coord_copy_probe_batch.py` classifies bounded page-access captures and rejects noisy non-coordinate page accesses (`0x8`/`0x4A` copy sizes). |
-| Pointer-chain status | Latest depth-2 scan `scripts/captures/pointer-family-scan-20260513-061154-710379/summary.json` found heap references only and no `rift_x64.exe` module/static hit. |
+| Pointer-chain status | Latest bounded depth-4 scan `scripts/captures/pointer-family-scan-20260513-061835-695118/summary.json` scanned `25` target/owner leads and found heap references only: total module hits `0`, `rift_x64.exe` hits `0`. |
 | Durable handoff | `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md` |
 | Commit baseline | `4aafa0b Document unaligned coordinate recovery progress` plus the current source-copy classifier slice. |
 

@@ -101,13 +101,15 @@ The new batch helper correctly rejected non-coordinate page hits:
 
 Observed rejected copy/page sizes included `0x8` and `0x4A`. This means page breakpoints are useful only when classified/filtering is applied; first-hit page captures are not automatically coordinate evidence.
 
-### Pointer family scan
+### Pointer family scans
 
 - `scripts/captures/pointer-family-scan-20260513-061154-710379/summary.json`
+- `scripts/captures/pointer-family-scan-20260513-061835-695118/summary.json`
 
 Findings:
 
 - no `rift_x64.exe` module/static hits;
+- latest bounded depth-4 scan covered `25` target/owner leads and still had total module hits `0`;
 - `0x1FF6D600020` source buffer has heap-local refs only;
 - `0x1FF65FADE88` source cursor is referenced by `0x1FF6D658590`;
 - `0x1FF07568020` ChromaLink/addon metadata is referenced by `0x1FF6D6585E0`;
