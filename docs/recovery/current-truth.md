@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 23:45 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
+_Last updated: 2026-05-13 23:57 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -212,6 +212,31 @@ ASCII context includes UI/event/mail-style strings such as `Event.Buff.Add`,
 cluster as likely UI/addon/event data unless later evidence links it to player
 coordinate ownership. Latest milestone review
 `scripts/captures/riftscan-milestone-review-20260513-234615.json` remains
+`ready-for-read-only-proof` with `movementAllowedByReview=false`. Movement
+remains blocked.
+
+**May 13 23:50-23:56 UTC adaptive context triage + bounded priority scan:**
+`root_signature_family_classifier.py` now annotates sweep hits with sanitized
+ASCII/context kinds, writes reusable lead target exports, filters out obvious
+UI/addon/asset/path/string-heavy leads for the priority lane, and demotes
+tagged/unaligned heap-like values such as `0x26800000002`. Bounded classifier
+artifact:
+`scripts/captures/root-signature-family-classifier-20260513-235458-178863/summary.json`.
+It still sees `575` module-pointer hits, but priority parent leads dropped to
+`22` after excluding obvious non-entity contexts and tagged/unaligned pointers.
+Reusable exports were written at
+`scripts/captures/root-signature-family-classifier-20260513-235458-178863/priority-parent-lead-targets.json`
+and `non-player-parent-lead-targets.json`.
+
+A small priority follow-up pointer scan wrote
+`scripts/captures/pointer-family-scan-20260513-235504-655292/summary.json`.
+It scanned `23` target/ref-storage addresses from the top `8` priority leads,
+found no module/static hits, and remained candidate-only. Top target
+`0x2688C193360` had `2` heap hits; context included string/resource/UI-like
+clues such as `Sanctuary`, `star_09.dds`, and `FRIENDS`. This does not reveal a
+static root, but it confirms the triage/export path works and keeps follow-up
+scans bounded instead of burning time on all `114` non-player leads. Milestone
+review `scripts/captures/riftscan-milestone-review-20260513-235622.json` remains
 `ready-for-read-only-proof` with `movementAllowedByReview=false`. Movement
 remains blocked.
 

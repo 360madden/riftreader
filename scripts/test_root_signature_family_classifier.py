@@ -4,10 +4,15 @@ import unittest
 
 from rift_live_test.root_signature_family_classifier import (
     build_families,
+    classify_ascii_context,
     field_offsets,
     parent_region_clusters,
+    parent_lead_targets,
     pointer_class,
+    priority_parent_leads,
+    raw_hit_contexts,
     region_hex,
+    sanitize_ascii_preview,
     strong_parent_leads,
 )
 
@@ -27,6 +32,7 @@ class RootSignatureFamilyClassifierTests(unittest.TestCase):
     def test_pointer_class_identifies_known_heap_module_and_zero(self) -> None:
         self.assertEqual(pointer_class("0x2000", known=0x2000, module_base=0x700000000000), "known")
         self.assertEqual(pointer_class("0x268D0000000", known=None, module_base=0x700000000000), "heap-like")
+        self.assertEqual(pointer_class("0x26800000002", known=None, module_base=0x700000000000), "tagged-or-unaligned-heap-like")
         self.assertEqual(pointer_class("0x700000010000", known=None, module_base=0x700000000000), "module-or-static")
         self.assertEqual(pointer_class("0x0", known=None, module_base=0x700000000000), "zero")
 
@@ -73,6 +79,78 @@ class RootSignatureFamilyClassifierTests(unittest.TestCase):
 
         self.assertEqual(clusters[0]["count"], 2)
         self.assertEqual(clusters[0]["ownerPointerRegion"], "0x268D1230000")
+
+    def test_context_classifier_sanitizes_and_marks_ui_event(self) -> None:
+        context = classify_ascii_context("C:/Users/mrkoo/OneDrive/Documents/RIFT Event.Buff.Add")
+
+        self.assertEqual(context["kind"], "ui-event")
+        self.assertTrue(context["obviousNonEntity"])
+        self.assertIn("C:/Users/<user>", context["preview"])
+        self.assertIn("C:/Users/<user>", sanitize_ascii_preview("C:/Users/mrkoo/foo"))
+
+    def test_raw_hit_contexts_indexes_by_hit_address(self) -> None:
+        contexts = raw_hit_contexts(
+            {
+                "Hits": [
+                    {
+                        "AddressHex": "0x1234",
+                        "RegionBaseHex": "0x1000",
+                        "Context": {"AsciiPreview": "Layout.Update"},
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(contexts["0x1234"]["contextKind"]["kind"], "ui-event")
+        self.assertEqual(contexts["0x1234"]["regionBase"], "0x1000")
+
+    def test_priority_parent_leads_excludes_obvious_non_entity_contexts(self) -> None:
+        leads = priority_parent_leads(
+            [
+                {
+                    "parentSlot": "0x1000",
+                    "score": 15,
+                    "context": {"contextKind": {"kind": "ui-event", "obviousNonEntity": True}},
+                },
+                {
+                    "parentSlot": "0x2000",
+                    "ownerPointer": "0x26800000002",
+                    "score": 15,
+                    "context": {"contextKind": {"kind": "binary-or-unknown", "obviousNonEntity": False}},
+                },
+                {
+                    "parentSlot": "0x3000",
+                    "ownerPointer": "0x268D0000000",
+                    "score": 15,
+                    "context": {"contextKind": {"kind": "binary-or-unknown", "obviousNonEntity": False}},
+                },
+            ],
+            known_parent_slot=None,
+            limit=10,
+        )
+
+        self.assertEqual([lead["parentSlot"] for lead in leads], ["0x3000"])
+
+    def test_parent_lead_targets_exports_parent_and_owner_deduped(self) -> None:
+        targets = parent_lead_targets(
+            [
+                {
+                    "parentSlot": "0x1000",
+                    "ownerPointer": "0x2000",
+                    "hitAddress": "0x0FF0",
+                    "context": {"contextKind": {"kind": "binary-or-unknown"}},
+                },
+                {
+                    "parentSlot": "0x1000",
+                    "ownerPointer": "0x3000",
+                    "hitAddress": "0x0FE0",
+                    "context": {"contextKind": {"kind": "binary-or-unknown"}},
+                },
+            ],
+            limit=10,
+        )
+
+        self.assertEqual([target["addressHex"] for target in targets], ["0x1000", "0x2000", "0x3000"])
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from .root_signature_module_hint_sweep import (
 
 
 SCHEMA_VERSION = 1
+ASCII_PREVIEW_LIMIT = 180
 
 
 def utc_iso() -> str:
@@ -70,6 +72,8 @@ def pointer_class(value: Any, *, known: int | None, module_base: int | None) -> 
     if module_base is not None and parsed >= module_base:
         return "module-or-static"
     if module_base is not None and heap_like(parsed, module_base):
+        if parsed % 8 != 0:
+            return "tagged-or-unaligned-heap-like"
         return "heap-like"
     return "other"
 
@@ -84,6 +88,100 @@ def region_hex(value: Any, *, size: int = 0x10000) -> str | None:
 def candidate_score(candidate: Mapping[str, Any]) -> int:
     score = parse_int(candidate.get("score"))
     return int(score or 0)
+
+
+def sanitize_ascii_preview(value: Any, *, limit: int = ASCII_PREVIEW_LIMIT) -> str:
+    text = str(value or "")
+    text = re.sub(r"C:[/\\]Users[/\\][^/\\]+", r"C:/Users/<user>", text, flags=re.IGNORECASE)
+    text = " ".join(text.split())
+    return text[:limit]
+
+
+def classify_ascii_context(value: Any) -> dict[str, Any]:
+    text = sanitize_ascii_preview(value)
+    lower = text.lower()
+    matched: list[str] = []
+    rules: list[tuple[str, list[str]]] = [
+        (
+            "ui-event",
+            [
+                "event.",
+                "vent.",
+                "layout.update",
+                "mail_",
+                "auction",
+                "currency",
+                "buff.",
+                "gui",
+                "guil",
+                "banker",
+            ],
+        ),
+        ("addon-path", ["interface/addons", "addons/", ".lua", "leader telemetry bridge"]),
+        ("asset-resource", [".dds", "assets", "vfx_", "music", "texture"]),
+        ("path-string", ["c:/users/", "onedrive", "documents/rift"]),
+    ]
+    selected_kind = "binary-or-unknown"
+    for kind, patterns in rules:
+        hits = [pattern for pattern in patterns if pattern in lower]
+        if hits:
+            selected_kind = kind
+            matched.extend(hits)
+            break
+    if selected_kind == "binary-or-unknown":
+        alpha_count = sum(1 for char in text if char.isalpha())
+        if alpha_count >= 16:
+            selected_kind = "string-heavy"
+    obvious_non_entity = selected_kind in {"ui-event", "addon-path", "asset-resource", "path-string", "string-heavy"}
+    return {
+        "kind": selected_kind,
+        "signals": matched,
+        "obviousNonEntity": obvious_non_entity,
+        "preview": text,
+    }
+
+
+def raw_hit_contexts(raw_scan: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    contexts: dict[str, Mapping[str, Any]] = {}
+    for hit in safe_list(raw_scan.get("Hits")):
+        if not isinstance(hit, Mapping):
+            continue
+        address = norm_hex(hit.get("Address") or hit.get("AddressHex"))
+        if not address:
+            continue
+        context = safe_mapping(hit.get("Context"))
+        ascii_preview = context.get("AsciiPreview")
+        contexts[address] = {
+            "asciiPreview": sanitize_ascii_preview(ascii_preview),
+            "contextKind": classify_ascii_context(ascii_preview),
+            "regionBase": norm_hex(hit.get("RegionBase") or hit.get("RegionBaseHex")),
+        }
+    return contexts
+
+
+def annotate_candidate_context(candidate: Mapping[str, Any], contexts: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    row = dict(candidate)
+    context = safe_mapping(contexts.get(norm_hex(candidate.get("hitAddress")) or ""))
+    if context:
+        row["context"] = dict(context)
+    else:
+        row["context"] = {
+            "asciiPreview": "",
+            "contextKind": classify_ascii_context(""),
+            "regionBase": region_hex(candidate.get("hitAddress")),
+        }
+    return row
+
+
+def context_kind(candidate: Mapping[str, Any]) -> str:
+    return str(safe_mapping(safe_mapping(candidate.get("context")).get("contextKind")).get("kind") or "unknown")
+
+
+def context_kind_counts(candidates: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for candidate in candidates:
+        counts[context_kind(candidate)] += 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
 def owner_family_key(candidate: Mapping[str, Any], *, known_coord_pointer: int | None, module_base: int | None) -> str:
@@ -126,6 +224,7 @@ def build_families(
                         if region is not None
                     }
                 )[:sample_limit],
+                "contextKinds": context_kind_counts(group),
                 "examples": [dict(candidate) for candidate in ranked[:sample_limit]],
                 "candidateOnly": True,
                 "promotionEligible": False,
@@ -149,6 +248,7 @@ def parent_region_clusters(candidates: Sequence[Mapping[str, Any]], *, sample_li
                 "count": len(group),
                 "topScore": candidate_score(top),
                 "topCandidate": top,
+                "contextKinds": context_kind_counts(group),
                 "examples": [dict(candidate) for candidate in ranked[:sample_limit]],
             }
         )
@@ -166,6 +266,46 @@ def strong_parent_leads(candidates: Sequence[Mapping[str, Any]], *, known_parent
         leads.append(candidate)
     ranked = sorted(leads, key=lambda item: (-candidate_score(item), str(item.get("parentSlot"))))
     return [dict(item) for item in ranked[:limit]]
+
+
+def priority_parent_leads(
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    known_parent_slot: int | None,
+    module_base: int | None = 0x700000000000,
+    limit: int,
+) -> list[dict[str, Any]]:
+    leads = strong_parent_leads(candidates, known_parent_slot=known_parent_slot, limit=10_000)
+    filtered = [
+        lead
+        for lead in leads
+        if not safe_mapping(safe_mapping(lead.get("context")).get("contextKind")).get("obviousNonEntity")
+        and pointer_class(lead.get("ownerPointer"), known=None, module_base=module_base) == "heap-like"
+    ]
+    return filtered[:limit]
+
+
+def parent_lead_targets(leads: Sequence[Mapping[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, lead in enumerate(leads[:limit], start=1):
+        kind = context_kind(lead).replace("|", "-")
+        for field, label_fragment in (("parentSlot", "parent-slot"), ("ownerPointer", "owner-pointer")):
+            address = norm_hex(lead.get(field))
+            if not address or address in seen:
+                continue
+            seen.add(address)
+            targets.append(
+                {
+                    "addressHex": address,
+                    "label": f"root-family-{kind}-{label_fragment}-{index}",
+                    "sourceHitAddress": lead.get("hitAddress"),
+                    "sourceContextKind": context_kind(lead),
+                    "candidateOnly": True,
+                    "promotionEligible": False,
+                }
+            )
+    return targets
 
 
 def build_summary(
@@ -232,8 +372,17 @@ def build_summary(
         module_base=module_base or 0,
         selected_rva=selected_rva or 0,
     )
-    owner_candidates = [candidate for candidate in safe_list(analyzed.get("ownerFieldCandidates")) if isinstance(candidate, Mapping)]
-    parent_candidates = [candidate for candidate in safe_list(analyzed.get("parentSlotCandidates")) if isinstance(candidate, Mapping)]
+    hit_contexts = raw_hit_contexts(raw_scan)
+    owner_candidates = [
+        annotate_candidate_context(candidate, hit_contexts)
+        for candidate in safe_list(analyzed.get("ownerFieldCandidates"))
+        if isinstance(candidate, Mapping)
+    ]
+    parent_candidates = [
+        annotate_candidate_context(candidate, hit_contexts)
+        for candidate in safe_list(analyzed.get("parentSlotCandidates"))
+        if isinstance(candidate, Mapping)
+    ]
     owner_families = build_families(
         owner_candidates,
         key_fn=lambda candidate: owner_family_key(candidate, known_coord_pointer=known_coord_pointer, module_base=module_base),
@@ -245,7 +394,10 @@ def build_summary(
         sample_limit=sample_limit,
     )
     parent_clusters = parent_region_clusters(parent_candidates, sample_limit=sample_limit)
-    top_owner = analyzed.get("topOwnerFieldCandidate")
+    top_owner = owner_candidates[0] if owner_candidates else None
+    top_parent = parent_candidates[0] if parent_candidates else None
+    non_player_parent_leads = strong_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, limit=lead_limit)
+    priority_leads = priority_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, module_base=module_base, limit=lead_limit)
     warnings.extend(field_mismatch_warnings(top_owner if isinstance(top_owner, Mapping) else None))
     if warnings:
         warnings = list(dict.fromkeys(warnings))
@@ -274,18 +426,29 @@ def build_summary(
             "parentSlotFamilyCount": len(parent_families),
             "parentOwnerPointerRegionClusterCount": len(parent_clusters),
             "nonPlayerParentLeadCount": len(strong_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, limit=10_000)),
+            "priorityParentLeadCount": len(priority_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, module_base=module_base, limit=10_000)),
+        },
+        "contextKindCounts": {
+            "ownerFieldCandidates": context_kind_counts(owner_candidates),
+            "parentSlotCandidates": context_kind_counts(parent_candidates),
+            "nonPlayerParentSlotLeads": context_kind_counts(strong_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, limit=10_000)),
         },
         "knownChain": {
             "parentSlot": norm_hex(known_parent_slot),
             "ownerBase": norm_hex(known_owner),
             "coordPointer": norm_hex(known_coord_pointer),
             "topOwnerFieldCandidate": top_owner,
-            "topParentSlotCandidate": analyzed.get("topParentSlotCandidate"),
+            "topParentSlotCandidate": top_parent,
         },
         "ownerFamilies": owner_families,
         "parentSlotFamilies": parent_families,
         "parentOwnerPointerRegionClusters": parent_clusters[:lead_limit],
-        "nonPlayerParentSlotLeads": strong_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, limit=lead_limit),
+        "nonPlayerParentSlotLeads": non_player_parent_leads,
+        "priorityParentSlotLeads": priority_leads,
+        "leadExports": {
+            "nonPlayerParentLeadTargets": parent_lead_targets(non_player_parent_leads, limit=lead_limit),
+            "priorityParentLeadTargets": parent_lead_targets(priority_leads, limit=lead_limit),
+        },
         "safety": safety_contract(),
         "next": {
             "recommendedAction": "Use the non-player parent-slot leads and owner-pointer region clusters as broad family/container search seeds; keep all outputs candidate-only until restart and fresh API proof pass.",
@@ -325,6 +488,7 @@ def render_markdown(summary: Mapping[str, Any]) -> str:
         f"- Owner families: `{counts.get('ownerFamilyCount')}`",
         f"- Parent-slot families: `{counts.get('parentSlotFamilyCount')}`",
         f"- Non-player parent leads: `{counts.get('nonPlayerParentLeadCount')}`",
+        f"- Priority parent leads: `{counts.get('priorityParentLeadCount')}`",
         f"- Known parent slot: `{known.get('parentSlot')}`",
         f"- Known owner: `{known.get('ownerBase')}`",
         f"- Known coord pointer: `{known.get('coordPointer')}`",
@@ -358,14 +522,37 @@ def render_markdown(summary: Mapping[str, Any]) -> str:
         lines.append(
             f"| {index} | `{family.get('familyScore')}` | `{family.get('count')}` | `{family.get('topScore')}` | "
             f"`{family.get('familyKey')}` | `{top.get('parentSlot')}` | `{top.get('ownerPointer')}` |"
+    )
+    context_counts = safe_mapping(summary.get("contextKindCounts"))
+    parent_context_counts = safe_mapping(context_counts.get("parentSlotCandidates"))
+    if parent_context_counts:
+        lines.extend(["", "## Parent candidate context kinds", "", "| Kind | Count |", "|---|---:|"])
+        for kind, count in parent_context_counts.items():
+            lines.append(f"| `{kind}` | `{count}` |")
+    lines.extend(
+        [
+            "",
+            "## Priority parent-slot leads",
+            "",
+            "| Rank | Score | Context | Parent slot | Owner pointer | Hit | Reasons |",
+            "|---:|---:|---|---|---|---|---|",
+        ]
+    )
+    for index, lead in enumerate(safe_list(summary.get("priorityParentSlotLeads"))[:16], start=1):
+        if not isinstance(lead, Mapping):
+            continue
+        reasons = ", ".join(str(reason) for reason in safe_list(lead.get("scoreReasons")))
+        lines.append(
+            f"| {index} | `{lead.get('score')}` | `{context_kind(lead)}` | `{lead.get('parentSlot')}` | "
+            f"`{lead.get('ownerPointer')}` | `{lead.get('hitAddress')}` | {reasons} |"
         )
     lines.extend(
         [
             "",
             "## Non-player parent-slot leads",
             "",
-            "| Rank | Score | Parent slot | Owner pointer | Hit | Reasons |",
-            "|---:|---:|---|---|---|---|",
+            "| Rank | Score | Context | Parent slot | Owner pointer | Hit | Reasons |",
+            "|---:|---:|---|---|---|---|---|",
         ]
     )
     for index, lead in enumerate(safe_list(summary.get("nonPlayerParentSlotLeads"))[:16], start=1):
@@ -373,7 +560,7 @@ def render_markdown(summary: Mapping[str, Any]) -> str:
             continue
         reasons = ", ".join(str(reason) for reason in safe_list(lead.get("scoreReasons")))
         lines.append(
-            f"| {index} | `{lead.get('score')}` | `{lead.get('parentSlot')}` | `{lead.get('ownerPointer')}` | "
+            f"| {index} | `{lead.get('score')}` | `{context_kind(lead)}` | `{lead.get('parentSlot')}` | `{lead.get('ownerPointer')}` | "
             f"`{lead.get('hitAddress')}` | {reasons} |"
         )
     if summary.get("warnings"):
@@ -425,7 +612,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "runDirectory": str(run_dir),
         "summaryJson": str(summary_json),
         "summaryMarkdown": str(summary_md),
+        "nonPlayerParentLeadTargetsJson": str(run_dir / "non-player-parent-lead-targets.json"),
+        "priorityParentLeadTargetsJson": str(run_dir / "priority-parent-lead-targets.json"),
     }
+    write_json(run_dir / "non-player-parent-lead-targets.json", safe_mapping(summary.get("leadExports")).get("nonPlayerParentLeadTargets") or [])
+    write_json(run_dir / "priority-parent-lead-targets.json", safe_mapping(summary.get("leadExports")).get("priorityParentLeadTargets") or [])
     write_json(summary_json, summary)
     write_text_atomic(summary_md, render_markdown(summary))
     if args.json:
@@ -436,8 +627,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "summaryJson": str(summary_json),
                     "summaryMarkdown": str(summary_md),
                     "counts": summary.get("counts"),
+                    "contextKindCounts": summary.get("contextKindCounts"),
                     "topOwnerFamily": (safe_list(summary.get("ownerFamilies")) or [None])[0],
                     "topParentSlotFamily": (safe_list(summary.get("parentSlotFamilies")) or [None])[0],
+                    "priorityParentSlotLeads": safe_list(summary.get("priorityParentSlotLeads"))[:5],
+                    "priorityParentLeadTargetsJson": safe_mapping(summary.get("artifacts")).get("priorityParentLeadTargetsJson"),
+                    "nonPlayerParentLeadTargetsJson": safe_mapping(summary.get("artifacts")).get("nonPlayerParentLeadTargetsJson"),
                     "nonPlayerParentSlotLeads": safe_list(summary.get("nonPlayerParentSlotLeads"))[:5],
                     "blockers": summary.get("blockers"),
                     "warnings": summary.get("warnings"),
