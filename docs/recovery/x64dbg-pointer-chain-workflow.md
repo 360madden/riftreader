@@ -129,7 +129,8 @@ Before opening a live-debugger session:
    ```
 
    This preflight uses OS/window/process metadata only. It does not attach
-   x64dbg, send input, set breakpoints/watchpoints, or read/write target memory.
+   x64dbg, send input, set breakpoints/watchpoints, or read/write target memory
+   bytes.
 2. Capture a fresh API/runtime coordinate sample.
 3. Capture the candidate memory address and current X/Y/Z values.
 4. Confirm no other debugger-class tool is attached.

@@ -378,7 +378,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
             "",
             "This preflight uses read-only OS/window/process metadata only. It does not",
             "attach x64dbg, send game input, set breakpoints/watchpoints, or read/write",
-            "target memory.",
+            "target memory bytes.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
