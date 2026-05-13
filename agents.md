@@ -132,6 +132,39 @@ integrate and validate results before making final claims or committing.
 - Run the most relevant validation available after changes.
 - Say exactly what was not validated.
 
+## Context7 documentation lookup policy
+
+Use Context7 before answering questions about current library, framework, SDK,
+CLI, or cloud-service behavior. This includes `.NET`, PowerShell, Playwright,
+JavaScript/TypeScript packages, and version-specific migration questions.
+
+Required workflow:
+
+1. Call `resolve-library-id` with the library name and the user's full question,
+   unless the user already provides an exact `/org/project` Context7 ID.
+2. Pick the best match by exact name, source reputation, snippet coverage,
+   benchmark score, and version relevance.
+3. Call `query-docs` with the selected ID and the full question.
+4. Answer from the fetched docs and mention the Context7 ID used when accuracy
+   or ambiguity matters.
+
+Do not use Context7 for local RiftReader debugging, repo-specific refactors,
+business-logic review, code review, or live RIFT/x64dbg/coordinate-truth
+diagnosis. Inspect the repo, tests, build output, git history, and live artifacts
+directly for those. Treat Context7 output as advisory external-doc context, not
+as proof of current repo truth.
+
+Examples:
+
+- `Use Context7: current .NET CLI syntax for dotnet test filters.`
+- `Use Context7 with /dotnet/docs: .NET 10 SDK CLI behavior for build/test.`
+- `Use Context7 with /dotnet/docs: can dotnet build target a .slnx solution?`
+- `Use Context7: current PowerShell 7 pwsh -File syntax.`
+- `Use Context7: current Playwright tracing config for failed tests.`
+- `Use Context7 with /modelcontextprotocol/modelcontextprotocol: current MCP schema/tool contract docs.`
+
+Repo cheat sheet: `docs/workflow/context7-usage.md`.
+
 ## Workflow/helper-app implementation language policy
 
 From this point forward, do **not** add new live-test workflow brains, helper
