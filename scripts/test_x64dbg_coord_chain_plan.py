@@ -1434,6 +1434,69 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidateFile"]["resolvedFromAlias"], "latest")
             self.assertEqual(summary["candidateFile"]["path"], str(latest_candidate_file))
 
+    def test_latest_candidate_file_accepts_family_snapshot_delta_candidate_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            candidate_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "family-snapshot-sequence-currentpid-79184-new"
+                / "delta-analysis"
+                / "candidate-vec3.json"
+            )
+            self.write_preflight_summary(preflight, pid=79184, hwnd="0xA90BFC")
+            self.write_api_reference(api_file, pid=79184, hwnd="0xA90BFC")
+            candidate_file.parent.mkdir(parents=True, exist_ok=True)
+            candidate_file.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "riftreader-family-snapshot-delta-candidates",
+                        "generatedAtUtc": "2026-05-13T02:00:00Z",
+                        "processId": 79184,
+                        "targetWindowHandle": "0xA90BFC",
+                        "candidateCount": 1,
+                        "candidates": [
+                            {
+                                "candidateId": "snapshot-delta-17382765E40-xyz",
+                                "addressHex": "0x17382765E40",
+                                "axisOrder": "xyz",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-file",
+                        "latest",
+                        "--candidate-id",
+                        "best",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "snapshot-delta-17382765E40-xyz")
+            self.assertEqual(summary["candidate"]["address"], "0x17382765E40")
+            self.assertEqual(summary["candidateFile"]["path"], str(candidate_file))
+
     def test_latest_candidate_file_prefers_newest_same_target_ranking_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

@@ -564,7 +564,7 @@ def find_latest_candidate_file(
         return None, blockers, warnings
 
     candidates: list[tuple[datetime, float, str, Path]] = []
-    for pattern in ("coordinate-family-rankings.json", "api-family-vec3-candidates.json"):
+    for pattern in ("coordinate-family-rankings.json", "api-family-vec3-candidates.json", "candidate-vec3.json"):
         for path in capture_root.rglob(pattern):
             try:
                 document = read_json_file(path)
@@ -590,7 +590,8 @@ def find_latest_candidate_file(
         blockers.append(
             "candidate-file-latest-not-found:"
             f"{capture_root / '**' / 'coordinate-family-rankings.json'};"
-            f"{capture_root / '**' / 'api-family-vec3-candidates.json'}"
+            f"{capture_root / '**' / 'api-family-vec3-candidates.json'};"
+            f"{capture_root / '**' / 'candidate-vec3.json'}"
         )
         return None, blockers, warnings
 

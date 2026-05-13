@@ -8,6 +8,7 @@ from rift_live_test.x64dbg_live_access_capture import (
     build_key_lparam,
     clear_all_hardware_breakpoints,
     clear_all_memory_breakpoints,
+    minimize_windows_for_process,
     parse_virtual_key,
     resume_if_stopped,
 )
@@ -128,6 +129,13 @@ class X64DbgLiveAccessCaptureTests(unittest.TestCase):
         self.assertTrue(cleared)
         self.assertEqual(client.clear_calls, [None])
         self.assertFalse(summary["safety"]["memoryBreakpointSet"])
+
+    def test_minimize_windows_skips_when_process_id_is_target(self) -> None:
+        result = minimize_windows_for_process(2928, expected_target_pid=2928)
+
+        self.assertFalse(result["attempted"])
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["reason"], "process-id-is-target-debuggee")
 
 
 if __name__ == "__main__":

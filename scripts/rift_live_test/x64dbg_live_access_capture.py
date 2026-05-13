@@ -32,6 +32,7 @@ WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101
 MAPVK_VK_TO_VSC = 0
 SW_RESTORE = 9
+SW_MINIMIZE = 6
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 
@@ -186,6 +187,75 @@ def load_kernel32_for_focus() -> Any:
     kernel32.GetCurrentThreadId.argtypes = []
     kernel32.GetCurrentThreadId.restype = wintypes.DWORD
     return kernel32
+
+
+def minimize_windows_for_process(process_id: int, *, expected_target_pid: int | None = None) -> dict[str, Any]:
+    """Best-effort minimize all top-level windows owned by process_id.
+
+    x64dbg_automate owns process creation, so live captures cannot request the
+    startup ShowWindow flag directly.  This post-launch pass keeps debugger UI
+    windows out of the operator's way while avoiding accidental minimization of
+    the RIFT target process.
+    """
+
+    result: dict[str, Any] = {
+        "attempted": False,
+        "processId": process_id,
+        "skipped": False,
+        "reason": None,
+        "windows": [],
+        "errors": [],
+    }
+    if process_id <= 0:
+        result.update({"skipped": True, "reason": "invalid-process-id"})
+        return result
+    if expected_target_pid is not None and int(process_id) == int(expected_target_pid):
+        result.update({"skipped": True, "reason": "process-id-is-target-debuggee"})
+        return result
+
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        enum_proc_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        user32.EnumWindows.argtypes = [enum_proc_type, wintypes.LPARAM]
+        user32.EnumWindows.restype = wintypes.BOOL
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        user32.IsWindowVisible.argtypes = [wintypes.HWND]
+        user32.IsWindowVisible.restype = wintypes.BOOL
+        user32.IsIconic.argtypes = [wintypes.HWND]
+        user32.IsIconic.restype = wintypes.BOOL
+        user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        user32.ShowWindow.restype = wintypes.BOOL
+    except Exception as exc:  # noqa: BLE001
+        result["errors"].append(f"user32-window-management-unavailable:{type(exc).__name__}:{exc}")
+        return result
+
+    result["attempted"] = True
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        owner = wintypes.DWORD(0)
+        user32.GetWindowThreadProcessId(wintypes.HWND(hwnd), ctypes.byref(owner))
+        if int(owner.value) != int(process_id):
+            return True
+        before_minimized = bool(user32.IsIconic(wintypes.HWND(hwnd)))
+        visible = bool(user32.IsWindowVisible(wintypes.HWND(hwnd)))
+        minimize_ok = bool(user32.ShowWindow(wintypes.HWND(hwnd), SW_MINIMIZE))
+        after_minimized = bool(user32.IsIconic(wintypes.HWND(hwnd)))
+        result["windows"].append(
+            {
+                "hwnd": int_hex(int(hwnd)),
+                "visibleBefore": visible,
+                "minimizedBefore": before_minimized,
+                "showWindowMinimizeOk": minimize_ok,
+                "minimizedAfter": after_minimized,
+            }
+        )
+        return True
+
+    callback_ref = enum_proc_type(callback)
+    if not user32.EnumWindows(callback_ref, 0):
+        result["errors"].append(f"enum-windows-failed:{ctypes.get_last_error()}")
+    return result
 
 
 def window_pid_thread(user32: Any, hwnd: int) -> tuple[int, int]:
@@ -818,6 +888,10 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             "path": str(args.x64dbg_path),
             "sessionPid": None,
         },
+        "x64dbgWindowManagement": {
+            "minimizeRequested": not bool(args.no_minimize_x64dbg_windows),
+            "result": None,
+        },
         "contexts": [],
         "event": {
             "status": None,
@@ -842,6 +916,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             "memoryBreakpointSet": False,
             "goAttempts": 0,
             "exceptionSwallowRetryLoopAllowed": False,
+            "x64dbgWindowMinimizeRequested": not bool(args.no_minimize_x64dbg_windows),
             "candidateOnly": True,
             "promotionEligible": False,
             "liveAttachPolicy": live_attach_policy(
@@ -884,6 +959,11 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         stimulus_holder: dict[str, Any] = {"result": None}
         session_pid = client.start_session_attach(int(args.target_pid))
         summary["x64dbg"]["sessionPid"] = session_pid
+        if not args.no_minimize_x64dbg_windows:
+            summary["x64dbgWindowManagement"]["result"] = minimize_windows_for_process(
+                int(session_pid),
+                expected_target_pid=int(args.target_pid),
+            )
         summary["contexts"].append(capture_context(client, candidate_address=candidate_address, label="attached-stop", read_size=args.read_size))
 
         attached_pid = summary["contexts"][-1].get("debuggeePid")
@@ -1098,6 +1178,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-live-attach-seconds", type=int, default=DEFAULT_MAX_LIVE_ATTACH_SECONDS)
     parser.add_argument("--unresponsive-abort-seconds", type=int, default=DEFAULT_UNRESPONSIVE_ABORT_SECONDS)
     parser.add_argument("--max-go-attempts", type=int, default=DEFAULT_MAX_GO_ATTEMPTS)
+    parser.add_argument(
+        "--no-minimize-x64dbg-windows",
+        action="store_true",
+        help="Do not attempt to minimize x64dbg windows after session attach.",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
