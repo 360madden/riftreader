@@ -50,6 +50,15 @@ def normalize_hwnd(value: str | None) -> str | None:
         return value.strip()
 
 
+def normalize_hex_int(value: int | str | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return int_hex(int(value, 0) if isinstance(value, str) else int(value))
+    except (TypeError, ValueError):
+        return str(value).strip()
+
+
 def read_json_file(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -189,6 +198,20 @@ def apply_preflight_summary(args: argparse.Namespace) -> None:
         else:
             args.process_start_time_utc = str(selected_start)
 
+    selected_module_base = selected.get("moduleBaseAddressHex") or selected.get("moduleBaseAddress")
+    if selected_module_base:
+        try:
+            selected_module_base_int = int(str(selected_module_base), 0)
+        except ValueError:
+            args.preflight_summary_blockers.append(f"module-base-preflight-invalid:{selected_module_base}")
+        else:
+            if args.module_base is not None and int(args.module_base) != selected_module_base_int:
+                args.preflight_summary_blockers.append(
+                    f"module-base-mismatch-preflight:{normalize_hex_int(args.module_base)}!={int_hex(selected_module_base_int)}"
+                )
+            else:
+                args.module_base = selected_module_base_int
+
     selected_process_name = selected.get("processName")
     if selected_process_name:
         expected = str(args.process_name or DEFAULT_PROCESS_NAME).removesuffix(".exe").lower()
@@ -237,6 +260,7 @@ def process_identity(args: argparse.Namespace) -> dict[str, Any]:
         "pid": args.target_pid,
         "hwnd": normalize_hwnd(args.target_hwnd),
         "startTimeUtc": args.process_start_time_utc,
+        "moduleBaseAddressHex": normalize_hex_int(args.module_base),
     }
 
 
@@ -545,6 +569,7 @@ def checklist_markdown(summary: dict[str, Any]) -> str:
         f"- PID: `{process.get('pid')}`",
         f"- HWND: `{process.get('hwnd')}`",
         f"- Process start UTC: `{process.get('startTimeUtc')}`",
+        f"- Module base: `{process.get('moduleBaseAddressHex')}`",
         f"- Candidate address: `{candidate.get('address')}`",
         f"- API coordinate: `X={truth.get('x')}`, `Y={truth.get('y')}`, `Z={truth.get('z')}` at `{truth.get('sampledAtUtc')}`",
         "",
@@ -590,6 +615,9 @@ def write_outputs(summary: dict[str, Any]) -> None:
         "target_pid": summary["process"]["pid"],
         "target_hwnd": summary["process"]["hwnd"],
         "process_start_time_utc": summary["process"]["startTimeUtc"],
+        "module_base": int(summary["process"]["moduleBaseAddressHex"], 16)
+        if summary["process"].get("moduleBaseAddressHex")
+        else None,
         "api_source": summary["truthSurface"]["source"],
         "api_sampled_at_utc": summary["truthSurface"]["sampledAtUtc"],
         "api_x": summary["truthSurface"]["x"],
@@ -611,6 +639,7 @@ def apply_self_test_defaults(args: argparse.Namespace) -> None:
     args.target_pid = 12345
     args.target_hwnd = "0xABCDEF"
     args.process_start_time_utc = "2026-05-12T20:00:00Z"
+    args.module_base = 0x7FF796B50000
     args.candidate_id = "x64dbg-coord-chain-self-test"
     args.candidate_address = 0x20005B30800
     args.api_source = "synthetic-api-now"
@@ -639,6 +668,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--target-pid", type=int, default=None)
     parser.add_argument("--target-hwnd", default=None)
     parser.add_argument("--process-start-time-utc", default=None)
+    parser.add_argument(
+        "--module-base",
+        type=parse_int,
+        default=None,
+        help="Current rift_x64.exe module base; imported from --preflight-summary when present.",
+    )
     parser.add_argument("--candidate-id", default="x64dbg-coord-chain-candidate-000001")
     parser.add_argument("--candidate-address", type=parse_int, default=None)
     parser.add_argument("--axis-order", choices=["xyz"], default="xyz")

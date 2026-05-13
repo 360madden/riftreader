@@ -19,6 +19,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
         pid: int = 79184,
         hwnd: str = "0xA90BFC",
         generated_at: str = "2026-05-13T01:00:00Z",
+        module_base: str = "0x7FF796B50000",
     ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -32,7 +33,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
                         "pid": pid,
                         "hwndHex": hwnd,
                         "startTimeUtc": "2026-05-13T00:43:12.080812Z",
-                        "moduleBaseAddressHex": "0x7FF796B50000",
+                        "moduleBaseAddressHex": module_base,
                         "responding": True,
                     },
                     "debuggerProcessCount": 0,
@@ -62,6 +63,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["safety"]["liveAttachPolicy"]["maxGoAttempts"], 1)
             self.assertEqual(template["watchWindow"]["sizeBytes"], 12)
             self.assertEqual(template["derivedChain"]["fieldOffsets"]["z"], "0x8")
+            self.assertEqual(template["process"]["moduleBaseAddressHex"], "0x7FF796B50000")
             self.assertTrue((out / "coord-chain-plan.md").is_file())
             self.assertTrue((out / "x64dbg-coordinate-chain-session-checklist.md").is_file())
 
@@ -215,6 +217,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["process"]["pid"], 79184)
             self.assertEqual(summary["process"]["hwnd"], "0xA90BFC")
             self.assertEqual(summary["process"]["startTimeUtc"], "2026-05-13T00:43:12.080812Z")
+            self.assertEqual(summary["process"]["moduleBaseAddressHex"], "0x7FF796B50000")
             self.assertEqual(summary["preflight"]["requestedSummary"], str(preflight))
             self.assertIsNone(summary["preflight"]["resolvedFromAlias"])
             self.assertEqual(summary["preflight"]["summaryPath"], str(preflight))
@@ -272,6 +275,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["process"]["pid"], 33333)
             self.assertEqual(summary["process"]["hwnd"], "0x333")
+            self.assertEqual(summary["process"]["moduleBaseAddressHex"], "0x7FF796B50000")
             self.assertEqual(summary["preflight"]["requestedSummary"], "latest")
             self.assertEqual(summary["preflight"]["resolvedFromAlias"], "latest")
             self.assertEqual(summary["preflight"]["summaryPath"], str(latest_preflight))
@@ -345,6 +349,42 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(code, 2)
             summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
             self.assertIn("target-pid-mismatch-preflight:12345!=79184", summary["blockers"])
+
+    def test_preflight_summary_module_base_mismatch_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            self.write_preflight_summary(preflight, module_base="0x7FF796B50000")
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--module-base",
+                        "0x11110000",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn(
+                "module-base-mismatch-preflight:0x11110000!=0x7FF796B50000",
+                summary["blockers"],
+            )
 
 
 if __name__ == "__main__":

@@ -183,7 +183,9 @@ The static-chain planner can consume that packet with
 `--preflight-summary <summary.json>`. Inside the current repo workspace,
 `--preflight-summary latest` is also supported as a convenience alias for the
 newest passed `scripts\captures\x64dbg-target-preflight-*\summary.json`; use the
-exact resolved path from the output summary for handoffs/audits.
+exact resolved path from the output summary for handoffs/audits. The planner
+imports module base from the preflight packet and blocks if an explicitly
+provided `--module-base` disagrees.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.

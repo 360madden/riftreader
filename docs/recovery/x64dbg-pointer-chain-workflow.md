@@ -201,13 +201,18 @@ debugger actions.
 Prefer `--preflight-summary` over manually copying PID/HWND/process-start
 metadata. The planner imports the selected target from
 `scripts\x64dbg_preflight.py` output and blocks if any explicitly supplied
-target PID/HWND/start field disagrees with that preflight packet.
+target PID/HWND/start/module-base field disagrees with that preflight packet.
 
 Use `--preflight-summary latest` only as a convenience inside the current repo
 workspace. It resolves to the newest passed
 `scripts\captures\x64dbg-target-preflight-*\summary.json` artifact, ignoring
 blocked packets. For handoffs or audits, prefer the exact resolved path recorded
 in the plan summary.
+
+When manually planning without a preflight packet, pass `--module-base` if it is
+known so the session checklist preserves the full process epoch. A preflight
+packet remains preferred because it imports PID, HWND, process start time, and
+module base together.
 
 The planner now emits the live-attach guard as machine-readable safety metadata:
 
