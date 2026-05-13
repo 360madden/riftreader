@@ -46,13 +46,33 @@ class X64DbgNoAttachReadinessPacketTests(unittest.TestCase):
                         "stdout": "",
                     }
                 if name == "x64dbg_access_event_template":
+                    template_summary = temp_path / "template-summary.json"
+                    template_summary.write_text(
+                        json.dumps(
+                            {
+                                "status": "passed",
+                                "candidateEvidence": {
+                                    "kind": "coordinate-family-ranking",
+                                    "path": str(temp_path / "coordinate-family-rankings.json"),
+                                    "candidateOnly": True,
+                                    "promotionEligible": False,
+                                    "poseGroupCount": 2,
+                                    "selectedAddress": {
+                                        "addressHex": "0x17382765E40",
+                                        "supportPoseCount": 2,
+                                    },
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
                     return {
                         "name": name,
                         "argv": argv,
                         "exitCode": 0,
                         "payload": {
                             "status": "passed",
-                            "summaryJson": str(temp_path / "template-summary.json"),
+                            "summaryJson": str(template_summary),
                             "templateJson": str(temp_path / "x64dbg-manual-access-events-template.json"),
                             "blockers": [],
                             "warnings": [],
@@ -141,6 +161,9 @@ class X64DbgNoAttachReadinessPacketTests(unittest.TestCase):
                 summary["artifacts"]["accessEventTemplateJson"],
                 str(temp_path / "x64dbg-manual-access-events-template.json"),
             )
+            self.assertEqual(summary["candidateEvidence"]["kind"], "coordinate-family-ranking")
+            self.assertEqual(summary["candidateEvidence"]["selectedAddress"]["supportPoseCount"], 2)
+            self.assertFalse(summary["candidateEvidence"]["promotionEligible"])
             self.assertTrue((out / "summary.json").is_file())
             self.assertTrue((out / "summary.md").is_file())
 

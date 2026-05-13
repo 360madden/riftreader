@@ -106,6 +106,29 @@ def argv_value(argv: list[str], flag: str) -> str | None:
     return argv[index + 1]
 
 
+def read_optional_json(path_value: Any) -> dict[str, Any] | None:
+    if not path_value:
+        return None
+    path = Path(str(path_value))
+    if not path.exists():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return document if isinstance(document, dict) else None
+
+
+def template_candidate_evidence(template_payload: dict[str, Any]) -> dict[str, Any] | None:
+    summary = read_optional_json(template_payload.get("summaryJson"))
+    if isinstance(summary, dict) and isinstance(summary.get("candidateEvidence"), dict):
+        return summary["candidateEvidence"]
+    template = read_optional_json(template_payload.get("templateJson"))
+    if isinstance(template, dict) and isinstance(template.get("candidateEvidence"), dict):
+        return template["candidateEvidence"]
+    return None
+
+
 def build_preflight_argv(args: argparse.Namespace, repo_root: Path) -> tuple[list[str] | None, list[str]]:
     blockers: list[str] = []
     if args.target_pid is None:
@@ -191,6 +214,23 @@ def markdown_summary(summary: dict[str, Any]) -> str:
                 "- Promotion state: `candidate-only`",
             ]
         )
+    if summary.get("candidateEvidence"):
+        evidence = summary["candidateEvidence"]
+        selected = evidence.get("selectedAddress") if isinstance(evidence.get("selectedAddress"), dict) else {}
+        lines.extend(
+            [
+                "",
+                "## Candidate evidence",
+                "",
+                f"- Evidence kind: `{evidence.get('kind')}`",
+                f"- Evidence path: `{evidence.get('path')}`",
+                f"- Selected address: `{selected.get('addressHex')}`",
+                f"- Pose support: `{selected.get('supportPoseCount')}`",
+                f"- Pose groups: `{evidence.get('poseGroupCount')}`",
+                f"- Candidate-only: `{str(evidence.get('candidateOnly')).lower()}`",
+                f"- Promotion eligible: `{str(evidence.get('promotionEligible')).lower()}`",
+            ]
+        )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{blocker}`" for blocker in summary["blockers"])
@@ -212,6 +252,7 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
     planner_argv = planner_step.get("argv") if planner_step and isinstance(planner_step.get("argv"), list) else []
     template_step = next((step for step in steps if step.get("name") == "x64dbg_access_event_template"), None)
     template_payload = template_step.get("payload") if template_step and isinstance(template_step.get("payload"), dict) else {}
+    candidate_evidence = template_candidate_evidence(template_payload)
     planner_summary: dict[str, Any] = {}
     planner_summary_path = planner_payload.get("summaryJson")
     if planner_summary_path:
@@ -253,6 +294,7 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
             "noAttachWorkflow": True,
         },
         "candidate": candidate,
+        "candidateEvidence": candidate_evidence,
         "plannerStatus": planner_summary.get("status"),
         "steps": steps,
         "blockers": blockers,
@@ -459,6 +501,7 @@ def main(argv: list[str] | None = None) -> int:
                     "plannerSummaryJson": summary["artifacts"]["plannerSummaryJson"],
                     "accessEventTemplateJson": summary["artifacts"]["accessEventTemplateJson"],
                     "compactHandoffMarkdown": summary["artifacts"]["compactHandoffMarkdown"],
+                    "candidateEvidence": summary.get("candidateEvidence"),
                     "blockers": summary["blockers"],
                     "warnings": summary["warnings"],
                 },
