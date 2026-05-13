@@ -191,7 +191,10 @@ live memory, configure MCP, send movement/input, or promote a chain. It writes a
 summary, a session checklist, and a candidate-packet template under
 `scripts\captures\x64dbg-coord-chain-plan-*`. It also writes
 `x64dbg-coordinate-chain-rerun-command.txt`, a copy-paste command that preserves
-the resolved preflight/API artifact paths for handoff.
+the resolved preflight/API artifact paths for handoff, plus
+`x64dbg-coordinate-chain-compact-handoff.md`, a resume-ready handoff with the
+readiness verdict, blockers, exact artifact paths, safety state, and a
+ready-to-paste new-chat prompt.
 
 The summary includes a conservative `readiness` verdict. A planner `status` of
 `planned` does not by itself mean live-debugger work should begin; the readiness

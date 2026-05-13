@@ -1152,6 +1152,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
     template_json = run_dir / "x64dbg-coordinate-chain-candidate-template.json"
     checklist_md = run_dir / "x64dbg-coordinate-chain-session-checklist.md"
     command_txt = run_dir / "x64dbg-coordinate-chain-rerun-command.txt"
+    handoff_md = run_dir / "x64dbg-coordinate-chain-compact-handoff.md"
 
     summary: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -1236,6 +1237,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "candidateTemplateJson": str(template_json),
             "sessionChecklistMarkdown": str(checklist_md),
             "rerunCommandText": str(command_txt),
+            "compactHandoffMarkdown": str(handoff_md),
         },
         "safety": build_safety(
             allow_live_debugger=bool(args.allow_live_debugger),
@@ -1266,6 +1268,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- Preflight summary: `{summary.get('preflight', {}).get('summaryPath')}`",
         f"- Readiness: `{summary.get('readiness', {}).get('status')}`",
         f"- Rerun command: `{summary.get('artifacts', {}).get('rerunCommandText')}`",
+        f"- Compact handoff: `{summary.get('artifacts', {}).get('compactHandoffMarkdown')}`",
         f"- Movement allowed: `{str(safety.get('movementAllowed')).lower()}`",
         f"- x64dbg live attach started: `{str(safety.get('x64dbgLiveAttachStarted')).lower()}`",
         f"- x64dbg commands executed: `{str(safety.get('x64dbgCommandsExecuted')).lower()}`",
@@ -1377,6 +1380,102 @@ def checklist_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def compact_handoff_markdown(summary: dict[str, Any]) -> str:
+    readiness = summary.get("readiness") or {}
+    process = summary["process"]
+    truth = summary["truthSurface"]
+    candidate = summary["candidate"]
+    preflight = summary.get("preflight") or {}
+    api_coordinate_file = summary.get("apiCoordinateFile") or {}
+    candidate_file = summary.get("candidateFile") or {}
+    safety = summary["safety"]
+    artifacts = summary["artifacts"]
+
+    lines = [
+        "# x64dbg coordinate-chain compact handoff",
+        "",
+        "## TL;DR",
+        "",
+        f"- Plan status: `{summary['status']}`",
+        f"- Readiness: `{readiness.get('status')}`",
+        f"- Ready for current-turn approval: `{str(readiness.get('readyForCurrentTurnApproval')).lower()}`",
+        f"- Ready for bounded debugger capture: `{str(readiness.get('readyForBoundedDebuggerCapture')).lower()}`",
+        "- Coord evidence remains `candidate-only`; do not promote any address from this packet alone.",
+        "- This handoff is artifact-only: no x64dbg attach, no watchpoints, no memory byte read/write, and no game input were performed by the planner.",
+        "",
+        "## Target identity",
+        "",
+        f"- Process: `{process.get('name')}`",
+        f"- PID: `{process.get('pid')}`",
+        f"- HWND: `{process.get('hwnd')}`",
+        f"- Process start UTC: `{process.get('startTimeUtc')}`",
+        f"- Module base: `{process.get('moduleBaseAddressHex')}`",
+        "",
+        "## Inputs",
+        "",
+        f"- Preflight summary: `{preflight.get('summaryPath')}`",
+        f"- API coordinate file: `{api_coordinate_file.get('path')}`",
+        f"- Candidate file: `{candidate_file.get('path')}`",
+        f"- Candidate: `{candidate.get('candidateId')}` at `{candidate.get('address')}`",
+        f"- API coordinate: `X={truth.get('x')}`, `Y={truth.get('y')}`, `Z={truth.get('z')}` at `{truth.get('sampledAtUtc')}`",
+        "",
+        "## Safety state",
+        "",
+        f"- Movement sent: `{str(safety.get('movementSent')).lower()}`",
+        f"- Input sent: `{str(safety.get('inputSent')).lower()}`",
+        f"- x64dbg live attach started: `{str(safety.get('x64dbgLiveAttachStarted')).lower()}`",
+        f"- x64dbg commands executed: `{str(safety.get('x64dbgCommandsExecuted')).lower()}`",
+        f"- Process attach or memory read started: `{str(safety.get('processAttachOrMemoryReadStarted')).lower()}`",
+        f"- Target mutation allowed: `{str(safety.get('targetMutationAllowed')).lower()}`",
+        "",
+        "## Blockers",
+        "",
+    ]
+    if summary["blockers"]:
+        lines.extend(f"- `{blocker}`" for blocker in summary["blockers"])
+    else:
+        lines.append("- None in planner inputs.")
+    if summary["warnings"]:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{warning}`" for warning in summary["warnings"])
+    lines.extend(
+        [
+            "",
+            "## Readiness checks",
+            "",
+            "| Check | Status | Passed |",
+            "|---|---|---|",
+        ]
+    )
+    for check in readiness.get("checks") or []:
+        lines.append(f"| `{check.get('name')}` | `{check.get('status')}` | `{str(check.get('passed')).lower()}` |")
+    lines.extend(
+        [
+            "",
+            "## Artifacts",
+            "",
+            f"- Summary JSON: `{artifacts.get('summaryJson')}`",
+            f"- Summary MD: `{artifacts.get('summaryMarkdown')}`",
+            f"- Candidate template: `{artifacts.get('candidateTemplateJson')}`",
+            f"- Session checklist: `{artifacts.get('sessionChecklistMarkdown')}`",
+            f"- Rerun command: `{artifacts.get('rerunCommandText')}`",
+            f"- This handoff: `{artifacts.get('compactHandoffMarkdown')}`",
+            "",
+            "## Ready-to-paste resume prompt",
+            "",
+            "```text",
+            "Resume the RiftReader x64dbg coordinate-chain workflow from this compact handoff.",
+            f"Read `{artifacts.get('compactHandoffMarkdown')}` first, then read the plan summary JSON `{artifacts.get('summaryJson')}`.",
+            "Do not attach x64dbg, send game input, set breakpoints/watchpoints, or read/write target memory unless I explicitly approve it in the current turn.",
+            "Treat all live PID/HWND/process-start/module-base values and candidate addresses as session-specific; rerun no-attach preflight before any live-debugger work.",
+            "Coordinate evidence remains candidate-only until same-target API-now vs chain-now, multi-pose, restart/client-epoch, and ProofOnly gates pass.",
+            "Continue with the smallest safe artifact-only/read-only step and report blockers exactly.",
+            "```",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_outputs(summary: dict[str, Any]) -> None:
     run_dir = Path(summary["artifacts"]["runDirectory"])
     template = candidate_template(argparse.Namespace(**{
@@ -1407,6 +1506,7 @@ def write_outputs(summary: dict[str, Any]) -> None:
     write_json(Path(summary["artifacts"]["candidateTemplateJson"]), template)
     write_text_atomic(Path(summary["artifacts"]["sessionChecklistMarkdown"]), checklist_markdown(summary))
     write_text_atomic(Path(summary["artifacts"]["rerunCommandText"]), rerun_command_text(summary))
+    write_text_atomic(Path(summary["artifacts"]["compactHandoffMarkdown"]), compact_handoff_markdown(summary))
     write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
     write_json(Path(summary["artifacts"]["summaryJson"]), summary)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1551,6 +1651,7 @@ def main(argv: list[str] | None = None) -> int:
                     "summaryMarkdown": summary["artifacts"]["summaryMarkdown"],
                     "candidateTemplateJson": summary["artifacts"]["candidateTemplateJson"],
                     "rerunCommandText": summary["artifacts"]["rerunCommandText"],
+                    "compactHandoffMarkdown": summary["artifacts"]["compactHandoffMarkdown"],
                     "blockers": summary["blockers"],
                     "warnings": summary["warnings"],
                 },
@@ -1562,6 +1663,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"summaryJson={summary['artifacts']['summaryJson']}")
         print(f"summaryMarkdown={summary['artifacts']['summaryMarkdown']}")
         print(f"rerunCommandText={summary['artifacts']['rerunCommandText']}")
+        print(f"compactHandoffMarkdown={summary['artifacts']['compactHandoffMarkdown']}")
         if summary["blockers"]:
             print("blockers=" + ";".join(summary["blockers"]))
         if summary["warnings"]:

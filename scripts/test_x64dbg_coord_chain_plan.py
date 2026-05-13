@@ -108,6 +108,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertTrue((out / "coord-chain-plan.md").is_file())
             self.assertTrue((out / "x64dbg-coordinate-chain-session-checklist.md").is_file())
             self.assertTrue((out / "x64dbg-coordinate-chain-rerun-command.txt").is_file())
+            self.assertTrue((out / "x64dbg-coordinate-chain-compact-handoff.md").is_file())
 
     def test_missing_required_inputs_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -781,6 +782,10 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(template["memoryNow"]["address"], "0x20005B30800")
             command_text = (out / "x64dbg-coordinate-chain-rerun-command.txt").read_text(encoding="utf-8")
             self.assertIn(f"--candidate-file '{candidate_file}'", command_text)
+            handoff_text = (out / "x64dbg-coordinate-chain-compact-handoff.md").read_text(encoding="utf-8")
+            self.assertIn("# x64dbg coordinate-chain compact handoff", handoff_text)
+            self.assertIn("ready-for-current-turn-approval", handoff_text)
+            self.assertIn("Ready-to-paste resume prompt", handoff_text)
 
     def test_readiness_marks_approved_bounded_capture_only_when_explicitly_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -213,6 +213,9 @@ the plan instead of looking current only because PID/HWND still match.
 Use `--strict-live-debugger-readiness` for the safest pre-approval packet: it
 requires preflight/API/candidate artifacts and enables default age gates without
 approving or starting x64dbg.
+Each planner run now also writes `x64dbg-coordinate-chain-compact-handoff.md`
+with the readiness verdict, blockers, artifact paths, safety state, and a
+ready-to-paste resume prompt.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
