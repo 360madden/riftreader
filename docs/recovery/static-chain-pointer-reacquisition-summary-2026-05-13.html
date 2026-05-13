@@ -12,7 +12,7 @@
 <body>
 <header class="hero">
   <h1>🧭 Static Chain Pointer Reacquisition Summary</h1>
-  <p class="subtitle">Professional operator report for the May 13 current-PID recovery lane in <code>C:/RIFT MODDING/RiftReader</code>. Updated after the prior-first <strong>family-group sequential snapshot + offline delta</strong> pass found and revalidated a high-signal current-PID coordinate family.</p>
+  <p class="subtitle">Professional operator report for the May 13 current-PID recovery lane in <code>C:/RIFT MODDING/RiftReader</code>. Updated after the prior-first <strong>family-group sequential snapshot + offline delta</strong> pass found and revalidated a high-signal current-PID coordinate family, and after current-PID x64dbg attach attempts were safely bounded and diagnosed.</p>
   <div class="verdict">✅ RESULT: candidate family found — ⚠️ not promoted to movement truth</div>
 </header>
 <nav class="nav">
@@ -28,10 +28,10 @@
       <article class="card"><h3>🧬 Family found</h3><div class="big"><code>0x268DF200000</code></div><p>Repeatedly surfaced from snapshot delta analysis as the active coordinate-copy family.</p></article>
       <article class="card"><h3>🏆 Best focused lead</h3><div class="big"><code>0x268DF21ED30</code></div><p>Focused run tracking-error max abs <code>0.00607421875</code>.</p></article>
       <article class="card"><h3>🔁 Latest readback</h3><div class="big">0.003337 max delta</div><p>Offset-corrected API-now vs memory-now agreement from <code>candidate-readback-currentpid-2928-20260513-184849-042270</code>.</p></article>
-      <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / x64dbg attach failed</div><p>One bounded x64dbg access-capture attempt failed before attach; follow-up minimized no-debuggee automation check passed; no watchpoint hit, memory writes, provider writes, or proof promotion.</p></article>
+      <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / x64dbg attach blocked</div><p>Two bounded current-PID x64dbg access-capture attempts failed before attach; minimized no-debuggee automation check passed; no watchpoint hit, memory writes, provider writes, or proof promotion.</p></article>
       <article class="card"><h3>🚦 Truth status</h3><div class="big">Candidate-only</div><p>Direct values are about 5 units offset from API, so this is not direct movement truth yet.</p></article>
     </div>
-    <div class="callout goodline"><strong>Bottom line:</strong> The earlier Top-20 stride scans had zero direct XYZ hits, but the adaptive family snapshot method found the right current family. The newest focused readback strongly confirms a live offset-coordinate copy, not a static/restart chain.</div>
+    <div class="callout goodline"><strong>Bottom line:</strong> The earlier Top-20 stride scans had zero direct XYZ hits, but the adaptive family snapshot method found the right current family. The newest focused readback strongly confirms a live offset-coordinate copy, and historical x64dbg hit-code RVAs still match current process code exactly. This is still not a static/restart chain.</div>
     <div class="callout badline"><strong>Do not overclaim:</strong> <code>0x268DF21ED30</code> and sibling slots are candidate evidence only. Movement/navigation remains blocked until static-chain provenance and same-target proof gates pass.</div>
   </div>
 </section>
@@ -46,6 +46,8 @@
       <div class="dot">4</div><div class="step"><h3>Broad prior-first snapshot succeeded</h3><p>Run <code>family-snapshot-sequence-currentpid-2928-20260513-184450-797475</code> used 12 prior exact windows, 7 prior neighborhoods, and 1 current scan-plan range. It found 3 clean candidates in <code>0x268DF200000</code>.</p></div>
       <div class="dot">5</div><div class="step"><h3>Focused re-snapshot confirmed the family</h3><p>Run <code>family-snapshot-sequence-currentpid-2928-20260513-184837-252853</code> targeted <code>live-delta-lead=0x268DF21ED20</code> and found the same 3-candidate pattern with much tighter tracking.</p></div>
       <div class="dot">6</div><div class="step"><h3>Fresh readback confirmed offset tracking</h3><p>Run <code>candidate-readback-currentpid-2928-20260513-184849-042270</code> sampled fresh API coordinates and current memory. Best lead <code>0x268DF21ED30</code> corrected to API within <code>0.003337109375</code>.</p></div>
+      <div class="dot">7</div><div class="step"><h3>x64dbg attach was safely bounded</h3><p>Current-PID attach attempts <code>192154</code> and <code>193853</code> both failed before attach. The second run confirmed minimized-launch patching and clean detach-skip behavior; no x64dbg session, watchpoint, or stimulus started.</p></div>
+      <div class="dot">8</div><div class="step"><h3>Historical hit RVAs remained code-stable</h3><p>Read-only code check <code>historical-x64dbg-hit-rva-check-20260513-194042-075604</code> found exact 96-byte matches for prior hit RVAs <code>0x57C2A5</code> and <code>0x47D555</code> in the current process. These are now better static-code leads than repeating the failed attach path.</p></div>
     </div>
   </div>
 </section>
@@ -82,8 +84,8 @@
     <p class="caption">Actions performed and boundaries preserved.</p>
     <table><caption>Safety outcomes</caption><thead><tr><th>Surface</th><th>Status</th><th>Notes</th></tr></thead><tbody>
       <tr><td>Cheat Engine</td><td><span class="pill good">Not used</span></td><td>No CE Lua, CE attach, CE watchpoints, or CE tables.</td></tr>
-      <tr><td>x64dbg</td><td><span class="pill warn">Attempted; attach failed</span></td><td>Bounded hardware-write capture <code>x64dbg-live-access-capture-20260513-192154-488416</code> failed before attach; post-attempt preflight passed with debugger process count 0. Follow-up environment probe <code>x64dbg-attach-environment-probe-20260513-193707-533343</code> launched x64dbg minimized without a debuggee, verified automation connectivity, and terminated it.</td></tr>
-      <tr><td>Input</td><td><span class="pill warn">Bounded discovery input</span></td><td>Only exact-PID/HWND <code>post-rift-key.ps1 -UseWindowMessage</code> <code>w</code> holds were sent for displaced snapshots.</td></tr>
+      <tr><td>x64dbg</td><td><span class="pill warn">Attempted; attach blocked</span></td><td>Bounded hardware-write captures <code>x64dbg-live-access-capture-20260513-192154-488416</code> and <code>x64dbg-live-access-capture-20260513-193853-021766</code> failed before attach; post-attempt preflights passed with debugger process count 0. Follow-up environment probe <code>x64dbg-attach-environment-probe-20260513-193707-533343</code> launched x64dbg minimized without a debuggee, verified automation connectivity, and terminated it.</td></tr>
+      <tr><td>Input</td><td><span class="pill warn">Bounded discovery input</span></td><td>Only exact-PID/HWND <code>post-rift-key.ps1 -UseWindowMessage</code> <code>w</code> holds were sent for displaced snapshots. The later x64dbg retry requested stimulus but sent no input because attach never started.</td></tr>
       <tr><td>Memory writes</td><td><span class="pill good">None</span></td><td>All process memory access was read-only.</td></tr>
       <tr><td>Provider writes</td><td><span class="pill good">None</span></td><td>No ChromaLink/RiftScan provider mutation.</td></tr>
       <tr><td>Proof promotion</td><td><span class="pill good">None</span></td><td><code>current-proof-anchor-readback.json</code> remains unchanged.</td></tr>
@@ -109,6 +111,8 @@
       <tr><td>x64dbg no-attach readiness</td><td><code>scripts/captures/x64dbg-no-attach-readiness-packet-20260513-191946-104673/summary.json</code></td><td>Passed with <code>ready-for-current-turn-approval</code>.</td></tr>
       <tr><td>x64dbg attach attempt</td><td><code>scripts/captures/x64dbg-live-access-capture-20260513-192154-488416/summary.json</code></td><td>Failed before attach; no access event captured.</td></tr>
       <tr><td>x64dbg environment probe</td><td><code>scripts/captures/x64dbg-attach-environment-probe-20260513-193707-533343/summary.json</code></td><td>Passed install/plugin/libzmq, x64dbg_automate connectivity, minimized no-debuggee launch/terminate, target access, and elevation checks; warned only that <code>SeDebugPrivilege</code> was not enabled.</td></tr>
+      <tr><td>x64dbg minimized retry</td><td><code>scripts/captures/x64dbg-live-access-capture-20260513-193853-021766/summary.json</code></td><td>Failed before attach again; no session started, detach was skipped cleanly, no stimulus/input was sent, and post-attempt preflight passed.</td></tr>
+      <tr><td>Historical hit-RVA check</td><td><code>scripts/captures/historical-x64dbg-hit-rva-check-20260513-194042-075604/summary.json</code></td><td>Read-only current-PID code check; prior x64dbg hit RVAs <code>0x57C2A5</code> and <code>0x47D555</code> matched current process code windows byte-for-byte.</td></tr>
     </tbody></table>
   </div>
 </section>
@@ -117,13 +121,13 @@
     <h2>🚀 Top 10 recommended next actions</h2>
     <p class="caption">Prioritized from highest signal / lowest risk to heavier static-chain work.</p>
     <table><caption>Recommended continuation plan</caption><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody>
-      <tr><td>1</td><td>Run one more focused family snapshot with a different displacement direction if a known safe strafe/back key is confirmed.</td><td>Confirms the family tracks more than one movement vector before debugger/static-chain work.</td></tr>
-      <tr><td>2</td><td>Add <code>0x268DF21ED30</code>, <code>0x268DF21ED20</code>, and <code>0x268DF200000</code> to explicit current-session priors.</td><td>Prevents wasting time on already-exhausted no-hit regions after restart/context switch.</td></tr>
+      <tr><td>1</td><td>Stop repeating identical current-PID x64dbg attach attempts.</td><td>Two bounded attempts failed before attach after environment checks passed; repeating now is low-signal.</td></tr>
+      <tr><td>2</td><td>Use stable historical hit RVAs <code>0x57C2A5</code> and <code>0x47D555</code> as offline static-code leads.</td><td>Both code windows matched current process byte-for-byte and give a safer path than another attach loop.</td></tr>
       <tr><td>3</td><td>Build a focused no-debugger neighborhood inspector around <code>0x268DF21E000</code>.</td><td>Maps sibling fields and likely structure stride without freezing the client.</td></tr>
-      <tr><td>4</td><td>Normalize candidate evidence into a static-chain work packet.</td><td>Gives x64dbg a precise watch target and avoids broad debugger scanning.</td></tr>
-      <tr><td>5</td><td>Only then use x64dbg access tracing on the 12-byte triplet window.</td><td>Now there is a high-signal watch window; debugger time can be short and targeted.</td></tr>
-      <tr><td>6</td><td>Ingest any x64dbg access events with <code>x64dbg_access_event_ingest.py</code>.</td><td>Keeps debugger evidence offline-normalized and candidate-only until a resolver exists.</td></tr>
-      <tr><td>7</td><td>Search for module/RVA/static-owner provenance for the writer/reader chain.</td><td>Absolute heap addresses are not restart-stable; static ownership is required.</td></tr>
+      <tr><td>4</td><td>Add <code>0x268DF21ED30</code>, <code>0x268DF21ED20</code>, and <code>0x268DF200000</code> to explicit current-session priors.</td><td>Prevents wasting time on already-exhausted no-hit regions after restart/context switch.</td></tr>
+      <tr><td>5</td><td>Convert the family candidate plus stable RVAs into a static-chain work packet.</td><td>Combines data-family evidence with code-provenance evidence for the next resolver step.</td></tr>
+      <tr><td>6</td><td>Search for module/RVA/static-owner provenance for the writer/reader chain.</td><td>Absolute heap addresses are not restart-stable; static ownership is required.</td></tr>
+      <tr><td>7</td><td>Run one more focused family snapshot only if a new safe movement vector is available.</td><td>More vector diversity helps, but it is lower priority than exploiting the stable code RVAs.</td></tr>
       <tr><td>8</td><td>Implement a repo-owned resolver only after module/static-owner evidence exists.</td><td>A resolver without stable provenance would be another stale heap pointer.</td></tr>
       <tr><td>9</td><td>Validate across restart or process epoch before promotion.</td><td>Static chain claims require restart survival, not only current-PID behavior.</td></tr>
       <tr><td>10</td><td>Keep movement/navigation blocked until same-target <code>ProofOnly</code> passes.</td><td>Protects against using candidate-copy evidence as live movement truth prematurely.</td></tr>
@@ -131,6 +135,6 @@
   </div>
 </section>
 </main>
-<footer class="footer">Generated/updated 2026-05-13 18:49 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
+<footer class="footer">Generated/updated 2026-05-13 19:40 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
 </body>
 </html>
