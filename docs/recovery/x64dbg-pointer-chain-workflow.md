@@ -230,7 +230,11 @@ python 'C:\RIFT MODDING\RiftReader\scripts\chromalink_world_state_reference.py' 
 When the world-state player position is fresh and same-target metadata is
 available, the helper emits `rift-api-reference-currentpid-*.json` for direct
 planner use. When world-state is stale/unhealthy, it writes only the raw
-world-state and summary/blockers; it does not create a planner reference.
+world-state, a copied source snapshot when available, and summary/blockers; it
+does not create a planner reference. The blocked summary includes source
+snapshot diagnostics (`acceptedFrames`, aggregate freshness, per-frame ages) so
+stale ChromaLink/player-position causes can be inspected without touching x64dbg
+or the RIFT input path.
 
 For the safest pre-approval packet, use `--strict-live-debugger-readiness`. It
 requires preflight, API-coordinate, and candidate artifacts; it also turns on

@@ -47,6 +47,7 @@ class ChromaLinkWorldStateReferenceTests(unittest.TestCase):
         self,
         path: Path,
         *,
+        snapshot_path: Path | None = None,
         fresh: bool = True,
         stale: bool = False,
         healthy: bool = True,
@@ -81,6 +82,44 @@ class ChromaLinkWorldStateReferenceTests(unittest.TestCase):
                             "stale": player_stale,
                         }
                     },
+                    "snapshotPath": str(snapshot_path) if snapshot_path is not None else None,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def write_source_snapshot(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "artifactKind": "live-telemetry",
+                    "generatedAtUtc": "2026-05-13T01:05:31Z",
+                    "aggregate": {
+                        "acceptedFrames": 42,
+                        "ready": True,
+                        "healthy": True,
+                        "stale": False,
+                        "lastUpdatedUtc": "2026-05-13T01:05:30Z",
+                        "freshness": {
+                            "windowMs": 5000,
+                            "freshFrameCount": 2,
+                            "staleFrameCount": 0,
+                            "newestFrameAgeMs": 100.0,
+                        },
+                        "playerPosition": {
+                            "observedAtUtc": "2026-05-13T01:05:30Z",
+                            "ageMs": 100.0,
+                            "fresh": True,
+                            "stale": False,
+                            "frameType": "PlayerPosition",
+                            "sequence": 17,
+                            "reservedFlags": 2,
+                            "x": 7455.6,
+                            "y": 876.25,
+                            "z": 3053.75,
+                        },
+                    },
                 }
             ),
             encoding="utf-8",
@@ -98,6 +137,7 @@ class ChromaLinkWorldStateReferenceTests(unittest.TestCase):
             self.assertFalse(summary["safety"]["movementSent"])
             self.assertFalse(summary["safety"]["x64dbgLiveAttachStarted"])
             self.assertFalse(summary["safety"]["processAttachOrMemoryReadStarted"])
+            self.assertEqual(summary["diagnostics"]["snapshotReadStatus"], "not-present")
             reference_path = Path(summary["artifacts"]["referenceJson"])
             self.assertTrue(reference_path.is_file())
             reference = json.loads(reference_path.read_text(encoding="utf-8"))
@@ -119,7 +159,9 @@ class ChromaLinkWorldStateReferenceTests(unittest.TestCase):
             )
             self.write_preflight_summary(preflight, generated_at="2026-05-13T02:00:00Z")
             world_state = temp_path / "world-state.json"
-            self.write_world_state(world_state)
+            source_snapshot = temp_path / "chromalink-live-telemetry.json"
+            self.write_source_snapshot(source_snapshot)
+            self.write_world_state(world_state, snapshot_path=source_snapshot)
             out = temp_path / "capture"
             with redirect_stdout(StringIO()):
                 code = main(
@@ -141,6 +183,10 @@ class ChromaLinkWorldStateReferenceTests(unittest.TestCase):
             self.assertEqual(summary["preflight"]["resolvedFromAlias"], "latest")
             self.assertEqual(summary["target"]["pid"], 79184)
             self.assertEqual(summary["target"]["hwnd"], "0xA90BFC")
+            self.assertEqual(summary["diagnostics"]["snapshotReadStatus"], "read")
+            self.assertEqual(summary["diagnostics"]["aggregateAcceptedFrames"], 42)
+            self.assertEqual(summary["diagnostics"]["frames"][0]["name"], "playerPosition")
+            self.assertTrue(Path(summary["artifacts"]["sourceSnapshotJson"]).is_file())
             reference_path = Path(summary["artifacts"]["referenceJson"])
             self.assertTrue(reference_path.name.startswith("rift-api-reference-currentpid-79184-"))
             reference = json.loads(reference_path.read_text(encoding="utf-8"))

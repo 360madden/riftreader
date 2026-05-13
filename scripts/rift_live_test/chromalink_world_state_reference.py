@@ -373,6 +373,98 @@ def validate_world_state(document: dict[str, Any]) -> tuple[dict[str, Any], list
     return extracted, blockers, warnings
 
 
+def frame_summary(name: str, frame: Any) -> dict[str, Any] | None:
+    if not isinstance(frame, dict):
+        return None
+    if get_mapping_value(frame, "observedAtUtc", "ObservedAtUtc") is None and get_mapping_value(
+        frame,
+        "frameType",
+        "FrameType",
+    ) is None:
+        return None
+    summary: dict[str, Any] = {
+        "name": name,
+        "frameType": get_mapping_value(frame, "frameType", "FrameType"),
+        "observedAtUtc": get_mapping_value(frame, "observedAtUtc", "ObservedAtUtc"),
+        "ageMs": get_mapping_value(frame, "ageMs", "AgeMs"),
+        "fresh": get_mapping_value(frame, "fresh", "Fresh"),
+        "stale": get_mapping_value(frame, "stale", "Stale"),
+        "sequence": get_mapping_value(frame, "sequence", "Sequence"),
+        "reservedFlags": get_mapping_value(frame, "reservedFlags", "ReservedFlags"),
+    }
+    for axis in ("x", "y", "z"):
+        value = get_mapping_value(frame, axis, axis.upper())
+        if value is not None:
+            summary[axis] = value
+    return summary
+
+
+def build_snapshot_diagnostics(world_state_document: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any] | None, list[str]]:
+    warnings: list[str] = []
+    diagnostics: dict[str, Any] = {
+        "snapshotPath": None,
+        "snapshotReadStatus": "not-present",
+        "snapshotGeneratedAtUtc": None,
+        "aggregateLastUpdatedUtc": None,
+        "aggregateAcceptedFrames": None,
+        "aggregateReady": None,
+        "aggregateHealthy": None,
+        "aggregateStale": None,
+        "aggregateFreshness": None,
+        "frames": [],
+    }
+    if world_state_document is None:
+        return diagnostics, None, warnings
+
+    snapshot_path_value = get_mapping_value(world_state_document, "snapshotPath", "SnapshotPath", "sourceSnapshotPath")
+    if not snapshot_path_value:
+        return diagnostics, None, warnings
+    diagnostics["snapshotPath"] = str(snapshot_path_value)
+
+    snapshot_path = Path(str(snapshot_path_value))
+    if not snapshot_path.is_file():
+        diagnostics["snapshotReadStatus"] = "missing"
+        warnings.append(f"source-snapshot-missing:{snapshot_path}")
+        return diagnostics, None, warnings
+
+    try:
+        snapshot_document = read_json_file(snapshot_path)
+    except Exception as exc:
+        diagnostics["snapshotReadStatus"] = "read-failed"
+        warnings.append(f"source-snapshot-read-failed:{type(exc).__name__}:{exc}")
+        return diagnostics, None, warnings
+    if not isinstance(snapshot_document, dict):
+        diagnostics["snapshotReadStatus"] = "non-object"
+        warnings.append("source-snapshot-must-be-json-object")
+        return diagnostics, None, warnings
+
+    aggregate = get_mapping_value(snapshot_document, "aggregate", "Aggregate")
+    if not isinstance(aggregate, dict):
+        diagnostics["snapshotReadStatus"] = "missing-aggregate"
+        warnings.append("source-snapshot-missing-aggregate")
+        return diagnostics, snapshot_document, warnings
+
+    frames = [
+        summary
+        for key, value in aggregate.items()
+        if (summary := frame_summary(str(key), value)) is not None
+    ]
+    diagnostics.update(
+        {
+            "snapshotReadStatus": "read",
+            "snapshotGeneratedAtUtc": get_mapping_value(snapshot_document, "generatedAtUtc", "GeneratedAtUtc"),
+            "aggregateLastUpdatedUtc": get_mapping_value(aggregate, "lastUpdatedUtc", "LastUpdatedUtc"),
+            "aggregateAcceptedFrames": get_mapping_value(aggregate, "acceptedFrames", "AcceptedFrames"),
+            "aggregateReady": get_mapping_value(aggregate, "ready", "Ready"),
+            "aggregateHealthy": get_mapping_value(aggregate, "healthy", "Healthy"),
+            "aggregateStale": get_mapping_value(aggregate, "stale", "Stale"),
+            "aggregateFreshness": get_mapping_value(aggregate, "freshness", "Freshness"),
+            "frames": frames,
+        }
+    )
+    return diagnostics, snapshot_document, warnings
+
+
 def build_reference_document(
     *,
     args: argparse.Namespace,
@@ -425,18 +517,36 @@ def markdown_summary(summary: dict[str, Any]) -> str:
     artifacts = summary.get("artifacts") or {}
     target = summary.get("target") or {}
     coordinate = summary.get("coordinate") or {}
+    diagnostics = summary.get("diagnostics") or {}
+    freshness = diagnostics.get("aggregateFreshness") if isinstance(diagnostics.get("aggregateFreshness"), dict) else {}
     lines = [
         "# ChromaLink world-state coordinate reference",
         "",
         f"- Status: `{summary.get('status')}`",
         f"- Generated: `{summary.get('generatedAtUtc')}`",
         f"- World-state JSON: `{artifacts.get('worldStateJson')}`",
+        f"- Source snapshot JSON: `{artifacts.get('sourceSnapshotJson')}`",
         f"- Reference JSON: `{artifacts.get('referenceJson')}`",
         f"- Target: PID `{target.get('pid')}`, HWND `{target.get('hwnd')}`, process `{target.get('processName')}`",
         (
             "- Coordinate: "
             f"`X={coordinate.get('x')}`, `Y={coordinate.get('y')}`, `Z={coordinate.get('z')}` "
             f"at `{coordinate.get('observedAtUtc')}`"
+        ),
+        "",
+        "## Source snapshot diagnostics",
+        "",
+        f"- Snapshot path: `{diagnostics.get('snapshotPath')}`",
+        f"- Snapshot read status: `{diagnostics.get('snapshotReadStatus')}`",
+        f"- Snapshot generated: `{diagnostics.get('snapshotGeneratedAtUtc')}`",
+        f"- Aggregate last updated: `{diagnostics.get('aggregateLastUpdatedUtc')}`",
+        f"- Aggregate accepted frames: `{diagnostics.get('aggregateAcceptedFrames')}`",
+        f"- Aggregate healthy/stale: `{diagnostics.get('aggregateHealthy')}` / `{diagnostics.get('aggregateStale')}`",
+        (
+            "- Freshness: "
+            f"fresh frames `{freshness.get('freshFrameCount')}`, "
+            f"stale frames `{freshness.get('staleFrameCount')}`, "
+            f"newest age ms `{freshness.get('newestFrameAgeMs')}`"
         ),
         "",
         "## Safety",
@@ -446,6 +556,24 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         "- No process memory bytes read or written.",
         "- SavedVariables are not used as live truth.",
     ]
+    frames = diagnostics.get("frames") if isinstance(diagnostics.get("frames"), list) else []
+    if frames:
+        lines.extend(
+            [
+                "",
+                "## Source frame freshness",
+                "",
+                "| Frame | Type | Fresh | Stale | Age ms | Observed UTC | Sequence |",
+                "|---|---|---|---|---:|---|---:|",
+            ]
+        )
+        for frame in frames:
+            lines.append(
+                f"| `{frame.get('name')}` | `{frame.get('frameType')}` | "
+                f"`{frame.get('fresh')}` | `{frame.get('stale')}` | "
+                f"`{frame.get('ageMs')}` | `{frame.get('observedAtUtc')}` | "
+                f"`{frame.get('sequence')}` |"
+            )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{blocker}`" for blocker in summary["blockers"])
@@ -478,6 +606,8 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         extracted, validation_blockers, validation_warnings = validate_world_state(world_state_document)
         blockers.extend(validation_blockers)
         warnings.extend(validation_warnings)
+    diagnostics, source_snapshot_document, diagnostic_warnings = build_snapshot_diagnostics(world_state_document)
+    warnings.extend(diagnostic_warnings)
 
     if args.target_pid is None:
         blockers.append("missing-target-pid")
@@ -492,6 +622,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
     )
     summary_json = output_root / "summary.json"
     summary_md = output_root / "summary.md"
+    source_snapshot_json = output_root / "source-snapshot.json"
     status = "passed" if not blockers else "blocked"
 
     reference_document = None
@@ -543,10 +674,12 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
             "fresh": extracted.get("fresh"),
             "stale": extracted.get("stale"),
         },
+        "diagnostics": diagnostics,
         "artifacts": {
             "summaryJson": str(summary_json),
             "summaryMarkdown": str(summary_md),
             "worldStateJson": str(world_state_json),
+            "sourceSnapshotJson": str(source_snapshot_json) if source_snapshot_document is not None else None,
             "referenceJson": str(reference_json) if reference_document is not None else None,
         },
         "blockers": blockers,
@@ -563,6 +696,8 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
     output_root.mkdir(parents=True, exist_ok=True)
     if world_state_document is not None:
         write_json(world_state_json, world_state_document)
+    if source_snapshot_document is not None:
+        write_json(source_snapshot_json, source_snapshot_document)
     if reference_document is not None and reference_json is not None:
         write_json(reference_json, reference_document)
     write_json(summary_json, summary)
@@ -610,6 +745,7 @@ def main(argv: list[str] | None = None) -> int:
                     "summaryJson": summary["artifacts"]["summaryJson"],
                     "summaryMarkdown": summary["artifacts"]["summaryMarkdown"],
                     "worldStateJson": summary["artifacts"]["worldStateJson"],
+                    "sourceSnapshotJson": summary["artifacts"]["sourceSnapshotJson"],
                     "referenceJson": summary["artifacts"]["referenceJson"],
                     "blockers": summary["blockers"],
                     "warnings": summary["warnings"],
@@ -621,6 +757,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"status={summary['status']}")
         print(f"summaryJson={summary['artifacts']['summaryJson']}")
         print(f"worldStateJson={summary['artifacts']['worldStateJson']}")
+        print(f"sourceSnapshotJson={summary['artifacts']['sourceSnapshotJson']}")
         print(f"referenceJson={summary['artifacts']['referenceJson']}")
         if summary["blockers"]:
             print("blockers:")
