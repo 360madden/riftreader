@@ -160,6 +160,108 @@ def validate_planner(planner: dict[str, Any], blockers: list[str], warnings: lis
         warnings.append("planner-missing-initial-truth-surface")
 
 
+def candidate_artifact_path(planner: dict[str, Any]) -> Path | None:
+    candidate = planner.get("candidate") if isinstance(planner.get("candidate"), dict) else {}
+    candidate_file = planner.get("candidateFile") if isinstance(planner.get("candidateFile"), dict) else {}
+    path_text = candidate.get("artifactPath") or candidate_file.get("path")
+    if not path_text:
+        return None
+    return Path(str(path_text))
+
+
+def matching_address_ranking(document: dict[str, Any], address: str | None) -> dict[str, Any] | None:
+    rankings = document.get("addressRankings")
+    if not isinstance(rankings, list):
+        return None
+    for ranking in rankings:
+        if not isinstance(ranking, dict):
+            continue
+        if str(ranking.get("addressHex") or "").lower() == str(address or "").lower():
+            return ranking
+    return rankings[0] if rankings and isinstance(rankings[0], dict) else None
+
+
+def summarize_ranking_evidence(document: dict[str, Any], *, candidate_address: str | None, path: Path) -> dict[str, Any]:
+    ranking = matching_address_ranking(document, candidate_address)
+    top_family = document.get("topFamily") if isinstance(document.get("topFamily"), dict) else {}
+    pose_groups = document.get("poseGroups") if isinstance(document.get("poseGroups"), list) else []
+    return {
+        "kind": "coordinate-family-ranking",
+        "path": str(path),
+        "status": document.get("status"),
+        "generatedAtUtc": document.get("generatedAtUtc"),
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "candidateFileCount": document.get("candidateFileCount"),
+        "acceptedCandidateFileCount": document.get("acceptedCandidateFileCount"),
+        "observationCount": document.get("observationCount"),
+        "observationPoseCount": document.get("observationPoseCount"),
+        "poseGroupCount": len(pose_groups),
+        "topFamilyBaseHex": top_family.get("familyBaseHex"),
+        "selectedAddress": {
+            "addressHex": ranking.get("addressHex") if ranking else candidate_address,
+            "familyBaseHex": ranking.get("familyBaseHex") if ranking else None,
+            "offsetHex": ranking.get("offsetHex") if ranking else None,
+            "supportPoseCount": ranking.get("supportPoseCount") if ranking else None,
+            "avgBestMaxAbsDistance": ranking.get("avgBestMaxAbsDistance") if ranking else None,
+            "maxBestMaxAbsDistance": ranking.get("maxBestMaxAbsDistance") if ranking else None,
+            "promotionBlockers": ranking.get("promotionBlockers") if ranking else [],
+        },
+        "poseGroups": [
+            {
+                "poseKey": group.get("poseKey") if isinstance(group, dict) else None,
+                "reference": group.get("reference") if isinstance(group, dict) else None,
+                "sourceFileCount": len(group.get("sourceFiles") or []) if isinstance(group, dict) else 0,
+                "observationCount": group.get("observationCount") if isinstance(group, dict) else None,
+            }
+            for group in pose_groups[:10]
+        ],
+    }
+
+
+def summarize_scan_evidence(document: dict[str, Any], *, path: Path) -> dict[str, Any]:
+    return {
+        "kind": "api-family-vec3-candidates",
+        "path": str(path),
+        "generatedAtUtc": document.get("generatedAtUtc"),
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "candidateCount": document.get("candidateCount"),
+        "processId": document.get("processId"),
+        "targetWindowHandle": document.get("targetWindowHandle"),
+        "reference": document.get("reference") if isinstance(document.get("reference"), dict) else None,
+        "note": "Raw scan evidence only; prefer coordinate-family-ranking artifacts when available.",
+    }
+
+
+def load_candidate_evidence(planner: dict[str, Any], warnings: list[str]) -> dict[str, Any] | None:
+    path = candidate_artifact_path(planner)
+    if path is None:
+        warnings.append("candidate-evidence-artifact-missing")
+        return None
+    try:
+        document = read_json_file(path)
+    except Exception as exc:
+        warnings.append(f"candidate-evidence-read-failed:{path}:{type(exc).__name__}:{exc}")
+        return None
+    if not isinstance(document, dict):
+        warnings.append(f"candidate-evidence-not-json-object:{path}")
+        return None
+    mode = document.get("mode") or document.get("kind")
+    candidate = planner.get("candidate") if isinstance(planner.get("candidate"), dict) else {}
+    if mode == "riftreader-coordinate-family-pose-ranking":
+        return summarize_ranking_evidence(document, candidate_address=candidate.get("address"), path=path)
+    if mode == "riftreader-api-family-vec3-candidates" or "candidates" in document:
+        return summarize_scan_evidence(document, path=path)
+    warnings.append(f"candidate-evidence-unsupported-kind:{path}:{mode}")
+    return {
+        "kind": str(mode or "unknown"),
+        "path": str(path),
+        "candidateOnly": True,
+        "promotionEligible": False,
+    }
+
+
 def event_shell(*, index: int, candidate_address: str | None, module_base: str | None) -> dict[str, Any]:
     event_id = f"pose-{index:03d}-hit-001"
     return {
@@ -198,7 +300,7 @@ def event_shell(*, index: int, candidate_address: str | None, module_base: str |
     }
 
 
-def build_template(planner: dict[str, Any], pose_count: int | None) -> dict[str, Any]:
+def build_template(planner: dict[str, Any], pose_count: int | None, candidate_evidence: dict[str, Any] | None) -> dict[str, Any]:
     process = process_from_planner(planner)
     candidate = planner.get("candidate") if isinstance(planner.get("candidate"), dict) else {}
     truth_surface = planner.get("truthSurface") if isinstance(planner.get("truthSurface"), dict) else {}
@@ -220,6 +322,7 @@ def build_template(planner: dict[str, Any], pose_count: int | None) -> dict[str,
         },
         "process": process,
         "initialTruthSurface": truth_surface,
+        "candidateEvidence": candidate_evidence,
         "watchWindow": {
             "baseAddress": candidate_address,
             "sizeBytes": candidate.get("watchSizeBytes") or 12,
@@ -250,6 +353,7 @@ def build_template(planner: dict[str, Any], pose_count: int | None) -> dict[str,
             "Keep each truthSurface.sampledAtUtc within the ingester max-api-hit-skew-seconds window of its hitAtUtc.",
             "Keep access as read unless a write access was intentionally approved and captured; write access remains candidate-only.",
             "After filling, run scripts/x64dbg_access_event_ingest.py --events-json <this file> --json.",
+            "Do not promote this candidate from template evidence alone; promotion still requires ingested access events, static/restart validation, runtime readback, and ProofOnly.",
         ],
     }
 
@@ -266,6 +370,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- Template JSON: `{artifacts.get('templateJson')}`",
         f"- Event shells: `{summary.get('eventCount')}`",
         f"- Candidate: `{template.get('watchWindow', {}).get('baseAddress')}`",
+        f"- Candidate evidence: `{(template.get('candidateEvidence') or {}).get('kind')}`",
         f"- Movement sent: `{str(summary.get('safety', {}).get('movementSent')).lower()}`",
         f"- x64dbg live attach started: `{str(summary.get('safety', {}).get('x64dbgLiveAttachStarted')).lower()}`",
         f"- x64dbg commands executed: `{str(summary.get('safety', {}).get('x64dbgCommandsExecuted')).lower()}`",
@@ -276,6 +381,22 @@ def markdown_summary(summary: dict[str, Any]) -> str:
     if summary.get("warnings"):
         lines.extend(["", "## Warnings"])
         lines.extend(f"- `{warning}`" for warning in summary["warnings"])
+    evidence = template.get("candidateEvidence") if isinstance(template, dict) else None
+    if isinstance(evidence, dict):
+        selected = evidence.get("selectedAddress") if isinstance(evidence.get("selectedAddress"), dict) else {}
+        lines.extend(
+            [
+                "",
+                "## Candidate evidence",
+                "",
+                f"- Kind: `{evidence.get('kind')}`",
+                f"- Evidence path: `{evidence.get('path')}`",
+                f"- Selected address: `{selected.get('addressHex')}`",
+                f"- Pose support: `{selected.get('supportPoseCount')}`",
+                f"- Candidate-only: `{str(evidence.get('candidateOnly')).lower()}`",
+                f"- Promotion eligible: `{str(evidence.get('promotionEligible')).lower()}`",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -297,7 +418,8 @@ def build_summary(
     blockers: list[str],
     warnings: list[str],
 ) -> dict[str, Any]:
-    template = build_template(planner, args.pose_count) if planner and not blockers else None
+    candidate_evidence = load_candidate_evidence(planner, warnings) if planner and not blockers else None
+    template = build_template(planner, args.pose_count, candidate_evidence) if planner and not blockers else None
     summary_json = run_dir / "summary.json"
     summary_md = run_dir / "summary.md"
     template_json = run_dir / "x64dbg-manual-access-events-template.json"
@@ -316,6 +438,7 @@ def build_summary(
             "readiness": (planner.get("readiness") or {}).get("status") if isinstance(planner, dict) else None,
         },
         "eventCount": len(template.get("events") or []) if template else 0,
+        "candidateEvidence": candidate_evidence,
         "template": template,
         "blockers": blockers,
         "warnings": warnings,
