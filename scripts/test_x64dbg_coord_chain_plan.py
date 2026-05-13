@@ -660,6 +660,119 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["truthSurface"]["sampledAtUtc"], "2026-05-13T01:05:00Z")
             self.assertEqual(summary["apiCoordinateFile"]["referenceFile"], "C:\\captures\\reference.json")
 
+    def test_api_coordinate_file_accepts_chromalink_world_state_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            world_state = temp_path / "chromalink-world-state.json"
+            self.write_preflight_summary(preflight)
+            world_state.write_text(
+                json.dumps(
+                    {
+                        "artifactKind": "riftreader-world-state",
+                        "contract": {
+                            "name": "chromalink-riftreader-world-state",
+                            "schemaVersion": 1,
+                        },
+                        "ready": True,
+                        "healthy": True,
+                        "fresh": True,
+                        "stale": False,
+                        "navigation": {
+                            "playerPositionAvailable": True,
+                        },
+                        "player": {
+                            "position": {
+                                "x": 7455.6,
+                                "y": 876.25,
+                                "z": 3053.75,
+                                "observedAtUtc": "2026-05-13T01:05:30Z",
+                                "fresh": True,
+                                "stale": False,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(world_state),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["truthSurface"]["source"], "chromalink-riftreader-world-state")
+            self.assertEqual(summary["truthSurface"]["x"], 7455.6)
+            self.assertEqual(summary["truthSurface"]["sampledAtUtc"], "2026-05-13T01:05:30Z")
+            self.assertEqual(summary["readiness"]["status"], "ready-for-current-turn-approval")
+
+    def test_api_coordinate_file_blocks_stale_chromalink_world_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            world_state = temp_path / "chromalink-world-state.json"
+            world_state.write_text(
+                json.dumps(
+                    {
+                        "artifactKind": "riftreader-world-state",
+                        "contract": {
+                            "name": "chromalink-riftreader-world-state",
+                            "schemaVersion": 1,
+                        },
+                        "ready": True,
+                        "healthy": True,
+                        "fresh": True,
+                        "stale": False,
+                        "navigation": {
+                            "playerPositionAvailable": False,
+                        },
+                        "player": {
+                            "position": {
+                                "x": 7455.6,
+                                "y": 876.25,
+                                "z": 3053.75,
+                                "observedAtUtc": "2026-05-13T01:05:30Z",
+                                "fresh": False,
+                                "stale": True,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--api-coordinate-file",
+                        str(world_state),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("api-coordinate-file-not-fresh", summary["blockers"])
+            self.assertIn("api-coordinate-file-stale", summary["blockers"])
+            self.assertIn("api-coordinate-file-navigation-player-position-unavailable", summary["blockers"])
+
     def test_api_coordinate_file_target_mismatch_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

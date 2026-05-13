@@ -77,6 +77,24 @@ def get_mapping_value(document: dict[str, Any], *names: str) -> Any:
     return None
 
 
+def get_nested_mapping_value(document: dict[str, Any], *path: str) -> Any:
+    current: Any = document
+    for segment in path:
+        if not isinstance(current, dict):
+            return None
+        current = get_mapping_value(current, segment)
+        if current is None:
+            return None
+    return current
+
+
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def to_float_or_none(value: Any) -> float | None:
     if value is None:
         return None
@@ -114,13 +132,30 @@ def floats_match(left: float | None, right: float | None) -> bool:
 
 def extract_coordinate_mapping(document: dict[str, Any]) -> dict[str, Any] | None:
     coordinate = get_mapping_value(document, "coordinate", "Coordinate")
-    return coordinate if isinstance(coordinate, dict) else None
+    if isinstance(coordinate, dict):
+        return coordinate
+    player_position = get_nested_mapping_value(document, "player", "position")
+    if isinstance(player_position, dict):
+        return player_position
+    truth_player_position = get_nested_mapping_value(document, "truthSurface", "player", "position")
+    if isinstance(truth_player_position, dict):
+        return truth_player_position
+    if all(get_mapping_value(document, axis) is not None for axis in ("x", "y", "z")):
+        return document
+    return None
 
 
 def extract_api_coordinate_document(document: dict[str, Any]) -> dict[str, Any]:
     coordinate = extract_coordinate_mapping(document) or {}
+    contract = get_mapping_value(document, "contract", "Contract")
+    source = (
+        get_mapping_value(document, "source", "Source", "Mode", "sourceView", "SourceView")
+        or (get_mapping_value(contract, "name", "Name") if isinstance(contract, dict) else None)
+        or get_mapping_value(document, "artifactKind", "ArtifactKind")
+        or "api-coordinate-file"
+    )
     return {
-        "source": get_mapping_value(document, "source", "Source", "Mode") or "api-coordinate-file",
+        "source": source,
         "status": get_mapping_value(document, "status", "Status"),
         "referenceFile": get_mapping_value(document, "referenceFile", "ReferenceFile"),
         "sampledAtUtc": get_mapping_value(
@@ -129,11 +164,39 @@ def extract_api_coordinate_document(document: dict[str, Any]) -> dict[str, Any]:
             "CapturedAtUtc",
             "sampledAtUtc",
             "SampledAtUtc",
+            "observedAtUtc",
+            "ObservedAtUtc",
         )
-        or get_mapping_value(document, "captured_at_utc", "CapturedAtUtc", "generatedAtUtc", "GeneratedAtUtc"),
+        or get_mapping_value(
+            document,
+            "captured_at_utc",
+            "CapturedAtUtc",
+            "sampledAtUtc",
+            "SampledAtUtc",
+            "observedAtUtc",
+            "ObservedAtUtc",
+            "generatedAtUtc",
+            "GeneratedAtUtc",
+        ),
         "x": to_float_or_none(get_mapping_value(coordinate, "x", "X")),
         "y": to_float_or_none(get_mapping_value(coordinate, "y", "Y")),
         "z": to_float_or_none(get_mapping_value(coordinate, "z", "Z")),
+        "fresh": first_present(
+            get_mapping_value(coordinate, "fresh", "Fresh"),
+            get_mapping_value(document, "fresh", "Fresh"),
+        ),
+        "stale": first_present(
+            get_mapping_value(coordinate, "stale", "Stale"),
+            get_mapping_value(document, "stale", "Stale"),
+        ),
+        "ready": get_mapping_value(document, "ready", "Ready", "aggregateReady", "AggregateReady"),
+        "healthy": get_mapping_value(document, "healthy", "Healthy", "aggregateHealthy", "AggregateHealthy"),
+        "aggregateStale": get_mapping_value(document, "aggregateStale", "AggregateStale"),
+        "navigationPlayerPositionAvailable": get_nested_mapping_value(
+            document,
+            "navigation",
+            "playerPositionAvailable",
+        ),
         "processName": get_mapping_value(document, "processName", "ProcessName"),
         "processId": to_int_or_none(get_mapping_value(document, "processId", "ProcessId")),
         "targetWindowHandle": get_mapping_value(document, "targetWindowHandle", "TargetWindowHandle"),
@@ -288,6 +351,20 @@ def resolve_preflight_summary_argument(args: argparse.Namespace, repo_root: Path
 def api_coordinate_file_is_usable(extracted: dict[str, Any]) -> bool:
     status = extracted.get("status")
     if status is not None and str(status).lower() not in {"captured", "pass", "passed", "ok"}:
+        return False
+    if extracted.get("fresh") is not None and not bool_is_true(extracted.get("fresh")):
+        return False
+    if bool_is_true(extracted.get("stale")):
+        return False
+    if extracted.get("ready") is not None and not bool_is_true(extracted.get("ready")):
+        return False
+    if extracted.get("healthy") is not None and not bool_is_true(extracted.get("healthy")):
+        return False
+    if bool_is_true(extracted.get("aggregateStale")):
+        return False
+    if extracted.get("navigationPlayerPositionAvailable") is not None and not bool_is_true(
+        extracted.get("navigationPlayerPositionAvailable")
+    ):
         return False
     if extracted.get("noCheatEngine") is not None and not bool_is_true(extracted.get("noCheatEngine")):
         return False
@@ -479,6 +556,21 @@ def apply_api_coordinate_file(args: argparse.Namespace) -> None:
     status = extracted.get("status")
     if status is not None and str(status).lower() not in {"captured", "pass", "passed", "ok"}:
         args.api_coordinate_file_blockers.append(f"api-coordinate-file-status-not-usable:{status}")
+
+    if extracted.get("fresh") is not None and not bool_is_true(extracted.get("fresh")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-not-fresh")
+    if bool_is_true(extracted.get("stale")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-stale")
+    if extracted.get("ready") is not None and not bool_is_true(extracted.get("ready")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-not-ready")
+    if extracted.get("healthy") is not None and not bool_is_true(extracted.get("healthy")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-not-healthy")
+    if bool_is_true(extracted.get("aggregateStale")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-aggregate-stale")
+    if extracted.get("navigationPlayerPositionAvailable") is not None and not bool_is_true(
+        extracted.get("navigationPlayerPositionAvailable")
+    ):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-navigation-player-position-unavailable")
 
     if extracted.get("noCheatEngine") is not None and not bool_is_true(extracted.get("noCheatEngine")):
         args.api_coordinate_file_blockers.append("api-coordinate-file-cheat-engine-not-excluded")

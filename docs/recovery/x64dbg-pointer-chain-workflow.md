@@ -214,6 +214,11 @@ For live-debugger prep, add explicit staleness gates when practical:
 but fail closed when supplied, blocking old preflight/API artifacts even if
 PID/HWND still match.
 
+`--api-coordinate-file` accepts the repo's `rift-api-reference-currentpid-*.json`
+shape and fresh ChromaLink `/api/v1/riftreader/world-state` JSON containing
+`player.position.x/y/z`. ChromaLink world-state input is blocked if the player
+position is stale, not fresh, or `navigation.playerPositionAvailable` is false.
+
 For the safest pre-approval packet, use `--strict-live-debugger-readiness`. It
 requires preflight, API-coordinate, and candidate artifacts; it also turns on
 default artifact age gates when explicit age values were not provided. This flag
