@@ -179,6 +179,12 @@ metadata only. For live-debugger readiness, rerun it with
 ambiguous, the process epoch/module base drifted, or x64dbg / Cheat Engine is
 already open.
 
+The static-chain planner can consume that packet with
+`--preflight-summary <summary.json>`. Inside the current repo workspace,
+`--preflight-summary latest` is also supported as a convenience alias for the
+newest passed `scripts\captures\x64dbg-target-preflight-*\summary.json`; use the
+exact resolved path from the output summary for handoffs/audits.
+
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
 The PID `63412` coordinate candidate `0x20005B30800` and owner

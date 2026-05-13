@@ -21,6 +21,8 @@ SCHEMA_VERSION = 1
 DEFAULT_PROCESS_NAME = "rift_x64"
 DEFAULT_WATCH_SIZE = 12
 DEFAULT_POSE_COUNT = 3
+PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
+PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
 
 
 def utc_iso() -> str:
@@ -52,10 +54,85 @@ def read_json_file(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def is_latest_preflight_alias(value: Path | None) -> bool:
+    return value is not None and str(value).strip().lower() == PREFLIGHT_SUMMARY_LATEST_ALIAS
+
+
+def parse_utc_sort_time(value: Any, fallback_path: Path) -> datetime:
+    if isinstance(value, str) and value.strip():
+        text = value.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC)
+        except ValueError:
+            pass
+    try:
+        return datetime.fromtimestamp(fallback_path.stat().st_mtime, UTC)
+    except OSError:
+        return datetime.min.replace(tzinfo=UTC)
+
+
+def find_latest_passed_preflight_summary(repo_root: Path) -> tuple[Path | None, list[str], list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    capture_root = repo_root / "scripts" / "captures"
+    candidates: list[tuple[datetime, float, str, Path]] = []
+
+    for path in capture_root.glob("x64dbg-target-preflight-*/summary.json"):
+        try:
+            document = read_json_file(path)
+        except Exception as exc:
+            warnings.append(f"preflight-summary-latest-skip-read-failed:{path}:{type(exc).__name__}")
+            continue
+        if not isinstance(document, dict):
+            warnings.append(f"preflight-summary-latest-skip-non-object:{path}")
+            continue
+        if document.get("kind") != PREFLIGHT_SUMMARY_KIND:
+            warnings.append(f"preflight-summary-latest-skip-kind:{path}")
+            continue
+        if document.get("status") != "passed":
+            continue
+        if not isinstance(document.get("selectedTarget"), dict):
+            warnings.append(f"preflight-summary-latest-skip-missing-selected-target:{path}")
+            continue
+        generated_at = parse_utc_sort_time(document.get("generatedAtUtc"), path)
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        candidates.append((generated_at, mtime, str(path), path))
+
+    if not candidates:
+        blockers.append(f"preflight-summary-latest-not-found:{capture_root / 'x64dbg-target-preflight-*/summary.json'}")
+        return None, blockers, warnings
+
+    candidates.sort()
+    return candidates[-1][3], blockers, warnings
+
+
+def resolve_preflight_summary_argument(args: argparse.Namespace, repo_root: Path) -> None:
+    args.preflight_summary_requested = str(args.preflight_summary) if args.preflight_summary else None
+    args.preflight_summary_resolved_from_alias = None
+    args.preflight_summary_resolution_blockers = []
+    args.preflight_summary_resolution_warnings = []
+    if not is_latest_preflight_alias(args.preflight_summary):
+        return
+
+    summary_path, blockers, warnings = find_latest_passed_preflight_summary(repo_root)
+    args.preflight_summary_resolution_blockers.extend(blockers)
+    args.preflight_summary_resolution_warnings.extend(warnings)
+    args.preflight_summary_resolved_from_alias = PREFLIGHT_SUMMARY_LATEST_ALIAS
+    args.preflight_summary = summary_path
+
+
 def apply_preflight_summary(args: argparse.Namespace) -> None:
     args.preflight_summary_data = None
-    args.preflight_summary_blockers = []
-    args.preflight_summary_warnings = []
+    args.preflight_summary_blockers = list(getattr(args, "preflight_summary_resolution_blockers", []) or [])
+    args.preflight_summary_warnings = list(getattr(args, "preflight_summary_resolution_warnings", []) or [])
     if not args.preflight_summary:
         return
 
@@ -352,6 +429,8 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "poseCountRequired": args.pose_count,
         },
         "preflight": {
+            "requestedSummary": getattr(args, "preflight_summary_requested", None),
+            "resolvedFromAlias": getattr(args, "preflight_summary_resolved_from_alias", None),
             "summaryPath": str(args.preflight_summary) if args.preflight_summary else None,
             "status": (getattr(args, "preflight_summary_data", {}) or {}).get("status")
             if getattr(args, "preflight_summary_data", None)
@@ -548,7 +627,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--process-name", default=DEFAULT_PROCESS_NAME)
-    parser.add_argument("--preflight-summary", type=Path, default=None, help="No-attach x64dbg_preflight.py summary.json to populate target PID/HWND/start metadata.")
+    parser.add_argument(
+        "--preflight-summary",
+        type=Path,
+        default=None,
+        help=(
+            "No-attach x64dbg_preflight.py summary.json to populate target PID/HWND/start metadata; "
+            "use 'latest' to select the newest passed scripts/captures/x64dbg-target-preflight-*/summary.json."
+        ),
+    )
     parser.add_argument("--target-pid", type=int, default=None)
     parser.add_argument("--target-hwnd", default=None)
     parser.add_argument("--process-start-time-utc", default=None)
@@ -580,8 +667,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.self_test:
         apply_self_test_defaults(args)
-    apply_preflight_summary(args)
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_module()
+    resolve_preflight_summary_argument(args, repo_root)
+    apply_preflight_summary(args)
     run_dir = choose_run_dir(repo_root, args.output_root)
     summary = build_plan(args, repo_root, run_dir)
     write_outputs(summary)

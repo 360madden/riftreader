@@ -11,10 +11,21 @@ from rift_live_test.x64dbg_coord_chain_plan import main
 
 
 class X64DbgCoordChainPlanTests(unittest.TestCase):
-    def write_preflight_summary(self, path: Path, *, status: str = "passed", pid: int = 79184, hwnd: str = "0xA90BFC") -> None:
+    def write_preflight_summary(
+        self,
+        path: Path,
+        *,
+        status: str = "passed",
+        pid: int = 79184,
+        hwnd: str = "0xA90BFC",
+        generated_at: str = "2026-05-13T01:00:00Z",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(
                 {
+                    "kind": "x64dbg-target-preflight",
+                    "generatedAtUtc": generated_at,
                     "status": status,
                     "selectedTarget": {
                         "processName": "rift_x64",
@@ -204,7 +215,103 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["process"]["pid"], 79184)
             self.assertEqual(summary["process"]["hwnd"], "0xA90BFC")
             self.assertEqual(summary["process"]["startTimeUtc"], "2026-05-13T00:43:12.080812Z")
+            self.assertEqual(summary["preflight"]["requestedSummary"], str(preflight))
+            self.assertIsNone(summary["preflight"]["resolvedFromAlias"])
             self.assertEqual(summary["preflight"]["summaryPath"], str(preflight))
+
+    def test_latest_preflight_summary_uses_newest_passed_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            old_preflight = temp_path / "scripts" / "captures" / "x64dbg-target-preflight-old" / "summary.json"
+            blocked_preflight = temp_path / "scripts" / "captures" / "x64dbg-target-preflight-blocked" / "summary.json"
+            latest_preflight = temp_path / "scripts" / "captures" / "x64dbg-target-preflight-new" / "summary.json"
+            self.write_preflight_summary(
+                old_preflight,
+                pid=11111,
+                hwnd="0x111",
+                generated_at="2026-05-13T01:00:00Z",
+            )
+            self.write_preflight_summary(
+                blocked_preflight,
+                status="blocked",
+                pid=22222,
+                hwnd="0x222",
+                generated_at="2026-05-13T03:00:00Z",
+            )
+            self.write_preflight_summary(
+                latest_preflight,
+                pid=33333,
+                hwnd="0x333",
+                generated_at="2026-05-13T02:00:00Z",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        "latest",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T03:30:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["process"]["pid"], 33333)
+            self.assertEqual(summary["process"]["hwnd"], "0x333")
+            self.assertEqual(summary["preflight"]["requestedSummary"], "latest")
+            self.assertEqual(summary["preflight"]["resolvedFromAlias"], "latest")
+            self.assertEqual(summary["preflight"]["summaryPath"], str(latest_preflight))
+
+    def test_latest_preflight_summary_blocks_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        "latest",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T03:30:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn(
+                f"preflight-summary-latest-not-found:{temp_path / 'scripts' / 'captures' / 'x64dbg-target-preflight-*/summary.json'}",
+                summary["blockers"],
+            )
+            self.assertEqual(summary["preflight"]["requestedSummary"], "latest")
+            self.assertEqual(summary["preflight"]["resolvedFromAlias"], "latest")
+            self.assertIsNone(summary["preflight"]["summaryPath"])
 
     def test_preflight_summary_mismatch_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

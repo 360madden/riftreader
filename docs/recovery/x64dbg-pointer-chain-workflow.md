@@ -177,7 +177,7 @@ from the current coordinate candidate and fresh API/runtime coordinate:
 
 ```powershell
 python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
-  --preflight-summary <x64dbg-target-preflight-summary.json> `
+  --preflight-summary <x64dbg-target-preflight-summary.json-or-latest> `
   --candidate-address <candidate-address> `
   --api-x <x> --api-y <y> --api-z <z> `
   --api-sampled-at-utc <api-sampled-at-utc> `
@@ -202,6 +202,12 @@ Prefer `--preflight-summary` over manually copying PID/HWND/process-start
 metadata. The planner imports the selected target from
 `scripts\x64dbg_preflight.py` output and blocks if any explicitly supplied
 target PID/HWND/start field disagrees with that preflight packet.
+
+Use `--preflight-summary latest` only as a convenience inside the current repo
+workspace. It resolves to the newest passed
+`scripts\captures\x64dbg-target-preflight-*\summary.json` artifact, ignoring
+blocked packets. For handoffs or audits, prefer the exact resolved path recorded
+in the plan summary.
 
 The planner now emits the live-attach guard as machine-readable safety metadata:
 
