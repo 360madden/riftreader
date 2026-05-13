@@ -27,7 +27,7 @@
       <article class="card"><h3>🎯 Target</h3><div class="big">PID 2928 / HWND 0xC0994</div><p>Process start <code>2026-05-13T16:17:56.208370Z</code>; module base <code>0x7FF71CD90000</code>.</p></article>
       <article class="card"><h3>🧬 Family found</h3><div class="big"><code>0x268DF200000</code></div><p>Repeatedly surfaced from snapshot delta analysis as the active coordinate-copy family.</p></article>
       <article class="card"><h3>🏆 Best focused lead</h3><div class="big"><code>0x268DF21ED30</code></div><p>Focused run tracking-error max abs <code>0.00607421875</code>.</p></article>
-      <article class="card"><h3>🔁 Latest readback</h3><div class="big">0.003337 max delta</div><p>Offset-corrected API-now vs memory-now agreement from <code>candidate-readback-currentpid-2928-20260513-184849-042270</code>.</p></article>
+      <article class="card"><h3>🔁 Latest readback</h3><div class="big">0.003708 max delta</div><p>Latest offset-corrected API-now vs memory-now agreement from <code>candidate-readback-currentpid-2928-20260513-194659-756235</code>.</p></article>
       <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / x64dbg attach blocked</div><p>Two bounded current-PID x64dbg access-capture attempts failed before attach; minimized no-debuggee automation check passed; no watchpoint hit, memory writes, provider writes, or proof promotion.</p></article>
       <article class="card"><h3>🚦 Truth status</h3><div class="big">Candidate-only</div><p>Direct values are about 5 units offset from API, so this is not direct movement truth yet.</p></article>
     </div>
@@ -70,10 +70,10 @@
   <div class="panel">
     <h2>🔁 Fresh readback proof-of-candidate</h2>
     <p class="caption">Readback is current candidate evidence only. It is not a static chain and it is not a movement/navigation proof.</p>
-    <table><caption>Latest focused readback against fresh API coordinate <code>7401.9297, 871.78, 3028.3899</code></caption><thead><tr><th>Rank</th><th>Candidate</th><th>Direct max delta</th><th>Offset-corrected max delta</th><th>Offset spread max</th><th>Classification</th></tr></thead><tbody>
-      <tr><td>1</td><td><code>0x268DF21ED30</code></td><td><code>5.004870312500316</code></td><td><code>0.0033371093750247383</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
-      <tr><td>2</td><td><code>0x268DF21ED20</code></td><td><code>5.004646093750125</code></td><td><code>0.0033371093750247383</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
-      <tr><td>3</td><td><code>0x268DF21E6F0</code></td><td><code>7.310637207031277</code></td><td><code>0.0033371093750247383</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
+    <table><caption>Latest post-attach-diagnostic readback against fresh API coordinate <code>7401.9897, 871.78, 3028.3899</code></caption><thead><tr><th>Rank</th><th>Candidate</th><th>Direct max delta</th><th>Offset-corrected max delta</th><th>Offset spread max</th><th>Classification</th></tr></thead><tbody>
+      <tr><td>1</td><td><code>0x268DF21ED30</code></td><td><code>5.002714843750027</code></td><td><code>0.0037083984370838152</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
+      <tr><td>2</td><td><code>0x268DF21ED20</code></td><td><code>5.001418750000084</code></td><td><code>0.0037083984370838152</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
+      <tr><td>3</td><td><code>0x268DF21E6F0</code></td><td><code>7.113676757812527</code></td><td><code>0.19696044921875</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
     </tbody></table>
     <div class="callout"><strong>Interpretation:</strong> The memory values are not direct API coordinates. They are stable transformed/offset copies that track API movement. This makes the family valuable for x64dbg/static-chain follow-up, but not safe for proof-pointer promotion by itself.</div>
   </div>
@@ -102,6 +102,7 @@
       <tr><td>Broad readback</td><td><code>scripts/captures/candidate-readback-currentpid-2928-20260513-184751-502648/candidate-readback-summary.json</code></td><td>Fresh API-now vs memory-now readback of broad candidates.</td></tr>
       <tr><td>Focused snapshot run</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-2928-20260513-184837-252853/summary.json</code></td><td>Focused re-snapshot around <code>0x268DF21ED20</code>.</td></tr>
       <tr><td>Focused readback</td><td><code>scripts/captures/candidate-readback-currentpid-2928-20260513-184849-042270/candidate-readback-summary.json</code></td><td>Best current candidate readback: <code>0x268DF21ED30</code>.</td></tr>
+      <tr><td>Latest readback</td><td><code>scripts/captures/candidate-readback-currentpid-2928-20260513-194659-756235/candidate-readback-summary.json</code></td><td>Post-attach-diagnostic fresh readback; all 3 candidates still offset-corrected current-coordinate candidates, best delta <code>0.0037083984370838152</code>.</td></tr>
       <tr><td>Snapshot helper</td><td><code>scripts/current_pid_family_snapshot_sequence.py</code></td><td>Reusable prior-first snapshot orchestrator with optional auto displacement.</td></tr>
       <tr><td>Delta analyzer</td><td><code>scripts/family_snapshot_delta_analyzer.py</code></td><td>Offline snapshot comparison and candidate-family scoring.</td></tr>
       <tr><td>Planner candidate JSON</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-2928-20260513-184837-252853/delta-analysis/candidate-vec3.json</code></td><td>JSON container now consumable by x64dbg chain planner.</td></tr>
@@ -136,6 +137,6 @@
   </div>
 </section>
 </main>
-<footer class="footer">Generated/updated 2026-05-13 19:40 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
+<footer class="footer">Generated/updated 2026-05-13 19:47 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
 </body>
 </html>
