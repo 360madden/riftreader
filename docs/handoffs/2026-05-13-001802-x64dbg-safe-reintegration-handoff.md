@@ -93,6 +93,28 @@ Evidence strength:
   - no runtime helper readback through a chain,
   - no movement/proof-only validation.
 
+## Follow-up owner-neighborhood scan
+
+Read-only C# `RiftReader.Reader --scan-pointer` probes were run after the
+safe x64dbg/recovery cycle:
+
+- summary: `scripts/captures/pointer-owner-scan-20260513-002409-neighborhood/summary.json`
+- exact pointer refs to inferred x64dbg object pointer `0x1738127A580`: `0`
+- exact pointer refs to coordinate X field `0x1738127A5A4`: `0`
+- exact pointer refs to family base `0x17381270000`: `0`
+- strongest current-process owner-start lead: `0x1738127A4E0`
+  - `6` exact pointer refs
+  - local offset to candidate X: `+0xC4`
+  - local offset to candidate Y: `+0xC8`
+  - local offset to candidate Z: `+0xCC`
+- local object window also contained coordinate-like triplets at:
+  - `0x1738127A570`
+  - `0x1738127A5A4`
+  - `0x1738127A5D8`
+
+Important: `0x1738127A4E0` is still **candidate-only**. It is a better
+current-process owner lead than `0x1738127A580`, not a stable root.
+
 ## Resume-safe next action
 
 Do **not** start with another broad x64dbg watchpoint.
