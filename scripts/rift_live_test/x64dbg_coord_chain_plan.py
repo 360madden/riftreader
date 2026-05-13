@@ -1299,13 +1299,14 @@ def markdown_summary(summary: dict[str, Any]) -> str:
                 f"- Ready for current-turn approval: `{str(readiness.get('readyForCurrentTurnApproval')).lower()}`",
                 f"- Ready for bounded debugger capture: `{str(readiness.get('readyForBoundedDebuggerCapture')).lower()}`",
                 "",
-                "| Check | Status | Passed | Detail |",
-                "|---|---|---|---|",
+                "| Check | Status | Passed | Detail | Evidence |",
+                "|---|---|---|---|---|",
             ]
         )
         for check in readiness.get("checks") or []:
             lines.append(
-                f"| `{check.get('name')}` | `{check.get('status')}` | `{str(check.get('passed')).lower()}` | {check.get('detail')} |"
+                f"| `{check.get('name')}` | `{check.get('status')}` | `{str(check.get('passed')).lower()}` | "
+                f"{markdown_cell(check.get('detail'))} | `{markdown_cell(check.get('evidence'))}` |"
             )
     lines.extend(
         [
@@ -1443,12 +1444,15 @@ def compact_handoff_markdown(summary: dict[str, Any]) -> str:
             "",
             "## Readiness checks",
             "",
-            "| Check | Status | Passed |",
-            "|---|---|---|",
+            "| Check | Status | Passed | Evidence |",
+            "|---|---|---|---|",
         ]
     )
     for check in readiness.get("checks") or []:
-        lines.append(f"| `{check.get('name')}` | `{check.get('status')}` | `{str(check.get('passed')).lower()}` |")
+        lines.append(
+            f"| `{check.get('name')}` | `{check.get('status')}` | `{str(check.get('passed')).lower()}` | "
+            f"`{markdown_cell(check.get('evidence'))}` |"
+        )
     lines.extend(
         [
             "",
@@ -1474,6 +1478,19 @@ def compact_handoff_markdown(summary: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def markdown_cell(value: Any, *, max_length: int = 180) -> str:
+    if value is None:
+        text = ""
+    elif isinstance(value, (dict, list)):
+        text = json.dumps(value, separators=(",", ":"), sort_keys=True)
+    else:
+        text = str(value)
+    text = text.replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+    if len(text) > max_length:
+        return text[: max_length - 3] + "..."
+    return text
 
 
 def write_outputs(summary: dict[str, Any]) -> None:

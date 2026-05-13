@@ -786,6 +786,10 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertIn("# x64dbg coordinate-chain compact handoff", handoff_text)
             self.assertIn("ready-for-current-turn-approval", handoff_text)
             self.assertIn("Ready-to-paste resume prompt", handoff_text)
+            self.assertIn("| Check | Status | Passed | Evidence |", handoff_text)
+            summary_md = (out / "coord-chain-plan.md").read_text(encoding="utf-8")
+            self.assertIn("| Check | Status | Passed | Detail | Evidence |", summary_md)
+            self.assertIn("maxLiveAttachSeconds", summary_md)
 
     def test_readiness_marks_approved_bounded_capture_only_when_explicitly_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

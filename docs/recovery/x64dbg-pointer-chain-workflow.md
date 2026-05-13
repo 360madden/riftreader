@@ -194,7 +194,8 @@ summary, a session checklist, and a candidate-packet template under
 the resolved preflight/API artifact paths for handoff, plus
 `x64dbg-coordinate-chain-compact-handoff.md`, a resume-ready handoff with the
 readiness verdict, blockers, exact artifact paths, safety state, and a
-ready-to-paste new-chat prompt.
+ready-to-paste new-chat prompt. The summary and compact handoff render readiness
+evidence inline so the key gate inputs can be reviewed without opening JSON.
 
 The summary includes a conservative `readiness` verdict. A planner `status` of
 `planned` does not by itself mean live-debugger work should begin; the readiness

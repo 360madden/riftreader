@@ -215,7 +215,8 @@ requires preflight/API/candidate artifacts and enables default age gates without
 approving or starting x64dbg.
 Each planner run now also writes `x64dbg-coordinate-chain-compact-handoff.md`
 with the readiness verdict, blockers, artifact paths, safety state, and a
-ready-to-paste resume prompt.
+ready-to-paste resume prompt. Summary and handoff markdown include readiness
+evidence inline for quick review without opening the JSON packet.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
