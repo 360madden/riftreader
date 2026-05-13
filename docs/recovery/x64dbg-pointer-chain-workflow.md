@@ -222,6 +222,12 @@ planner imports the coordinate and blocks if that artifact reports movement,
 Cheat Engine usage, SavedVariables-as-live-truth, or a PID/HWND mismatch with
 the selected preflight target.
 
+Use `--api-coordinate-file latest` only when the planner already has an exact
+target PID/HWND from `--preflight-summary` or explicit target arguments. The
+alias resolves to the newest usable same-target
+`scripts\captures\**\rift-api-reference-currentpid-*.json` artifact and blocks
+instead of guessing if no matching PID/HWND artifact exists.
+
 The planner now emits the live-attach guard as machine-readable safety metadata:
 
 - default live attach window: `30` seconds;

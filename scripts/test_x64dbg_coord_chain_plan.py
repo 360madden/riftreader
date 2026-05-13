@@ -460,6 +460,141 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertIn(f"--api-coordinate-file '{api_file}'", command_text)
             self.assertIn("--candidate-address '0x20005B30800'", command_text)
 
+    def test_latest_api_coordinate_file_uses_newest_same_target_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            self.write_preflight_summary(preflight, pid=79184, hwnd="0xA90BFC")
+            old_api = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "old"
+                / "rift-api-reference-currentpid-79184-20260513-010000.json"
+            )
+            wrong_pid_api = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "wrong-pid"
+                / "rift-api-reference-currentpid-12345-20260513-030000.json"
+            )
+            wrong_hwnd_api = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "wrong-hwnd"
+                / "rift-api-reference-currentpid-79184-20260513-040000.json"
+            )
+            unsafe_api = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "unsafe"
+                / "rift-api-reference-currentpid-79184-20260513-050000.json"
+            )
+            latest_api = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "latest"
+                / "rift-api-reference-currentpid-79184-20260513-020000.json"
+            )
+            self.write_api_reference(old_api, captured_at_utc="2026-05-13T01:00:00Z", x=1.0)
+            self.write_api_reference(wrong_pid_api, pid=12345, captured_at_utc="2026-05-13T03:00:00Z", x=3.0)
+            self.write_api_reference(wrong_hwnd_api, hwnd="0x123", captured_at_utc="2026-05-13T04:00:00Z", x=4.0)
+            self.write_api_reference(unsafe_api, movement_sent=True, captured_at_utc="2026-05-13T05:00:00Z", x=5.0)
+            self.write_api_reference(latest_api, captured_at_utc="2026-05-13T02:00:00Z", x=2.0)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        "latest",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["truthSurface"]["x"], 2.0)
+            self.assertEqual(summary["apiCoordinateFile"]["requestedFile"], "latest")
+            self.assertEqual(summary["apiCoordinateFile"]["resolvedFromAlias"], "latest")
+            self.assertEqual(summary["apiCoordinateFile"]["path"], str(latest_api))
+
+    def test_latest_api_coordinate_file_blocks_without_target_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--api-coordinate-file",
+                        "latest",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("api-coordinate-file-latest-requires-target-pid-hwnd", summary["blockers"])
+            self.assertEqual(summary["apiCoordinateFile"]["requestedFile"], "latest")
+            self.assertEqual(summary["apiCoordinateFile"]["resolvedFromAlias"], "latest")
+            self.assertIsNone(summary["apiCoordinateFile"]["path"])
+
+    def test_latest_api_coordinate_file_blocks_when_no_same_target_artifact_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            self.write_preflight_summary(preflight, pid=79184, hwnd="0xA90BFC")
+            wrong_pid_api = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "wrong-pid"
+                / "rift-api-reference-currentpid-12345-20260513-030000.json"
+            )
+            self.write_api_reference(wrong_pid_api, pid=12345, captured_at_utc="2026-05-13T03:00:00Z")
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        "latest",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertTrue(
+                any(blocker.startswith("api-coordinate-file-latest-not-found:") for blocker in summary["blockers"])
+            )
+
     def test_api_coordinate_file_accepts_capture_summary_shape(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

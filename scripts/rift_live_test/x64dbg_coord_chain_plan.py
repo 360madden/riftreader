@@ -23,6 +23,7 @@ DEFAULT_WATCH_SIZE = 12
 DEFAULT_POSE_COUNT = 3
 PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
 PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
+API_COORDINATE_FILE_LATEST_ALIAS = "latest"
 FLOAT_MATCH_TOLERANCE = 0.000001
 
 
@@ -147,6 +148,10 @@ def is_latest_preflight_alias(value: Path | None) -> bool:
     return value is not None and str(value).strip().lower() == PREFLIGHT_SUMMARY_LATEST_ALIAS
 
 
+def is_latest_api_coordinate_alias(value: Path | None) -> bool:
+    return value is not None and str(value).strip().lower() == API_COORDINATE_FILE_LATEST_ALIAS
+
+
 def parse_utc_sort_time(value: Any, fallback_path: Path) -> datetime:
     if isinstance(value, str) and value.strip():
         text = value.strip()
@@ -216,6 +221,96 @@ def resolve_preflight_summary_argument(args: argparse.Namespace, repo_root: Path
     args.preflight_summary_resolution_warnings.extend(warnings)
     args.preflight_summary_resolved_from_alias = PREFLIGHT_SUMMARY_LATEST_ALIAS
     args.preflight_summary = summary_path
+
+
+def api_coordinate_file_is_usable(extracted: dict[str, Any]) -> bool:
+    status = extracted.get("status")
+    if status is not None and str(status).lower() not in {"captured", "pass", "passed", "ok"}:
+        return False
+    if extracted.get("noCheatEngine") is not None and not bool_is_true(extracted.get("noCheatEngine")):
+        return False
+    if bool_is_true(extracted.get("movementSent")):
+        return False
+    if bool_is_true(extracted.get("savedVariablesUsedAsLiveTruth")):
+        return False
+    saved_variables_use = extracted.get("savedVariablesUse")
+    if saved_variables_use is not None and str(saved_variables_use).strip().lower() != "none":
+        return False
+    if extracted.get("x") is None or extracted.get("y") is None or extracted.get("z") is None:
+        return False
+    if not extracted.get("sampledAtUtc"):
+        return False
+    return True
+
+
+def find_latest_api_coordinate_file(
+    repo_root: Path,
+    *,
+    target_pid: int | None,
+    target_hwnd: str | None,
+) -> tuple[Path | None, list[str], list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    capture_root = repo_root / "scripts" / "captures"
+    target_hwnd_normalized = normalize_hwnd(target_hwnd)
+
+    if target_pid is None or not target_hwnd_normalized:
+        blockers.append("api-coordinate-file-latest-requires-target-pid-hwnd")
+        return None, blockers, warnings
+
+    candidates: list[tuple[datetime, float, str, Path]] = []
+    for path in capture_root.rglob("rift-api-reference-currentpid-*.json"):
+        try:
+            document = read_json_file(path)
+        except Exception as exc:
+            warnings.append(f"api-coordinate-file-latest-skip-read-failed:{path}:{type(exc).__name__}")
+            continue
+        if not isinstance(document, dict):
+            warnings.append(f"api-coordinate-file-latest-skip-non-object:{path}")
+            continue
+        extracted = extract_api_coordinate_document(document)
+        if not api_coordinate_file_is_usable(extracted):
+            continue
+        process_id = extracted.get("processId")
+        target_window_handle = normalize_hwnd(str(extracted.get("targetWindowHandle") or ""))
+        if process_id is None or int(process_id) != int(target_pid):
+            continue
+        if not target_window_handle or target_window_handle != target_hwnd_normalized:
+            continue
+        generated_at = parse_utc_sort_time(extracted.get("sampledAtUtc"), path)
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        candidates.append((generated_at, mtime, str(path), path))
+
+    if not candidates:
+        blockers.append(
+            f"api-coordinate-file-latest-not-found:{capture_root / '**' / 'rift-api-reference-currentpid-*.json'}"
+        )
+        return None, blockers, warnings
+
+    candidates.sort()
+    return candidates[-1][3], blockers, warnings
+
+
+def resolve_api_coordinate_file_argument(args: argparse.Namespace, repo_root: Path) -> None:
+    args.api_coordinate_file_requested = str(args.api_coordinate_file) if args.api_coordinate_file else None
+    args.api_coordinate_file_resolved_from_alias = None
+    args.api_coordinate_file_resolution_blockers = []
+    args.api_coordinate_file_resolution_warnings = []
+    if not is_latest_api_coordinate_alias(args.api_coordinate_file):
+        return
+
+    coordinate_file, blockers, warnings = find_latest_api_coordinate_file(
+        repo_root,
+        target_pid=args.target_pid,
+        target_hwnd=args.target_hwnd,
+    )
+    args.api_coordinate_file_resolution_blockers.extend(blockers)
+    args.api_coordinate_file_resolution_warnings.extend(warnings)
+    args.api_coordinate_file_resolved_from_alias = API_COORDINATE_FILE_LATEST_ALIAS
+    args.api_coordinate_file = coordinate_file
 
 
 def apply_preflight_summary(args: argparse.Namespace) -> None:
@@ -302,8 +397,8 @@ def apply_preflight_summary(args: argparse.Namespace) -> None:
 
 def apply_api_coordinate_file(args: argparse.Namespace) -> None:
     args.api_coordinate_file_data = None
-    args.api_coordinate_file_blockers = []
-    args.api_coordinate_file_warnings = []
+    args.api_coordinate_file_blockers = list(getattr(args, "api_coordinate_file_resolution_blockers", []) or [])
+    args.api_coordinate_file_warnings = list(getattr(args, "api_coordinate_file_resolution_warnings", []) or [])
     if not args.api_coordinate_file:
         return
 
@@ -706,6 +801,8 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             else None,
         },
         "apiCoordinateFile": {
+            "requestedFile": getattr(args, "api_coordinate_file_requested", None),
+            "resolvedFromAlias": getattr(args, "api_coordinate_file_resolved_from_alias", None),
             "path": str(args.api_coordinate_file) if args.api_coordinate_file else None,
             "source": (getattr(args, "api_coordinate_file_data", {}) or {}).get("source")
             if getattr(args, "api_coordinate_file_data", None)
@@ -944,7 +1041,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Fresh Rift API/reference coordinate JSON or capture summary JSON; imports X/Y/Z, sampled time, "
-            "and same-target PID/HWND when present."
+            "and same-target PID/HWND when present. Use 'latest' only after target PID/HWND are available; "
+            "it selects the newest usable same-target rift-api-reference-currentpid-*.json under scripts/captures."
         ),
     )
     parser.add_argument("--api-sampled-at-utc", default=None)
@@ -972,6 +1070,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_module()
     resolve_preflight_summary_argument(args, repo_root)
     apply_preflight_summary(args)
+    resolve_api_coordinate_file_argument(args, repo_root)
     apply_api_coordinate_file(args)
     run_dir = choose_run_dir(repo_root, args.output_root)
     summary = build_plan(args, repo_root, run_dir)
