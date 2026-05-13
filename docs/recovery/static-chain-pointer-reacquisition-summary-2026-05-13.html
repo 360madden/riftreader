@@ -12,7 +12,7 @@
 <body>
 <header class="hero">
   <h1>🧭 Static Chain Pointer Reacquisition Summary</h1>
-  <p class="subtitle">Professional operator report for the May 13 current-PID recovery lane in <code>C:/RIFT MODDING/RiftReader</code>. Updated after the prior-first <strong>family-group sequential snapshot + offline delta</strong> pass found and revalidated a high-signal current-PID coordinate family, and after current-PID x64dbg attach attempts were safely bounded and diagnosed.</p>
+  <p class="subtitle">Professional operator report for the May 13 current-PID recovery lane in <code>C:/RIFT MODDING/RiftReader</code>. Updated after the prior-first <strong>family-group sequential snapshot + offline delta</strong> pass found and revalidated a high-signal current-PID coordinate family, after current-PID x64dbg attach attempts were safely bounded and diagnosed, and after read-only pointer scanning found a heap-only reference to the likely object/base candidate.</p>
   <div class="verdict">✅ RESULT: candidate family found — ⚠️ not promoted to movement truth</div>
 </header>
 <nav class="nav">
@@ -29,9 +29,9 @@
       <article class="card"><h3>🏆 Best focused lead</h3><div class="big"><code>0x268DF21ED30</code></div><p>Focused run tracking-error max abs <code>0.00607421875</code>.</p></article>
       <article class="card"><h3>🔁 Latest readback</h3><div class="big">0.003708 max delta</div><p>Latest offset-corrected API-now vs memory-now agreement from <code>candidate-readback-currentpid-2928-20260513-194659-756235</code>.</p></article>
       <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / no more attach loops</div><p>Two bounded current-PID x64dbg access-capture attempts failed before attach; latest progress used offline/static packet generation and read-only neighborhood inspection.</p></article>
-      <article class="card"><h3>🚦 Truth status</h3><div class="big">Candidate-only</div><p>Direct values are about 5 units offset from API, so this is not direct movement truth yet.</p></article>
+      <article class="card"><h3>🪝 Pointer lead</h3><div class="big"><code>0x268D753AE40</code></div><p>Only heap ref found so far, pointing to likely base <code>0x268DF21ED20</code>; no module/static root yet.</p></article>
     </div>
-    <div class="callout goodline"><strong>Bottom line:</strong> The earlier Top-20 stride scans had zero direct XYZ hits, but the adaptive family snapshot method found the right current family. The newest focused readback strongly confirms a live offset-coordinate copy, and historical x64dbg hit-code RVAs still match current process code exactly. This is still not a static/restart chain.</div>
+    <div class="callout goodline"><strong>Bottom line:</strong> The earlier Top-20 stride scans had zero direct XYZ hits, but the adaptive family snapshot method found the right current family. The newest focused readback strongly confirms a live offset-coordinate copy, historical x64dbg hit-code RVAs still match current process code exactly, and pointer scanning found one heap owner/ref lead for <code>0x268DF21ED20</code>. This is still not a static/restart chain.</div>
     <div class="callout badline"><strong>Do not overclaim:</strong> <code>0x268DF21ED30</code> and sibling slots are candidate evidence only. Movement/navigation remains blocked until static-chain provenance and same-target proof gates pass.</div>
   </div>
 </section>
@@ -50,6 +50,7 @@
       <div class="dot">8</div><div class="step"><h3>Historical hit RVAs remained code-stable</h3><p>Read-only code check <code>historical-x64dbg-hit-rva-check-20260513-194042-075604</code> found exact 96-byte matches for prior hit RVAs <code>0x57C2A5</code> and <code>0x47D555</code> in the current process. Disassembly <code>historical-x64dbg-hit-rva-disasm-20260513-194417-078605</code> identifies a strong lead at <code>0x7FF71D30C2B5</code>: <code>cmp qword ptr [rcx + 0x10], 0</code>. These are now better static-code leads than repeating the failed attach path.</p></div>
       <div class="dot">9</div><div class="step"><h3>Static lead packet connected data + code evidence</h3><p><code>x64dbg-static-lead-packet-20260513-195348-651818</code> packages the candidate family, latest readback, stable code RVAs, and disassembly. Key alignment: <code>0x268DF21ED20 + 0x10 = 0x268DF21ED30</code>, matching <code>[rcx + 0x10]</code>.</p></div>
       <div class="dot">10</div><div class="step"><h3>Read-only neighborhood scan stayed narrow</h3><p><code>current-pid-family-neighborhood-inspector-20260513-195638-785343</code> scanned 24 KiB around <code>0x268DF21E000</code> and found exactly the 3 known offset-corrected family hits. No x64dbg, no CE, no input, no writes.</p></div>
+      <div class="dot">11</div><div class="step"><h3>Pointer scan found heap-only ownership lead</h3><p><code>pointer-family-scan-20260513-195912-166777</code> seeded <code>0x268DF21ED20</code>, <code>0x268DF21ED30</code>, <code>0x268DF21E6F0</code>, and <code>0x268DF200000</code>. Only <code>0x268DF21ED20</code> had a ref: <code>0x268D753AE40</code>. Recursive depth-1 scan found no refs to that storage and no module/RIFT-module hits, so this is a heap lead, not a static root.</p></div>
     </div>
   </div>
 </section>
@@ -119,6 +120,7 @@
       <tr><td>Historical hit-RVA disassembly</td><td><code>scripts/captures/historical-x64dbg-hit-rva-disasm-20260513-194417-078605/summary.md</code></td><td>Capstone disassembly of matched code windows; strongest lead is <code>cmp qword ptr [rcx + 0x10], 0</code> at current hit RIP <code>0x7FF71D30C2B5</code>.</td></tr>
       <tr><td>Static lead packet</td><td><code>scripts/captures/x64dbg-static-lead-packet-20260513-195348-651818/static-lead-work-packet.json</code></td><td>Offline packet combining family candidates, latest readback, stable RVAs, disassembly, and candidate offset alignment <code>0x268DF21ED20 + 0x10 = 0x268DF21ED30</code>.</td></tr>
       <tr><td>Neighborhood inspector</td><td><code>scripts/captures/current-pid-family-neighborhood-inspector-20260513-195638-785343/summary.json</code></td><td>Read-only 24 KiB scan around <code>0x268DF21E000</code>; found only the 3 known offset-corrected family hits.</td></tr>
+      <tr><td>Pointer-family scan</td><td><code>scripts/captures/pointer-family-scan-20260513-195912-166777/summary.json</code></td><td>Read-only pointer scan over the candidate cluster; found one heap ref to <code>0x268DF21ED20</code> at <code>0x268D753AE40</code>, with no module/static-root hits.</td></tr>
     </tbody></table>
   </div>
 </section>
@@ -127,20 +129,20 @@
     <h2>🚀 Top 10 recommended next actions</h2>
     <p class="caption">Prioritized from highest signal / lowest risk to heavier static-chain work.</p>
     <table><caption>Recommended continuation plan</caption><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody>
-      <tr><td>1</td><td>Stop repeating identical current-PID x64dbg attach attempts.</td><td>Two bounded attempts failed before attach after environment checks passed; repeating now is low-signal.</td></tr>
-      <tr><td>2</td><td>Use stable historical hit RVAs <code>0x57C2A5</code> and <code>0x47D555</code> as offline static-code leads.</td><td>Both code windows matched current process byte-for-byte; <code>0x57C2A5</code> disassembles to <code>cmp qword ptr [rcx + 0x10], 0</code>, a concrete object/field relationship lead.</td></tr>
-      <tr><td>3</td><td>Search for module/RVA/static-owner provenance for the <code>[rcx + 0x10]</code> relationship.</td><td>The packet now ties this instruction to candidate spacing; root ownership is the next missing piece.</td></tr>
-      <tr><td>4</td><td>Add <code>0x268DF21ED30</code>, <code>0x268DF21ED20</code>, <code>0x268DF200000</code>, <code>0x57C2A5</code>, and <code>0x47D555</code> to explicit priors.</td><td>Prevents wasting time on already-exhausted no-hit regions after restart/context switch.</td></tr>
-      <tr><td>5</td><td>Use the 24 KiB neighborhood result as a narrow family boundary.</td><td>The scan found only 3 family hits, so next scans should stay page/local unless new evidence says otherwise.</td></tr>
-      <tr><td>6</td><td>Investigate whether a non-debugger readback can infer the object pointer that would satisfy <code>rcx + 0x10</code>.</td><td>If <code>rcx</code> likely maps to <code>0x268DF21ED20</code>, the field relationship becomes testable without attach.</td></tr>
-      <tr><td>7</td><td>Run one more focused family snapshot only if a new safe movement vector is available.</td><td>More vector diversity helps, but it is lower priority than exploiting the stable code RVAs.</td></tr>
-      <tr><td>8</td><td>Implement a repo-owned resolver only after module/static-owner evidence exists.</td><td>A resolver without stable provenance would be another stale heap pointer.</td></tr>
-      <tr><td>9</td><td>Validate across restart or process epoch before promotion.</td><td>Static chain claims require restart survival, not only current-PID behavior.</td></tr>
-      <tr><td>10</td><td>Keep movement/navigation blocked until same-target <code>ProofOnly</code> passes.</td><td>Protects against using candidate-copy evidence as live movement truth prematurely.</td></tr>
+      <tr><td>1</td><td>Inspect the heap owner/ref neighborhood around <code>0x268D753AE40</code>.</td><td>It is the only current pointer hit into the candidate base; nearby refs may expose the owning array/list without debugger attach.</td></tr>
+      <tr><td>2</td><td>Search the <code>0x268D7530000</code> region for sibling refs into <code>0x268DF21E000</code>.</td><td>A clustered owner table would be stronger than one isolated ref and may reveal stride or entity-list structure.</td></tr>
+      <tr><td>3</td><td>Keep using stable hit RVAs <code>0x57C2A5</code> and <code>0x47D555</code> as offline static-code leads.</td><td>Both code windows matched current process byte-for-byte; <code>0x57C2A5</code> ties candidate spacing to <code>[rcx + 0x10]</code>.</td></tr>
+      <tr><td>4</td><td>Search for module/RVA/static-owner provenance for the <code>[rcx + 0x10]</code> relationship.</td><td>The packet and pointer scan now identify likely field/base/ref-storage pieces; root ownership is still missing.</td></tr>
+      <tr><td>5</td><td>Stop repeating identical current-PID x64dbg attach attempts.</td><td>Two bounded attempts failed before attach after environment checks passed; repeat only with a new attach tactic.</td></tr>
+      <tr><td>6</td><td>Add <code>0x268DF21ED30</code>, <code>0x268DF21ED20</code>, <code>0x268DF200000</code>, <code>0x268D753AE40</code>, <code>0x57C2A5</code>, and <code>0x47D555</code> to explicit priors.</td><td>Prevents wasting time on already-proven or exhausted regions after restart/context switch.</td></tr>
+      <tr><td>7</td><td>Use the 24 KiB candidate-neighborhood result as the current narrow family boundary.</td><td>The scan found only 3 coordinate-family hits, so next scans should stay local unless owner-table evidence expands scope.</td></tr>
+      <tr><td>8</td><td>Run another focused family snapshot only if a new safe movement vector is needed.</td><td>Additional vector diversity helps, but current priority is exploiting the owner/ref and stable-code leads.</td></tr>
+      <tr><td>9</td><td>Implement a repo-owned resolver only after module/static-owner evidence exists.</td><td>A resolver without stable provenance would be another stale heap pointer.</td></tr>
+      <tr><td>10</td><td>Validate across restart and keep movement/navigation blocked until same-target <code>ProofOnly</code> passes.</td><td>Static-chain claims require restart survival and proof gates, not only current-PID candidate behavior.</td></tr>
     </tbody></table>
   </div>
 </section>
 </main>
-<footer class="footer">Generated/updated 2026-05-13 19:56 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
+<footer class="footer">Generated/updated 2026-05-13 20:02 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
 </body>
 </html>
