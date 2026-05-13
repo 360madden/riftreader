@@ -203,7 +203,7 @@ Use it only after a live-debugger session has been separately approved and the
 operator has exported/recorded the manual event JSON:
 
 ```powershell
-python C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py `
+python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py' `
   --events-json <manual-x64dbg-access-events.json> `
   --candidate-id <candidate-id> `
   --json

@@ -116,14 +116,14 @@ Before opening a live-debugger session:
    module base with the no-attach Python preflight:
 
    ```powershell
-   python C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py --json
+   python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py' --json
    ```
 
    For live-debugger readiness, fail closed unless the exact target is supplied
    and no known debugger-class process is open:
 
    ```powershell
-   python C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py `
+   python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py' `
      --require-exact-target `
      --require-no-debugger-process `
      --target-pid <PID> `
@@ -176,7 +176,7 @@ Before any live x64dbg attach/watchpoint session, generate a bounded plan packet
 from the current coordinate candidate and fresh API/runtime coordinate:
 
 ```powershell
-python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
+python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py' `
   --preflight-summary <x64dbg-target-preflight-summary.json-or-latest> `
   --api-coordinate-file <fresh-rift-api-reference-coordinate.json> `
   --candidate-file <coordinate-candidate.json> `
@@ -279,7 +279,7 @@ After an explicitly approved x64dbg session produces manual watchpoint/access
 events, normalize them with the repo-owned offline ingester:
 
 ```powershell
-python C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py `
+python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py' `
   --events-json <manual-x64dbg-access-events.json> `
   --candidate-id <candidate-id> `
   --max-delta 1.0 `
@@ -393,7 +393,7 @@ filled with module/RVA/static-owner provenance, the repo-owned resolver harness
 can validate the chain shape without x64dbg:
 
 ```powershell
-python C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py `
+python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_static_chain_resolve.py' `
   --candidate-json <x64dbg-coordinate-chain-candidate.json> `
   --module-map-json <current-module-map.json> `
   --memory-image-json <offline-memory-image.json> `
