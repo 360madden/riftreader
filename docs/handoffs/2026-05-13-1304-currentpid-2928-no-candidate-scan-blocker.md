@@ -73,4 +73,3 @@ surface:
 | 8 | If adding a scan planner, keep it Python-first with JSON/Markdown artifacts. | Preserves repo workflow policy and resumability. |
 | 9 | Keep `frozen-snapshot` separate from `live-proof` if debugger pause work resumes. | Prevents over-promoting snapshot evidence. |
 | 10 | Promote nothing until API-now vs memory/chain-now, multi-pose, restart validation, and same-target `ProofOnly` pass. | Maintains movement/navigation safety. |
-
