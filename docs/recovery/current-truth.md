@@ -7,7 +7,7 @@ _Last updated: 2026-05-13 16:56 UTC. The current live target observed in the lat
 | Fact | Current truth |
 |---|---|
 | Live target | `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000` |
-| Exact-target preflight | Passed with `responding=true`, `windowVisible=true`, and debugger process count `0`: `scripts/captures/x64dbg-target-preflight-20260513-165343-990550/summary.json`. |
+| Exact-target preflight | Passed with `responding=true`, `windowVisible=true`, and debugger process count `0`: initial exact check `scripts/captures/x64dbg-target-preflight-20260513-165343-990550/summary.json`; post-scan check `scripts/captures/x64dbg-target-preflight-20260513-165745-459960/summary.json`. |
 | API/runtime coordinate | Fresh ChromaLink world-state reference passed: `scripts/captures/chromalink-world-state-reference-20260513-165415-184596/summary.json`; coordinate `X=7407.04`, `Y=871.77`, `Z=3028.86`, observed `2026-05-13T16:54:14.777163+00:00`, age `352.58ms`. |
 | First grouped scan | Read-only scan `scripts/captures/family-scan-currentpid-2928-20260513-165436-907290/family-scan-summary.json` blocked with `no_xyz_triplets_near_reference_found` after the 45-second scan budget; `hitCount=0`, `bytesScanned=297795584`, `scanStride=4`. |
 | RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260513-165626.json` is `blocked`: current proof pointer still targets stale PID `57656` / HWND `0x5417BC`, and no selected candidate exists for PID `2928`. |
