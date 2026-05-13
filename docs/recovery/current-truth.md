@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:28 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current candidate chain is now explicitly graphed as `rift_x64.exe+0x263E950 -> module-hint entry 0x268D75396C0 -> parent slot 0x268D7539700 -> owner 0x268D753AE30 -> [owner+0x10] storage 0x268D753AE40 -> coord pointer 0x268DF21ED20`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:33 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current candidate owner is `0x268D753AE30`, now ranked by complete structural signature: module fields `0x26AAE70`, `0x272DBC0`, `0x263E950`, `0x2657C80`, coord pointer at `[+0x10] = 0x268DF21ED20`, and parent slot `0x268D7539700`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -82,7 +82,7 @@ until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
 Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-222839.json` remains
+`scripts/captures/riftscan-milestone-review-20260513-223425.json` remains
 blocked on the same stale proof pointer and missing selected RiftScan candidate;
 it is a strategy gate, not movement permission.
 
@@ -169,6 +169,19 @@ fields on `0x268D753AE30`: `+0x0 = rift_x64.exe+0x26AAE70`,
 `+0x110 = rift_x64.exe+0x2657C80`. This is the clearest current source-chain
 map, but the static/module root above `0x268D7539700` is still unresolved and
 movement remains blocked.
+
+**May 13 22:32 UTC owner structural-signature packet:** new offline helper
+`scripts/owner_structural_signature_packet.py` ranked all `3` low-noise type
+instances by the combined owner signature at
+`scripts/captures/owner-structural-signature-packet-20260513-223357-049150/summary.json`.
+Only owner `0x268D753AE30` has the complete requested signature: module RVAs
+`0x26AAE70`, `0x272DBC0`, `0x263E950`, and `0x2657C80`; `0x263E950` specifically
+at owner offset `+0xE0`; coord pointer at `+0x10`; stable coord-candidate
+pointer `0x268DF21ED20`; readable vec3; single parent ref; and parent-slot
+module hint. It scored `270`. Siblings `0x268C6A10EA0` and `0x268923AF610`
+matched only `0x26AAE70` and `0x272DBC0`, missed `0x263E950`/`0x2657C80`, and
+were not stable coord candidates. This makes `0x268D753AE30` the best structural
+owner candidate but still not a static/restart chain or movement truth.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
