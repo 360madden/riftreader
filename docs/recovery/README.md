@@ -152,6 +152,29 @@ live-debugger session in the current conversation, do not use it at the same
 time as Cheat Engine debugger/watchpoints, and do not promote x64dbg evidence
 without fresh API/runtime comparison plus multi-pose and restart validation.
 
+Hard live-attach timeout rule: prepare all commands before attaching, start a
+wall-clock attach timer, detach within 30-90 seconds unless the user explicitly
+extends the session, and detach immediately if RIFT stays `Responding=False` for
+more than 15 seconds after attach or `go/run`. Do not loop `go/run`, do not
+swallow exceptions without explicit approval after inspecting the stop reason,
+and do not set hardware watchpoints until the target can run predictably.
+
+Repo-owned x64dbg planning/snapshot helpers now carry this as machine-readable
+safety metadata and reject overlong RIFT live-debugger windows. Keep the default
+plan at `--max-live-attach-seconds 30 --unresponsive-abort-seconds 15
+--max-go-attempts 1`; any longer live session needs explicit current-turn user
+approval and still must not exceed the 90-second hard cap without a workflow
+change.
+
+Launch x64dbg through the Python-owned `scripts\x64dbg_launcher.py`; `.cmd` and
+`.ps1` wrappers are compatibility shims only, not workflow brains.
+
+May 12/13 x64dbg live-attach incident:
+`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
+The PID `63412` coordinate candidate `0x20005B30800` and owner
+`0x20005B304E0` are historical/stale after logout/relog and must not be used as
+current-session truth.
+
 Durable workflow doc:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`.
 

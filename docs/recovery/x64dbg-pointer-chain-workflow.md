@@ -16,8 +16,12 @@ movement-proof source by itself.
 | x64dbg launcher | `C:\RIFT MODDING\Tools\x64dbg\release\x96dbg.exe` | `2026.04.20` |
 | x64dbg x32 | `C:\RIFT MODDING\Tools\x64dbg\release\x32\x32dbg.exe` | `2026.04.20` |
 
-The repo launcher `scripts\open-x64dbg.cmd` prefers this external install path
-and falls back to the repo-local ignored staging path if needed.
+The repo launcher is Python-owned: `scripts\x64dbg_launcher.py` prefers this
+external install path and falls back to the repo-local ignored staging path if
+needed. `scripts\open-x64dbg.cmd` and `scripts\open-x64dbg.ps1` are compatibility
+wrappers only. The launcher prints the live-attach guard before opening x64dbg;
+run `python scripts\x64dbg_launcher.py --print-safety-only` to review the guard
+without launching anything.
 
 Repo-local reverse-engineering tool folders are intentionally git-ignored:
 
@@ -78,6 +82,21 @@ Treat x64dbg as a debugger-class live tool.
 | Patching | Do not patch the game process or files as part of pointer-chain discovery. |
 | Shell integration | Do not register shell extensions or system-wide integrations by default. |
 
+## Live attach timeout / forced-logout guard
+
+The May 12/13 x64dbg attach to RIFT PID `63412` froze the client long enough for
+the player to be forced out/logged out. Future live debugger sessions must be
+short, preplanned, and fail-closed:
+
+| Guard | Required behavior |
+|---|---|
+| Preplanned commands | Prepare capture paths, exact addresses, and the detach path before attach. Do not plan while the game is paused. |
+| Attach timer | Start a wall-clock timer before attach. Detach within 30-90 seconds unless the user explicitly approves extending the live-debugger window. |
+| Unresponsive target | If RIFT is `Responding=False` for more than 15 seconds after attach or a `go/run` attempt, capture minimal stop context if already available and detach immediately. |
+| `go/run` retries | Allow at most one `go/run` attempt by default. Do not loop `go/run`; do not use exception swallowing unless the stop reason is understood and the user explicitly approves. |
+| Watchpoints | Do not set hardware watchpoints until the process can run predictably. |
+| Relog/restart | After logout, relog, restart, or process-start change, mark all absolute heap/object addresses stale and reacquire current-PID evidence. |
+
 ## Discovery target
 
 Start with one target only:
@@ -100,13 +119,15 @@ Before opening a live-debugger session:
 5. Confirm the session is discovery-only: no movement proof, no route execution,
    no process patching.
 6. Prepare an output packet path under `scripts/captures/`.
+7. Prebuild the exact read/watch commands and detach command before attach.
+8. Define the hard detach timeout and the `Responding=False` abort threshold.
 
 ## x64dbg session checklist
 
 1. Launch:
 
    ```powershell
-   & 'C:\RIFT MODDING\RiftReader\scripts\open-x64dbg.cmd'
+   python 'C:\RIFT MODDING\RiftReader\scripts\x64dbg_launcher.py'
    ```
 
 2. Attach only to the exact approved 64-bit `rift_x64.exe` target.
@@ -138,6 +159,9 @@ python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
   --process-start-time-utc <process-start-utc> `
   --api-x <x> --api-y <y> --api-z <z> `
   --api-sampled-at-utc <api-sampled-at-utc> `
+  --max-live-attach-seconds 30 `
+  --unresponsive-abort-seconds 15 `
+  --max-go-attempts 1 `
   --json
 ```
 
@@ -151,6 +175,19 @@ present, the planner still writes the packet but records a warning that live
 attach is not authorized. Passing `--allow-live-debugger` only records that a
 future session was approved for planning purposes; the planner still performs no
 debugger actions.
+
+The planner now emits the live-attach guard as machine-readable safety metadata:
+
+- default live attach window: `30` seconds;
+- hard maximum live attach window: `90` seconds;
+- `Responding=False` abort threshold: `15` seconds;
+- default `go/run` attempts: `1`;
+- exception-swallow retry loops: blocked;
+- collected debugger/debuggee identity must still match the approved target;
+- detach first, analyze artifacts second.
+
+Supplying values outside that guard blocks the plan packet instead of normalizing
+an unsafe live-debugger workflow.
 
 ## Offline access-event ingester
 
@@ -380,5 +417,7 @@ Stop and write a blocker instead of continuing if:
 - the candidate only works for one pose;
 - the chain root is heap-only with no stable owner;
 - x64dbg or the target process becomes unstable;
+- RIFT is `Responding=False` for more than 15 seconds after attach or `go/run`;
+- the live attach window reaches 30-90 seconds without an explicit extension;
 - another debugger-class tool is already attached;
-- the workflow would require process patching.
+- the workflow would require process patching, memory writes, or movement.

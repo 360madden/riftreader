@@ -8,6 +8,11 @@ The approved live x64dbg session produced the first useful coordinate access
 evidence for the current PID epoch, but it still did **not** discover a stable
 static pointer chain.
 
+Post-logout/relog update: this capture is now historical for PID `63412`. The
+user relaunched/logged back into the world and a new RIFT process was observed
+as PID `79184` / HWND `0xA90BFC`. Do not use `0x20005B30800` or owner
+`0x20005B304E0` as current-session truth after the relog.
+
 Best current lead from this capture:
 
 | Field | Value |

@@ -25,6 +25,28 @@ coordinate owner/base object was `0x20005B304E0`, with coordinate fields at
 `+0x320/+0x324/+0x328`. See
 `docs/recovery/x64dbg-live-coordinate-access-capture-2026-05-12.md`.
 
+## Post-logout/relog update
+
+Status update: 2026-05-12 evening EDT / 2026-05-13 UTC.
+
+The RIFT client was later forced out/logged out after an x64dbg live attach
+paused PID `63412`. The user relaunched/logged back into the world. A new live
+process was observed without debugger attach, input, or memory writes:
+
+| Field | Value |
+|---|---|
+| Process | `rift_x64` |
+| PID | `79184` |
+| HWND | `0xA90BFC` |
+| Process start UTC | `2026-05-13T00:43:12.0808119Z` |
+| Main module base | `0x7FF796B50000` |
+| Responding | `True` at inspection |
+
+Therefore all absolute PID `63412` addresses are now historical/stale for the
+current session, including `0x20005B30800` and owner `0x20005B304E0`. They
+remain useful only as shape clues. No current-PID coordinate candidate or stable
+static chain is promoted for PID `79184`.
+
 ## Time spent
 
 | Measurement | Value |
@@ -98,8 +120,8 @@ Earlier x64dbg Automate setup action-package timing remains documented in
 | Safe x64dbg local setup | 90% | x64dbg, x64dbg Automate client/plugin, read-only helper, and docs are in place. MCP is intentionally not active. |
 | Coordinate candidate seed | 55% | Current-PID candidate `api-family-hit-000001 @ 0x78BF4FE420` exists, but it is single-scan candidate evidence. |
 | Static-chain evidence capture | 20% | Planner and ingester are ready, but no approved live x64dbg access events have been captured yet. |
-| Static-chain evidence capture | 40% | Approved live x64dbg captured coordinate access for `0x20005B30800` and object field relationship `0x20005B304E0 + 0x320/+0x324/+0x328`; still single-pose. |
-| No-x64dbg chain resolver | 25% | Offline resolver harness and tests exist, but real live/current readback remains blocked until a stable root chain to `0x20005B304E0` is captured. |
+| Static-chain evidence capture | 40% historical / 0% current-PID | Approved live x64dbg captured coordinate access for `0x20005B30800` and object field relationship `0x20005B304E0 + 0x320/+0x324/+0x328`; after logout/relog this is historical single-pose evidence only. |
+| No-x64dbg chain resolver | 25% harness / 0% current-PID chain | Offline resolver harness and tests exist, but real live/current readback remains blocked until a stable root chain is reacquired for the current PID. |
 | Movement/proof truth | 0% for static chain | No static chain has passed API-now vs chain-now, multi-pose, restart validation, and ProofOnly. |
 
 Bottom line: the first disciplined x64dbg access-event capture has now narrowed
@@ -111,10 +133,12 @@ proven.
 
 Do not promote or move from this evidence. The next meaningful step is:
 
-1. refresh API-now and current PID/HWND;
-2. use `api-family-hit-000001 @ 0x78BF4FE420` as the first watch seed;
-3. only if explicitly approved, attach x64dbg to the exact target and capture
-   12-byte XYZ access events across at least three poses;
+1. refresh API-now and current PID/HWND for the relaunched target;
+2. reacquire a fresh current-PID coordinate candidate; do not use old absolute
+   PID `63412` addresses as live watch seeds;
+3. only if explicitly approved, attach x64dbg to the exact target with a
+   prebuilt capture plan and hard auto-detach/abort timer, then capture 12-byte
+   XYZ access events across at least three poses;
 4. ingest the manual events with `scripts\x64dbg_access_event_ingest.py`;
 5. fill the `derivedChain` fields from real module/RVA/static-owner evidence;
 6. run `scripts\x64dbg_static_chain_resolve.py` against that packet and a

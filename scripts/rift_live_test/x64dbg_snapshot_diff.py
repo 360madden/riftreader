@@ -5,12 +5,20 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import time
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .reports import write_json, write_text_atomic
+from .x64dbg_safety import (
+    DEFAULT_MAX_GO_ATTEMPTS,
+    DEFAULT_MAX_LIVE_ATTACH_SECONDS,
+    DEFAULT_UNRESPONSIVE_ABORT_SECONDS,
+    live_attach_policy,
+    validate_live_attach_policy,
+)
 
 
 SCHEMA_VERSION = 1
@@ -136,7 +144,15 @@ def parse_memory_read_spec(spec: str) -> dict[str, Any]:
     return {"address": address, "size": size, "label": label}
 
 
-def make_safety(*, offline_only: bool, helper_owned_session: bool = False, process_read_started: bool = False) -> dict[str, Any]:
+def make_safety(
+    *,
+    offline_only: bool,
+    helper_owned_session: bool = False,
+    process_read_started: bool = False,
+    max_live_attach_seconds: int = DEFAULT_MAX_LIVE_ATTACH_SECONDS,
+    unresponsive_abort_seconds: int = DEFAULT_UNRESPONSIVE_ABORT_SECONDS,
+    max_go_attempts: int = DEFAULT_MAX_GO_ATTEMPTS,
+) -> dict[str, Any]:
     return {
         "offlineOnly": offline_only,
         "helperOwnedSession": helper_owned_session,
@@ -155,6 +171,11 @@ def make_safety(*, offline_only: bool, helper_owned_session: bool = False, proce
         "writeClassOperationsBlocked": True,
         "blockedOperations": list(BLOCKED_OPERATIONS),
         "readOnlyOperations": list(READ_ONLY_OPERATIONS),
+        "liveAttachPolicy": live_attach_policy(
+            max_live_attach_seconds=max_live_attach_seconds,
+            unresponsive_abort_seconds=unresponsive_abort_seconds,
+            max_go_attempts=max_go_attempts,
+        ),
     }
 
 
@@ -197,6 +218,36 @@ def snapshot_identity(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         "debuggerPid": x64dbg.get("debuggerPid"),
         "sessionMode": x64dbg.get("sessionMode"),
     }
+
+
+def collected_target_identity_blockers(snapshot: Mapping[str, Any], args: argparse.Namespace) -> list[str]:
+    blockers: list[str] = []
+    process = snapshot.get("process") if isinstance(snapshot.get("process"), Mapping) else {}
+    x64dbg = snapshot.get("x64dbg") if isinstance(snapshot.get("x64dbg"), Mapping) else {}
+
+    debuggee_pid = process.get("debuggeePid")
+    if args.target_pid is not None and debuggee_pid is not None and int(debuggee_pid) != int(args.target_pid):
+        blockers.append(f"debuggee-pid-mismatch:{debuggee_pid}!={args.target_pid}")
+
+    debugger_pid = x64dbg.get("debuggerPid")
+    if args.connect_session is not None and debugger_pid is not None and int(debugger_pid) != int(args.connect_session):
+        blockers.append(f"debugger-pid-mismatch:{debugger_pid}!={args.connect_session}")
+
+    hwnd_value = process.get("hwnd")
+    hwnd = normalize_hwnd(str(hwnd_value) if hwnd_value is not None else None)
+    expected_hwnd = normalize_hwnd(args.target_hwnd)
+    if expected_hwnd and hwnd and hwnd != expected_hwnd:
+        blockers.append(f"target-hwnd-mismatch:{hwnd}!={expected_hwnd}")
+
+    process_name = process.get("name")
+    if args.process_name and process_name and str(process_name).lower() != str(args.process_name).lower():
+        blockers.append(f"process-name-mismatch:{process_name}!={args.process_name}")
+
+    start_time = process.get("startTimeUtc")
+    if args.process_start_time_utc and start_time and str(start_time) != str(args.process_start_time_utc):
+        blockers.append(f"process-start-time-mismatch:{start_time}!={args.process_start_time_utc}")
+
+    return blockers
 
 
 def compare_scalar_maps(before: Mapping[str, Any], after: Mapping[str, Any], *, max_changes: int = 200) -> list[dict[str, Any]]:
@@ -394,6 +445,9 @@ def collect_snapshot(
     read_code_bytes: int,
     memory_read_specs: list[dict[str, Any]],
     helper_owned_session: bool,
+    max_live_attach_seconds: int,
+    unresponsive_abort_seconds: int,
+    max_go_attempts: int,
 ) -> dict[str, Any]:
     debugger_pid: int | None = None
     debugee_pid: int | None = None
@@ -535,6 +589,9 @@ def collect_snapshot(
             offline_only=False,
             helper_owned_session=helper_owned_session,
             process_read_started=True,
+            max_live_attach_seconds=max_live_attach_seconds,
+            unresponsive_abort_seconds=unresponsive_abort_seconds,
+            max_go_attempts=max_go_attempts,
         ),
     }
 
@@ -696,8 +753,27 @@ def run_x64dbg_collect(repo_root: Path, run_dir: Path, args: argparse.Namespace)
     summary = build_base_summary(mode="x64dbg-collect", repo_root=repo_root, run_dir=run_dir, status="failed")
     blockers: list[str] = []
     helper_owned = False
+    before: dict[str, Any] | None = None
+    after: dict[str, Any] | None = None
+    diff: dict[str, Any] | None = None
+    session_started_at = time.monotonic()
+    is_rift_live_session = args.connect_session is not None and str(args.process_name or "").lower() == "rift_x64"
+    summary["safety"] = make_safety(
+        offline_only=False,
+        max_live_attach_seconds=args.max_live_attach_seconds,
+        unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+        max_go_attempts=args.max_go_attempts,
+    )
     if args.connect_session is not None:
         assert_live_target_metadata(args, blockers)
+    if is_rift_live_session:
+        blockers.extend(
+            validate_live_attach_policy(
+                max_live_attach_seconds=args.max_live_attach_seconds,
+                unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+                max_go_attempts=args.max_go_attempts,
+            )
+        )
     if args.harmless_exe is not None and not args.allow_harmless_exe:
         blockers.append("harmless-exe-mode-requires-allow-harmless-exe")
     if not Path(args.x64dbg_path).is_file():
@@ -749,7 +825,23 @@ def run_x64dbg_collect(repo_root: Path, run_dir: Path, args: argparse.Namespace)
             read_code_bytes=args.read_code_bytes,
             memory_read_specs=args.memory_read,
             helper_owned_session=helper_owned,
+            max_live_attach_seconds=args.max_live_attach_seconds,
+            unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+            max_go_attempts=args.max_go_attempts,
         )
+        identity_blockers = collected_target_identity_blockers(before, args)
+        if identity_blockers:
+            summary["status"] = "blocked"
+            summary["blockers"].extend(identity_blockers)
+            summary["warnings"].append("detaching because x64dbg target identity did not match the approved target")
+            finalize_summary(summary, run_dir, before=before, after=None, diff=None)
+            return 2, summary
+        if is_rift_live_session and time.monotonic() - session_started_at > args.max_live_attach_seconds:
+            summary["status"] = "blocked"
+            summary["blockers"].append("live-attach-time-budget-exceeded-after-before-snapshot")
+            summary["warnings"].append("detaching before second snapshot/diff to preserve RIFT responsiveness")
+            finalize_summary(summary, run_dir, before=before, after=None, diff=None)
+            return 2, summary
         after = collect_snapshot(
             client,
             label="after",
@@ -764,22 +856,46 @@ def run_x64dbg_collect(repo_root: Path, run_dir: Path, args: argparse.Namespace)
             read_code_bytes=args.read_code_bytes,
             memory_read_specs=args.memory_read,
             helper_owned_session=helper_owned,
+            max_live_attach_seconds=args.max_live_attach_seconds,
+            unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+            max_go_attempts=args.max_go_attempts,
         )
+        identity_blockers = collected_target_identity_blockers(after, args)
+        if identity_blockers:
+            summary["status"] = "blocked"
+            summary["blockers"].extend(identity_blockers)
+            summary["warnings"].append("detaching because x64dbg target identity changed during read-only capture")
+            finalize_summary(summary, run_dir, before=before, after=after, diff=None)
+            return 2, summary
         diff = diff_snapshots(before, after)
-        summary["status"] = "passed"
+        elapsed_seconds = time.monotonic() - session_started_at
+        if is_rift_live_session and elapsed_seconds > args.max_live_attach_seconds:
+            summary["status"] = "blocked"
+            summary["blockers"].append("live-attach-time-budget-exceeded-before-detach")
+            code = 2
+        else:
+            summary["status"] = "passed"
+            code = 0
         summary["inputs"] = {
             "connectSession": args.connect_session,
             "harmlessExe": str(args.harmless_exe) if args.harmless_exe else None,
             "x64dbgPath": str(args.x64dbg_path),
         }
+        summary["timing"] = {
+            "elapsedSecondsBeforeDetach": round(elapsed_seconds, 3),
+            "maxLiveAttachSeconds": args.max_live_attach_seconds,
+        }
         summary["safety"] = make_safety(
             offline_only=False,
             helper_owned_session=helper_owned,
             process_read_started=True,
+            max_live_attach_seconds=args.max_live_attach_seconds,
+            unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+            max_go_attempts=args.max_go_attempts,
         )
         summary["warnings"].append("candidate-only x64dbg read-only snapshot; not movement proof")
         finalize_summary(summary, run_dir, before=before, after=after, diff=diff)
-        return 0, summary
+        return code, summary
     except Exception as exc:
         summary["errors"].append(f"{type(exc).__name__}:{exc}")
         finalize_summary(summary, run_dir, before=None, after=None, diff=None)
@@ -817,6 +933,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--read-code-bytes", type=int, default=64)
     parser.add_argument("--memory-read", action="append", type=parse_memory_read_spec, default=[], metavar="ADDRESS:SIZE[:LABEL]")
     parser.add_argument("--wait-timeout", type=int, default=10)
+    parser.add_argument("--max-live-attach-seconds", type=int, default=DEFAULT_MAX_LIVE_ATTACH_SECONDS)
+    parser.add_argument("--unresponsive-abort-seconds", type=int, default=DEFAULT_UNRESPONSIVE_ABORT_SECONDS)
+    parser.add_argument("--max-go-attempts", type=int, default=DEFAULT_MAX_GO_ATTEMPTS)
     return parser
 
 
@@ -847,6 +966,14 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         return ["read-code-bytes-out-of-range"]
     if args.max_memory_map_pages < 0:
         return ["max-memory-map-pages-out-of-range"]
+    if args.connect_session is not None and str(args.process_name or "").lower() == "rift_x64":
+        policy_blockers = validate_live_attach_policy(
+            max_live_attach_seconds=args.max_live_attach_seconds,
+            unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+            max_go_attempts=args.max_go_attempts,
+        )
+        if policy_blockers:
+            return policy_blockers
     return []
 
 

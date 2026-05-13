@@ -8,6 +8,13 @@ from typing import Any
 
 from .reports import write_json, write_text_atomic
 from .x64dbg_snapshot_diff import BLOCKED_OPERATIONS, SOURCE_LINKS, int_hex
+from .x64dbg_safety import (
+    DEFAULT_MAX_GO_ATTEMPTS,
+    DEFAULT_MAX_LIVE_ATTACH_SECONDS,
+    DEFAULT_UNRESPONSIVE_ABORT_SECONDS,
+    live_attach_policy,
+    validate_live_attach_policy,
+)
 
 
 SCHEMA_VERSION = 1
@@ -41,7 +48,13 @@ def normalize_hwnd(value: str | None) -> str | None:
         return value.strip()
 
 
-def build_safety(*, allow_live_debugger: bool) -> dict[str, Any]:
+def build_safety(
+    *,
+    allow_live_debugger: bool,
+    max_live_attach_seconds: int,
+    unresponsive_abort_seconds: int,
+    max_go_attempts: int,
+) -> dict[str, Any]:
     return {
         "movementSent": False,
         "inputSent": False,
@@ -61,6 +74,11 @@ def build_safety(*, allow_live_debugger: bool) -> dict[str, Any]:
         "candidateOnly": True,
         "writeClassOperationsBlocked": True,
         "blockedOperations": list(BLOCKED_OPERATIONS),
+        "liveAttachPolicy": live_attach_policy(
+            max_live_attach_seconds=max_live_attach_seconds,
+            unresponsive_abort_seconds=unresponsive_abort_seconds,
+            max_go_attempts=max_go_attempts,
+        ),
     }
 
 
@@ -164,7 +182,10 @@ def planned_phases(args: argparse.Namespace) -> list[dict[str, Any]]:
         {
             "phase": 1,
             "name": "approved-x64dbg-attach",
-            "goal": "After explicit current-turn approval, attach x64dbg only to the recorded PID/HWND/process-start target.",
+            "goal": (
+                "After explicit current-turn approval, attach x64dbg only to the recorded "
+                f"PID/HWND/process-start target and detach within {args.max_live_attach_seconds} seconds."
+            ),
             "allowedNow": bool(args.allow_live_debugger),
         },
         {
@@ -218,6 +239,13 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         blockers.append("watch-size-must-cover-12-byte-xyz-triplet")
     if args.pose_count < 3:
         blockers.append("pose-count-must-be-at-least-3")
+    blockers.extend(
+        validate_live_attach_policy(
+            max_live_attach_seconds=args.max_live_attach_seconds,
+            unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+            max_go_attempts=args.max_go_attempts,
+        )
+    )
     return blockers
 
 
@@ -270,7 +298,12 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "candidateTemplateJson": str(template_json),
             "sessionChecklistMarkdown": str(checklist_md),
         },
-        "safety": build_safety(allow_live_debugger=bool(args.allow_live_debugger)),
+        "safety": build_safety(
+            allow_live_debugger=bool(args.allow_live_debugger),
+            max_live_attach_seconds=args.max_live_attach_seconds,
+            unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+            max_go_attempts=args.max_go_attempts,
+        ),
         "next": {
             "recommendedAction": (
                 "Fill the candidate template from an explicitly approved x64dbg watchpoint session, then validate chain-now vs API-now outside x64dbg."
@@ -334,6 +367,7 @@ def checklist_markdown(summary: dict[str, Any]) -> str:
     candidate = summary["candidate"]
     process = summary["process"]
     truth = summary["truthSurface"]
+    policy = summary["safety"]["liveAttachPolicy"]
     lines = [
         "# x64dbg coordinate-chain session checklist",
         "",
@@ -347,6 +381,15 @@ def checklist_markdown(summary: dict[str, Any]) -> str:
         f"- Process start UTC: `{process.get('startTimeUtc')}`",
         f"- Candidate address: `{candidate.get('address')}`",
         f"- API coordinate: `X={truth.get('x')}`, `Y={truth.get('y')}`, `Z={truth.get('z')}` at `{truth.get('sampledAtUtc')}`",
+        "",
+        "## Attach guard",
+        "",
+        f"- Prebuild every command, capture path, and detach path before attach.",
+        f"- Start a wall-clock timer before attach; detach within `{policy['maxLiveAttachSeconds']}` seconds.",
+        f"- If RIFT is `Responding=False` for more than `{policy['unresponsiveAbortSeconds']}` seconds after attach/run, detach immediately.",
+        f"- Permit at most `{policy['maxGoAttempts']}` `go/run` attempt by default.",
+        "- Do not use exception-swallowing as a retry loop.",
+        "- Detach first, analyze artifacts second.",
         "",
         "## Required capture per access event",
         "",
@@ -363,6 +406,9 @@ def checklist_markdown(summary: dict[str, Any]) -> str:
         "- target PID/HWND/process-start changes;",
         "- API/runtime coordinate is stale or missing;",
         "- x64dbg or RIFT becomes unstable;",
+        f"- RIFT is `Responding=False` for more than `{policy['unresponsiveAbortSeconds']}` seconds;",
+        f"- live attach reaches `{policy['maxLiveAttachSeconds']}` seconds without explicit extension;",
+        f"- more than `{policy['maxGoAttempts']}` `go/run` attempt would be needed;",
         "- another debugger-class tool is attached;",
         "- the workflow would require patching or write-class operations.",
     ]
@@ -429,6 +475,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-y", type=float, default=None)
     parser.add_argument("--api-z", type=float, default=None)
     parser.add_argument("--allow-live-debugger", action="store_true")
+    parser.add_argument("--max-live-attach-seconds", type=int, default=DEFAULT_MAX_LIVE_ATTACH_SECONDS)
+    parser.add_argument("--unresponsive-abort-seconds", type=int, default=DEFAULT_UNRESPONSIVE_ABORT_SECONDS)
+    parser.add_argument("--max-go-attempts", type=int, default=DEFAULT_MAX_GO_ATTEMPTS)
     return parser
 
 
