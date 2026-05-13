@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 21:53 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The narrow `0x268DF21E000` family is still the only repeat-stable current-PID coordinate candidate family, and the newest owner/type inspection now ties `0x268DF21ED20` to low-noise owner base `0x268D753AE30` via `[owner+0x10]`; parent heap ref `0x268D7539700` points to that owner but no module/static root is resolved. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:00 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current lead is still low-noise type marker `rift_x64.exe+0x26AAE70 -> owner 0x268D753AE30 -> [owner+0x10] = 0x268DF21ED20`; the newest parent-graph comparison shows all three sibling type instances have one heap parent ref each and no parent-of-parent hits, so no static/root chain is resolved. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -104,6 +104,19 @@ confirmed `0x268D7539700 -> 0x268D753AE30` and repeated the direct
 `0x268DF21ED20` candidate relation in the same heap region. This is a stronger
 source-chain lead (`type marker -> owner base -> coord pointer`) but still not
 a static root or movement proof.
+
+**May 13 22:00 UTC owner parent-graph comparison:** sibling owner scan
+`scripts/captures/pointer-family-scan-20260513-215713-171510/summary.json`
+scanned all `3` low-noise `rift_x64.exe+0x26AAE70` type instances. Each owner
+had exactly `1` heap parent ref and each parent ref had `0` parent refs:
+`0x268923AF610 <- 0x268E2A78628`,
+`0x268C6A10EA0 <- 0x268B0DD1168`, and player-candidate
+`0x268D753AE30 <- 0x268D7539700`. New offline summarizer
+`scripts/owner_type_parent_graph.py` generated
+`scripts/captures/owner-type-parent-graph-20260513-215906-263575/summary.json`,
+classifying `0x268D753AE30` as `candidate-owner-heap-terminal`. This improves
+the source-chain map and confirms the current chain still stops in heap; no
+module/static parent was found.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
