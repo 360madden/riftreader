@@ -16,6 +16,7 @@ DEFAULT_PROCESS_NAME = "rift_x64"
 DEFAULT_WATCH_SIZE = 12
 DEFAULT_AXIS_OFFSETS = {"x": "0x0", "y": "0x4", "z": "0x8"}
 DEFAULT_POSE_COUNT_REQUIRED = 3
+DEFAULT_MAX_API_HIT_SKEW_SECONDS = 5.0
 
 
 def utc_iso() -> str:
@@ -75,6 +76,29 @@ def string_value(value: Any) -> str | None:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+def parse_utc_datetime_value(value: Any) -> datetime | None:
+    text = string_value(value)
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def timestamp_delta_seconds(left: Any, right: Any) -> float | None:
+    left_timestamp = parse_utc_datetime_value(left)
+    right_timestamp = parse_utc_datetime_value(right)
+    if left_timestamp is None or right_timestamp is None:
+        return None
+    return abs((left_timestamp - right_timestamp).total_seconds())
 
 
 def add_unique(items: list[str], item: str) -> None:
@@ -315,6 +339,7 @@ def normalize_events(
     payload: Mapping[str, Any],
     *,
     max_delta: float,
+    max_api_hit_skew_seconds: float | None,
     allow_write_access_events: bool,
     hard_blockers: list[str],
     warnings: list[str],
@@ -340,6 +365,11 @@ def normalize_events(
             pose_id = f"pose-{index:03d}"
         if raw_event.get("targetStillMatched") is not True:
             add_unique(hard_blockers, "target-mismatch-in-access-event")
+        hit_at_utc = string_value(raw_event.get("hitAtUtc"))
+        if not hit_at_utc:
+            add_unique(hard_blockers, "missing-hit-at-utc")
+        elif parse_utc_datetime_value(hit_at_utc) is None:
+            add_unique(hard_blockers, "hit-at-utc-invalid")
 
         access = (string_value(raw_event.get("access")) or "").lower()
         if access not in {"read", "write", "access"}:
@@ -359,6 +389,15 @@ def normalize_events(
         memory["address"] = normalize_hex(memory_raw.get("address"))
         if not memory.get("address"):
             add_unique(hard_blockers, "missing-memory-address")
+        api_hit_delta = timestamp_delta_seconds(truth.get("sampledAtUtc"), hit_at_utc)
+        if hit_at_utc and truth.get("sampledAtUtc") and api_hit_delta is None:
+            add_unique(hard_blockers, "api-now-or-hit-timestamp-invalid")
+        elif (
+            max_api_hit_skew_seconds is not None
+            and api_hit_delta is not None
+            and api_hit_delta > max_api_hit_skew_seconds
+        ):
+            add_unique(hard_blockers, "api-now-vs-hit-timestamp-skew-exceeded")
 
         deltas = coordinate_deltas(truth, memory)
         max_abs = deltas.get("maxAbs")
@@ -378,12 +417,16 @@ def normalize_events(
             {
                 "eventId": event_id,
                 "poseId": pose_id,
-                "hitAtUtc": string_value(raw_event.get("hitAtUtc")),
+                "hitAtUtc": hit_at_utc,
                 "targetStillMatched": raw_event.get("targetStillMatched") is True,
                 "access": access,
                 "truthSurface": truth,
                 "memoryNow": memory,
                 "deltas": deltas,
+                "timing": {
+                    "apiHitDeltaSeconds": api_hit_delta,
+                    "maxApiHitSkewSeconds": max_api_hit_skew_seconds,
+                },
                 "instruction": instruction,
             }
         )
@@ -630,6 +673,7 @@ def ingest_payload(
     events_json: Path | None,
     candidate_id: str,
     max_delta: float,
+    max_api_hit_skew_seconds: float | None,
     pose_count_required: int,
     allow_write_access_events: bool,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
@@ -641,6 +685,7 @@ def ingest_payload(
     events = normalize_events(
         payload,
         max_delta=max_delta,
+        max_api_hit_skew_seconds=max_api_hit_skew_seconds,
         allow_write_access_events=allow_write_access_events,
         hard_blockers=hard_blockers,
         warnings=warnings,
@@ -666,6 +711,7 @@ def ingest_payload(
     summary["watchWindow"] = watch_window
     summary["validation"] = {
         "maxDelta": max_delta,
+        "maxApiHitSkewSeconds": max_api_hit_skew_seconds,
         "poseCountRequired": pose_count_required,
     }
     summary["next"]["recommendedAction"] = (
@@ -736,6 +782,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--events-json", type=Path, default=None)
     parser.add_argument("--candidate-id", default="x64dbg-access-event-candidate-000001")
     parser.add_argument("--max-delta", type=float, default=1.0)
+    parser.add_argument(
+        "--max-api-hit-skew-seconds",
+        type=float,
+        default=DEFAULT_MAX_API_HIT_SKEW_SECONDS,
+        help="Maximum allowed absolute seconds between each x64dbg hitAtUtc and its API-now truthSurface.sampledAtUtc.",
+    )
     parser.add_argument("--pose-count-required", type=int, default=DEFAULT_POSE_COUNT_REQUIRED)
     parser.add_argument("--allow-write-access-events", action="store_true")
     parser.add_argument("--self-test", action="store_true")
@@ -778,6 +830,7 @@ def main(argv: list[str] | None = None) -> int:
                 events_json=events_json,
                 candidate_id=args.candidate_id,
                 max_delta=args.max_delta,
+                max_api_hit_skew_seconds=args.max_api_hit_skew_seconds,
                 pose_count_required=args.pose_count_required,
                 allow_write_access_events=args.allow_write_access_events,
             )

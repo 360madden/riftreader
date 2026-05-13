@@ -92,6 +92,42 @@ class X64DbgAccessEventIngestTests(unittest.TestCase):
             self.assertIn("api-now-vs-memory-now-delta-exceeded", summary["blockers"])
             self.assertIsNone(summary["artifacts"]["candidateJson"])
 
+    def test_stale_api_timestamp_blocks_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            payload = synthetic_payload()
+            payload["events"][0]["truthSurface"]["sampledAtUtc"] = "2026-05-12T20:59:00Z"
+            events_path = self.write_payload(temp, payload)
+            out = Path(temp) / "blocked-stale-api"
+            code = self.run_main(
+                [
+                    "--events-json",
+                    str(events_path),
+                    "--output-root",
+                    str(out),
+                    "--json",
+                    "--max-api-hit-skew-seconds",
+                    "5",
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("api-now-vs-hit-timestamp-skew-exceeded", summary["blockers"])
+            self.assertIsNone(summary["artifacts"]["candidateJson"])
+
+    def test_invalid_hit_timestamp_blocks_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            payload = synthetic_payload()
+            payload["events"][0]["hitAtUtc"] = "not-a-timestamp"
+            events_path = self.write_payload(temp, payload)
+            out = Path(temp) / "blocked-invalid-hit"
+            code = self.run_main(["--events-json", str(events_path), "--output-root", str(out), "--json"])
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("hit-at-utc-invalid", summary["blockers"])
+            self.assertIsNone(summary["artifacts"]["candidateJson"])
+
     def test_single_pose_emits_candidate_but_blocks_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             payload = synthetic_payload()

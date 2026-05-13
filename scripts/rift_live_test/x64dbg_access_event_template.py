@@ -247,6 +247,7 @@ def build_template(planner: dict[str, Any], pose_count: int | None) -> dict[str,
         "templateInstructions": [
             "Fill capturedAtUtc after the approved x64dbg capture starts.",
             "For each pose, fill hitAtUtc, targetStillMatched=true, fresh API truthSurface, memoryNow X/Y/Z, and instruction fields.",
+            "Keep each truthSurface.sampledAtUtc within the ingester max-api-hit-skew-seconds window of its hitAtUtc.",
             "Keep access as read unless a write access was intentionally approved and captured; write access remains candidate-only.",
             "After filling, run scripts/x64dbg_access_event_ingest.py --events-json <this file> --json.",
         ],
