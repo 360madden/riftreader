@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:08 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current lead remains low-noise type marker `rift_x64.exe+0x26AAE70 -> owner 0x268D753AE30 -> [owner+0x10] = 0x268DF21ED20`; newest parent-slot neighborhood comparison adds module-hint source-chain clues near two of the three heap parent slots, but no module/static root chain is resolved. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:12 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current static-owner clue is now ranked as player-candidate parent-slot module hint `rift_x64.exe+0x263E950` at `0x268D7539700 - 0x40`, above sibling-only hints `0x2647AC0` and `0x2691A88`; this still does not resolve a module/static root chain. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -131,6 +131,17 @@ carry owner-window module-pointer hints: player-candidate slot
 better source-chain map and gives the next static-owner clue set, but it does
 not promote coordinate truth, does not prove a static root, and does not permit
 movement.
+
+**May 13 22:11 UTC parent-slot module-hint rank:** new offline helper
+`scripts/parent_slot_module_hint_rank.py` ranked the module hints from the
+parent-slot summary at
+`scripts/captures/parent-slot-module-hint-rank-20260513-221249-080403/summary.json`.
+It found `3` hints, `3` unique RVAs, and `1` player-candidate hint. The top
+ranked static-owner clue is `rift_x64.exe+0x263E950` in player-candidate parent
+slot `0x268D7539700`, at offset `-0x40` from the owner slot, score `180`.
+Sibling hints ranked lower: `rift_x64.exe+0x2647AC0` at `-0x150` and
+`rift_x64.exe+0x2691A88` at `-0x3A8`. This ranking is the next offline search
+priority only; it is not static-chain proof and not movement permission.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
