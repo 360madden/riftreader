@@ -1184,6 +1184,66 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidate"]["candidateId"], "b")
             self.assertEqual(summary["candidate"]["address"], "0x2000")
 
+    def test_candidate_file_accepts_snake_case_riftreader_family_scan_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            candidate_file = temp_path / "api-family-vec3-candidates.json"
+            self.write_candidate_file(
+                candidate_file,
+                [
+                    {
+                        "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                        "candidate_id": "api-family-hit-000001",
+                        "absolute_address_hex": "0x17382765E40",
+                        "axis_order": "xyz",
+                        "process_id": 79184,
+                        "target_window_handle": "0xA90BFC",
+                    },
+                    {
+                        "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                        "candidate_id": "api-family-hit-000002",
+                        "absolute_address_hex": "0x173843E040",
+                        "axis_order": "xyz",
+                        "process_id": 79184,
+                        "target_window_handle": "0xA90BFC",
+                    },
+                ],
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--candidate-id",
+                        "api-family-hit-000001",
+                        "--target-pid",
+                        "79184",
+                        "--target-hwnd",
+                        "0xA90BFC",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "api-family-hit-000001")
+            self.assertEqual(summary["candidate"]["address"], "0x17382765E40")
+            self.assertEqual(summary["candidate"]["axisOrder"], "xyz")
+            self.assertEqual(summary["candidateFile"]["sourceKind"], "riftreader.api_family_vec3_candidate.v1")
+
     def test_candidate_file_address_mismatch_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

@@ -220,22 +220,25 @@ def candidate_address_value(document: dict[str, Any]) -> Any:
         "AddressHex",
         "absoluteAddressHex",
         "AbsoluteAddressHex",
+        "absolute_address_hex",
         "candidateAddressHex",
         "CandidateAddressHex",
+        "candidate_address_hex",
         "xAddressHex",
         "XAddressHex",
+        "x_address_hex",
     )
 
 
 def extract_candidate_record(candidate: dict[str, Any]) -> dict[str, Any]:
     return {
-        "candidateId": get_mapping_value(candidate, "candidateId", "CandidateId", "id", "Id"),
+        "candidateId": get_mapping_value(candidate, "candidateId", "CandidateId", "candidate_id", "id", "Id"),
         "address": candidate_address_value(candidate),
-        "axisOrder": get_mapping_value(candidate, "axisOrder", "AxisOrder"),
-        "processName": get_mapping_value(candidate, "processName", "ProcessName"),
-        "processId": to_int_or_none(get_mapping_value(candidate, "processId", "ProcessId")),
-        "targetWindowHandle": get_mapping_value(candidate, "targetWindowHandle", "TargetWindowHandle"),
-        "sourceKind": get_mapping_value(candidate, "sourceKind", "SourceKind", "kind", "Kind"),
+        "axisOrder": get_mapping_value(candidate, "axisOrder", "AxisOrder", "axis_order"),
+        "processName": get_mapping_value(candidate, "processName", "ProcessName", "process_name"),
+        "processId": to_int_or_none(get_mapping_value(candidate, "processId", "ProcessId", "process_id")),
+        "targetWindowHandle": get_mapping_value(candidate, "targetWindowHandle", "TargetWindowHandle", "target_window_handle"),
+        "sourceKind": get_mapping_value(candidate, "sourceKind", "SourceKind", "source_kind", "kind", "Kind", "schema_version"),
     }
 
 

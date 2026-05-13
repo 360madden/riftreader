@@ -206,9 +206,9 @@ def verify_hwnd_owner(hwnd_text: str, expected_pid: int) -> dict[str, Any]:
     return result
 
 
-def enumerate_regions(handle: int, max_address: int) -> list[dict[str, int]]:
+def enumerate_regions(handle: int, min_address: int, max_address: int) -> list[dict[str, int]]:
     regions: list[dict[str, int]] = []
-    address = 0
+    address = max(0, min_address)
     mbi = MEMORY_BASIC_INFORMATION()
     mbi_size = ctypes.sizeof(MEMORY_BASIC_INFORMATION)
     while address < max_address:
@@ -220,6 +220,9 @@ def enumerate_regions(handle: int, max_address: int) -> list[dict[str, int]]:
         size = int(mbi.RegionSize or 0)
         if size <= 0:
             address += 0x10000
+            continue
+        if base + size <= min_address:
+            address = base + size
             continue
         if is_readable_region(mbi):
             regions.append({"base": base, "size": size, "protect": int(mbi.Protect), "type": int(mbi.Type), "state": int(mbi.State)})
@@ -367,6 +370,7 @@ def main() -> int:
     parser.add_argument("--tolerance", type=float, default=0.25)
     parser.add_argument("--max-hits", type=int, default=200)
     parser.add_argument("--chunk-bytes", type=int, default=4 * 1024 * 1024)
+    parser.add_argument("--min-address", default="0x0")
     parser.add_argument("--max-address", default="0x7FFFFFFFFFFF")
     parser.add_argument("--max-seconds", type=int, default=180)
     parser.add_argument("--reference-timeout-seconds", type=int, default=90)
@@ -462,11 +466,14 @@ def main() -> int:
                 return_code = 2
                 return return_code
 
+            min_address = int(str(args.min_address), 0)
             max_address = int(str(args.max_address), 0)
-            regions = enumerate_regions(handle, max_address=max_address)
+            regions = enumerate_regions(handle, min_address=min_address, max_address=max_address)
             summary["scan"]["readableRegionCount"] = len(regions)
             summary["scan"]["tolerance"] = args.tolerance
             summary["scan"]["maxHits"] = args.max_hits
+            summary["scan"]["minAddress"] = format_hex(min_address)
+            summary["scan"]["maxAddress"] = format_hex(max_address)
 
             started = time.monotonic()
             hits: list[dict[str, Any]] = []
