@@ -112,7 +112,24 @@ the same first debugger session.
 
 Before opening a live-debugger session:
 
-1. Identify the exact RIFT PID/HWND/process start time.
+1. Identify the exact RIFT PID/HWND/process start time, responsiveness, and
+   module base with the no-attach Python preflight:
+
+   ```powershell
+   python C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py --json
+   ```
+
+   If multiple RIFT windows are present, rerun with explicit target identity:
+
+   ```powershell
+   python C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py `
+     --target-pid <PID> `
+     --target-hwnd <HWND> `
+     --json
+   ```
+
+   This preflight uses OS/window/process metadata only. It does not attach
+   x64dbg, send input, set breakpoints/watchpoints, or read/write target memory.
 2. Capture a fresh API/runtime coordinate sample.
 3. Capture the candidate memory address and current X/Y/Z values.
 4. Confirm no other debugger-class tool is attached.

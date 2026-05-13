@@ -169,6 +169,11 @@ change.
 Launch x64dbg through the Python-owned `scripts\x64dbg_launcher.py`; `.cmd` and
 `.ps1` wrappers are compatibility shims only, not workflow brains.
 
+Before any live debugger session, write a no-attach target packet with
+`python scripts\x64dbg_preflight.py --json`. It records exact PID/HWND/title,
+process start time, responsiveness, and module base from OS/window/process
+metadata only.
+
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
 The PID `63412` coordinate candidate `0x20005B30800` and owner
