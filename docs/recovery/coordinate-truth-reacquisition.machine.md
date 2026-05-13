@@ -143,6 +143,7 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
     "coordinateFamily": [
       "scripts/scan_current_pid_coordinate_family.py",
       "scripts/capture_current_pid_coordinate_family_snapshot.py",
+      "scripts/capture_x64dbg_coord_copy_probe_batch.py",
       "scripts/capture-rift-api-reference-coordinate.ps1",
       "scripts/invoke-riftscan-coordinate-readback.ps1",
       "scripts/capture-riftscan-proof-pose.ps1"
@@ -192,20 +193,61 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
       "discovery": "freshest current coordinate copies in the 0x1FF07570000 family can be unaligned",
       "requiredScanOption": "--scan-stride 1",
       "bestObservedUnalignedCopy": {
+        "addressHex": "0x1FF07575346",
+        "value": [7406.1318359375, 871.7725830078125, 3028.77099609375],
+        "reference": [7406.1299, 871.77, 3028.77],
+        "maxAbsDelta": 0.00258300781251819,
+        "artifact": "scripts/captures/family-scan-currentpid-60628-20260513-061422/family-scan-summary.json"
+      },
+      "staleObservedUnalignedCopy": {
         "addressHex": "0x1FF0757215A",
         "duplicateAddressHex": "0x1FF07572183",
-        "value": [7411.95458984375, 871.8436279296875, 3031.310546875],
-        "reference": [7411.9497, 871.84, 3031.3098],
-        "maxAbsDelta": 0.004889843749879219
+        "priorValue": [7411.95458984375, 871.8436279296875, 3031.310546875],
+        "priorReference": [7411.9497, 871.84, 3031.3098],
+        "priorMaxAbsDelta": 0.004889843749879219,
+        "currentSnapshotDeltaApprox": 5.8247
       },
       "x64dbgLead": {
         "caller": "rift_x64.exe+0x47D533",
         "returnAddress": "rift_x64.exe+0x47D538",
         "copyInstruction": "VCRUNTIME140.dll+0x113F8 vmovdqu ymmword ptr ds:[rcx+r9*1-0x40], ymm1",
-        "sourceBufferRuleAtHit": "rdx = [r14]; coordinate offset rdx+0x28"
+        "sourceBufferRuleAtHit": "rdx=0x1FF6D600020; coordinate offset rdx+0x28 in coordinate-copy/read contexts",
+        "confirmedSourceTriplets": [
+          {
+            "artifact": "scripts/captures/x64dbg-live-access-capture-20260513-060024-938838/summary.json",
+            "sourceAddressHex": "0x1FF6D600020",
+            "sourceOffsetHex": "0x28",
+            "value": [7406.6005859375, 871.7725830078125, 3028.814208984375]
+          },
+          {
+            "artifact": "scripts/captures/x64dbg-live-access-capture-20260513-060104-964476/summary.json",
+            "sourceAddressHex": "0x1FF6D600020",
+            "sourceOffsetHex": "0x28",
+            "value": [7406.1318359375, 871.7725830078125, 3028.77099609375]
+          }
+        ]
+      },
+      "latestBroadSnapshot": {
+        "artifact": "scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-061344/family-snapshot-summary.json",
+        "tripletCount": 97,
+        "nearReferenceTripletCount": 9,
+        "bestCurrentTriplet": "0x1FF07575346"
+      },
+      "latestPointerScan": {
+        "artifact": "scripts/captures/pointer-family-scan-20260513-061154-710379/summary.json",
+        "staticModuleHits": 0,
+        "status": "heap-only-no-static-chain"
+      },
+      "x64dbgBatchClassifier": {
+        "script": "scripts/capture_x64dbg_coord_copy_probe_batch.py",
+        "purpose": "reject noisy page-access hits while preserving bounded detach-per-attempt captures",
+        "liveArtifacts": [
+          "scripts/captures/x64dbg-coord-copy-batch-60628-20260513-060709-057382/summary.json",
+          "scripts/captures/x64dbg-coord-copy-batch-60628-20260513-060845-059022/summary.json"
+        ]
       },
       "handoff": "docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md",
-      "commit": "132fa64"
+      "commitBaseline": "4aafa0b"
     }
   ],
   "timing": {

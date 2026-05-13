@@ -54,11 +54,14 @@ The May 13 PID `60628` recovery did **not** produce a promoted proof anchor, but
 | Status | `candidate-only`; no stable exact address, no static pointer chain, no same-target `ProofOnly` promotion |
 | Major finding | The freshest coordinate-copy payload in the `0x1FF07570000` family can be **unaligned**. |
 | Required scan option | `scripts/scan_current_pid_coordinate_family.py --scan-stride 1` |
-| Best unaligned copy observed | `0x1FF0757215A`, duplicate `0x1FF07572183`; value `[7411.95458984375, 871.8436279296875, 3031.310546875]`; max abs delta `0.004889843749879219` versus fresh `RRAPICOORD1` reference. |
-| Broad snapshot helper | `scripts/capture_current_pid_coordinate_family_snapshot.py` |
-| x64dbg copy-path lead | `rift_x64.exe+0x47D533` calling into `VCRUNTIME140.dll+0x113F8`; source buffer at `rdx = [r14]`, coordinate offset `rdx+0x28` at the hit. |
+| Latest fresh unaligned copy observed | `0x1FF07575346`; value `[7406.1318359375, 871.7725830078125, 3028.77099609375]`; max abs delta `0.00258300781251819` versus fresh `RRAPICOORD1` reference; artifact `scripts/captures/family-scan-currentpid-60628-20260513-061422/family-scan-summary.json`. |
+| Earlier unaligned copy now known stale | `0x1FF0757215A`, duplicate `0x1FF07572183`; this was best at 05:35 UTC but is now a stale destination slot. |
+| Broad snapshot helper | `scripts/capture_current_pid_coordinate_family_snapshot.py`; latest snapshot `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-061344/family-snapshot-summary.json` found `97` triplets, `9` near-reference triplets, and best current triplet `0x1FF07575346`. |
+| x64dbg copy-path lead | `rift_x64.exe+0x47D533` / `rift_x64.exe+0x47D565` around the copy path; useful source evidence appears when `rdx=0x1FF6D600020` and coordinate offset `rdx+0x28` holds current XYZ. |
+| x64dbg batch classifier | `scripts/capture_x64dbg_coord_copy_probe_batch.py` classifies bounded page-access captures and rejects noisy non-coordinate page accesses (`0x8`/`0x4A` copy sizes). |
+| Pointer-chain status | Latest depth-2 scan `scripts/captures/pointer-family-scan-20260513-061154-710379/summary.json` found heap references only and no `rift_x64.exe` module/static hit. |
 | Durable handoff | `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md` |
-| Commit | `132fa64 Recover unaligned coordinate copy evidence` |
+| Commit baseline | `4aafa0b Document unaligned coordinate recovery progress` plus the current source-copy classifier slice. |
 
 Operational impact:
 
@@ -133,6 +136,7 @@ Those require separate gated validation lanes.
 | `scripts/rift_live_test/visual_gate_status.py` | Visual gate implementation. |
 | `scripts/scan_current_pid_coordinate_family.py` | Read-only current-PID memory scan for XYZ-like coordinate triplets near a fresh runtime reference. |
 | `scripts/capture_current_pid_coordinate_family_snapshot.py` | Read-only broad family snapshot for grouped/ring/copy-family analysis; candidate-only; supports `--scan-stride 1` for unaligned payloads. |
+| `scripts/capture_x64dbg_coord_copy_probe_batch.py` | Python x64dbg batch wrapper that runs bounded page-access captures and classifies coordinate-copy-like hits without promoting truth. |
 | `scripts/capture-rift-api-reference-coordinate.ps1` | Captures a fresh runtime coordinate reference using `RRAPICOORD1` marker scanning. |
 | `scripts/reacquire-current-pid-coordinate-anchor-batch.ps1` | Captures multiple displaced proof poses, sends bounded `W` movement stimulus when enabled, and ranks coordinate candidates. |
 | `scripts/send-rift-key-csharp.ps1` | Sends bounded input stimulus through the proven C# SendInput path. |

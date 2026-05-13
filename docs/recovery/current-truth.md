@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: May 13, 2026 05:43 UTC. The current live target observed in the latest recovery lane is `rift_x64` PID `60628`, HWND `0xCE0FCE`, process start `2026-05-13T04:53:58.081190Z`, module base `0x7FF796B50000`. Coordinate truth for PID `60628` is **candidate-only**: the live coordinate-copy family was reacquired, but no stable exact address, static pointer chain, promotion, or same-target `ProofOnly` proof anchor has passed. The latest fully validated proof anchor below remains the May 12 PID `57656` proof, and must be treated as stale for PID `60628` until re-promoted._
+_Last updated: May 13, 2026 06:16 UTC. The current live target observed in the latest recovery lane is `rift_x64` PID `60628`, HWND `0xCE0FCE`, process start `2026-05-13T04:53:58.081190Z`, module base `0x7FF796B50000`. Coordinate truth for PID `60628` is **candidate-only**: the live coordinate-copy family was reacquired and the source-copy pattern improved, but no stable exact address, static pointer chain, promotion, or same-target `ProofOnly` proof anchor has passed. The latest fully validated proof anchor below remains the May 12 PID `57656` proof, and must be treated as stale for PID `60628` until re-promoted._
 
 ## May 13 current target status (candidate-only; not authoritative proof)
 
@@ -12,14 +12,16 @@ _Last updated: May 13, 2026 05:43 UTC. The current live target observed in the l
 | Runtime reference source | Fresh `RRAPICOORD1` marker scans remain the scoring reference for current PID `60628`. |
 | Key discovery | The active coordinate-copy family around `0x1FF07570000` can store the freshest XYZ payload **unaligned**; aligned-only scans can over-rank stale copies. |
 | Required scan mode | Use `scripts/scan_current_pid_coordinate_family.py --scan-stride 1` for this family. |
-| Best unaligned candidate observed | `0x1FF0757215A` with duplicate `0x1FF07572183`; value `[7411.95458984375, 871.8436279296875, 3031.310546875]`; reference `[7411.9497, 871.84, 3031.3098]`; max abs delta `0.004889843749879219`. |
-| Broad family snapshot | `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-053557/family-snapshot-summary.json`; `scanStride=1`, `tripletCount=29`, `nearReferenceTripletCount=19`, best current triplet `0x1FF0757215A`. |
+| Latest fresh unaligned candidate observed | `0x1FF07575346`; value `[7406.1318359375, 871.7725830078125, 3028.77099609375]`; fresh `RRAPICOORD1` reference `[7406.1299, 871.77, 3028.77]`; max abs delta `0.00258300781251819`; artifact `scripts/captures/family-scan-currentpid-60628-20260513-061422/family-scan-summary.json`. |
+| Earlier unaligned candidate now stale | `0x1FF0757215A` with duplicate `0x1FF07572183` was best at 05:35 UTC, but the 06:13 UTC snapshot shows it is now a stale destination slot with best-current delta about `5.8247`. |
+| Broad family snapshot | Latest: `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-061344/family-snapshot-summary.json`; `scanStride=1`, `tripletCount=97`, `nearReferenceTripletCount=9`, best current triplet `0x1FF07575346`. Prior 05:35 snapshot: `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-053557/family-snapshot-summary.json`. |
 | x64dbg status | Bounded attach/detach, page memory breakpoint, and execute breakpoint captures succeeded. x64dbg was detached after each capture and final preflight confirmed RIFT responsive. |
 | x64dbg writer/copy lead | `rift_x64.exe+0x47D533` calls the copy path; memory breakpoint hit in `VCRUNTIME140.dll+0x113F8` at `vmovdqu ymmword ptr ds:[rcx+r9*1-0x40], ymm1`; return/caller `rift_x64.exe+0x47D538`. |
-| Source-buffer lead | At the caller breakpoint, `rdx = [r14] = 0x1FF6D600020`, `r14 = 0x1FF65FADE88`, and source buffer `rdx + 0x28` held current XYZ. This is the best source-chain lead, but still heap-local. |
-| Pointer-chain status | Pointer scans found heap references only; no `rift_x64.exe` static/module hit and no restart-stable static pointer chain. |
+| Source-buffer lead | At coordinate-copy/read contexts, `rdx = 0x1FF6D600020`, `r14 = 0x1FF65FADE88`, and source buffer `rdx + 0x28` tracked current XYZ across two displaced copied poses: `[7406.6005859375, 871.7725830078125, 3028.814208984375]` and `[7406.1318359375, 871.7725830078125, 3028.77099609375]`. This is the best source-chain lead, but still heap-local. |
+| New x64dbg batch classifier | `scripts/capture_x64dbg_coord_copy_probe_batch.py` wraps bounded x64dbg captures and rejects noisy page accesses unless copy size/source-offset criteria match. Validation passed; live batches at `scripts/captures/x64dbg-coord-copy-batch-60628-20260513-060709-057382` and `scripts/captures/x64dbg-coord-copy-batch-60628-20260513-060845-059022` correctly rejected non-coordinate `0x8`/`0x4A` page accesses. |
+| Pointer-chain status | Latest depth-2 pointer scan `scripts/captures/pointer-family-scan-20260513-061154-710379/summary.json` found heap references only. `0x1FF6D600020` is referenced by heap-local storage; `0x1FF65FADE88` is referenced by `0x1FF6D658590`; no `rift_x64.exe` static/module hit and no restart-stable static pointer chain. |
 | Handoff | `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md` |
-| Commit | `132fa64 Recover unaligned coordinate copy evidence` |
+| Latest code/docs checkpoint | This recovery slice adds `scripts/capture_x64dbg_coord_copy_probe_batch.py` and updates truth documentation; previous committed checkpoint was `4aafa0b Document unaligned coordinate recovery progress`. |
 | Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no navigation/route truth; no movement proof-anchor gate satisfied. |
 
 ## Latest fully validated proof status (authoritative; stale for PID 60628)
