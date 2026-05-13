@@ -311,6 +311,8 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         "candidate": {
             "address": int_hex(candidate_address),
             "breakpointAddress": int_hex(breakpoint_address),
+            "breakpointAccess": args.breakpoint_access,
+            "breakpointSize": args.breakpoint_size,
             "readSize": args.read_size,
             "evidenceFile": str(args.candidate_evidence_file) if args.candidate_evidence_file else None,
             "accessTemplate": str(args.access_template) if args.access_template else None,
@@ -390,7 +392,12 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             summary["status"] = "captured"
         elif args.capture_mode == "hardware-read":
             client.clear_debug_events()
-            if not client.set_hardware_breakpoint(breakpoint_address, bp_type=HardwareBreakpointType.r, size=4):
+            breakpoint_type = {
+                "read": HardwareBreakpointType.r,
+                "write": HardwareBreakpointType.w,
+                "execute": HardwareBreakpointType.x,
+            }[args.breakpoint_access]
+            if not client.set_hardware_breakpoint(breakpoint_address, bp_type=breakpoint_type, size=args.breakpoint_size):
                 summary["blockers"].append("set-hardware-breakpoint-failed")
                 summary["status"] = "blocked"
             else:
@@ -467,6 +474,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-module-base", default=None)
     parser.add_argument("--candidate-address", required=True)
     parser.add_argument("--breakpoint-address", default=None)
+    parser.add_argument("--breakpoint-access", choices=("read", "write", "execute"), default="read")
+    parser.add_argument("--breakpoint-size", type=int, choices=(1, 2, 4, 8), default=4)
     parser.add_argument("--candidate-evidence-file", type=Path, default=None)
     parser.add_argument("--access-template", type=Path, default=None)
     parser.add_argument("--read-size", type=int, default=12)
