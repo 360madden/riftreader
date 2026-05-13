@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:20 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current static-owner clue remains player-candidate parent-slot module hint `rift_x64.exe+0x263E950` at `0x268D7539700 - 0x40`; the new occurrence packet found it dominates the compared module hints with `57` selected occurrences across `6` artifacts and `4` owners, versus one occurrence each for sibling RVAs `0x2647AC0` and `0x2691A88`. This still does not resolve a module/static root chain. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:28 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current candidate chain is now explicitly graphed as `rift_x64.exe+0x263E950 -> module-hint entry 0x268D75396C0 -> parent slot 0x268D7539700 -> owner 0x268D753AE30 -> [owner+0x10] storage 0x268D753AE40 -> coord pointer 0x268DF21ED20`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -82,7 +82,7 @@ until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
 Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-222102.json` remains
+`scripts/captures/riftscan-milestone-review-20260513-222839.json` remains
 blocked on the same stale proof pointer and missing selected RiftScan candidate;
 it is a strategy gate, not movement permission.
 
@@ -154,6 +154,21 @@ ranked `0x263E950` far above the sibling hints: `57` occurrences, `6` artifacts,
 `0x2647AC0` and `0x2691A88` each had only `1` selected occurrence. This confirms
 `0x263E950` is the next best static-owner search seed from existing artifacts,
 but it remains an offline source-chain clue only.
+
+**May 13 22:26 UTC module-hint graph packet:** new offline helper
+`scripts/module_hint_graph_packet.py` converted the `0x263E950` occurrence,
+parent-slot, owner-parent graph, and owner-instance evidence into an explicit
+candidate chain graph at
+`scripts/captures/module-hint-graph-packet-20260513-222832-918691/summary.json`.
+The graph has `9` nodes and `10` edges and resolves this candidate path:
+`rift_x64.exe+0x263E950 -> 0x268D75396C0` (`-0x40` from parent slot)
+`-> parent slot 0x268D7539700 -> owner 0x268D753AE30 -> coord-pointer storage
+0x268D753AE40 -> coord pointer 0x268DF21ED20`. It also records owner module
+fields on `0x268D753AE30`: `+0x0 = rift_x64.exe+0x26AAE70`,
+`+0x8 = rift_x64.exe+0x272DBC0`, `+0xE0 = rift_x64.exe+0x263E950`, and
+`+0x110 = rift_x64.exe+0x2657C80`. This is the clearest current source-chain
+map, but the static/module root above `0x268D7539700` is still unresolved and
+movement remains blocked.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
