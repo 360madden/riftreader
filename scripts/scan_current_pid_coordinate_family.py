@@ -67,7 +67,7 @@ def utc_iso() -> str:
 
 
 def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
 
 
 def find_repo_root(start: Path) -> Path:

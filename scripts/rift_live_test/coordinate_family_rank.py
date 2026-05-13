@@ -156,6 +156,16 @@ def reference_tuple(observation: dict[str, Any]) -> tuple[float, float, float] |
     return float(values[0]), float(values[1]), float(values[2])
 
 
+def value_tuple(observation: dict[str, Any]) -> tuple[float, float, float] | None:
+    value = observation.get("value")
+    if not isinstance(value, dict):
+        return None
+    values = tuple(to_float_or_none(value.get(axis)) for axis in ("x", "y", "z"))
+    if any(item is None for item in values):
+        return None
+    return float(values[0]), float(values[1]), float(values[2])
+
+
 def reference_distance(left: tuple[float, float, float], right: tuple[float, float, float]) -> dict[str, float]:
     dx = right[0] - left[0]
     dy = right[1] - left[1]
@@ -189,6 +199,88 @@ def min_or_none(values: Iterable[float]) -> float | None:
     if not finite:
         return None
     return min(finite)
+
+
+def tracking_error(
+    reference_delta: dict[str, float],
+    value_delta: dict[str, float],
+) -> dict[str, float]:
+    dx = value_delta["dx"] - reference_delta["dx"]
+    dy = value_delta["dy"] - reference_delta["dy"]
+    dz = value_delta["dz"] - reference_delta["dz"]
+    return {
+        "dx": dx,
+        "dy": dy,
+        "dz": dz,
+        "planar": math.sqrt((dx * dx) + (dz * dz)),
+        "spatial": math.sqrt((dx * dx) + (dy * dy) + (dz * dz)),
+        "maxAbs": max(abs(dx), abs(dy), abs(dz)),
+    }
+
+
+def displacement_tracking_summary(per_pose: list[dict[str, Any]]) -> dict[str, Any]:
+    comparisons: list[dict[str, Any]] = []
+    ordered = sorted(
+        per_pose,
+        key=lambda observation: (str(observation.get("poseKey") or ""), str(observation.get("generatedAtUtc") or "")),
+    )
+    for left, right in zip(ordered, ordered[1:]):
+        left_reference = reference_tuple(left)
+        right_reference = reference_tuple(right)
+        left_value = value_tuple(left)
+        right_value = value_tuple(right)
+        if left_reference is None or right_reference is None or left_value is None or right_value is None:
+            continue
+
+        reference_delta = reference_distance(left_reference, right_reference)
+        value_delta = reference_distance(left_value, right_value)
+        error = tracking_error(reference_delta, value_delta)
+        comparisons.append(
+            {
+                "fromPoseKey": left.get("poseKey"),
+                "toPoseKey": right.get("poseKey"),
+                "fromAddressHex": left.get("addressHex"),
+                "toAddressHex": right.get("addressHex"),
+                "referenceDelta": reference_delta,
+                "valueDelta": value_delta,
+                "trackingError": error,
+            }
+        )
+
+    max_abs_errors = [comparison["trackingError"]["maxAbs"] for comparison in comparisons]
+    spatial_errors = [comparison["trackingError"]["spatial"] for comparison in comparisons]
+    planar_errors = [comparison["trackingError"]["planar"] for comparison in comparisons]
+    reference_planar_distances = [comparison["referenceDelta"]["planar"] for comparison in comparisons]
+    reference_spatial_distances = [comparison["referenceDelta"]["spatial"] for comparison in comparisons]
+    value_planar_distances = [comparison["valueDelta"]["planar"] for comparison in comparisons]
+    value_spatial_distances = [comparison["valueDelta"]["spatial"] for comparison in comparisons]
+    return {
+        "comparisonCount": len(comparisons),
+        "avgMaxAbsTrackingError": average(max_abs_errors),
+        "maxAbsTrackingError": max_or_none(max_abs_errors),
+        "avgPlanarTrackingError": average(planar_errors),
+        "maxPlanarTrackingError": max_or_none(planar_errors),
+        "avgSpatialTrackingError": average(spatial_errors),
+        "maxSpatialTrackingError": max_or_none(spatial_errors),
+        "minReferencePlanarDistance": min_or_none(reference_planar_distances),
+        "maxReferencePlanarDistance": max_or_none(reference_planar_distances),
+        "minReferenceSpatialDistance": min_or_none(reference_spatial_distances),
+        "maxReferenceSpatialDistance": max_or_none(reference_spatial_distances),
+        "avgValuePlanarDistance": average(value_planar_distances),
+        "avgValueSpatialDistance": average(value_spatial_distances),
+        "comparisons": comparisons,
+    }
+
+
+def tracking_sort_values(ranking: dict[str, Any]) -> tuple[float, float, float]:
+    tracking = ranking.get("displacementTracking")
+    if not isinstance(tracking, dict) or int(tracking.get("comparisonCount") or 0) <= 0:
+        return (math.inf, math.inf, math.inf)
+    return (
+        finite_or_inf(tracking.get("maxAbsTrackingError")),
+        finite_or_inf(tracking.get("maxSpatialTrackingError")),
+        finite_or_inf(tracking.get("avgMaxAbsTrackingError")),
+    )
 
 
 def candidate_observation(
@@ -481,6 +573,7 @@ def build_address_ranking(
     deltas = [finite_or_inf(observation.get("bestMaxAbsDistance")) for observation in per_pose]
     best_observation = per_pose[0] if per_pose else observations[0]
     support_pose_count = len({observation.get("poseKey") for observation in per_pose})
+    displacement_tracking = displacement_tracking_summary(per_pose)
     return {
         "kind": "exact-address",
         "addressHex": address_hex,
@@ -494,6 +587,7 @@ def build_address_ranking(
         "candidateOnly": True,
         "promotionEligible": False,
         "promotionBlockers": promotion_blockers(support_pose_count, min_pose_support),
+        "displacementTracking": displacement_tracking,
         "x64dbgWatchCandidate": {
             "addressHex": address_hex,
             "watchSizeBytes": 12,
@@ -505,9 +599,13 @@ def build_address_ranking(
     }
 
 
-def address_ranking_sort_key(ranking: dict[str, Any]) -> tuple[int, float, float, str]:
+def address_ranking_sort_key(ranking: dict[str, Any]) -> tuple[int, float, float, float, float, float, str]:
+    max_tracking_error, max_tracking_spatial_error, avg_tracking_error = tracking_sort_values(ranking)
     return (
         -int(ranking.get("supportPoseCount") or 0),
+        max_tracking_error,
+        max_tracking_spatial_error,
+        avg_tracking_error,
         finite_or_inf(ranking.get("avgBestMaxAbsDistance")),
         finite_or_inf(ranking.get("maxBestMaxAbsDistance")),
         str(ranking.get("addressHex") or ""),
@@ -531,6 +629,7 @@ def build_family_ranking(
     )
     best_address = top_addresses[0] if top_addresses else None
     best_observation = per_pose[0] if per_pose else observations[0]
+    displacement_tracking = displacement_tracking_summary(per_pose)
     return {
         "kind": "family-base",
         "familyBaseHex": family_base_hex,
@@ -545,6 +644,7 @@ def build_family_ranking(
         "candidateOnly": True,
         "promotionEligible": False,
         "promotionBlockers": promotion_blockers(support_pose_count, min_pose_support),
+        "displacementTracking": displacement_tracking,
         "x64dbgWatchCandidates": [
             ranking.get("x64dbgWatchCandidate") for ranking in top_addresses[:5] if ranking.get("x64dbgWatchCandidate")
         ],
@@ -563,9 +663,13 @@ def build_family_ranking(
     }
 
 
-def family_ranking_sort_key(ranking: dict[str, Any]) -> tuple[int, int, float, float, str]:
+def family_ranking_sort_key(ranking: dict[str, Any]) -> tuple[int, float, float, float, int, float, float, str]:
+    max_tracking_error, max_tracking_spatial_error, avg_tracking_error = tracking_sort_values(ranking)
     return (
         -int(ranking.get("supportPoseCount") or 0),
+        max_tracking_error,
+        max_tracking_spatial_error,
+        avg_tracking_error,
         -int(ranking.get("bestAddressSupportPoseCount") or 0),
         finite_or_inf(ranking.get("avgBestMaxAbsDistance")),
         finite_or_inf(ranking.get("maxBestMaxAbsDistance")),
@@ -631,13 +735,15 @@ def build_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Top exact addresses",
         "",
-        "| Rank | Address | Family | Offset | Pose support | Avg delta | Max delta |",
-        "|---:|---|---|---|---:|---:|---:|",
+        "| Rank | Address | Family | Offset | Pose support | Track max error | Avg delta | Max delta |",
+        "|---:|---|---|---|---:|---:|---:|---:|",
     ]
     for index, ranking in enumerate(summary.get("addressRankings") or [], start=1):
+        tracking = ranking.get("displacementTracking") or {}
         lines.append(
             f"| {index} | `{ranking.get('addressHex')}` | `{ranking.get('familyBaseHex')}` | "
             f"`{ranking.get('offsetHex')}` | `{ranking.get('supportPoseCount')}` | "
+            f"`{tracking.get('maxAbsTrackingError')}` | "
             f"`{ranking.get('avgBestMaxAbsDistance')}` | `{ranking.get('maxBestMaxAbsDistance')}` |"
         )
     lines.extend(
@@ -645,14 +751,16 @@ def build_markdown(summary: dict[str, Any]) -> str:
             "",
             "## Top families",
             "",
-            "| Rank | Family | Pose support | Best address | Best address support | Avg delta | Max delta |",
-            "|---:|---|---:|---|---:|---:|---:|",
+            "| Rank | Family | Pose support | Best address | Best address support | Track max error | Avg delta | Max delta |",
+            "|---:|---|---:|---|---:|---:|---:|---:|",
         ]
     )
     for index, ranking in enumerate(summary.get("familyRankings") or [], start=1):
+        tracking = ranking.get("displacementTracking") or {}
         lines.append(
             f"| {index} | `{ranking.get('familyBaseHex')}` | `{ranking.get('supportPoseCount')}` | "
             f"`{ranking.get('bestAddressHex')}` | `{ranking.get('bestAddressSupportPoseCount')}` | "
+            f"`{tracking.get('maxAbsTrackingError')}` | "
             f"`{ranking.get('avgBestMaxAbsDistance')}` | `{ranking.get('maxBestMaxAbsDistance')}` |"
         )
     if summary.get("blockers"):

@@ -115,6 +115,7 @@ class CoordinateFamilyRankTests(unittest.TestCase):
             self.assertFalse(summary["topAddress"]["promotionEligible"])
             self.assertTrue(summary["topAddress"]["candidateOnly"])
             self.assertIn("restart-validation-missing", summary["topAddress"]["promotionBlockers"])
+            self.assertEqual(summary["topAddress"]["displacementTracking"]["comparisonCount"], 1)
 
     def test_repeated_same_reference_position_does_not_inflate_pose_support(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -233,6 +234,131 @@ class CoordinateFamilyRankTests(unittest.TestCase):
             self.assertEqual(summary["observationPoseCount"], 1)
             self.assertEqual(summary["topAddress"]["supportPoseCount"], 1)
             self.assertIn("no-exact-address-meets-min-pose-support:2", summary["warnings"])
+
+    def test_tracking_error_beats_stationary_midpoint_false_positive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            pose_a = temp_path / "a" / "api-family-vec3-candidates.json"
+            pose_b = temp_path / "b" / "api-family-vec3-candidates.json"
+            out = temp_path / "rank"
+            self.write_candidates(
+                pose_a,
+                generated_at="2026-05-13T02:46:23Z",
+                reference=(100.0, 50.0, 200.0),
+                candidates=[
+                    self.candidate(
+                        "0xAAA",
+                        "0xA00",
+                        "0xAA",
+                        value=(100.2, 50.0, 200.0),
+                        delta=0.2,
+                    ),
+                    self.candidate(
+                        "0xBBB",
+                        "0xB00",
+                        "0xBB",
+                        value=(100.0, 50.0, 200.0),
+                        delta=0.0,
+                    ),
+                ],
+            )
+            self.write_candidates(
+                pose_b,
+                generated_at="2026-05-13T03:30:27Z",
+                reference=(100.4, 50.0, 200.0),
+                candidates=[
+                    self.candidate(
+                        "0xAAA",
+                        "0xA00",
+                        "0xAA",
+                        value=(100.2, 50.0, 200.0),
+                        delta=0.2,
+                    ),
+                    self.candidate(
+                        "0xBBB",
+                        "0xB00",
+                        "0xBB",
+                        value=(100.4, 50.0, 200.0),
+                        delta=0.0,
+                    ),
+                ],
+            )
+
+            code = self.run_main(
+                [
+                    "--repo-root",
+                    str(temp_path),
+                    "--candidate-file",
+                    str(pose_a),
+                    "--candidate-file",
+                    str(pose_b),
+                    "--process-id",
+                    "79184",
+                    "--target-hwnd",
+                    "0xA90BFC",
+                    "--output-root",
+                    str(out),
+                    "--json",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coordinate-family-rankings.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["topAddress"]["addressHex"], "0xBBB")
+            self.assertEqual(summary["topAddress"]["displacementTracking"]["maxAbsTrackingError"], 0.0)
+            stationary = next(
+                ranking for ranking in summary["addressRankings"] if ranking["addressHex"] == "0xAAA"
+            )
+            self.assertAlmostEqual(stationary["displacementTracking"]["maxAbsTrackingError"], 0.4)
+
+    def test_family_tracking_allows_same_family_changing_slots_to_rank(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            pose_a = temp_path / "a" / "api-family-vec3-candidates.json"
+            pose_b = temp_path / "b" / "api-family-vec3-candidates.json"
+            out = temp_path / "rank"
+            self.write_candidates(
+                pose_a,
+                generated_at="2026-05-13T02:46:23Z",
+                reference=(10.0, 1.0, 20.0),
+                candidates=[
+                    self.candidate("0xC100", "0xC000", "0x100", value=(10.0, 1.0, 20.0), delta=0.0),
+                    self.candidate("0xD100", "0xD000", "0x100", value=(10.1, 1.0, 20.0), delta=0.1),
+                ],
+            )
+            self.write_candidates(
+                pose_b,
+                generated_at="2026-05-13T03:30:27Z",
+                reference=(10.5, 1.0, 20.0),
+                candidates=[
+                    self.candidate("0xC200", "0xC000", "0x200", value=(10.5, 1.0, 20.0), delta=0.0),
+                    self.candidate("0xD100", "0xD000", "0x100", value=(10.1, 1.0, 20.0), delta=0.4),
+                ],
+            )
+
+            code = self.run_main(
+                [
+                    "--repo-root",
+                    str(temp_path),
+                    "--candidate-file",
+                    str(pose_a),
+                    "--candidate-file",
+                    str(pose_b),
+                    "--process-id",
+                    "79184",
+                    "--target-hwnd",
+                    "0xA90BFC",
+                    "--output-root",
+                    str(out),
+                    "--json",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coordinate-family-rankings.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["topFamily"]["familyBaseHex"], "0xC000")
+            self.assertEqual(summary["topFamily"]["displacementTracking"]["maxAbsTrackingError"], 0.0)
+            self.assertEqual(summary["topFamily"]["bestAddressSupportPoseCount"], 1)
 
     def test_target_filter_blocks_wrong_pid_and_hwnd(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

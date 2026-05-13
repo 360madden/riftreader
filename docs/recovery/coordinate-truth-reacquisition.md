@@ -44,34 +44,34 @@ This example proves the workflow can reacquire coordinate truth after a restart/
 
 ## Current candidate-only progress: May 13 PID 60628
 
-The May 13 PID `60628` recovery did **not** produce a promoted proof anchor, but it materially improved the recovery workflow:
+The May 13 PID `60628` recovery did **not** produce a promoted proof anchor, but it materially improved the recovery workflow and ranking quality:
 
 | Field | Value |
 |---|---|
 | Target process | `rift_x64` |
 | PID / HWND | `60628` / `0xCE0FCE` |
 | Target epoch | Start UTC `2026-05-13T04:53:58.081190Z`; module base `0x7FF796B50000` |
-| Status | `candidate-only`; no stable exact address, no static pointer chain, no same-target `ProofOnly` promotion |
-| Major finding | The freshest coordinate-copy payload in the `0x1FF07570000` family can be **unaligned**. |
-| Required scan option | `scripts/scan_current_pid_coordinate_family.py --scan-stride 1` |
-| Latest fresh unaligned copy observed | `0x1FF07575346`; value `[7406.1318359375, 871.7725830078125, 3028.77099609375]`; max abs delta `0.00258300781251819` versus fresh `RRAPICOORD1` reference; artifact `scripts/captures/family-scan-currentpid-60628-20260513-061422/family-scan-summary.json`. |
-| Earlier unaligned copy now known stale | `0x1FF0757215A`, duplicate `0x1FF07572183`; this was best at 05:35 UTC but is now a stale destination slot. |
-| Broad snapshot helper | `scripts/capture_current_pid_coordinate_family_snapshot.py`; latest snapshot `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-061344/family-snapshot-summary.json` found `97` triplets, `9` near-reference triplets, and best current triplet `0x1FF07575346`. |
-| Broader high-heap scans | Range-split aligned scans found `53` candidate triplets across `24` families outside the `0x1FF07570000` destination page. Review artifact: `scripts/captures/high-heap-coordinate-family-review-currentpid-60628-20260513-0637/summary.json`. These are candidate-only until displaced-pose ranking proves a tracking family. |
-| Displaced-pose blocker | Exact-HWND C# SendInput reached foreground RIFT, but `RRAPICOORD1` did not change after bounded `W`/`w` stimuli. Artifact: `scripts/captures/movement-stimulus-displacement-check-currentpid-60628-20260513-0642/summary.json`. |
-| x64dbg copy-path lead | `rift_x64.exe+0x47D533` / `rift_x64.exe+0x47D565` around the copy path; useful source evidence appears when `rdx=0x1FF6D600020` and coordinate offset `rdx+0x28` holds current XYZ. |
-| x64dbg disassembly interpretation | `rift_x64.exe+0x47D408` behaves like a heap/ring copy routine: `rdi=rcx`, `r15=rdi+0x50`, `r14=[rdi]`, destination `r12=[r15]+[rdi+0x94]+[rdi+0x9c]`, source `rdx=[r14]`. This is useful copy-path evidence, not a static player-coordinate chain. |
-| x64dbg batch classifier | `scripts/capture_x64dbg_coord_copy_probe_batch.py` classifies bounded page-access captures and rejects noisy non-coordinate page accesses (`0x8`/`0x4A` copy sizes). |
-| Pointer-chain status | Latest bounded depth-4 scan `scripts/captures/pointer-family-scan-20260513-061835-695118/summary.json` scanned `25` target/owner leads and found heap references only: total module hits `0`, `rift_x64.exe` hits `0`. |
-| Durable handoff | `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md` |
-| Commit baseline | `4aafa0b Document unaligned coordinate recovery progress` plus the current source-copy classifier slice. |
+| Status | `candidate-only`; no static pointer chain, no restart/relogin stability, no same-target `ProofOnly` promotion |
+| Live blocker | Latest post-x64dbg preflight `scripts/captures/x64dbg-target-preflight-20260513-072327-946499/summary.json` reports `selected-target-not-responding`; debugger process count `0`. |
+| Movement input truth | Exact-HWND C# SendInput `VirtualKey` `w` produced movement (`0.4616m` then `0.3708m` planar); earlier C# `ScanCode` `w` was ineffective/low-signal for this target. |
+| Ranking improvement | Address/family ranking now includes displacement tracking error. This demotes stationary midpoint false positives and allows moving-slot families to rank. |
+| Capture naming fix | Current-PID family scan run dirs now include microseconds to prevent same-second grouped-scan overwrites. |
+| Three-pose ranking artifact | `scripts/captures/coordinate-family-rank-currentpid-60628-threepose-tracking-20260513-032001-311/coordinate-family-rankings.json` |
+| Best exact candidate | `0x1FF08502BC8`; pose support `3`; track max error `0.004333593749834108`; avg delta `0.003232356770846915`; candidate-only heap address. |
+| Best family candidate | `0x1FF94EC0000`; pose support `3`; track max error `6.0937500165891834e-05`; moving slots `0x1FF94EC8B80` -> `0x1FF94EC8DC0` -> `0x1FF94EC93D0`. |
+| Destination family | `0x1FF07570000` remains useful but unaligned/moving-slot; use `--scan-stride 1`; latest third-pose destination best `0x1FF07574839`. |
+| Demoted families | `0x1FF392C0000`, `0x1FF40660000`, and `0x1FF841D0000` are now lower priority because third-pose targeted scans found no hits. |
+| x64dbg current hit | Memory access on `0x1FF08502BC8` hit at `rift_x64.exe+0x57C2B5`; candidate appears at `rcx+0x2F8` amid UI/scene-object-like metadata. Detach succeeded; still not player-coordinate truth. |
+| Pointer-chain status | `scripts/captures/pointer-family-scan-20260513-070942-089639/summary.json` scanned `67` target/recursive refs; module hits `0`; `rift_x64.exe` hits `0`; heap-only refs. |
+| Durable handoff | `docs/handoffs/2026-05-13-0729-currentpid-60628-threepose-candidate-blocker.md` |
 
 Operational impact:
 
-- Do not rely on 4-byte-aligned scans when the active family behaves like a copy/ring buffer.
-- Use grouped family snapshots and `--scan-stride 1` before exact-address watchpoints.
-- Prefer x64dbg page memory breakpoints / execute breakpoints on the ranked family/caller over exact-address hardware watchpoints on destination slots.
-- Do not promote any PID `60628` absolute address until restart/relogin validation proves a stable source chain and same-target `ProofOnly` passes.
+- Do not rely on a single exact address unless it tracks displacement and survives restart/relogin proof.
+- Use grouped family snapshots first; prioritize families that track across poses (`0x1FF94EC0000` family, then exact `0x1FF08502BC8` as a candidate address).
+- Do not keep chasing demoted two-pose/transient families unless new evidence revives them.
+- Do not run more x64dbg, watchpoints, or movement while the target preflight says `responding=false`.
+- Do not promote any PID `60628` absolute address until restart/relogin validation and same-target `ProofOnly` pass.
 
 ## Critical terminology
 

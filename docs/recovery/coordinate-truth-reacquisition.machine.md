@@ -189,90 +189,120 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
         "processStartTimeUtc": "2026-05-13T04:53:58.081190Z",
         "moduleBaseAddressHex": "0x7FF796B50000"
       },
-      "status": "candidate-only-not-promoted",
-      "discovery": "freshest current coordinate copies in the 0x1FF07570000 family can be unaligned",
-      "requiredScanOption": "--scan-stride 1",
-      "bestObservedUnalignedCopy": {
-        "addressHex": "0x1FF07575346",
-        "value": [7406.1318359375, 871.7725830078125, 3028.77099609375],
-        "reference": [7406.1299, 871.77, 3028.77],
-        "maxAbsDelta": 0.00258300781251819,
-        "artifact": "scripts/captures/family-scan-currentpid-60628-20260513-061422/family-scan-summary.json"
+      "status": "candidate-only-not-promoted-live-work-blocked-by-nonresponsive-target",
+      "latestResponsivePreflight": "scripts/captures/x64dbg-target-preflight-20260513-072034-846093/summary.json",
+      "currentBlocker": {
+        "artifact": "scripts/captures/x64dbg-target-preflight-20260513-072327-946499/summary.json",
+        "status": "blocked",
+        "blockers": [
+          "selected-target-not-responding"
+        ],
+        "debuggerProcessCount": 0,
+        "movementAllowed": false,
+        "x64dbgAllowed": false
       },
-      "staleObservedUnalignedCopy": {
-        "addressHex": "0x1FF0757215A",
-        "duplicateAddressHex": "0x1FF07572183",
-        "priorValue": [7411.95458984375, 871.8436279296875, 3031.310546875],
-        "priorReference": [7411.9497, 871.84, 3031.3098],
-        "priorMaxAbsDelta": 0.004889843749879219,
-        "currentSnapshotDeltaApprox": 5.8247
-      },
-      "x64dbgLead": {
-        "caller": "rift_x64.exe+0x47D533",
-        "returnAddress": "rift_x64.exe+0x47D538",
-        "copyInstruction": "VCRUNTIME140.dll+0x113F8 vmovdqu ymmword ptr ds:[rcx+r9*1-0x40], ymm1",
-        "sourceBufferRuleAtHit": "rdx=0x1FF6D600020; coordinate offset rdx+0x28 in coordinate-copy/read contexts",
-        "confirmedSourceTriplets": [
+      "movementInputFinding": {
+        "virtualKeyWWorks": true,
+        "scanCodeWLowSignal": true,
+        "artifacts": [
           {
-            "artifact": "scripts/captures/x64dbg-live-access-capture-20260513-060024-938838/summary.json",
-            "sourceAddressHex": "0x1FF6D600020",
-            "sourceOffsetHex": "0x28",
-            "value": [7406.6005859375, 871.7725830078125, 3028.814208984375]
+            "artifact": "scripts/captures/csharp-sendinput-current-virtualkey-w-currentpid-60628-20260513-025312/measured-result.json",
+            "planarDisplacement": 0.4616189445850858
           },
           {
-            "artifact": "scripts/captures/x64dbg-live-access-capture-20260513-060104-964476/summary.json",
-            "sourceAddressHex": "0x1FF6D600020",
-            "sourceOffsetHex": "0x28",
-            "value": [7406.1318359375, 871.7725830078125, 3028.77099609375]
+            "artifact": "scripts/captures/csharp-sendinput-current-virtualkey-w-thirdpose-currentpid-60628-20260513-031727/measured-result.json",
+            "planarDisplacement": 0.37082363732641205
           }
         ]
       },
-      "latestBroadSnapshot": {
-        "artifact": "scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-061344/family-snapshot-summary.json",
-        "tripletCount": 97,
-        "nearReferenceTripletCount": 9,
-        "bestCurrentTriplet": "0x1FF07575346"
-      },
-      "highHeapFamilyReview": {
-        "artifact": "scripts/captures/high-heap-coordinate-family-review-currentpid-60628-20260513-0637/summary.json",
-        "candidateCount": 53,
-        "familyCount": 24,
-        "bestExactValue": [7406.1298828125, 871.7699584960938, 3028.77001953125],
-        "bestMaxAbsDelta": 0.000041503906231810106,
-        "status": "candidate-only-needs-displaced-pose-ranking"
-      },
-      "displacedPoseBlocker": {
-        "artifact": "scripts/captures/movement-stimulus-displacement-check-currentpid-60628-20260513-0642/summary.json",
-        "status": "blocked-no-displaced-pose",
-        "cleanLowercaseForwardKeySent": true,
-        "targetForeground": true,
-        "referenceChanged": false,
-        "recommendedAction": "manual-displacement-or-visual-state-diagnosis-before-more-movement"
-      },
-      "copyPathDisassembly": {
-        "function": "rift_x64.exe+0x47D408",
-        "ownerRegister": "rdi=rcx",
-        "destinationRule": "r15=rdi+0x50; r12=[r15]+[rdi+0x94]+[rdi+0x9c]",
-        "sourceRule": "r14=[rdi]; rdx=[r14]",
-        "interpretation": "heap/ring copy routine, not yet a static player-coordinate chain"
-      },
-      "latestPointerScan": {
-        "artifact": "scripts/captures/pointer-family-scan-20260513-061835-695118/summary.json",
-        "depth": 4,
-        "scannedTargetCount": 25,
-        "staticModuleHits": 0,
-        "status": "heap-only-no-static-chain"
-      },
-      "x64dbgBatchClassifier": {
-        "script": "scripts/capture_x64dbg_coord_copy_probe_batch.py",
-        "purpose": "reject noisy page-access hits while preserving bounded detach-per-attempt captures",
-        "liveArtifacts": [
-          "scripts/captures/x64dbg-coord-copy-batch-60628-20260513-060709-057382/summary.json",
-          "scripts/captures/x64dbg-coord-copy-batch-60628-20260513-060845-059022/summary.json"
+      "rankingUpdate": {
+        "script": "scripts/rift_live_test/coordinate_family_rank.py",
+        "behavior": "rank exact addresses and families by displacement tracking error before raw delta tie-breakers",
+        "artifact": "scripts/captures/coordinate-family-rank-currentpid-60628-threepose-tracking-20260513-032001-311/coordinate-family-rankings.json",
+        "topExactCandidate": {
+          "addressHex": "0x1FF08502BC8",
+          "supportPoseCount": 3,
+          "trackMaxAbsError": 0.004333593749834108,
+          "avgBestMaxAbsDistance": 0.003232356770846915,
+          "observedValues": [
+            [
+              7406.1318359375,
+              871.7725830078125,
+              3028.77099609375
+            ],
+            [
+              7406.58740234375,
+              871.7725830078125,
+              3028.8134765625
+            ],
+            [
+              7407.099609375,
+              871.7734375,
+              3028.86181640625
+            ]
+          ]
+        },
+        "topFamilyCandidate": {
+          "familyBaseHex": "0x1FF94EC0000",
+          "supportPoseCount": 3,
+          "trackMaxAbsError": 6.0937500165891834e-05,
+          "avgBestMaxAbsDistance": 4.225260424088143e-05,
+          "movingSlots": [
+            "0x1FF94EC8B80",
+            "0x1FF94EC8DC0",
+            "0x1FF94EC93D0"
+          ]
+        },
+        "destinationFamilyCandidate": {
+          "familyBaseHex": "0x1FF07570000",
+          "supportPoseCount": 3,
+          "requiresScanStride": 1,
+          "latestThirdPoseBest": "0x1FF07574839",
+          "artifact": "scripts/captures/family-scan-currentpid-60628-20260513-071936-092676/family-scan-summary.json"
+        },
+        "demotedFamilies": [
+          "0x1FF392C0000",
+          "0x1FF40660000",
+          "0x1FF841D0000"
         ]
       },
-      "handoff": "docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md",
-      "commitBaseline": "4aafa0b"
+      "scanRunDirectoryFix": {
+        "script": "scripts/scan_current_pid_coordinate_family.py",
+        "fix": "utc_stamp includes microseconds to prevent grouped scan directory collisions",
+        "test": "scripts/test_scan_current_pid_coordinate_family.py"
+      },
+      "latestX64dbgAccessHit": {
+        "artifact": "scripts/captures/x64dbg-live-access-capture-20260513-072035-091117/summary.json",
+        "candidateAddressHex": "0x1FF08502BC8",
+        "ripHex": "0x7FF7970CC2B5",
+        "moduleOffset": "rift_x64.exe+0x57C2B5",
+        "instruction": "cmp qword ptr ds:[rcx+0x10], 0x00",
+        "candidateRelation": "candidate at rcx+0x2F8",
+        "interpretation": "candidate-only UI/scene-object-like metadata context, not static player-coordinate proof",
+        "detachSucceeded": true
+      },
+      "latestPointerScan": {
+        "artifact": "scripts/captures/pointer-family-scan-20260513-070942-089639/summary.json",
+        "seedCount": 14,
+        "scannedTargetCount": 67,
+        "staticModuleHits": 0,
+        "riftModuleHits": 0,
+        "status": "heap-only-no-static-chain"
+      },
+      "nonPromotionList": [
+        "0x1FF08502BC8",
+        "0x1FF94EC0000",
+        "0x1FF94EC93D0",
+        "0x1FF07574839",
+        "0x1FF07575346",
+        "0x1FF6D600020",
+        "0x1FF65FADE88",
+        "0x1FF392C0000",
+        "0x1FF40660000",
+        "0x1FF841D0000"
+      ],
+      "handoff": "docs/handoffs/2026-05-13-0729-currentpid-60628-threepose-candidate-blocker.md",
+      "lastPushedBaselineBeforeThisUpdate": "7d9619e"
     }
   ],
   "timing": {
