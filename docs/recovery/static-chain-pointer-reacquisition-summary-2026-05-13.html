@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader Static Chain Pointer Reacquisition Summary — 2026-05-13</title>
+<style>
+:root{--bg:#07111f;--panel:#101a2d;--panel2:#17243b;--ink:#eef6ff;--muted:#9fb2cf;--line:rgba(255,255,255,.13);--good:#2dd4bf;--warn:#fbbf24;--bad:#fb7185;--blue:#60a5fa;--violet:#a78bfa;--shadow:0 20px 70px rgba(0,0,0,.36)}
+*{box-sizing:border-box} body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:radial-gradient(circle at 10% -10%,#264775 0,#0b1528 38%,#050915 100%);color:var(--ink);line-height:1.55} a{color:#93c5fd} code{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.13);border-radius:7px;padding:.12rem .34rem;font-family:Consolas,"Cascadia Mono",monospace;font-size:.92em;color:#dbeafe}.hero{padding:46px 40px 30px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,rgba(96,165,250,.20),rgba(45,212,191,.10),rgba(167,139,250,.08))}.hero h1{margin:0;font-size:clamp(2rem,4vw,4rem);letter-spacing:-.045em}.subtitle{color:var(--muted);font-size:1.08rem;max-width:1180px}.verdict{display:inline-flex;align-items:center;gap:.55rem;margin:18px 0 0;padding:.78rem 1rem;border-radius:999px;border:1px solid rgba(45,212,191,.42);background:rgba(45,212,191,.13);color:#99f6e4;font-weight:800}.nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;padding:12px 36px;background:rgba(7,13,25,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}.nav a{text-decoration:none;padding:.45rem .75rem;border-radius:999px;background:rgba(255,255,255,.065);color:#dbeafe;font-size:.92rem}.page{max-width:1280px;margin:0 auto;padding:34px 32px}.panel{background:linear-gradient(180deg,rgba(16,26,45,.97),rgba(10,17,31,.97));border:1px solid var(--line);box-shadow:var(--shadow);border-radius:24px;padding:26px;margin:0 0 28px}.panel h2{margin:0 0 8px;font-size:1.7rem;letter-spacing:-.02em}.caption{color:var(--muted);margin:0 0 18px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.card{background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:18px;padding:18px;min-height:142px}.card h3{margin:0 0 10px;color:#bfdbfe}.card .big{font-size:1.22rem;font-weight:850}.card p{margin:8px 0 0;color:var(--muted)}table{width:100%;border-collapse:collapse;overflow:hidden;border-radius:16px;margin:18px 0 6px;font-size:.94rem}caption{caption-side:top;text-align:left;padding:0 0 8px;color:#bfdbfe;font-weight:800}th,td{border-bottom:1px solid rgba(255,255,255,.09);padding:10px 12px;vertical-align:top}th{background:rgba(96,165,250,.13);color:#dbeafe;text-align:left}tr:nth-child(even) td{background:rgba(255,255,255,.025)}.pill{display:inline-block;padding:.2rem .55rem;border-radius:999px;font-weight:800;border:1px solid var(--line)}.pill.good{color:#99f6e4;background:rgba(45,212,191,.14);border-color:rgba(45,212,191,.35)}.pill.warn{color:#fde68a;background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.35)}.pill.bad{color:#fecdd3;background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.35)}.pill.neutral{color:#dbeafe;background:rgba(96,165,250,.11);border-color:rgba(96,165,250,.30)}.muted{color:var(--muted)}.callout{border-left:5px solid var(--warn);padding:14px 16px;background:rgba(251,191,36,.10);border-radius:14px;margin:14px 0}.goodline{border-left-color:var(--good);background:rgba(45,212,191,.08)}.badline{border-left-color:var(--bad);background:rgba(251,113,133,.08)}.timeline{display:grid;grid-template-columns:36px 1fr;gap:12px}.dot{width:28px;height:28px;border-radius:999px;background:rgba(96,165,250,.22);border:1px solid rgba(147,197,253,.35);display:grid;place-items:center;font-weight:900}.step{padding:0 0 18px;border-bottom:1px solid rgba(255,255,255,.08)}.step h3{margin:0 0 5px}.footer{color:var(--muted);text-align:center;padding:24px}@media(max-width:900px){.grid{grid-template-columns:1fr}.hero,.page{padding-left:18px;padding-right:18px}table{font-size:.84rem}}@media print{body{background:white;color:#111827}.nav{display:none}.panel{box-shadow:none;border-color:#d1d5db;break-inside:avoid}.page{page-break-after:always}code{color:#111827}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>🧭 Static Chain Pointer Reacquisition Summary</h1>
+  <p class="subtitle">Professional operator report for the May 13 current-PID recovery lane in <code>C:/RIFT MODDING/RiftReader</code>. Updated after the prior-first <strong>family-group sequential snapshot + offline delta</strong> pass found and revalidated a high-signal current-PID coordinate family.</p>
+  <div class="verdict">✅ RESULT: candidate family found — ⚠️ not promoted to movement truth</div>
+</header>
+<nav class="nav">
+  <a href="#overview">Overview</a><a href="#timeline">Workflow</a><a href="#candidates">Candidates</a><a href="#readback">Readback</a><a href="#safety">Safety</a><a href="#artifacts">Artifacts</a><a href="#next">Next</a>
+</nav>
+<main>
+<section class="page" id="overview">
+  <div class="panel">
+    <h2>📌 Executive overview</h2>
+    <p class="caption">What is now known, what is still blocked, and why this is better than the earlier low-order scans.</p>
+    <div class="grid">
+      <article class="card"><h3>🎯 Target</h3><div class="big">PID 2928 / HWND 0xC0994</div><p>Process start <code>2026-05-13T16:17:56.208370Z</code>; module base <code>0x7FF71CD90000</code>.</p></article>
+      <article class="card"><h3>🧬 Family found</h3><div class="big"><code>0x268DF200000</code></div><p>Repeatedly surfaced from snapshot delta analysis as the active coordinate-copy family.</p></article>
+      <article class="card"><h3>🏆 Best focused lead</h3><div class="big"><code>0x268DF21ED30</code></div><p>Focused run tracking-error max abs <code>0.00607421875</code>.</p></article>
+      <article class="card"><h3>🔁 Latest readback</h3><div class="big">0.003337 max delta</div><p>Offset-corrected API-now vs memory-now agreement from <code>candidate-readback-currentpid-2928-20260513-184849-042270</code>.</p></article>
+      <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / no x64dbg</div><p>No debugger attach, watchpoints, memory writes, provider writes, or proof promotion.</p></article>
+      <article class="card"><h3>🚦 Truth status</h3><div class="big">Candidate-only</div><p>Direct values are about 5 units offset from API, so this is not direct movement truth yet.</p></article>
+    </div>
+    <div class="callout goodline"><strong>Bottom line:</strong> The earlier Top-20 stride scans had zero direct XYZ hits, but the adaptive family snapshot method found the right current family. The newest focused readback strongly confirms a live offset-coordinate copy, not a static/restart chain.</div>
+    <div class="callout badline"><strong>Do not overclaim:</strong> <code>0x268DF21ED30</code> and sibling slots are candidate evidence only. Movement/navigation remains blocked until static-chain provenance and same-target proof gates pass.</div>
+  </div>
+</section>
+<section class="page" id="timeline">
+  <div class="panel">
+    <h2>🧭 Adaptive workflow timeline</h2>
+    <p class="caption">The lane adapted from no-hit direct scans to prior-first family-group snapshots, then narrowed around the discovered family.</p>
+    <div class="timeline">
+      <div class="dot">1</div><div class="step"><h3>Target reacquisition</h3><p>Exact PID/HWND/start/module checks passed for <code>rift_x64</code> PID <code>2928</code>, HWND <code>0xC0994</code>. No debugger process was present.</p></div>
+      <div class="dot">2</div><div class="step"><h3>Low-order scan plan exhausted</h3><p>Top-20 planned ranges were scanned with stride-4 and stride-1 direct XYZ matching. Both batches completed all 20 ranges with <code>0</code> hits, proving direct low-order matching was underpowered.</p></div>
+      <div class="dot">3</div><div class="step"><h3>Primary method switched to family snapshots</h3><p><code>current_pid_family_snapshot_sequence.py</code> captured ordered baseline/passive/displaced memory family snapshots and <code>family_snapshot_delta_analyzer.py</code> compared them offline.</p></div>
+      <div class="dot">4</div><div class="step"><h3>Broad prior-first snapshot succeeded</h3><p>Run <code>family-snapshot-sequence-currentpid-2928-20260513-184450-797475</code> used 12 prior exact windows, 7 prior neighborhoods, and 1 current scan-plan range. It found 3 clean candidates in <code>0x268DF200000</code>.</p></div>
+      <div class="dot">5</div><div class="step"><h3>Focused re-snapshot confirmed the family</h3><p>Run <code>family-snapshot-sequence-currentpid-2928-20260513-184837-252853</code> targeted <code>live-delta-lead=0x268DF21ED20</code> and found the same 3-candidate pattern with much tighter tracking.</p></div>
+      <div class="dot">6</div><div class="step"><h3>Fresh readback confirmed offset tracking</h3><p>Run <code>candidate-readback-currentpid-2928-20260513-184849-042270</code> sampled fresh API coordinates and current memory. Best lead <code>0x268DF21ED30</code> corrected to API within <code>0.003337109375</code>.</p></div>
+    </div>
+  </div>
+</section>
+<section class="page" id="candidates">
+  <div class="panel">
+    <h2>🧬 Candidate family evidence</h2>
+    <p class="caption">The candidate family behaves like a coordinate-copy cluster with consistent offsets around the API/runtime coordinate.</p>
+    <table><caption>Snapshot-delta candidate comparison</caption><thead><tr><th>Run</th><th>Best address</th><th>Family</th><th>Range source</th><th>Tracking error max abs</th><th>Passive noise overlap</th><th>Status</th></tr></thead><tbody>
+      <tr><td>Broad prior-first</td><td><code>0x268DF21ED20</code></td><td><code>0x268DF200000</code></td><td>current scan-plan rank 1</td><td><code>0.16851562499959982</code></td><td><code>0</code></td><td><span class="pill good">clean candidate</span></td></tr>
+      <tr><td>Focused live-delta</td><td><code>0x268DF21ED30</code></td><td><code>0x268DF200000</code></td><td>prior exact window</td><td><code>0.0060742187497453415</code></td><td><code>0</code></td><td><span class="pill good">clean candidate</span></td></tr>
+    </tbody></table>
+    <table><caption>Focused candidate details</caption><thead><tr><th>Address</th><th>Role</th><th>Baseline memory</th><th>Displaced memory</th><th>API delta</th><th>Memory delta</th></tr></thead><tbody>
+      <tr><td><code>0x268DF21ED30</code></td><td>Best focused slot</td><td><code>7405.4585, 876.7800, 3033.2478</code></td><td><code>7406.9346, 876.7800, 3033.3853</code></td><td><code>dx=1.47 dz=0.14</code></td><td><code>dx=1.4761 dz=0.1375</code></td></tr>
+      <tr><td><code>0x268DF21ED20</code></td><td>Sibling offset slot</td><td><code>API - ~5</code></td><td><code>tracks same movement</code></td><td><code>same family</code></td><td><code>offset-corrected</code></td></tr>
+      <tr><td><code>0x268DF21E6F0</code></td><td>Sibling transformed slot</td><td><code>mixed axis offsets</code></td><td><code>tracks same movement</code></td><td><code>same family</code></td><td><code>offset-corrected</code></td></tr>
+    </tbody></table>
+  </div>
+</section>
+<section class="page" id="readback">
+  <div class="panel">
+    <h2>🔁 Fresh readback proof-of-candidate</h2>
+    <p class="caption">Readback is current candidate evidence only. It is not a static chain and it is not a movement/navigation proof.</p>
+    <table><caption>Latest focused readback against fresh API coordinate <code>7401.9297, 871.78, 3028.3899</code></caption><thead><tr><th>Rank</th><th>Candidate</th><th>Direct max delta</th><th>Offset-corrected max delta</th><th>Offset spread max</th><th>Classification</th></tr></thead><tbody>
+      <tr><td>1</td><td><code>0x268DF21ED30</code></td><td><code>5.004870312500316</code></td><td><code>0.0033371093750247383</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
+      <tr><td>2</td><td><code>0x268DF21ED20</code></td><td><code>5.004646093750125</code></td><td><code>0.0033371093750247383</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
+      <tr><td>3</td><td><code>0x268DF21E6F0</code></td><td><code>7.310637207031277</code></td><td><code>0.0033371093750247383</code></td><td><code>0.0060742187497453415</code></td><td><span class="pill good">offset-corrected current-coordinate candidate</span></td></tr>
+    </tbody></table>
+    <div class="callout"><strong>Interpretation:</strong> The memory values are not direct API coordinates. They are stable transformed/offset copies that track API movement. This makes the family valuable for x64dbg/static-chain follow-up, but not safe for proof-pointer promotion by itself.</div>
+  </div>
+</section>
+<section class="page" id="safety">
+  <div class="panel">
+    <h2>🛡️ Safety ledger</h2>
+    <p class="caption">Actions performed and boundaries preserved.</p>
+    <table><caption>Safety outcomes</caption><thead><tr><th>Surface</th><th>Status</th><th>Notes</th></tr></thead><tbody>
+      <tr><td>Cheat Engine</td><td><span class="pill good">Not used</span></td><td>No CE Lua, CE attach, CE watchpoints, or CE tables.</td></tr>
+      <tr><td>x64dbg</td><td><span class="pill good">Not launched</span></td><td>Debugger follow-up is now justified only if the user wants static-chain provenance on the focused family.</td></tr>
+      <tr><td>Input</td><td><span class="pill warn">Bounded discovery input</span></td><td>Only exact-PID/HWND <code>post-rift-key.ps1 -UseWindowMessage</code> <code>w</code> holds were sent for displaced snapshots.</td></tr>
+      <tr><td>Memory writes</td><td><span class="pill good">None</span></td><td>All process memory access was read-only.</td></tr>
+      <tr><td>Provider writes</td><td><span class="pill good">None</span></td><td>No ChromaLink/RiftScan provider mutation.</td></tr>
+      <tr><td>Proof promotion</td><td><span class="pill good">None</span></td><td><code>current-proof-anchor-readback.json</code> remains unchanged.</td></tr>
+    </tbody></table>
+  </div>
+</section>
+<section class="page" id="artifacts">
+  <div class="panel">
+    <h2>📦 Durable artifacts</h2>
+    <p class="caption">Primary files to open when resuming this lane.</p>
+    <table><caption>Artifact map</caption><thead><tr><th>Artifact</th><th>Path</th><th>Why it matters</th></tr></thead><tbody>
+      <tr><td>Current truth</td><td><code>docs/recovery/current-truth.md</code></td><td>Updated canonical repo-side truth snapshot.</td></tr>
+      <tr><td>Broad snapshot run</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-2928-20260513-184450-797475/summary.json</code></td><td>First family-snapshot pass that found the active candidate family.</td></tr>
+      <tr><td>Broad readback</td><td><code>scripts/captures/candidate-readback-currentpid-2928-20260513-184751-502648/candidate-readback-summary.json</code></td><td>Fresh API-now vs memory-now readback of broad candidates.</td></tr>
+      <tr><td>Focused snapshot run</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-2928-20260513-184837-252853/summary.json</code></td><td>Focused re-snapshot around <code>0x268DF21ED20</code>.</td></tr>
+      <tr><td>Focused readback</td><td><code>scripts/captures/candidate-readback-currentpid-2928-20260513-184849-042270/candidate-readback-summary.json</code></td><td>Best current candidate readback: <code>0x268DF21ED30</code>.</td></tr>
+      <tr><td>Snapshot helper</td><td><code>scripts/current_pid_family_snapshot_sequence.py</code></td><td>Reusable prior-first snapshot orchestrator with optional auto displacement.</td></tr>
+      <tr><td>Delta analyzer</td><td><code>scripts/family_snapshot_delta_analyzer.py</code></td><td>Offline snapshot comparison and candidate-family scoring.</td></tr>
+      <tr><td>Readback helper</td><td><code>scripts/current_pid_candidate_readback.py</code></td><td>Fresh API-now vs candidate memory-now readback for explicit candidates.</td></tr>
+      <tr><td>x64dbg no-attach plan</td><td><code>scripts/captures/x64dbg-coord-chain-plan-20260513-185452-310224/coord-chain-plan-summary.json</code></td><td>Prepared static-chain watch packet for <code>0x268DF21ED30</code>; no debugger launch.</td></tr>
+      <tr><td>x64dbg access template</td><td><code>scripts/captures/x64dbg-access-event-template-20260513-185456-929323/x64dbg-manual-access-events-template.json</code></td><td>Manual access-event normalization template for future minimized x64dbg follow-up.</td></tr>
+    </tbody></table>
+  </div>
+</section>
+<section class="page" id="next">
+  <div class="panel">
+    <h2>🚀 Top 10 recommended next actions</h2>
+    <p class="caption">Prioritized from highest signal / lowest risk to heavier static-chain work.</p>
+    <table><caption>Recommended continuation plan</caption><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody>
+      <tr><td>1</td><td>Run one more focused family snapshot with a different displacement direction if a known safe strafe/back key is confirmed.</td><td>Confirms the family tracks more than one movement vector before debugger/static-chain work.</td></tr>
+      <tr><td>2</td><td>Add <code>0x268DF21ED30</code>, <code>0x268DF21ED20</code>, and <code>0x268DF200000</code> to explicit current-session priors.</td><td>Prevents wasting time on already-exhausted no-hit regions after restart/context switch.</td></tr>
+      <tr><td>3</td><td>Build a focused no-debugger neighborhood inspector around <code>0x268DF21E000</code>.</td><td>Maps sibling fields and likely structure stride without freezing the client.</td></tr>
+      <tr><td>4</td><td>Normalize candidate evidence into a static-chain work packet.</td><td>Gives x64dbg a precise watch target and avoids broad debugger scanning.</td></tr>
+      <tr><td>5</td><td>Only then use x64dbg access tracing on the 12-byte triplet window.</td><td>Now there is a high-signal watch window; debugger time can be short and targeted.</td></tr>
+      <tr><td>6</td><td>Ingest any x64dbg access events with <code>x64dbg_access_event_ingest.py</code>.</td><td>Keeps debugger evidence offline-normalized and candidate-only until a resolver exists.</td></tr>
+      <tr><td>7</td><td>Search for module/RVA/static-owner provenance for the writer/reader chain.</td><td>Absolute heap addresses are not restart-stable; static ownership is required.</td></tr>
+      <tr><td>8</td><td>Implement a repo-owned resolver only after module/static-owner evidence exists.</td><td>A resolver without stable provenance would be another stale heap pointer.</td></tr>
+      <tr><td>9</td><td>Validate across restart or process epoch before promotion.</td><td>Static chain claims require restart survival, not only current-PID behavior.</td></tr>
+      <tr><td>10</td><td>Keep movement/navigation blocked until same-target <code>ProofOnly</code> passes.</td><td>Protects against using candidate-copy evidence as live movement truth prematurely.</td></tr>
+    </tbody></table>
+  </div>
+</section>
+</main>
+<footer class="footer">Generated/updated 2026-05-13 18:49 UTC. Candidate evidence only; no coordinate truth promotion.</footer>
+</body>
+</html>
