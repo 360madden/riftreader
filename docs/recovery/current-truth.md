@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 21:40 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. The primary recovery lane is navigation-first and uses broad family-group sequential snapshots plus offline delta/readback comparison when proof recovery blocks. A three-readback offline stability comparison now shows the narrow `0x268DF21E000` family is the only repeat-stable current-PID candidate family (`3/3` stable addresses), while the dense `0x268BEF2C000` family dropped from promising to mismatched by the latest readback (`0` stable addresses). All coordinate-family outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 21:53 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The narrow `0x268DF21E000` family is still the only repeat-stable current-PID coordinate candidate family, and the newest owner/type inspection now ties `0x268DF21ED20` to low-noise owner base `0x268D753AE30` via `[owner+0x10]`; parent heap ref `0x268D7539700` points to that owner but no module/static root is resolved. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -82,9 +82,28 @@ until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
 Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-214256.json` remains
+`scripts/captures/riftscan-milestone-review-20260513-215522.json` remains
 blocked on the same stale proof pointer and missing selected RiftScan candidate;
 it is a strategy gate, not movement permission.
+
+**May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
+`scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
+seeded the only heap owner plus module-pointer hints. The low-noise type marker
+`rift_x64.exe+0x26AAE70` (`0x7FF71F43AE70`) had only `3` instance hits, and
+`scripts/captures/owner-type-instance-inspector-20260513-215227-155967/summary.json`
+proved exactly one of those instances owns the stable coord candidate:
+owner base `0x268D753AE30` has `[+0x10] = 0x268DF21ED20`, with the read vec3
+`7397.59228515625,866.78271484375,3023.4453125`. Other type-marker
+instances had non-player/zero or different coord-like targets. Follow-up
+pointer scan
+`scripts/captures/pointer-family-scan-20260513-215245-916937/summary.json`
+found exactly one heap ref to the owner base at `0x268D7539700`; owner-neighborhood
+inspection
+`scripts/captures/pointer-owner-neighborhood-inspector-20260513-215307-379484/summary.json`
+confirmed `0x268D7539700 -> 0x268D753AE30` and repeated the direct
+`0x268DF21ED20` candidate relation in the same heap region. This is a stronger
+source-chain lead (`type marker -> owner base -> coord pointer`) but still not
+a static root or movement proof.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
