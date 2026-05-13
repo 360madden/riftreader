@@ -249,13 +249,14 @@ def scan_buffer_for_xyz(
     tolerance: float,
     max_hits: int,
     region_base: int,
+    scan_stride: int = 4,
 ) -> list[dict[str, Any]]:
     hits: list[dict[str, Any]] = []
     limit = len(data) - 12
     if limit < 0:
         return hits
 
-    for offset in range(0, limit + 1, 4):
+    for offset in range(0, limit + 1, scan_stride):
         try:
             x, y, z = struct.unpack_from("<fff", data, offset)
         except struct.error:
@@ -370,6 +371,7 @@ def main() -> int:
     parser.add_argument("--tolerance", type=float, default=0.25)
     parser.add_argument("--max-hits", type=int, default=200)
     parser.add_argument("--chunk-bytes", type=int, default=4 * 1024 * 1024)
+    parser.add_argument("--scan-stride", type=int, choices=(1, 4), default=4)
     parser.add_argument("--min-address", default="0x0")
     parser.add_argument("--max-address", default="0x7FFFFFFFFFFF")
     parser.add_argument("--max-seconds", type=int, default=180)
@@ -472,6 +474,7 @@ def main() -> int:
             summary["scan"]["readableRegionCount"] = len(regions)
             summary["scan"]["tolerance"] = args.tolerance
             summary["scan"]["maxHits"] = args.max_hits
+            summary["scan"]["scanStride"] = args.scan_stride
             summary["scan"]["minAddress"] = format_hex(min_address)
             summary["scan"]["maxAddress"] = format_hex(max_address)
 
@@ -489,6 +492,7 @@ def main() -> int:
                 size = region["size"]
                 offset = 0
                 overlap = b""
+                overlap_bytes = 11 if args.scan_stride == 1 else 8
                 while offset < size:
                     if time.monotonic() - started > args.max_seconds:
                         break
@@ -504,10 +508,10 @@ def main() -> int:
                     bytes_scanned += len(data)
                     scan_data = overlap + data
                     scan_base = address - len(overlap)
-                    hits.extend(scan_buffer_for_xyz(scan_data, scan_base, ref_x, ref_y, ref_z, args.tolerance, max(0, args.max_hits - len(hits)), base))
+                    hits.extend(scan_buffer_for_xyz(scan_data, scan_base, ref_x, ref_y, ref_z, args.tolerance, max(0, args.max_hits - len(hits)), base, scan_stride=args.scan_stride))
                     if len(hits) >= args.max_hits:
                         break
-                    overlap = data[-8:] if len(data) >= 8 else data
+                    overlap = data[-overlap_bytes:] if len(data) >= overlap_bytes else data
                     offset += read_size
                 if len(hits) >= args.max_hits:
                     break

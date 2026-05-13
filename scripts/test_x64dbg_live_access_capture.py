@@ -7,6 +7,7 @@ from rift_live_test.x64dbg_live_access_capture import (
     INPUT,
     build_key_lparam,
     clear_all_hardware_breakpoints,
+    clear_all_memory_breakpoints,
     parse_virtual_key,
     resume_if_stopped,
 )
@@ -18,6 +19,7 @@ def minimal_summary() -> dict:
         "safety": {
             "goAttempts": 0,
             "hardwareBreakpointSet": True,
+            "memoryBreakpointSet": True,
             "liveAttachPolicy": {"maxGoAttempts": 1},
         },
     }
@@ -46,6 +48,10 @@ class FakeClient:
         return self.wait_result
 
     def clear_hardware_breakpoint(self, value: object = None) -> bool:
+        self.clear_calls.append(value)
+        return True
+
+    def clear_memory_breakpoint(self, value: object = None) -> bool:
         self.clear_calls.append(value)
         return True
 
@@ -112,6 +118,16 @@ class X64DbgLiveAccessCaptureTests(unittest.TestCase):
         self.assertTrue(cleared)
         self.assertEqual(client.clear_calls, [None])
         self.assertFalse(summary["safety"]["hardwareBreakpointSet"])
+
+    def test_clear_all_memory_breakpoints_clears_by_none(self) -> None:
+        client = FakeClient(running=True)
+        summary = minimal_summary()
+
+        cleared = clear_all_memory_breakpoints(client, summary, reason="test")
+
+        self.assertTrue(cleared)
+        self.assertEqual(client.clear_calls, [None])
+        self.assertFalse(summary["safety"]["memoryBreakpointSet"])
 
 
 if __name__ == "__main__":

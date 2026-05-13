@@ -120,6 +120,40 @@ def memory_triplet(data: bytes) -> dict[str, Any]:
     return result
 
 
+def ascii_preview(data: bytes) -> str:
+    return "".join(chr(byte) if 32 <= byte < 127 else "." for byte in data)
+
+
+def float_triplet_preview(data: bytes, *, max_items: int = 8) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for offset in range(0, max(0, len(data) - 11)):
+        try:
+            x, y, z = struct.unpack_from("<fff", data, offset)
+        except struct.error:
+            break
+        if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
+            continue
+        if max(abs(x), abs(y), abs(z)) > 100000:
+            continue
+        if max(abs(x), abs(y), abs(z)) < 1:
+            continue
+        result.append({"offset": offset, "offsetHex": int_hex(offset), "x": x, "y": y, "z": z})
+        if len(result) >= max_items:
+            break
+    return result
+
+
+def memory_preview(client: Any, address: int, *, size: int = 128) -> dict[str, Any]:
+    data = bytes(client.read_memory(address, size))
+    return {
+        "address": int_hex(address),
+        "byteCount": len(data),
+        "bytesHex": data.hex(),
+        "asciiPreview": ascii_preview(data),
+        "floatTriplets": float_triplet_preview(data),
+    }
+
+
 def build_key_lparam(scan_code: int, *, key_up: bool) -> int:
     lparam = 1 | ((scan_code & 0xFF) << 16)
     if key_up:
@@ -475,6 +509,10 @@ def capture_context(client: Any, *, candidate_address: int, label: str, read_siz
     key_regs: dict[str, str | None] = {}
     disassembly = None
     candidate_bytes = b""
+    rip_code_bytes = b""
+    stack_bytes = b""
+    stack_qwords: list[dict[str, Any]] = []
+    register_memory: dict[str, Any] = {}
 
     for field, fn in (
         ("debuggerPid", client.get_debugger_pid),
@@ -529,6 +567,13 @@ def capture_context(client: Any, *, candidate_address: int, label: str, read_siz
     if rip is None and key_regs.get("rip"):
         rip = int(str(key_regs["rip"]), 0)
 
+    rsp_value = None
+    if key_regs.get("rsp"):
+        try:
+            rsp_value = int(str(key_regs["rsp"]), 0)
+        except ValueError:
+            rsp_value = None
+
     try:
         regs = to_jsonable(client.get_regs())
     except Exception as exc:  # noqa: BLE001
@@ -539,6 +584,55 @@ def capture_context(client: Any, *, candidate_address: int, label: str, read_siz
             disassembly = to_jsonable(client.disassemble_at(rip))
         except Exception as exc:  # noqa: BLE001
             errors.append(f"disassemble_at:rip:{type(exc).__name__}:{exc}")
+        try:
+            rip_code_start = max(0, rip - 16)
+            rip_code_bytes = bytes(client.read_memory(rip_code_start, 96))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"read_memory:rip_code:{type(exc).__name__}:{exc}")
+
+    if rsp_value is not None:
+        try:
+            stack_bytes = bytes(client.read_memory(rsp_value, 256))
+            for offset in range(0, len(stack_bytes) - 7, 8):
+                stack_qwords.append(
+                    {
+                        "offset": offset,
+                        "offsetHex": int_hex(offset),
+                        "address": int_hex(rsp_value + offset),
+                        "value": int_hex(struct.unpack_from("<Q", stack_bytes, offset)[0]),
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"read_memory:stack:{type(exc).__name__}:{exc}")
+
+    for reg_name in ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r12", "r13", "r14", "r15"):
+        raw_value = key_regs.get(reg_name)
+        if raw_value is None:
+            continue
+        try:
+            address = int(str(raw_value), 0)
+        except ValueError:
+            continue
+        if address < 0x10000:
+            continue
+        try:
+            preview = memory_preview(client, address, size=128)
+            register_memory[reg_name] = preview
+            if len(preview.get("bytesHex") or "") >= 16:
+                deref = struct.unpack_from("<Q", bytes.fromhex(str(preview["bytesHex"])), 0)[0]
+                if deref >= 0x10000:
+                    try:
+                        register_memory[f"{reg_name}Deref0"] = memory_preview(client, deref, size=128)
+                    except Exception as deref_exc:  # noqa: BLE001
+                        register_memory[f"{reg_name}Deref0"] = {
+                            "address": int_hex(deref),
+                            "error": f"{type(deref_exc).__name__}:{deref_exc}",
+                        }
+        except Exception as exc:  # noqa: BLE001
+            register_memory[reg_name] = {
+                "address": int_hex(address),
+                "error": f"{type(exc).__name__}:{exc}",
+            }
 
     try:
         candidate_bytes = bytes(client.read_memory(candidate_address, read_size))
@@ -556,6 +650,17 @@ def capture_context(client: Any, *, candidate_address: int, label: str, read_siz
         "keyRegisters": key_regs,
         "registers": regs,
         "ripDisassembly": disassembly,
+        "ripCode": {
+            "start": int_hex(max(0, rip - 16) if rip is not None else None),
+            "byteCount": len(rip_code_bytes),
+            "bytesHex": rip_code_bytes.hex(),
+        },
+        "stack": {
+            "rsp": int_hex(rsp_value),
+            "byteCount": len(stack_bytes),
+            "qwords": stack_qwords,
+        },
+        "registerMemory": register_memory,
         "candidateMemory": {
             "address": int_hex(candidate_address),
             "readSize": read_size,
@@ -575,6 +680,19 @@ def clear_all_hardware_breakpoints(client: Any, summary: dict[str, Any], *, reas
         return cleared
     except Exception as exc:  # noqa: BLE001 - debugger cleanup failures are evidence.
         summary["warnings"].append(f"clear-all-hardware-breakpoints-failed:{reason}:{type(exc).__name__}:{exc}")
+        return False
+
+
+def clear_all_memory_breakpoints(client: Any, summary: dict[str, Any], *, reason: str) -> bool:
+    try:
+        cleared = bool(client.clear_memory_breakpoint(None))
+        if cleared:
+            summary["safety"]["memoryBreakpointSet"] = False
+        else:
+            summary["warnings"].append(f"clear-all-memory-breakpoints-returned-false:{reason}")
+        return cleared
+    except Exception as exc:  # noqa: BLE001 - debugger cleanup failures are evidence.
+        summary["warnings"].append(f"clear-all-memory-breakpoints-failed:{reason}:{type(exc).__name__}:{exc}")
         return False
 
 
@@ -663,7 +781,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             max_go_attempts=args.max_go_attempts,
         )
     )
-    if args.max_go_attempts < 1 and args.capture_mode in {"hardware-read", "resume-only"}:
+    if args.max_go_attempts < 1 and args.capture_mode in {"hardware-read", "memory-access", "resume-only"}:
         blockers.append(f"{args.capture_mode}-capture-requires-one-go-attempt")
     if args.stimulus_key and not args.allow_game_input:
         blockers.append("stimulus-key-requires-allow-game-input")
@@ -721,6 +839,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             "gameInputSent": False,
             "targetMemoryWritten": False,
             "hardwareBreakpointSet": False,
+            "memoryBreakpointSet": False,
             "goAttempts": 0,
             "exceptionSwallowRetryLoopAllowed": False,
             "candidateOnly": True,
@@ -758,7 +877,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
     try:
         from x64dbg_automate import X64DbgClient  # type: ignore
         from x64dbg_automate.events import EventType  # type: ignore
-        from x64dbg_automate.models import HardwareBreakpointType  # type: ignore
+        from x64dbg_automate.models import HardwareBreakpointType, MemoryBreakpointType  # type: ignore
 
         client = X64DbgClient(x64dbg_path=str(args.x64dbg_path))
         stimulus_thread = None
@@ -846,6 +965,74 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
                     resume_if_stopped(client, summary, reason="after-hardware-read-hit")
                 if summary["safety"]["hardwareBreakpointSet"]:
                     clear_all_hardware_breakpoints(client, summary, reason="after-hardware-read")
+        elif args.capture_mode == "memory-access":
+            client.clear_debug_events()
+            breakpoint_type = {
+                "read": MemoryBreakpointType.r,
+                "write": MemoryBreakpointType.w,
+                "execute": MemoryBreakpointType.x,
+            }[args.breakpoint_access]
+            if not client.set_memory_breakpoint(breakpoint_address, bp_type=breakpoint_type, singleshoot=True):
+                summary["blockers"].append("set-memory-breakpoint-failed")
+                summary["status"] = "blocked"
+            else:
+                summary["safety"]["memoryBreakpointSet"] = True
+                running_after_breakpoint = None
+                try:
+                    running_after_breakpoint = bool(client.is_running())
+                except Exception as exc:  # noqa: BLE001
+                    summary["warnings"].append(f"is-running-after-memory-breakpoint-failed:{type(exc).__name__}:{exc}")
+                if running_after_breakpoint:
+                    summary["warnings"].append("target-already-running-after-memory-breakpoint; waiting without issuing go")
+                else:
+                    summary["safety"]["goAttempts"] = 1
+                    if not client.go(pass_exceptions=False, swallow_exceptions=False):
+                        summary["warnings"].append("go-returned-false-after-memory-breakpoint; waiting for breakpoint anyway")
+                if args.stimulus_key:
+                    virtual_key = parse_virtual_key(args.stimulus_key)
+                    hwnd = int(str(args.target_hwnd), 0)
+
+                    def send_stimulus() -> None:
+                        time.sleep(max(0, args.stimulus_delay_ms) / 1000.0)
+                        if args.stimulus_method == "sendinput":
+                            stimulus_holder["result"] = sendinput_key_pulse(
+                                hwnd=hwnd,
+                                expected_pid=int(args.target_pid),
+                                virtual_key=virtual_key,
+                                pulse_ms=int(args.stimulus_pulse_ms),
+                            )
+                        else:
+                            stimulus_holder["result"] = post_key_pulse(
+                                hwnd=hwnd,
+                                expected_pid=int(args.target_pid),
+                                virtual_key=virtual_key,
+                                pulse_ms=int(args.stimulus_pulse_ms),
+                            )
+
+                    stimulus_thread = threading.Thread(name="x64dbg-memory-stimulus", target=send_stimulus, daemon=True)
+                    stimulus_thread.start()
+                event = client.wait_for_debug_event(EventType.EVENT_BREAKPOINT, timeout=int(args.breakpoint_timeout_seconds))
+                if stimulus_thread is not None:
+                    stimulus_thread.join(timeout=max(2.0, (args.stimulus_pulse_ms + args.stimulus_delay_ms) / 1000.0 + 1.0))
+                    summary["stimulus"]["result"] = stimulus_holder.get("result")
+                    summary["safety"]["gameInputSent"] = bool(
+                        isinstance(stimulus_holder.get("result"), dict)
+                        and stimulus_holder["result"].get("inputSent")
+                    )
+                    summary["safety"]["movementSent"] = bool(summary["safety"]["gameInputSent"])
+                if event is None:
+                    summary["event"]["status"] = "timeout"
+                    summary["warnings"].append("memory-breakpoint-timeout-before-hit")
+                    summary["status"] = "timed-out"
+                else:
+                    summary["event"]["status"] = "hit"
+                    summary["event"]["raw"] = to_jsonable(event)
+                    summary["contexts"].append(capture_context(client, candidate_address=candidate_address, label="memory-breakpoint-hit", read_size=args.read_size))
+                    summary["status"] = "captured"
+                    clear_all_memory_breakpoints(client, summary, reason="after-memory-breakpoint-hit")
+                    resume_if_stopped(client, summary, reason="after-memory-breakpoint-hit")
+                if summary["safety"]["memoryBreakpointSet"]:
+                    clear_all_memory_breakpoints(client, summary, reason="after-memory-breakpoint")
         else:
             summary["event"]["status"] = "not-requested"
             summary["status"] = "captured"
@@ -857,6 +1044,9 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         if client is not None:
             if summary["safety"].get("hardwareBreakpointSet"):
                 clear_all_hardware_breakpoints(client, summary, reason="finally-before-detach")
+                resume_if_stopped(client, summary, reason="finally-before-detach")
+            if summary["safety"].get("memoryBreakpointSet"):
+                clear_all_memory_breakpoints(client, summary, reason="finally-before-detach")
                 resume_if_stopped(client, summary, reason="finally-before-detach")
             try:
                 summary["detach"]["attempted"] = True
@@ -885,7 +1075,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, default=None)
     parser.add_argument("--x64dbg-path", type=Path, default=DEFAULT_X64DBG_PATH)
     parser.add_argument("--allow-live-debugger", action="store_true")
-    parser.add_argument("--capture-mode", choices=("stop-context", "hardware-read", "resume-only"), default="stop-context")
+    parser.add_argument("--capture-mode", choices=("stop-context", "hardware-read", "memory-access", "resume-only"), default="stop-context")
     parser.add_argument("--process-name", default=DEFAULT_PROCESS_NAME)
     parser.add_argument("--target-pid", type=int, required=True)
     parser.add_argument("--target-hwnd", required=True)
