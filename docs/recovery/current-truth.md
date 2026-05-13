@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 23:38 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
+_Last updated: 2026-05-13 23:45 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -190,6 +190,30 @@ exposed a stale/volatile signature field: expected owner field `+0x110` was
 make it a hard root-search predicate. Post-sweep milestone review
 `scripts/captures/riftscan-milestone-review-20260513-233744.json` remains
 `ready-for-read-only-proof` with `movementAllowedByReview=false`.
+
+**May 13 23:42-23:44 UTC root-family classification:** new offline
+helper `scripts/root_signature_family_classifier.py` classified the `575`
+module-hint sweep hits at
+`scripts/captures/root-signature-family-classifier-20260513-234241-403707/summary.json`.
+It found `5` owner-field families, `5` parent-slot families, `205`
+owner-pointer region clusters, and `114` non-player parent-slot leads. The
+known player chain remains the only high-confidence family: owner family
+`matched=0x0,0x8,0xE0|coord=known` count `1`, parent-slot family
+`offset=-0x40|ownerPointer=known` count `1`. The broad non-player family
+`offset=-0x40|ownerPointer=heap-like` has `114` candidate leads but low score
+(`15`) and no movement/proof eligibility.
+
+Follow-up grouped pointer scan of the largest non-player heap-like cluster
+`0x268E2A30000` wrote
+`scripts/captures/pointer-family-scan-20260513-234327-662584/summary.json`.
+It scanned `23` target/ref-storage addresses and found no module/static hits;
+ASCII context includes UI/event/mail-style strings such as `Event.Buff.Add`,
+`Event.Currency`, `Layout.Update`, and `Mail_Read_Auction`. De-prioritize this
+cluster as likely UI/addon/event data unless later evidence links it to player
+coordinate ownership. Latest milestone review
+`scripts/captures/riftscan-milestone-review-20260513-234615.json` remains
+`ready-for-read-only-proof` with `movementAllowedByReview=false`. Movement
+remains blocked.
 
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
