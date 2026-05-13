@@ -6,6 +6,35 @@ system. The current implementation now includes the first v3 slices:
 read-only route-chain planning, a unit-tested route execution core, an
 explicit active-input route CLI gate, and opt-in per-segment auto-turn.
 
+## May 13, 2026 focus pivot
+
+RiftReader's active product focus is **RIFT MMO navigation**. Static pointer
+chain recovery, coordinate-family discovery, x64dbg, Cheat Engine, and
+RiftScan coordination are supporting recovery lanes only when navigation is
+blocked by stale or missing coordinate/facing truth.
+
+Do **not** expand this repo into a general-purpose reverse-engineering product
+as the next milestone. Build navigation capability first, and keep low-level
+memory work narrowly scoped to the proof gates needed for safe navigation.
+
+| Priority | Navigation-first meaning |
+|---:|---|
+| 1 | Keep visual gate, exact PID/HWND target selection, and current proof-anchor validation as the first live-input gates. |
+| 2 | Resume from the newest navigation handoff/current-truth before any movement or auto-turn work. |
+| 3 | Treat coordinate-family/static-chain work as dependency recovery, not as the repo's main deliverable. |
+| 4 | Prefer no-turn observed-forward route proofs before turn/auto-facing experiments. |
+| 5 | Promote actor-facing/turn backends only after current-PID evidence passes the documented proof gates. |
+
+Offline navigation resume status can be generated without live input:
+
+```powershell
+python .\scripts\navigation_resume_status.py --write-summary --json
+```
+
+This helper reports the latest visual gate, `ProofOnly`, navigation run,
+turn-backend evidence, and navigation handoff. It is an offline status report
+only; it does not prove currentness or grant movement permission.
+
 ## V3 goals
 
 | Priority | Goal | Promotion condition |

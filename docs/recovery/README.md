@@ -2,7 +2,29 @@
 
 Start here if artifacts, notes, or workflow state drift or get corrupted.
 
-Last reviewed: May 9, 2026 01:05 EDT / May 9, 2026 05:05 UTC.
+Last reviewed: May 13, 2026 16:57 EDT / May 13, 2026 20:57 UTC.
+
+## Current repo focus
+
+As of May 13, 2026, the repo focus is **RIFT MMO navigation**. The recent
+coordinate-family, x64dbg, and static pointer-chain artifacts are preserved as
+supporting evidence, but they are not the active product direction.
+
+Use reverse-engineering workflows only when they unblock navigation proof
+requirements: fresh coordinate source, actor-facing/yaw truth, turn-backend
+promotion, restart-stable proof anchors, or safe same-target `ProofOnly`.
+Do not build a broad standalone reverse-engineering product from this repo
+unless the scope is explicitly reopened.
+
+For a compact offline navigation-first status packet, run:
+
+```powershell
+python .\scripts\navigation_resume_status.py --write-summary --json
+```
+
+This writes `scripts\captures\navigation-resume-status-*\summary.json` and
+`summary.md`. It sends no live input and does not prove currentness; it only
+organizes the next required gates.
 
 ## Coordinate freshness rule
 

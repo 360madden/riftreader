@@ -2,6 +2,14 @@
 
 _Last updated: 2026-05-13 20:02 UTC. The current live target observed in the latest post-freeze recovery check is `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Exact-target no-attach preflight passed. The primary recovery lane has now shifted from low-order individual XYZ scans to prior-first **family-group sequential snapshots + offline delta comparison**. A bounded exact-HWND `w` displacement run found a current-PID candidate family at `0x268DF200000`; focused re-snapshot/readback confirmed offset-corrected tracking on `0x268DF21ED30` with latest post-attach-diagnostic readback offset-corrected max delta `0.0037083984370838152`. Coordinate truth for PID `2928` is still **not promoted**: this is a current candidate family / offset coordinate copy, not a static/restart chain or same-target `ProofOnly` proof. A minimized no-debuggee x64dbg automation self-check passed, but two bounded current-PID x64dbg attach attempts failed before attach. Static-code lead packet `scripts/captures/x64dbg-static-lead-packet-20260513-195348-651818/summary.json` now ties the confirmed family to stable historical hit RVAs; read-only neighborhood inspector `scripts/captures/current-pid-family-neighborhood-inspector-20260513-195638-785343/summary.json` found only the known 3 family hits in a 24 KiB window; read-only pointer-family scan `scripts/captures/pointer-family-scan-20260513-195912-166777/summary.json` found exactly one heap reference to likely object/base candidate `0x268DF21ED20` at `0x268D753AE40` and no module/static-root hits. No watchpoints, Cheat Engine, reloadui, screenshot key, memory writes, provider writes, or proof-pointer promotion were used. Intentional live input was limited to bounded exact-PID/HWND `post-rift-key.ps1 -UseWindowMessage` displacement for snapshot evidence; the later failed x64dbg retry requested stimulus but sent no input because attach never started. The newest operator report is `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`; the newest markdown handoff remains `docs/handoffs/2026-05-13-1304-currentpid-2928-no-candidate-scan-blocker.md`._
 
+**May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
+navigation**, not a full standalone reverse-engineering product. The candidate
+coordinate-family/static-chain artifacts above remain useful supporting
+evidence, but they are paused unless needed to unblock navigation proof gates.
+For navigation work, movement remains blocked until fresh exact-target visual
+gate, API-now vs memory-now/current-anchor proof, and same-target `ProofOnly`
+pass.
+
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
 API-now vs memory-now agreement. Latest recorded coordinate snapshot:
