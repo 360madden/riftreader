@@ -80,6 +80,11 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def write_candidate_file(self, path: Path, candidates: list[dict[str, object]] | dict[str, object]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        document = {"Candidates": candidates} if isinstance(candidates, list) else candidates
+        path.write_text(json.dumps(document), encoding="utf-8")
+
     def test_self_test_writes_plan_and_template_without_live_actions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp) / "plan"
@@ -722,6 +727,178 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(code, 2)
             summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
             self.assertIn("api-coordinate-x-mismatch-file:1.0!=7376.87", summary["blockers"])
+
+    def test_candidate_file_single_candidate_populates_address(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            candidate_file = temp_path / "candidate.json"
+            self.write_preflight_summary(preflight)
+            self.write_candidate_file(
+                candidate_file,
+                {
+                    "CandidateId": "api-family-hit-000001",
+                    "AddressHex": "0x20005B30800",
+                    "AxisOrder": "xyz",
+                    "ProcessId": 79184,
+                    "ProcessName": "rift_x64",
+                    "TargetWindowHandle": "0xA90BFC",
+                    "SourceKind": "riftscan-vec3-candidate",
+                },
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            template = json.loads((out / "x64dbg-coordinate-chain-candidate-template.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "api-family-hit-000001")
+            self.assertEqual(summary["candidate"]["address"], "0x20005B30800")
+            self.assertEqual(summary["candidateFile"]["path"], str(candidate_file))
+            self.assertEqual(template["memoryNow"]["address"], "0x20005B30800")
+            command_text = (out / "x64dbg-coordinate-chain-rerun-command.txt").read_text(encoding="utf-8")
+            self.assertIn(f"--candidate-file '{candidate_file}'", command_text)
+
+    def test_candidate_file_multi_candidate_requires_candidate_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            candidate_file = temp_path / "candidates.json"
+            self.write_candidate_file(
+                candidate_file,
+                [
+                    {"CandidateId": "a", "AddressHex": "0x1000"},
+                    {"CandidateId": "b", "AddressHex": "0x2000"},
+                ],
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--target-pid",
+                        "79184",
+                        "--target-hwnd",
+                        "0xA90BFC",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("candidate-file-multiple-candidates-requires-candidate-id", summary["blockers"])
+
+    def test_candidate_file_multi_candidate_uses_explicit_candidate_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            candidate_file = temp_path / "candidates.json"
+            self.write_candidate_file(
+                candidate_file,
+                [
+                    {"CandidateId": "a", "AddressHex": "0x1000"},
+                    {"CandidateId": "b", "AddressHex": "0x2000"},
+                ],
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--candidate-id",
+                        "b",
+                        "--target-pid",
+                        "79184",
+                        "--target-hwnd",
+                        "0xA90BFC",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "b")
+            self.assertEqual(summary["candidate"]["address"], "0x2000")
+
+    def test_candidate_file_address_mismatch_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            candidate_file = temp_path / "candidate.json"
+            self.write_candidate_file(candidate_file, {"CandidateId": "a", "AddressHex": "0x1000"})
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--candidate-address",
+                        "0x2000",
+                        "--target-pid",
+                        "79184",
+                        "--target-hwnd",
+                        "0xA90BFC",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("candidate-address-mismatch-file:0x2000!=0x1000", summary["blockers"])
 
 
 if __name__ == "__main__":

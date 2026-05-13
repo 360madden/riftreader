@@ -196,6 +196,10 @@ PID/HWND mismatch with the selected preflight target.
 is available; it selects the newest usable same-target
 `scripts\captures\**\rift-api-reference-currentpid-*.json` and blocks instead of
 guessing when no matching artifact exists.
+Use `--candidate-file <candidate.json>` instead of hand-copying
+`--candidate-address` when a coordinate candidate artifact is available. The
+planner imports single-candidate files directly and requires `--candidate-id`
+for multi-candidate files.
 Each plan writes `x64dbg-coordinate-chain-rerun-command.txt` so a handoff can
 reuse the exact resolved preflight/API artifact paths without retyping them.
 

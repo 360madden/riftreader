@@ -179,7 +179,7 @@ from the current coordinate candidate and fresh API/runtime coordinate:
 python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
   --preflight-summary <x64dbg-target-preflight-summary.json-or-latest> `
   --api-coordinate-file <fresh-rift-api-reference-coordinate.json> `
-  --candidate-address <candidate-address> `
+  --candidate-file <coordinate-candidate.json> `
   --max-live-attach-seconds 30 `
   --unresponsive-abort-seconds 15 `
   --max-go-attempts 1 `
@@ -227,6 +227,11 @@ target PID/HWND from `--preflight-summary` or explicit target arguments. The
 alias resolves to the newest usable same-target
 `scripts\captures\**\rift-api-reference-currentpid-*.json` artifact and blocks
 instead of guessing if no matching PID/HWND artifact exists.
+
+Prefer `--candidate-file` over hand-copying `--candidate-address` when a
+candidate artifact is available. Single-candidate JSON files import directly.
+Multi-candidate files must be paired with `--candidate-id`; otherwise the
+planner blocks instead of guessing which address to watch.
 
 The planner now emits the live-attach guard as machine-readable safety metadata:
 

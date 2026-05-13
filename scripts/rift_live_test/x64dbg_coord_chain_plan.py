@@ -21,6 +21,7 @@ SCHEMA_VERSION = 1
 DEFAULT_PROCESS_NAME = "rift_x64"
 DEFAULT_WATCH_SIZE = 12
 DEFAULT_POSE_COUNT = 3
+DEFAULT_CANDIDATE_ID = "x64dbg-coord-chain-candidate-000001"
 PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
 PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
 API_COORDINATE_FILE_LATEST_ALIAS = "latest"
@@ -142,6 +143,41 @@ def extract_api_coordinate_document(document: dict[str, Any]) -> dict[str, Any]:
             "SavedVariablesUsedAsLiveTruth",
         ),
     }
+
+
+def candidate_address_value(document: dict[str, Any]) -> Any:
+    return get_mapping_value(
+        document,
+        "address",
+        "Address",
+        "addressHex",
+        "AddressHex",
+        "absoluteAddressHex",
+        "AbsoluteAddressHex",
+        "candidateAddressHex",
+        "CandidateAddressHex",
+        "xAddressHex",
+        "XAddressHex",
+    )
+
+
+def extract_candidate_record(candidate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "candidateId": get_mapping_value(candidate, "candidateId", "CandidateId", "id", "Id"),
+        "address": candidate_address_value(candidate),
+        "axisOrder": get_mapping_value(candidate, "axisOrder", "AxisOrder"),
+        "processName": get_mapping_value(candidate, "processName", "ProcessName"),
+        "processId": to_int_or_none(get_mapping_value(candidate, "processId", "ProcessId")),
+        "targetWindowHandle": get_mapping_value(candidate, "targetWindowHandle", "TargetWindowHandle"),
+        "sourceKind": get_mapping_value(candidate, "sourceKind", "SourceKind", "kind", "Kind"),
+    }
+
+
+def extract_candidate_records(document: dict[str, Any]) -> list[dict[str, Any]]:
+    candidates = get_mapping_value(document, "candidates", "Candidates")
+    if isinstance(candidates, list):
+        return [extract_candidate_record(candidate) for candidate in candidates if isinstance(candidate, dict)]
+    return [extract_candidate_record(document)]
 
 
 def is_latest_preflight_alias(value: Path | None) -> bool:
@@ -489,6 +525,97 @@ def apply_api_coordinate_file(args: argparse.Namespace) -> None:
             args.api_coordinate_file_blockers.append(f"process-name-mismatch-api-coordinate:{actual}!={expected}")
 
 
+def apply_candidate_file(args: argparse.Namespace) -> None:
+    args.candidate_file_data = None
+    args.candidate_file_blockers = []
+    args.candidate_file_warnings = []
+    if not args.candidate_file:
+        return
+
+    try:
+        document = read_json_file(Path(args.candidate_file))
+    except Exception as exc:
+        args.candidate_file_blockers.append(f"candidate-file-read-failed:{type(exc).__name__}:{exc}")
+        return
+    if not isinstance(document, dict):
+        args.candidate_file_blockers.append("candidate-file-must-be-json-object")
+        return
+
+    records = extract_candidate_records(document)
+    usable_records = [record for record in records if record.get("address")]
+    if not usable_records:
+        args.candidate_file_blockers.append("candidate-file-missing-address")
+        return
+
+    selected: dict[str, Any] | None = None
+    if len(usable_records) == 1:
+        selected = usable_records[0]
+    else:
+        requested_id = None if args.candidate_id == DEFAULT_CANDIDATE_ID else str(args.candidate_id)
+        if requested_id:
+            matches = [record for record in usable_records if str(record.get("candidateId")) == requested_id]
+            if len(matches) == 1:
+                selected = matches[0]
+            elif not matches:
+                args.candidate_file_blockers.append(f"candidate-file-candidate-id-not-found:{requested_id}")
+            else:
+                args.candidate_file_blockers.append(f"candidate-file-candidate-id-ambiguous:{requested_id}")
+        else:
+            args.candidate_file_blockers.append("candidate-file-multiple-candidates-requires-candidate-id")
+    if selected is None:
+        return
+
+    args.candidate_file_data = selected
+    selected_id = selected.get("candidateId")
+    if selected_id:
+        if args.candidate_id != DEFAULT_CANDIDATE_ID and str(args.candidate_id) != str(selected_id):
+            args.candidate_file_blockers.append(f"candidate-id-mismatch-file:{args.candidate_id}!={selected_id}")
+        else:
+            args.candidate_id = str(selected_id)
+
+    try:
+        selected_address = int(str(selected.get("address")), 0)
+    except ValueError:
+        args.candidate_file_blockers.append(f"candidate-file-address-invalid:{selected.get('address')}")
+        return
+    if args.candidate_address is not None and int(args.candidate_address) != selected_address:
+        args.candidate_file_blockers.append(
+            f"candidate-address-mismatch-file:{normalize_hex_int(args.candidate_address)}!={int_hex(selected_address)}"
+        )
+    else:
+        args.candidate_address = selected_address
+
+    axis_order = selected.get("axisOrder")
+    if axis_order:
+        if args.axis_order and str(args.axis_order) != str(axis_order):
+            args.candidate_file_blockers.append(f"candidate-axis-order-mismatch-file:{args.axis_order}!={axis_order}")
+        else:
+            args.axis_order = str(axis_order)
+
+    process_id = selected.get("processId")
+    if process_id is not None:
+        if args.target_pid is not None and int(args.target_pid) != int(process_id):
+            args.candidate_file_blockers.append(f"target-pid-mismatch-candidate:{args.target_pid}!={process_id}")
+        elif args.target_pid is None:
+            args.target_pid = int(process_id)
+
+    target_hwnd = normalize_hwnd(str(selected.get("targetWindowHandle") or ""))
+    if target_hwnd:
+        if args.target_hwnd and normalize_hwnd(args.target_hwnd) != target_hwnd:
+            args.candidate_file_blockers.append(
+                f"target-hwnd-mismatch-candidate:{normalize_hwnd(args.target_hwnd)}!={target_hwnd}"
+            )
+        elif not args.target_hwnd:
+            args.target_hwnd = target_hwnd
+
+    process_name = selected.get("processName")
+    if process_name:
+        expected = str(args.process_name or DEFAULT_PROCESS_NAME).removesuffix(".exe").lower()
+        actual = str(process_name).removesuffix(".exe").lower()
+        if actual != expected:
+            args.candidate_file_blockers.append(f"process-name-mismatch-candidate:{actual}!={expected}")
+
+
 def build_safety(
     *,
     allow_live_debugger: bool,
@@ -597,7 +724,10 @@ def rerun_command_text(summary: dict[str, Any]) -> str:
         append_flag(lines, "--api-sampled-at-utc", truth.get("sampledAtUtc"), "api-sampled-at-utc")
         append_flag(lines, "--api-source", truth.get("source"))
 
-    append_flag(lines, "--candidate-address", candidate.get("address"), "candidate-address")
+    if candidate.get("artifactPath"):
+        append_flag(lines, "--candidate-file", candidate.get("artifactPath"))
+    else:
+        append_flag(lines, "--candidate-address", candidate.get("address"), "candidate-address")
     append_flag(lines, "--candidate-id", candidate.get("candidateId"))
     append_flag(lines, "--max-live-attach-seconds", policy.get("maxLiveAttachSeconds"))
     append_flag(lines, "--unresponsive-abort-seconds", policy.get("unresponsiveAbortSeconds"))
@@ -729,6 +859,7 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     blockers: list[str] = []
     blockers.extend(getattr(args, "preflight_summary_blockers", []) or [])
     blockers.extend(getattr(args, "api_coordinate_file_blockers", []) or [])
+    blockers.extend(getattr(args, "candidate_file_blockers", []) or [])
     if args.candidate_address is None:
         blockers.append("missing-candidate-address")
     if args.target_pid is None:
@@ -764,6 +895,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
         warnings.append("self-test only; no x64dbg session, RIFT process, watchpoint, memory read, or movement touched")
     warnings.extend(getattr(args, "preflight_summary_warnings", []) or [])
     warnings.extend(getattr(args, "api_coordinate_file_warnings", []) or [])
+    warnings.extend(getattr(args, "candidate_file_warnings", []) or [])
 
     summary_json = run_dir / "coord-chain-plan-summary.json"
     summary_md = run_dir / "coord-chain-plan.md"
@@ -785,6 +917,10 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "axisOrder": args.axis_order,
             "watchSizeBytes": args.watch_size,
             "poseCountRequired": args.pose_count,
+            "artifactPath": str(args.candidate_file) if args.candidate_file else None,
+            "sourceKind": (getattr(args, "candidate_file_data", {}) or {}).get("sourceKind")
+            if getattr(args, "candidate_file_data", None)
+            else None,
         },
         "preflight": {
             "requestedSummary": getattr(args, "preflight_summary_requested", None),
@@ -812,6 +948,15 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             else None,
             "referenceFile": (getattr(args, "api_coordinate_file_data", {}) or {}).get("referenceFile")
             if getattr(args, "api_coordinate_file_data", None)
+            else None,
+        },
+        "candidateFile": {
+            "path": str(args.candidate_file) if args.candidate_file else None,
+            "candidateId": (getattr(args, "candidate_file_data", {}) or {}).get("candidateId")
+            if getattr(args, "candidate_file_data", None)
+            else None,
+            "sourceKind": (getattr(args, "candidate_file_data", {}) or {}).get("sourceKind")
+            if getattr(args, "candidate_file_data", None)
             else None,
         },
         "plannedPhases": planned_phases(args),
@@ -961,6 +1106,9 @@ def write_outputs(summary: dict[str, Any]) -> None:
     template = candidate_template(argparse.Namespace(**{
         "candidate_address": int(summary["candidate"]["address"], 16) if summary["candidate"].get("address") else None,
         "candidate_id": summary["candidate"]["candidateId"],
+        "candidate_file": Path(summary["candidate"]["artifactPath"])
+        if summary["candidate"].get("artifactPath")
+        else None,
         "process_name": summary["process"]["name"],
         "target_pid": summary["process"]["pid"],
         "target_hwnd": summary["process"]["hwnd"],
@@ -995,6 +1143,7 @@ def apply_self_test_defaults(args: argparse.Namespace) -> None:
     args.process_start_time_utc = "2026-05-12T20:00:00Z"
     args.module_base = 0x7FF796B50000
     args.candidate_id = "x64dbg-coord-chain-self-test"
+    args.candidate_file = None
     args.candidate_address = 0x20005B30800
     args.api_source = "synthetic-api-now"
     args.api_sampled_at_utc = "2026-05-12T20:00:10Z"
@@ -1029,7 +1178,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Current rift_x64.exe module base; imported from --preflight-summary when present.",
     )
-    parser.add_argument("--candidate-id", default="x64dbg-coord-chain-candidate-000001")
+    parser.add_argument("--candidate-id", default=DEFAULT_CANDIDATE_ID)
+    parser.add_argument(
+        "--candidate-file",
+        type=Path,
+        default=None,
+        help=(
+            "Coordinate candidate JSON. Single-candidate files import the address directly; "
+            "multi-candidate files require --candidate-id and fail closed if ambiguous."
+        ),
+    )
     parser.add_argument("--candidate-address", type=parse_int, default=None)
     parser.add_argument("--axis-order", choices=["xyz"], default="xyz")
     parser.add_argument("--watch-size", type=int, default=DEFAULT_WATCH_SIZE)
@@ -1072,6 +1230,7 @@ def main(argv: list[str] | None = None) -> int:
     apply_preflight_summary(args)
     resolve_api_coordinate_file_argument(args, repo_root)
     apply_api_coordinate_file(args)
+    apply_candidate_file(args)
     run_dir = choose_run_dir(repo_root, args.output_root)
     summary = build_plan(args, repo_root, run_dir)
     write_outputs(summary)
