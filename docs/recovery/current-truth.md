@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:12 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current static-owner clue is now ranked as player-candidate parent-slot module hint `rift_x64.exe+0x263E950` at `0x268D7539700 - 0x40`, above sibling-only hints `0x2647AC0` and `0x2691A88`; this still does not resolve a module/static root chain. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:20 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current static-owner clue remains player-candidate parent-slot module hint `rift_x64.exe+0x263E950` at `0x268D7539700 - 0x40`; the new occurrence packet found it dominates the compared module hints with `57` selected occurrences across `6` artifacts and `4` owners, versus one occurrence each for sibling RVAs `0x2647AC0` and `0x2691A88`. This still does not resolve a module/static root chain. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -82,7 +82,7 @@ until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
 Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-220802.json` remains
+`scripts/captures/riftscan-milestone-review-20260513-222102.json` remains
 blocked on the same stale proof pointer and missing selected RiftScan candidate;
 it is a strategy gate, not movement permission.
 
@@ -142,6 +142,18 @@ slot `0x268D7539700`, at offset `-0x40` from the owner slot, score `180`.
 Sibling hints ranked lower: `rift_x64.exe+0x2647AC0` at `-0x150` and
 `rift_x64.exe+0x2691A88` at `-0x3A8`. This ranking is the next offline search
 priority only; it is not static-chain proof and not movement permission.
+
+**May 13 22:18 UTC module-hint occurrence packet:** new offline helper
+`scripts/module_hint_occurrence_packet.py` scanned existing `scripts/captures`
+summary artifacts for `0x263E950`, `0x2647AC0`, `0x2691A88`, and absolute
+module address `0x7FF71F3CE950`. It wrote
+`scripts/captures/module-hint-occurrence-packet-20260513-222030-779335/summary.json`.
+The packet scanned `359` summary JSON files, selected `59` occurrences, and
+ranked `0x263E950` far above the sibling hints: `57` occurrences, `6` artifacts,
+`4` owners, `4` owner-window hits, and `2` near-owner hits, score `962`.
+`0x2647AC0` and `0x2691A88` each had only `1` selected occurrence. This confirms
+`0x263E950` is the next best static-owner search seed from existing artifacts,
+but it remains an offline source-chain clue only.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
