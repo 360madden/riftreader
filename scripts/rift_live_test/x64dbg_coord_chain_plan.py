@@ -23,6 +23,7 @@ DEFAULT_WATCH_SIZE = 12
 DEFAULT_POSE_COUNT = 3
 PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
 PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
+FLOAT_MATCH_TOLERANCE = 0.000001
 
 
 def utc_iso() -> str:
@@ -61,6 +62,85 @@ def normalize_hex_int(value: int | str | None) -> str | None:
 
 def read_json_file(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def get_mapping_value(document: dict[str, Any], *names: str) -> Any:
+    for expected in names:
+        for key, value in document.items():
+            if str(key).lower() == expected.lower():
+                return value
+    return None
+
+
+def to_float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def to_int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(str(value), 0)
+        except (TypeError, ValueError):
+            return None
+
+
+def bool_is_true(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
+
+
+def floats_match(left: float | None, right: float | None) -> bool:
+    if left is None or right is None:
+        return False
+    return abs(left - right) <= FLOAT_MATCH_TOLERANCE
+
+
+def extract_coordinate_mapping(document: dict[str, Any]) -> dict[str, Any] | None:
+    coordinate = get_mapping_value(document, "coordinate", "Coordinate")
+    return coordinate if isinstance(coordinate, dict) else None
+
+
+def extract_api_coordinate_document(document: dict[str, Any]) -> dict[str, Any]:
+    coordinate = extract_coordinate_mapping(document) or {}
+    return {
+        "source": get_mapping_value(document, "source", "Source", "Mode") or "api-coordinate-file",
+        "status": get_mapping_value(document, "status", "Status"),
+        "referenceFile": get_mapping_value(document, "referenceFile", "ReferenceFile"),
+        "sampledAtUtc": get_mapping_value(
+            coordinate,
+            "capturedAtUtc",
+            "CapturedAtUtc",
+            "sampledAtUtc",
+            "SampledAtUtc",
+        )
+        or get_mapping_value(document, "captured_at_utc", "CapturedAtUtc", "generatedAtUtc", "GeneratedAtUtc"),
+        "x": to_float_or_none(get_mapping_value(coordinate, "x", "X")),
+        "y": to_float_or_none(get_mapping_value(coordinate, "y", "Y")),
+        "z": to_float_or_none(get_mapping_value(coordinate, "z", "Z")),
+        "processName": get_mapping_value(document, "processName", "ProcessName"),
+        "processId": to_int_or_none(get_mapping_value(document, "processId", "ProcessId")),
+        "targetWindowHandle": get_mapping_value(document, "targetWindowHandle", "TargetWindowHandle"),
+        "noCheatEngine": get_mapping_value(document, "noCheatEngine", "NoCheatEngine"),
+        "movementSent": get_mapping_value(document, "movementSent", "MovementSent"),
+        "savedVariablesUse": get_mapping_value(document, "savedVariablesUse", "SavedVariablesUse"),
+        "savedVariablesUsedAsLiveTruth": get_mapping_value(
+            document,
+            "savedVariablesUsedAsLiveTruth",
+            "SavedVariablesUsedAsLiveTruth",
+        ),
+    }
 
 
 def is_latest_preflight_alias(value: Path | None) -> bool:
@@ -220,6 +300,100 @@ def apply_preflight_summary(args: argparse.Namespace) -> None:
             args.preflight_summary_blockers.append(f"process-name-mismatch-preflight:{actual}!={expected}")
 
 
+def apply_api_coordinate_file(args: argparse.Namespace) -> None:
+    args.api_coordinate_file_data = None
+    args.api_coordinate_file_blockers = []
+    args.api_coordinate_file_warnings = []
+    if not args.api_coordinate_file:
+        return
+
+    try:
+        document = read_json_file(Path(args.api_coordinate_file))
+    except Exception as exc:
+        args.api_coordinate_file_blockers.append(f"api-coordinate-file-read-failed:{type(exc).__name__}:{exc}")
+        return
+    if not isinstance(document, dict):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-must-be-json-object")
+        return
+
+    extracted = extract_api_coordinate_document(document)
+    args.api_coordinate_file_data = extracted
+
+    status = extracted.get("status")
+    if status is not None and str(status).lower() not in {"captured", "pass", "passed", "ok"}:
+        args.api_coordinate_file_blockers.append(f"api-coordinate-file-status-not-usable:{status}")
+
+    if extracted.get("noCheatEngine") is not None and not bool_is_true(extracted.get("noCheatEngine")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-cheat-engine-not-excluded")
+    if bool_is_true(extracted.get("movementSent")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-movement-sent")
+    if bool_is_true(extracted.get("savedVariablesUsedAsLiveTruth")):
+        args.api_coordinate_file_blockers.append("api-coordinate-file-savedvariables-used-as-live-truth")
+    saved_variables_use = extracted.get("savedVariablesUse")
+    if saved_variables_use is not None and str(saved_variables_use).strip().lower() != "none":
+        args.api_coordinate_file_blockers.append(f"api-coordinate-file-savedvariables-use:{saved_variables_use}")
+
+    x_value = extracted.get("x")
+    y_value = extracted.get("y")
+    z_value = extracted.get("z")
+    if x_value is None or y_value is None or z_value is None:
+        args.api_coordinate_file_blockers.append("api-coordinate-file-missing-coordinate")
+    else:
+        for axis, explicit_value, file_value in (
+            ("x", args.api_x, x_value),
+            ("y", args.api_y, y_value),
+            ("z", args.api_z, z_value),
+        ):
+            if explicit_value is not None and not floats_match(float(explicit_value), float(file_value)):
+                args.api_coordinate_file_blockers.append(
+                    f"api-coordinate-{axis}-mismatch-file:{explicit_value}!={file_value}"
+                )
+        if args.api_x is None:
+            args.api_x = x_value
+        if args.api_y is None:
+            args.api_y = y_value
+        if args.api_z is None:
+            args.api_z = z_value
+
+    sampled_at_utc = extracted.get("sampledAtUtc")
+    if sampled_at_utc:
+        if args.api_sampled_at_utc and str(args.api_sampled_at_utc) != str(sampled_at_utc):
+            args.api_coordinate_file_blockers.append(
+                f"api-sampled-at-utc-mismatch-file:{args.api_sampled_at_utc}!={sampled_at_utc}"
+            )
+        else:
+            args.api_sampled_at_utc = str(sampled_at_utc)
+    else:
+        args.api_coordinate_file_blockers.append("api-coordinate-file-missing-sampled-at-utc")
+
+    source = extracted.get("source")
+    if source and args.api_source == "fresh-api-runtime-coordinate":
+        args.api_source = str(source)
+
+    process_id = extracted.get("processId")
+    if process_id is not None:
+        if args.target_pid is not None and int(args.target_pid) != int(process_id):
+            args.api_coordinate_file_blockers.append(f"target-pid-mismatch-api-coordinate:{args.target_pid}!={process_id}")
+        elif args.target_pid is None:
+            args.target_pid = int(process_id)
+
+    target_hwnd = normalize_hwnd(str(extracted.get("targetWindowHandle") or ""))
+    if target_hwnd:
+        if args.target_hwnd and normalize_hwnd(args.target_hwnd) != target_hwnd:
+            args.api_coordinate_file_blockers.append(
+                f"target-hwnd-mismatch-api-coordinate:{normalize_hwnd(args.target_hwnd)}!={target_hwnd}"
+            )
+        elif not args.target_hwnd:
+            args.target_hwnd = target_hwnd
+
+    process_name = extracted.get("processName")
+    if process_name:
+        expected = str(args.process_name or DEFAULT_PROCESS_NAME).removesuffix(".exe").lower()
+        actual = str(process_name).removesuffix(".exe").lower()
+        if actual != expected:
+            args.api_coordinate_file_blockers.append(f"process-name-mismatch-api-coordinate:{actual}!={expected}")
+
+
 def build_safety(
     *,
     allow_live_debugger: bool,
@@ -272,6 +446,7 @@ def truth_surface(args: argparse.Namespace) -> dict[str, Any]:
         "x": args.api_x,
         "y": args.api_y,
         "z": args.api_z,
+        "artifactPath": str(args.api_coordinate_file) if getattr(args, "api_coordinate_file", None) else None,
     }
 
 
@@ -397,6 +572,7 @@ def planned_phases(args: argparse.Namespace) -> list[dict[str, Any]]:
 def validate_args(args: argparse.Namespace) -> list[str]:
     blockers: list[str] = []
     blockers.extend(getattr(args, "preflight_summary_blockers", []) or [])
+    blockers.extend(getattr(args, "api_coordinate_file_blockers", []) or [])
     if args.candidate_address is None:
         blockers.append("missing-candidate-address")
     if args.target_pid is None:
@@ -431,6 +607,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
     if args.self_test:
         warnings.append("self-test only; no x64dbg session, RIFT process, watchpoint, memory read, or movement touched")
     warnings.extend(getattr(args, "preflight_summary_warnings", []) or [])
+    warnings.extend(getattr(args, "api_coordinate_file_warnings", []) or [])
 
     summary_json = run_dir / "coord-chain-plan-summary.json"
     summary_md = run_dir / "coord-chain-plan.md"
@@ -464,6 +641,18 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             else None,
             "debuggerProcessCount": (getattr(args, "preflight_summary_data", {}) or {}).get("debuggerProcessCount")
             if getattr(args, "preflight_summary_data", None)
+            else None,
+        },
+        "apiCoordinateFile": {
+            "path": str(args.api_coordinate_file) if args.api_coordinate_file else None,
+            "source": (getattr(args, "api_coordinate_file_data", {}) or {}).get("source")
+            if getattr(args, "api_coordinate_file_data", None)
+            else None,
+            "status": (getattr(args, "api_coordinate_file_data", {}) or {}).get("status")
+            if getattr(args, "api_coordinate_file_data", None)
+            else None,
+            "referenceFile": (getattr(args, "api_coordinate_file_data", {}) or {}).get("referenceFile")
+            if getattr(args, "api_coordinate_file_data", None)
             else None,
         },
         "plannedPhases": planned_phases(args),
@@ -623,6 +812,9 @@ def write_outputs(summary: dict[str, Any]) -> None:
         "api_x": summary["truthSurface"]["x"],
         "api_y": summary["truthSurface"]["y"],
         "api_z": summary["truthSurface"]["z"],
+        "api_coordinate_file": Path(summary["truthSurface"]["artifactPath"])
+        if summary["truthSurface"].get("artifactPath")
+        else None,
         "axis_order": summary["candidate"]["axisOrder"],
         "watch_size": summary["candidate"]["watchSizeBytes"],
         "pose_count": summary["candidate"]["poseCountRequired"],
@@ -647,6 +839,7 @@ def apply_self_test_defaults(args: argparse.Namespace) -> None:
     args.api_x = 7376.87
     args.api_y = 863.82
     args.api_z = 2990.35
+    args.api_coordinate_file = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -680,6 +873,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--watch-size", type=int, default=DEFAULT_WATCH_SIZE)
     parser.add_argument("--pose-count", type=int, default=DEFAULT_POSE_COUNT)
     parser.add_argument("--api-source", default="fresh-api-runtime-coordinate")
+    parser.add_argument(
+        "--api-coordinate-file",
+        type=Path,
+        default=None,
+        help=(
+            "Fresh Rift API/reference coordinate JSON or capture summary JSON; imports X/Y/Z, sampled time, "
+            "and same-target PID/HWND when present."
+        ),
+    )
     parser.add_argument("--api-sampled-at-utc", default=None)
     parser.add_argument("--api-x", type=float, default=None)
     parser.add_argument("--api-y", type=float, default=None)
@@ -705,6 +907,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_module()
     resolve_preflight_summary_argument(args, repo_root)
     apply_preflight_summary(args)
+    apply_api_coordinate_file(args)
     run_dir = choose_run_dir(repo_root, args.output_root)
     summary = build_plan(args, repo_root, run_dir)
     write_outputs(summary)

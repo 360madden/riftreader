@@ -187,6 +187,12 @@ exact resolved path from the output summary for handoffs/audits. The planner
 imports module base from the preflight packet and blocks if an explicitly
 provided `--module-base` disagrees.
 
+The planner can also consume a fresh Rift API/reference coordinate artifact with
+`--api-coordinate-file <reference.json>` instead of manually copying
+`--api-x/--api-y/--api-z/--api-sampled-at-utc`. It blocks if the artifact
+reports movement, Cheat Engine usage, SavedVariables-as-live-truth, or a
+PID/HWND mismatch with the selected preflight target.
+
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
 The PID `63412` coordinate candidate `0x20005B30800` and owner

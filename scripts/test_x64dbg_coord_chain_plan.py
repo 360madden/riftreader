@@ -44,6 +44,42 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def write_api_reference(
+        self,
+        path: Path,
+        *,
+        pid: int = 79184,
+        hwnd: str = "0xA90BFC",
+        x: float = 7376.87,
+        y: float = 863.82,
+        z: float = 2990.35,
+        captured_at_utc: str = "2026-05-13T01:00:00Z",
+        movement_sent: bool = False,
+        no_cheat_engine: bool = True,
+        saved_variables_use: str = "none",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "source": "rrapicoord1-memory-scan",
+                    "captured_at_utc": captured_at_utc,
+                    "coordinate": {
+                        "x": x,
+                        "y": y,
+                        "z": z,
+                    },
+                    "processId": pid,
+                    "processName": "rift_x64",
+                    "targetWindowHandle": hwnd,
+                    "noCheatEngine": no_cheat_engine,
+                    "movementSent": movement_sent,
+                    "savedVariablesUse": saved_variables_use,
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def test_self_test_writes_plan_and_template_without_live_actions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp) / "plan"
@@ -385,6 +421,167 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
                 "module-base-mismatch-preflight:0x11110000!=0x7FF796B50000",
                 summary["blockers"],
             )
+
+    def test_api_coordinate_file_populates_truth_surface(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            self.write_preflight_summary(preflight)
+            self.write_api_reference(api_file)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            template = json.loads((out / "x64dbg-coordinate-chain-candidate-template.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["truthSurface"]["source"], "rrapicoord1-memory-scan")
+            self.assertEqual(summary["truthSurface"]["sampledAtUtc"], "2026-05-13T01:00:00Z")
+            self.assertEqual(summary["truthSurface"]["x"], 7376.87)
+            self.assertEqual(summary["truthSurface"]["artifactPath"], str(api_file))
+            self.assertEqual(summary["apiCoordinateFile"]["path"], str(api_file))
+            self.assertEqual(template["truthSurface"]["artifactPath"], str(api_file))
+
+    def test_api_coordinate_file_accepts_capture_summary_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            api_summary = temp_path / "api-reference-summary.json"
+            api_summary.write_text(
+                json.dumps(
+                    {
+                        "Mode": "rift-api-reference-coordinate-capture",
+                        "Status": "captured",
+                        "ProcessName": "rift_x64",
+                        "ProcessId": 79184,
+                        "TargetWindowHandle": "0xA90BFC",
+                        "NoCheatEngine": True,
+                        "MovementSent": False,
+                        "SavedVariablesUsedAsLiveTruth": False,
+                        "ReferenceFile": "C:\\captures\\reference.json",
+                        "Coordinate": {
+                            "X": 100.25,
+                            "Y": 200.5,
+                            "Z": 300.75,
+                            "CapturedAtUtc": "2026-05-13T01:05:00Z",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--api-coordinate-file",
+                        str(api_summary),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["truthSurface"]["source"], "rift-api-reference-coordinate-capture")
+            self.assertEqual(summary["truthSurface"]["x"], 100.25)
+            self.assertEqual(summary["truthSurface"]["sampledAtUtc"], "2026-05-13T01:05:00Z")
+            self.assertEqual(summary["apiCoordinateFile"]["referenceFile"], "C:\\captures\\reference.json")
+
+    def test_api_coordinate_file_target_mismatch_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            self.write_preflight_summary(preflight, pid=79184)
+            self.write_api_reference(api_file, pid=12345)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("target-pid-mismatch-api-coordinate:79184!=12345", summary["blockers"])
+
+    def test_api_coordinate_file_safety_fields_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            api_file = temp_path / "api-reference.json"
+            self.write_api_reference(api_file, movement_sent=True)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("api-coordinate-file-movement-sent", summary["blockers"])
+
+    def test_api_coordinate_file_explicit_coordinate_mismatch_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            api_file = temp_path / "api-reference.json"
+            self.write_api_reference(api_file, x=7376.87)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--api-x",
+                        "1.0",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("api-coordinate-x-mismatch-file:1.0!=7376.87", summary["blockers"])
 
 
 if __name__ == "__main__":

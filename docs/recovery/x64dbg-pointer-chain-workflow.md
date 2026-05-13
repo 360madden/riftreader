@@ -178,9 +178,8 @@ from the current coordinate candidate and fresh API/runtime coordinate:
 ```powershell
 python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
   --preflight-summary <x64dbg-target-preflight-summary.json-or-latest> `
+  --api-coordinate-file <fresh-rift-api-reference-coordinate.json> `
   --candidate-address <candidate-address> `
-  --api-x <x> --api-y <y> --api-z <z> `
-  --api-sampled-at-utc <api-sampled-at-utc> `
   --max-live-attach-seconds 30 `
   --unresponsive-abort-seconds 15 `
   --max-go-attempts 1 `
@@ -213,6 +212,13 @@ When manually planning without a preflight packet, pass `--module-base` if it is
 known so the session checklist preserves the full process epoch. A preflight
 packet remains preferred because it imports PID, HWND, process start time, and
 module base together.
+
+Prefer `--api-coordinate-file` over hand-copying `--api-x`, `--api-y`,
+`--api-z`, and `--api-sampled-at-utc` when a fresh
+`capture-rift-api-reference-coordinate.ps1` reference JSON is available. The
+planner imports the coordinate and blocks if that artifact reports movement,
+Cheat Engine usage, SavedVariables-as-live-truth, or a PID/HWND mismatch with
+the selected preflight target.
 
 The planner now emits the live-attach guard as machine-readable safety metadata:
 
