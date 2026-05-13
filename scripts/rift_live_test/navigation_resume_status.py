@@ -38,6 +38,10 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
     handoffs_root = docs_root / "handoffs"
 
     current_truth = _summarize_current_truth(recovery_root / "current-truth.md", repo_root)
+    target_control = _summarize_target_control(
+        _latest_file(capture_root, ("target-control-status.json",)),
+        repo_root,
+    )
     visual_gate = _summarize_visual_gate(
         _latest_file(capture_root, ("visual-gate-status.json",)),
         repo_root,
@@ -59,6 +63,12 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
         "rerun-exact-target-visual-gate-and-proofonly-before-live-input",
     ]
 
+    if not target_control.get("readyForReadOnlyProof"):
+        blockers.append("latest-target-control-not-ready-for-readonly-proof")
+    for blocker in target_control.get("blockers") or []:
+        if blocker in {"target-process-missing", "target-window-missing"}:
+            blockers.append(f"latest-target-control-{blocker}")
+
     if current_truth.get("proofNotPromoted"):
         blockers.append("current-truth-coordinate-proof-not-promoted")
     if not visual_gate.get("readyForLiveInput"):
@@ -68,11 +78,21 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
 
     visual_pid = visual_gate.get("processId")
     proof_pid = proof_only.get("processId")
+    target_pid = target_control.get("processId")
+    if target_pid and visual_pid and target_pid != visual_pid:
+        blockers.append("latest-target-control-target-differs-from-latest-visual-gate")
+    if target_pid and proof_pid and target_pid != proof_pid:
+        blockers.append("latest-proofonly-target-differs-from-latest-target-control")
     if visual_pid and proof_pid and visual_pid != proof_pid:
         blockers.append("latest-proofonly-target-differs-from-latest-visual-gate")
 
     visual_hwnd = _normalize_hwnd(visual_gate.get("targetWindowHandle"))
     proof_hwnd = _normalize_hwnd(proof_only.get("targetWindowHandle"))
+    target_hwnd = _normalize_hwnd(target_control.get("targetWindowHandle"))
+    if target_hwnd and visual_hwnd and target_hwnd != visual_hwnd:
+        blockers.append("latest-target-control-hwnd-differs-from-latest-visual-gate")
+    if target_hwnd and proof_hwnd and target_hwnd != proof_hwnd:
+        blockers.append("latest-proofonly-hwnd-differs-from-latest-target-control")
     if visual_hwnd and proof_hwnd and visual_hwnd != proof_hwnd:
         blockers.append("latest-proofonly-hwnd-differs-from-latest-visual-gate")
 
@@ -80,7 +100,16 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
         warnings.append("auto-turn-not-promoted")
 
     status = "blocked-for-live-input" if blockers else "ready-for-pre-live-recheck"
-    recommended_actions = _recommended_actions(blockers, visual_gate, proof_only, navigation_run, turn_backend)
+    blockers = _unique_strings(blockers)
+    warnings = _unique_strings(warnings)
+    recommended_actions = _recommended_actions(
+        blockers,
+        target_control,
+        visual_gate,
+        proof_only,
+        navigation_run,
+        turn_backend,
+    )
 
     generated_at = _utc_now()
     output_dir = options.output_dir
@@ -104,6 +133,7 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
         "evidence": {
             "currentTruth": current_truth,
             "latestNavigationHandoff": latest_navigation_handoff,
+            "latestTargetControl": target_control,
             "latestVisualGate": visual_gate,
             "latestProofOnly": proof_only,
             "latestNavigationRun": navigation_run,
@@ -136,6 +166,43 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
         write_text_atomic(summary_md, _render_markdown(summary))
 
     return summary
+
+
+def _summarize_target_control(path: Path | None, repo_root: Path) -> dict[str, Any]:
+    if path is None:
+        return _missing("target-control-missing")
+
+    data, error = _read_json(path)
+    if error is not None:
+        return _json_error(path, repo_root, error)
+
+    target = _pick(data, "target", default={})
+    window = _pick(data, "window", default={})
+    process_id = _pick(target, "processId") if isinstance(target, dict) else None
+    if process_id is None and isinstance(window, dict):
+        process_id = _pick(window, "processId")
+    hwnd = _pick(target, "requestedWindowHandle") if isinstance(target, dict) else None
+    if hwnd is None and isinstance(window, dict):
+        hwnd = _pick(window, "windowHandleHex", "windowHandle")
+    return {
+        "path": _display_path(path, repo_root),
+        "lastWriteTimeUtc": _mtime_utc(path),
+        "status": _pick(data, "status"),
+        "classification": _pick(data, "classification"),
+        "ok": bool(_pick(data, "ok")),
+        "readyForReadOnlyProof": bool(_pick(data, "readyForReadOnlyProof")),
+        "readyForVisualGate": bool(_pick(data, "readyForVisualGate")),
+        "readyForLiveInput": bool(_pick(data, "readyForLiveInput")),
+        "processId": process_id,
+        "targetWindowHandle": hwnd,
+        "processName": _pick(target, "processName") if isinstance(target, dict) else None,
+        "movementSent": bool(_pick(data, "movementSent")),
+        "inputSent": bool(_pick(data, "inputSent")),
+        "noCheatEngine": bool(_pick(data, "noCheatEngine")),
+        "blockers": list(_pick(data, "blockers", default=[]) or []),
+        "warnings": list(_pick(data, "warnings", default=[]) or []),
+        "summaryPath": _pick(data, "summaryPath"),
+    }
 
 
 def _summarize_current_truth(path: Path, repo_root: Path) -> dict[str, Any]:
@@ -295,6 +362,7 @@ def _summarize_latest_navigation_handoff(handoffs_root: Path, repo_root: Path) -
 
 def _recommended_actions(
     blockers: list[str],
+    target_control: dict[str, Any],
     visual_gate: dict[str, Any],
     proof_only: dict[str, Any],
     navigation_run: dict[str, Any],
@@ -308,6 +376,13 @@ def _recommended_actions(
             "why": "The offline report cannot prove the game process/window is still the same epoch.",
         }
     )
+    if "latest-target-control-not-ready-for-readonly-proof" in blockers:
+        actions.append(
+            {
+                "action": "Stop live-input workflow until target-control resolves the RIFT window",
+                "why": "Read-only proof and visual gate are unsafe when the target process/window is missing or ambiguous.",
+            }
+        )
     if "latest-visual-gate-not-ready" in blockers:
         actions.append(
             {
@@ -326,9 +401,9 @@ def _recommended_actions(
     if "latest-proofonly-not-passed-or-missing" in blockers or proof_only.get("currentness"):
         actions.append(
             {
-                "action": "Run same-target ProofOnly",
-                "why": "Navigation needs a fresh current proof anchor, not an old artifact.",
-            }
+            "action": "Run same-target ProofOnly",
+            "why": "Navigation needs a fresh current proof anchor, not an old artifact.",
+        }
         )
 
     if any("proofonly" in blocker for blocker in blockers):
@@ -375,8 +450,8 @@ def _recommended_actions(
                 "why": "Limits risk while rebuilding live proof confidence.",
             },
             {
-                "action": "Use coordinate-family/static-chain discovery only if proof reacquisition blocks",
-                "why": "Keeps reverse engineering as navigation support instead of the main product lane.",
+                "action": "If proof reacquisition blocks, use broad family-group snapshots plus offline delta comparison",
+                "why": "Avoids wasting time on narrow stale-address or nearby-offset poking.",
             },
             {
                 "action": "Record the next navigation pass or blocker in a fresh handoff",
@@ -390,6 +465,17 @@ def _recommended_actions(
     )
 
     return actions[:10]
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
 
 
 def _render_markdown(summary: dict[str, Any]) -> str:
@@ -431,6 +517,12 @@ def _render_markdown(summary: dict[str, Any]) -> str:
                 evidence["latestNavigationHandoff"].get("name") or evidence["latestNavigationHandoff"].get("status"),
                 "",
                 evidence["latestNavigationHandoff"].get("path"),
+            ),
+            _evidence_row(
+                "Target control",
+                evidence["latestTargetControl"].get("classification") or evidence["latestTargetControl"].get("status"),
+                _target_text(evidence["latestTargetControl"]),
+                evidence["latestTargetControl"].get("path"),
             ),
             _evidence_row(
                 "Visual gate",

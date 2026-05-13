@@ -10,6 +10,15 @@ For navigation work, movement remains blocked until fresh exact-target visual
 gate, API-now vs memory-now/current-anchor proof, and same-target `ProofOnly`
 pass.
 
+**May 13 navigation reacquisition update:** no-input target-control preflight
+`scripts/captures/target-control-currenttarget-20260513-171236/target-control-status.json`
+blocked with `target-process-missing` and `target-window-missing` for
+`rift_x64` / title `RIFT`. Do not run visual-gate, `ProofOnly`, route, or
+movement work until the game target/window resolves again. If proof-anchor
+recovery later blocks after the target returns, use broad family-group
+sequential snapshots plus offline delta comparison rather than narrow
+stale-address probing.
+
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
 API-now vs memory-now agreement. Latest recorded coordinate snapshot:

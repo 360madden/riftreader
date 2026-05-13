@@ -16,6 +16,7 @@ class NavigationResumeStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._write_current_truth(root, "Coordinate truth is not promoted. RIFT MMO navigation.")
+            self._write_target_control(root, pid=2928, hwnd="0xC0994", ready=True)
             self._write_visual_gate(root, pid=2928, hwnd="0xC0994", ready=True)
             self._write_proof_only(root, pid=57656, hwnd="0x5417BC", passed=True)
             self._write_navigation_run(root)
@@ -33,6 +34,7 @@ class NavigationResumeStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._write_current_truth(root, "Navigation-first. Current proof anchor promoted.")
+            self._write_target_control(root, pid=2928, hwnd="0xC0994", ready=True)
             self._write_visual_gate(root, pid=2928, hwnd="0xC0994", ready=True)
             self._write_proof_only(root, pid=2928, hwnd="0xC0994", passed=True)
             self._write_navigation_run(root, pid=2928)
@@ -69,6 +71,37 @@ class NavigationResumeStatusTests(unittest.TestCase):
         path = root / "docs" / "recovery" / "current-truth.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
+
+    @staticmethod
+    def _write_target_control(root: Path, *, pid: int, hwnd: str, ready: bool) -> None:
+        path = root / "scripts" / "captures" / "target-control-current" / "target-control-status.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "status": "passed-target-control" if ready else "blocked-target-control",
+                    "classification": "exact-hwnd-foreground" if ready else "target-window-missing",
+                    "ok": ready,
+                    "readyForReadOnlyProof": ready,
+                    "readyForVisualGate": ready,
+                    "readyForLiveInput": ready,
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": pid,
+                        "requestedWindowHandle": hwnd,
+                    },
+                    "window": {
+                        "processId": pid,
+                        "windowHandleHex": hwnd,
+                    },
+                    "movementSent": False,
+                    "inputSent": False,
+                    "noCheatEngine": True,
+                    "blockers": [] if ready else ["target-window-missing"],
+                }
+            ),
+            encoding="utf-8",
+        )
 
     @staticmethod
     def _write_visual_gate(root: Path, *, pid: int, hwnd: str, ready: bool) -> None:

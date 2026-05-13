@@ -25,6 +25,7 @@ reacquisition.
 | Auto-turn | Still blocked until actor-facing/turn-backend truth is current and promoted. |
 | Cheat Engine | Not authorized for the current lane. |
 | x64dbg | Supporting/static-chain tool only; do not repeat failed attach attempts without a new tactic. |
+| Latest no-input target-control | `scripts/captures/target-control-currenttarget-20260513-171236/target-control-status.json`; blocked with `target-process-missing` and `target-window-missing`. |
 
 ## Working rule
 
@@ -51,6 +52,11 @@ but they are not the next implementation direction:
 | Pointer-family/owner scans | Supporting evidence only; no module/static root proven. |
 | HTML static-chain report | Historical/operator summary, not product roadmap. |
 
+If navigation proof-anchor recovery blocks after the target returns, resume with
+broad family-group sequential snapshots plus offline delta comparison. Avoid
+narrow stale-address or nearby-offset poking unless broad evidence justifies a
+focused follow-up.
+
 ## Navigation-first top 10 recommended next actions
 
 | # | Action | Why |
@@ -64,7 +70,7 @@ but they are not the next implementation direction:
 | 7 | Keep route distances short and bounded while reacquiring state. | Limits risk while proving the environment and input backend. |
 | 8 | Re-check native exact-HWND movement backend metadata. | Confirms the repo-owned backend is still the active movement surface. |
 | 9 | Defer auto-turn until actor-facing/yaw truth is current. | Avoids using stale facing candidates for route control. |
-| 10 | Use family/static-chain discovery only if proof-anchor reacquisition blocks. | Keeps reverse engineering as a navigation dependency, not a product fork. |
+| 10 | If proof-anchor recovery blocks, use broad family-group snapshots plus offline delta comparison. | Avoids wasting effort on narrow stale-address probes. |
 
 ## Resume prompt
 

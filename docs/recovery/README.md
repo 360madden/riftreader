@@ -26,6 +26,10 @@ This writes `scripts\captures\navigation-resume-status-*\summary.json` and
 `summary.md`. It sends no live input and does not prove currentness; it only
 organizes the next required gates.
 
+If proof-anchor reacquisition blocks, use broad family-group sequential
+snapshots plus offline delta comparison before narrow stale-address or nearby
+offset probes. Keep that work scoped to unblocking navigation.
+
 ## Coordinate freshness rule
 
 Do not treat a stored coordinate from

@@ -32,8 +32,9 @@ python .\scripts\navigation_resume_status.py --write-summary --json
 ```
 
 This helper reports the latest visual gate, `ProofOnly`, navigation run,
-turn-backend evidence, and navigation handoff. It is an offline status report
-only; it does not prove currentness or grant movement permission.
+target-control status, turn-backend evidence, and navigation handoff. It is an
+offline status report only; it does not prove currentness or grant movement
+permission.
 
 ## V3 goals
 
