@@ -118,6 +118,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(code, 2)
             summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["readiness"]["status"], "blocked")
             self.assertIn("missing-candidate-address", summary["blockers"])
             self.assertIn("missing-api-coordinate", summary["blockers"])
             self.assertIn("missing-process-start-time-utc", summary["blockers"])
@@ -774,9 +775,50 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidate"]["candidateId"], "api-family-hit-000001")
             self.assertEqual(summary["candidate"]["address"], "0x20005B30800")
             self.assertEqual(summary["candidateFile"]["path"], str(candidate_file))
+            self.assertEqual(summary["readiness"]["status"], "ready-for-current-turn-approval")
+            self.assertTrue(summary["readiness"]["readyForCurrentTurnApproval"])
+            self.assertFalse(summary["readiness"]["readyForBoundedDebuggerCapture"])
             self.assertEqual(template["memoryNow"]["address"], "0x20005B30800")
             command_text = (out / "x64dbg-coordinate-chain-rerun-command.txt").read_text(encoding="utf-8")
             self.assertIn(f"--candidate-file '{candidate_file}'", command_text)
+
+    def test_readiness_marks_approved_bounded_capture_only_when_explicitly_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            candidate_file = temp_path / "candidate.json"
+            self.write_preflight_summary(preflight)
+            self.write_api_reference(api_file)
+            self.write_candidate_file(candidate_file, {"CandidateId": "a", "AddressHex": "0x1000"})
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--allow-live-debugger",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["readiness"]["status"], "approved-for-bounded-capture")
+            self.assertTrue(summary["readiness"]["readyForCurrentTurnApproval"])
+            self.assertTrue(summary["readiness"]["readyForBoundedDebuggerCapture"])
+            approval = next(
+                check
+                for check in summary["readiness"]["checks"]
+                if check["name"] == "current-turn-debugger-approval"
+            )
+            self.assertEqual(approval["status"], "approved")
 
     def test_candidate_file_multi_candidate_requires_candidate_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

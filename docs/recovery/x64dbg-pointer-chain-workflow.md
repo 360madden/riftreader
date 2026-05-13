@@ -193,6 +193,12 @@ summary, a session checklist, and a candidate-packet template under
 `x64dbg-coordinate-chain-rerun-command.txt`, a copy-paste command that preserves
 the resolved preflight/API artifact paths for handoff.
 
+The summary includes a conservative `readiness` verdict. A planner `status` of
+`planned` does not by itself mean live-debugger work should begin; the readiness
+status must show `ready-for-current-turn-approval` before asking for approval, or
+`approved-for-bounded-capture` only when explicit current-turn debugger approval
+was already supplied to the planner.
+
 If the target is `rift_x64` and no current-turn live-debugger authorization is
 present, the planner still writes the packet but records a warning that live
 attach is not authorized. Passing `--allow-live-debugger` only records that a

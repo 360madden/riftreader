@@ -202,6 +202,10 @@ planner imports single-candidate files directly and requires `--candidate-id`
 for multi-candidate files.
 Each plan writes `x64dbg-coordinate-chain-rerun-command.txt` so a handoff can
 reuse the exact resolved preflight/API artifact paths without retyping them.
+Plan summaries also include a conservative `readiness` verdict; use
+`ready-for-current-turn-approval` as the gate for asking to proceed, and treat
+`approved-for-bounded-capture` as valid only when explicit current-turn debugger
+approval was already supplied.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.

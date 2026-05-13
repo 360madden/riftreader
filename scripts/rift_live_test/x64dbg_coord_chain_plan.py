@@ -804,6 +804,132 @@ def candidate_template(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def readiness_check(name: str, status: str, passed: bool, detail: str, evidence: Any = None) -> dict[str, Any]:
+    check: dict[str, Any] = {
+        "name": name,
+        "status": status,
+        "passed": passed,
+        "detail": detail,
+    }
+    if evidence is not None:
+        check["evidence"] = evidence
+    return check
+
+
+def build_readiness(args: argparse.Namespace, blockers: list[str]) -> dict[str, Any]:
+    preflight = getattr(args, "preflight_summary_data", None) or {}
+    debugger_count = preflight.get("debuggerProcessCount")
+    selected_target = preflight.get("selectedTarget") if isinstance(preflight.get("selectedTarget"), dict) else None
+    target_identity_passed = bool(args.target_pid and args.target_hwnd and args.process_start_time_utc and args.module_base)
+    strict_preflight_passed = bool(
+        args.preflight_summary
+        and preflight.get("status") == "passed"
+        and selected_target
+        and debugger_count == 0
+        and not getattr(args, "preflight_summary_blockers", [])
+    )
+    api_coordinate_passed = bool(
+        args.api_x is not None
+        and args.api_y is not None
+        and args.api_z is not None
+        and args.api_sampled_at_utc
+        and not getattr(args, "api_coordinate_file_blockers", [])
+    )
+    candidate_passed = bool(args.candidate_address is not None and not getattr(args, "candidate_file_blockers", []))
+    policy_blockers = validate_live_attach_policy(
+        max_live_attach_seconds=args.max_live_attach_seconds,
+        unresponsive_abort_seconds=args.unresponsive_abort_seconds,
+        max_go_attempts=args.max_go_attempts,
+    )
+    policy_passed = not policy_blockers
+    input_ready = target_identity_passed and strict_preflight_passed and api_coordinate_passed and candidate_passed and policy_passed
+    approval_granted = bool(args.allow_live_debugger)
+
+    checks = [
+        readiness_check(
+            "target-identity-complete",
+            "passed" if target_identity_passed else "blocked",
+            target_identity_passed,
+            "PID, HWND, process start UTC, and module base are present.",
+            {
+                "pid": args.target_pid,
+                "hwnd": normalize_hwnd(args.target_hwnd),
+                "startTimeUtc": args.process_start_time_utc,
+                "moduleBaseAddressHex": normalize_hex_int(args.module_base),
+            },
+        ),
+        readiness_check(
+            "strict-no-attach-preflight",
+            "passed" if strict_preflight_passed else "missing-or-not-strict",
+            strict_preflight_passed,
+            "A passed same-target no-attach preflight with zero debugger-class processes is required before live debugger approval.",
+            {
+                "summaryPath": str(args.preflight_summary) if args.preflight_summary else None,
+                "status": preflight.get("status"),
+                "debuggerProcessCount": debugger_count,
+            },
+        ),
+        readiness_check(
+            "api-coordinate-present",
+            "passed" if api_coordinate_passed else "blocked",
+            api_coordinate_passed,
+            "API/runtime coordinate X/Y/Z and sampled UTC are present.",
+            {
+                "source": args.api_source,
+                "artifactPath": str(args.api_coordinate_file) if args.api_coordinate_file else None,
+                "sampledAtUtc": args.api_sampled_at_utc,
+            },
+        ),
+        readiness_check(
+            "candidate-address-present",
+            "passed" if candidate_passed else "blocked",
+            candidate_passed,
+            "A coordinate candidate address is present for the planned watch window.",
+            {
+                "candidateId": args.candidate_id,
+                "address": int_hex(args.candidate_address) if args.candidate_address is not None else None,
+                "artifactPath": str(args.candidate_file) if args.candidate_file else None,
+            },
+        ),
+        readiness_check(
+            "live-attach-policy-bounds",
+            "passed" if policy_passed else "blocked",
+            policy_passed,
+            "Live attach timeout, unresponsive abort, and go/run attempt limits are within policy.",
+            {
+                "maxLiveAttachSeconds": args.max_live_attach_seconds,
+                "unresponsiveAbortSeconds": args.unresponsive_abort_seconds,
+                "maxGoAttempts": args.max_go_attempts,
+                "policyBlockers": policy_blockers,
+            },
+        ),
+        readiness_check(
+            "current-turn-debugger-approval",
+            "approved" if approval_granted else "pending",
+            approval_granted,
+            "Live debugger capture still requires explicit current-turn approval; planner generation is artifact-only.",
+        ),
+    ]
+
+    if args.self_test:
+        status = "self-test"
+    elif blockers:
+        status = "blocked"
+    elif input_ready and approval_granted:
+        status = "approved-for-bounded-capture"
+    elif input_ready:
+        status = "ready-for-current-turn-approval"
+    else:
+        status = "needs-strict-preflight"
+
+    return {
+        "status": status,
+        "readyForCurrentTurnApproval": bool(input_ready and not blockers),
+        "readyForBoundedDebuggerCapture": bool(input_ready and approval_granted and not blockers),
+        "checks": checks,
+    }
+
+
 def planned_phases(args: argparse.Namespace) -> list[dict[str, Any]]:
     address = int_hex(args.candidate_address) if args.candidate_address is not None else "<candidate-address>"
     return [
@@ -959,6 +1085,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             if getattr(args, "candidate_file_data", None)
             else None,
         },
+        "readiness": build_readiness(args, blockers),
         "plannedPhases": planned_phases(args),
         "promotionGates": [
             "same PID/HWND/process-start target for all samples",
@@ -1008,6 +1135,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- Generated UTC: `{summary['generatedAtUtc']}`",
         f"- Candidate: `{candidate.get('candidateId')}` at `{candidate.get('address')}`",
         f"- Preflight summary: `{summary.get('preflight', {}).get('summaryPath')}`",
+        f"- Readiness: `{summary.get('readiness', {}).get('status')}`",
         f"- Rerun command: `{summary.get('artifacts', {}).get('rerunCommandText')}`",
         f"- Movement allowed: `{str(safety.get('movementAllowed')).lower()}`",
         f"- x64dbg live attach started: `{str(safety.get('x64dbgLiveAttachStarted')).lower()}`",
@@ -1028,6 +1156,25 @@ def markdown_summary(summary: dict[str, Any]) -> str:
     if summary["warnings"]:
         lines.extend(["", "## Warnings"])
         lines.extend(f"- `{warning}`" for warning in summary["warnings"])
+    readiness = summary.get("readiness") or {}
+    if readiness:
+        lines.extend(
+            [
+                "",
+                "## Readiness verdict",
+                "",
+                f"- Status: `{readiness.get('status')}`",
+                f"- Ready for current-turn approval: `{str(readiness.get('readyForCurrentTurnApproval')).lower()}`",
+                f"- Ready for bounded debugger capture: `{str(readiness.get('readyForBoundedDebuggerCapture')).lower()}`",
+                "",
+                "| Check | Status | Passed | Detail |",
+                "|---|---|---|---|",
+            ]
+        )
+        for check in readiness.get("checks") or []:
+            lines.append(
+                f"| `{check.get('name')}` | `{check.get('status')}` | `{str(check.get('passed')).lower()}` | {check.get('detail')} |"
+            )
     lines.extend(
         [
             "",
