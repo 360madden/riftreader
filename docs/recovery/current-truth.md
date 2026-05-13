@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:00 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current lead is still low-noise type marker `rift_x64.exe+0x26AAE70 -> owner 0x268D753AE30 -> [owner+0x10] = 0x268DF21ED20`; the newest parent-graph comparison shows all three sibling type instances have one heap parent ref each and no parent-of-parent hits, so no static/root chain is resolved. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:08 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current lead remains low-noise type marker `rift_x64.exe+0x26AAE70 -> owner 0x268D753AE30 -> [owner+0x10] = 0x268DF21ED20`; newest parent-slot neighborhood comparison adds module-hint source-chain clues near two of the three heap parent slots, but no module/static root chain is resolved. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -82,7 +82,7 @@ until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
 Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-215522.json` remains
+`scripts/captures/riftscan-milestone-review-20260513-220802.json` remains
 blocked on the same stale proof pointer and missing selected RiftScan candidate;
 it is a strategy gate, not movement permission.
 
@@ -117,6 +117,20 @@ had exactly `1` heap parent ref and each parent ref had `0` parent refs:
 classifying `0x268D753AE30` as `candidate-owner-heap-terminal`. This improves
 the source-chain map and confirms the current chain still stops in heap; no
 module/static parent was found.
+
+**May 13 22:03 UTC parent-slot neighborhood summary:** new offline/read-only
+helper `scripts/parent_slot_neighborhood_summary.py` summarized the three
+parent-slot neighborhood inspections at
+`scripts/captures/parent-slot-neighborhood-summary-20260513-220334-136540/summary.json`.
+All three slots still have exactly one exact owner reference. Two parent slots
+carry owner-window module-pointer hints: player-candidate slot
+`0x268D7539700 -> 0x268D753AE30` has `rift_x64.exe+0x263E950` at slot offset
+`-0x40`, and sibling slot `0x268E2A78628 -> 0x268923AF610` has
+`rift_x64.exe+0x2691A88` and `rift_x64.exe+0x2647AC0`; sibling slot
+`0x268B0DD1168 -> 0x268C6A10EA0` is heap-only in the owner window. This is a
+better source-chain map and gives the next static-owner clue set, but it does
+not promote coordinate truth, does not prove a static root, and does not permit
+movement.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
