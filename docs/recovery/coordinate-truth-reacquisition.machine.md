@@ -233,6 +233,21 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
         "nearReferenceTripletCount": 9,
         "bestCurrentTriplet": "0x1FF07575346"
       },
+      "highHeapFamilyReview": {
+        "artifact": "scripts/captures/high-heap-coordinate-family-review-currentpid-60628-20260513-0637/summary.json",
+        "candidateCount": 53,
+        "familyCount": 24,
+        "bestExactValue": [7406.1298828125, 871.7699584960938, 3028.77001953125],
+        "bestMaxAbsDelta": 0.000041503906231810106,
+        "status": "candidate-only-needs-displaced-pose-ranking"
+      },
+      "copyPathDisassembly": {
+        "function": "rift_x64.exe+0x47D408",
+        "ownerRegister": "rdi=rcx",
+        "destinationRule": "r15=rdi+0x50; r12=[r15]+[rdi+0x94]+[rdi+0x9c]",
+        "sourceRule": "r14=[rdi]; rdx=[r14]",
+        "interpretation": "heap/ring copy routine, not yet a static player-coordinate chain"
+      },
       "latestPointerScan": {
         "artifact": "scripts/captures/pointer-family-scan-20260513-061835-695118/summary.json",
         "depth": 4,

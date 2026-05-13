@@ -73,6 +73,24 @@ Findings:
 - best current triplet `0x1FF07575346`;
 - prior `0x1FF0757215A` is now stale by about `5.8247`.
 
+### Broader high-heap aligned scans
+
+- `scripts/captures/family-scan-currentpid-60628-20260513-062614/family-scan-summary.json` — broad low/stack range, timed at `120s`, found stack-like candidates.
+- `scripts/captures/family-scan-currentpid-60628-20260513-062840/family-scan-summary.json` — high heap `0x1FF00000000..0x20000000000`, timed at `180s`, found exact high-heap candidates.
+- `scripts/captures/family-scan-currentpid-60628-20260513-063352/family-scan-summary.json` — high heap `0x1FF40000000..0x1FF80000000`, timed at `120s`, found more exact candidates.
+- `scripts/captures/family-scan-currentpid-60628-20260513-063559/family-scan-summary.json` — high heap `0x1FF80000000..0x1FFC0000000`, completed, found more exact candidates.
+- `scripts/captures/family-scan-currentpid-60628-20260513-063709/family-scan-summary.json` — high heap `0x1FFC0000000..0x20000000000`, no readable regions/hits.
+- Consolidated review: `scripts/captures/high-heap-coordinate-family-review-currentpid-60628-20260513-0637/summary.json`
+
+Review findings:
+
+- `candidateCount=53`;
+- `familyCount=24`;
+- exact aligned high-heap candidates exist outside the unaligned `0x1FF07570000` destination page;
+- best exact value: `[7406.1298828125, 871.7699584960938, 3028.77001953125]`;
+- best max abs delta: `4.1503906231810106e-05`;
+- candidate-only: nearby context includes scene/player-info/render strings such as `avril Plaza`, `elf_high_female`, and `plume_14.dds`, so displaced-pose ranking is required before x64dbg/static-chain work on these families.
+
 ### x64dbg source-copy evidence
 
 Useful coordinate-source captures:
@@ -90,7 +108,8 @@ Interpretation:
 
 - `rdx+0x28` is a stronger current source lead than any `0x1FF0757xxxx` destination slot.
 - Destination slots move/stale; source buffer address was stable across these two useful captures.
-- This remains heap-local and PID-local until restart/relogin proof exists.
+- Disassembly of `rift_x64.exe+0x47D408` shows a heap/ring copy routine: `rdi=rcx`, `r15=rdi+0x50`, `r14=[rdi]`, destination `r12=[r15]+[rdi+0x94]+[rdi+0x9c]`, source `rdx=[r14]`.
+- This remains heap-local and PID-local until a stable owner/static chain or restart/relogin proof exists.
 
 ### Noisy page-access evidence
 
@@ -124,6 +143,7 @@ Confirmed:
 3. Best current destination copy at 06:14 UTC was `0x1FF07575346`.
 4. Earlier best `0x1FF0757215A` is now stale, proving exact destination slots move/stale.
 5. `rdx=0x1FF6D600020`, offset `+0x28`, is the best source-copy lead observed across two useful x64dbg captures.
+6. Broader high-heap scans found better exact candidate families that now need displaced-pose ranking.
 
 Not confirmed:
 
@@ -145,9 +165,9 @@ Resume in `C:\RIFT MODDING\RiftReader` on `main`. Continue coordinate truth reco
 | 2 | Keep scanning `0x1FF07570000..0x1FF075A0000` with `--scan-stride 1`. | Fresh copies are unaligned. |
 | 3 | Treat destination slots as disposable. | `0x1FF0757215A` already went stale. |
 | 4 | Focus on source `rdx=0x1FF6D600020` + offset `0x28`. | It tracked two useful copied poses. |
-| 5 | Deepen pointer-family scanning from source/owner leads with bounded fanout. | Current refs are heap-only; owner chain remains blocker. |
-| 6 | Add conditional x64dbg filtering if the Python batch wrapper is not enough. | Page first-hits are noisy. |
-| 7 | Capture another true `0x37` source-copy event after a real coordinate displacement. | Needed for stronger multi-pose proof. |
+| 5 | Rank the high-heap exact families across a real displaced pose. | This is now a better lead than only chasing the ChromaLink destination page. |
+| 6 | Deepen pointer-family scanning only on high-heap families that track displacement. | Avoids wasting time on static/stale scene copies. |
+| 7 | Capture another true `0x37` source-copy event after a real coordinate displacement. | Needed for stronger copy-path proof. |
 | 8 | Avoid exact hardware watchpoints on unaligned destination floats. | Size-4 unaligned hardware BP failed; size-1 timed out. |
 | 9 | Do not update `current-proof-anchor-readback.json` yet. | ProofOnly has not passed for PID `60628`. |
 | 10 | Commit this recovery slice after validation. | Preserves the classifier and accurate truth docs. |
