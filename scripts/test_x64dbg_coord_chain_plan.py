@@ -11,6 +11,27 @@ from rift_live_test.x64dbg_coord_chain_plan import main
 
 
 class X64DbgCoordChainPlanTests(unittest.TestCase):
+    def write_preflight_summary(self, path: Path, *, status: str = "passed", pid: int = 79184, hwnd: str = "0xA90BFC") -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "status": status,
+                    "selectedTarget": {
+                        "processName": "rift_x64",
+                        "pid": pid,
+                        "hwndHex": hwnd,
+                        "startTimeUtc": "2026-05-13T00:43:12.080812Z",
+                        "moduleBaseAddressHex": "0x7FF796B50000",
+                        "responding": True,
+                    },
+                    "debuggerProcessCount": 0,
+                    "blockers": [],
+                    "warnings": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def test_self_test_writes_plan_and_template_without_live_actions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp) / "plan"
@@ -150,6 +171,73 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["status"], "blocked")
             self.assertIn("max-live-attach-seconds-exceeds-hard-limit:91>90", summary["blockers"])
+
+    def test_preflight_summary_populates_target_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            self.write_preflight_summary(preflight)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["process"]["pid"], 79184)
+            self.assertEqual(summary["process"]["hwnd"], "0xA90BFC")
+            self.assertEqual(summary["process"]["startTimeUtc"], "2026-05-13T00:43:12.080812Z")
+            self.assertEqual(summary["preflight"]["summaryPath"], str(preflight))
+
+    def test_preflight_summary_mismatch_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            self.write_preflight_summary(preflight, pid=79184)
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--target-pid",
+                        "12345",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("target-pid-mismatch-preflight:12345!=79184", summary["blockers"])
 
 
 if __name__ == "__main__":

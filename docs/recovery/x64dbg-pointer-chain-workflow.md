@@ -177,10 +177,8 @@ from the current coordinate candidate and fresh API/runtime coordinate:
 
 ```powershell
 python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
+  --preflight-summary <x64dbg-target-preflight-summary.json> `
   --candidate-address <candidate-address> `
-  --target-pid <PID> `
-  --target-hwnd <HWND> `
-  --process-start-time-utc <process-start-utc> `
   --api-x <x> --api-y <y> --api-z <z> `
   --api-sampled-at-utc <api-sampled-at-utc> `
   --max-live-attach-seconds 30 `
@@ -199,6 +197,11 @@ present, the planner still writes the packet but records a warning that live
 attach is not authorized. Passing `--allow-live-debugger` only records that a
 future session was approved for planning purposes; the planner still performs no
 debugger actions.
+
+Prefer `--preflight-summary` over manually copying PID/HWND/process-start
+metadata. The planner imports the selected target from
+`scripts\x64dbg_preflight.py` output and blocks if any explicitly supplied
+target PID/HWND/start field disagrees with that preflight packet.
 
 The planner now emits the live-attach guard as machine-readable safety metadata:
 

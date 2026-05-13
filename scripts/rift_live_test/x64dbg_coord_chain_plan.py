@@ -48,6 +48,78 @@ def normalize_hwnd(value: str | None) -> str | None:
         return value.strip()
 
 
+def read_json_file(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def apply_preflight_summary(args: argparse.Namespace) -> None:
+    args.preflight_summary_data = None
+    args.preflight_summary_blockers = []
+    args.preflight_summary_warnings = []
+    if not args.preflight_summary:
+        return
+
+    try:
+        document = read_json_file(Path(args.preflight_summary))
+    except Exception as exc:
+        args.preflight_summary_blockers.append(f"preflight-summary-read-failed:{type(exc).__name__}:{exc}")
+        return
+    if not isinstance(document, dict):
+        args.preflight_summary_blockers.append("preflight-summary-must-be-json-object")
+        return
+    args.preflight_summary_data = document
+
+    status = document.get("status")
+    if status != "passed":
+        args.preflight_summary_blockers.append(f"preflight-summary-not-passed:{status}")
+    for blocker in document.get("blockers") or []:
+        args.preflight_summary_blockers.append(f"preflight-summary-blocker:{blocker}")
+    for warning in document.get("warnings") or []:
+        args.preflight_summary_warnings.append(f"preflight-summary-warning:{warning}")
+
+    debugger_count = document.get("debuggerProcessCount")
+    if isinstance(debugger_count, int) and debugger_count > 0:
+        args.preflight_summary_warnings.append(f"preflight-debugger-process-count:{debugger_count}")
+
+    selected = document.get("selectedTarget")
+    if not isinstance(selected, dict):
+        args.preflight_summary_blockers.append("preflight-summary-missing-selected-target")
+        return
+
+    selected_pid = selected.get("pid")
+    if selected_pid is not None:
+        selected_pid = int(selected_pid)
+        if args.target_pid is not None and int(args.target_pid) != selected_pid:
+            args.preflight_summary_blockers.append(f"target-pid-mismatch-preflight:{args.target_pid}!={selected_pid}")
+        else:
+            args.target_pid = selected_pid
+
+    selected_hwnd = normalize_hwnd(str(selected.get("hwndHex") or selected.get("hwnd") or ""))
+    if selected_hwnd:
+        if args.target_hwnd and normalize_hwnd(args.target_hwnd) != selected_hwnd:
+            args.preflight_summary_blockers.append(
+                f"target-hwnd-mismatch-preflight:{normalize_hwnd(args.target_hwnd)}!={selected_hwnd}"
+            )
+        else:
+            args.target_hwnd = selected_hwnd
+
+    selected_start = selected.get("startTimeUtc")
+    if selected_start:
+        if args.process_start_time_utc and str(args.process_start_time_utc) != str(selected_start):
+            args.preflight_summary_blockers.append(
+                f"process-start-time-mismatch-preflight:{args.process_start_time_utc}!={selected_start}"
+            )
+        else:
+            args.process_start_time_utc = str(selected_start)
+
+    selected_process_name = selected.get("processName")
+    if selected_process_name:
+        expected = str(args.process_name or DEFAULT_PROCESS_NAME).removesuffix(".exe").lower()
+        actual = str(selected_process_name).removesuffix(".exe").lower()
+        if actual != expected:
+            args.preflight_summary_blockers.append(f"process-name-mismatch-preflight:{actual}!={expected}")
+
+
 def build_safety(
     *,
     allow_live_debugger: bool,
@@ -223,6 +295,7 @@ def planned_phases(args: argparse.Namespace) -> list[dict[str, Any]]:
 
 def validate_args(args: argparse.Namespace) -> list[str]:
     blockers: list[str] = []
+    blockers.extend(getattr(args, "preflight_summary_blockers", []) or [])
     if args.candidate_address is None:
         blockers.append("missing-candidate-address")
     if args.target_pid is None:
@@ -256,6 +329,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
         warnings.append("x64dbg live RIFT attach is not authorized in this plan; request explicit current-turn approval before any attach/watchpoint session")
     if args.self_test:
         warnings.append("self-test only; no x64dbg session, RIFT process, watchpoint, memory read, or movement touched")
+    warnings.extend(getattr(args, "preflight_summary_warnings", []) or [])
 
     summary_json = run_dir / "coord-chain-plan-summary.json"
     summary_md = run_dir / "coord-chain-plan.md"
@@ -276,6 +350,18 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "axisOrder": args.axis_order,
             "watchSizeBytes": args.watch_size,
             "poseCountRequired": args.pose_count,
+        },
+        "preflight": {
+            "summaryPath": str(args.preflight_summary) if args.preflight_summary else None,
+            "status": (getattr(args, "preflight_summary_data", {}) or {}).get("status")
+            if getattr(args, "preflight_summary_data", None)
+            else None,
+            "selectedTarget": (getattr(args, "preflight_summary_data", {}) or {}).get("selectedTarget")
+            if getattr(args, "preflight_summary_data", None)
+            else None,
+            "debuggerProcessCount": (getattr(args, "preflight_summary_data", {}) or {}).get("debuggerProcessCount")
+            if getattr(args, "preflight_summary_data", None)
+            else None,
         },
         "plannedPhases": planned_phases(args),
         "promotionGates": [
@@ -324,6 +410,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- Status: `{summary['status']}`",
         f"- Generated UTC: `{summary['generatedAtUtc']}`",
         f"- Candidate: `{candidate.get('candidateId')}` at `{candidate.get('address')}`",
+        f"- Preflight summary: `{summary.get('preflight', {}).get('summaryPath')}`",
         f"- Movement allowed: `{str(safety.get('movementAllowed')).lower()}`",
         f"- x64dbg live attach started: `{str(safety.get('x64dbgLiveAttachStarted')).lower()}`",
         f"- x64dbg commands executed: `{str(safety.get('x64dbgCommandsExecuted')).lower()}`",
@@ -461,6 +548,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--process-name", default=DEFAULT_PROCESS_NAME)
+    parser.add_argument("--preflight-summary", type=Path, default=None, help="No-attach x64dbg_preflight.py summary.json to populate target PID/HWND/start metadata.")
     parser.add_argument("--target-pid", type=int, default=None)
     parser.add_argument("--target-hwnd", default=None)
     parser.add_argument("--process-start-time-utc", default=None)
@@ -492,6 +580,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.self_test:
         apply_self_test_defaults(args)
+    apply_preflight_summary(args)
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_module()
     run_dir = choose_run_dir(repo_root, args.output_root)
     summary = build_plan(args, repo_root, run_dir)
