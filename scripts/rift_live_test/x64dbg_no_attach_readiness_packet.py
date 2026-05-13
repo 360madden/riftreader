@@ -80,6 +80,8 @@ def step_status(step: dict[str, Any]) -> str:
 
 def step_blockers(step: dict[str, Any]) -> list[str]:
     payload = step.get("payload") if isinstance(step.get("payload"), dict) else {}
+    if payload.get("fallbackRecovered") is True:
+        return []
     blockers = [str(blocker) for blocker in payload.get("blockers", []) if blocker]
     if int(step.get("exitCode") or 0) != 0 and not blockers:
         blockers.append(f"{step.get('name')}-failed:{step.get('exitCode')}")
@@ -88,7 +90,20 @@ def step_blockers(step: dict[str, Any]) -> list[str]:
 
 def step_warnings(step: dict[str, Any]) -> list[str]:
     payload = step.get("payload") if isinstance(step.get("payload"), dict) else {}
-    return [str(warning) for warning in payload.get("warnings", []) if warning]
+    warnings = [str(warning) for warning in payload.get("warnings", []) if warning]
+    if payload.get("fallbackRecovered") is True:
+        warnings.extend(f"fallback-recovered:{blocker}" for blocker in payload.get("blockers", []) if blocker)
+    return warnings
+
+
+def argv_value(argv: list[str], flag: str) -> str | None:
+    try:
+        index = argv.index(flag)
+    except ValueError:
+        return None
+    if index + 1 >= len(argv):
+        return None
+    return argv[index + 1]
 
 
 def build_preflight_argv(args: argparse.Namespace, repo_root: Path) -> tuple[list[str] | None, list[str]]:
@@ -194,6 +209,7 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
 
     planner_step = next((step for step in steps if step.get("name") == "x64dbg_coord_chain_plan"), None)
     planner_payload = planner_step.get("payload") if planner_step and isinstance(planner_step.get("payload"), dict) else {}
+    planner_argv = planner_step.get("argv") if planner_step and isinstance(planner_step.get("argv"), list) else []
     template_step = next((step for step in steps if step.get("name") == "x64dbg_access_event_template"), None)
     template_payload = template_step.get("payload") if template_step and isinstance(template_step.get("payload"), dict) else {}
     planner_summary: dict[str, Any] = {}
@@ -241,6 +257,24 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
         "steps": steps,
         "blockers": blockers,
         "warnings": warnings,
+        "apiCoordinateSource": {
+            "plannerArgument": argv_value([str(item) for item in planner_argv], "--api-coordinate-file")
+            if planner_argv
+            else None,
+            "chromalinkReferenceJson": next(
+                (
+                    step.get("payload", {}).get("referenceJson")
+                    for step in steps
+                    if step.get("name") == "chromalink_world_state_reference" and isinstance(step.get("payload"), dict)
+                ),
+                None,
+            ),
+            "fallbackUsed": any(
+                bool(step.get("payload", {}).get("fallbackRecovered"))
+                for step in steps
+                if isinstance(step.get("payload"), dict)
+            ),
+        },
         "artifacts": {
             "runDirectory": str(run_dir),
             "summaryJson": str(summary_json),
@@ -292,31 +326,43 @@ def run_packet(args: argparse.Namespace, tool_runner: ToolRunner = run_json_tool
         return summary
 
     preflight_summary = preflight_step.get("payload", {}).get("summaryJson")
-    chromalink_argv = [
-        "--repo-root",
-        str(repo_root),
-        "--preflight-summary",
-        str(preflight_summary),
-    ]
-    if args.world_state_file:
-        chromalink_argv.extend(["--world-state-file", str(args.world_state_file)])
-    if args.world_state_url:
-        chromalink_argv.extend(["--world-state-url", str(args.world_state_url)])
-    chromalink_argv.extend(["--timeout-seconds", str(args.timeout_seconds)])
+    if args.api_coordinate_file:
+        reference_json = str(args.api_coordinate_file)
+    else:
+        chromalink_argv = [
+            "--repo-root",
+            str(repo_root),
+            "--preflight-summary",
+            str(preflight_summary),
+        ]
+        if args.world_state_file:
+            chromalink_argv.extend(["--world-state-file", str(args.world_state_file)])
+        if args.world_state_url:
+            chromalink_argv.extend(["--world-state-url", str(args.world_state_url)])
+        chromalink_argv.extend(["--timeout-seconds", str(args.timeout_seconds)])
 
-    chromalink_step = tool_runner(
-        "chromalink_world_state_reference",
-        chromalink_world_state_reference.main,
-        chromalink_argv,
-    )
-    steps.append(chromalink_step)
-    if int(chromalink_step.get("exitCode") or 0) != 0:
-        summary = build_summary(args, run_dir, steps)
-        write_json(Path(summary["artifacts"]["summaryJson"]), summary)
-        write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
-        return summary
+        chromalink_step = tool_runner(
+            "chromalink_world_state_reference",
+            chromalink_world_state_reference.main,
+            chromalink_argv,
+        )
+        steps.append(chromalink_step)
+        if int(chromalink_step.get("exitCode") or 0) == 0:
+            reference_json = chromalink_step.get("payload", {}).get("referenceJson")
+        elif not args.no_api_coordinate_latest_fallback:
+            payload = chromalink_step.get("payload") if isinstance(chromalink_step.get("payload"), dict) else {}
+            payload["fallbackRecovered"] = True
+            payload["status"] = "fallback"
+            payload.setdefault("warnings", [])
+            payload["warnings"].append("chromalink-reference-unavailable-using-api-coordinate-file:latest")
+            chromalink_step["payload"] = payload
+            reference_json = "latest"
+        else:
+            summary = build_summary(args, run_dir, steps)
+            write_json(Path(summary["artifacts"]["summaryJson"]), summary)
+            write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
+            return summary
 
-    reference_json = chromalink_step.get("payload", {}).get("referenceJson")
     planner_argv = [
         "--repo-root",
         str(repo_root),
@@ -362,7 +408,10 @@ def run_packet(args: argparse.Namespace, tool_runner: ToolRunner = run_json_tool
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate a no-attach x64dbg readiness packet from preflight, ChromaLink truth, and latest candidate scan."
+        description=(
+            "Generate a no-attach x64dbg readiness packet from exact preflight, an API coordinate reference, "
+            "and the latest candidate scan."
+        )
     )
     parser.add_argument("--repo-root", type=Path, default=None)
     parser.add_argument("--output-root", type=Path, default=None)
@@ -374,6 +423,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world-state-file", type=Path, default=None)
     parser.add_argument("--world-state-url", default=chromalink_world_state_reference.DEFAULT_WORLD_STATE_URL)
     parser.add_argument("--timeout-seconds", type=float, default=2.0)
+    parser.add_argument(
+        "--api-coordinate-file",
+        default=None,
+        help=(
+            "Planner-compatible API coordinate file, or 'latest'. When supplied, ChromaLink capture is skipped. "
+            "Without this, ChromaLink is attempted first and strict planner validation falls back to 'latest' "
+            "if ChromaLink is unavailable."
+        ),
+    )
+    parser.add_argument(
+        "--no-api-coordinate-latest-fallback",
+        action="store_true",
+        help="Do not fall back to --api-coordinate-file latest when ChromaLink reference capture fails.",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -392,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
                     "summaryMarkdown": summary["artifacts"]["summaryMarkdown"],
                     "preflightSummaryJson": summary["artifacts"]["preflightSummaryJson"],
                     "chromalinkReferenceJson": summary["artifacts"]["chromalinkReferenceJson"],
+                    "apiCoordinateSource": summary["apiCoordinateSource"],
                     "plannerSummaryJson": summary["artifacts"]["plannerSummaryJson"],
                     "accessEventTemplateJson": summary["artifacts"]["accessEventTemplateJson"],
                     "compactHandoffMarkdown": summary["artifacts"]["compactHandoffMarkdown"],
@@ -405,6 +469,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"status={summary['status']}")
         print(f"readinessStatus={summary['readinessStatus']}")
         print(f"summaryJson={summary['artifacts']['summaryJson']}")
+        print(f"apiCoordinateSource={summary['apiCoordinateSource']}")
         print(f"plannerSummaryJson={summary['artifacts']['plannerSummaryJson']}")
         print(f"accessEventTemplateJson={summary['artifacts']['accessEventTemplateJson']}")
         if summary["blockers"]:
