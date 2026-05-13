@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 23:31 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
+_Last updated: 2026-05-13 23:38 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -166,6 +166,30 @@ artifact only, not movement truth. Post-slice milestone review
 `scripts/captures/riftscan-milestone-review-20260513-232903.json` remained
 `ready-for-read-only-proof` with `movementAllowedByReview=false`; it does not
 override the fresh-reference blocker.
+
+**May 13 23:31-23:37 UTC grouped root-sweep follow-up:**
+read-only grouped pointer sweep
+`scripts/captures/pointer-family-scan-20260513-233157-559293/summary.json`
+confirmed the current parent slot still has no parent-of-parent ref in the
+scanned target set: `0x268D753AE30` is referenced once by `0x268D7539700`, and
+`0x268DF21ED20` is referenced once by `0x268D753AE40`; no new module/static
+parent was found.
+
+New helper `scripts/root_signature_module_hint_sweep.py` then ran a broader
+current-PID sweep of all live `rift_x64.exe+0x263E950` module-pointer
+occurrences using the root-signature packet. Artifact:
+`scripts/captures/root-signature-module-hint-sweep-20260513-233734-920187/summary.json`.
+It scanned `575` module-pointer hits and ranked the known owner/parent-slot
+relations highest: top owner-field candidate `0x268D753AF10 -> owner
+0x268D753AE30 -> coord pointer 0x268DF21ED20`, and top parent-slot candidate
+`0x268D75396C0 -> parent slot 0x268D7539700 -> owner 0x268D753AE30`. This is
+useful broad-family confirmation but still candidate-only. The sweep also
+exposed a stale/volatile signature field: expected owner field `+0x110` was
+`0x2657C80` in older offline packet evidence, but live readback now shows
+`0x264C688`. Treat `+0x110` as a weak/volatile clue until revalidated; do not
+make it a hard root-search predicate. Post-sweep milestone review
+`scripts/captures/riftscan-milestone-review-20260513-233744.json` remains
+`ready-for-read-only-proof` with `movementAllowedByReview=false`.
 
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
