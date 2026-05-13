@@ -150,6 +150,41 @@ Interpretation: no writer/source path was captured while the character was
 idle. Do not infer absence of a writer; the next writer trace likely needs a
 safe, explicitly approved stimulus window or a non-input natural state change.
 
+## Grouped pointer-family scan helper and result
+
+A repo-owned Python helper now runs grouped current-process pointer scans via
+the C#/.NET reader instead of ad hoc shell loops:
+
+- helper: `scripts/pointer_family_scan.py`
+- implementation: `scripts/rift_live_test/pointer_family_scan.py`
+- tests: `scripts/test_pointer_family_scan.py`
+- validation: `python -m unittest discover -s scripts -p "test_pointer_family_scan.py"`
+
+Live grouped scan result:
+
+- summary: `scripts/captures/pointer-family-scan-20260513-043645-464252/summary.json`
+- scanned target count: `26`
+- target remained responsive after scan:
+  `scripts/captures/x64dbg-target-preflight-20260513-043859-427243/summary.json`
+- no scanned target had a module hit:
+  - `moduleHitCount: 0`
+  - `riftModuleHitCount: 0`
+- top current-process targets by exact pointer hit count:
+  - `0x173F1180330` (`object-window-pointer`): `36` hits
+  - `0x1738127A4E0` (`owner-start-lead`): `6` hits
+  - `0x1738127FE80` (`local-pointer-field-b`): `2` hits
+  - `0x173C169FF28` (`owner-ref-hit`): `1` hit
+  - `0x173812804D8` (`local-pointer-field-a`): `1` hit
+
+Interpretation:
+
+- The grouped scan found richer heap/object neighborhoods but no static/module
+  root.
+- This strengthens the current-process owner-neighborhood map, but still
+  blocks promotion.
+- The next promotion-relevant step is not more exact ref scanning at depth 1;
+  it is either restart comparison or a writer/source trace with safe stimulus.
+
 ## Resume-safe next action
 
 Do **not** start with another broad x64dbg watchpoint.
