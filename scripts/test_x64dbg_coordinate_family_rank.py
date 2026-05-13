@@ -116,6 +116,124 @@ class CoordinateFamilyRankTests(unittest.TestCase):
             self.assertTrue(summary["topAddress"]["candidateOnly"])
             self.assertIn("restart-validation-missing", summary["topAddress"]["promotionBlockers"])
 
+    def test_repeated_same_reference_position_does_not_inflate_pose_support(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            pose_a = temp_path / "scripts" / "captures" / "family-scan-a" / "api-family-vec3-candidates.json"
+            pose_a_repeat = (
+                temp_path / "scripts" / "captures" / "family-scan-a-repeat" / "api-family-vec3-candidates.json"
+            )
+            pose_b = temp_path / "scripts" / "captures" / "family-scan-b" / "api-family-vec3-candidates.json"
+            out = temp_path / "rank"
+            shared = self.candidate(
+                "0x1738127A5A4",
+                "0x17381270000",
+                "0xA5A4",
+                value=(7376.67, 863.52, 2988.98),
+                delta=0.05882,
+            )
+            self.write_candidates(
+                pose_a,
+                generated_at="2026-05-13T02:46:23Z",
+                reference=(7376.67, 863.58, 2988.98),
+                candidates=[shared],
+            )
+            self.write_candidates(
+                pose_a_repeat,
+                generated_at="2026-05-13T02:47:23Z",
+                reference=(7376.68, 863.58, 2988.99),
+                candidates=[shared],
+            )
+            self.write_candidates(
+                pose_b,
+                generated_at="2026-05-13T03:30:27Z",
+                reference=(7376.41, 863.58, 2989.52),
+                candidates=[
+                    self.candidate(
+                        "0x1738127A5A4",
+                        "0x17381270000",
+                        "0xA5A4",
+                        value=(7376.41, 863.52, 2989.52),
+                        delta=0.05882,
+                    )
+                ],
+            )
+
+            code = self.run_main(
+                [
+                    "--repo-root",
+                    str(temp_path),
+                    "--candidate-file",
+                    str(pose_a),
+                    "--candidate-file",
+                    str(pose_a_repeat),
+                    "--candidate-file",
+                    str(pose_b),
+                    "--process-id",
+                    "79184",
+                    "--target-hwnd",
+                    "0xA90BFC",
+                    "--output-root",
+                    str(out),
+                    "--json",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coordinate-family-rankings.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["observationCount"], 3)
+            self.assertEqual(summary["observationPoseCount"], 2)
+            self.assertEqual(summary["topAddress"]["addressHex"], "0x1738127A5A4")
+            self.assertEqual(summary["topAddress"]["supportPoseCount"], 2)
+            self.assertEqual(len(summary["topAddress"]["observations"]), 2)
+
+    def test_same_reference_position_only_has_one_pose_support(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            pose_a = temp_path / "a" / "api-family-vec3-candidates.json"
+            pose_b = temp_path / "b" / "api-family-vec3-candidates.json"
+            out = temp_path / "rank"
+            for index, path in enumerate((pose_a, pose_b), start=1):
+                self.write_candidates(
+                    path,
+                    generated_at=f"2026-05-13T02:4{index}:23Z",
+                    reference=(7376.67, 863.58, 2988.98),
+                    candidates=[
+                        self.candidate(
+                            "0x1738127A5A4",
+                            "0x17381270000",
+                            "0xA5A4",
+                            value=(7376.67, 863.52, 2988.98),
+                            delta=0.05882,
+                        )
+                    ],
+                )
+
+            code = self.run_main(
+                [
+                    "--repo-root",
+                    str(temp_path),
+                    "--candidate-file",
+                    str(pose_a),
+                    "--candidate-file",
+                    str(pose_b),
+                    "--process-id",
+                    "79184",
+                    "--target-hwnd",
+                    "0xA90BFC",
+                    "--output-root",
+                    str(out),
+                    "--json",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coordinate-family-rankings.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["observationCount"], 2)
+            self.assertEqual(summary["observationPoseCount"], 1)
+            self.assertEqual(summary["topAddress"]["supportPoseCount"], 1)
+            self.assertIn("no-exact-address-meets-min-pose-support:2", summary["warnings"])
+
     def test_target_filter_blocks_wrong_pid_and_hwnd(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

@@ -15,6 +15,7 @@ from .reports import write_json, write_text_atomic
 SCHEMA_VERSION = 1
 DEFAULT_MIN_POSE_SUPPORT = 2
 DEFAULT_TOP = 25
+DEFAULT_POSE_DISTANCE_MIN = 0.25
 
 
 def utc_iso() -> str:
@@ -145,6 +146,30 @@ def finite_or_inf(value: float | None) -> float:
     return float(value)
 
 
+def reference_tuple(observation: dict[str, Any]) -> tuple[float, float, float] | None:
+    reference = observation.get("reference")
+    if not isinstance(reference, dict):
+        return None
+    values = tuple(to_float_or_none(reference.get(axis)) for axis in ("x", "y", "z"))
+    if any(value is None for value in values):
+        return None
+    return float(values[0]), float(values[1]), float(values[2])
+
+
+def reference_distance(left: tuple[float, float, float], right: tuple[float, float, float]) -> dict[str, float]:
+    dx = right[0] - left[0]
+    dy = right[1] - left[1]
+    dz = right[2] - left[2]
+    return {
+        "dx": dx,
+        "dy": dy,
+        "dz": dz,
+        "planar": math.sqrt((dx * dx) + (dz * dz)),
+        "spatial": math.sqrt((dx * dx) + (dy * dy) + (dz * dz)),
+        "maxAbs": max(abs(dx), abs(dy), abs(dz)),
+    }
+
+
 def average(values: Iterable[float]) -> float | None:
     finite = [float(value) for value in values if math.isfinite(float(value))]
     if not finite:
@@ -213,6 +238,7 @@ def candidate_observation(
 
     return {
         "sourceFile": str(source_file),
+        "sourcePoseKey": str(source_file),
         "poseKey": str(source_file),
         "poseLabel": str(generated_at or source_file.parent.name),
         "generatedAtUtc": generated_at,
@@ -329,6 +355,83 @@ def best_by_pose(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(best.values())
 
 
+def assign_pose_groups(
+    observations: list[dict[str, Any]],
+    *,
+    pose_distance_min: float,
+) -> list[dict[str, Any]]:
+    groups: list[dict[str, Any]] = []
+    for observation in sorted(
+        observations,
+        key=lambda item: (str(item.get("generatedAtUtc") or ""), str(item.get("sourceFile") or "")),
+    ):
+        coordinate = reference_tuple(observation)
+        if coordinate is None:
+            key = str(observation.get("sourcePoseKey") or observation.get("sourceFile"))
+            observation["poseKey"] = key
+            observation["poseGroup"] = {
+                "poseKey": key,
+                "source": "source-file-no-reference-coordinate",
+                "reference": observation.get("reference"),
+            }
+            groups.append(
+                {
+                    "poseKey": key,
+                    "source": "source-file-no-reference-coordinate",
+                    "reference": observation.get("reference"),
+                    "sourceFiles": [observation.get("sourceFile")],
+                    "observationCount": 1,
+                }
+            )
+            continue
+
+        matched: dict[str, Any] | None = None
+        matched_distance: dict[str, float] | None = None
+        for group in groups:
+            representative = group.get("_coordinate")
+            if representative is None:
+                continue
+            distance = reference_distance(representative, coordinate)
+            if distance["maxAbs"] <= pose_distance_min:
+                matched = group
+                matched_distance = distance
+                break
+
+        if matched is None:
+            key = f"pose-{len([group for group in groups if group.get('_coordinate') is not None]) + 1:06d}"
+            matched = {
+                "poseKey": key,
+                "source": "reference-coordinate-cluster",
+                "_coordinate": coordinate,
+                "reference": {
+                    "x": coordinate[0],
+                    "y": coordinate[1],
+                    "z": coordinate[2],
+                },
+                "sourceFiles": [],
+                "observationCount": 0,
+            }
+            groups.append(matched)
+            matched_distance = {"dx": 0.0, "dy": 0.0, "dz": 0.0, "planar": 0.0, "spatial": 0.0, "maxAbs": 0.0}
+
+        matched["observationCount"] = int(matched.get("observationCount") or 0) + 1
+        source_file = observation.get("sourceFile")
+        if source_file and source_file not in matched["sourceFiles"]:
+            matched["sourceFiles"].append(source_file)
+        observation["poseKey"] = matched["poseKey"]
+        observation["poseGroup"] = {
+            "poseKey": matched["poseKey"],
+            "source": matched["source"],
+            "distanceFromRepresentative": matched_distance,
+            "reference": observation.get("reference"),
+        }
+
+    return [
+        {key: value for key, value in group.items() if key != "_coordinate"}
+        for group in groups
+    ]
+
+
 def observation_sort_key(observation: dict[str, Any]) -> tuple[float, str, str]:
     return (
         finite_or_inf(observation.get("bestMaxAbsDistance")),
@@ -356,6 +459,7 @@ def observation_summary(observation: dict[str, Any]) -> dict[str, Any]:
     return {
         "sourceFile": observation.get("sourceFile"),
         "poseLabel": observation.get("poseLabel"),
+        "poseKey": observation.get("poseKey"),
         "generatedAtUtc": observation.get("generatedAtUtc"),
         "candidateId": observation.get("candidateId"),
         "addressHex": observation.get("addressHex"),
@@ -606,6 +710,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if not observations and not blockers:
         blockers.append("candidate-observations-not-found-for-target")
 
+    pose_groups = assign_pose_groups(observations, pose_distance_min=args.pose_distance_min)
+
     address_rankings, family_rankings = rank_observations(
         observations,
         min_pose_support=args.min_pose_support,
@@ -633,6 +739,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "candidateFiles": [str(path) for path in candidate_files],
             "candidateGlob": args.candidate_glob or [],
             "minPoseSupport": args.min_pose_support,
+            "poseDistanceMin": args.pose_distance_min,
             "top": args.top,
         },
         "candidateFileCount": len(candidate_files),
@@ -647,6 +754,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "addressRankings": address_rankings,
         "familyRankings": family_rankings,
         "poses": poses,
+        "poseGroups": pose_groups,
         "safety": {
             "candidateOnly": True,
             "promotionEligible": False,
@@ -663,6 +771,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "familyRanking": (
                 "supportPoseCount desc, bestAddressSupportPoseCount desc, "
                 "avgBestMaxAbsDistance asc, maxBestMaxAbsDistance asc"
+            ),
+            "poseSupport": (
+                "candidate files only add support when their API reference coordinates differ by more than "
+                "poseDistanceMin on at least one axis; repeated same-position scans share one pose group"
             ),
         },
         "blockers": blockers,
@@ -689,6 +801,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--process-id", default=None)
     parser.add_argument("--target-hwnd", default=None)
     parser.add_argument("--min-pose-support", type=int, default=DEFAULT_MIN_POSE_SUPPORT)
+    parser.add_argument("--pose-distance-min", type=float, default=DEFAULT_POSE_DISTANCE_MIN)
     parser.add_argument("--top", type=int, default=DEFAULT_TOP)
     parser.add_argument("--json", action="store_true")
     return parser
