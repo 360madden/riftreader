@@ -241,6 +241,14 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
         "bestMaxAbsDelta": 0.000041503906231810106,
         "status": "candidate-only-needs-displaced-pose-ranking"
       },
+      "displacedPoseBlocker": {
+        "artifact": "scripts/captures/movement-stimulus-displacement-check-currentpid-60628-20260513-0642/summary.json",
+        "status": "blocked-no-displaced-pose",
+        "cleanLowercaseForwardKeySent": true,
+        "targetForeground": true,
+        "referenceChanged": false,
+        "recommendedAction": "manual-displacement-or-visual-state-diagnosis-before-more-movement"
+      },
       "copyPathDisassembly": {
         "function": "rift_x64.exe+0x47D408",
         "ownerRegister": "rdi=rcx",

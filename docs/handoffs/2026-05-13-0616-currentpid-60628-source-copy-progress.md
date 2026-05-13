@@ -91,6 +91,20 @@ Review findings:
 - best max abs delta: `4.1503906231810106e-05`;
 - candidate-only: nearby context includes scene/player-info/render strings such as `avril Plaza`, `elf_high_female`, and `plume_14.dds`, so displaced-pose ranking is required before x64dbg/static-chain work on these families.
 
+### Displaced-pose blocker
+
+- Artifact: `scripts/captures/movement-stimulus-displacement-check-currentpid-60628-20260513-0642/summary.json`
+
+Findings:
+
+- Exact-HWND C# SendInput focused foreground RIFT successfully.
+- Uppercase `W` was a bad clean-forward stimulus because it produced `shiftState=1`.
+- Lowercase `w` was sent cleanly with `shiftState=0`, `sentInputEvents=2`, exact HWND foreground, target process foreground.
+- Fresh `RRAPICOORD1` references before/after remained `[7406.1299, 871.77, 3028.77]`.
+- Result: `blocked-no-displaced-pose`.
+
+Interpretation: do not spam more movement. Either the character is blocked/stuck, movement input is not effective in the current in-game state, or visual/state diagnosis is needed. High-heap family ranking now needs manual displacement or a verified movement setup.
+
 ### x64dbg source-copy evidence
 
 Useful coordinate-source captures:
@@ -144,6 +158,7 @@ Confirmed:
 4. Earlier best `0x1FF0757215A` is now stale, proving exact destination slots move/stale.
 5. `rdx=0x1FF6D600020`, offset `+0x28`, is the best source-copy lead observed across two useful x64dbg captures.
 6. Broader high-heap scans found better exact candidate families that now need displaced-pose ranking.
+7. Automated key stimulus did not create a displaced pose, despite exact foreground targeting.
 
 Not confirmed:
 
@@ -165,9 +180,9 @@ Resume in `C:\RIFT MODDING\RiftReader` on `main`. Continue coordinate truth reco
 | 2 | Keep scanning `0x1FF07570000..0x1FF075A0000` with `--scan-stride 1`. | Fresh copies are unaligned. |
 | 3 | Treat destination slots as disposable. | `0x1FF0757215A` already went stale. |
 | 4 | Focus on source `rdx=0x1FF6D600020` + offset `0x28`. | It tracked two useful copied poses. |
-| 5 | Rank the high-heap exact families across a real displaced pose. | This is now a better lead than only chasing the ChromaLink destination page. |
-| 6 | Deepen pointer-family scanning only on high-heap families that track displacement. | Avoids wasting time on static/stale scene copies. |
-| 7 | Capture another true `0x37` source-copy event after a real coordinate displacement. | Needed for stronger copy-path proof. |
+| 5 | Produce a real displaced pose manually or by first diagnosing why `w` did not move. | Ranking cannot advance without coordinate displacement. |
+| 6 | Rank the high-heap exact families across that real displaced pose. | This is now a better lead than only chasing the ChromaLink destination page. |
+| 7 | Deepen pointer-family scanning only on high-heap families that track displacement. | Avoids wasting time on static/stale scene copies. |
 | 8 | Avoid exact hardware watchpoints on unaligned destination floats. | Size-4 unaligned hardware BP failed; size-1 timed out. |
 | 9 | Do not update `current-proof-anchor-readback.json` yet. | ProofOnly has not passed for PID `60628`. |
 | 10 | Commit this recovery slice after validation. | Preserves the classifier and accurate truth docs. |
