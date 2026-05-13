@@ -26,6 +26,8 @@ SYNTHETIC_SELF_TEST_CANDIDATE_ADDRESS = 0x111122223333
 PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
 PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
 API_COORDINATE_FILE_LATEST_ALIAS = "latest"
+CANDIDATE_FILE_LATEST_ALIAS = "latest"
+BEST_CANDIDATE_ID_ALIASES = {"best", "top", "first"}
 FLOAT_MATCH_TOLERANCE = 0.000001
 STRICT_DEFAULT_MAX_PREFLIGHT_AGE_SECONDS = 300
 STRICT_DEFAULT_MAX_API_COORDINATE_AGE_SECONDS = 60
@@ -257,6 +259,14 @@ def is_latest_api_coordinate_alias(value: Path | None) -> bool:
     return value is not None and str(value).strip().lower() == API_COORDINATE_FILE_LATEST_ALIAS
 
 
+def is_latest_candidate_file_alias(value: Path | None) -> bool:
+    return value is not None and str(value).strip().lower() == CANDIDATE_FILE_LATEST_ALIAS
+
+
+def is_best_candidate_id_alias(value: str | None) -> bool:
+    return value is not None and str(value).strip().lower() in BEST_CANDIDATE_ID_ALIASES
+
+
 def parse_utc_sort_time(value: Any, fallback_path: Path) -> datetime:
     if isinstance(value, str) and value.strip():
         text = value.strip()
@@ -455,6 +465,105 @@ def resolve_api_coordinate_file_argument(args: argparse.Namespace, repo_root: Pa
     args.api_coordinate_file = coordinate_file
 
 
+def candidate_file_matches_target(
+    document: dict[str, Any],
+    *,
+    target_pid: int | None,
+    target_hwnd: str | None,
+) -> bool:
+    target_hwnd_normalized = normalize_hwnd(target_hwnd)
+    if target_pid is None or not target_hwnd_normalized:
+        return False
+
+    document_process_id = to_int_or_none(
+        get_mapping_value(document, "processId", "ProcessId", "process_id")
+    )
+    document_target_hwnd = normalize_hwnd(
+        str(get_mapping_value(document, "targetWindowHandle", "TargetWindowHandle", "target_window_handle") or "")
+    )
+    if document_process_id is not None and document_process_id != int(target_pid):
+        return False
+    if document_target_hwnd and document_target_hwnd != target_hwnd_normalized:
+        return False
+
+    for record in extract_candidate_records(document):
+        if not record.get("address"):
+            continue
+        record_process_id = to_int_or_none(record.get("processId"))
+        record_target_hwnd = normalize_hwnd(str(record.get("targetWindowHandle") or ""))
+        if record_process_id is not None and record_process_id != int(target_pid):
+            continue
+        if record_target_hwnd and record_target_hwnd != target_hwnd_normalized:
+            continue
+        candidate_process_id = record_process_id if record_process_id is not None else document_process_id
+        candidate_target_hwnd = record_target_hwnd or document_target_hwnd
+        if candidate_process_id == int(target_pid) and candidate_target_hwnd == target_hwnd_normalized:
+            return True
+    return False
+
+
+def find_latest_candidate_file(
+    repo_root: Path,
+    *,
+    target_pid: int | None,
+    target_hwnd: str | None,
+) -> tuple[Path | None, list[str], list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    capture_root = repo_root / "scripts" / "captures"
+    if target_pid is None or not normalize_hwnd(target_hwnd):
+        blockers.append("candidate-file-latest-requires-target-pid-hwnd")
+        return None, blockers, warnings
+
+    candidates: list[tuple[datetime, float, str, Path]] = []
+    for path in capture_root.rglob("api-family-vec3-candidates.json"):
+        try:
+            document = read_json_file(path)
+        except Exception as exc:
+            warnings.append(f"candidate-file-latest-skip-read-failed:{path}:{type(exc).__name__}")
+            continue
+        if not isinstance(document, dict):
+            warnings.append(f"candidate-file-latest-skip-non-object:{path}")
+            continue
+        if not candidate_file_matches_target(document, target_pid=target_pid, target_hwnd=target_hwnd):
+            continue
+        generated_at = parse_utc_sort_time(
+            get_mapping_value(document, "generatedAtUtc", "GeneratedAtUtc", "generated_at_utc"),
+            path,
+        )
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        candidates.append((generated_at, mtime, str(path), path))
+
+    if not candidates:
+        blockers.append(f"candidate-file-latest-not-found:{capture_root / '**' / 'api-family-vec3-candidates.json'}")
+        return None, blockers, warnings
+
+    candidates.sort()
+    return candidates[-1][3], blockers, warnings
+
+
+def resolve_candidate_file_argument(args: argparse.Namespace, repo_root: Path) -> None:
+    args.candidate_file_requested = str(args.candidate_file) if args.candidate_file else None
+    args.candidate_file_resolved_from_alias = None
+    args.candidate_file_resolution_blockers = []
+    args.candidate_file_resolution_warnings = []
+    if not is_latest_candidate_file_alias(args.candidate_file):
+        return
+
+    candidate_file, blockers, warnings = find_latest_candidate_file(
+        repo_root,
+        target_pid=args.target_pid,
+        target_hwnd=args.target_hwnd,
+    )
+    args.candidate_file_resolution_blockers.extend(blockers)
+    args.candidate_file_resolution_warnings.extend(warnings)
+    args.candidate_file_resolved_from_alias = CANDIDATE_FILE_LATEST_ALIAS
+    args.candidate_file = candidate_file
+
+
 def apply_preflight_summary(args: argparse.Namespace) -> None:
     args.preflight_summary_data = None
     args.preflight_summary_blockers = list(getattr(args, "preflight_summary_resolution_blockers", []) or [])
@@ -648,8 +757,8 @@ def apply_api_coordinate_file(args: argparse.Namespace) -> None:
 
 def apply_candidate_file(args: argparse.Namespace) -> None:
     args.candidate_file_data = None
-    args.candidate_file_blockers = []
-    args.candidate_file_warnings = []
+    args.candidate_file_blockers = list(getattr(args, "candidate_file_resolution_blockers", []) or [])
+    args.candidate_file_warnings = list(getattr(args, "candidate_file_resolution_warnings", []) or [])
     if not args.candidate_file:
         return
 
@@ -671,6 +780,8 @@ def apply_candidate_file(args: argparse.Namespace) -> None:
     selected: dict[str, Any] | None = None
     if len(usable_records) == 1:
         selected = usable_records[0]
+    elif is_best_candidate_id_alias(args.candidate_id):
+        selected = usable_records[0]
     else:
         requested_id = None if args.candidate_id == DEFAULT_CANDIDATE_ID else str(args.candidate_id)
         if requested_id:
@@ -689,7 +800,11 @@ def apply_candidate_file(args: argparse.Namespace) -> None:
     args.candidate_file_data = selected
     selected_id = selected.get("candidateId")
     if selected_id:
-        if args.candidate_id != DEFAULT_CANDIDATE_ID and str(args.candidate_id) != str(selected_id):
+        if (
+            args.candidate_id != DEFAULT_CANDIDATE_ID
+            and not is_best_candidate_id_alias(args.candidate_id)
+            and str(args.candidate_id) != str(selected_id)
+        ):
             args.candidate_file_blockers.append(f"candidate-id-mismatch-file:{args.candidate_id}!={selected_id}")
         else:
             args.candidate_id = str(selected_id)
@@ -1299,6 +1414,8 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             else None,
         },
         "candidateFile": {
+            "requestedFile": getattr(args, "candidate_file_requested", None),
+            "resolvedFromAlias": getattr(args, "candidate_file_resolved_from_alias", None),
             "path": str(args.candidate_file) if args.candidate_file else None,
             "candidateId": (getattr(args, "candidate_file_data", {}) or {}).get("candidateId")
             if getattr(args, "candidate_file_data", None)
@@ -1728,14 +1845,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Current rift_x64.exe module base; imported from --preflight-summary when present.",
     )
-    parser.add_argument("--candidate-id", default=DEFAULT_CANDIDATE_ID)
+    parser.add_argument(
+        "--candidate-id",
+        default=DEFAULT_CANDIDATE_ID,
+        help="Candidate id to select from a multi-candidate file; use 'best' with --candidate-file latest to select the top-ranked record.",
+    )
     parser.add_argument(
         "--candidate-file",
         type=Path,
         default=None,
         help=(
             "Coordinate candidate JSON. Single-candidate files import the address directly; "
-            "multi-candidate files require --candidate-id and fail closed if ambiguous."
+            "multi-candidate files require --candidate-id and fail closed if ambiguous. "
+            "Use 'latest' after target PID/HWND are available to select the newest same-target "
+            "api-family-vec3-candidates.json under scripts/captures."
         ),
     )
     parser.add_argument("--candidate-address", type=parse_int, default=None)
@@ -1806,6 +1929,7 @@ def main(argv: list[str] | None = None) -> int:
     apply_preflight_summary(args)
     resolve_api_coordinate_file_argument(args, repo_root)
     apply_api_coordinate_file(args)
+    resolve_candidate_file_argument(args, repo_root)
     apply_candidate_file(args)
     apply_strict_live_debugger_readiness(args)
     run_dir = choose_run_dir(repo_root, args.output_root)

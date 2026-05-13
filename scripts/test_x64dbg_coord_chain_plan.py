@@ -1244,6 +1244,129 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidate"]["axisOrder"], "xyz")
             self.assertEqual(summary["candidateFile"]["sourceKind"], "riftreader.api_family_vec3_candidate.v1")
 
+    def test_latest_candidate_file_uses_newest_same_target_with_best_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            self.write_preflight_summary(preflight, pid=79184, hwnd="0xA90BFC")
+            self.write_api_reference(api_file, pid=79184, hwnd="0xA90BFC")
+
+            old_candidate_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "family-scan-currentpid-79184-old"
+                / "api-family-vec3-candidates.json"
+            )
+            wrong_pid_candidate_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "family-scan-currentpid-12345-newer"
+                / "api-family-vec3-candidates.json"
+            )
+            latest_candidate_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "family-scan-currentpid-79184-new"
+                / "api-family-vec3-candidates.json"
+            )
+
+            def write_candidate_packet(
+                path: Path,
+                *,
+                generated_at_utc: str,
+                pid: int,
+                hwnd: str,
+                candidate_id: str,
+                address: str,
+            ) -> None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    json.dumps(
+                        {
+                            "schemaVersion": 1,
+                            "mode": "riftreader-api-family-vec3-candidates",
+                            "generatedAtUtc": generated_at_utc,
+                            "processId": pid,
+                            "targetWindowHandle": hwnd,
+                            "candidates": [
+                                {
+                                    "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                                    "candidate_id": candidate_id,
+                                    "absolute_address_hex": address,
+                                    "axis_order": "xyz",
+                                    "process_id": pid,
+                                    "target_window_handle": hwnd,
+                                },
+                                {
+                                    "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                                    "candidate_id": f"{candidate_id}-second",
+                                    "absolute_address_hex": "0x173843E040",
+                                    "axis_order": "xyz",
+                                    "process_id": pid,
+                                    "target_window_handle": hwnd,
+                                },
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            write_candidate_packet(
+                old_candidate_file,
+                generated_at_utc="2026-05-13T01:00:00Z",
+                pid=79184,
+                hwnd="0xA90BFC",
+                candidate_id="api-family-hit-old-001",
+                address="0x17380000000",
+            )
+            write_candidate_packet(
+                wrong_pid_candidate_file,
+                generated_at_utc="2026-05-13T03:00:00Z",
+                pid=12345,
+                hwnd="0xA90BFC",
+                candidate_id="api-family-hit-wrong-pid-001",
+                address="0x17390000000",
+            )
+            write_candidate_packet(
+                latest_candidate_file,
+                generated_at_utc="2026-05-13T02:00:00Z",
+                pid=79184,
+                hwnd="0xA90BFC",
+                candidate_id="api-family-hit-new-001",
+                address="0x17382765E40",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-file",
+                        "latest",
+                        "--candidate-id",
+                        "best",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "api-family-hit-new-001")
+            self.assertEqual(summary["candidate"]["address"], "0x17382765E40")
+            self.assertEqual(summary["candidateFile"]["requestedFile"], "latest")
+            self.assertEqual(summary["candidateFile"]["resolvedFromAlias"], "latest")
+            self.assertEqual(summary["candidateFile"]["path"], str(latest_candidate_file))
+
     def test_candidate_file_address_mismatch_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)
