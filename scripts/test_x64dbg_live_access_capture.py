@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import ctypes
 import unittest
 
 from rift_live_test.x64dbg_live_access_capture import (
+    INPUT,
+    build_key_lparam,
     clear_all_hardware_breakpoints,
+    parse_virtual_key,
     resume_if_stopped,
 )
 
@@ -47,6 +51,24 @@ class FakeClient:
 
 
 class X64DbgLiveAccessCaptureTests(unittest.TestCase):
+    def test_parse_virtual_key_accepts_named_and_numeric_keys(self) -> None:
+        self.assertEqual(parse_virtual_key("w"), 0x57)
+        self.assertEqual(parse_virtual_key("SPACE"), 0x20)
+        self.assertEqual(parse_virtual_key("0x41"), 0x41)
+
+    def test_build_key_lparam_sets_keyup_transition_bits(self) -> None:
+        down = build_key_lparam(0x11, key_up=False)
+        up = build_key_lparam(0x11, key_up=True)
+
+        self.assertEqual(down & 0xFFFF, 1)
+        self.assertEqual((down >> 16) & 0xFF, 0x11)
+        self.assertEqual(up & (1 << 30), 1 << 30)
+        self.assertEqual(up & (1 << 31), 1 << 31)
+
+    def test_sendinput_input_struct_size_matches_windows_layout(self) -> None:
+        expected_size = 40 if ctypes.sizeof(ctypes.c_void_p) == 8 else 28
+        self.assertEqual(ctypes.sizeof(INPUT), expected_size)
+
     def test_resume_if_stopped_uses_single_go_attempt(self) -> None:
         client = FakeClient(running=False)
         summary = minimal_summary()
