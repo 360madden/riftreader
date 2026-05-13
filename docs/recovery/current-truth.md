@@ -1,8 +1,28 @@
 # Current Truth
 
-_Last updated: May 12, 2026 11:10 UTC (current live target `rift_x64` PID `57656`, HWND `0x5417BC`; post-maintenance coordinate proof anchor rebuilt from Python Stage 1 evidence, promoted candidate `api-family-hit-000001` at `0xCC080EC30C`, and same-target `ProofOnly` passed. No Cheat Engine was used. `ProofOnly` sent no movement. The Stage 1 run did send bounded `W` movement stimulus for proof evidence only; this does not promote route, yaw, actor-facing, auto-turn, or navigation truth.)_
+_Last updated: May 13, 2026 05:43 UTC. The current live target observed in the latest recovery lane is `rift_x64` PID `60628`, HWND `0xCE0FCE`, process start `2026-05-13T04:53:58.081190Z`, module base `0x7FF796B50000`. Coordinate truth for PID `60628` is **candidate-only**: the live coordinate-copy family was reacquired, but no stable exact address, static pointer chain, promotion, or same-target `ProofOnly` proof anchor has passed. The latest fully validated proof anchor below remains the May 12 PID `57656` proof, and must be treated as stale for PID `60628` until re-promoted._
 
-## Newest live-session status (authoritative)
+## May 13 current target status (candidate-only; not authoritative proof)
+
+| Fact | Current truth |
+|---|---|
+| Live target | `rift_x64` PID `60628`, HWND `0xCE0FCE` |
+| Target identity | Start UTC `2026-05-13T04:53:58.081190Z`; module base `0x7FF796B50000`; latest final preflight `scripts/captures/x64dbg-target-preflight-20260513-054310-257596/summary.json` passed with `responding=true` and no debugger processes. |
+| Current proof status | **Not promoted**. Current-session evidence is candidate-only and does not update `current-proof-anchor-readback.json`. |
+| Runtime reference source | Fresh `RRAPICOORD1` marker scans remain the scoring reference for current PID `60628`. |
+| Key discovery | The active coordinate-copy family around `0x1FF07570000` can store the freshest XYZ payload **unaligned**; aligned-only scans can over-rank stale copies. |
+| Required scan mode | Use `scripts/scan_current_pid_coordinate_family.py --scan-stride 1` for this family. |
+| Best unaligned candidate observed | `0x1FF0757215A` with duplicate `0x1FF07572183`; value `[7411.95458984375, 871.8436279296875, 3031.310546875]`; reference `[7411.9497, 871.84, 3031.3098]`; max abs delta `0.004889843749879219`. |
+| Broad family snapshot | `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-053557/family-snapshot-summary.json`; `scanStride=1`, `tripletCount=29`, `nearReferenceTripletCount=19`, best current triplet `0x1FF0757215A`. |
+| x64dbg status | Bounded attach/detach, page memory breakpoint, and execute breakpoint captures succeeded. x64dbg was detached after each capture and final preflight confirmed RIFT responsive. |
+| x64dbg writer/copy lead | `rift_x64.exe+0x47D533` calls the copy path; memory breakpoint hit in `VCRUNTIME140.dll+0x113F8` at `vmovdqu ymmword ptr ds:[rcx+r9*1-0x40], ymm1`; return/caller `rift_x64.exe+0x47D538`. |
+| Source-buffer lead | At the caller breakpoint, `rdx = [r14] = 0x1FF6D600020`, `r14 = 0x1FF65FADE88`, and source buffer `rdx + 0x28` held current XYZ. This is the best source-chain lead, but still heap-local. |
+| Pointer-chain status | Pointer scans found heap references only; no `rift_x64.exe` static/module hit and no restart-stable static pointer chain. |
+| Handoff | `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md` |
+| Commit | `132fa64 Recover unaligned coordinate copy evidence` |
+| Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no navigation/route truth; no movement proof-anchor gate satisfied. |
+
+## Latest fully validated proof status (authoritative; stale for PID 60628)
 
 | Fact | Current truth |
 |---|---|

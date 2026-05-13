@@ -42,6 +42,31 @@ The latest successful recovery at the time this document was created:
 
 This example proves the workflow can reacquire coordinate truth after a restart/maintenance return without Cheat Engine.
 
+## Current candidate-only progress: May 13 PID 60628
+
+The May 13 PID `60628` recovery did **not** produce a promoted proof anchor, but it materially improved the recovery workflow:
+
+| Field | Value |
+|---|---|
+| Target process | `rift_x64` |
+| PID / HWND | `60628` / `0xCE0FCE` |
+| Target epoch | Start UTC `2026-05-13T04:53:58.081190Z`; module base `0x7FF796B50000` |
+| Status | `candidate-only`; no stable exact address, no static pointer chain, no same-target `ProofOnly` promotion |
+| Major finding | The freshest coordinate-copy payload in the `0x1FF07570000` family can be **unaligned**. |
+| Required scan option | `scripts/scan_current_pid_coordinate_family.py --scan-stride 1` |
+| Best unaligned copy observed | `0x1FF0757215A`, duplicate `0x1FF07572183`; value `[7411.95458984375, 871.8436279296875, 3031.310546875]`; max abs delta `0.004889843749879219` versus fresh `RRAPICOORD1` reference. |
+| Broad snapshot helper | `scripts/capture_current_pid_coordinate_family_snapshot.py` |
+| x64dbg copy-path lead | `rift_x64.exe+0x47D533` calling into `VCRUNTIME140.dll+0x113F8`; source buffer at `rdx = [r14]`, coordinate offset `rdx+0x28` at the hit. |
+| Durable handoff | `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md` |
+| Commit | `132fa64 Recover unaligned coordinate copy evidence` |
+
+Operational impact:
+
+- Do not rely on 4-byte-aligned scans when the active family behaves like a copy/ring buffer.
+- Use grouped family snapshots and `--scan-stride 1` before exact-address watchpoints.
+- Prefer x64dbg page memory breakpoints / execute breakpoints on the ranked family/caller over exact-address hardware watchpoints on destination slots.
+- Do not promote any PID `60628` absolute address until restart/relogin validation proves a stable source chain and same-target `ProofOnly` passes.
+
 ## Critical terminology
 
 | Term | Meaning |
@@ -107,6 +132,7 @@ Those require separate gated validation lanes.
 | `scripts/check_live_visual_gate.py` | No-input visual/focus/capture gate. |
 | `scripts/rift_live_test/visual_gate_status.py` | Visual gate implementation. |
 | `scripts/scan_current_pid_coordinate_family.py` | Read-only current-PID memory scan for XYZ-like coordinate triplets near a fresh runtime reference. |
+| `scripts/capture_current_pid_coordinate_family_snapshot.py` | Read-only broad family snapshot for grouped/ring/copy-family analysis; candidate-only; supports `--scan-stride 1` for unaligned payloads. |
 | `scripts/capture-rift-api-reference-coordinate.ps1` | Captures a fresh runtime coordinate reference using `RRAPICOORD1` marker scanning. |
 | `scripts/reacquire-current-pid-coordinate-anchor-batch.ps1` | Captures multiple displaced proof poses, sends bounded `W` movement stimulus when enabled, and ranks coordinate candidates. |
 | `scripts/send-rift-key-csharp.ps1` | Sends bounded input stimulus through the proven C# SendInput path. |

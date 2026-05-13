@@ -12,11 +12,12 @@ The correct recovery path is a **broad current-PID coordinate-family scan**:
 1. prove the new live target with target-control and visual gate;
 2. capture a fresh live `RRAPICOORD` / API-runtime coordinate reference;
 3. scan the current process memory broadly for matching float32 XYZ triplets;
-4. write a candidate family file such as `api-family-vec3-candidates.jsonl`;
-5. validate candidates with no-CE readback across at least two poses;
-6. promote only after cross-pose evidence proves the same candidate family;
-7. run fresh same-target `ProofOnly`;
-8. update `current-proof-anchor-readback.json` and `current-truth.md` only after proof passes.
+4. if exact/current copies drift between scans, scan the **entire family** and include `--scan-stride 1` to catch unaligned payloads;
+5. write a candidate family file such as `api-family-vec3-candidates.jsonl`;
+6. validate candidates with no-CE readback across at least two poses;
+7. promote only after cross-pose evidence proves the same candidate/source family;
+8. run fresh same-target `ProofOnly`;
+9. update `current-proof-anchor-readback.json` and `current-truth.md` only after proof passes.
 
 This policy exists to prevent regression into narrow stale-pointer probing after a restart or target drift.
 
@@ -53,11 +54,21 @@ After discovering the current PID/HWND and passing target-control + visual gate,
 
 ```powershell
 cd "C:\RIFT MODDING\RiftReader"
-python .\scripts\scan_current_pid_coordinate_family.py --pid <PID> --hwnd <HWND> --process-name rift_x64 --tolerance 0.25 --max-hits 2048 --max-seconds 300 --json
+python .\scripts\scan_current_pid_coordinate_family.py --pid <PID> --hwnd <HWND> --process-name rift_x64 --tolerance 0.25 --max-hits 2048 --scan-stride 1 --max-seconds 300 --json
 Write-Host "RIFTREADER_FULL_FAMILY_SCAN_DONE"
 ```
 
 The helper is read-only. It sends no movement, no key input, no `/reloadui`, no screenshot-key input, and uses no Cheat Engine.
+
+When a broad current-family window is already known, preserve the entire family shape instead of only the closest offsets:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+python .\scripts\capture_current_pid_coordinate_family_snapshot.py --pid <PID> --hwnd <HWND> --process-name rift_x64 --min-address <FAMILY_START> --max-address <FAMILY_END> --scan-stride 1 --window-x 256 --window-y 64 --window-z 256 --near-tolerance 0.25 --json
+Write-Host "RIFTREADER_FULL_FAMILY_SNAPSHOT_DONE"
+```
+
+The snapshot helper is also read-only and candidate-only. It is meant to expose copy/ring/source-family structure before debugger work.
 
 ## Required evidence contract
 
@@ -72,6 +83,28 @@ The scan result is only the first stage. A passing scan must provide:
 | safety flags | `movementSent=false`, `inputSent=false`, `noCheatEngine=true`. |
 
 A candidate file does **not** authorize movement. It only authorizes the next no-input validation stage.
+
+## May 13 update: unaligned copy-family discovery
+
+The PID `60628` recovery found a failure mode this policy must preserve:
+
+| Finding | Evidence / rule |
+|---|---|
+| Aligned-only scans can miss the freshest coordinate copy. | Current coordinate payloads in the `0x1FF07570000` destination family were often unaligned. |
+| `--scan-stride 1` is required for this family. | The best current candidate was `0x1FF0757215A`; duplicate `0x1FF07572183`; both were invisible to aligned-only scanning. |
+| Exact destination addresses still move. | Aligned candidates such as `0x1FF075700AC`, `0x1FF075704E8`, `0x1FF07571240`, and `0x1FF075719E4` were useful evidence but not stable truth. |
+| Broad family snapshot remains the correct strategy. | `scripts/capture_current_pid_coordinate_family_snapshot.py` recorded the current family shape and near-reference clusters without movement or memory writes. |
+| x64dbg is useful only after family ranking. | Page memory breakpoints caught the copy path; exact-address hardware watchpoints on destination slots timed out. |
+| The source lead is more important than the copy slot. | At `rift_x64.exe+0x47D533`, `rdx = [r14] = 0x1FF6D600020`; source buffer `rdx + 0x28` held current XYZ. |
+| Promotion is still blocked. | Pointer scans found heap refs only; no restart-stable static pointer chain or same-target `ProofOnly` proof anchor exists for PID `60628`. |
+
+Durable artifacts:
+
+- Handoff: `docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md`
+- Code/doc checkpoint: `132fa64 Recover unaligned coordinate copy evidence`
+- Best unaligned scan: `scripts/captures/family-scan-currentpid-60628-20260513-053508/family-scan-summary.json`
+- Broad snapshot: `scripts/captures/coordinate-family-snapshot-currentpid-60628-20260513-053557/family-snapshot-summary.json`
+- x64dbg caller capture: `scripts/captures/x64dbg-live-access-capture-20260513-053859-682586/summary.json`
 
 ## Required validation after scan
 

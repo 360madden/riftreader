@@ -142,6 +142,7 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
     ],
     "coordinateFamily": [
       "scripts/scan_current_pid_coordinate_family.py",
+      "scripts/capture_current_pid_coordinate_family_snapshot.py",
       "scripts/capture-rift-api-reference-coordinate.ps1",
       "scripts/invoke-riftscan-coordinate-readback.ps1",
       "scripts/capture-riftscan-proof-pose.ps1"
@@ -177,6 +178,36 @@ This Markdown file is intentionally machine-oriented. The canonical payload is t
     "githubConnectorWritesAllowed": false,
     "localGitWritesAllowed": true
   },
+  "candidateOnlyDiscoveries": [
+    {
+      "dateUtc": "2026-05-13",
+      "targetEpoch": {
+        "processName": "rift_x64",
+        "processId": 60628,
+        "targetWindowHandle": "0xCE0FCE",
+        "processStartTimeUtc": "2026-05-13T04:53:58.081190Z",
+        "moduleBaseAddressHex": "0x7FF796B50000"
+      },
+      "status": "candidate-only-not-promoted",
+      "discovery": "freshest current coordinate copies in the 0x1FF07570000 family can be unaligned",
+      "requiredScanOption": "--scan-stride 1",
+      "bestObservedUnalignedCopy": {
+        "addressHex": "0x1FF0757215A",
+        "duplicateAddressHex": "0x1FF07572183",
+        "value": [7411.95458984375, 871.8436279296875, 3031.310546875],
+        "reference": [7411.9497, 871.84, 3031.3098],
+        "maxAbsDelta": 0.004889843749879219
+      },
+      "x64dbgLead": {
+        "caller": "rift_x64.exe+0x47D533",
+        "returnAddress": "rift_x64.exe+0x47D538",
+        "copyInstruction": "VCRUNTIME140.dll+0x113F8 vmovdqu ymmword ptr ds:[rcx+r9*1-0x40], ymm1",
+        "sourceBufferRuleAtHit": "rdx = [r14]; coordinate offset rdx+0x28"
+      },
+      "handoff": "docs/handoffs/2026-05-13-0539-currentpid-60628-unaligned-coordinate-copy-truth.md",
+      "commit": "132fa64"
+    }
+  ],
   "timing": {
     "afterCharacterInWorldCoordinateTruthReacquisitionMinutes": "7-12",
     "doesInclude": [
