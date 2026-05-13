@@ -134,6 +134,22 @@ input for that call (`0x1738127A580` during the hit), but it does **not** prove
 that this is the owning static coordinate source. A writer/source trace or
 restart-stable chain is still required.
 
+## Idle write-watch attempt
+
+The live helper now supports `--breakpoint-access write`. An idle write-watch
+against candidate X was attempted:
+
+- artifact: `scripts/captures/x64dbg-live-access-capture-20260513-043051-740672/summary.json`
+- watch address: `0x1738127A5A4`
+- access: `write`
+- result: timeout, detach succeeded
+- follow-up preflight: `scripts/captures/x64dbg-target-preflight-20260513-043119-294396/summary.json`
+  - result: passed, target responding
+
+Interpretation: no writer/source path was captured while the character was
+idle. Do not infer absence of a writer; the next writer trace likely needs a
+safe, explicitly approved stimulus window or a non-input natural state change.
+
 ## Resume-safe next action
 
 Do **not** start with another broad x64dbg watchpoint.
