@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from rift_live_test.target_control import (
     DIFFERENT_PROCESS_FOREGROUND,
@@ -20,6 +21,8 @@ from rift_live_test.target_control import (
     build_capabilities,
     classify_foreground,
     parse_hwnd,
+    select_target_window_from_candidates,
+    TargetControlOptions,
 )
 
 
@@ -134,6 +137,40 @@ class TargetControlTests(unittest.TestCase):
         capabilities = build_capabilities(target, classification.classification, list(classification.blockers))
         self.assertFalse(capabilities["visualCapture"])
         self.assertFalse(capabilities["foregroundSendInput"])
+
+    def test_process_name_title_selection_without_exact_pid(self) -> None:
+        windows = [
+            WindowSnapshot(
+                hwnd=0x11111,
+                hwnd_hex="0x11111",
+                process_id=100,
+                process_name="notepad",
+                title="Other",
+                is_window=True,
+                is_visible=True,
+                is_minimized=False,
+            ),
+            WindowSnapshot(
+                hwnd=0xC0994,
+                hwnd_hex="0xC0994",
+                process_id=2928,
+                process_name="rift_x64",
+                title="RIFT",
+                is_window=True,
+                is_visible=True,
+                is_minimized=False,
+            ),
+        ]
+        options = TargetControlOptions(
+            repo_root=Path("."),
+            process_name="rift_x64",
+            title_contains="RIFT",
+        )
+
+        selected = select_target_window_from_candidates(windows, options)
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(0xC0994, selected.hwnd)
 
 
 if __name__ == "__main__":

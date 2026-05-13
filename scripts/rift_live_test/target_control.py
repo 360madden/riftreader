@@ -246,6 +246,43 @@ def enumerate_windows_for_pid(user32: Any, pid: int) -> list[WindowSnapshot]:
     return windows
 
 
+def enumerate_top_level_windows(user32: Any) -> list[WindowSnapshot]:
+    windows: list[WindowSnapshot] = []
+
+    @WNDENUMPROC  # type: ignore[misc]
+    def enum_proc(hwnd: wintypes.HWND, _lparam: wintypes.LPARAM) -> bool:
+        snapshot = get_window_snapshot(user32, int(hwnd))
+        if snapshot is not None:
+            windows.append(snapshot)
+        return True
+
+    user32.EnumWindows(enum_proc, 0)
+    return windows
+
+
+def select_target_window_from_candidates(
+    windows: list[WindowSnapshot],
+    options: TargetControlOptions,
+) -> WindowSnapshot | None:
+    candidates = [
+        window
+        for window in windows
+        if window.is_visible
+        and _title_matches(window.title, options.title_contains)
+        and (
+            not options.process_name
+            or not window.process_name
+            or _process_matches(window.process_name, options.process_name)
+        )
+    ]
+
+    if not candidates:
+        return None
+
+    titled = [window for window in candidates if window.title.strip()]
+    return titled[0] if titled else candidates[0]
+
+
 def resolve_target_window(options: TargetControlOptions, user32: Any) -> tuple[WindowSnapshot | None, list[str], list[str]]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -263,21 +300,19 @@ def resolve_target_window(options: TargetControlOptions, user32: Any) -> tuple[W
             return None, [TARGET_PROCESS_MISSING], warnings
 
         windows = enumerate_windows_for_pid(user32, options.process_id)
-        candidates = [
-            window
-            for window in windows
-            if window.is_visible and _title_matches(window.title, options.title_contains)
-        ]
-
-        if not candidates:
+        target = select_target_window_from_candidates(windows, options)
+        if target is None:
             return None, [TARGET_WINDOW_MISSING], warnings
 
-        titled = [window for window in candidates if window.title.strip()]
-        target = titled[0] if titled else candidates[0]
         _validate_snapshot_expectations(target, options, blockers, warnings)
         return target, blockers, warnings
 
-    return None, [TARGET_PROCESS_MISSING], warnings
+    target = select_target_window_from_candidates(enumerate_top_level_windows(user32), options)
+    if target is None:
+        return None, [TARGET_WINDOW_MISSING], warnings
+
+    _validate_snapshot_expectations(target, options, blockers, warnings)
+    return target, blockers, warnings
 
 
 def _validate_snapshot_expectations(

@@ -19,6 +19,34 @@ recovery later blocks after the target returns, use broad family-group
 sequential snapshots plus offline delta comparison rather than narrow
 stale-address probing.
 
+**May 13 21:26 UTC correction / current navigation gate:** direct process/window
+enumeration proved `rift_x64.exe` was present as PID `2928`, HWND `0xC0994`,
+title `RIFT`, responding. The earlier target-control miss was a helper bug when
+called without exact `--pid`; `scripts/rift_live_test/target_control.py` now
+enumerates process-name/title candidates instead of reporting a false
+`target-process-missing`. Exact target-control passed at
+`scripts/captures/target-control-currentpid-2928-20260513-171853/target-control-status.json`
+and process-name/title target-control passed at
+`scripts/captures/target-control-currenttarget-20260513-172535/target-control-status.json`.
+Visual gate passed for exact PID/HWND at
+`scripts/captures/visual-gate-currentpid-2928-20260513-171907/visual-gate-status.json`.
+Same-target `ProofOnly` still blocked at
+`scripts/captures/live-test-ProofOnly-20260513-211940/run-summary.json` because
+`current-proof-anchor-readback.json` still points to stale PID `57656` /
+HWND `0x5417BC`. Movement/navigation remains blocked.
+
+Following the broad-family rule, a 39-range prior-first family snapshot sequence
+with one bounded exact-HWND `w` discovery stimulus passed:
+`scripts/captures/family-snapshot-sequence-currentpid-2928-20260513-212104-107039/summary.json`.
+It used `20` current-PID scan-plan ranges plus prior exact/family ranges and
+found `1000` candidates, `489` clean candidates, and `2` families. The top
+delta candidate remained the known offset-copy family `0x268DF200000` /
+`0x268DF21ED30`, but readback at
+`scripts/captures/candidate-readback-currentpid-2928-20260513-212405-624415/candidate-readback-summary.json`
+ranked a new lower-offset candidate `0x268BEF2C6A8` best by fresh API
+offset-corrected readback. All readbacks remain
+`candidate_only_not_movement_proof`; do not promote or navigate from them yet.
+
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
 API-now vs memory-now agreement. Latest recorded coordinate snapshot:
