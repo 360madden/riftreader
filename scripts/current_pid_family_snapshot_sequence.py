@@ -813,6 +813,7 @@ def main() -> int:
             )
             summary["analysis"] = analysis
             summary["artifacts"]["deltaSummaryJson"] = str(run_dir / "delta-analysis" / "delta-summary.json")
+            summary["artifacts"]["candidateVec3Json"] = str(run_dir / "delta-analysis" / "candidate-vec3.json")
             summary["artifacts"]["candidateVec3Jsonl"] = str(run_dir / "delta-analysis" / "candidate-vec3.jsonl")
             summary["artifacts"]["candidateFamiliesJson"] = str(run_dir / "delta-analysis" / "candidate-families.json")
             if analysis and analysis.get("status") == "passed":

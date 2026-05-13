@@ -312,13 +312,14 @@ def summarize_families(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
     return sorted(summaries, key=lambda item: (float(item["bestCandidate"]["score"]), -int(item["candidateCount"])))
 
 
-def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argparse.Namespace) -> tuple[dict[str, Any], Path, Path, Path, Path]:
+def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argparse.Namespace) -> tuple[dict[str, Any], Path, Path, Path, Path, Path]:
     manifest = load_json(manifest_path)
     run_dir = output_root.resolve() if output_root else manifest_path.parent / "delta-analysis"
     run_dir.mkdir(parents=True, exist_ok=True)
 
     summary_path = run_dir / "delta-summary.json"
     markdown_path = run_dir / "delta-summary.md"
+    candidates_json_path = run_dir / "candidate-vec3.json"
     candidates_path = run_dir / "candidate-vec3.jsonl"
     families_path = run_dir / "candidate-families.json"
 
@@ -364,6 +365,7 @@ def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argpar
         "artifacts": {
             "summaryJson": str(summary_path),
             "summaryMarkdown": str(markdown_path),
+            "candidateVec3Json": str(candidates_json_path),
             "candidateVec3Jsonl": str(candidates_path),
             "candidateFamiliesJson": str(families_path),
         },
@@ -379,13 +381,25 @@ def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argpar
         summary["blockers"].append("blocked-no-displaced-pose")
 
     if summary["blockers"]:
+        write_json(
+            candidates_json_path,
+            {
+                "schemaVersion": SCHEMA_VERSION,
+                "mode": "riftreader-family-snapshot-delta-candidates",
+                "generatedAtUtc": utc_iso(),
+                "processId": manifest.get("processId"),
+                "targetWindowHandle": manifest.get("targetWindowHandle"),
+                "candidateCount": 0,
+                "candidates": [],
+            },
+        )
         write_jsonl(candidates_path, [])
         write_json(families_path, {"schemaVersion": SCHEMA_VERSION, "families": []})
         summary["status"] = "blocked"
         summary["next"]["recommendedAction"] = "Capture a baseline pose and at least one manually displaced pose, then rerun offline delta analysis."
         write_json(summary_path, summary)
         markdown_path.write_text(render_markdown(summary, []), encoding="utf-8")
-        return summary, summary_path, markdown_path, candidates_path, families_path
+        return summary, summary_path, markdown_path, candidates_json_path, candidates_path, families_path
 
     baseline_segments = {segment_key(segment): segment for segment in baseline_pose.get("segments", [])}
     passive_by_key = {
@@ -500,6 +514,18 @@ def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argpar
     )[: args.max_candidates]
     families = summarize_families(candidates)
 
+    write_json(
+        candidates_json_path,
+        {
+            "schemaVersion": SCHEMA_VERSION,
+            "mode": "riftreader-family-snapshot-delta-candidates",
+            "generatedAtUtc": utc_iso(),
+            "processId": manifest.get("processId"),
+            "targetWindowHandle": manifest.get("targetWindowHandle"),
+            "candidateCount": len(candidates),
+            "candidates": candidates,
+        },
+    )
     write_jsonl(candidates_path, candidates)
     write_json(
         families_path,
@@ -531,7 +557,7 @@ def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argpar
     )
     write_json(summary_path, summary)
     markdown_path.write_text(render_markdown(summary, families[: args.top]), encoding="utf-8")
-    return summary, summary_path, markdown_path, candidates_path, families_path
+    return summary, summary_path, markdown_path, candidates_json_path, candidates_path, families_path
 
 
 def render_markdown(summary: dict[str, Any], families: list[dict[str, Any]]) -> str:
@@ -660,7 +686,7 @@ def main() -> int:
         else:
             raise RuntimeError("--manifest is required unless --self-test is used")
 
-        summary, summary_path, markdown_path, candidates_path, families_path = analyze_manifest(manifest_path, args.output_root, args)
+        summary, summary_path, markdown_path, candidates_json_path, candidates_path, families_path = analyze_manifest(manifest_path, args.output_root, args)
         result = {
             "status": summary.get("status"),
             "blockers": summary.get("blockers"),
@@ -668,6 +694,7 @@ def main() -> int:
             "familyCount": summary.get("analysis", {}).get("familyCount"),
             "summaryJson": str(summary_path),
             "summaryMarkdown": str(markdown_path),
+            "candidateVec3Json": str(candidates_json_path),
             "candidateVec3Jsonl": str(candidates_path),
             "candidateFamiliesJson": str(families_path),
         }
