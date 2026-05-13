@@ -115,6 +115,25 @@ safe x64dbg/recovery cycle:
 Important: `0x1738127A4E0` is still **candidate-only**. It is a better
 current-process owner lead than `0x1738127A580`, not a stable root.
 
+## Code-path context from the captured hit
+
+The captured instruction lives in a larger float-transform routine, not a
+proven coordinate writer:
+
+- code-window artifact:
+  `scripts/captures/x64dbg-hit-code-20260513-0429/disasm.txt`
+- probable function entry: `0x7FF79711BB70`
+- hit RVA from module base `0x7FF796B50000`: `0x5CBDF3`
+- nearby reads:
+  - `0x7FF79711BDE7: movss xmm0, dword ptr [r8 + 0x28]`
+  - `0x7FF79711BDED: movss xmm1, dword ptr [r8 + 0x24]`
+  - `0x7FF79711BDF3: movss xmm2, dword ptr [r8 + 0x2C]`
+
+This strengthens the conclusion that `r8` pointed at a transform/position
+input for that call (`0x1738127A580` during the hit), but it does **not** prove
+that this is the owning static coordinate source. A writer/source trace or
+restart-stable chain is still required.
+
 ## Resume-safe next action
 
 Do **not** start with another broad x64dbg watchpoint.
