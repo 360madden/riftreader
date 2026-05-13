@@ -276,6 +276,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
     summary_md = run_dir / "summary.md"
 
     candidate_address = int(args.candidate_address, 0)
+    breakpoint_address = int(args.breakpoint_address, 0) if args.breakpoint_address else candidate_address
     blockers: list[str] = []
     warnings: list[str] = []
     errors: list[str] = []
@@ -309,6 +310,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         },
         "candidate": {
             "address": int_hex(candidate_address),
+            "breakpointAddress": int_hex(breakpoint_address),
             "readSize": args.read_size,
             "evidenceFile": str(args.candidate_evidence_file) if args.candidate_evidence_file else None,
             "accessTemplate": str(args.access_template) if args.access_template else None,
@@ -388,7 +390,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             summary["status"] = "captured"
         elif args.capture_mode == "hardware-read":
             client.clear_debug_events()
-            if not client.set_hardware_breakpoint(candidate_address, bp_type=HardwareBreakpointType.r, size=4):
+            if not client.set_hardware_breakpoint(breakpoint_address, bp_type=HardwareBreakpointType.r, size=4):
                 summary["blockers"].append("set-hardware-breakpoint-failed")
                 summary["status"] = "blocked"
             else:
@@ -464,6 +466,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--process-start-time-utc", required=True)
     parser.add_argument("--expected-module-base", default=None)
     parser.add_argument("--candidate-address", required=True)
+    parser.add_argument("--breakpoint-address", default=None)
     parser.add_argument("--candidate-evidence-file", type=Path, default=None)
     parser.add_argument("--access-template", type=Path, default=None)
     parser.add_argument("--read-size", type=int, default=12)
