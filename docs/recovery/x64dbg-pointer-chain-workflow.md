@@ -199,6 +199,12 @@ status must show `ready-for-current-turn-approval` before asking for approval, o
 `approved-for-bounded-capture` only when explicit current-turn debugger approval
 was already supplied to the planner.
 
+For live-debugger prep, add explicit staleness gates when practical:
+`--max-preflight-age-seconds <seconds>` and
+`--max-api-coordinate-age-seconds <seconds>`. These are optional for compatibility
+but fail closed when supplied, blocking old preflight/API artifacts even if
+PID/HWND still match.
+
 If the target is `rift_x64` and no current-turn live-debugger authorization is
 present, the planner still writes the packet but records a warning that live
 attach is not authorized. Passing `--allow-live-debugger` only records that a

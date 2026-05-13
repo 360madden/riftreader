@@ -206,6 +206,10 @@ Plan summaries also include a conservative `readiness` verdict; use
 `ready-for-current-turn-approval` as the gate for asking to proceed, and treat
 `approved-for-bounded-capture` as valid only when explicit current-turn debugger
 approval was already supplied.
+When preparing real live-debugger work, pass
+`--max-preflight-age-seconds <seconds>` and
+`--max-api-coordinate-age-seconds <seconds>` so stale same-target artifacts block
+the plan instead of looking current only because PID/HWND still match.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.

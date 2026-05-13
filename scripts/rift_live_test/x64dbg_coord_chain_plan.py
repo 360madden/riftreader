@@ -206,6 +206,29 @@ def parse_utc_sort_time(value: Any, fallback_path: Path) -> datetime:
         return datetime.min.replace(tzinfo=UTC)
 
 
+def parse_utc_datetime_value(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def artifact_age_seconds(timestamp: Any, now_utc: str | None) -> float | None:
+    captured = parse_utc_datetime_value(timestamp)
+    current = parse_utc_datetime_value(now_utc) if now_utc else datetime.now(UTC)
+    if captured is None or current is None:
+        return None
+    return max(0.0, (current - captured).total_seconds())
+
+
 def find_latest_passed_preflight_summary(repo_root: Path) -> tuple[Path | None, list[str], list[str]]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -842,7 +865,16 @@ def build_readiness(args: argparse.Namespace, blockers: list[str]) -> dict[str, 
         max_go_attempts=args.max_go_attempts,
     )
     policy_passed = not policy_blockers
-    input_ready = target_identity_passed and strict_preflight_passed and api_coordinate_passed and candidate_passed and policy_passed
+    age_blockers = validate_artifact_age_policy(args)
+    age_policy_passed = not age_blockers
+    input_ready = (
+        target_identity_passed
+        and strict_preflight_passed
+        and api_coordinate_passed
+        and candidate_passed
+        and policy_passed
+        and age_policy_passed
+    )
     approval_granted = bool(args.allow_live_debugger)
 
     checks = [
@@ -901,6 +933,18 @@ def build_readiness(args: argparse.Namespace, blockers: list[str]) -> dict[str, 
                 "unresponsiveAbortSeconds": args.unresponsive_abort_seconds,
                 "maxGoAttempts": args.max_go_attempts,
                 "policyBlockers": policy_blockers,
+            },
+        ),
+        readiness_check(
+            "artifact-age-policy",
+            "passed" if age_policy_passed else "blocked",
+            age_policy_passed,
+            "Optional max-age checks for preflight/API artifacts are satisfied, or no max age was requested.",
+            {
+                "maxPreflightAgeSeconds": args.max_preflight_age_seconds,
+                "maxApiCoordinateAgeSeconds": args.max_api_coordinate_age_seconds,
+                "nowUtc": args.readiness_now_utc,
+                "ageBlockers": age_blockers,
             },
         ),
         readiness_check(
@@ -986,6 +1030,7 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     blockers.extend(getattr(args, "preflight_summary_blockers", []) or [])
     blockers.extend(getattr(args, "api_coordinate_file_blockers", []) or [])
     blockers.extend(getattr(args, "candidate_file_blockers", []) or [])
+    blockers.extend(validate_artifact_age_policy(args))
     if args.candidate_address is None:
         blockers.append("missing-candidate-address")
     if args.target_pid is None:
@@ -1007,6 +1052,45 @@ def validate_args(args: argparse.Namespace) -> list[str]:
             max_live_attach_seconds=args.max_live_attach_seconds,
             unresponsive_abort_seconds=args.unresponsive_abort_seconds,
             max_go_attempts=args.max_go_attempts,
+        )
+    )
+    return blockers
+
+
+def validate_max_age(
+    *,
+    kind: str,
+    timestamp: Any,
+    max_age_seconds: int | None,
+    now_utc: str | None,
+) -> list[str]:
+    if max_age_seconds is None:
+        return []
+    age = artifact_age_seconds(timestamp, now_utc)
+    if age is None:
+        return [f"{kind}-timestamp-invalid-for-age-check"]
+    if age > max_age_seconds:
+        return [f"{kind}-stale:{int(age)}>{max_age_seconds}"]
+    return []
+
+
+def validate_artifact_age_policy(args: argparse.Namespace) -> list[str]:
+    blockers: list[str] = []
+    preflight = getattr(args, "preflight_summary_data", None) or {}
+    blockers.extend(
+        validate_max_age(
+            kind="preflight-summary",
+            timestamp=preflight.get("generatedAtUtc"),
+            max_age_seconds=args.max_preflight_age_seconds,
+            now_utc=args.readiness_now_utc,
+        )
+    )
+    blockers.extend(
+        validate_max_age(
+            kind="api-coordinate",
+            timestamp=args.api_sampled_at_utc,
+            max_age_seconds=args.max_api_coordinate_age_seconds,
+            now_utc=args.readiness_now_utc,
         )
     )
     return blockers
@@ -1298,6 +1382,9 @@ def apply_self_test_defaults(args: argparse.Namespace) -> None:
     args.api_y = 863.82
     args.api_z = 2990.35
     args.api_coordinate_file = None
+    args.max_preflight_age_seconds = None
+    args.max_api_coordinate_age_seconds = None
+    args.readiness_now_utc = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1358,6 +1445,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-live-attach-seconds", type=int, default=DEFAULT_MAX_LIVE_ATTACH_SECONDS)
     parser.add_argument("--unresponsive-abort-seconds", type=int, default=DEFAULT_UNRESPONSIVE_ABORT_SECONDS)
     parser.add_argument("--max-go-attempts", type=int, default=DEFAULT_MAX_GO_ATTEMPTS)
+    parser.add_argument(
+        "--max-preflight-age-seconds",
+        type=int,
+        default=None,
+        help="Optional fail-closed max age for the selected preflight summary generatedAtUtc.",
+    )
+    parser.add_argument(
+        "--max-api-coordinate-age-seconds",
+        type=int,
+        default=None,
+        help="Optional fail-closed max age for the API/reference coordinate sampledAtUtc.",
+    )
+    parser.add_argument(
+        "--readiness-now-utc",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
