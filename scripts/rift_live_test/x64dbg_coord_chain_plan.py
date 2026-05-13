@@ -22,6 +22,7 @@ DEFAULT_PROCESS_NAME = "rift_x64"
 DEFAULT_WATCH_SIZE = 12
 DEFAULT_POSE_COUNT = 3
 DEFAULT_CANDIDATE_ID = "x64dbg-coord-chain-candidate-000001"
+SYNTHETIC_SELF_TEST_CANDIDATE_ADDRESS = 0x111122223333
 PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
 PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
 API_COORDINATE_FILE_LATEST_ALIAS = "latest"
@@ -1594,7 +1595,7 @@ def apply_self_test_defaults(args: argparse.Namespace) -> None:
     args.module_base = 0x7FF796B50000
     args.candidate_id = "x64dbg-coord-chain-self-test"
     args.candidate_file = None
-    args.candidate_address = 0x20005B30800
+    args.candidate_address = SYNTHETIC_SELF_TEST_CANDIDATE_ADDRESS
     args.api_source = "synthetic-api-now"
     args.api_sampled_at_utc = "2026-05-12T20:00:10Z"
     args.api_x = 7376.87

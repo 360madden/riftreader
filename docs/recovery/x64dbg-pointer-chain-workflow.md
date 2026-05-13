@@ -198,6 +198,9 @@ readiness verdict, blockers, exact artifact paths, safety state, and a
 ready-to-paste new-chat prompt. The summary and compact markdown handoff render
 readiness evidence inline so the key gate inputs can be reviewed without opening
 JSON; the JSON handoff is for future tools/agents that should not parse prose.
+The planner `--self-test` path uses a synthetic placeholder address only; do not
+copy self-test addresses into live debugger plans or treat them as recovered
+RIFT evidence.
 
 The summary includes a conservative `readiness` verdict. A planner `status` of
 `planned` does not by itself mean live-debugger work should begin; the readiness

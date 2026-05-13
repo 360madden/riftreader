@@ -7,7 +7,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from rift_live_test.x64dbg_coord_chain_plan import main
+from rift_live_test.x64dbg_coord_chain_plan import SYNTHETIC_SELF_TEST_CANDIDATE_ADDRESS, main
 
 
 class X64DbgCoordChainPlanTests(unittest.TestCase):
@@ -102,7 +102,13 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["safety"]["liveAttachPolicy"]["maxLiveAttachSeconds"], 30)
             self.assertEqual(summary["safety"]["liveAttachPolicy"]["unresponsiveAbortSeconds"], 15)
             self.assertEqual(summary["safety"]["liveAttachPolicy"]["maxGoAttempts"], 1)
+            self.assertEqual(
+                summary["candidate"]["address"],
+                f"0x{SYNTHETIC_SELF_TEST_CANDIDATE_ADDRESS:X}",
+            )
+            self.assertNotEqual(summary["candidate"]["address"], "0x20005B30800")
             self.assertEqual(template["watchWindow"]["sizeBytes"], 12)
+            self.assertEqual(template["memoryNow"]["address"], summary["candidate"]["address"])
             self.assertEqual(template["derivedChain"]["fieldOffsets"]["z"], "0x8")
             self.assertEqual(template["process"]["moduleBaseAddressHex"], "0x7FF796B50000")
             self.assertTrue((out / "coord-chain-plan.md").is_file())
@@ -110,6 +116,8 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertTrue((out / "x64dbg-coordinate-chain-rerun-command.txt").is_file())
             self.assertTrue((out / "x64dbg-coordinate-chain-compact-handoff.md").is_file())
             self.assertTrue((out / "x64dbg-coordinate-chain-compact-handoff.json").is_file())
+            handoff = json.loads((out / "x64dbg-coordinate-chain-compact-handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["candidate"]["address"], summary["candidate"]["address"])
 
     def test_missing_required_inputs_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
