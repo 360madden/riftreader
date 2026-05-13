@@ -45,6 +45,20 @@ class X64DbgNoAttachReadinessPacketTests(unittest.TestCase):
                         },
                         "stdout": "",
                     }
+                if name == "x64dbg_access_event_template":
+                    return {
+                        "name": name,
+                        "argv": argv,
+                        "exitCode": 0,
+                        "payload": {
+                            "status": "passed",
+                            "summaryJson": str(temp_path / "template-summary.json"),
+                            "templateJson": str(temp_path / "x64dbg-manual-access-events-template.json"),
+                            "blockers": [],
+                            "warnings": [],
+                        },
+                        "stdout": "",
+                    }
                 planner_summary.write_text(
                     json.dumps(
                         {
@@ -96,7 +110,15 @@ class X64DbgNoAttachReadinessPacketTests(unittest.TestCase):
             self.assertEqual(summary["readinessStatus"], "ready-for-current-turn-approval")
             self.assertTrue(summary["safety"]["noAttachWorkflow"])
             self.assertFalse(summary["safety"]["x64dbgLiveAttachStarted"])
-            self.assertEqual([name for name, _ in calls], ["x64dbg_preflight", "chromalink_world_state_reference", "x64dbg_coord_chain_plan"])
+            self.assertEqual(
+                [name for name, _ in calls],
+                [
+                    "x64dbg_preflight",
+                    "chromalink_world_state_reference",
+                    "x64dbg_coord_chain_plan",
+                    "x64dbg_access_event_template",
+                ],
+            )
 
             preflight_argv = calls[0][1]
             self.assertIn("--require-exact-target", preflight_argv)
@@ -110,6 +132,15 @@ class X64DbgNoAttachReadinessPacketTests(unittest.TestCase):
             self.assertIn("--candidate-id", planner_argv)
             self.assertIn("best", planner_argv)
             self.assertIn("--strict-live-debugger-readiness", planner_argv)
+
+            template_argv = calls[3][1]
+            self.assertIn("--planner-summary", template_argv)
+            self.assertIn(str(planner_summary), template_argv)
+            self.assertIn("--output-root", template_argv)
+            self.assertEqual(
+                summary["artifacts"]["accessEventTemplateJson"],
+                str(temp_path / "x64dbg-manual-access-events-template.json"),
+            )
             self.assertTrue((out / "summary.json").is_file())
             self.assertTrue((out / "summary.md").is_file())
 

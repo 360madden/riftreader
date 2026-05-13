@@ -9,7 +9,12 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
-from . import chromalink_world_state_reference, x64dbg_coord_chain_plan, x64dbg_preflight
+from . import (
+    chromalink_world_state_reference,
+    x64dbg_access_event_template,
+    x64dbg_coord_chain_plan,
+    x64dbg_preflight,
+)
 from .reports import write_json, write_text_atomic
 
 
@@ -138,6 +143,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- x64dbg commands executed: `{str(summary.get('safety', {}).get('x64dbgCommandsExecuted')).lower()}`",
         f"- Summary JSON: `{summary.get('artifacts', {}).get('summaryJson')}`",
         f"- Planner summary: `{summary.get('artifacts', {}).get('plannerSummaryJson')}`",
+        f"- Access-event template: `{summary.get('artifacts', {}).get('accessEventTemplateJson')}`",
         f"- Compact handoff: `{summary.get('artifacts', {}).get('compactHandoffMarkdown')}`",
         "",
         "## Steps",
@@ -188,6 +194,8 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
 
     planner_step = next((step for step in steps if step.get("name") == "x64dbg_coord_chain_plan"), None)
     planner_payload = planner_step.get("payload") if planner_step and isinstance(planner_step.get("payload"), dict) else {}
+    template_step = next((step for step in steps if step.get("name") == "x64dbg_access_event_template"), None)
+    template_payload = template_step.get("payload") if template_step and isinstance(template_step.get("payload"), dict) else {}
     planner_summary: dict[str, Any] = {}
     planner_summary_path = planner_payload.get("summaryJson")
     if planner_summary_path:
@@ -254,6 +262,8 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
                 None,
             ),
             "plannerSummaryJson": planner_payload.get("summaryJson"),
+            "accessEventTemplateSummaryJson": template_payload.get("summaryJson"),
+            "accessEventTemplateJson": template_payload.get("templateJson"),
             "compactHandoffJson": planner_payload.get("compactHandoffJson"),
             "compactHandoffMarkdown": planner_payload.get("compactHandoffMarkdown"),
         },
@@ -322,6 +332,27 @@ def run_packet(args: argparse.Namespace, tool_runner: ToolRunner = run_json_tool
     ]
     planner_step = tool_runner("x64dbg_coord_chain_plan", x64dbg_coord_chain_plan.main, planner_argv)
     steps.append(planner_step)
+    if int(planner_step.get("exitCode") or 0) != 0:
+        summary = build_summary(args, run_dir, steps)
+        write_json(Path(summary["artifacts"]["summaryJson"]), summary)
+        write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
+        return summary
+
+    planner_summary = planner_step.get("payload", {}).get("summaryJson")
+    template_argv = [
+        "--repo-root",
+        str(repo_root),
+        "--planner-summary",
+        str(planner_summary),
+        "--output-root",
+        str(run_dir / "access-event-template"),
+    ]
+    template_step = tool_runner(
+        "x64dbg_access_event_template",
+        x64dbg_access_event_template.main,
+        template_argv,
+    )
+    steps.append(template_step)
 
     summary = build_summary(args, run_dir, steps)
     write_json(Path(summary["artifacts"]["summaryJson"]), summary)
@@ -362,6 +393,7 @@ def main(argv: list[str] | None = None) -> int:
                     "preflightSummaryJson": summary["artifacts"]["preflightSummaryJson"],
                     "chromalinkReferenceJson": summary["artifacts"]["chromalinkReferenceJson"],
                     "plannerSummaryJson": summary["artifacts"]["plannerSummaryJson"],
+                    "accessEventTemplateJson": summary["artifacts"]["accessEventTemplateJson"],
                     "compactHandoffMarkdown": summary["artifacts"]["compactHandoffMarkdown"],
                     "blockers": summary["blockers"],
                     "warnings": summary["warnings"],
@@ -374,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"readinessStatus={summary['readinessStatus']}")
         print(f"summaryJson={summary['artifacts']['summaryJson']}")
         print(f"plannerSummaryJson={summary['artifacts']['plannerSummaryJson']}")
+        print(f"accessEventTemplateJson={summary['artifacts']['accessEventTemplateJson']}")
         if summary["blockers"]:
             print("blockers:")
             for blocker in summary["blockers"]:
