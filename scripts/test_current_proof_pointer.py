@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class CurrentProofPointerTests(unittest.TestCase):
-    def test_current_proof_pointer_preserves_riftscan_candidate_source(self) -> None:
+    def test_current_proof_pointer_is_either_current_proof_or_explicit_blocker(self) -> None:
         repo_root = Path(__file__).resolve().parent.parent
         pointer_file = repo_root / "docs" / "recovery" / "current-proof-anchor-readback.json"
         pointer = json.loads(pointer_file.read_text(encoding="utf-8-sig"))
@@ -14,6 +14,18 @@ class CurrentProofPointerTests(unittest.TestCase):
         self.assertEqual(pointer.get("mode"), "current-proof-anchor-readback-pointer")
         self.assertIsInstance(pointer.get("target"), dict)
         self.assertGreater(int(pointer["target"].get("processId") or 0), 0)
+
+        if pointer.get("status") == "blocked-target-drift":
+            classification = pointer.get("currentTruthClassification")
+            self.assertIsInstance(classification, dict)
+            self.assertEqual(classification.get("classification"), "stale-target-drift-blocker")
+            self.assertFalse(classification.get("movementAllowed"))
+            self.assertEqual(pointer.get("latestValidation", {}).get("status"), "blocked-target-drift")
+            self.assertFalse(pointer.get("latestValidation", {}).get("movementAllowed"))
+            stale = pointer.get("staleProofPointer")
+            self.assertIsInstance(stale, dict)
+            self.assertIn("do-not-use-as-current-proof", stale.get("reusePolicy", ""))
+            return
 
         source = pointer.get("riftscanCandidateSource")
         self.assertIsInstance(source, dict)

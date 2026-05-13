@@ -483,12 +483,21 @@ Required behavior:
 
 1. state that the tracked proof pointer is stale for the new process epoch;
 2. rediscover or confirm the current PID/HWND;
-3. run target-control and visual gate for the current target;
-4. use the broad `scripts/scan_current_pid_coordinate_family.py` workflow;
-5. validate candidates across poses before promotion;
-6. block movement until same-target `ProofOnly` passes.
+3. immediately invalidate `docs/recovery/current-proof-anchor-readback.json`
+   to a `blocked-target-drift` blocker for the discovered PID/HWND and preserve
+   the old pointer under `docs/recovery/historical/`;
+4. refuse to use the stale pointer's `candidateId`, `matchFile`, absolute
+   address, or `movementAllowed=true` fields except as historical
+   reacquisition hints;
+5. run target-control and visual gate for the current target;
+6. use the broad `scripts/scan_current_pid_coordinate_family.py` workflow;
+7. validate candidates across poses before promotion;
+8. block movement until same-target `ProofOnly` passes.
 
-Never describe an old absolute proof address, nearby offset probe, SavedVariables snapshot, or single-pose candidate as current movement truth.
+Never describe an old absolute proof address, stale proof-pointer candidate,
+nearby offset probe, SavedVariables snapshot, or single-pose candidate as
+current movement truth. If the current PID/HWND is known, code must prefer that
+fresh target identity over any cached artifact that points to another PID/HWND.
 <!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_END -->
 
 ## Cheat Engine preservation

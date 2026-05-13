@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:44 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current root-search seed is parent slot `0x268D7539700`, now ranked as the top container candidate: it points to owner `0x268D753AE30`, carries selected module hint `0x263E950` at `-0x40`, has a rich near-owner internal pointer cluster, and owns stable candidate coord pointer `0x268DF21ED20` via `[owner+0x10]`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:58 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control passes, but same-target `ProofOnly` remains blocked. The stale promoted proof pointer for PID `57656` / HWND `0x5417BC` has now been invalidated: `docs/recovery/current-proof-anchor-readback.json` is `status=blocked-target-drift` for PID `2928` / HWND `0xC0994`, and the old pointer is preserved under `docs/recovery/historical/` as historical reacquisition evidence only. A repeat `ProofOnly` after the invalidation no longer reused stale PID data and blocked cleanly on `current_proof_pointer_has_no_current_candidate`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current root-search seed is parent slot `0x268D7539700`, now ranked as the top container candidate: it points to owner `0x268D753AE30`, carries selected module hint `0x263E950` at `-0x40`, has a rich near-owner internal pointer cluster, and owns stable candidate coord pointer `0x268DF21ED20` via `[owner+0x10]`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -31,9 +31,33 @@ and process-name/title target-control passed at
 Visual gate passed for exact PID/HWND at
 `scripts/captures/visual-gate-currentpid-2928-20260513-171907/visual-gate-status.json`.
 Same-target `ProofOnly` still blocked at
-`scripts/captures/live-test-ProofOnly-20260513-211940/run-summary.json` because
-`current-proof-anchor-readback.json` still points to stale PID `57656` /
-HWND `0x5417BC`. Movement/navigation remains blocked.
+`scripts/captures/live-test-ProofOnly-20260513-225230/run-summary.json`; the
+runner captured fresh API coordinate `7402.5898, 871.78, 3028.45`, detected the
+old PID `57656` / HWND `0x5417BC` proof pointer mismatch, archived the old
+pointer, and rewrote `current-proof-anchor-readback.json` as a
+`blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`.
+Movement/navigation remains blocked.
+
+**May 13 22:57 UTC repeat ProofOnly after stale-pointer invalidation:** a second
+no-input `ProofOnly` at
+`scripts/captures/live-test-ProofOnly-20260513-225716/run-summary.json` verified
+the code no longer pulls `candidateId`/`matchFile` from the stale PID `57656`
+pointer. It reacquired fresh API coordinate `7402.5898, 871.78, 3028.45` and
+blocked cleanly with
+`target_drift:current_proof_pointer_has_no_current_candidate:status=blocked-target-drift;candidateId=False;matchFile=False`.
+No movement/input/CE was used.
+
+**May 13 22:47 UTC current-PID broad scan:** after confirming target PID `2928`
+/ HWND `0xC0994`, `scripts/scan_current_pid_coordinate_family.py` ran a
+read-only broad scan with fresh RRAPICOORD reference
+`7402.5898, 871.78, 3028.45`, tolerance `0.25`, `--scan-stride 1`, and
+`--max-seconds 300`. Artifact:
+`scripts/captures/family-scan-currentpid-2928-20260513-224733-693410/family-scan-summary.json`.
+Result was **blocked** with `no_xyz_triplets_near_reference_found` after scanning
+`339,738,624` bytes. This is negative current-PID evidence, not movement truth;
+next recovery should widen strategy/window/tolerance or use the stronger
+family snapshot/owner-chain artifacts rather than reverting to stale PID
+`57656`.
 
 Following the broad-family rule, a 39-range prior-first family snapshot sequence
 with one bounded exact-HWND `w` discovery stimulus passed:
@@ -82,9 +106,12 @@ until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
 Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-223425.json` remains
-blocked on the same stale proof pointer and missing selected RiftScan candidate;
-it is a strategy gate, not movement permission.
+`scripts/captures/riftscan-milestone-review-20260513-225757.json` remains
+blocked, but the stale-pointer root problem is now corrected: the current proof
+pointer target matches PID `2928` / HWND `0xC0994` as a
+`blocked-target-drift` blocker. The remaining milestone blocker is no selected
+same-target candidate/RiftScan match file. It is a strategy gate, not movement
+permission.
 
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
@@ -196,11 +223,11 @@ slots ranked much lower: `0x268E2A78628` score `80`, `0x268B0DD1168` score
 `73`. The root gap is now narrowed to finding a static/container owner above
 `0x268D7539700`; this remains candidate-only.
 
-**May 13 22:43 UTC milestone review:** `scripts/riftscan_milestone_review.py`
-wrote `scripts/captures/riftscan-milestone-review-20260513-224321.json` and
-`.md`. Verdict remains **blocked**: no selected RiftScan candidate is present,
-the proof pointer still belongs to stale PID `57656` / HWND `0x5417BC`, and the
-current target is PID `2928` / HWND `0xC0994`. This blocks movement, memory
+**May 13 22:57 UTC milestone review:** `scripts/riftscan_milestone_review.py`
+wrote `scripts/captures/riftscan-milestone-review-20260513-225757.json` and
+`.md`. Verdict remains **blocked**: the current proof pointer now correctly
+targets PID `2928` / HWND `0xC0994` as `blocked-target-drift`, but no selected
+same-target RiftScan candidate/match file exists. This blocks movement, memory
 readback promotion, and provider-derived coordinate truth.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
@@ -232,7 +259,7 @@ readback is offset-corrected candidate evidence, not direct movement truth.
 | Pointer-family scan | Read-only pointer scan `scripts/captures/pointer-family-scan-20260513-195912-166777/summary.json` seeded `0x268DF21ED20`, `0x268DF21ED30`, `0x268DF21E6F0`, and family base `0x268DF200000` with depth `1`. Only `0x268DF21ED20` had a pointer hit: heap ref storage `0x268D753AE40` in region `0x268D7530000`. Recursive scan of `0x268D753AE40` found `0` refs and there were `0` module/RIFT-module hits, so this supports `0x268DF21ED20` as a plausible object/base candidate for the `[rcx + 0x10]` relationship but does **not** resolve a static root. |
 | Top 20 stride-4 scan batch | New batch runner `scripts/current_pid_coordinate_scan_plan_batch.py` scanned all `20` planned ranges with stride-4 XYZ matching, tolerance `2.0`: `scripts/captures/coordinate-scan-plan-batch-currentpid-2928-20260513-173357-355969/summary.json`; `rangesCompleted=20`, `totalHits=0`, blocker `no_xyz_triplets_found_in_scan_plan_ranges`. |
 | Top 20 stride-1 scan batch | The same Top 20 planned ranges were scanned again with stride-1 XYZ matching, tolerance `2.0`: `scripts/captures/coordinate-scan-plan-batch-currentpid-2928-20260513-173613-643790/summary.json`; `rangesCompleted=20`, `totalHits=0`, blocker `no_xyz_triplets_found_in_scan_plan_ranges`. |
-| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260513-174512.json` is `blocked`: current proof pointer still targets stale PID `57656` / HWND `0x5417BC`, and no selected candidate exists for PID `2928`. |
+| RiftScan milestone review | Earlier `scripts/captures/riftscan-milestone-review-20260513-174512.json` blocked on stale PID `57656` / HWND `0x5417BC`; latest `scripts/captures/riftscan-milestone-review-20260513-225757.json` now has target-pointer-match passing but still blocks because no selected same-target candidate exists for PID `2928`. |
 | Current proof status | **Not promoted**. PID `2928` now has a high-signal current-PID candidate family (`0x268DF200000`) with repeated offset-corrected live readback (`0x268DF21ED30` best focused address), but still has no static/restart chain or same-target `ProofOnly` promotion. Direct candidate values are offset from API by about `5` units, so this is not direct coordinate truth. |
 | x64dbg status | No successful current-PID attach. One minimized no-debuggee automation self-check passed and two bounded current-PID attach attempts failed before attach. If another x64dbg tactic is used, keep x64dbg/dependent windows minimized unless visibility is required and avoid repeating the same attach attempt without new evidence. |
 | Evidence labels | Current target/API evidence is `responsive-candidate`; there is no `live-proof` chain. Any future debugger-paused scan must be labeled `frozen-snapshot`. |

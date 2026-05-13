@@ -9,17 +9,41 @@ When the tracked proof pointer does not match the current live target PID/HWND, 
 
 The correct recovery path is a **broad current-PID coordinate-family scan**:
 
-1. prove the new live target with target-control and visual gate;
-2. capture a fresh live `RRAPICOORD` / API-runtime coordinate reference;
-3. scan the current process memory broadly for matching float32 XYZ triplets;
-4. if exact/current copies drift between scans, scan the **entire family** and include `--scan-stride 1` to catch unaligned payloads;
-5. write a candidate family file such as `api-family-vec3-candidates.jsonl`;
-6. validate candidates with no-CE readback across at least two poses;
-7. promote only after cross-pose evidence proves the same candidate/source family;
-8. run fresh same-target `ProofOnly`;
-9. update `current-proof-anchor-readback.json` and `current-truth.md` only after proof passes.
+1. prove or rediscover the new live PID/HWND;
+2. immediately invalidate `docs/recovery/current-proof-anchor-readback.json` to
+   `status=blocked-target-drift` for the discovered PID/HWND if the old pointer
+   targets another PID/HWND;
+3. preserve the old pointer under `docs/recovery/historical/` and treat its
+   `candidateId`, `matchFile`, absolute address, readbacks, and
+   `movementAllowed=true` fields as historical hints only;
+4. prove the new live target with target-control and visual gate;
+5. capture a fresh live `RRAPICOORD` / API-runtime coordinate reference;
+6. scan the current process memory broadly for matching float32 XYZ triplets;
+7. if exact/current copies drift between scans, scan the **entire family** and include `--scan-stride 1` to catch unaligned payloads;
+8. write a candidate family file such as `api-family-vec3-candidates.jsonl`;
+9. validate candidates with no-CE readback across at least two poses;
+10. promote only after cross-pose evidence proves the same candidate/source family;
+11. run fresh same-target `ProofOnly`;
+12. update `current-proof-anchor-readback.json` to a proof-passed pointer and update `current-truth.md` only after proof passes.
 
 This policy exists to prevent regression into narrow stale-pointer probing after a restart or target drift.
+
+## Stale-data invariant
+
+Once the current PID/HWND is known, that live target identity wins over every
+cached artifact. Code must not use a current-proof pointer whose `target`
+metadata differs from the discovered PID/HWND, even if the stale pointer says
+`status=current-target-proofonly-passed` or `movementAllowed=true`.
+
+Required stale-pointer behavior:
+
+| Situation | Required code behavior |
+|---|---|
+| Old pointer PID/HWND differs from discovered PID/HWND | Archive the old JSON under `docs/recovery/historical/`, then replace `current-proof-anchor-readback.json` with a `blocked-target-drift` blocker for the discovered target. |
+| A helper needs a candidate ID | Prefer an explicit current candidate file or same-target proof anchor; otherwise fall back to profile config. Never read `candidateId` from a mismatched pointer. |
+| A helper needs a match file | Only use a match file from a same-target pointer, an explicit candidate file, or a same-PID current scan. |
+| Old pointer contains useful family hints | Copy them into `staleProofPointer.preservedEvidence` or handoff notes as reacquisition hints only. |
+| Movement/navigation is requested | Block until fresh same-target `ProofOnly` replaces the blocker with a proof-passed pointer. |
 
 ## Trigger conditions
 

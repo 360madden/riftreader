@@ -46,10 +46,10 @@ container above `0x268D7539700`. Movement remains blocked.
 | Movement/navigation | ❌ blocked | No movement permitted from this evidence. |
 
 Latest RiftScan milestone review:
-`scripts/captures/riftscan-milestone-review-20260513-224321.json` (`.md`
-companion) is **blocked**. It confirms the selected RiftScan candidate is still
-missing and the current proof pointer is stale PID `57656` / HWND `0x5417BC`
-instead of current target PID `2928` / HWND `0xC0994`.
+`scripts/captures/riftscan-milestone-review-20260513-225757.json` (`.md`
+companion) is **blocked**. The stale-pointer root problem is corrected: target
+pointer match now passes against PID `2928` / HWND `0xC0994`, but no selected
+same-target RiftScan candidate/match file exists yet.
 
 ## Validation
 

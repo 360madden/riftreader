@@ -1145,6 +1145,12 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 json.dumps(
                     {
                         "mode": "current-proof-anchor-readback-pointer",
+                        "status": "current-target-proofonly-passed",
+                        "target": {
+                            "processId": 123,
+                            "processName": "rift_x64",
+                            "targetWindowHandle": "0x123",
+                        },
                         "riftscanCandidateSource": {
                             "candidateId": "fresh-riftscan-candidate-000123",
                             "matchFile": "C:/Riftscan/reports/generated/fresh.json",
@@ -1170,6 +1176,109 @@ class LiveTestOrchestratorTests(unittest.TestCase):
 
             self.assertEqual(runner._candidate_id(), "fresh-riftscan-candidate-000123")
             self.assertEqual(runner._run_gates()["candidateId"], "fresh-riftscan-candidate-000123")
+
+    def test_runner_rejects_stale_pointer_candidate_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "mode": "current-proof-anchor-readback-pointer",
+                        "target": {
+                            "processId": 33912,
+                            "processName": "rift_x64",
+                            "targetWindowHandle": "0xE0DB2",
+                        },
+                        "riftscanCandidateSource": {
+                            "candidateId": "stale-pointer-candidate",
+                            "matchFile": "C:/Riftscan/reports/generated/old.json",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "candidateId": "profile-fallback-candidate",
+                    "candidateIdSource": "current-proof-pointer",
+                },
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+
+            self.assertEqual(runner._candidate_id(), "profile-fallback-candidate")
+            self.assertEqual(runner._run_gates()["candidateId"], "profile-fallback-candidate")
+
+    def test_blocked_current_pointer_without_candidate_does_not_call_pose_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True)
+            write_json(
+                pointer,
+                {
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "status": BLOCKED_TARGET_DRIFT,
+                    "target": {
+                        "processId": 49504,
+                        "processName": "rift_x64",
+                        "targetWindowHandle": "0x5121A",
+                    },
+                    "currentTruthClassification": {
+                        "classification": "stale-target-drift-blocker",
+                        "movementAllowed": False,
+                    },
+                },
+            )
+            runner = LiveTestRunner(
+                repo_root=root,
+                profile_name="ProofOnly",
+                profile={
+                    "mode": "proof-only",
+                    "input": None,
+                    "outputRoot": str(root / "captures"),
+                    "writeMarkdownSummary": False,
+                },
+                process_id=49504,
+                target_window_handle="0x5121A",
+                live=False,
+            )
+
+            def fake_run_ps1(label: str, script_name: str, args: list[str]):
+                self.assertEqual(script_name, "capture-rift-api-reference-coordinate.ps1")
+                output_file = Path(args[args.index("-OutputFile") + 1])
+                write_json(
+                    output_file,
+                    {
+                        "source": "rrapicoord1-memory-scan",
+                        "captured_at_utc": "2026-05-08T22:00:00Z",
+                        "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                    },
+                )
+                return SimpleNamespace(exit_code=0, json_data={"Status": "captured"})
+
+            with patch(
+                "rift_live_test.runner.verify_target",
+                return_value={"valid": True, "status": "valid", "targetWindowHandle": "0x5121A"},
+            ), patch.object(runner, "_run_ps1", side_effect=fake_run_ps1) as run_ps1:
+                summary = runner.run()
+
+            self.assertEqual(summary["status"], BLOCKED_TARGET_DRIFT)
+            self.assertIn(
+                "target_drift:current_proof_pointer_has_no_current_candidate:"
+                "status=blocked-target-drift;candidateId=False;matchFile=False",
+                summary["issues"],
+            )
+            self.assertEqual(run_ps1.call_count, 1)
+            self.assertFalse(summary["movementSent"])
 
     def test_current_proof_anchor_wins_over_stale_pointer_for_candidate_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1689,6 +1798,8 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertEqual(reacquire["Status"], BLOCKED_TARGET_DRIFT)
             self.assertEqual(reacquire["ReacquireStatus"], "api-reference-captured")
             self.assertFalse(reacquire["TargetDrift"]["proofAnchorPromoted"])
+            self.assertTrue(reacquire["TargetDrift"]["currentProofPointerInvalidated"])
+            self.assertTrue(reacquire["CurrentProofPointerInvalidation"]["updated"])
             self.assertEqual(
                 reacquire["PreservedHistoricalEvidence"]["classification"],
                 "historical-target-epoch-evidence",
@@ -1700,6 +1811,19 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             self.assertIn(
                 "do-not-use-as-current-proof",
                 reacquire["PreservedHistoricalEvidence"]["reusePolicy"],
+            )
+            invalidated_pointer = json.loads(pointer.read_text(encoding="utf-8"))
+            self.assertEqual(invalidated_pointer["status"], BLOCKED_TARGET_DRIFT)
+            self.assertEqual(invalidated_pointer["target"]["processId"], 49504)
+            self.assertEqual(invalidated_pointer["target"]["targetWindowHandle"], "0x5121A")
+            self.assertEqual(
+                invalidated_pointer["currentTruthClassification"]["classification"],
+                "stale-target-drift-blocker",
+            )
+            self.assertFalse(invalidated_pointer["latestValidation"]["movementAllowed"])
+            self.assertEqual(
+                invalidated_pointer["staleProofPointer"]["preservedEvidence"]["reacquireHints"]["candidateId"],
+                "old-candidate",
             )
 
     def test_target_drift_payload_does_not_loop_auto_refresh(self) -> None:

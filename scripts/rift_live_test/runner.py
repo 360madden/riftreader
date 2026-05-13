@@ -436,6 +436,15 @@ class LiveTestRunner:
                     details=pointer_drift,
                 )
                 raise TargetDriftError([str(issue) for issue in pointer_drift["issues"]], final)
+            pointer_candidate_blocker = self._current_proof_pointer_missing_candidate_blocker()
+            if pointer_candidate_blocker and pointer_candidate_blocker.get("issues"):
+                final = self._write_target_drift_reacquire_summary(
+                    issues=[str(issue) for issue in pointer_candidate_blocker["issues"]],
+                    reference_file=reference_file,
+                    source="current-proof-pointer-candidate-check",
+                    details=pointer_candidate_blocker,
+                )
+                raise TargetDriftError([str(issue) for issue in pointer_candidate_blocker["issues"]], final)
 
         pose_args = [
             "-ProcessName",
@@ -916,6 +925,47 @@ class LiveTestRunner:
         result["issues"] = issues
         return result
 
+    def _current_proof_pointer_missing_candidate_blocker(self) -> dict[str, Any] | None:
+        if self.profile.get("candidateFile"):
+            return None
+
+        pointer_file = self._current_proof_pointer_file()
+        try:
+            pointer = json.loads(pointer_file.read_text(encoding="utf-8-sig"))
+        except Exception:  # noqa: BLE001 - missing/unreadable pointer is handled by downstream diagnostics.
+            return None
+        if not isinstance(pointer, dict) or not self._pointer_target_matches_current(pointer):
+            return None
+
+        status = str(pointer.get("status") or "")
+        source = pointer.get("riftscanCandidateSource")
+        has_source = isinstance(source, dict)
+        has_candidate_id = bool(source.get("candidateId")) if has_source else False
+        has_match_file = bool(source.get("matchFile")) if has_source else False
+        if (
+            status == "current-target-proofonly-passed"
+            and has_candidate_id
+            and has_match_file
+        ):
+            return None
+
+        issue = (
+            "target_drift:current_proof_pointer_has_no_current_candidate:"
+            f"status={status or 'missing'};candidateId={has_candidate_id};matchFile={has_match_file}"
+        )
+        return {
+            "checked": True,
+            "pointerFile": str(pointer_file),
+            "requestedTarget": {
+                "processId": self.process_id,
+                "processName": self._process_name(),
+                "targetWindowHandle": self.target_window_handle,
+            },
+            "pointerTarget": pointer.get("target") if isinstance(pointer.get("target"), dict) else {},
+            "issues": [issue],
+            "preservedEvidence": self._extract_current_proof_pointer_evidence(pointer),
+        }
+
     def _write_target_drift_reacquire_summary(
         self,
         *,
@@ -926,6 +976,13 @@ class LiveTestRunner:
     ) -> dict[str, Any]:
         current_coordinate = self._reference_coordinate(reference_file)
         summary_path = self.run_dir / "target-drift-reacquire-current-state.json"
+        invalidation = self._invalidate_current_proof_pointer_for_target_drift(
+            issues=issues,
+            reference_file=reference_file,
+            current_coordinate=current_coordinate,
+            source=source,
+            details=details,
+        )
         payload = {
             "SchemaVersion": 1,
             "Mode": "target-drift-reacquire-current-state",
@@ -948,12 +1005,14 @@ class LiveTestRunner:
                 "details": details or {},
                 "movementGate": "blocked",
                 "proofAnchorPromoted": False,
+                "currentProofPointerInvalidated": bool(invalidation.get("updated")),
                 "reason": (
                     "The live target changed underneath the cached proof pointer. "
                     "The runner reacquired current API coordinate state but did not "
                     "promote a movement-grade proof anchor."
                 ),
             },
+            "CurrentProofPointerInvalidation": invalidation,
             "PreservedHistoricalEvidence": (
                 details.get("preservedEvidence")
                 if isinstance(details, dict) and details.get("preservedEvidence")
@@ -969,6 +1028,110 @@ class LiveTestRunner:
             payload.pop("PreservedHistoricalEvidence")
         write_json(summary_path, payload)
         return payload
+
+    def _invalidate_current_proof_pointer_for_target_drift(
+        self,
+        *,
+        issues: list[str],
+        reference_file: Path,
+        current_coordinate: dict[str, Any] | None,
+        source: str,
+        details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        pointer_file = self._current_proof_pointer_file()
+        existing_pointer = self._load_json_object(pointer_file)
+        if isinstance(existing_pointer, dict) and self._pointer_target_matches_current(existing_pointer):
+            return {
+                "updated": False,
+                "path": str(pointer_file),
+                "reason": "current_proof_pointer_already_matches_requested_target",
+            }
+
+        archived_pointer = self._archive_existing_current_pointer_if_target_changed(
+            pointer_file,
+            existing_pointer,
+        )
+        preserved_evidence = (
+            self._extract_current_proof_pointer_evidence(existing_pointer)
+            if isinstance(existing_pointer, dict)
+            else None
+        )
+        pointer_file.parent.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, Any] = {
+            "schemaVersion": 1,
+            "mode": "current-proof-anchor-readback-pointer",
+            "status": BLOCKED_TARGET_DRIFT,
+            "lastUpdatedUtc": datetime.now(timezone.utc).isoformat(),
+            "target": {
+                "processName": self._process_name(),
+                "processId": self.process_id,
+                "targetWindowHandle": self.target_window_handle,
+            },
+            "currentTruthClassification": {
+                "classification": "stale-target-drift-blocker",
+                "sourceOfTruth": "fresh target-drift reacquisition preflight; no current proof anchor is promoted",
+                "staleProtection": (
+                    "A previously promoted proof pointer did not match the discovered live PID/HWND. "
+                    "It has been preserved only as historical reacquisition evidence."
+                ),
+                "movementAllowed": False,
+                "savedVariablesUsedAsLiveTruth": False,
+                "noCheatEngine": True,
+            },
+            "latestValidation": {
+                "status": BLOCKED_TARGET_DRIFT,
+                "movementAllowed": False,
+                "movementSent": False,
+                "movementAttempted": False,
+                "noCheatEngine": True,
+                "referenceFile": str(reference_file),
+                "currentCoordinate": current_coordinate,
+                "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
+            },
+            "latestProofOnly": {
+                "runSummaryFile": str(self.run_dir / "run-summary.json"),
+                "status": BLOCKED_TARGET_DRIFT,
+                "movementSent": False,
+                "movementAttempted": False,
+                "currentCoordinate": current_coordinate,
+                "coordinateDelta": None,
+                "readbackSummaryFile": None,
+            },
+            "targetDrift": {
+                "source": source,
+                "issues": issues,
+                "details": details,
+                "proofAnchorPromoted": False,
+                "requiredRecovery": (
+                    "run current-PID family snapshots and promote only after same-target ProofOnly passes"
+                ),
+            },
+            "staleProofPointer": {
+                "classification": "historical-target-epoch-evidence",
+                "archivedPointer": archived_pointer,
+                "preservedEvidence": preserved_evidence,
+                "reusePolicy": (
+                    "do-not-use-as-current-proof; do-not-use-for-movement; "
+                    "use only as a broad family/reacquisition hint after rescoring against the current target"
+                ),
+            },
+            "runtimePointers": {
+                "latestRuntimePointer": str(self.latest_pointer_file),
+                "proofCoordAnchorCacheFile": str(self._proof_anchor_path()),
+            },
+            "notes": [
+                "Auto-written when target drift is detected for the discovered live PID/HWND.",
+                "This file is intentionally a blocker until a fresh same-target ProofOnly pass replaces it.",
+            ],
+        }
+        write_json(pointer_file, payload)
+        return {
+            "updated": True,
+            "path": str(pointer_file),
+            "archivedSupersededPointer": archived_pointer,
+            "status": BLOCKED_TARGET_DRIFT,
+            "reusePolicy": "stale pointer invalidated; current file is a blocker, not movement truth",
+        }
 
     def _reference_coordinate(self, reference_file: Path) -> dict[str, Any] | None:
         try:
@@ -1343,6 +1506,10 @@ class LiveTestRunner:
         try:
             pointer = json.loads(pointer_file.read_text(encoding="utf-8-sig"))
         except Exception:  # noqa: BLE001 - stale/missing pointer should fall back to profile config.
+            return fallback
+        if not isinstance(pointer, dict) or not self._pointer_target_matches_current(pointer):
+            return fallback
+        if str(pointer.get("status") or "") != "current-target-proofonly-passed":
             return fallback
         candidate_source = pointer.get("riftscanCandidateSource")
         if isinstance(candidate_source, dict):

@@ -64,14 +64,20 @@ When `ProofOnly` blocks with target drift, PID mismatch, HWND mismatch, or a res
 
 Use the broad current-PID coordinate-family recovery policy instead:
 
-1. prove the new PID/HWND with target-control and visual gate;
-2. capture a fresh live `RRAPICOORD` / API-runtime coordinate reference;
-3. run `scripts/scan_current_pid_coordinate_family.py` against the current PID/HWND;
-4. validate the resulting `api-family-vec3-candidates.jsonl` across poses;
-5. promote the proof anchor only after multi-pose no-CE validation;
-6. run same-target `ProofOnly` before updating current truth.
+1. prove or rediscover the new PID/HWND;
+2. invalidate `docs/recovery/current-proof-anchor-readback.json` to
+   `status=blocked-target-drift` for that target if the checked-in pointer is
+   stale;
+3. preserve the old pointer only as historical reacquisition hints;
+4. prove the new PID/HWND with target-control and visual gate;
+5. capture a fresh live `RRAPICOORD` / API-runtime coordinate reference;
+6. run `scripts/scan_current_pid_coordinate_family.py` against the current PID/HWND;
+7. validate the resulting `api-family-vec3-candidates.jsonl` across poses;
+8. promote the proof anchor only after multi-pose no-CE validation;
+9. run same-target `ProofOnly` before updating current truth.
 
 Durable policy: `docs/recovery/current-pid-coordinate-family-recovery-policy.md`.
+Stale-data invariant: `docs/recovery/stale-data-invariant.md`.
 
 A candidate family file is not movement permission. Movement remains blocked until target-control, visual gate, current proof preflight, and same-target `ProofOnly` pass.
 <!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_END -->
