@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:33 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current candidate owner is `0x268D753AE30`, now ranked by complete structural signature: module fields `0x26AAE70`, `0x272DBC0`, `0x263E950`, `0x2657C80`, coord pointer at `[+0x10] = 0x268DF21ED20`, and parent slot `0x268D7539700`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 22:44 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control and visual gate pass, but same-target `ProofOnly` remains blocked because the promoted proof pointer is stale PID `57656` / HWND `0x5417BC`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current root-search seed is parent slot `0x268D7539700`, now ranked as the top container candidate: it points to owner `0x268D753AE30`, carries selected module hint `0x263E950` at `-0x40`, has a rich near-owner internal pointer cluster, and owns stable candidate coord pointer `0x268DF21ED20` via `[owner+0x10]`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -182,6 +182,26 @@ module hint. It scored `270`. Siblings `0x268C6A10EA0` and `0x268923AF610`
 matched only `0x26AAE70` and `0x272DBC0`, missed `0x263E950`/`0x2657C80`, and
 were not stable coord candidates. This makes `0x268D753AE30` the best structural
 owner candidate but still not a static/restart chain or movement truth.
+
+**May 13 22:43 UTC parent-slot container rank:** new offline helper
+`scripts/parent_slot_container_rank.py` ranked the three parent slots as
+container/root-search seeds at
+`scripts/captures/parent-slot-container-rank-20260513-224240-201501/summary.json`
+and wrote a CSV companion for local review. Top slot is `0x268D7539700` with
+score `285`: it points to exact owner `0x268D753AE30`, inherits owner structural
+score `270`, has selected `0x263E950` at `-0x40`, has near-owner internal pointer
+offsets `0x0`, `0x10`, `0x18`, `0x40`, `0x48`, `0x50`, `0x58`, `0x60`, and
+keeps coord-pointer storage `0x268D753AE40 -> 0x268DF21ED20`. Sibling parent
+slots ranked much lower: `0x268E2A78628` score `80`, `0x268B0DD1168` score
+`73`. The root gap is now narrowed to finding a static/container owner above
+`0x268D7539700`; this remains candidate-only.
+
+**May 13 22:43 UTC milestone review:** `scripts/riftscan_milestone_review.py`
+wrote `scripts/captures/riftscan-milestone-review-20260513-224321.json` and
+`.md`. Verdict remains **blocked**: no selected RiftScan candidate is present,
+the proof pointer still belongs to stale PID `57656` / HWND `0x5417BC`, and the
+current target is PID `2928` / HWND `0xC0994`. This blocks movement, memory
+readback promotion, and provider-derived coordinate truth.
 
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
