@@ -1,6 +1,6 @@
 # x64dbg pointer-chain discovery workflow
 
-Status date: 2026-05-12
+Status date: 2026-05-13
 
 ## Verdict
 
@@ -81,6 +81,7 @@ Treat x64dbg as a debugger-class live tool.
 | Movement | Keep movement/navigation blocked until chain-now vs API-now passes the existing proof gates. |
 | Patching | Do not patch the game process or files as part of pointer-chain discovery. |
 | Shell integration | Do not register shell extensions or system-wide integrations by default. |
+| Window state | If x64dbg must be launched, keep x64dbg and dependent debugger windows minimized when that does not interfere with capture/debugger function. Do not minimize a window that must remain interactive/visible for a specific debugger action. |
 
 ## Live attach timeout / forced-logout guard
 
@@ -96,6 +97,30 @@ short, preplanned, and fail-closed:
 | `go/run` retries | Allow at most one `go/run` attempt by default. Do not loop `go/run`; do not use exception swallowing unless the stop reason is understood and the user explicitly approves. |
 | Watchpoints | Do not set hardware watchpoints until the process can run predictably. |
 | Relog/restart | After logout, relog, restart, or process-start change, mark all absolute heap/object addresses stale and reacquire current-PID evidence. |
+
+## Frozen snapshot / pause budget
+
+Intentional debugger pauses can be useful for stable memory inspection, but they
+are **not** live truth. RIFT can log out, desync, or remain nonresponsive if the
+main client thread is paused too long. Treat freeze/pause windows as a bounded
+snapshot technique only:
+
+| Guard | Required behavior |
+|---|---|
+| Evidence label | Any scan/dump taken while the client is debugger-paused or nonresponsive must be labeled `frozen-snapshot`, not `live-proof`. |
+| Initial single-pause budget | Prefer sub-second to 3-second pauses; allow 3-5 seconds only for targeted snapshots with the detach/resume path already prepared. |
+| Hard abort | Treat 10 seconds paused/nonresponsive as the default hard-abort threshold unless the user explicitly approves a longer high-risk window in the current turn. |
+| Cooldown | After each pause, resume/detach as planned and confirm exact-target preflight reports `responding=true` before another debugger action. |
+| Session budget | Keep pause attempts small and counted; do not run overnight or unattended debugger-paused scans. |
+| Promotion | Never promote from `frozen-snapshot` evidence alone. Use it only to seed later responsive API-now vs memory-now, multi-pose, restart, and same-target `ProofOnly` validation. |
+
+Evidence tiers for this workflow:
+
+| Label | Meaning | Allowed use |
+|---|---|---|
+| `frozen-snapshot` | Target was paused/nonresponsive or memory was collected from a debugger-stopped state. | Candidate discovery, pointer/reference maps, struct/layout clues. |
+| `responsive-candidate` | Target was responding, but the evidence lacks full proof gates. | Candidate ranking and next-scan planning. |
+| `live-proof` | Responsive target with fresh API/runtime coordinate and current memory/chain comparison inside tolerance. | Eligible for promotion only after restart validation and same-target `ProofOnly` also pass. |
 
 ## Discovery target
 

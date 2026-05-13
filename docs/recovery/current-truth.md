@@ -1,8 +1,23 @@
 # Current Truth
 
-_Last updated: 2026-05-13 07:29 UTC. The current live target observed in the latest recovery lane is `rift_x64` PID `60628`, HWND `0xCE0FCE`, process start `2026-05-13T04:53:58.081190Z`, module base `0x7FF796B50000`. Coordinate truth for PID `60628` is **candidate-only**: three-pose family ranking now identifies stronger tracking candidates, but no stable static/restart pointer chain, promotion, or same-target `ProofOnly` proof anchor has passed. The last live-target state captured by preflight was `responding=false` with no x64dbg process, so live movement/debugger work is blocked until responsiveness is restored._
+_Last updated: 2026-05-13 16:56 UTC. The current live target observed in the latest post-freeze recovery check is `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Exact-target no-attach preflight passed and fresh ChromaLink API/runtime coordinates were captured, but coordinate truth for PID `2928` is still **not promoted**: the first bounded grouped coordinate-family scan found no XYZ triplets within tolerance before its time budget. No x64dbg launch/attach, movement, watchpoints, Cheat Engine, or memory writes were used in this check. The newest compact resume handoff is `docs/handoffs/2026-05-13-1231-compact-static-pointer-chain-resume.md`._
 
-## May 13 current target status (candidate-only; not authoritative proof)
+## May 13 PID 2928 post-freeze recovery status (not promoted)
+
+| Fact | Current truth |
+|---|---|
+| Live target | `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000` |
+| Exact-target preflight | Passed with `responding=true`, `windowVisible=true`, and debugger process count `0`: `scripts/captures/x64dbg-target-preflight-20260513-165343-990550/summary.json`. |
+| API/runtime coordinate | Fresh ChromaLink world-state reference passed: `scripts/captures/chromalink-world-state-reference-20260513-165415-184596/summary.json`; coordinate `X=7407.04`, `Y=871.77`, `Z=3028.86`, observed `2026-05-13T16:54:14.777163+00:00`, age `352.58ms`. |
+| First grouped scan | Read-only scan `scripts/captures/family-scan-currentpid-2928-20260513-165436-907290/family-scan-summary.json` blocked with `no_xyz_triplets_near_reference_found` after the 45-second scan budget; `hitCount=0`, `bytesScanned=297795584`, `scanStride=4`. |
+| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260513-165626.json` is `blocked`: current proof pointer still targets stale PID `57656` / HWND `0x5417BC`, and no selected candidate exists for PID `2928`. |
+| Current proof status | **Not promoted**. PID `2928` has fresh target/API evidence, but no current-PID memory candidate, static/restart chain, or same-target `ProofOnly` promotion. |
+| x64dbg status | Not launched or attached in this recovery check. If a future launch is required, keep x64dbg/dependent windows minimized unless visibility is required for the debugger action, and use the frozen-snapshot budget in `docs/recovery/x64dbg-pointer-chain-workflow.md`. |
+| Evidence labels | Current target/API evidence is `responsive-candidate`; there is no `live-proof` chain. Any future debugger-paused scan must be labeled `frozen-snapshot`. |
+| Latest handoff | `docs/handoffs/2026-05-13-1231-compact-static-pointer-chain-resume.md`; supporting detailed PID `60628` blocker handoff `docs/handoffs/2026-05-13-0729-currentpid-60628-threepose-candidate-blocker.md`. |
+| Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no movement/nav proof; no x64dbg/watchpoints until a specific bounded plan is justified by fresh scan evidence and current-turn approval. |
+
+## May 13 prior PID 60628 candidate status (candidate-only; not authoritative proof)
 
 | Fact | Current truth |
 |---|---|
@@ -22,8 +37,8 @@ _Last updated: 2026-05-13 07:29 UTC. The current live target observed in the lat
 | Earlier x64dbg source-copy lead | `rdx=0x1FF6D600020`, coordinate offset `rdx+0x28`, and copy routine `rift_x64.exe+0x47D408` remain useful historical source-copy evidence for this PID, but still heap-local and not restart-stable. |
 | Pointer-chain status | Latest broader pointer-family scan `scripts/captures/pointer-family-scan-20260513-070942-089639/summary.json` scanned `67` target/recursive refs. Total module hits `0`; total `rift_x64.exe` hits `0`. Heap refs exist for family bases and storage, but no static/restart-stable chain. |
 | Non-promotion list | Do not promote `0x1FF08502BC8`, `0x1FF94EC0000`, `0x1FF94EC93D0`, `0x1FF07574839`, `0x1FF07575346`, `0x1FF6D600020`, `0x1FF65FADE88`, or older transient `0x1FF392*` / `0x1FF406*` / `0x1FF841*` leads. |
-| Latest handoff | `docs/handoffs/2026-05-13-0729-currentpid-60628-threepose-candidate-blocker.md` |
-| Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no movement/nav proof; no further x64dbg until target responsiveness is restored and exact-target preflight passes. |
+| Latest handoff | `docs/handoffs/2026-05-13-1231-compact-static-pointer-chain-resume.md`; supporting detailed blocker handoff `docs/handoffs/2026-05-13-0729-currentpid-60628-threepose-candidate-blocker.md`. |
+| Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no movement/nav proof; no further x64dbg until target responsiveness is restored and exact-target preflight passes. Frozen/debugger-paused evidence must be labeled `frozen-snapshot`; only responsive API/runtime/current-memory evidence can be labeled `live-proof`. |
 
 ## Latest fully validated proof status (authoritative; stale for PID 60628)
 
