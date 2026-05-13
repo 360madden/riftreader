@@ -47,6 +47,25 @@ ranked a new lower-offset candidate `0x268BEF2C6A8` best by fresh API
 offset-corrected readback. All readbacks remain
 `candidate_only_not_movement_proof`; do not promote or navigate from them yet.
 
+**May 13 21:33 UTC family comparison:** read-only neighborhood comparison
+confirmed that the new `0x268BEF2C*` family is dense (`111` offset-corrected
+hits in a 32 KiB window at
+`scripts/captures/current-pid-family-neighborhood-inspector-20260513-212916-187601/summary.json`),
+while the known `0x268DF21E*` family remains narrow (`3` hits at
+`scripts/captures/current-pid-family-neighborhood-inspector-20260513-212916-188498/summary.json`).
+Pointer scans of the new dense family found `0` refs/module hits; the known
+family still has exactly one heap owner/ref-storage pointer to `0x268DF21ED20`
+at `0x268D753AE40`
+(`scripts/captures/pointer-family-scan-20260513-212916-310670/summary.json` and
+`scripts/captures/pointer-family-scan-20260513-213041-143216/summary.json`).
+The new committed helper `scripts/pointer_owner_neighborhood_inspector.py`
+inspected that owner region at
+`scripts/captures/pointer-owner-neighborhood-inspector-20260513-213230-349204/summary.json`;
+it found the exact `0x268DF21ED20` pointer once and nearby module-pointer hints
+at RVAs `0x26AAE70`, `0x272DBC0`, `0x263E950`, and `0x2662900`. These are
+owner/source clues only. There is still no module/static root, no restart proof,
+and no movement permission.
+
 Freshness note: PID/HWND/process-start/module matches are **targeting preflight
 only**, not coordinate freshness proof. Promotion still requires fresh
 API-now vs memory-now agreement. Latest recorded coordinate snapshot:

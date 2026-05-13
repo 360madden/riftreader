@@ -63,6 +63,31 @@ blocks because the promoted proof pointer is stale PID `57656` / HWND
 | Fresh best readback | `0x268BEF2C6A8` |
 | Readiness | `candidate_only_not_movement_proof` |
 
+## Read-only family comparison after broad scan
+
+| Check | New dense family `0x268BEF2C*` | Known narrow family `0x268DF21E*` |
+|---|---:|---:|
+| Neighborhood hits | `111` | `3` |
+| Pointer refs found in scan | `0` | `1` to `0x268DF21ED20` |
+| Module/static hits | `0` | `0` |
+| Owner/ref-storage lead | none found | `0x268D753AE40` |
+| Current interpretation | dense offset-corrected copy cluster | narrower object/base-like candidate |
+
+Owner inspection for `0x268D753AE40` found the exact `0x268DF21ED20` pointer
+once and module-pointer hints at RVAs `0x26AAE70`, `0x272DBC0`, `0x263E950`,
+and `0x2662900`. This is still heap/local owner evidence only; no static root
+or proof promotion exists.
+
+Supporting artifacts:
+
+| Artifact | Path |
+|---|---|
+| New dense-family neighborhood | `scripts/captures/current-pid-family-neighborhood-inspector-20260513-212916-187601/summary.json` |
+| Known narrow-family neighborhood | `scripts/captures/current-pid-family-neighborhood-inspector-20260513-212916-188498/summary.json` |
+| Mixed pointer-family scan | `scripts/captures/pointer-family-scan-20260513-212916-310670/summary.json` |
+| Dense-hit pointer-family scan | `scripts/captures/pointer-family-scan-20260513-213041-143216/summary.json` |
+| Known owner inspection | `scripts/captures/pointer-owner-neighborhood-inspector-20260513-213230-349204/summary.json` |
+
 ## Safety state
 
 | Boundary | State |
