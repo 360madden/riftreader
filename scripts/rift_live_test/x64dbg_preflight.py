@@ -16,6 +16,15 @@ from .x64dbg_safety import live_attach_policy
 SCHEMA_VERSION = 1
 DEFAULT_PROCESS_NAME = "rift_x64"
 DEFAULT_TITLE_CONTAINS = "RIFT"
+DEFAULT_DEBUGGER_PROCESS_NAMES = (
+    "x64dbg",
+    "x32dbg",
+    "x96dbg",
+    "ollydbg",
+)
+DEFAULT_DEBUGGER_PROCESS_PREFIXES = (
+    "cheatengine",
+)
 WINDOWS_TICK = 10_000_000
 WINDOWS_EPOCH = datetime(1601, 1, 1, tzinfo=UTC)
 
@@ -69,6 +78,21 @@ def title_matches(title: str | None, contains: str | None) -> bool:
 
 class FILETIME(ctypes.Structure):
     _fields_ = [("dwLowDateTime", ctypes.c_uint32), ("dwHighDateTime", ctypes.c_uint32)]
+
+
+class PROCESSENTRY32W(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.c_uint32),
+        ("cntUsage", ctypes.c_uint32),
+        ("th32ProcessID", ctypes.c_uint32),
+        ("th32DefaultHeapID", ctypes.c_void_p),
+        ("th32ModuleID", ctypes.c_uint32),
+        ("cntThreads", ctypes.c_uint32),
+        ("th32ParentProcessID", ctypes.c_uint32),
+        ("pcPriClassBase", ctypes.c_long),
+        ("dwFlags", ctypes.c_uint32),
+        ("szExeFile", ctypes.c_wchar * 260),
+    ]
 
 
 def query_process_details(pid: int) -> dict[str, Any]:
@@ -125,6 +149,64 @@ def query_process_details(pid: int) -> dict[str, Any]:
     else:
         details["warnings"].append("module-base-query-failed")
     return details
+
+
+def enumerate_processes() -> list[dict[str, Any]]:
+    if os.name != "nt":
+        return []
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    th32cs_snapprocess = 0x00000002
+    invalid_handle_value = ctypes.c_void_p(-1).value
+    snapshot = kernel32.CreateToolhelp32Snapshot(th32cs_snapprocess, 0)
+    if snapshot == invalid_handle_value:
+        return []
+    processes: list[dict[str, Any]] = []
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        if not kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
+            return []
+        while True:
+            exe_file = entry.szExeFile
+            processes.append(
+                {
+                    "pid": int(entry.th32ProcessID),
+                    "parentPid": int(entry.th32ParentProcessID),
+                    "exeFile": exe_file,
+                    "processName": Path(exe_file).stem,
+                    "threadCount": int(entry.cntThreads),
+                }
+            )
+            if not kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
+                break
+    finally:
+        kernel32.CloseHandle(snapshot)
+    return processes
+
+
+def is_debugger_process_name(process_name: str | None) -> bool:
+    normalized = str(process_name or "").lower()
+    return normalized in DEFAULT_DEBUGGER_PROCESS_NAMES or any(
+        normalized.startswith(prefix) for prefix in DEFAULT_DEBUGGER_PROCESS_PREFIXES
+    )
+
+
+def enumerate_debugger_processes() -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for process in enumerate_processes():
+        if not is_debugger_process_name(process.get("processName")):
+            continue
+        details = query_process_details(int(process["pid"]))
+        item = dict(process)
+        item.update(
+            {
+                "imagePath": details.get("imagePath"),
+                "startTimeUtc": details.get("startTimeUtc"),
+                "warnings": details.get("warnings") or [],
+            }
+        )
+        matches.append(item)
+    return sorted(matches, key=lambda item: (str(item.get("processName") or ""), int(item.get("pid") or 0)))
 
 
 def query_main_module_base(pid: int) -> int | None:
@@ -268,6 +350,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
 
     blockers: list[str] = []
     warnings: list[str] = []
+    debugger_processes: list[dict[str, Any]] = []
     if args.self_test:
         candidates = [
             {
@@ -284,6 +367,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
                 "warnings": [],
             }
         ]
+        debugger_processes = []
         warnings.append("self-test only; no live process inspection, x64dbg attach, memory read, or input")
     else:
         if os.name != "nt":
@@ -291,6 +375,20 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
             candidates = []
         else:
             candidates = enumerate_window_targets(process_name=args.process_name, title_contains=args.title_contains)
+            debugger_processes = enumerate_debugger_processes()
+
+    if args.require_exact_target:
+        if args.target_pid is None:
+            blockers.append("exact-target-required-missing-target-pid")
+        if not args.target_hwnd:
+            blockers.append("exact-target-required-missing-target-hwnd")
+
+    if debugger_processes:
+        debugger_names = ",".join(f"{item.get('processName')}:{item.get('pid')}" for item in debugger_processes)
+        if args.require_no_debugger_process:
+            blockers.append(f"debugger-process-detected:{debugger_names}")
+        else:
+            warnings.append(f"debugger-process-detected:{debugger_names}")
 
     selected, choose_blockers, choose_warnings = choose_target(
         candidates,
@@ -319,9 +417,13 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
             "targetPid": args.target_pid,
             "targetHwnd": normalize_hwnd(args.target_hwnd),
             "selfTest": bool(args.self_test),
+            "requireExactTarget": bool(args.require_exact_target),
+            "requireNoDebuggerProcess": bool(args.require_no_debugger_process),
         },
         "selectedTarget": selected,
         "targetCount": len(candidates),
+        "debuggerProcesses": debugger_processes,
+        "debuggerProcessCount": len(debugger_processes),
         "blockers": blockers,
         "warnings": warnings,
         "safety": make_safety(),
@@ -344,6 +446,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
 
 def markdown_summary(summary: dict[str, Any]) -> str:
     selected = summary.get("selectedTarget") or {}
+    debugger_processes = summary.get("debuggerProcesses") or []
     lines = [
         "# x64dbg target preflight",
         "",
@@ -365,6 +468,21 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"| Start UTC | `{selected.get('startTimeUtc')}` |",
         f"| Module base | `{selected.get('moduleBaseAddressHex')}` |",
     ]
+    lines.extend(
+        [
+            "",
+            "## Debugger-class process scan",
+            "",
+            f"- Debugger process count: `{len(debugger_processes)}`",
+        ]
+    )
+    if debugger_processes:
+        lines.extend(["", "| Process | PID | Start UTC | Image |", "|---|---:|---|---|"])
+        for process in debugger_processes:
+            lines.append(
+                f"| `{process.get('processName')}` | `{process.get('pid')}` | "
+                f"`{process.get('startTimeUtc')}` | `{process.get('imagePath')}` |"
+            )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{blocker}`" for blocker in summary["blockers"])
@@ -404,6 +522,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--title-contains", default=DEFAULT_TITLE_CONTAINS)
     parser.add_argument("--target-pid", type=int, default=None)
     parser.add_argument("--target-hwnd", default=None)
+    parser.add_argument(
+        "--require-exact-target",
+        action="store_true",
+        help="Block unless both --target-pid and --target-hwnd are supplied and match a visible target.",
+    )
+    parser.add_argument(
+        "--require-no-debugger-process",
+        action="store_true",
+        help="Block if x64dbg/Cheat Engine/known debugger-class processes are detected.",
+    )
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
@@ -421,6 +549,8 @@ def main(argv: list[str] | None = None) -> int:
         "summaryJson": summary["artifacts"]["summaryJson"],
         "summaryMarkdown": summary["artifacts"]["summaryMarkdown"],
         "selectedTarget": summary.get("selectedTarget"),
+        "debuggerProcessCount": summary.get("debuggerProcessCount"),
+        "debuggerProcesses": summary.get("debuggerProcesses"),
         "blockers": summary.get("blockers", []),
         "warnings": summary.get("warnings", []),
     }

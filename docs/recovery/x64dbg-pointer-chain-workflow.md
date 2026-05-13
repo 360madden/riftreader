@@ -119,18 +119,22 @@ Before opening a live-debugger session:
    python C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py --json
    ```
 
-   If multiple RIFT windows are present, rerun with explicit target identity:
+   For live-debugger readiness, fail closed unless the exact target is supplied
+   and no known debugger-class process is open:
 
    ```powershell
    python C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py `
+     --require-exact-target `
+     --require-no-debugger-process `
      --target-pid <PID> `
      --target-hwnd <HWND> `
      --json
    ```
 
-   This preflight uses OS/window/process metadata only. It does not attach
-   x64dbg, send input, set breakpoints/watchpoints, or read/write target memory
-   bytes.
+   The packet includes visible RIFT targets plus known debugger-class processes
+   such as x64dbg and Cheat Engine. This preflight uses OS/window/process
+   metadata only. It does not attach x64dbg, send input, set
+   breakpoints/watchpoints, or read/write target memory bytes.
 2. Capture a fresh API/runtime coordinate sample.
 3. Capture the candidate memory address and current X/Y/Z values.
 4. Confirm no other debugger-class tool is attached.

@@ -7,7 +7,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from rift_live_test.x64dbg_preflight import choose_target, main, normalize_hwnd, title_matches
+from rift_live_test.x64dbg_preflight import choose_target, is_debugger_process_name, main, normalize_hwnd, title_matches
 
 
 class X64DbgPreflightTests(unittest.TestCase):
@@ -19,6 +19,11 @@ class X64DbgPreflightTests(unittest.TestCase):
     def test_title_match_is_case_insensitive(self) -> None:
         self.assertTrue(title_matches("RIFT", "rift"))
         self.assertFalse(title_matches("Other", "rift"))
+
+    def test_debugger_process_name_detection(self) -> None:
+        self.assertTrue(is_debugger_process_name("x64dbg"))
+        self.assertTrue(is_debugger_process_name("CheatEngine-x86_64-SSE4-AVX2"))
+        self.assertFalse(is_debugger_process_name("rift_x64"))
 
     def test_choose_target_blocks_multiple_without_exact_target(self) -> None:
         candidates = [
@@ -57,8 +62,43 @@ class X64DbgPreflightTests(unittest.TestCase):
             self.assertFalse(summary["safety"]["processAttachOrMemoryReadStarted"])
             self.assertFalse(summary["safety"]["movementSent"])
             self.assertEqual(summary["selectedTarget"]["moduleBaseAddressHex"], "0x7FF796B50000")
+            self.assertEqual(summary["debuggerProcessCount"], 0)
             self.assertTrue((out / "summary.md").is_file())
             self.assertTrue((out / "targets.json").is_file())
+
+    def test_require_exact_target_blocks_self_test_without_pid_hwnd(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "preflight"
+            with redirect_stdout(StringIO()):
+                code = main(["--self-test", "--require-exact-target", "--output-root", str(out), "--json"])
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "blocked")
+            self.assertIn("exact-target-required-missing-target-pid", summary["blockers"])
+            self.assertIn("exact-target-required-missing-target-hwnd", summary["blockers"])
+
+    def test_require_exact_target_passes_self_test_with_pid_hwnd(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "preflight"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--self-test",
+                        "--require-exact-target",
+                        "--target-pid",
+                        "12345",
+                        "--target-hwnd",
+                        "0xABCDEF",
+                        "--output-root",
+                        str(out),
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "passed")
 
 
 if __name__ == "__main__":

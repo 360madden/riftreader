@@ -172,7 +172,10 @@ Launch x64dbg through the Python-owned `scripts\x64dbg_launcher.py`; `.cmd` and
 Before any live debugger session, write a no-attach target packet with
 `python scripts\x64dbg_preflight.py --json`. It records exact PID/HWND/title,
 process start time, responsiveness, and module base from OS/window/process
-metadata only.
+metadata only. For live-debugger readiness, rerun it with
+`--require-exact-target --require-no-debugger-process --target-pid <PID>
+--target-hwnd <HWND>` so it fails closed if the target is ambiguous or x64dbg /
+Cheat Engine is already open.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
