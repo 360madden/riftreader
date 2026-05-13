@@ -210,6 +210,9 @@ When preparing real live-debugger work, pass
 `--max-preflight-age-seconds <seconds>` and
 `--max-api-coordinate-age-seconds <seconds>` so stale same-target artifacts block
 the plan instead of looking current only because PID/HWND still match.
+Use `--strict-live-debugger-readiness` for the safest pre-approval packet: it
+requires preflight/API/candidate artifacts and enables default age gates without
+approving or starting x64dbg.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.

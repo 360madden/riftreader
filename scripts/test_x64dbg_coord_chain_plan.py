@@ -888,6 +888,82 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
             self.assertIn("api-coordinate-stale:120>60", summary["blockers"])
 
+    def test_strict_live_debugger_readiness_applies_age_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            candidate_file = temp_path / "candidate.json"
+            self.write_preflight_summary(preflight, generated_at="2026-05-13T01:00:00Z")
+            self.write_api_reference(api_file, captured_at_utc="2026-05-13T01:00:30Z")
+            self.write_candidate_file(candidate_file, {"CandidateId": "a", "AddressHex": "0x1000"})
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-file",
+                        str(candidate_file),
+                        "--strict-live-debugger-readiness",
+                        "--readiness-now-utc",
+                        "2026-05-13T01:01:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["readiness"]["status"], "ready-for-current-turn-approval")
+            self.assertEqual(summary["strictLiveDebuggerReadiness"]["defaultsApplied"]["maxPreflightAgeSeconds"], 300)
+            self.assertEqual(summary["strictLiveDebuggerReadiness"]["defaultsApplied"]["maxApiCoordinateAgeSeconds"], 60)
+            strict_check = next(
+                check
+                for check in summary["readiness"]["checks"]
+                if check["name"] == "strict-live-debugger-readiness-preset"
+            )
+            self.assertTrue(strict_check["passed"])
+
+    def test_strict_live_debugger_readiness_requires_candidate_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            self.write_preflight_summary(preflight, generated_at="2026-05-13T01:00:00Z")
+            self.write_api_reference(api_file, captured_at_utc="2026-05-13T01:00:30Z")
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-address",
+                        "0x1000",
+                        "--strict-live-debugger-readiness",
+                        "--readiness-now-utc",
+                        "2026-05-13T01:01:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertIn("strict-readiness-requires-candidate-file", summary["blockers"])
+            strict_check = next(
+                check
+                for check in summary["readiness"]["checks"]
+                if check["name"] == "strict-live-debugger-readiness-preset"
+            )
+            self.assertFalse(strict_check["passed"])
+
     def test_candidate_file_multi_candidate_requires_candidate_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

@@ -26,6 +26,8 @@ PREFLIGHT_SUMMARY_KIND = "x64dbg-target-preflight"
 PREFLIGHT_SUMMARY_LATEST_ALIAS = "latest"
 API_COORDINATE_FILE_LATEST_ALIAS = "latest"
 FLOAT_MATCH_TOLERANCE = 0.000001
+STRICT_DEFAULT_MAX_PREFLIGHT_AGE_SECONDS = 300
+STRICT_DEFAULT_MAX_API_COORDINATE_AGE_SECONDS = 60
 
 
 def utc_iso() -> str:
@@ -639,6 +641,29 @@ def apply_candidate_file(args: argparse.Namespace) -> None:
             args.candidate_file_blockers.append(f"process-name-mismatch-candidate:{actual}!={expected}")
 
 
+def apply_strict_live_debugger_readiness(args: argparse.Namespace) -> None:
+    args.strict_readiness_blockers = []
+    args.strict_readiness_defaults_applied = {}
+    if not args.strict_live_debugger_readiness:
+        return
+
+    if args.max_preflight_age_seconds is None:
+        args.max_preflight_age_seconds = STRICT_DEFAULT_MAX_PREFLIGHT_AGE_SECONDS
+        args.strict_readiness_defaults_applied["maxPreflightAgeSeconds"] = STRICT_DEFAULT_MAX_PREFLIGHT_AGE_SECONDS
+    if args.max_api_coordinate_age_seconds is None:
+        args.max_api_coordinate_age_seconds = STRICT_DEFAULT_MAX_API_COORDINATE_AGE_SECONDS
+        args.strict_readiness_defaults_applied[
+            "maxApiCoordinateAgeSeconds"
+        ] = STRICT_DEFAULT_MAX_API_COORDINATE_AGE_SECONDS
+
+    if not args.preflight_summary:
+        args.strict_readiness_blockers.append("strict-readiness-requires-preflight-summary")
+    if not args.api_coordinate_file:
+        args.strict_readiness_blockers.append("strict-readiness-requires-api-coordinate-file")
+    if not args.candidate_file:
+        args.strict_readiness_blockers.append("strict-readiness-requires-candidate-file")
+
+
 def build_safety(
     *,
     allow_live_debugger: bool,
@@ -867,6 +892,8 @@ def build_readiness(args: argparse.Namespace, blockers: list[str]) -> dict[str, 
     policy_passed = not policy_blockers
     age_blockers = validate_artifact_age_policy(args)
     age_policy_passed = not age_blockers
+    strict_blockers = getattr(args, "strict_readiness_blockers", []) or []
+    strict_passed = not args.strict_live_debugger_readiness or not strict_blockers
     input_ready = (
         target_identity_passed
         and strict_preflight_passed
@@ -874,6 +901,7 @@ def build_readiness(args: argparse.Namespace, blockers: list[str]) -> dict[str, 
         and candidate_passed
         and policy_passed
         and age_policy_passed
+        and strict_passed
     )
     approval_granted = bool(args.allow_live_debugger)
 
@@ -945,6 +973,17 @@ def build_readiness(args: argparse.Namespace, blockers: list[str]) -> dict[str, 
                 "maxApiCoordinateAgeSeconds": args.max_api_coordinate_age_seconds,
                 "nowUtc": args.readiness_now_utc,
                 "ageBlockers": age_blockers,
+            },
+        ),
+        readiness_check(
+            "strict-live-debugger-readiness-preset",
+            "passed" if strict_passed else "blocked",
+            strict_passed,
+            "When enabled, strict readiness requires preflight, API coordinate, and candidate artifacts plus max-age gates.",
+            {
+                "enabled": args.strict_live_debugger_readiness,
+                "defaultsApplied": getattr(args, "strict_readiness_defaults_applied", {}),
+                "strictBlockers": strict_blockers,
             },
         ),
         readiness_check(
@@ -1030,6 +1069,7 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     blockers.extend(getattr(args, "preflight_summary_blockers", []) or [])
     blockers.extend(getattr(args, "api_coordinate_file_blockers", []) or [])
     blockers.extend(getattr(args, "candidate_file_blockers", []) or [])
+    blockers.extend(getattr(args, "strict_readiness_blockers", []) or [])
     blockers.extend(validate_artifact_age_policy(args))
     if args.candidate_address is None:
         blockers.append("missing-candidate-address")
@@ -1168,6 +1208,11 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "sourceKind": (getattr(args, "candidate_file_data", {}) or {}).get("sourceKind")
             if getattr(args, "candidate_file_data", None)
             else None,
+        },
+        "strictLiveDebuggerReadiness": {
+            "enabled": bool(args.strict_live_debugger_readiness),
+            "defaultsApplied": getattr(args, "strict_readiness_defaults_applied", {}),
+            "blockers": getattr(args, "strict_readiness_blockers", []),
         },
         "readiness": build_readiness(args, blockers),
         "plannedPhases": planned_phases(args),
@@ -1385,6 +1430,7 @@ def apply_self_test_defaults(args: argparse.Namespace) -> None:
     args.max_preflight_age_seconds = None
     args.max_api_coordinate_age_seconds = None
     args.readiness_now_utc = None
+    args.strict_live_debugger_readiness = False
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1462,6 +1508,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--strict-live-debugger-readiness",
+        action="store_true",
+        help=(
+            "Fail closed unless preflight/API/candidate artifacts are supplied and artifact age gates are active. "
+            f"Defaults ages to preflight <= {STRICT_DEFAULT_MAX_PREFLIGHT_AGE_SECONDS}s and API <= "
+            f"{STRICT_DEFAULT_MAX_API_COORDINATE_AGE_SECONDS}s when not explicitly provided."
+        ),
+    )
     return parser
 
 
@@ -1482,6 +1537,7 @@ def main(argv: list[str] | None = None) -> int:
     resolve_api_coordinate_file_argument(args, repo_root)
     apply_api_coordinate_file(args)
     apply_candidate_file(args)
+    apply_strict_live_debugger_readiness(args)
     run_dir = choose_run_dir(repo_root, args.output_root)
     summary = build_plan(args, repo_root, run_dir)
     write_outputs(summary)

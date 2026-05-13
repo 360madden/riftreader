@@ -205,6 +205,12 @@ For live-debugger prep, add explicit staleness gates when practical:
 but fail closed when supplied, blocking old preflight/API artifacts even if
 PID/HWND still match.
 
+For the safest pre-approval packet, use `--strict-live-debugger-readiness`. It
+requires preflight, API-coordinate, and candidate artifacts; it also turns on
+default artifact age gates when explicit age values were not provided. This flag
+does not approve or start x64dbg. It only makes the planner fail closed unless
+the handoff inputs are artifact-backed and fresh enough.
+
 If the target is `rift_x64` and no current-turn live-debugger authorization is
 present, the planner still writes the packet but records a warning that live
 attach is not authorized. Passing `--allow-live-debugger` only records that a
