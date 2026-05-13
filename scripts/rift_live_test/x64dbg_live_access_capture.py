@@ -5,6 +5,7 @@ import ctypes
 import json
 import math
 import struct
+import subprocess
 import threading
 import time
 from ctypes import wintypes
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .reports import write_json, write_text_atomic
+from .x64dbg_launcher import launch_kwargs
 from .x64dbg_safety import (
     DEFAULT_MAX_GO_ATTEMPTS,
     DEFAULT_MAX_LIVE_ATTACH_SECONDS,
@@ -256,6 +258,30 @@ def minimize_windows_for_process(process_id: int, *, expected_target_pid: int | 
     if not user32.EnumWindows(callback_ref, 0):
         result["errors"].append(f"enum-windows-failed:{ctypes.get_last_error()}")
     return result
+
+
+def install_minimized_x64dbg_launch(client_class: Any, summary: dict[str, Any]) -> bool:
+    """Patch x64dbg_automate so start_session_attach launches x64dbg minimized."""
+    original = getattr(client_class, "_launch_x64dbg", None)
+    if original is None:
+        summary["warnings"].append("x64dbg-minimized-launch-patch-unavailable")
+        return False
+
+    def _launch_x64dbg_minimized(self: Any) -> None:
+        if self.x64dbg_path is None:
+            raise RuntimeError("Cannot launch x64dbg in remote mode; no x64dbg_path configured")
+        self.proc = subprocess.Popen(  # noqa: S603
+            [self.x64dbg_path],
+            executable=self.x64dbg_path,
+            **launch_kwargs(minimize_window=True),
+        )
+        self.session_pid = self.proc.pid
+        self.attach_session(self.session_pid)
+
+    setattr(client_class, "_launch_x64dbg", _launch_x64dbg_minimized)
+    summary["x64dbgWindowManagement"]["launchMinimizedPatchInstalled"] = True
+    summary["x64dbgWindowManagement"]["originalLaunchFunction"] = getattr(original, "__name__", str(original))
+    return True
 
 
 def window_pid_thread(user32: Any, hwnd: int) -> tuple[int, int]:
@@ -890,6 +916,8 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         },
         "x64dbgWindowManagement": {
             "minimizeRequested": not bool(args.no_minimize_x64dbg_windows),
+            "launchMinimizedPatchInstalled": False,
+            "originalLaunchFunction": None,
             "result": None,
         },
         "contexts": [],
@@ -955,6 +983,8 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         from x64dbg_automate.events import EventType  # type: ignore
         from x64dbg_automate.models import HardwareBreakpointType, MemoryBreakpointType  # type: ignore
 
+        if not args.no_minimize_x64dbg_windows:
+            install_minimized_x64dbg_launch(X64DbgClient, summary)
         client = X64DbgClient(x64dbg_path=str(args.x64dbg_path))
         stimulus_thread = None
         stimulus_holder: dict[str, Any] = {"result": None}

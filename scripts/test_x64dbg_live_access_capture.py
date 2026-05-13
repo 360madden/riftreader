@@ -8,10 +8,12 @@ from rift_live_test.x64dbg_live_access_capture import (
     build_key_lparam,
     clear_all_hardware_breakpoints,
     clear_all_memory_breakpoints,
+    install_minimized_x64dbg_launch,
     minimize_windows_for_process,
     parse_virtual_key,
     resume_if_stopped,
 )
+import rift_live_test.x64dbg_live_access_capture as live_access
 
 
 def minimal_summary() -> dict:
@@ -55,6 +57,10 @@ class FakeClient:
     def clear_memory_breakpoint(self, value: object = None) -> bool:
         self.clear_calls.append(value)
         return True
+
+
+class FakeProcess:
+    pid = 4242
 
 
 class X64DbgLiveAccessCaptureTests(unittest.TestCase):
@@ -136,6 +142,43 @@ class X64DbgLiveAccessCaptureTests(unittest.TestCase):
         self.assertFalse(result["attempted"])
         self.assertTrue(result["skipped"])
         self.assertEqual(result["reason"], "process-id-is-target-debuggee")
+
+    def test_install_minimized_x64dbg_launch_requests_minimized_popen(self) -> None:
+        calls: list[dict] = []
+
+        class FakeX64DbgClientClass:
+            def __init__(self) -> None:
+                self.x64dbg_path = "C:/Tools/x64dbg.exe"
+                self.session_pid = None
+                self.attached_session = None
+
+            def attach_session(self, session_pid: int) -> None:
+                self.attached_session = session_pid
+
+            def _launch_x64dbg(self) -> None:
+                raise AssertionError("original launcher should be patched")
+
+        original_popen = live_access.subprocess.Popen
+        original_launch_kwargs = live_access.launch_kwargs
+        try:
+            live_access.subprocess.Popen = lambda *args, **kwargs: calls.append({"args": args, "kwargs": kwargs}) or FakeProcess()  # type: ignore[assignment]
+            live_access.launch_kwargs = lambda *, minimize_window: {"startupinfo": "minimized"}  # type: ignore[assignment]
+            summary = {"warnings": [], "x64dbgWindowManagement": {}}
+
+            patched = install_minimized_x64dbg_launch(FakeX64DbgClientClass, summary)
+            client = FakeX64DbgClientClass()
+            client._launch_x64dbg()
+        finally:
+            live_access.subprocess.Popen = original_popen  # type: ignore[assignment]
+            live_access.launch_kwargs = original_launch_kwargs  # type: ignore[assignment]
+
+        self.assertTrue(patched)
+        self.assertEqual(client.session_pid, 4242)
+        self.assertEqual(client.attached_session, 4242)
+        self.assertEqual(calls[0]["args"], (["C:/Tools/x64dbg.exe"],))
+        self.assertEqual(calls[0]["kwargs"]["executable"], "C:/Tools/x64dbg.exe")
+        self.assertEqual(calls[0]["kwargs"]["startupinfo"], "minimized")
+        self.assertTrue(summary["x64dbgWindowManagement"]["launchMinimizedPatchInstalled"])
 
 
 if __name__ == "__main__":
