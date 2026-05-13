@@ -102,6 +102,7 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(template["process"]["moduleBaseAddressHex"], "0x7FF796B50000")
             self.assertTrue((out / "coord-chain-plan.md").is_file())
             self.assertTrue((out / "x64dbg-coordinate-chain-session-checklist.md").is_file())
+            self.assertTrue((out / "x64dbg-coordinate-chain-rerun-command.txt").is_file())
 
     def test_missing_required_inputs_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -454,6 +455,10 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["truthSurface"]["artifactPath"], str(api_file))
             self.assertEqual(summary["apiCoordinateFile"]["path"], str(api_file))
             self.assertEqual(template["truthSurface"]["artifactPath"], str(api_file))
+            command_text = (out / "x64dbg-coordinate-chain-rerun-command.txt").read_text(encoding="utf-8")
+            self.assertIn(f"--preflight-summary '{preflight}'", command_text)
+            self.assertIn(f"--api-coordinate-file '{api_file}'", command_text)
+            self.assertIn("--candidate-address '0x20005B30800'", command_text)
 
     def test_api_coordinate_file_accepts_capture_summary_shape(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

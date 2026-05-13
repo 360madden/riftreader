@@ -189,7 +189,9 @@ python C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py `
 This planner is artifact-only: it does not attach x64dbg, set watchpoints, read
 live memory, configure MCP, send movement/input, or promote a chain. It writes a
 summary, a session checklist, and a candidate-packet template under
-`scripts\captures\x64dbg-coord-chain-plan-*`.
+`scripts\captures\x64dbg-coord-chain-plan-*`. It also writes
+`x64dbg-coordinate-chain-rerun-command.txt`, a copy-paste command that preserves
+the resolved preflight/API artifact paths for handoff.
 
 If the target is `rift_x64` and no current-turn live-debugger authorization is
 present, the planner still writes the packet but records a warning that live

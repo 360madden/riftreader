@@ -450,6 +450,67 @@ def truth_surface(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def powershell_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def placeholder(name: str) -> str:
+    return f"<{name}>"
+
+
+def command_value(value: Any, name: str) -> str:
+    return str(value) if value not in (None, "") else placeholder(name)
+
+
+def append_flag(lines: list[str], name: str, value: Any, placeholder_name: str | None = None) -> None:
+    if placeholder_name is None and value in (None, ""):
+        return
+    text = command_value(value, placeholder_name or name.lstrip("-"))
+    lines.append(f"  {name} {powershell_quote(text)} `")
+
+
+def rerun_command_text(summary: dict[str, Any]) -> str:
+    repo_root = Path(summary["repoRoot"])
+    script_path = repo_root / "scripts" / "x64dbg_coord_chain_plan.py"
+    preflight = summary.get("preflight") or {}
+    api_coordinate_file = summary.get("apiCoordinateFile") or {}
+    candidate = summary["candidate"]
+    process = summary["process"]
+    truth = summary["truthSurface"]
+    policy = summary["safety"]["liveAttachPolicy"]
+    lines = [
+        "# Generated x64dbg coordinate-chain planner command.",
+        "# This command is artifact-only. It does not attach x64dbg, set watchpoints, read live memory, or send input.",
+        "# Replace any <...> placeholder before running.",
+        f"python {powershell_quote(str(script_path))} `",
+    ]
+
+    if preflight.get("summaryPath"):
+        append_flag(lines, "--preflight-summary", preflight.get("summaryPath"))
+    else:
+        append_flag(lines, "--target-pid", process.get("pid"), "target-pid")
+        append_flag(lines, "--target-hwnd", process.get("hwnd"), "target-hwnd")
+        append_flag(lines, "--process-start-time-utc", process.get("startTimeUtc"), "process-start-time-utc")
+        append_flag(lines, "--module-base", process.get("moduleBaseAddressHex"))
+
+    if api_coordinate_file.get("path"):
+        append_flag(lines, "--api-coordinate-file", api_coordinate_file.get("path"))
+    else:
+        append_flag(lines, "--api-x", truth.get("x"), "api-x")
+        append_flag(lines, "--api-y", truth.get("y"), "api-y")
+        append_flag(lines, "--api-z", truth.get("z"), "api-z")
+        append_flag(lines, "--api-sampled-at-utc", truth.get("sampledAtUtc"), "api-sampled-at-utc")
+        append_flag(lines, "--api-source", truth.get("source"))
+
+    append_flag(lines, "--candidate-address", candidate.get("address"), "candidate-address")
+    append_flag(lines, "--candidate-id", candidate.get("candidateId"))
+    append_flag(lines, "--max-live-attach-seconds", policy.get("maxLiveAttachSeconds"))
+    append_flag(lines, "--unresponsive-abort-seconds", policy.get("unresponsiveAbortSeconds"))
+    append_flag(lines, "--max-go-attempts", policy.get("maxGoAttempts"))
+    lines.append("  --json")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def candidate_template(args: argparse.Namespace) -> dict[str, Any]:
     address = args.candidate_address
     axis_offsets = {"x": "0x0", "y": "0x4", "z": "0x8"}
@@ -613,6 +674,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
     summary_md = run_dir / "coord-chain-plan.md"
     template_json = run_dir / "x64dbg-coordinate-chain-candidate-template.json"
     checklist_md = run_dir / "x64dbg-coordinate-chain-session-checklist.md"
+    command_txt = run_dir / "x64dbg-coordinate-chain-rerun-command.txt"
 
     summary: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -675,6 +737,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             "summaryMarkdown": str(summary_md),
             "candidateTemplateJson": str(template_json),
             "sessionChecklistMarkdown": str(checklist_md),
+            "rerunCommandText": str(command_txt),
         },
         "safety": build_safety(
             allow_live_debugger=bool(args.allow_live_debugger),
@@ -703,6 +766,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- Generated UTC: `{summary['generatedAtUtc']}`",
         f"- Candidate: `{candidate.get('candidateId')}` at `{candidate.get('address')}`",
         f"- Preflight summary: `{summary.get('preflight', {}).get('summaryPath')}`",
+        f"- Rerun command: `{summary.get('artifacts', {}).get('rerunCommandText')}`",
         f"- Movement allowed: `{str(safety.get('movementAllowed')).lower()}`",
         f"- x64dbg live attach started: `{str(safety.get('x64dbgLiveAttachStarted')).lower()}`",
         f"- x64dbg commands executed: `{str(safety.get('x64dbgCommandsExecuted')).lower()}`",
@@ -821,6 +885,7 @@ def write_outputs(summary: dict[str, Any]) -> None:
     }))
     write_json(Path(summary["artifacts"]["candidateTemplateJson"]), template)
     write_text_atomic(Path(summary["artifacts"]["sessionChecklistMarkdown"]), checklist_markdown(summary))
+    write_text_atomic(Path(summary["artifacts"]["rerunCommandText"]), rerun_command_text(summary))
     write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
     write_json(Path(summary["artifacts"]["summaryJson"]), summary)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -920,6 +985,7 @@ def main(argv: list[str] | None = None) -> int:
                     "summaryJson": summary["artifacts"]["summaryJson"],
                     "summaryMarkdown": summary["artifacts"]["summaryMarkdown"],
                     "candidateTemplateJson": summary["artifacts"]["candidateTemplateJson"],
+                    "rerunCommandText": summary["artifacts"]["rerunCommandText"],
                     "blockers": summary["blockers"],
                     "warnings": summary["warnings"],
                 },
@@ -930,6 +996,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"status={summary['status']}")
         print(f"summaryJson={summary['artifacts']['summaryJson']}")
         print(f"summaryMarkdown={summary['artifacts']['summaryMarkdown']}")
+        print(f"rerunCommandText={summary['artifacts']['rerunCommandText']}")
         if summary["blockers"]:
             print("blockers=" + ";".join(summary["blockers"]))
         if summary["warnings"]:

@@ -192,6 +192,8 @@ The planner can also consume a fresh Rift API/reference coordinate artifact with
 `--api-x/--api-y/--api-z/--api-sampled-at-utc`. It blocks if the artifact
 reports movement, Cheat Engine usage, SavedVariables-as-live-truth, or a
 PID/HWND mismatch with the selected preflight target.
+Each plan writes `x64dbg-coordinate-chain-rerun-command.txt` so a handoff can
+reuse the exact resolved preflight/API artifact paths without retyping them.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.
