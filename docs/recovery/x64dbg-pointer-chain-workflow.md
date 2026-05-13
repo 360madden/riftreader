@@ -128,6 +128,8 @@ Before opening a live-debugger session:
      --require-no-debugger-process `
      --target-pid <PID> `
      --target-hwnd <HWND> `
+     --expected-start-time-utc <process-start-utc-from-last-packet> `
+     --expected-module-base <module-base-from-last-packet> `
      --json
    ```
 

@@ -62,6 +62,22 @@ def filetime_to_utc_iso(low: int, high: int) -> str:
     return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
+def parse_utc_datetime(value: str) -> datetime:
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def start_time_delta_seconds(actual: str | None, expected: str | None) -> float | None:
+    if not actual or not expected:
+        return None
+    return abs((parse_utc_datetime(actual) - parse_utc_datetime(expected)).total_seconds())
+
+
 def process_matches_name(actual: str | None, expected: str) -> bool:
     if not actual:
         return False
@@ -404,6 +420,25 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
         warnings.append("selected-target-module-base-unavailable")
     if selected is not None and not selected.get("startTimeUtc"):
         warnings.append("selected-target-start-time-unavailable")
+    if selected is not None and args.expected_start_time_utc:
+        try:
+            delta = start_time_delta_seconds(selected.get("startTimeUtc"), args.expected_start_time_utc)
+            if delta is None:
+                blockers.append("expected-start-time-unavailable-on-selected-target")
+            elif delta > args.start_time_tolerance_seconds:
+                blockers.append(
+                    "process-start-time-mismatch:"
+                    f"actual={selected.get('startTimeUtc')};"
+                    f"expected={args.expected_start_time_utc};"
+                    f"deltaSeconds={delta:.6f}"
+                )
+        except ValueError as exc:
+            blockers.append(f"expected-start-time-invalid:{args.expected_start_time_utc}:{exc}")
+    if selected is not None and args.expected_module_base:
+        expected_module_base = normalize_hwnd(args.expected_module_base)
+        actual_module_base = normalize_hwnd(selected.get("moduleBaseAddressHex") or selected.get("moduleBaseAddress"))
+        if actual_module_base != expected_module_base:
+            blockers.append(f"module-base-mismatch:actual={actual_module_base};expected={expected_module_base}")
 
     summary: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -419,6 +454,9 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
             "selfTest": bool(args.self_test),
             "requireExactTarget": bool(args.require_exact_target),
             "requireNoDebuggerProcess": bool(args.require_no_debugger_process),
+            "expectedStartTimeUtc": args.expected_start_time_utc,
+            "startTimeToleranceSeconds": args.start_time_tolerance_seconds,
+            "expectedModuleBase": normalize_hwnd(args.expected_module_base),
         },
         "selectedTarget": selected,
         "targetCount": len(candidates),
@@ -522,6 +560,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--title-contains", default=DEFAULT_TITLE_CONTAINS)
     parser.add_argument("--target-pid", type=int, default=None)
     parser.add_argument("--target-hwnd", default=None)
+    parser.add_argument("--expected-start-time-utc", default=None)
+    parser.add_argument("--start-time-tolerance-seconds", type=float, default=1.0)
+    parser.add_argument("--expected-module-base", default=None)
     parser.add_argument(
         "--require-exact-target",
         action="store_true",

@@ -174,8 +174,10 @@ Before any live debugger session, write a no-attach target packet with
 process start time, responsiveness, and module base from OS/window/process
 metadata only. For live-debugger readiness, rerun it with
 `--require-exact-target --require-no-debugger-process --target-pid <PID>
---target-hwnd <HWND>` so it fails closed if the target is ambiguous or x64dbg /
-Cheat Engine is already open.
+--target-hwnd <HWND> --expected-start-time-utc <start-utc>
+--expected-module-base <module-base>` so it fails closed if the target is
+ambiguous, the process epoch/module base drifted, or x64dbg / Cheat Engine is
+already open.
 
 May 12/13 x64dbg live-attach incident:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-live-attach-incident-2026-05-13.md`.

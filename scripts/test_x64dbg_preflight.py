@@ -7,7 +7,14 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from rift_live_test.x64dbg_preflight import choose_target, is_debugger_process_name, main, normalize_hwnd, title_matches
+from rift_live_test.x64dbg_preflight import (
+    choose_target,
+    is_debugger_process_name,
+    main,
+    normalize_hwnd,
+    start_time_delta_seconds,
+    title_matches,
+)
 
 
 class X64DbgPreflightTests(unittest.TestCase):
@@ -24,6 +31,12 @@ class X64DbgPreflightTests(unittest.TestCase):
         self.assertTrue(is_debugger_process_name("x64dbg"))
         self.assertTrue(is_debugger_process_name("CheatEngine-x86_64-SSE4-AVX2"))
         self.assertFalse(is_debugger_process_name("rift_x64"))
+
+    def test_start_time_delta_parses_z_and_offsets(self) -> None:
+        self.assertEqual(
+            start_time_delta_seconds("2026-05-13T00:00:00Z", "2026-05-12T20:00:00-04:00"),
+            0.0,
+        )
 
     def test_choose_target_blocks_multiple_without_exact_target(self) -> None:
         candidates = [
@@ -65,6 +78,67 @@ class X64DbgPreflightTests(unittest.TestCase):
             self.assertEqual(summary["debuggerProcessCount"], 0)
             self.assertTrue((out / "summary.md").is_file())
             self.assertTrue((out / "targets.json").is_file())
+
+    def test_expected_start_time_and_module_base_pass_self_test(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "preflight"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--self-test",
+                        "--expected-start-time-utc",
+                        "2026-05-13T00:00:00Z",
+                        "--expected-module-base",
+                        "0x7FF796B50000",
+                        "--output-root",
+                        str(out),
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "passed")
+
+    def test_expected_start_time_mismatch_blocks_self_test(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "preflight"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--self-test",
+                        "--expected-start-time-utc",
+                        "2026-05-13T00:01:10Z",
+                        "--start-time-tolerance-seconds",
+                        "1",
+                        "--output-root",
+                        str(out),
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(blocker.startswith("process-start-time-mismatch:") for blocker in summary["blockers"]))
+
+    def test_expected_module_base_mismatch_blocks_self_test(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "preflight"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--self-test",
+                        "--expected-module-base",
+                        "0x1000",
+                        "--output-root",
+                        str(out),
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("module-base-mismatch:actual=0x7FF796B50000;expected=0x1000", summary["blockers"])
 
     def test_require_exact_target_blocks_self_test_without_pid_hwnd(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
