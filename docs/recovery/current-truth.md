@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 23:15 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
+_Last updated: 2026-05-13 23:31 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -136,6 +136,36 @@ reported:
 
 Remaining blocker: rebuild/promote a fresh same-target proof anchor from fresh
 API-now/reference evidence before `ProofOnly` or movement can pass.
+
+**May 13 23:19-23:27 UTC reference freshness recheck + root-signature packet:**
+current target identity remains PID `2928` / HWND `0xC0994`, but both live
+reference surfaces are currently blocked for proof promotion. Fresh RRAPICOORD
+scan `scripts/captures/reference-currentpid-2928-manual-20260513-keepgoing/rift-api-reference-scan-currentpid-2928-20260513-231902.json`
+found only partial/static `RRAPICOORD1` text and no usable
+`status=pass|source=rift-api|savedVariablesUse=none` marker. ChromaLink
+world-state capture
+`scripts/captures/chromalink-world-state-reference-20260513-232015-658921/summary.json`
+was reachable but blocked with stale `player.position` at
+`2026-05-13T22:55:23.0397648+00:00`; endpoint freshness alone is not
+coordinate freshness. Do **not** promote candidates or move from these stale
+reference values.
+
+Because proof promotion is blocked on fresh reference truth, the safe next work
+pivoted to offline/static-chain prep. New helper
+`scripts/parent_slot_root_signature_packet.py` generated
+`scripts/captures/parent-slot-root-signature-packet-20260513-232733-606293/summary.json`
+from existing parent-slot/container and owner-signature evidence. It packages
+the current root-search predicate set: selected module hint
+`0x268D75396C0 = rift_x64.exe+0x263E950` (`-0x40` from parent slot), parent
+slot `0x268D7539700 -> 0x268D753AE30`, owner coord-pointer storage
+`0x268D753AE40 -> 0x268DF21ED20`, owner module fields
+`+0x0=0x26AAE70`, `+0x8=0x272DBC0`, `+0xE0=0x263E950`, and
+`+0x110=0x2657C80`. The packet status is `passed` but
+`candidateOnly=true` and `movementProofEligible=false`; it is a root-search
+artifact only, not movement truth. Post-slice milestone review
+`scripts/captures/riftscan-milestone-review-20260513-232903.json` remained
+`ready-for-read-only-proof` with `movementAllowedByReview=false`; it does not
+override the fresh-reference blocker.
 
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
