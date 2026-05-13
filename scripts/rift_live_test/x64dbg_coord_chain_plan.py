@@ -244,10 +244,62 @@ def extract_candidate_record(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def extract_document_process_id(document: dict[str, Any]) -> int | None:
+    process_id = to_int_or_none(get_mapping_value(document, "processId", "ProcessId", "process_id"))
+    if process_id is not None:
+        return process_id
+    target = get_mapping_value(document, "target", "Target")
+    if isinstance(target, dict):
+        return to_int_or_none(get_mapping_value(target, "processId", "ProcessId", "pid", "Pid"))
+    return None
+
+
+def extract_document_target_hwnd(document: dict[str, Any]) -> str | None:
+    target_hwnd = normalize_hwnd(
+        str(get_mapping_value(document, "targetWindowHandle", "TargetWindowHandle", "target_window_handle") or "")
+    )
+    if target_hwnd:
+        return target_hwnd
+    target = get_mapping_value(document, "target", "Target")
+    if isinstance(target, dict):
+        return normalize_hwnd(
+            str(get_mapping_value(target, "targetWindowHandle", "TargetWindowHandle", "hwnd", "Hwnd", "hwndHex") or "")
+        )
+    return None
+
+
+def extract_ranked_candidate_records(document: dict[str, Any]) -> list[dict[str, Any]]:
+    address_rankings = get_mapping_value(document, "addressRankings", "AddressRankings")
+    if not isinstance(address_rankings, list):
+        return []
+    process_id = extract_document_process_id(document)
+    target_hwnd = extract_document_target_hwnd(document)
+    source_kind = get_mapping_value(document, "mode", "Mode", "kind", "Kind") or "coordinate-family-ranking"
+    records: list[dict[str, Any]] = []
+    for index, ranking in enumerate(address_rankings, start=1):
+        if not isinstance(ranking, dict):
+            continue
+        record = extract_candidate_record(ranking)
+        if not record.get("address"):
+            record["address"] = get_mapping_value(ranking, "addressHex", "AddressHex")
+        record["candidateId"] = record.get("candidateId") or f"ranked-address-{index:06d}"
+        record["axisOrder"] = record.get("axisOrder") or "xyz"
+        record["processId"] = record.get("processId") if record.get("processId") is not None else process_id
+        record["targetWindowHandle"] = record.get("targetWindowHandle") or target_hwnd
+        record["sourceKind"] = source_kind
+        record["supportPoseCount"] = get_mapping_value(ranking, "supportPoseCount", "SupportPoseCount")
+        record["candidateOnly"] = get_mapping_value(ranking, "candidateOnly", "CandidateOnly")
+        records.append(record)
+    return records
+
+
 def extract_candidate_records(document: dict[str, Any]) -> list[dict[str, Any]]:
     candidates = get_mapping_value(document, "candidates", "Candidates")
     if isinstance(candidates, list):
         return [extract_candidate_record(candidate) for candidate in candidates if isinstance(candidate, dict)]
+    ranked_candidates = extract_ranked_candidate_records(document)
+    if ranked_candidates:
+        return ranked_candidates
     return [extract_candidate_record(document)]
 
 
@@ -475,12 +527,8 @@ def candidate_file_matches_target(
     if target_pid is None or not target_hwnd_normalized:
         return False
 
-    document_process_id = to_int_or_none(
-        get_mapping_value(document, "processId", "ProcessId", "process_id")
-    )
-    document_target_hwnd = normalize_hwnd(
-        str(get_mapping_value(document, "targetWindowHandle", "TargetWindowHandle", "target_window_handle") or "")
-    )
+    document_process_id = extract_document_process_id(document)
+    document_target_hwnd = extract_document_target_hwnd(document)
     if document_process_id is not None and document_process_id != int(target_pid):
         return False
     if document_target_hwnd and document_target_hwnd != target_hwnd_normalized:
@@ -516,29 +564,34 @@ def find_latest_candidate_file(
         return None, blockers, warnings
 
     candidates: list[tuple[datetime, float, str, Path]] = []
-    for path in capture_root.rglob("api-family-vec3-candidates.json"):
-        try:
-            document = read_json_file(path)
-        except Exception as exc:
-            warnings.append(f"candidate-file-latest-skip-read-failed:{path}:{type(exc).__name__}")
-            continue
-        if not isinstance(document, dict):
-            warnings.append(f"candidate-file-latest-skip-non-object:{path}")
-            continue
-        if not candidate_file_matches_target(document, target_pid=target_pid, target_hwnd=target_hwnd):
-            continue
-        generated_at = parse_utc_sort_time(
-            get_mapping_value(document, "generatedAtUtc", "GeneratedAtUtc", "generated_at_utc"),
-            path,
-        )
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            mtime = 0.0
-        candidates.append((generated_at, mtime, str(path), path))
+    for pattern in ("coordinate-family-rankings.json", "api-family-vec3-candidates.json"):
+        for path in capture_root.rglob(pattern):
+            try:
+                document = read_json_file(path)
+            except Exception as exc:
+                warnings.append(f"candidate-file-latest-skip-read-failed:{path}:{type(exc).__name__}")
+                continue
+            if not isinstance(document, dict):
+                warnings.append(f"candidate-file-latest-skip-non-object:{path}")
+                continue
+            if not candidate_file_matches_target(document, target_pid=target_pid, target_hwnd=target_hwnd):
+                continue
+            generated_at = parse_utc_sort_time(
+                get_mapping_value(document, "generatedAtUtc", "GeneratedAtUtc", "generated_at_utc"),
+                path,
+            )
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            candidates.append((generated_at, mtime, str(path), path))
 
     if not candidates:
-        blockers.append(f"candidate-file-latest-not-found:{capture_root / '**' / 'api-family-vec3-candidates.json'}")
+        blockers.append(
+            "candidate-file-latest-not-found:"
+            f"{capture_root / '**' / 'coordinate-family-rankings.json'};"
+            f"{capture_root / '**' / 'api-family-vec3-candidates.json'}"
+        )
         return None, blockers, warnings
 
     candidates.sort()

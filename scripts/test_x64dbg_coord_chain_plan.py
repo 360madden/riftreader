@@ -1244,6 +1244,73 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidate"]["axisOrder"], "xyz")
             self.assertEqual(summary["candidateFile"]["sourceKind"], "riftreader.api_family_vec3_candidate.v1")
 
+    def test_candidate_file_accepts_coordinate_family_ranking_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            ranking_file = temp_path / "coordinate-family-rankings.json"
+            ranking_file.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "riftreader-coordinate-family-pose-ranking",
+                        "status": "ranked",
+                        "generatedAtUtc": "2026-05-13T03:37:36Z",
+                        "target": {"processId": 79184, "targetWindowHandle": "0xA90BFC"},
+                        "addressRankings": [
+                            {
+                                "addressHex": "0x1738127A5A4",
+                                "familyBaseHex": "0x17381270000",
+                                "offsetHex": "0xA5A4",
+                                "supportPoseCount": 2,
+                                "candidateOnly": True,
+                            },
+                            {
+                                "addressHex": "0x17382765E40",
+                                "familyBaseHex": "0x17382730000",
+                                "offsetHex": "0x35E40",
+                                "supportPoseCount": 1,
+                                "candidateOnly": True,
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--candidate-file",
+                        str(ranking_file),
+                        "--candidate-id",
+                        "best",
+                        "--target-pid",
+                        "79184",
+                        "--target-hwnd",
+                        "0xA90BFC",
+                        "--process-start-time-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T01:00:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "ranked-address-000001")
+            self.assertEqual(summary["candidate"]["address"], "0x1738127A5A4")
+            self.assertEqual(summary["candidate"]["axisOrder"], "xyz")
+            self.assertEqual(summary["candidateFile"]["sourceKind"], "riftreader-coordinate-family-pose-ranking")
+
     def test_latest_candidate_file_uses_newest_same_target_with_best_alias(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)
@@ -1366,6 +1433,91 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidateFile"]["requestedFile"], "latest")
             self.assertEqual(summary["candidateFile"]["resolvedFromAlias"], "latest")
             self.assertEqual(summary["candidateFile"]["path"], str(latest_candidate_file))
+
+    def test_latest_candidate_file_prefers_newest_same_target_ranking_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            self.write_preflight_summary(preflight, pid=79184, hwnd="0xA90BFC")
+            self.write_api_reference(api_file, pid=79184, hwnd="0xA90BFC")
+            scan_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "family-scan-currentpid-79184-new"
+                / "api-family-vec3-candidates.json"
+            )
+            ranking_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "coordinate-family-rank-new"
+                / "coordinate-family-rankings.json"
+            )
+            self.write_candidate_file(
+                scan_file,
+                {
+                    "schemaVersion": 1,
+                    "mode": "riftreader-api-family-vec3-candidates",
+                    "generatedAtUtc": "2026-05-13T03:30:27Z",
+                    "processId": 79184,
+                    "targetWindowHandle": "0xA90BFC",
+                    "candidates": [
+                        {
+                            "candidate_id": "api-family-single-pose",
+                            "absolute_address_hex": "0x17383632BF0",
+                            "process_id": 79184,
+                            "target_window_handle": "0xA90BFC",
+                        }
+                    ],
+                },
+            )
+            ranking_file.parent.mkdir(parents=True, exist_ok=True)
+            ranking_file.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "riftreader-coordinate-family-pose-ranking",
+                        "status": "ranked",
+                        "generatedAtUtc": "2026-05-13T03:37:36Z",
+                        "target": {"processId": 79184, "targetWindowHandle": "0xA90BFC"},
+                        "addressRankings": [
+                            {
+                                "addressHex": "0x1738127A5A4",
+                                "supportPoseCount": 2,
+                                "candidateOnly": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-file",
+                        "latest",
+                        "--candidate-id",
+                        "best",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["address"], "0x1738127A5A4")
+            self.assertEqual(summary["candidateFile"]["path"], str(ranking_file))
+            self.assertEqual(summary["candidateFile"]["sourceKind"], "riftreader-coordinate-family-pose-ranking")
 
     def test_candidate_file_address_mismatch_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
