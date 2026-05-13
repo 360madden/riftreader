@@ -1,6 +1,6 @@
 # Live Testing GUI Operator Guide
 
-_Last updated: May 7, 2026 14:15 EDT._
+_Last updated: May 13, 2026 13:27 EDT._
 
 ## Purpose
 
@@ -18,6 +18,7 @@ touch Cheat Engine.
 | Preview target-blocked HUD offline | `cmd\live-gui-demo.cmd --demo-scenario blocked` |
 | Preview reference-capture-blocked HUD offline | `cmd\live-gui-demo.cmd --demo-scenario blocked-reference` |
 | Preview proof-blocked HUD offline | `cmd\live-gui-demo.cmd --demo-scenario blocked-proof` |
+| Smoke-render HUD without showing a window | `python scripts\live_test_gui.py --demo --smoke-render --compact-json` |
 | Open latest run HUD | `cmd\live-gui-latest.cmd` |
 | Inspect latest run without opening a window | `cmd\live-gui-inspect-latest.cmd` |
 | Strict latest inspect gate | `cmd\live-gui-inspect-latest.cmd --fail-on-warning` |
@@ -30,6 +31,46 @@ touch Cheat Engine.
 | Explicit run-success gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning --require-ok-run` |
 | Compact strict gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning --compact-json` |
 | Human-readable strict gate | `python scripts\live_test_gui.py --inspect-progress --progress-file <run-progress.json> --fail-on-warning --summary` |
+
+## HUD controls and status lights
+
+The visible HUD remains information-only. The **Refresh** button rereads the
+local `run-progress.json` immediately; it does not rerun proof, rescan memory,
+send input, attach x64dbg, touch Cheat Engine, or modify provider repos.
+
+The **Copy run**, **Copy progress**, and **Copy summary** buttons copy artifact
+paths to the clipboard only. They do not open files or execute commands.
+
+| Light | Green | Amber | Red | Gray |
+|---|---|---|---|---|
+| `Progress` | Artifact is readable and completed/healthy. | Run is active, warning, or blocked but readable. | Running artifact is stale or failed. | No usable progress yet. |
+| `Contract` | Progress JSON contract is valid. | Contract has warnings only. | Contract has hard errors. | Contract unavailable. |
+| `Epoch` | This run refreshed the proof pointer or has no stale-epoch warning. | Pointer status needs review or the run is still pending. | Target/proof pointer mismatch, target drift, or stale epoch issue. | Not used. |
+| `Target` | Target verification passed. | Target gate has not produced a final pass/fail. | Target verification failed. | No target data. |
+| `Proof` | Proof or post-readback is passed. | Proof is pending/running. | Proof/run status is blocked or failed. | No proof data. |
+| `Input` | Movement/input was sent by the recorded run. | Not used. | Input failed/no movement/partial stop. | No input sent. |
+| `Recorder` | Coordinate recordings exist. | Not used. | Not used. | Recorder idle. |
+| `Safety` | No CE and no SavedVariables live truth. | Not used. | Safety invariant failed/unknown. | Not used. |
+
+The **Current Target / Providers** panel summarizes the active PID/HWND, proof
+epoch status, API/ChromaLink freshness if the run recorded it, RiftScan strategy
+gate status if present, and copyable artifact paths. Missing provider data is
+displayed as `not recorded`; that is not a pass.
+
+## Ranked HUD improvement checklist
+
+| # | Improvement | Current status |
+|---:|---|---|
+| 1 | Safe Refresh button | Complete |
+| 2 | Progress + Contract lights | Complete |
+| 3 | Last-refresh timestamp/result | Complete |
+| 4 | Documented light meanings | Complete |
+| 5 | Current Target panel | Complete |
+| 6 | ChromaLink/API-now panel | Complete when run payload includes provider data; otherwise reports `not recorded` |
+| 7 | RiftScan strategy-gate panel | Complete when run payload includes review data; otherwise reports `not recorded` |
+| 8 | Copy-path buttons | Complete |
+| 9 | Stale process/proof epoch warning | Complete |
+| 10 | Headless smoke-render path | Complete |
 
 ## Inspect output
 

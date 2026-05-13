@@ -26,6 +26,7 @@ from rift_live_test.gui import (
     format_issues,
     format_latest_state,
     format_progress_age,
+    format_progress_contract,
     format_proof_budget,
     format_recorder,
     format_run_health,
@@ -34,13 +35,20 @@ from rift_live_test.gui import (
     format_summary_file,
     format_inspect_json,
     format_inspect_summary,
+    format_api_status,
+    format_copy_paths,
+    format_current_target,
+    format_epoch_warning,
+    format_proof_epoch,
     inspect_latest_progress,
     inspect_progress_file,
+    indicator_light_states,
     issue_severity,
     main as gui_main,
     progress_health,
     profile_gui_poll_milliseconds,
     resolve_progress_file_arg,
+    format_riftscan_status,
     validate_progress_contract,
     resolve_latest_run,
     start_progress_gui,
@@ -159,6 +167,78 @@ class LiveTestOrchestratorTests(unittest.TestCase):
         self.assertIn("anchor≤60s", format_proof_budget(payload["runGates"]))
         self.assertIn("no CE", format_safety(payload))
         self.assertIn("pending", format_summary_file(payload))
+        self.assertEqual(
+            format_progress_contract(payload, Path("C:/demo/run/run-progress.json")),
+            "valid",
+        )
+        lights = indicator_light_states(payload, progress_file=Path("C:/demo/run/run-progress.json"))
+        self.assertEqual(lights["progress"], "bad")
+        self.assertEqual(lights["contract"], "ok")
+        self.assertEqual(lights["epoch"], "warn")
+        self.assertEqual(lights["safety"], "ok")
+        self.assertIn("pid=47560", format_current_target(payload))
+        self.assertIn("pending", format_epoch_warning(payload))
+        self.assertIn("candidate", format_proof_epoch(payload))
+        self.assertIn("chromalink-riftreader-world-state", format_api_status(payload))
+        self.assertIn("allow-read-only-proof", format_riftscan_status(payload))
+        self.assertIn(
+            "run=",
+            format_copy_paths(
+                payload,
+                run_dir=Path("C:/demo/run"),
+                progress_file=Path("C:/demo/run/run-progress.json"),
+            ),
+        )
+        proof_running_payload = json.loads(json.dumps(payload))
+        for state in proof_running_payload["states"]:
+            if state.get("state") == "proof-refresh":
+                state["status"] = "running"
+        self.assertEqual(
+            indicator_light_states(
+                proof_running_payload,
+                progress_file=Path("C:/demo/run/run-progress.json"),
+            )["proof"],
+            "warn",
+        )
+        proof_failed_payload = json.loads(json.dumps(payload))
+        for state in proof_failed_payload["states"]:
+            if state.get("state") == "proof-refresh":
+                state["status"] = "failed"
+        self.assertEqual(
+            indicator_light_states(
+                proof_failed_payload,
+                progress_file=Path("C:/demo/run/run-progress.json"),
+            )["proof"],
+            "bad",
+        )
+        self.assertEqual(
+            format_riftscan_status({"runGates": {"candidateIdSource": "current-proof-pointer"}}),
+            "not recorded",
+        )
+        self.assertIn(
+            "coordinate invalid",
+            format_api_status(
+                {
+                    "apiReference": {
+                        "source": "chromalink-riftreader-world-state",
+                        "status": "fresh",
+                        "coordinate": {"x": "not-a-number", "y": 2.0, "z": 3.0},
+                    }
+                }
+            ),
+        )
+        passed_payload = demo_progress_payload(
+            run_dir=Path("C:/demo/run"),
+            progress_file=Path("C:/demo/run/run-progress.json"),
+            scenario="passed",
+        )
+        self.assertEqual(
+            indicator_light_states(
+                passed_payload,
+                progress_file=Path("C:/demo/run/run-progress.json"),
+            )["epoch"],
+            "ok",
+        )
         health = progress_health(payload, now=datetime_from_text("2026-05-07T17:05:01Z"))
         self.assertEqual(health["state"], "running")
         self.assertEqual(health["latestChildStatus"], "completed")
@@ -441,6 +521,31 @@ class LiveTestOrchestratorTests(unittest.TestCase):
             payload = json.loads(progress.read_text(encoding="utf-8"))
             self.assertEqual(payload["profileName"], "DemoProfile")
             self.assertEqual(payload["status"], "blocked-target-mismatch")
+
+    def test_gui_demo_cli_can_smoke_render_without_mainloop(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            out = io.StringIO()
+            with patch(
+                "rift_live_test.gui.smoke_render_hud",
+                return_value={
+                    "status": "smoke-render-passed",
+                    "ok": True,
+                    "progressFile": str(Path(temp) / "run-progress.json"),
+                },
+            ) as smoke, contextlib.redirect_stdout(out):
+                code = gui_main(
+                    [
+                        "--demo",
+                        "--demo-output-root",
+                        temp,
+                        "--smoke-render",
+                        "--compact-json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            smoke.assert_called_once()
+            self.assertEqual(json.loads(out.getvalue())["status"], "smoke-render-passed")
 
     def test_gui_demo_payload_uses_requested_paths(self) -> None:
         run_dir = Path("C:/demo/run")

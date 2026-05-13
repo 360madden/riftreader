@@ -141,6 +141,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="With --demo, write the demo progress file and exit without opening a window.",
     )
     parser.add_argument(
+        "--smoke-render",
+        action="store_true",
+        help="Build the HUD, render one local progress refresh, then exit without showing the window.",
+    )
+    parser.add_argument(
         "--inspect-progress",
         action="store_true",
         help="Read progress JSON, print compact health JSON, and exit without opening a window.",
@@ -183,8 +188,8 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().error("--fail-on-warning requires --inspect-progress")
     if args.require_ok_run and not args.inspect_progress:
         build_parser().error("--require-ok-run requires --inspect-progress")
-    if args.compact_json and not args.inspect_progress:
-        build_parser().error("--compact-json requires --inspect-progress")
+    if args.compact_json and not (args.inspect_progress or args.smoke_render):
+        build_parser().error("--compact-json requires --inspect-progress or --smoke-render")
     if args.summary and not args.inspect_progress:
         build_parser().error("--summary requires --inspect-progress")
     if args.summary and args.compact_json:
@@ -258,6 +263,17 @@ def main(argv: list[str] | None = None) -> int:
             build_parser().error(f"{', '.join(missing)} required unless --demo is used")
         run_dir = Path(str(args.run_directory)) if args.run_directory else progress_file.parent
         profile_name = str(args.profile_name or "InspectProgress")
+
+    if args.smoke_render:
+        result = smoke_render_hud(
+            progress_file=progress_file,
+            run_dir=run_dir,
+            profile_name=profile_name,
+            poll_ms=max(250, int(args.poll_ms)),
+            always_on_top=bool(args.always_on_top),
+        )
+        print(format_inspect_json(result, compact=bool(args.compact_json)))
+        return 0 if result.get("ok") else 1
 
     if args.inspect_progress:
         stale_after_seconds = max(1, int(args.stale_after_seconds))
@@ -785,6 +801,11 @@ def demo_progress_payload(
         "live": True,
         "processId": 47560,
         "targetWindowHandle": "0x2122E",
+        "targetControl": {
+            "status": "passed-target-control",
+            "classification": "exact-hwnd-foreground",
+            "ok": True,
+        },
         "movementSent": True,
         "movementAttempted": True,
         "currentCoordinate": {
@@ -843,6 +864,8 @@ def demo_progress_payload(
             "requireExactTarget": True,
             "requireLiveFlagForInput": True,
             "proofAnchorFile": str(run_dir / "telemetry-proof-coord-anchor.json"),
+            "candidateId": "demo-candidate-000001",
+            "candidateIdSource": "current-proof-pointer",
             "proofAnchorMaxAgeSeconds": 60,
             "minimumPostReadbackAgeBudgetSeconds": 20,
             "referenceMaxAgeSeconds": 180,
@@ -854,6 +877,22 @@ def demo_progress_payload(
         "noCheatEngine": True,
         "savedVariablesUsedAsLiveTruth": False,
         "finalSummaryWritten": False,
+        "apiReference": {
+            "source": "chromalink-riftreader-world-state",
+            "status": "fresh",
+            "fresh": True,
+            "stale": False,
+            "coordinate": {
+                "x": 7437.5146484375,
+                "y": 885.2191772460938,
+                "z": 3055.517822265625,
+            },
+        },
+        "riftscanMilestoneReview": {
+            "status": "ready",
+            "strategy": {"decision": "allow-read-only-proof"},
+            "selectedCandidate": {"source": "current-proof-pointer"},
+        },
         "coordinateRecordings": [
             {
                 "pulseIndex": 1,
@@ -872,6 +911,10 @@ def demo_progress_payload(
     if scenario == "passed":
         payload["status"] = "passed"
         payload["finalSummaryWritten"] = True
+        payload["currentProofPointerUpdate"] = {
+            "updated": True,
+            "path": str(run_dir / "current-proof-anchor-readback.json"),
+        }
     elif scenario == "blocked":
         payload.update(
             {
@@ -1027,6 +1070,67 @@ def run_progress_hud(
     app.run()
 
 
+def smoke_render_hud(
+    *,
+    progress_file: Path,
+    run_dir: Path,
+    profile_name: str,
+    poll_ms: int,
+    always_on_top: bool,
+) -> dict[str, Any]:
+    # Import lazily so ordinary inspect/help paths do not require a GUI subsystem.
+    try:
+        import tkinter as tk
+        from tkinter import font as tkfont
+    except Exception as exc:  # noqa: BLE001 - smoke should report missing GUI dependencies.
+        return {
+            "status": "smoke-render-unavailable",
+            "ok": False,
+            "error": f"{type(exc).__name__}:{exc}",
+            "progressFile": str(progress_file),
+            "runDirectory": str(run_dir),
+        }
+
+    root: Any | None = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        app = ProgressHud(
+            root=root,
+            progress_file=progress_file,
+            run_dir=run_dir,
+            profile_name=profile_name,
+            poll_ms=poll_ms,
+            always_on_top=always_on_top,
+            tkfont=tkfont,
+        )
+        app._manual_refresh()
+        root.update_idletasks()
+        payload = app._last_payload
+        return {
+            "status": "smoke-render-passed" if payload else "smoke-render-waiting",
+            "ok": payload is not None,
+            "progressFile": str(progress_file),
+            "runDirectory": str(run_dir),
+            "profileName": profile_name,
+            "lastRefresh": app._last_refresh_message,
+            "runStatus": payload.get("status") if isinstance(payload, dict) else None,
+            "indicatorLights": indicator_light_states(payload or {}, progress_file=progress_file),
+        }
+    except Exception as exc:  # noqa: BLE001 - return structured smoke result.
+        return {
+            "status": "smoke-render-failed",
+            "ok": False,
+            "error": f"{type(exc).__name__}:{exc}",
+            "progressFile": str(progress_file),
+            "runDirectory": str(run_dir),
+            "profileName": profile_name,
+        }
+    finally:
+        if root is not None:
+            root.destroy()
+
+
 class ProgressHud:
     def __init__(
         self,
@@ -1049,6 +1153,7 @@ class ProgressHud:
         self._lights: dict[str, Any] = {}
         self._labels: dict[str, Any] = {}
         self._last_payload: dict[str, Any] | None = None
+        self._last_refresh_message = "not refreshed yet"
 
         self._build()
 
@@ -1060,8 +1165,8 @@ class ProgressHud:
         import tkinter as tk
 
         self.root.title(f"RiftReader HUD - {self.profile_name}")
-        self.root.geometry("580x840")
-        self.root.minsize(520, 700)
+        self.root.geometry("640x960")
+        self.root.minsize(560, 760)
         self.root.configure(bg=PALETTE["bg"])
         if self.always_on_top:
             self.root.attributes("-topmost", True)
@@ -1100,11 +1205,63 @@ class ProgressHud:
             anchor="w",
         )
         self._labels["subtitle"].pack(fill="x")
+        control_area = tk.Frame(header, bg=PALETTE["bg"])
+        control_area.pack(side="right", padx=(10, 0))
+        tk.Button(
+            control_area,
+            text="Refresh",
+            command=self._manual_refresh,
+            bg=PALETTE["card"],
+            fg=PALETTE["text"],
+            activebackground=PALETTE["card_2"],
+            activeforeground=PALETTE["text"],
+            relief="flat",
+            padx=10,
+            pady=4,
+            font=label_font,
+        ).pack(anchor="e")
+        copy_row = tk.Frame(control_area, bg=PALETTE["bg"])
+        copy_row.pack(anchor="e", pady=(6, 0))
+        for label, key in (("Copy run", "run"), ("Copy progress", "progress"), ("Copy summary", "summary")):
+            tk.Button(
+                copy_row,
+                text=label,
+                command=lambda copy_key=key: self._copy_path(copy_key),
+                bg=PALETTE["card"],
+                fg=PALETTE["text"],
+                activebackground=PALETTE["card_2"],
+                activeforeground=PALETTE["text"],
+                relief="flat",
+                padx=6,
+                pady=2,
+                font=sub_font,
+            ).pack(side="left", padx=(0, 4))
+        self._labels["refresh"] = tk.Label(
+            control_area,
+            text="local JSON only",
+            fg=PALETTE["muted"],
+            bg=PALETTE["bg"],
+            font=sub_font,
+            anchor="e",
+        )
+        self._labels["refresh"].pack(anchor="e", pady=(4, 0))
+        self._labels["copy"] = tk.Label(
+            control_area,
+            text="copy paths ready",
+            fg=PALETTE["muted"],
+            bg=PALETTE["bg"],
+            font=sub_font,
+            anchor="e",
+        )
+        self._labels["copy"].pack(anchor="e", pady=(2, 0))
 
         self._section(
             outer,
             "Indicators",
             [
+                ("progress", "Progress"),
+                ("contract", "Contract"),
+                ("epoch", "Epoch"),
                 ("target", "Target"),
                 ("proof", "Proof"),
                 ("input", "Input"),
@@ -1125,6 +1282,8 @@ class ProgressHud:
                 ("progress", "Progress"),
                 ("updated", "Updated"),
                 ("progress_age", "Progress age"),
+                ("contract", "Contract"),
+                ("last_refresh", "Last refresh"),
                 ("elapsed", "Elapsed"),
                 ("latest", "Latest"),
                 ("child", "Child"),
@@ -1140,6 +1299,21 @@ class ProgressHud:
                 ("recorder", "Recorder"),
                 ("recorder_file", "Samples"),
                 ("summary", "Summary"),
+            ],
+            label_font=label_font,
+            value_font=value_font,
+        )
+
+        self._info_grid(
+            outer,
+            "Current Target / Providers",
+            [
+                ("target_detail", "Target"),
+                ("proof_epoch", "Proof epoch"),
+                ("epoch_warning", "Epoch warning"),
+                ("api_status", "API / ChromaLink"),
+                ("riftscan_status", "RiftScan"),
+                ("copy_paths", "Copy paths"),
             ],
             label_font=label_font,
             value_font=value_font,
@@ -1179,7 +1353,7 @@ class ProgressHud:
 
         footer = tk.Label(
             outer,
-            text="Info-only HUD: reads run-progress.json; no controls, no input, no CE.",
+            text="Info-only HUD: Refresh rereads local run-progress.json only; no input, no CE, no orchestrator actions.",
             fg=PALETTE["muted"],
             bg=PALETTE["bg"],
             font=sub_font,
@@ -1193,6 +1367,7 @@ class ProgressHud:
         menu = tk.Menu(self.root, tearoff=False, bg=PALETTE["card"], fg=PALETTE["text"])
         options = tk.Menu(menu, tearoff=False, bg=PALETTE["card"], fg=PALETTE["text"])
         options.add_command(label="Information-only mode: On", state="disabled")
+        options.add_command(label="Refresh button: local JSON reread only", state="disabled")
         options.add_command(label="Orchestrator controls: Locked", state="disabled")
         options.add_command(
             label=f"Always on top: {'On' if self.always_on_top else 'Off'}",
@@ -1300,13 +1475,39 @@ class ProgressHud:
         return canvas
 
     def _poll(self) -> None:
+        self._refresh_from_disk(manual=False)
+        self.root.after(self.poll_ms, self._poll)
+
+    def _manual_refresh(self) -> None:
+        self._refresh_from_disk(manual=True)
+
+    def _copy_path(self, key: str) -> None:
+        value = hud_copy_path_value(
+            self._last_payload or {},
+            key,
+            run_dir=self.run_dir,
+            progress_file=self.progress_file,
+        )
+        if not value:
+            self._labels["copy"].configure(text=f"{key}: unavailable")
+            return
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(value)
+            self._labels["copy"].configure(text=f"copied {key}")
+        except Exception as exc:  # noqa: BLE001 - clipboard failure should not break HUD.
+            self._labels["copy"].configure(text=f"copy failed: {type(exc).__name__}")
+
+    def _refresh_from_disk(self, *, manual: bool) -> None:
         payload = self._read_payload()
+        mode = "manual" if manual else "auto"
         if payload:
             self._last_payload = payload
+            self._last_refresh_message = f"{mode} {short_time(datetime.now(timezone.utc).isoformat())} • ok"
             self._render(payload)
         else:
+            self._last_refresh_message = f"{mode} {short_time(datetime.now(timezone.utc).isoformat())} • waiting"
             self._render_waiting()
-        self.root.after(self.poll_ms, self._poll)
 
     def _read_payload(self) -> dict[str, Any] | None:
         if not self.progress_file.exists():
@@ -1320,7 +1521,21 @@ class ProgressHud:
 
     def _render_waiting(self) -> None:
         self._set_light("status", "warn")
+        for key in ("progress", "contract", "epoch", "target", "proof", "input", "recorder", "safety"):
+            self._set_light(key, "idle" if key != "progress" else "warn")
         self._labels["subtitle"].configure(text=f"{self.profile_name} • waiting for progress file")
+        self._labels["refresh"].configure(text=self._last_refresh_message)
+        self._set_text("last_refresh", self._last_refresh_message)
+        self._set_text("progress", shorten_path(self.progress_file))
+        self._set_text("status", "waiting for progress")
+        self._set_text("health", "waiting")
+        self._set_text("contract", "unavailable")
+        self._set_text("target_detail", "waiting for progress")
+        self._set_text("proof_epoch", "waiting for progress")
+        self._set_text("epoch_warning", "waiting for progress")
+        self._set_text("api_status", "waiting for progress")
+        self._set_text("riftscan_status", "waiting for progress")
+        self._set_text("copy_paths", format_copy_paths({}, run_dir=self.run_dir, progress_file=self.progress_file))
 
     def _render(self, payload: dict[str, Any]) -> None:
         status = str(payload.get("status") or "running")
@@ -1336,6 +1551,9 @@ class ProgressHud:
         self._set_text("progress", shorten_path(payload.get("runProgressFile") or self.progress_file))
         self._set_text("updated", short_time(payload.get("updatedAtUtc") or payload.get("generatedAtUtc")))
         self._set_text("progress_age", format_progress_age(payload))
+        self._set_text("contract", format_progress_contract(payload, self.progress_file))
+        self._set_text("last_refresh", self._last_refresh_message)
+        self._labels["refresh"].configure(text=self._last_refresh_message)
         self._set_text("elapsed", format_elapsed(payload))
         self._set_text("latest", format_latest_state(payload.get("states")))
         self._set_text("child", format_child_command(payload.get("latestChildCommand")))
@@ -1354,47 +1572,18 @@ class ProgressHud:
         self._set_text("recorder", format_recorder(payload.get("coordinateRecordings")))
         self._set_text("recorder_file", shorten_path(payload.get("coordinateSamplesFile")))
         self._set_text("summary", format_summary_file(payload))
+        self._set_text("target_detail", format_current_target(payload))
+        self._set_text("proof_epoch", format_proof_epoch(payload))
+        self._set_text("epoch_warning", format_epoch_warning(payload))
+        self._set_text("api_status", format_api_status(payload))
+        self._set_text("riftscan_status", format_riftscan_status(payload))
+        self._set_text("copy_paths", format_copy_paths(payload, run_dir=self.run_dir, progress_file=self.progress_file))
         self._set_text_block("issues", format_issues(payload.get("issues")))
         self._set_text_block("states", format_states(payload.get("states")))
 
     def _set_indicator_lights(self, payload: dict[str, Any]) -> None:
-        states = payload.get("states") if isinstance(payload.get("states"), list) else []
-        state_status = {str(item.get("state")): str(item.get("status")) for item in states if isinstance(item, dict)}
-        status = str(payload.get("status") or "")
-        status_light = status_color(status)
-
-        target_status = state_status.get("verify-target")
-        self._set_light(
-            "target",
-            "ok"
-            if target_status == "passed"
-            else "bad"
-            if target_status and status_color(target_status) == "bad"
-            else "warn",
-        )
-        self._set_light(
-            "proof",
-            status_light
-            if status_light in {"ok", "bad"}
-            else "ok"
-            if any(name in state_status for name in ("proof-refresh", "post-readback"))
-            else "warn",
-        )
-        self._set_light(
-            "input",
-            "ok"
-            if payload.get("movementSent")
-            else "bad"
-            if status in {"input-failed", "input-no-movement", "partial-series-stopped"}
-            else "idle",
-        )
-        self._set_light("recorder", "ok" if payload.get("coordinateRecordings") else "idle")
-        self._set_light(
-            "safety",
-            "ok"
-            if payload.get("noCheatEngine") and not payload.get("savedVariablesUsedAsLiveTruth")
-            else "bad",
-        )
+        for key, color in indicator_light_states(payload, progress_file=self.progress_file).items():
+            self._set_light(key, color)
 
     def _set_text(self, key: str, value: str) -> None:
         self._labels[key].configure(text=value or "—")
@@ -1411,6 +1600,280 @@ class ProgressHud:
         if not canvas:
             return
         canvas.itemconfig(1, fill=PALETTE.get(color_key, PALETTE["idle"]))
+
+
+def indicator_light_states(
+    payload: dict[str, Any],
+    *,
+    progress_file: Path | None = None,
+) -> dict[str, str]:
+    states = payload.get("states") if isinstance(payload.get("states"), list) else []
+    state_status = {str(item.get("state")): str(item.get("status")) for item in states if isinstance(item, dict)}
+    status = str(payload.get("status") or "")
+    status_light = status_color(status)
+    health = progress_health(payload)
+    contract = progress_contract(payload, progress_file)
+
+    target_status = state_status.get("verify-target")
+    progress_state = str(health.get("state") or "unknown")
+    contract_status = str(contract.get("status") or "unknown")
+    proof_statuses = [
+        str(state_status[name])
+        for name in ("proof-refresh", "post-readback")
+        if state_status.get(name)
+    ]
+    proof_light = "warn"
+    if status_light in {"ok", "bad"}:
+        proof_light = status_light
+    elif any(status_color(proof_status) == "bad" for proof_status in proof_statuses):
+        proof_light = "bad"
+    elif any(status_color(proof_status) == "ok" for proof_status in proof_statuses):
+        proof_light = "ok"
+    elif proof_statuses:
+        proof_light = "warn"
+
+    return {
+        "progress": (
+            "bad"
+            if progress_state in {"stale", "failed"}
+            else "warn"
+            if progress_state in {"running", "warning", "blocked"}
+            else "ok"
+            if progress_state == "ok"
+            else "idle"
+        ),
+        "contract": (
+            "ok"
+            if contract_status == "valid"
+            else "warn"
+            if contract_status == "warning"
+            else "bad"
+            if contract_status == "invalid"
+            else "idle"
+        ),
+        "epoch": (
+            "bad"
+            if epoch_warning_severity(payload) == "bad"
+            else "warn"
+            if epoch_warning_severity(payload) == "warn"
+            else "ok"
+        ),
+        "target": (
+            "ok"
+            if target_status == "passed"
+            else "bad"
+            if target_status and status_color(target_status) == "bad"
+            else "warn"
+        ),
+        "proof": proof_light,
+        "input": (
+            "ok"
+            if payload.get("movementSent")
+            else "bad"
+            if status in {"input-failed", "input-no-movement", "partial-series-stopped"}
+            else "idle"
+        ),
+        "recorder": "ok" if payload.get("coordinateRecordings") else "idle",
+        "safety": (
+            "ok"
+            if payload.get("noCheatEngine") and not payload.get("savedVariablesUsedAsLiveTruth")
+            else "bad"
+        ),
+    }
+
+
+def epoch_warning_severity(payload: dict[str, Any]) -> str:
+    warning = format_epoch_warning(payload).lower()
+    if warning.startswith("blocked") or warning.startswith("stale") or "mismatch" in warning:
+        return "bad"
+    if warning.startswith("pending") or warning.startswith("review") or warning.startswith("unknown"):
+        return "warn"
+    return "ok"
+
+
+def progress_contract(payload: dict[str, Any], progress_file: Path | None = None) -> dict[str, Any]:
+    fallback_dir = progress_file.parent if progress_file else Path.cwd()
+    run_summary_file_exists = path_exists_with_fallback(payload.get("runSummaryFile"), fallback_dir)
+    return validate_progress_contract(
+        payload,
+        run_summary_file_exists=run_summary_file_exists,
+    )
+
+
+def format_progress_contract(payload: dict[str, Any], progress_file: Path | None = None) -> str:
+    contract = progress_contract(payload, progress_file)
+    status = contract.get("status") or "unknown"
+    error_count = contract.get("errorCount", 0)
+    warning_count = contract.get("warningCount", 0)
+    if error_count or warning_count:
+        return f"{status} • errors={error_count} warnings={warning_count}"
+    return str(status)
+
+
+def format_current_target(payload: dict[str, Any]) -> str:
+    pid = payload.get("processId")
+    hwnd = payload.get("targetWindowHandle")
+    process_name = payload.get("processName") or "rift_x64"
+    parts = [f"{process_name} pid={pid or '—'} hwnd={hwnd or '—'}"]
+    target_control = payload.get("targetControl") if isinstance(payload.get("targetControl"), dict) else {}
+    if target_control:
+        status = target_control.get("status")
+        classification = target_control.get("classification")
+        if status:
+            parts.append(str(status))
+        if classification:
+            parts.append(str(classification))
+    return " • ".join(parts)
+
+
+def format_proof_epoch(payload: dict[str, Any]) -> str:
+    update = (
+        payload.get("currentProofPointerUpdate")
+        if isinstance(payload.get("currentProofPointerUpdate"), dict)
+        else {}
+    )
+    if update.get("updated") is True:
+        path = shorten_path(update.get("path"))
+        return f"updated by this run • {path}"
+    if update.get("updated") is False:
+        reason = update.get("reason") or update.get("skipReason") or "not updated"
+        return f"not updated • {reason}"
+    gates = payload.get("runGates") if isinstance(payload.get("runGates"), dict) else {}
+    source = gates.get("candidateIdSource")
+    candidate = gates.get("candidateId")
+    if source or candidate:
+        return f"candidate={candidate or '—'} source={source or '—'}"
+    return "not recorded in progress"
+
+
+def format_epoch_warning(payload: dict[str, Any]) -> str:
+    issues = [str(issue) for issue in payload.get("issues") or []]
+    epoch_issues = [
+        issue
+        for issue in issues
+        if any(
+            marker in issue.lower()
+            for marker in (
+                "target_drift",
+                "target-drift",
+                "target_mismatch",
+                "target-mismatch",
+                "pointer_pid_mismatch",
+                "pointer_hwnd_mismatch",
+                "process-start-time-mismatch",
+                "module-base-mismatch",
+                "stale",
+            )
+        )
+    ]
+    if epoch_issues:
+        return f"blocked: {epoch_issues[0]}"
+    update = (
+        payload.get("currentProofPointerUpdate")
+        if isinstance(payload.get("currentProofPointerUpdate"), dict)
+        else {}
+    )
+    if update.get("updated") is True:
+        return "ok: proof pointer updated by this run"
+    if str(payload.get("status") or "").startswith("passed") and not update:
+        return "review: passed run has no pointer-update record"
+    if payload.get("finalSummaryWritten"):
+        return "review: final summary written; verify proof pointer before movement"
+    return "pending: run not finalized"
+
+
+def format_api_status(payload: dict[str, Any]) -> str:
+    api = first_mapping(payload, "apiReference", "chromalinkWorldState", "worldState", "referenceCapture")
+    if api:
+        status = api.get("status") or api.get("Status") or api.get("referenceStatus")
+        source = api.get("source") or api.get("sourceView") or api.get("kind") or api.get("artifactKind")
+        fresh = first_present(api, "fresh", "Fresh", "positionFresh")
+        stale = first_present(api, "stale", "Stale", "positionStale")
+        blockers = api.get("blockers") if isinstance(api.get("blockers"), list) else []
+        coord = api.get("coordinate") if isinstance(api.get("coordinate"), dict) else api
+        coord_text = ""
+        if all(coord.get(axis) is not None for axis in ("x", "y", "z")):
+            try:
+                coord_text = (
+                    f" • X={float(coord['x']):.2f} "
+                    f"Y={float(coord['y']):.2f} "
+                    f"Z={float(coord['z']):.2f}"
+                )
+            except (TypeError, ValueError):
+                coord_text = " • coordinate invalid"
+        if blockers:
+            return f"blocked: {blockers[0]}"
+        flags = []
+        if fresh is not None:
+            flags.append(f"fresh={fresh}")
+        if stale is not None:
+            flags.append(f"stale={stale}")
+        return " • ".join(str(part) for part in (source, status, " ".join(flags)) if part) + coord_text
+    issues = [str(issue) for issue in payload.get("issues") or []]
+    for issue in issues:
+        lowered = issue.lower()
+        if "world-state" in lowered or "chromalink" in lowered or "api" in lowered:
+            return f"blocked: {issue}"
+    if isinstance(payload.get("currentCoordinate"), dict):
+        return "coordinate present; API source not tagged"
+    return "not recorded"
+
+
+def format_riftscan_status(payload: dict[str, Any]) -> str:
+    review = first_mapping(payload, "riftscanMilestoneReview", "riftscanReview", "riftscanStrategyGate")
+    if review:
+        status = review.get("status") or review.get("Status")
+        strategy = review.get("strategy") if isinstance(review.get("strategy"), dict) else {}
+        decision = strategy.get("decision")
+        selected = review.get("selectedCandidate") if isinstance(review.get("selectedCandidate"), dict) else {}
+        source = selected.get("source")
+        parts = [str(part) for part in (status, decision, source) if part]
+        return " • ".join(parts) if parts else "review present"
+    issues = [str(issue) for issue in payload.get("issues") or []]
+    for issue in issues:
+        lowered = issue.lower()
+        if "riftscan" in lowered or "pointer_pid_mismatch" in lowered or "pointer_hwnd_mismatch" in lowered:
+            return f"blocked: {issue}"
+    return "not recorded"
+
+
+def format_copy_paths(payload: dict[str, Any], *, run_dir: Path, progress_file: Path) -> str:
+    return (
+        f"run={shorten_path(hud_copy_path_value(payload, 'run', run_dir=run_dir, progress_file=progress_file))} • "
+        f"progress={shorten_path(hud_copy_path_value(payload, 'progress', run_dir=run_dir, progress_file=progress_file))} • "
+        f"summary={shorten_path(hud_copy_path_value(payload, 'summary', run_dir=run_dir, progress_file=progress_file))}"
+    )
+
+
+def hud_copy_path_value(
+    payload: dict[str, Any],
+    key: str,
+    *,
+    run_dir: Path,
+    progress_file: Path,
+) -> str:
+    if key == "run":
+        return str(payload.get("runDirectory") or run_dir)
+    if key == "progress":
+        return str(payload.get("runProgressFile") or progress_file)
+    if key == "summary":
+        return str(payload.get("runSummaryFile") or (run_dir / "run-summary.json"))
+    return ""
+
+
+def first_mapping(payload: dict[str, Any], *keys: str) -> dict[str, Any]:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def first_present(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in payload:
+            return payload.get(key)
+    return None
 
 
 def status_color(status: str) -> str:

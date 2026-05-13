@@ -2,6 +2,13 @@
 
 _Last updated: 2026-05-13 17:04 UTC. The current live target observed in the latest post-freeze recovery check is `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Exact-target no-attach preflight passed and fresh ChromaLink API/runtime coordinates were captured, but coordinate truth for PID `2928` is still **not promoted**: bounded stride-4 and stride-1 grouped coordinate-family scans found no XYZ triplets within tolerance before their time budgets. No x64dbg launch/attach, movement, watchpoints, Cheat Engine, or memory writes were used in this check. The newest handoff is `docs/handoffs/2026-05-13-1304-currentpid-2928-no-candidate-scan-blocker.md`._
 
+Freshness note: PID/HWND/process-start/module matches are **targeting preflight
+only**, not coordinate freshness proof. Promotion still requires fresh
+API-now vs memory-now agreement. Latest recorded coordinate snapshot:
+ChromaLink `X=7397.52`, `Y=871.78`, `Z=3027.98` from
+`2026-05-13T17:00:34.6914755+00:00`; do not present this value as current-now
+without a new API-now sample and matching memory-now readback.
+
 ## May 13 PID 2928 post-freeze recovery status (not promoted)
 
 | Fact | Current truth |
