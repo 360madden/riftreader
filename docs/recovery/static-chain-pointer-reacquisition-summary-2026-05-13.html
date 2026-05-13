@@ -28,7 +28,7 @@
       <article class="card"><h3>🧬 Family found</h3><div class="big"><code>0x268DF200000</code></div><p>Repeatedly surfaced from snapshot delta analysis as the active coordinate-copy family.</p></article>
       <article class="card"><h3>🏆 Best focused lead</h3><div class="big"><code>0x268DF21ED30</code></div><p>Focused run tracking-error max abs <code>0.00607421875</code>.</p></article>
       <article class="card"><h3>🔁 Latest readback</h3><div class="big">0.003337 max delta</div><p>Offset-corrected API-now vs memory-now agreement from <code>candidate-readback-currentpid-2928-20260513-184849-042270</code>.</p></article>
-      <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / no x64dbg</div><p>No debugger attach, watchpoints, memory writes, provider writes, or proof promotion.</p></article>
+      <article class="card"><h3>🛡️ Safety</h3><div class="big">No CE / x64dbg attach failed</div><p>One bounded x64dbg access-capture attempt failed before attach; no watchpoint hit, memory writes, provider writes, or proof promotion.</p></article>
       <article class="card"><h3>🚦 Truth status</h3><div class="big">Candidate-only</div><p>Direct values are about 5 units offset from API, so this is not direct movement truth yet.</p></article>
     </div>
     <div class="callout goodline"><strong>Bottom line:</strong> The earlier Top-20 stride scans had zero direct XYZ hits, but the adaptive family snapshot method found the right current family. The newest focused readback strongly confirms a live offset-coordinate copy, not a static/restart chain.</div>
@@ -82,7 +82,7 @@
     <p class="caption">Actions performed and boundaries preserved.</p>
     <table><caption>Safety outcomes</caption><thead><tr><th>Surface</th><th>Status</th><th>Notes</th></tr></thead><tbody>
       <tr><td>Cheat Engine</td><td><span class="pill good">Not used</span></td><td>No CE Lua, CE attach, CE watchpoints, or CE tables.</td></tr>
-      <tr><td>x64dbg</td><td><span class="pill good">Not launched</span></td><td>Debugger follow-up is now justified only if the user wants static-chain provenance on the focused family.</td></tr>
+      <tr><td>x64dbg</td><td><span class="pill warn">Attempted; attach failed</span></td><td>Bounded hardware-write capture `x64dbg-live-access-capture-20260513-192154-488416` failed before attach; post-attempt preflight passed with debugger process count 0.</td></tr>
       <tr><td>Input</td><td><span class="pill warn">Bounded discovery input</span></td><td>Only exact-PID/HWND <code>post-rift-key.ps1 -UseWindowMessage</code> <code>w</code> holds were sent for displaced snapshots.</td></tr>
       <tr><td>Memory writes</td><td><span class="pill good">None</span></td><td>All process memory access was read-only.</td></tr>
       <tr><td>Provider writes</td><td><span class="pill good">None</span></td><td>No ChromaLink/RiftScan provider mutation.</td></tr>
@@ -106,7 +106,8 @@
       <tr><td>Readback helper</td><td><code>scripts/current_pid_candidate_readback.py</code></td><td>Fresh API-now vs candidate memory-now readback for explicit candidates.</td></tr>
       <tr><td>x64dbg no-attach plan</td><td><code>scripts/captures/x64dbg-coord-chain-plan-20260513-191947-707381/coord-chain-plan-summary.json</code></td><td>Prepared static-chain watch packet for <code>0x268DF21ED30</code>; no debugger launch.</td></tr>
       <tr><td>x64dbg access template</td><td><code>scripts/captures/x64dbg-no-attach-readiness-packet-20260513-191946-104673/access-event-template/x64dbg-manual-access-events-template.json</code></td><td>Manual access-event normalization template for future minimized x64dbg follow-up.</td></tr>
-      <tr><td>x64dbg no-attach readiness</td><td><code>scripts/captures/x64dbg-no-attach-readiness-packet-20260513-191946-104673/summary.json</code></td><td>Passed with <code>ready-for-current-turn-approval</code>; no debugger launch.</td></tr>
+      <tr><td>x64dbg no-attach readiness</td><td><code>scripts/captures/x64dbg-no-attach-readiness-packet-20260513-191946-104673/summary.json</code></td><td>Passed with <code>ready-for-current-turn-approval</code>.</td></tr>
+      <tr><td>x64dbg attach attempt</td><td><code>scripts/captures/x64dbg-live-access-capture-20260513-192154-488416/summary.json</code></td><td>Failed before attach; no access event captured.</td></tr>
     </tbody></table>
   </div>
 </section>

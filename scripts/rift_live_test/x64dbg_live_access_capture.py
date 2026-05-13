@@ -948,6 +948,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         return summary
 
     client = None
+    session_started = False
     started = time.monotonic()
     try:
         from x64dbg_automate import X64DbgClient  # type: ignore
@@ -959,6 +960,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         stimulus_holder: dict[str, Any] = {"result": None}
         session_pid = client.start_session_attach(int(args.target_pid))
         summary["x64dbg"]["sessionPid"] = session_pid
+        session_started = session_pid is not None
         if not args.no_minimize_x64dbg_windows:
             summary["x64dbgWindowManagement"]["result"] = minimize_windows_for_process(
                 int(session_pid),
@@ -1128,22 +1130,25 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             if summary["safety"].get("memoryBreakpointSet"):
                 clear_all_memory_breakpoints(client, summary, reason="finally-before-detach")
                 resume_if_stopped(client, summary, reason="finally-before-detach")
-            try:
-                summary["detach"]["attempted"] = True
-                summary["detach"]["succeeded"] = bool(client.detach(wait_timeout=args.detach_timeout_seconds))
-            except Exception as exc:  # noqa: BLE001
-                summary["warnings"].append(f"detach-failed:{type(exc).__name__}:{exc}")
-            if summary["detach"]["succeeded"]:
+            if not session_started:
+                summary["warnings"].append("x64dbg-session-not-started; detach skipped")
+            else:
                 try:
-                    summary["detach"]["terminateSessionAttempted"] = True
-                    client.terminate_session()
-                    summary["detach"]["terminateSessionSucceeded"] = True
+                    summary["detach"]["attempted"] = True
+                    summary["detach"]["succeeded"] = bool(client.detach(wait_timeout=args.detach_timeout_seconds))
                 except Exception as exc:  # noqa: BLE001
-                    summary["warnings"].append(f"terminate-session-failed:{type(exc).__name__}:{exc}")
-            if not summary["detach"]["succeeded"]:
-                summary["blockers"].append("x64dbg-detach-failed")
-                if summary["status"] not in {"failed", "blocked"}:
-                    summary["status"] = "blocked"
+                    summary["warnings"].append(f"detach-failed:{type(exc).__name__}:{exc}")
+                if summary["detach"]["succeeded"]:
+                    try:
+                        summary["detach"]["terminateSessionAttempted"] = True
+                        client.terminate_session()
+                        summary["detach"]["terminateSessionSucceeded"] = True
+                    except Exception as exc:  # noqa: BLE001
+                        summary["warnings"].append(f"terminate-session-failed:{type(exc).__name__}:{exc}")
+                if not summary["detach"]["succeeded"]:
+                    summary["blockers"].append("x64dbg-detach-failed")
+                    if summary["status"] not in {"failed", "blocked"}:
+                        summary["status"] = "blocked"
     write_json(summary_json, summary)
     write_text_atomic(summary_md, build_markdown(summary))
     return summary
