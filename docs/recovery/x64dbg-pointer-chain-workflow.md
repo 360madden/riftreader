@@ -218,6 +218,19 @@ PID/HWND still match.
 shape and fresh ChromaLink `/api/v1/riftreader/world-state` JSON containing
 `player.position.x/y/z`. ChromaLink world-state input is blocked if the player
 position is stale, not fresh, or `navigation.playerPositionAvailable` is false.
+To capture ChromaLink world-state into a planner-compatible API reference
+artifact without PowerShell orchestration, use the Python helper:
+
+```powershell
+python 'C:\RIFT MODDING\RiftReader\scripts\chromalink_world_state_reference.py' `
+  --preflight-summary latest `
+  --json
+```
+
+When the world-state player position is fresh and same-target metadata is
+available, the helper emits `rift-api-reference-currentpid-*.json` for direct
+planner use. When world-state is stale/unhealthy, it writes only the raw
+world-state and summary/blockers; it does not create a planner reference.
 
 For the safest pre-approval packet, use `--strict-live-debugger-readiness`. It
 requires preflight, API-coordinate, and candidate artifacts; it also turns on

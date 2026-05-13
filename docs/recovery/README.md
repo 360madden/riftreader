@@ -236,6 +236,10 @@ Current read-only x64dbg Automate helper status:
 
 Repo-owned x64dbg static-chain helpers:
 
+- `C:\RIFT MODDING\RiftReader\scripts\chromalink_world_state_reference.py`
+  captures ChromaLink `/api/v1/riftreader/world-state` into a
+  planner-compatible `rift-api-reference-currentpid-*.json` only when player
+  position freshness and target metadata pass.
 - `C:\RIFT MODDING\RiftReader\scripts\x64dbg_coord_chain_plan.py` prepares an
   artifact-only plan from a current coordinate candidate.
 - `C:\RIFT MODDING\RiftReader\scripts\x64dbg_access_event_ingest.py` ingests
