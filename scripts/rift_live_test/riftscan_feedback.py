@@ -154,6 +154,14 @@ def build_feedback_recommendations(coordination_plan: dict[str, Any]) -> list[di
                 "why": "The selected provider match file is only read-only candidate evidence for this target.",
             },
         )
+    elif source == "latest-riftreader-same-target-candidate-file":
+        recommendations.insert(
+            0,
+            {
+                "action": "Run explicit read-only proof-pose/readback against the synthesized same-target candidate file.",
+                "why": "The selected RiftReader candidate file is current-PID evidence, but it is still candidate-only and may be offset-corrected rather than direct coordinate truth.",
+            },
+        )
     return recommendations
 
 
@@ -217,6 +225,7 @@ def build_feedback_packet(
         "riftScanCandidateConsumer": coordination_plan.get("riftScanCandidateConsumer"),
         "pointerMatchFile": coordination_plan.get("pointerMatchFile"),
         "latestRiftScanMatchFiles": coordination_plan.get("latestRiftScanMatchFiles", []),
+        "latestRiftReaderCandidateFiles": coordination_plan.get("latestRiftReaderCandidateFiles", []),
         "riftReaderArtifacts": build_riftreader_artifacts(repo_root),
         "allowedDownstreamUses": [
             "offline_review",

@@ -72,6 +72,34 @@ class RiftScanCoordinationTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    @staticmethod
+    def _write_riftreader_candidate(path: Path, *, pid: int = 456, hwnd: str = "0xDEF") -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "mode": "riftreader-same-target-candidates",
+                    "processId": pid,
+                    "targetWindowHandle": hwnd,
+                    "candidate_count": 1,
+                    "candidates": [
+                        {
+                            "schema_version": "riftreader.same_target_offset_candidate.v1",
+                            "candidate_id": "same-target-demo",
+                            "source_base_address_hex": "0x20000000",
+                            "source_offset_hex": "0x0",
+                            "source_absolute_address_hex": "0x20000000",
+                            "axis_order": "xyz",
+                            "support_count": 2,
+                            "best_max_abs_distance": 0.01,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def test_plan_uses_existing_pointer_match_without_riftscan_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "RiftReader"
@@ -121,6 +149,45 @@ class RiftScanCoordinationTests(unittest.TestCase):
             self.assertIn("pointer_pid_mismatch:actual=123;expected=456", plan["issues"])
             self.assertEqual(plan["selectedCandidate"]["source"], "latest-riftscan-match-file")
             self.assertEqual(plan["selectedCandidate"]["candidateFile"], str(new_match))
+
+    def test_plan_selects_riftreader_same_target_candidate_when_provider_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True, exist_ok=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "current-proof-anchor-readback-pointer",
+                        "status": "blocked-target-drift",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 456,
+                            "targetWindowHandle": "0xDEF",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            candidate = root / "scripts" / "captures" / "same-target-candidate-synth-demo" / "same-target-candidates.json"
+            self._write_riftreader_candidate(candidate)
+
+            plan = build_coordination_plan(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                process_id=456,
+                target_window_handle="0xDEF",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(plan["status"], "ok")
+            self.assertEqual(plan["selectedCandidate"]["source"], "latest-riftreader-same-target-candidate-file")
+            self.assertEqual(plan["selectedCandidate"]["candidateFile"], str(candidate))
+            self.assertIn("latestRiftReaderCandidateFiles", plan)
+            self.assertIn("-CandidateFile", plan["nextCommands"]["readOnlyProofPose"])
 
     def test_write_plan_refuses_to_write_inside_riftscan(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

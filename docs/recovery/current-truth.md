@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 22:58 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Target-control passes, but same-target `ProofOnly` remains blocked. The stale promoted proof pointer for PID `57656` / HWND `0x5417BC` has now been invalidated: `docs/recovery/current-proof-anchor-readback.json` is `status=blocked-target-drift` for PID `2928` / HWND `0xC0994`, and the old pointer is preserved under `docs/recovery/historical/` as historical reacquisition evidence only. A repeat `ProofOnly` after the invalidation no longer reused stale PID data and blocked cleanly on `current_proof_pointer_has_no_current_candidate`. Navigation remains blocked and coordinate proof remains **not promoted**. The active recovery lane is broad family snapshots plus read-only/offline source-chain ranking. The best current root-search seed is parent slot `0x268D7539700`, now ranked as the top container candidate: it points to owner `0x268D753AE30`, carries selected module hint `0x263E950` at `-0x40`, has a rich near-owner internal pointer cluster, and owns stable candidate coord pointer `0x268DF21ED20` via `[owner+0x10]`. This still does not resolve the static/module root above the parent slot. All coordinate-family/source-chain outputs remain candidate-only; no static/restart chain, proof-pointer promotion, or movement permission exists._
+_Last updated: 2026-05-13 23:15 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -105,13 +105,37 @@ matches, and `8` repeat mismatches. Treat the dense family as de-prioritized
 until another movement-vector snapshot proves otherwise. Keep using the narrow
 family as candidate seed evidence only; it is still not movement truth.
 
-Post-handoff RiftScan milestone review
-`scripts/captures/riftscan-milestone-review-20260513-225757.json` remains
-blocked, but the stale-pointer root problem is now corrected: the current proof
-pointer target matches PID `2928` / HWND `0xC0994` as a
-`blocked-target-drift` blocker. The remaining milestone blocker is no selected
-same-target candidate/RiftScan match file. It is a strategy gate, not movement
-permission.
+**May 13 23:05-23:14 UTC same-target candidate synthesis + stale-cache guard:**
+current-PID readback
+`scripts/captures/candidate-readback-currentpid-2928-20260513-213805-490589/candidate-readback-summary.json`
+was converted into an importable RiftReader-owned candidate packet at
+`scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json`.
+It contains `3` current-PID, same-HWND candidates. The selected candidate is
+`same-target-268DF21ED30-xyz` at `0x268DF21ED30`; it is offset-corrected within
+`0.0024121093747453415` but direct delta is about `5.0027`, so it remains
+candidate-only.
+
+Milestone review
+`scripts/captures/riftscan-milestone-review-20260513-231429.json` is now
+`ready-for-read-only-proof` and selected source
+`latest-riftreader-same-target-candidate-file`. It still explicitly sets
+`movementAllowedByReview=false`.
+
+A read-only proof-pose attempt at
+`scripts/captures/riftscan-proof-pose-20260513-230600/` stayed blocked because
+fresh RRAPICOORD reference capture was unavailable (`blocked-reference-unavailable`).
+A later explicit candidate readback
+`scripts/captures/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-191349.json`
+read all `3` candidates stably with `0` region failures and no input/CE, but
+still had `ReferenceCoordinate=null` and `MovementAllowed=false`. The proof-anchor
+preflight no longer reused the stale `telemetry-proof-coord-anchor.json`; it
+reported:
+
+- `proof_anchor_cache_pid_mismatch:anchor=57656;target=2928:ignored_stale_cache`
+- `proof_anchor_cache_hwnd_mismatch:anchor=0x5417BC;target=0xC0994:ignored_stale_cache`
+
+Remaining blocker: rebuild/promote a fresh same-target proof anchor from fresh
+API-now/reference evidence before `ProofOnly` or movement can pass.
 
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`

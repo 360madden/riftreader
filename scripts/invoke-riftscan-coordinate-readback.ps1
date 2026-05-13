@@ -834,6 +834,7 @@ $proofAnchorStatus = 'skipped'
 $proofAnchorMovementAllowed = $false
 $proofAnchorSource = $null
 $proofAnchorIssues = @()
+$proofAnchorWarnings = @()
 $proofAnchorCandidateId = $null
 $proofAnchorCandidateAddressHex = $null
 $proofAnchorOutputPath = Join-Path $resolvedOutputRoot ("assert-current-proof-coord-anchor-currentpid-{0}-no-ce-wrapper-{1}.json" -f $targetProcessId, $stamp)
@@ -869,6 +870,8 @@ if (-not $SkipProofAnchorCheck) {
         $proofAnchorSource = [string](Get-JsonPropertyValue -InputObject $proofAnchor -Names @('AnchorSource'))
         $issuesValue = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('Issues')
         $proofAnchorIssues = if ($null -eq $issuesValue) { @() } else { @($issuesValue) }
+        $warningsValue = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('Warnings')
+        $proofAnchorWarnings = if ($null -eq $warningsValue) { @() } else { @($warningsValue) }
 
         $proofAnchorDocument = Get-JsonPropertyValue -InputObject $proofAnchor -Names @('Anchor')
         $proofAnchorEvidence = Get-JsonPropertyValue -InputObject $proofAnchorDocument -Names @('Evidence')
@@ -1087,6 +1090,11 @@ else {
     $warnings.Add('Fresh candidate readback does not satisfy RiftReader movement polling invariants by itself.') | Out-Null
     $warnings.Add('Movement remains blocked unless a current-process canonical coord-trace proof anchor or validated equivalent is separately validated.') | Out-Null
 }
+foreach ($proofAnchorWarning in @($proofAnchorWarnings)) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$proofAnchorWarning)) {
+        $warnings.Add(("Proof anchor preflight: {0}" -f [string]$proofAnchorWarning)) | Out-Null
+    }
+}
 if ($referenceMatchCount -gt 0 -and $sourcePreviewMatchCount -eq 0) {
     $warnings.Add('SourcePreviewMatchesReadback compares against the historical candidate artifact value preview; false does not invalidate same-time ReferenceMatchesReadback=true evidence.') | Out-Null
 }
@@ -1107,6 +1115,7 @@ $summary = [pscustomobject][ordered]@{
     ProofAnchorSource = $proofAnchorSource
     ProofAnchorMaxAgeSeconds = $ProofAnchorMaxAgeSeconds
     ProofAnchorIssues = @($proofAnchorIssues)
+    ProofAnchorWarnings = @($proofAnchorWarnings)
     ProofAnchorCandidateId = $proofAnchorCandidateId
     ProofAnchorCandidateAddressHex = $proofAnchorCandidateAddressHex
     ProofAnchorCandidateReadback = $proofAnchorCandidateReadback

@@ -309,6 +309,28 @@ def find_match_files(riftscan_root: Path, process_id: int | None, limit: int) ->
     return files[:limit]
 
 
+def find_riftreader_candidate_files(repo_root: Path, process_id: int | None, limit: int) -> list[Path]:
+    captures = repo_root / "scripts" / "captures"
+    if not captures.exists():
+        return []
+    files = sorted(
+        captures.glob("same-target-candidate-synth-*/same-target-candidates.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if process_id is not None:
+        selected: list[Path] = []
+        for path in files:
+            try:
+                data = read_json_file(path)
+            except Exception:  # noqa: BLE001 - unreadable files are ignored during discovery.
+                continue
+            if target_hint_process_id(path, data) == process_id:
+                selected.append(path)
+        files = selected
+    return files[:limit]
+
+
 def load_current_pointer(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
     if not path.exists():
         return None, [f"current_proof_pointer_missing:{path}"]
@@ -401,6 +423,7 @@ def choose_candidate(
     pointer_summary: dict[str, Any],
     pointer_match_summary: dict[str, Any] | None,
     latest_matches: list[dict[str, Any]],
+    latest_riftreader_candidates: list[dict[str, Any]],
     target_has_mismatch: bool,
 ) -> dict[str, Any]:
     source = pointer_summary.get("candidateSource")
@@ -436,6 +459,21 @@ def choose_candidate(
                 "candidateId": candidates[0].get("candidateId"),
                 "recommendedAction": "use-existing-riftscan-candidate-file-read-only",
                 "why": "The proof pointer is missing or mismatched, but a same-PID RiftScan match file already exists and can be consumed read-only by RiftReader.",
+            }
+
+    for match in latest_riftreader_candidates:
+        candidates = [
+            candidate
+            for candidate in match.get("candidates", [])
+            if isinstance(candidate, dict) and candidate.get("schemaSupported")
+        ]
+        if candidates:
+            return {
+                "source": "latest-riftreader-same-target-candidate-file",
+                "candidateFile": match["path"],
+                "candidateId": candidates[0].get("candidateId"),
+                "recommendedAction": "use-riftreader-same-target-candidate-file-read-only",
+                "why": "RiftReader synthesized a same-target current-PID candidate file from existing readback evidence; it is candidate-only and must be used only through explicit read-only proof/readback.",
             }
 
     return {
@@ -501,13 +539,18 @@ def build_coordination_plan(
         summarize_match_file(path)
         for path in find_match_files(riftscan_root, current_pid, max(1, limit))
     ]
-    if not latest_matches and not pointer_match_summary:
+    latest_riftreader_candidates = [
+        summarize_match_file(path)
+        for path in find_riftreader_candidate_files(repo_root, current_pid, max(1, limit))
+    ]
+    if not latest_matches and not pointer_match_summary and not latest_riftreader_candidates:
         issues.append(f"no_riftscan_match_files_found:{riftscan_root}")
 
     selection = choose_candidate(
         pointer_summary=pointer_summary,
         pointer_match_summary=pointer_match_summary,
         latest_matches=latest_matches,
+        latest_riftreader_candidates=latest_riftreader_candidates,
         target_has_mismatch=target_has_mismatch,
     )
     coordination_notes = build_coordination_notes(
@@ -544,6 +587,7 @@ def build_coordination_plan(
         "riftScanCandidateConsumer": consumer_summary,
         "pointerMatchFile": pointer_match_summary,
         "latestRiftScanMatchFiles": latest_matches,
+        "latestRiftReaderCandidateFiles": latest_riftreader_candidates,
         "selectedCandidate": selection,
         "coordinationNotes": coordination_notes,
         "nextCommands": build_next_commands(

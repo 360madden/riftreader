@@ -230,7 +230,7 @@ try {
 
     $pidMismatch = Invoke-Preflight -AnchorFile $pidMismatchAnchorFile -TargetProcessId $targetProcessId -TargetProcessName $targetProcessName
     Assert-Equal -Actual $pidMismatch.ExitCode -Expected 1 -Message 'PID mismatch fixture should exit 1.'
-    Assert-Equal -Actual $pidMismatch.Document.Status -Expected 'failed' -Message 'PID mismatch fixture should fail.'
+    Assert-Equal -Actual $pidMismatch.Document.Status -Expected 'blocked-target-drift' -Message 'PID mismatch fixture should block as target drift.'
     Assert-True -Condition (-not [bool]$pidMismatch.Document.MovementAllowed) -Message 'PID mismatch fixture should block movement.'
     Assert-True -Condition (($pidMismatch.Document.Issues -join '|') -like '*proof_anchor_pid_mismatch*') -Message 'PID mismatch issue should be reported.'
 

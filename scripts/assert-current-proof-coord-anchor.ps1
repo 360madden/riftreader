@@ -17,6 +17,8 @@ if ([string]::IsNullOrWhiteSpace($ProofCoordAnchorFile)) {
     $ProofCoordAnchorFile = Join-Path $PSScriptRoot 'captures\telemetry-proof-coord-anchor.json'
 }
 $resolvedProofCoordAnchorFile = [System.IO.Path]::GetFullPath($ProofCoordAnchorFile)
+$script:IgnoredProofAnchorCacheWarnings = [System.Collections.Generic.List[string]]::new()
+$script:RequestedTargetWindowHandleSupplied = -not [string]::IsNullOrWhiteSpace($TargetWindowHandle)
 
 Add-Type -TypeDefinition @"
 using System;
@@ -241,6 +243,83 @@ function Test-NoCeRiftScanReferenceProofAnchorDocument {
         [string]::Equals($proofMethod, 'no-ce-riftscan-reference-multisample', [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+function Normalize-WindowHandleText {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    try {
+        return Format-WindowHandle -Handle (ConvertTo-WindowHandle -HandleText $Value)
+    }
+    catch {
+        return $Value.Trim()
+    }
+}
+
+function Get-ProofAnchorTargetIssues {
+    param(
+        $Anchor,
+
+        [Parameter(Mandatory = $true)]
+        [int]$TargetProcessId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TargetProcessName,
+
+        [string]$TargetHandleHex,
+
+        [string]$Prefix = 'proof_anchor',
+
+        [switch]$RequireTargetWindowHandle
+    )
+
+    $issues = [System.Collections.Generic.List[string]]::new()
+
+    $anchorProcessId = Get-DocumentPropertyValue -Document $Anchor -Name 'ProcessId'
+    if ($null -eq $anchorProcessId -or [int]$anchorProcessId -ne $TargetProcessId) {
+        $issues.Add(("{0}_pid_mismatch:anchor={1};target={2}" -f $Prefix, $anchorProcessId, $TargetProcessId)) | Out-Null
+    }
+
+    $anchorProcessName = [string](Get-DocumentPropertyValue -Document $Anchor -Name 'ProcessName')
+    if (-not [string]::Equals((Get-NormalizedProcessName -Name $anchorProcessName), (Get-NormalizedProcessName -Name $TargetProcessName), [System.StringComparison]::OrdinalIgnoreCase)) {
+        $issues.Add(("{0}_process_mismatch:anchor={1};target={2}" -f $Prefix, $anchorProcessName, $TargetProcessName)) | Out-Null
+    }
+
+    if ($RequireTargetWindowHandle -and -not [string]::IsNullOrWhiteSpace($TargetHandleHex)) {
+        $anchorWindowHandle = [string](Get-DocumentPropertyValue -Document $Anchor -Name 'TargetWindowHandle')
+        if ([string]::IsNullOrWhiteSpace($anchorWindowHandle)) {
+            $issues.Add(("{0}_hwnd_missing:target={1}" -f $Prefix, $TargetHandleHex)) | Out-Null
+        }
+        else {
+            $normalizedAnchorWindowHandle = Normalize-WindowHandleText -Value $anchorWindowHandle
+            $normalizedTargetWindowHandle = Normalize-WindowHandleText -Value $TargetHandleHex
+            if (-not [string]::Equals($normalizedAnchorWindowHandle, $normalizedTargetWindowHandle, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $issues.Add(("{0}_hwnd_mismatch:anchor={1};target={2}" -f $Prefix, $normalizedAnchorWindowHandle, $normalizedTargetWindowHandle)) | Out-Null
+            }
+        }
+    }
+
+    return $issues.ToArray()
+}
+
+function Test-ProofAnchorTargetDriftIssue {
+    param([string[]]$Issues)
+
+    foreach ($issue in @($Issues)) {
+        $text = [string]$issue
+        if ($text -like 'proof_anchor_pid_mismatch*' -or
+            $text -like 'proof_anchor_process_mismatch*' -or
+            $text -like 'proof_anchor_hwnd_mismatch*' -or
+            $text -like 'proof_anchor_hwnd_missing*') {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Read-ProofAnchorDocument {
     param(
         [Parameter(Mandatory = $true)]
@@ -262,17 +341,33 @@ function Read-ProofAnchorDocument {
             ExitCode = 0
             Document = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $resolvedProofCoordAnchorFile -Raw) -Depth 80
             RawOutput = $null
+            IgnoredCacheWarnings = @($script:IgnoredProofAnchorCacheWarnings.ToArray())
         }
     }
 
     if (Test-Path -LiteralPath $resolvedProofCoordAnchorFile) {
         $cachedDocument = ConvertFrom-JsonCompat -Text (Get-Content -LiteralPath $resolvedProofCoordAnchorFile -Raw) -Depth 80
         if (Test-NoCeRiftScanReferenceProofAnchorDocument -Document $cachedDocument) {
-            return [pscustomobject]@{
-                Source = 'cache'
-                ExitCode = 0
-                Document = $cachedDocument
-                RawOutput = $null
+            $cacheTargetIssues = @(Get-ProofAnchorTargetIssues `
+                    -Anchor $cachedDocument `
+                    -TargetProcessId $TargetProcessId `
+                    -TargetProcessName $TargetProcessName `
+                    -TargetHandleHex $TargetHandleHex `
+                    -Prefix 'proof_anchor_cache' `
+                    -RequireTargetWindowHandle:$script:RequestedTargetWindowHandleSupplied)
+            if ($cacheTargetIssues.Count -gt 0) {
+                foreach ($issue in $cacheTargetIssues) {
+                    $script:IgnoredProofAnchorCacheWarnings.Add(("{0}:ignored_stale_cache" -f $issue)) | Out-Null
+                }
+            }
+            else {
+                return [pscustomobject]@{
+                    Source = 'cache'
+                    ExitCode = 0
+                    Document = $cachedDocument
+                    RawOutput = $null
+                    IgnoredCacheWarnings = @($script:IgnoredProofAnchorCacheWarnings.ToArray())
+                }
             }
         }
     }
@@ -290,6 +385,7 @@ function Read-ProofAnchorDocument {
         ExitCode = $resolve.ExitCode
         Document = $document
         RawOutput = $resolve.Output
+        IgnoredCacheWarnings = @($script:IgnoredProofAnchorCacheWarnings.ToArray())
     }
 }
 
@@ -299,7 +395,9 @@ function Test-ProofAnchorDocument {
         [Parameter(Mandatory = $true)]
         [int]$TargetProcessId,
         [Parameter(Mandatory = $true)]
-        [string]$TargetProcessName
+        [string]$TargetProcessName,
+        [string]$TargetHandleHex,
+        [switch]$RequireTargetWindowHandle
     )
 
     $issues = [System.Collections.Generic.List[string]]::new()
@@ -321,14 +419,14 @@ function Test-ProofAnchorDocument {
         $issues.Add(("proof_anchor_mode_invalid:{0}" -f $mode)) | Out-Null
     }
 
-    $anchorProcessId = Get-DocumentPropertyValue -Document $Anchor -Name 'ProcessId'
-    if ($null -eq $anchorProcessId -or [int]$anchorProcessId -ne $TargetProcessId) {
-        $issues.Add(("proof_anchor_pid_mismatch:anchor={0};target={1}" -f $anchorProcessId, $TargetProcessId)) | Out-Null
-    }
-
-    $anchorProcessName = [string](Get-DocumentPropertyValue -Document $Anchor -Name 'ProcessName')
-    if (-not [string]::Equals((Get-NormalizedProcessName -Name $anchorProcessName), (Get-NormalizedProcessName -Name $TargetProcessName), [System.StringComparison]::OrdinalIgnoreCase)) {
-        $issues.Add(("proof_anchor_process_mismatch:anchor={0};target={1}" -f $anchorProcessName, $TargetProcessName)) | Out-Null
+    foreach ($targetIssue in @(Get-ProofAnchorTargetIssues `
+                -Anchor $Anchor `
+                -TargetProcessId $TargetProcessId `
+                -TargetProcessName $TargetProcessName `
+                -TargetHandleHex $TargetHandleHex `
+                -Prefix 'proof_anchor' `
+                -RequireTargetWindowHandle:$RequireTargetWindowHandle)) {
+        $issues.Add($targetIssue) | Out-Null
     }
 
     $canonicalCoordSourceKind = [string](Get-DocumentPropertyValue -Document $Anchor -Name 'CanonicalCoordSourceKind')
@@ -422,7 +520,8 @@ function New-PreflightResult {
         [int]$ResolveExitCode = 0,
         [int]$TargetProcessId = 0,
         [string]$TargetProcessName = '',
-        [string]$TargetHandleHex = $null
+        [string]$TargetHandleHex = $null,
+        [string[]]$Warnings = @()
     )
 
     return [pscustomobject][ordered]@{
@@ -441,6 +540,7 @@ function New-PreflightResult {
         ResolverExitCode = $ResolveExitCode
         MaxAgeSeconds = $MaxAgeSeconds
         Issues = @($Issues)
+        Warnings = @($Warnings)
         Anchor = $Anchor
         Notes = @(
             'This preflight is read-only and uses no Cheat Engine path.',
@@ -458,11 +558,21 @@ try {
     $targetHandleHex = Format-WindowHandle -Handle $target.Handle
 
     $readResult = Read-ProofAnchorDocument -TargetProcessId $targetProcessId -TargetProcessName $targetProcessName -TargetHandleHex $targetHandleHex
-    $issues = @(Test-ProofAnchorDocument -Anchor $readResult.Document -TargetProcessId $targetProcessId -TargetProcessName $targetProcessName)
+    $issues = @(Test-ProofAnchorDocument -Anchor $readResult.Document -TargetProcessId $targetProcessId -TargetProcessName $targetProcessName -TargetHandleHex $targetHandleHex -RequireTargetWindowHandle:$script:RequestedTargetWindowHandleSupplied)
+    $warnings = @($readResult.IgnoredCacheWarnings)
     $isValid = $readResult.ExitCode -eq 0 -and $issues.Count -eq 0
+    $status = if ($isValid) {
+        'valid'
+    }
+    elseif (Test-ProofAnchorTargetDriftIssue -Issues $issues) {
+        'blocked-target-drift'
+    }
+    else {
+        'failed'
+    }
 
     $result = New-PreflightResult `
-        -Status $(if ($isValid) { 'valid' } else { 'failed' }) `
+        -Status $status `
         -MovementAllowed:$isValid `
         -Issues $issues `
         -Anchor $readResult.Document `
@@ -470,7 +580,8 @@ try {
         -ResolveExitCode $readResult.ExitCode `
         -TargetProcessId $targetProcessId `
         -TargetProcessName $targetProcessName `
-        -TargetHandleHex $targetHandleHex
+        -TargetHandleHex $targetHandleHex `
+        -Warnings $warnings
 
     if ($Json) {
         $result | ConvertTo-Json -Depth 32
