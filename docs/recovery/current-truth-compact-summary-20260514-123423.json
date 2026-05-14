@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "mode": "riftreader-current-truth-compact-summary",
+  "generatedAtUtc": "2026-05-14T12:34:23Z",
+  "status": "read_only_api_memory_match_displacement_gate_blocked_movement_blocked",
+  "truthJson": "docs/recovery/current-truth.json",
+  "routeSummary": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-20260514-083422-raw-valid-html/coordinate-proof-route.json",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 2928,
+    "targetWindowHandle": "0xC0994",
+    "processStartUtc": "2026-05-13T16:17:56.208370Z"
+  },
+  "movementGate": {
+    "allowed": false,
+    "status": "blocked",
+    "reason": "Same-pose API-memory match remains usable for read-only proof planning, but displacement-gated comparison has valid both-reference count 0; no promotion or movement proof."
+  },
+  "candidate": {
+    "candidateId": "api-family-hit-000001",
+    "addressHex": "0x268E2BC09E0",
+    "status": "same_pose_api_memory_match_candidate_displacement_gate_blocked",
+    "candidateFile": "scripts/captures/family-scan-currentpid-2928-20260514-114535-319032/api-family-vec3-candidates.jsonl",
+    "readbackSummary": "scripts/captures/riftscan-proof-readonly-fresh-displaced-attempt-1-20260514-120812/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-080850.json"
+  },
+  "route": {
+    "status": "api-memory-match",
+    "readOnlyProofAllowed": true,
+    "movementAllowed": false,
+    "promotionReadinessStatus": "blocked-promotion-readiness",
+    "proofAnchorPromotionAllowed": false,
+    "latestProofRouteHtml": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-20260514-083422-raw-valid-html/coordinate-proof-route.html"
+  },
+  "candidateComparison": {
+    "source": "route",
+    "items": [
+      {
+        "path": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.json",
+        "exists": true,
+        "status": "blocked",
+        "baselineMatchCount": 2,
+        "displacedMatchCount": 2,
+        "rawBothReferenceMatchCount": 2,
+        "bothReferenceMatchCount": 0,
+        "warningCount": 0,
+        "blockerCount": 1,
+        "blockers": [
+          "displaced-api-reference-planar-distance-too-small:5.37587e-05<1.0"
+        ]
+      }
+    ],
+    "rawBothReferenceMatchCount": 2,
+    "validBothReferenceMatchCount": 0,
+    "blockers": [
+      "displaced-api-reference-planar-distance-too-small:5.37587e-05<1.0"
+    ]
+  },
+  "displacedReadiness": {
+    "status": "blocked",
+    "planarDistance": 5.59732083466666e-05
+  },
+  "blockers": [
+    "promotion-two-reference-candidate-match-missing",
+    "promotion-displaced-readiness-not-passed:blocked",
+    "displaced-api-reference-planar-distance-too-small:5.37587e-05<1.0",
+    "displaced-reference-age-exceeded:1363.884>300.0",
+    "displaced-reference-planar-distance-too-small:5.6e-05<1.0",
+    "route-valid-both-reference-count=0-after-displacement-gate",
+    "movement remains blocked until true displaced proof/static proof/same-target ProofOnly/explicit approval",
+    "pointer-scan-current-candidate-direct-hit-count=0",
+    "movement remains blocked until promotion readiness, proof/static chain, same-target ProofOnly, and explicit approval",
+    "fresh displaced/two-reference match missing; bothReferenceMatchCount=0",
+    "displaced-reference readiness is blocked",
+    "proof-anchor promotion allowed=False"
+  ],
+  "nextRecommendedAction": "Capture a genuinely displaced API reference for the same PID/HWND, rerun displacement-gated comparison, regenerate route/review/readiness, then keep movement blocked until proof promotion and same-target ProofOnly pass.",
+  "safety": {
+    "movementSent": false,
+    "inputSent": false,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "noCheatEngine": true,
+    "x64dbgAttached": false,
+    "providerWrite": false,
+    "githubConnectorWrites": false
+  },
+  "artifacts": {
+    "summaryJson": "docs/recovery/current-truth-compact-summary-20260514-123423.json",
+    "summaryMarkdown": "docs/recovery/current-truth-compact-summary-20260514-123423.md",
+    "summaryHtml": "docs/recovery/current-truth-compact-summary-20260514-123423.html"
+  }
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader Top 10 Actions - Manual Displacement Runner</title>
+<style>
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:#08111f;color:#e5eefb}
+header,main{max-width:1220px;margin:auto;padding:28px}
+header{border-bottom:1px solid #263a57}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}
+.card{background:#0f1b2e;border:1px solid #263a57;border-radius:18px;padding:16px;box-shadow:0 12px 30px #0006}
+.metric{font-size:26px;font-weight:850;margin-top:6px}
+.muted{color:#a7b7d5}
+.pill{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800}
+.ok{background:#14532d;color:#bbf7d0}.warn{background:#713f12;color:#fde68a}.bad{background:#7f1d1d;color:#fecaca}
+table{width:100%;border-collapse:collapse;background:#0f1b2e;border:1px solid #263a57;border-radius:14px;overflow:hidden}
+th,td{padding:11px 13px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}
+th{background:#14243d;color:#bae6fd}tr:last-child td{border-bottom:0}
+code{background:#020817;border:1px solid #263a57;padding:2px 6px;border-radius:6px;color:#bfdbfe;word-break:break-all}
+.bar{height:18px;border-radius:999px;background:#1f2b45;overflow:hidden}.fill{height:100%;background:#38bdf8}.fill.zero{background:#7f1d1d;width:3px}
+li{margin:6px 0}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>✅ Top 10 actions completed — manual displacement runner</h1>
+<p class="muted">Generated <code>2026-05-14T12:34:23Z</code> · target <code>rift_x64</code> PID <code>2928</code> HWND <code>0xC0994</code></p>
+</header>
+<main>
+<section class="grid">
+<div class="card"><div class="muted">Route</div><div class="metric">api-memory-match</div></div>
+<div class="card"><div class="muted">Movement</div><div class="metric"><span class="pill bad">blocked</span></div></div>
+<div class="card"><div class="muted">Raw both-ref</div><div class="metric">2</div></div>
+<div class="card"><div class="muted">Valid both-ref</div><div class="metric">0</div></div>
+</section>
+<section class="card">
+<h2>Proof gate chart</h2>
+<table>
+<tr><th>Metric</th><th>Count</th><th>Visual</th></tr>
+<tr><td>Raw both-reference matches</td><td><code>2</code></td><td><div class="bar"><div class="fill" style="width:100%"></div></div></td></tr>
+<tr><td>Valid both-reference matches</td><td><code>0</code></td><td><div class="bar"><div class="fill zero"></div></div></td></tr>
+</table>
+<p class="muted">Raw matches are audit evidence only. Valid matches stay zero because the displaced-pose gate is blocked.</p>
+</section>
+<section class="card">
+<h2>Top 10 completed actions</h2>
+<table>
+<thead><tr><th>#</th><th>Action</th><th>Why</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Reconfirmed repo and proof state</td><td>Main matched origin before edits; latest route was read-only API/memory match with movement blocked.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>2</td><td>Added Python manual displacement runner</td><td>The repeatable workflow now lives in Python instead of new PowerShell orchestration.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>3</td><td>Kept PowerShell as a leaf helper</td><td>The runner calls the proven capture wrapper only as a child process and owns state/gate/report logic in Python.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>4</td><td>Added dry-run and self-test modes</td><td>Operators can verify command plans and JSONL-to-JSON candidate routing without touching the live target.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>5</td><td>Routed JSONL readback to JSON compare input</td><td>The live readback helper can use JSONL while offline two-reference comparison gets the JSON sibling it expects.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>6</td><td>Added raw-vs-valid route HTML table</td><td>The report now shows why raw both-reference matches do not count when the displacement gate blocks.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>7</td><td>Added compact current-truth summary helper</td><td>Current truth now has timestamped human-readable Markdown/HTML/JSON summaries.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>8</td><td>Regenerated route/current-truth artifacts</td><td>Latest route HTML and current-truth pointers now include the raw-vs-valid proof wording.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>9</td><td>Created a no-input dry-run artifact</td><td>The next real operator-displaced run is ready and shows exact commands without sending input or using CE.</td><td><span class="pill ok">Done</span></td></tr>
+<tr><td>10</td><td>Added focused regression tests</td><td>Tests cover dry-run planning, self-test, compact summaries, and route HTML gate clarity.</td><td><span class="pill ok">Done</span></td></tr>
+</tbody>
+</table>
+</section>
+<section class="card">
+<h2>Artifacts</h2>
+<table>
+<tr><th>Artifact</th><th>Path</th></tr>
+<tr><td>Route HTML</td><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-20260514-083422-raw-valid-html/coordinate-proof-route.html</code></td></tr>
+<tr><td>Manual runner dry-run</td><td><code>scripts/captures/manual-displacement-capture-20260514-20260514-083422-dry-run/summary.json</code></td></tr>
+<tr><td>Compact current truth</td><td><code>docs/recovery/current-truth-compact-summary-20260514-123423.html</code></td></tr>
+<tr><td>Handoff</td><td><code>docs/handoffs/2026-05-14-123423-manual-displacement-runner-compact-truth.md</code></td></tr>
+</table>
+</section>
+<section class="card">
+<h2>Remaining blockers</h2>
+<ul>
+<li><code>promotion-two-reference-candidate-match-missing</code></li>
+<li><code>promotion-displaced-readiness-not-passed:blocked</code></li>
+<li><code>displaced-api-reference-planar-distance-too-small:5.37587e-05&lt;1.0</code></li>
+<li>Movement remains blocked until true displaced proof, proof/static chain, same-target ProofOnly, and explicit movement approval.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>

@@ -221,11 +221,14 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Field | Value |
 |---|---|
 | Route generator | `scripts/coordinate_proof_route.py` |
-| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json` |
-| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.html` |
+| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-20260514-083422-raw-valid-html/coordinate-proof-route.json` |
+| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-20260514-083422-raw-valid-html/coordinate-proof-route.html` |
 | Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
 | Latest route status | `api-memory-match` |
-| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-074856.html` |
+| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-123423-manual-displacement-runner.html` |
+| Latest compact truth JSON | `docs/recovery/current-truth-compact-summary-20260514-123423.json` |
+| Latest compact truth Markdown | `docs/recovery/current-truth-compact-summary-20260514-123423.md` |
+| Latest compact truth HTML | `docs/recovery/current-truth-compact-summary-20260514-123423.html` |
 | Latest scan-profile plan | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.json` |
 | Latest scan-profile plan HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.html` |
 | Latest manual displacement blocker | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json` |
@@ -244,7 +247,7 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.html` |
 | Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.json` |
 | Latest candidate comparison status | `blocked` |
-| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json` |
+| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-20260514-083422-raw-valid-html/coordinate-proof-route.json` |
 | Latest candidate routing status | `candidate-routing-ready` |
 | Latest candidate routing center count | `16` |
 | Latest displaced-reference readiness | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-080912-fresh-attempt/summary.json` |
@@ -253,7 +256,7 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest displaced readiness status | `blocked` |
 | Latest displaced readiness summary | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-080912-fresh-attempt/summary.json` |
 | Latest displaced readiness HTML | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-080912-fresh-attempt/summary.html` |
-| Latest session action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-074856.html` |
+| Latest session action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-123423-manual-displacement-runner.html` |
 | Latest milestone review status | `ready-for-read-only-proof` |
 | Latest promotion readiness status | `blocked-promotion-readiness` |
 | Latest proof-anchor promotion allowed | `false` |

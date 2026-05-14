@@ -832,14 +832,28 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
         lines.extend(f"- `{warning}`" for warning in route.get("warnings", []))
         lines.append("")
     if candidate_routing:
-        lines.extend(["## Candidate routing", "", "| Type | Path | Status | Count |", "|---|---|---|---:|"])
+        lines.extend(
+            [
+                "## Candidate routing",
+                "",
+                "| Type | Path | Status | Count | Raw both-ref | Valid both-ref | Blockers |",
+                "|---|---|---|---:|---:|---:|---|",
+            ]
+        )
         for item in list_or_empty(candidate_routing.get("centerFiles")):
             item_map = dict_or_empty(item)
-            lines.append(f"| Center file | `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('centerCount')}` |")
+            lines.append(
+                f"| Center file | `{item_map.get('path')}` | `{item_map.get('status')}` | "
+                f"`{item_map.get('centerCount')}` |  |  |  |"
+            )
         for item in list_or_empty(candidate_routing.get("candidateComparisons")):
             item_map = dict_or_empty(item)
+            blockers_text = ", ".join(str(blocker) for blocker in list_or_empty(item_map.get("blockers")))
             lines.append(
-                f"| Candidate comparison | `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('bothReferenceMatchCount')}` |"
+                f"| Candidate comparison | `{item_map.get('path')}` | `{item_map.get('status')}` | "
+                f"`{item_map.get('baselineMatchCount')}` baseline / `{item_map.get('displacedMatchCount')}` displaced | "
+                f"`{item_map.get('rawBothReferenceMatchCount')}` | `{item_map.get('bothReferenceMatchCount')}` | "
+                f"`{blockers_text}` |"
             )
         lines.append("")
     if displaced_readiness:
@@ -924,6 +938,26 @@ def html_summary(route: Mapping[str, Any]) -> str:
         "</tr>"
         for index, action in enumerate(actions, start=1)
     )
+    comparison_items = [dict_or_empty(item) for item in list_or_empty(candidate_routing.get("candidateComparisons"))]
+    comparison_rows = "\n".join(
+        "<tr>"
+        f"<td>{html_escape(item.get('path'))}</td>"
+        f"<td>{html_escape(item.get('status'))}</td>"
+        f"<td>{html_escape(item.get('baselineMatchCount'))}</td>"
+        f"<td>{html_escape(item.get('displacedMatchCount'))}</td>"
+        f"<td>{html_escape(item.get('rawBothReferenceMatchCount'))}</td>"
+        f"<td>{html_escape(item.get('bothReferenceMatchCount'))}</td>"
+        f"<td>{html_escape('; '.join(str(blocker) for blocker in list_or_empty(item.get('blockers'))))}</td>"
+        "</tr>"
+        for item in comparison_items
+    )
+    comparison_table = (
+        "<table><tr><th>Path</th><th>Status</th><th>Baseline matches</th><th>Displaced matches</th>"
+        "<th>Raw both-reference matches</th><th>Valid both-reference matches</th><th>Blockers</th></tr>"
+        f"{comparison_rows}</table>"
+        if comparison_rows
+        else "<p>No candidate comparison summary was provided.</p>"
+    )
     readiness_items = [dict_or_empty(item) for item in list_or_empty(displaced_readiness.get("items"))]
     readiness_rows = "\n".join(
         "<tr>"
@@ -964,6 +998,7 @@ tr:last-child th, tr:last-child td {{ border-bottom: 0; }}
 li {{ margin: 6px 0; }}
 code {{ background: #020817; border: 1px solid #263a57; padding: 2px 6px; border-radius: 6px; color: #bfdbfe; }}
 .note {{ color: #fed7aa; border: 1px solid rgba(249,115,22,.4); background: rgba(249,115,22,.10); padding: 12px 14px; border-radius: 14px; }}
+.warning {{ color: #fde68a; }}
 </style>
 </head>
 <body>
@@ -975,6 +1010,9 @@ code {{ background: #020817; border: 1px solid #263a57; padding: 2px 6px; border
 </section>
 <h2>Route facts</h2>
 <table>{body_rows}</table>
+<h2>Candidate comparison gate</h2>
+<p class="warning">Raw both-reference matches are shown for audit only. Valid both-reference matches are zero when the comparison is blocked by stale, missing, or not-actually-displaced evidence.</p>
+{comparison_table}
 <h2>Displaced readiness gate</h2>
 {readiness_table}
 <h2>Promotion readiness gate</h2>

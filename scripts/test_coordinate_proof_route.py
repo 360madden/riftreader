@@ -563,6 +563,37 @@ class CoordinateProofRouteTests(unittest.TestCase):
             )
             self.assertIn("candidate-comparison-two-reference-matches-blocked:blocked", route["warnings"])
 
+    def test_html_shows_raw_and_valid_candidate_comparison_counts(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            comparison = self._write_json(
+                root / "comparison.json",
+                {
+                    "status": "blocked",
+                    "blockers": ["displaced-api-reference-planar-distance-too-small:0.01<1.0"],
+                    "candidateFiles": [
+                        {"matchCount": 1, "displacedMatchCount": 1, "bothReferenceMatchCount": 2}
+                    ],
+                },
+            )
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                candidate_comparisons=[comparison],
+            )
+            output_root = root / "scripts" / "captures" / "route"
+
+            write_route(route, output_root, repo_root=root)
+
+            html = (output_root / "coordinate-proof-route.html").read_text(encoding="utf-8")
+            self.assertIn("Raw both-reference matches", html)
+            self.assertIn("Valid both-reference matches", html)
+            self.assertIn("displaced-api-reference-planar-distance-too-small:0.01&lt;1.0", html)
+            self.assertIn("<td>2</td>", html)
+            self.assertIn("<td>0</td>", html)
+
     def test_cli_returns_blocked_exit_until_read_only_proof_is_allowed(self) -> None:
         with self._root() as temp:
             root = Path(temp) / "RiftReader"
