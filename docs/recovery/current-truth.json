@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-current-truth",
+  "updatedAtUtc": "2026-05-14T02:20:17Z",
+  "status": "candidate_only_movement_blocked",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 2928,
+    "targetWindowHandle": "0xC0994",
+    "processStartUtc": "2026-05-13T16:17:56.208370Z",
+    "moduleBase": "0x7FF71CD90000",
+    "lastVerifiedUtc": "2026-05-14T02:20:17Z"
+  },
+  "liveReferenceSurface": {
+    "authoritative": "ReaderBridge_RRAPICOORD1",
+    "status": "usable_for_read_only_proof",
+    "source": "rift-api",
+    "view": "Inspect.Unit.Detail(player)",
+    "savedVariablesUse": "none",
+    "latestPreflight": "scripts/captures/coordinate-proof-preflight-20260514-020050-354005/summary.json",
+    "latestReference": "scripts/captures/rift-api-reference-currentpid-2928-20260514-020051.json",
+    "latestMarkerDiagnostic": "scripts/captures/rrapicoord-scan-diagnostics-20260514-020126-043153/summary.json",
+    "latestAddonDiagnostic": "scripts/captures/rrapicoord-addon-state-diagnostics-20260514-020130-043012/summary.json",
+    "nonAuthoritative": [
+      {
+        "surface": "ChromaLink world-state",
+        "status": "stale_unhealthy"
+      },
+      {
+        "surface": "SavedVariables",
+        "status": "post_save_snapshot_not_live_truth"
+      }
+    ]
+  },
+  "movementGate": {
+    "allowed": false,
+    "status": "blocked",
+    "reason": "No current movement-grade proof anchor, no static pointer chain, no restart validation, and same-target ProofOnly has not passed.",
+    "requiredBeforeMovement": [
+      "fresh API/runtime reference",
+      "current-process memory candidate agreement",
+      "current proof anchor or static chain",
+      "same-target ProofOnly pass"
+    ]
+  },
+  "bestCurrentCandidate": {
+    "candidateId": "family-snapshot-hit-000001",
+    "addressHex": "0x268D1FA6120",
+    "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-020258/family-import-candidates.json",
+    "readbackSummary": "scripts/captures/riftscan-proof-pose-20260514-020339/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-220346.json",
+    "referenceMatchCount": 8,
+    "stableDecodedCandidateCount": 10,
+    "referenceMaxAbsDelta": 3.173828122271516e-05,
+    "status": "candidate_only_not_movement_proof"
+  },
+  "latestPointerEvidence": {
+    "status": "heap_only_no_static_root",
+    "boundedPointerScan": "scripts/captures/pointer-family-scan-20260514-021700-380199/summary.json",
+    "scannedTargetCount": 40,
+    "limitWarning": "max-total-targets-reached:40",
+    "moduleHitCount": 0,
+    "riftModuleHitCount": 0,
+    "ownerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-021250-664397/summary.json",
+    "moduleRvaHintCount": 0
+  },
+  "staleOrInvalid": [
+    {
+      "item": "PID 57656 / HWND 0x5417BC proof-anchor cache",
+      "reason": "old process epoch"
+    },
+    {
+      "item": "0x268E113FED0 / family-snapshot-hit-000002",
+      "reason": "failed new fresh-reference readback with ReferenceMatchCount=0"
+    },
+    {
+      "item": "SavedVariables coordinate snapshots",
+      "reason": "not live IPC; post-save only"
+    },
+    {
+      "item": "old RRAPICOORD references",
+      "reason": "timestamped scoring references only after age budget expires"
+    }
+  ],
+  "currentBlockers": [
+    "movement-grade proof anchor missing",
+    "static pointer chain not proven",
+    "restart validation not done",
+    "same-target ProofOnly not passing",
+    "ChromaLink world-state stale/unhealthy"
+  ],
+  "canonicalArtifacts": {
+    "humanTruth": "docs/recovery/current-truth.md",
+    "machineTruth": "docs/recovery/current-truth.json",
+    "latestHandoff": "docs/handoffs/2026-05-14-0220-current-truth-dashboard-trim.md",
+    "historicalFullTruth": "docs/recovery/historical/current-truth-full-2026-05-14-0216-before-trim.md",
+    "milestoneReview": "scripts/captures/riftscan-milestone-review-20260514-021300.json",
+    "previousLiveTruthHandoff": "docs/handoffs/2026-05-14-0213-live-truth-repaired-fresh-family-snapshot.md"
+  },
+  "nextRecommendedAction": "Run bounded read-only owner/static-chain investigation from the current candidate; do not move or promote until same-target ProofOnly/static-chain proof passes."
+}
