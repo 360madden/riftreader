@@ -420,6 +420,33 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
             ][0]
             self.assertEqual(route_check["status"], "pass")
 
+    def test_review_preserves_unresolved_route_pointer_as_blocker_issue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = riftscan / "reports" / "generated" / "currentpid-123-demo-addon-coordinate-matches.json"
+            current_pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            route_pointer = root / "scripts" / "captures" / "latest-coordinate-proof-route.json"
+            self._write_match(match)
+            self._write_pointer(current_pointer, match_file=match)
+            self._write_latest_live_pointer(root)
+            self._write_proof_route_pointer(route_pointer, summary_json=root / "missing" / "coordinate-proof-route.json")
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=current_pointer,
+                proof_route_summary=route_pointer,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["coordinateProofRoute"]["kind"], "latest-coordinate-proof-route-pointer")
+            self.assertTrue(
+                any(issue.startswith("coordinate_proof_route_pointer_summary_unreadable:") for issue in review["issues"])
+            )
+
     def test_review_blocks_when_attached_coordinate_route_says_memory_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "RiftReader"

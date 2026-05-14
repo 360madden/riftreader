@@ -71,6 +71,48 @@ def read_json_file(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def repo_relative_or_absolute(path: Path, repo_root: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(repo_root.resolve())).replace("\\", "/")
+    except ValueError:
+        return str(path.resolve())
+
+
+def latest_coordinate_proof_route_pointer(repo_root: Path) -> dict[str, Any]:
+    pointer = repo_root / "scripts" / "captures" / "latest-coordinate-proof-route.json"
+    result: dict[str, Any] = {
+        "path": repo_relative_or_absolute(pointer, repo_root),
+        "exists": pointer.exists(),
+        "status": None,
+        "summaryJson": None,
+        "summaryHtml": None,
+        "readOnlyProofAllowed": False,
+        "movementAllowed": False,
+    }
+    if not pointer.exists():
+        return result
+    try:
+        payload = read_json_file(pointer)
+    except Exception as exc:  # noqa: BLE001 - handoff should preserve unreadable route pointer state.
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        return result
+    if not isinstance(payload, dict):
+        result["error"] = "latest coordinate proof route pointer was not a JSON object"
+        return result
+    result.update(
+        {
+            "status": payload.get("status"),
+            "summaryJson": payload.get("summaryJson"),
+            "summaryHtml": payload.get("summaryHtml"),
+            "readOnlyProofAllowed": payload.get("readOnlyProofAllowed") is True,
+            "movementAllowed": payload.get("movementAllowed") is True,
+            "blockers": payload.get("blockers") if isinstance(payload.get("blockers"), list) else [],
+            "warnings": payload.get("warnings") if isinstance(payload.get("warnings"), list) else [],
+        }
+    )
+    return result
+
+
 def get_mapping_value(document: dict[str, Any], *names: str) -> Any:
     for expected in names:
         for key, value in document.items():
@@ -1484,6 +1526,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
             if getattr(args, "candidate_file_data", None)
             else None,
         },
+        "coordinateProofRoute": latest_coordinate_proof_route_pointer(repo_root),
         "strictLiveDebuggerReadiness": {
             "enabled": bool(args.strict_live_debugger_readiness),
             "defaultsApplied": getattr(args, "strict_readiness_defaults_applied", {}),
@@ -1534,6 +1577,7 @@ def build_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict
 def markdown_summary(summary: dict[str, Any]) -> str:
     candidate = summary["candidate"]
     safety = summary["safety"]
+    route = summary.get("coordinateProofRoute") or {}
     lines = [
         "# x64dbg static coordinate pointer-chain plan",
         "",
@@ -1545,6 +1589,7 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         f"- Rerun command: `{summary.get('artifacts', {}).get('rerunCommandText')}`",
         f"- Compact handoff JSON: `{summary.get('artifacts', {}).get('compactHandoffJson')}`",
         f"- Compact handoff: `{summary.get('artifacts', {}).get('compactHandoffMarkdown')}`",
+        f"- Coordinate proof route: `{route.get('status')}` from `{route.get('summaryJson')}`",
         f"- Movement allowed: `{str(safety.get('movementAllowed')).lower()}`",
         f"- x64dbg live attach started: `{str(safety.get('x64dbgLiveAttachStarted')).lower()}`",
         f"- x64dbg commands executed: `{str(safety.get('x64dbgCommandsExecuted')).lower()}`",
@@ -1665,6 +1710,7 @@ def compact_handoff_markdown(summary: dict[str, Any]) -> str:
     preflight = summary.get("preflight") or {}
     api_coordinate_file = summary.get("apiCoordinateFile") or {}
     candidate_file = summary.get("candidateFile") or {}
+    route = summary.get("coordinateProofRoute") or {}
     safety = summary["safety"]
     artifacts = summary["artifacts"]
 
@@ -1693,6 +1739,8 @@ def compact_handoff_markdown(summary: dict[str, Any]) -> str:
         f"- Preflight summary: `{preflight.get('summaryPath')}`",
         f"- API coordinate file: `{api_coordinate_file.get('path')}`",
         f"- Candidate file: `{candidate_file.get('path')}`",
+        f"- Coordinate proof route: `{route.get('status')}` from `{route.get('summaryJson')}`",
+        f"- Coordinate proof route HTML: `{route.get('summaryHtml')}`",
         f"- Candidate: `{candidate.get('candidateId')}` at `{candidate.get('address')}`",
         f"- API coordinate: `X={truth.get('x')}`, `Y={truth.get('y')}`, `Z={truth.get('z')}` at `{truth.get('sampledAtUtc')}`",
         "",
@@ -1778,6 +1826,7 @@ def compact_handoff_document(summary: dict[str, Any]) -> dict[str, Any]:
         "preflight": summary.get("preflight"),
         "apiCoordinateFile": summary.get("apiCoordinateFile"),
         "candidateFile": summary.get("candidateFile"),
+        "coordinateProofRoute": summary.get("coordinateProofRoute"),
         "strictLiveDebuggerReadiness": summary.get("strictLiveDebuggerReadiness"),
         "blockers": summary.get("blockers", []),
         "warnings": summary.get("warnings", []),

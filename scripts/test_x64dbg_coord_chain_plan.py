@@ -119,6 +119,37 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             handoff = json.loads((out / "x64dbg-coordinate-chain-compact-handoff.json").read_text(encoding="utf-8"))
             self.assertEqual(handoff["candidate"]["address"], summary["candidate"]["address"])
 
+    def test_compact_handoff_includes_latest_coordinate_proof_route_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pointer = root / "scripts" / "captures" / "latest-coordinate-proof-route.json"
+            pointer.parent.mkdir(parents=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "kind": "latest-coordinate-proof-route-pointer",
+                        "status": "reacquisition-no-current-hits",
+                        "summaryJson": "scripts/captures/route/coordinate-proof-route.json",
+                        "summaryHtml": "scripts/captures/route/coordinate-proof-route.html",
+                        "readOnlyProofAllowed": False,
+                        "movementAllowed": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = root / "plan"
+
+            with redirect_stdout(StringIO()):
+                code = main(["--repo-root", str(root), "--self-test", "--output-root", str(out), "--json"])
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            handoff = json.loads((out / "x64dbg-coordinate-chain-compact-handoff.json").read_text(encoding="utf-8"))
+            handoff_text = (out / "x64dbg-coordinate-chain-compact-handoff.md").read_text(encoding="utf-8")
+            self.assertEqual(summary["coordinateProofRoute"]["status"], "reacquisition-no-current-hits")
+            self.assertEqual(handoff["coordinateProofRoute"]["summaryJson"], "scripts/captures/route/coordinate-proof-route.json")
+            self.assertIn("Coordinate proof route", handoff_text)
+
     def test_missing_required_inputs_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp) / "blocked"

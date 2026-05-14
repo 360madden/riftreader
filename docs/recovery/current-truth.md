@@ -207,6 +207,11 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.html` |
 | Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
 | Latest route status | `reacquisition-no-current-hits` |
+| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-101947.html` |
+| Latest scan-profile plan | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1018-dryrun/summary.json` |
+| Latest manual displacement blocker | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1018/summary.json` |
+| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1018/summary.json` |
+| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1018/summary.html` |
 | Latest preflight with route | `scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json` |
 | Latest read-only reacquisition | `scripts/captures/family-scan-currentpid-2928-20260514-100425-894650/family-scan-summary.json` |
 | Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-100559.json` |

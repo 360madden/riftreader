@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader Recommended Actions 1-10 - 2026-05-14-101947</title>
+<style>
+body{margin:0;background:#07111f;color:#e5eefb;font-family:"Segoe UI",system-ui,sans-serif}main{max-width:1180px;margin:0 auto;padding:34px 22px 56px}.hero{border:1px solid #263a57;border-radius:24px;padding:26px;background:linear-gradient(135deg,rgba(56,189,248,.15),rgba(167,139,250,.1))}table{width:100%;border-collapse:collapse;background:#0f1b2e;border:1px solid #263a57;border-radius:16px;overflow:hidden;margin:12px 0 24px}th,td{padding:11px 13px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}th{color:#bae6fd}code{background:#020817;border:1px solid #263a57;padding:2px 6px;border-radius:6px;color:#bfdbfe}.metric{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}.card{border:1px solid #263a57;border-radius:18px;padding:16px;background:#0f1b2e}.big{font-size:26px;font-weight:850;color:#38bdf8}
+</style></head><body><main>
+<section class="hero"><h1>Recommended Actions 1-10: Proof Route Continuation</h1><p>Generated UTC: <code>2026-05-14T10:19:47Z</code></p><p>Verdict: safe progress completed; coordinate truth remains blocked until a real displaced-pose/API-memory proof path exists.</p></section>
+<section class="metric"><div class="card"><div class="big">reacquisition-no-current-hits</div><div>Latest route status</div></div><div class="card"><div class="big">blocked</div><div>Manual displacement gate</div></div><div class="card"><div class="big">8</div><div>Planned scan commands</div></div><div class="card"><div class="big">0</div><div>Movement/input/CE/x64dbg actions</div></div></section>
+<h2>1-10 completion table</h2><table><tr><th>#</th><th>Action</th><th>Status</th><th>Evidence</th></tr><tr><td>1</td><td>Manual displaced-pose gate</td><td>Blocked safely</td><td>No manual displaced reference was available; helper emitted manual-displaced-reference-required and sent no input.</td></tr>
+<tr><td>2</td><td>Scan-profile runner</td><td>Implemented</td><td>Added Python coordinate_scan_profiles.py with quick/wide/wide-stride1/historical-neighborhood profiles.</td></tr>
+<tr><td>3</td><td>Proof-route workflow docs</td><td>Updated</td><td>Documented route pointer usage, scan profiles, and candidate comparison in RiftScan/RiftReader workflow.</td></tr>
+<tr><td>4</td><td>Other handoff route pointer</td><td>Implemented</td><td>x64dbg compact handoff now includes latest coordinate proof route pointer/status.</td></tr>
+<tr><td>5</td><td>No-input candidate comparison</td><td>Implemented and run</td><td>Compared old/current candidate files; status candidate-only-no-current-api-match.</td></tr>
+<tr><td>6</td><td>Pointer regression coverage</td><td>Added</td><td>Milestone tests now cover missing/unresolved route pointer target summaries.</td></tr>
+<tr><td>7</td><td>Current-truth HTML links</td><td>Updated</td><td>Current truth now points at scan plan, displacement blocker, candidate comparison, and HTML summaries.</td></tr>
+<tr><td>8</td><td>ProofOnly/movement restraint</td><td>Preserved</td><td>No ProofOnly, movement, CE, x64dbg attach, or game input was run.</td></tr>
+<tr><td>9</td><td>Before/after route bundle</td><td>Blocked safely</td><td>Requires approved/manual displaced pose; not fabricated from still-pose data.</td></tr>
+<tr><td>10</td><td>Commit hygiene</td><td>Pending</td><td>Generated before final validation/commit so this HTML can be committed in the slice.</td></tr></table>
+<h2>Candidate comparison</h2><table><tr><th>File</th><th>Records</th><th>Current API matches</th><th>Best max abs delta</th></tr><tr><td><code>scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json</code></td><td>50</td><td>0</td><td>2.53511953124962</td></tr><tr><td><code>scripts/captures/family-scan-currentpid-2928-20260514-100425-894650/api-family-vec3-candidates.json</code></td><td>0</td><td>0</td><td></td></tr></table>
+<h2>Artifacts</h2><table><tr><th>Latest route pointer</th><td><code>scripts/captures/latest-coordinate-proof-route.json</code></td></tr>
+<tr><th>Manual displacement blocker</th><td><code>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1018/summary.json</code></td></tr>
+<tr><th>Scan profile dry-run plan</th><td><code>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1018-dryrun/summary.json</code></td></tr>
+<tr><th>Candidate comparison</th><td><code>scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1018/summary.json</code></td></tr>
+<tr><th>Candidate comparison HTML</th><td><code>scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1018/summary.html</code></td></tr>
+<tr><th>This summary</th><td><code>docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-101947.html</code></td></tr></table>
+<h2>Last 5 commits considered</h2><ul><li><code>d08bf36 Add coordinate proof route gating</code></li><li><code>b86cd0e Add Rift window tools MCP helpers</code></li><li><code>0e9ffba Add offline raw frame commands</code></li><li><code>24993d1 Add named capture crop profiles</code></li><li><code>36b45db Add raw BGRA capture artifacts</code></li></ul>
+</main></body></html>

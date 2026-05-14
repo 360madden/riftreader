@@ -226,6 +226,63 @@ resolved. If it returns `ready-for-read-only-proof`, use explicit
 `-CandidateFile` read-only proof first and still run fresh `ProofOnly` before
 any movement.
 
+When visual/capture artifacts are involved, attach the coordinate proof route
+pointer so the checkpoint can resolve the latest full route before evaluating
+sidecar evidence:
+
+```powershell
+python .\scripts\riftscan_milestone_review.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --proof-route-summary scripts\captures\latest-coordinate-proof-route.json `
+  --write-summary `
+  --write-markdown
+```
+
+The route pointer is intentionally fail-closed:
+
+- visual capture, crops, raw BGRA, and diffs remain sidecar evidence only;
+- `candidate-only-stale-against-api-now` and `reacquisition-no-current-hits`
+  block proof readiness;
+- read-only proof can proceed only when the route reaches an API-memory/current
+  candidate match; and
+- movement still requires the normal proof gate plus explicit movement approval.
+
+For repeatable no-input scan attempts, use the Python scan-profile runner. It
+wraps `scan_current_pid_coordinate_family.py` using argument arrays and records
+structured JSON/Markdown summaries:
+
+```powershell
+python .\scripts\coordinate_scan_profiles.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --reference-file scripts\captures\<fresh-reference>.json `
+  --profile wide `
+  --profile historical-neighborhood `
+  --json
+```
+
+If a manual displaced pose has not been captured, use
+`--require-displaced-pose` to fail closed with
+`manual-displaced-reference-required` rather than pretending a still pose proves
+movement-sensitive coordinate truth.
+
+To audit whether older candidate files still match API-now without reading
+target memory, use the offline comparison helper:
+
+```powershell
+python .\scripts\coordinate_candidate_compare.py `
+  --api-reference scripts\captures\<fresh-reference>.json `
+  --candidate-file scripts\captures\<candidate-file>.json `
+  --discover `
+  --json
+```
+
+This report may identify a current API match, but it is still offline evidence:
+movement remains blocked until same-target readback/proof gates pass.
+
 ## Aggregate validation runner
 
 Before committing a coordination/discovery milestone, run the Python aggregate
