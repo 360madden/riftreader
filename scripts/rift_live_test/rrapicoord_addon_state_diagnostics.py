@@ -170,6 +170,76 @@ def installed_addon_summary(root: Path, repo_root: Path, repo_addon: Mapping[str
     }
 
 
+def addon_settings_paths(addon_roots: Sequence[Path]) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for root in addon_roots:
+        interface_root = root.parent
+        saved_root = interface_root / "Saved"
+        for path in saved_root.glob("*/*AddonSettings.lua"):
+            key = str(path.resolve()).lower()
+            if key not in seen:
+                seen.add(key)
+                paths.append(path)
+        for path in saved_root.glob("*/AddonSettings.lua"):
+            key = str(path.resolve()).lower()
+            if key not in seen:
+                seen.add(key)
+                paths.append(path)
+    return sorted(paths, key=lambda path: (path.stat().st_mtime if path.exists() else 0, str(path)), reverse=True)
+
+
+def parse_addon_settings(text: str) -> dict[str, str]:
+    settings: dict[str, str] = {}
+    in_addons_table = False
+    for line in text.splitlines():
+        if re.match(r"^\s*Addons\s*=\s*{", line):
+            in_addons_table = True
+            continue
+        if in_addons_table and re.match(r"^\s*}", line):
+            break
+        if not in_addons_table:
+            continue
+        match = re.match(r"^\s*([A-Za-z0-9_]+)\s*=\s*\"([^\"]+)\"", line)
+        if match:
+            settings[match.group(1)] = match.group(2).lower()
+    return settings
+
+
+def addon_settings_summary(paths: Sequence[Path], repo_root: Path) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for path in paths:
+        record = file_record(path, repo_root)
+        try:
+            settings = parse_addon_settings(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
+            status = settings.get(ADDON_NAME)
+            summaries.append(
+                {
+                    **record,
+                    "readStatus": "passed",
+                    "addonStatus": status or "missing",
+                    "addonEnabled": status == "enabled",
+                    "knownAddonCount": len(settings),
+                }
+            )
+        except Exception as exc:
+            summaries.append(
+                {
+                    **record,
+                    "readStatus": "failed",
+                    "addonStatus": "unknown",
+                    "addonEnabled": False,
+                    "knownAddonCount": None,
+                    "error": f"{type(exc).__name__}:{exc}",
+                }
+            )
+    return summaries
+
+
+def any_settings_enabled(settings: Sequence[Mapping[str, Any]]) -> bool:
+    return any(safe_dict(item).get("addonEnabled") is True for item in settings)
+
+
 def latest_file(paths: Sequence[Path]) -> Path | None:
     existing = [path for path in paths if path.exists() and path.is_file()]
     if not existing:
@@ -229,6 +299,7 @@ def derive_verdict(
     repo_addon: Mapping[str, Any],
     installed: Sequence[Mapping[str, Any]],
     scan: Mapping[str, Any],
+    settings: Sequence[Mapping[str, Any]],
 ) -> tuple[str, str, list[str], list[str], list[str]]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -241,14 +312,26 @@ def derive_verdict(
     matching_installs = [item for item in installed if safe_dict(item).get("requiredFilesMatchRepo") is True]
     if not matching_installs:
         blockers.append("installed-addon-not-found-or-does-not-match-repo")
+    if settings and not any_settings_enabled(settings):
+        status_counts: dict[str, int] = {}
+        for item in settings:
+            status_key = str(safe_dict(item).get("addonStatus") or "unknown")
+            status_counts[status_key] = status_counts.get(status_key, 0) + 1
+        status_summary = ",".join(f"{key}={value}" for key, value in sorted(status_counts.items()))
+        blockers.append(f"addon-settings-not-enabled:{ADDON_NAME}:filesChecked={len(settings)}:{status_summary}")
+        inferred.append("addon-installed-but-not-enabled-in-account-addon-settings")
+    elif not settings:
+        warnings.append("addon-settings-file-not-found")
     usable_marker_count = scan.get("usableMarkerCount")
     if usable_marker_count == 0:
         blockers.append("current-scan-has-no-usable-rrapicoord-live-marker")
         inferred.append("installed-source-is-present-but-runtime-live-marker-is-not-observed")
     elif usable_marker_count is None:
         warnings.append("latest-rrapicoord-scan-diagnostic-missing")
-    if matching_installs and usable_marker_count == 0:
+    if matching_installs and usable_marker_count == 0 and any_settings_enabled(settings):
         inferred.append("next-step-requires-live-addon-runtime-refresh-or-manual-status-check")
+    elif matching_installs and usable_marker_count == 0:
+        inferred.append("next-step-enable-addon-or-refresh-addon-list-before-live-marker-scan")
     if matching_installs and any("scan-is-hitting-addon-source/static/error-context" == cause for cause in safe_list(scan.get("inferredCauses"))):
         inferred.append("scan-sees-addon-source-or-error-text-but-not-live-global-payload")
     if blockers:
@@ -308,6 +391,18 @@ def markdown_summary(summary: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## AddonSettings",
+            "",
+            "| File | Addon status | Enabled |",
+            "|---|---|---:|",
+        ]
+    )
+    for item in safe_list(summary.get("addonSettings")):
+        row = safe_dict(item)
+        lines.append(f"| `{row.get('path')}` | `{row.get('addonStatus')}` | `{str(row.get('addonEnabled')).lower()}` |")
+    lines.extend(
+        [
+            "",
             "## Latest RRAPICOORD scan diagnostic",
             "",
             "| Field | Value |",
@@ -346,9 +441,10 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
     addon_roots = [path.resolve() for path in (args.addons_root or default_addon_roots())]
     repo_addon = repo_addon_summary(repo_root)
     installed = [installed_addon_summary(root, repo_root, repo_addon) for root in addon_roots]
+    settings = addon_settings_summary(addon_settings_paths(addon_roots), repo_root)
     scan_path = args.rrapicoord_scan_diagnostic or latest_rrapicoord_diagnostic(repo_root)
     scan = summarize_latest_scan_diagnostic(scan_path, repo_root)
-    status, verdict, blockers, warnings, inferred = derive_verdict(repo_addon, installed, scan)
+    status, verdict, blockers, warnings, inferred = derive_verdict(repo_addon, installed, scan, settings)
     inferred.extend(cause for cause in safe_list(scan.get("inferredCauses")) if cause not in inferred)
     summary_json = output_root / "summary.json"
     summary_md = output_root / "summary.md"
@@ -368,6 +464,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         },
         "repoAddon": repo_addon,
         "installedCopies": installed,
+        "addonSettings": settings,
         "latestRrapicoordScanDiagnostic": scan,
         "blockers": blockers,
         "warnings": warnings,
@@ -393,7 +490,9 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         },
         "next": {
             "recommendedAction": (
-                "Ask the operator to approve a bounded live addon runtime refresh/status check, then rerun coordinate_proof_preflight."
+                "Enable RiftReaderApiProbe in the RIFT AddOns UI or refresh the addon list, then operator-approve reload/restart and rerun coordinate_proof_preflight."
+                if any(str(blocker).startswith(f"addon-settings-not-enabled:{ADDON_NAME}") for blocker in blockers)
+                else "Ask the operator to approve a bounded live addon runtime refresh/status check, then rerun coordinate_proof_preflight."
                 if status == "blocked"
                 else "Rerun coordinate_proof_preflight and proceed only if it reports a fresh reference."
             )

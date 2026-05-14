@@ -63,6 +63,14 @@ def write_scan_diagnostic(path: Path, *, usable: int) -> None:
     )
 
 
+def write_addon_settings(path: Path, *, status: str | None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    entries = ['  ChromaLink = "enabled",']
+    if status is not None:
+        entries.append(f'  RiftReaderApiProbe = "{status}",')
+    path.write_text("Addons = {\n" + "\n".join(entries) + "\n}\n", encoding="utf-8")
+
+
 class RrapicoordAddonStateDiagnosticsTests(unittest.TestCase):
     def test_matching_install_but_no_live_marker_blocks_with_runtime_cause(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -71,6 +79,7 @@ class RrapicoordAddonStateDiagnosticsTests(unittest.TestCase):
             addons_root = root / "addons"
             write_addon(repo / "addon")
             write_addon(addons_root)
+            write_addon_settings(root / "Saved" / "account" / "AddonSettings.lua", status="enabled")
             scan = root / "scan" / "summary.json"
             output = root / "out"
             write_scan_diagnostic(scan, usable=0)
@@ -96,6 +105,7 @@ class RrapicoordAddonStateDiagnosticsTests(unittest.TestCase):
             self.assertIn("current-scan-has-no-usable-rrapicoord-live-marker", summary["blockers"])
             self.assertIn("installed-source-is-present-but-runtime-live-marker-is-not-observed", summary["inferredCauses"])
             self.assertTrue(summary["installedCopies"][0]["requiredFilesMatchRepo"])
+            self.assertTrue(summary["addonSettings"][0]["addonEnabled"])
             self.assertFalse(summary["safety"]["addonFilesWritten"])
             self.assertFalse(summary["safety"]["inputSent"])
 
@@ -106,6 +116,7 @@ class RrapicoordAddonStateDiagnosticsTests(unittest.TestCase):
             addons_root = root / "addons"
             write_addon(repo / "addon")
             write_addon(addons_root, mutate_main=True)
+            write_addon_settings(root / "Saved" / "account" / "AddonSettings.lua", status="enabled")
             scan = root / "scan" / "summary.json"
             output = root / "out"
             write_scan_diagnostic(scan, usable=1)
@@ -130,6 +141,39 @@ class RrapicoordAddonStateDiagnosticsTests(unittest.TestCase):
             self.assertIn("installed-addon-not-found-or-does-not-match-repo", summary["blockers"])
             self.assertFalse(summary["installedCopies"][0]["requiredFilesMatchRepo"])
 
+    def test_missing_addon_settings_entry_blocks_as_not_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            addons_root = root / "addons"
+            write_addon(repo / "addon")
+            write_addon(addons_root)
+            write_addon_settings(root / "Saved" / "account" / "AddonSettings.lua", status=None)
+            scan = root / "scan" / "summary.json"
+            output = root / "out"
+            write_scan_diagnostic(scan, usable=0)
+
+            summary = build_summary(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "repo_root": repo,
+                        "output_root": output,
+                        "addons_root": [addons_root],
+                        "rrapicoord_scan_diagnostic": scan,
+                        "target_pid": None,
+                        "process_name": "rift_x64",
+                        "json": False,
+                    },
+                )()
+            )
+
+            self.assertEqual(summary["status"], "blocked")
+            self.assertIn("addon-installed-but-not-enabled-in-account-addon-settings", summary["inferredCauses"])
+            self.assertTrue(any(str(blocker).startswith("addon-settings-not-enabled:RiftReaderApiProbe") for blocker in summary["blockers"]))
+            self.assertEqual(summary["addonSettings"][0]["addonStatus"], "missing")
+
     def test_matching_install_and_live_marker_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -137,6 +181,7 @@ class RrapicoordAddonStateDiagnosticsTests(unittest.TestCase):
             addons_root = root / "addons"
             write_addon(repo / "addon")
             write_addon(addons_root)
+            write_addon_settings(root / "Saved" / "account" / "AddonSettings.lua", status="enabled")
             scan = root / "scan" / "summary.json"
             output = root / "out"
             write_scan_diagnostic(scan, usable=1)
