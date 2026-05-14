@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:01:20Z",
+  "updatedAtUtc": "2026-05-14T03:08:56Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -9,7 +9,7 @@
     "targetWindowHandle": "0xC0994",
     "processStartUtc": "2026-05-13T16:17:56.208370Z",
     "moduleBase": "0x7FF71CD90000",
-    "lastVerifiedUtc": "2026-05-14T03:01:20Z"
+    "lastVerifiedUtc": "2026-05-14T03:08:56Z"
   },
   "liveReferenceSurface": {
     "authoritative": "ReaderBridge_RRAPICOORD1",
@@ -75,17 +75,23 @@
     ]
   },
   "latestPointerEvidence": {
-    "status": "heap_only_no_static_root",
-    "boundedPointerScan": "scripts/captures/pointer-family-scan-20260514-021700-380199/summary.json",
-    "scannedTargetCount": 40,
-    "limitWarning": "max-total-targets-reached:40",
-    "moduleHitCount": 0,
-    "riftModuleHitCount": 0,
-    "ownerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-022426-567809/summary.json",
-    "inspectedOwnerCount": 24,
-    "moduleRvaHintCount": 0,
-    "rootSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-022439-156492/summary.json",
-    "rootSweepStatus": "blocked_no_module_rva_hints"
+    "status": "candidate_module_hints_no_static_root",
+    "directCandidatePointerScan": "scripts/captures/pointer-family-scan-20260514-030426-089234/summary.json",
+    "directCandidatePointerHitCount": 0,
+    "familyBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030436-657736/summary.json",
+    "familyBasePointerHitCount": 19,
+    "familyBaseModuleHitCount": 0,
+    "ownerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-030612-600628/summary.json",
+    "inspectedOwnerCount": 19,
+    "moduleRvaHintCount": 20,
+    "topModuleRva": "0x263E5F8",
+    "manualRootSignature": "scripts/captures/manual-root-signature-from-owner-batch-20260514-030612/root-signature.json",
+    "rootSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-030832-821868/summary.json",
+    "rootSweepStatus": "candidate_only_self_derived_owner_match_no_static_root",
+    "ownerBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json",
+    "ownerBasePointerHitCount": 0,
+    "movementAllowed": false,
+    "promotionEligible": false
   },
   "staleOrInvalid": [
     {
@@ -126,8 +132,8 @@
     "same-target ProofOnly not passing",
     "static pointer chain not proven",
     "candidate restart validation not done",
-    "latest owner batch found no module-RVA hints",
-    "ChromaLink world-state stale/unhealthy"
+    "ChromaLink world-state stale/unhealthy",
+    "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -152,7 +158,13 @@
     "latestAddonDiagnostic": "scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json",
     "latestUnderpoweredReferenceBlocker": "scripts/captures/riftscan-proof-pose-20260514-024955",
     "previousRobustFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-025519/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-225529.json",
-    "previousRobustFamilyReference": "scripts/captures/riftscan-proof-pose-20260514-025519/pose-api-reference.json"
+    "previousRobustFamilyReference": "scripts/captures/riftscan-proof-pose-20260514-025519/pose-api-reference.json",
+    "latestDirectCandidatePointerScan": "scripts/captures/pointer-family-scan-20260514-030426-089234/summary.json",
+    "latestFamilyBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030436-657736/summary.json",
+    "latestPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-030612-600628/summary.json",
+    "latestManualRootSignature": "scripts/captures/manual-root-signature-from-owner-batch-20260514-030612/root-signature.json",
+    "latestRootSignatureSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-030832-821868/summary.json",
+    "latestOwnerBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json"
   },
   "nextRecommendedAction": "Continue read-only family-group/multi-pose proof against the latest selected heap family, then pivot to owner/static-root recovery only after duplicate coordinate copies are disambiguated. Movement remains blocked.",
   "latestCoordinateReacquisition": {

@@ -1,6 +1,6 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T03:01:20Z._
+_Last updated: 2026-05-14T03:08:56Z._
 
 ## Verdict
 
@@ -69,9 +69,11 @@ Key proof artifacts:
 
 | Evidence | Result |
 |---|---|
-| `scripts/captures/pointer-family-scan-20260514-021700-380199/summary.json` | Capped read-only scan hit `max-total-targets-reached:40`; top target heap-only; `0` module/RIFT-module hits. |
-| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-022426-567809/summary.json` | `24` owner windows inspected; `0` module-RVA hints. |
-| `scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-022439-156492/summary.json` | Blocked as expected: no module-RVA hints to sweep. |
+| `scripts/captures/pointer-family-scan-20260514-030426-089234/summary.json` | Direct scan for `0x268D5A80730` found `0` exact pointer refs. |
+| `scripts/captures/pointer-family-scan-20260514-030436-657736/summary.json` | Family-base scan for `0x268D5A80000` found `19` heap refs, `0` module/RIFT-module hits. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-030612-600628/summary.json` | `19` owner windows inspected; `20` module-RVA hints found, top `0x263E5F8`, but candidate-only. |
+| `scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-030832-821868/summary.json` | Manual top-RVA root sweep matched a self-derived owner signature only; no static root proven. |
+| `scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json` | Reverse pointer scan for self-derived owner base `0x26887C277C8` found `0` refs. |
 | Static pointer chain | **not proven** |
 
 ## Explicitly stale / invalid / not current best
@@ -93,7 +95,7 @@ Key proof artifacts:
 - Static pointer chain not proven.
 - Candidate restart validation not done.
 - Duplicate heap coordinate copies are not yet disambiguated across multiple poses.
-- Latest owner batch found no module-RVA hints.
+- Module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs.
 - ChromaLink world-state stale/unhealthy.
 
 ## Canonical files
