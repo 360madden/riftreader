@@ -564,7 +564,12 @@ def find_latest_candidate_file(
         return None, blockers, warnings
 
     candidates: list[tuple[datetime, float, str, Path]] = []
-    for pattern in ("coordinate-family-rankings.json", "api-family-vec3-candidates.json", "candidate-vec3.json"):
+    for pattern in (
+        "coordinate-family-rankings.json",
+        "family-import-candidates.json",
+        "api-family-vec3-candidates.json",
+        "candidate-vec3.json",
+    ):
         for path in capture_root.rglob(pattern):
             try:
                 document = read_json_file(path)
@@ -590,6 +595,7 @@ def find_latest_candidate_file(
         blockers.append(
             "candidate-file-latest-not-found:"
             f"{capture_root / '**' / 'coordinate-family-rankings.json'};"
+            f"{capture_root / '**' / 'family-import-candidates.json'};"
             f"{capture_root / '**' / 'api-family-vec3-candidates.json'};"
             f"{capture_root / '**' / 'candidate-vec3.json'}"
         )
@@ -1912,7 +1918,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Coordinate candidate JSON. Single-candidate files import the address directly; "
             "multi-candidate files require --candidate-id and fail closed if ambiguous. "
             "Use 'latest' after target PID/HWND are available to select the newest same-target "
-            "api-family-vec3-candidates.json under scripts/captures."
+            "coordinate-family-rankings.json, family-import-candidates.json, api-family-vec3-candidates.json, "
+            "or candidate-vec3.json under scripts/captures."
         ),
     )
     parser.add_argument("--candidate-address", type=parse_int, default=None)

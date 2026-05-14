@@ -1497,6 +1497,73 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["candidate"]["address"], "0x17382765E40")
             self.assertEqual(summary["candidateFile"]["path"], str(candidate_file))
 
+    def test_latest_candidate_file_accepts_current_pid_family_import_candidates_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference.json"
+            candidate_file = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "coordinate-family-snapshot-currentpid-79184-new"
+                / "family-import-candidates.json"
+            )
+            self.write_preflight_summary(preflight, pid=79184, hwnd="0xA90BFC")
+            self.write_api_reference(api_file, pid=79184, hwnd="0xA90BFC")
+            candidate_file.parent.mkdir(parents=True, exist_ok=True)
+            candidate_file.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "riftreader-current-pid-coordinate-family-import-candidates",
+                        "generatedAtUtc": "2026-05-13T02:30:00Z",
+                        "processId": 79184,
+                        "targetWindowHandle": "0xA90BFC",
+                        "candidateCount": 1,
+                        "candidates": [
+                            {
+                                "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
+                                "candidate_id": "family-snapshot-hit-000004",
+                                "absolute_address_hex": "0x17382765E40",
+                                "axis_order": "xyz",
+                                "process_id": 79184,
+                                "target_window_handle": "0xA90BFC",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-file",
+                        "latest",
+                        "--candidate-id",
+                        "best",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["candidate"]["candidateId"], "family-snapshot-hit-000004")
+            self.assertEqual(summary["candidate"]["address"], "0x17382765E40")
+            self.assertEqual(summary["candidate"]["axisOrder"], "xyz")
+            self.assertEqual(summary["candidateFile"]["path"], str(candidate_file))
+            self.assertEqual(summary["candidateFile"]["sourceKind"], "riftreader.current_pid_family_snapshot_candidate.v1")
+
     def test_latest_candidate_file_prefers_newest_same_target_ranking_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)
