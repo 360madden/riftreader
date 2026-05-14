@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-maintenance-blocked-handoff-helper-tests-v0.1.1
+# Version: riftreader-maintenance-blocked-handoff-helper-tests-v0.1.2
 # Total-Character-Count: 3962
 # Purpose: Offline tests for the RiftReader maintenance-blocked handoff helper, including Git path normalization. These tests do not require RIFT, Drive, or network access.
 
@@ -33,12 +33,18 @@ class MaintenanceBlockedHandoffTests(unittest.TestCase):
             "repo": {"branch": "main", "head": "abc", "statusBefore": []},
             "riftProcessSnapshot": {"status": "captured", "count": 0, "items": []},
             "latestStage1Summary": {"path": "x"},
+            "latestCoordinateProofRoute": {
+                "path": "scripts/captures/latest-coordinate-proof-route.json",
+                "summary": {"status": "blocked"},
+            },
             "doNotDo": ["do not"],
             "verifiedHelpers": ["helper"],
             "driveArtifactPaths": ["drive"],
         }
         text = helper.current_handoff_markdown(doc)
         self.assertIn("maintenance-blocked", text)
+        self.assertIn("latest-coordinate-proof-route.json", text)
+        self.assertIn("blocked", text)
         self.assertIn("END_OF_DOCUMENT_MARKER", text)
 
     def test_find_latest_stage1_summary_prefers_newest(self) -> None:
@@ -62,6 +68,20 @@ class MaintenanceBlockedHandoffTests(unittest.TestCase):
             self.assertIsNotNone(found)
             self.assertEqual(found["summary"]["status"], "new")
 
+    def test_find_latest_coordinate_proof_route_reads_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            captures = root / "scripts" / "captures"
+            captures.mkdir(parents=True)
+            pointer = captures / "latest-coordinate-proof-route.json"
+            pointer.write_text(json.dumps({"status": "api-memory-match"}), encoding="utf-8")
+
+            found = helper.find_latest_coordinate_proof_route(root)
+
+            self.assertIsNotNone(found)
+            self.assertEqual(found["path"], "scripts/captures/latest-coordinate-proof-route.json")
+            self.assertEqual(found["summary"]["status"], "api-memory-match")
+
     def test_repo_relative_uses_git_slashes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -79,11 +99,16 @@ class MaintenanceBlockedHandoffTests(unittest.TestCase):
             "currentBlocker": "game down",
             "exactNextAction": "wait",
             "repo": {"branch": "main", "head": "abc"},
+            "latestCoordinateProofRoute": {
+                "path": "scripts/captures/latest-coordinate-proof-route.json",
+                "summary": {"status": "reacquisition-no-current-hits"},
+            },
             "generatedArtifacts": ["a", "b"],
         }
         text = helper.run_summary_markdown(doc)
         self.assertIn("game down", text)
         self.assertIn("wait", text)
+        self.assertIn("reacquisition-no-current-hits", text)
         self.assertIn("END_OF_DOCUMENT_MARKER", text)
 
 

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader Coordinate Proof Route Actions 1-10</title>
+<style>
+:root { --bg:#07111f; --panel:#0f1b2d; --line:#29415f; --text:#e6f0ff; --muted:#a8bdd7; --ok:#86efac; --warn:#fdba74; --bad:#fecaca; --accent:#38bdf8; }
+body { margin:0; background:radial-gradient(circle at top left, rgba(56,189,248,.16), transparent 35%), var(--bg); color:var(--text); font-family:"Segoe UI", system-ui, sans-serif; }
+main { max-width:1180px; margin:0 auto; padding:34px 22px 56px; }
+.hero { border:1px solid var(--line); background:linear-gradient(135deg, rgba(15,27,45,.96), rgba(30,41,59,.88)); border-radius:24px; padding:26px; box-shadow:0 24px 80px rgba(0,0,0,.28); }
+h1 { margin:0 0 8px; font-size:34px; }
+h2 { margin-top:30px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:18px 0; }
+.card { border:1px solid var(--line); background:rgba(15,27,45,.82); border-radius:18px; padding:16px; }
+.metric { font-size:28px; font-weight:800; color:var(--accent); }
+table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+th, td { padding:11px 13px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { color:#bae6fd; }
+tr:last-child td, tr:last-child th { border-bottom:0; }
+.pill { display:inline-block; border:1px solid rgba(134,239,172,.45); background:rgba(22,101,52,.32); color:var(--ok); padding:4px 9px; border-radius:999px; font-weight:700; }
+.blocked { color:var(--bad); }
+.ok { color:var(--ok); font-weight:800; }
+.warn { color:var(--warn); }
+code { background:#020817; border:1px solid var(--line); color:#bfdbfe; padding:2px 6px; border-radius:6px; }
+ul { margin-top:8px; }
+.bar { height:14px; background:#17243a; border-radius:999px; overflow:hidden; border:1px solid var(--line); }
+.bar span { display:block; height:100%; background:linear-gradient(90deg,#22c55e,#38bdf8); width:90%; }
+.footer { color:var(--muted); margin-top:28px; font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+<section class="hero">
+<h1>Coordinate Proof Route Actions 1-10</h1>
+<p>Generated UTC: <code>2026-05-14T09:56:44Z</code></p>
+<p><strong>Verdict:</strong> proof routing and validation completed; coordinate movement remains <span class="blocked"><strong>blocked</strong></span> because current-PID read-only reacquisition found no live XYZ triplets near API-now.</p>
+</section>
+<section class="grid">
+<div class="card"><div class="metric">reacquisition-no-current-hits</div><div>Latest proof-route status</div></div>
+<div class="card"><div class="metric">0</div><div>Read-only reacquisition hits</div></div>
+<div class="card"><div class="metric">264241152</div><div>Bytes scanned in bounded current-PID pass</div></div>
+<div class="card"><div class="metric">0</div><div>Movement/input/CE/x64dbg actions sent</div></div>
+</section>
+<h2>Completed actions</h2>
+<table><tr><th>#</th><th>Action</th><th>Status</th><th>Evidence</th></tr><tr><td>1</td><td>Ground on last 5 commits and worktree state</td><td><span class="pill">Completed</span></td><td>Latest commits are visual/capture tooling; proof route keeps that evidence sidecar-only.</td></tr>
+<tr><td>2</td><td>Harden coordinate proof-route generator</td><td><span class="pill">Completed</span></td><td>Added HTML/Markdown/JSON outputs, latest pointer, fail-closed exit code, and no-hit reacquisition classification.</td></tr>
+<tr><td>3</td><td>Attach route to milestone/preflight gates</td><td><span class="pill">Completed</span></td><td>Milestone and preflight now consume the route and block visual-only or stale/no-hit memory evidence.</td></tr>
+<tr><td>4</td><td>Regenerate proof route from current artifacts</td><td><span class="pill">Completed</span></td><td>Route status is reacquisition-no-current-hits; movement remains false.</td></tr>
+<tr><td>5</td><td>Run read-only current-PID coordinate reacquisition</td><td><span class="pill">Completed / blocked safely</span></td><td>No current XYZ triplets were found; hitCount=0, bytesScanned=264241152.</td></tr>
+<tr><td>6</td><td>Update current-truth docs</td><td><span class="pill">Completed</span></td><td>Current-truth JSON/Markdown now point at the latest route, HTML, pointer, preflight, scan, and milestone review.</td></tr>
+<tr><td>7</td><td>Add handoff template routing</td><td><span class="pill">Completed</span></td><td>Added coordinate-proof-route handoff template so future handoffs preserve proof-vs-sidecar separation.</td></tr>
+<tr><td>8</td><td>Validate Python route/preflight/milestone logic</td><td><span class="pill">Passed</span></td><td>compileall plus 7 route tests, 6 preflight tests, and 6 milestone tests passed.</td></tr>
+<tr><td>9</td><td>Validate cross-tool surface</td><td><span class="pill">Passed</span></td><td>JSON artifacts, route HTML parse, Node MCP validation, .NET build, .NET tests, and diff checks passed.</td></tr>
+<tr><td>10</td><td>Assess commit/push safety</td><td><span class="pill">Completed / held</span></td><td>No commit was made because the worktree contains pre-existing MCP/.NET helper changes mixed with this proof-route slice.</td></tr></table>
+<h2>Validation matrix</h2>
+<table><tr><th>Check</th><th>Result</th></tr><tr><td>python -m compileall targeted proof-route/preflight/milestone files</td><td class="ok">PASSED</td></tr><tr><td>python scripts/test_coordinate_proof_route.py (7 tests)</td><td class="ok">PASSED</td></tr><tr><td>python scripts/test_coordinate_proof_preflight.py (6 tests)</td><td class="ok">PASSED</td></tr><tr><td>python scripts/test_riftscan_milestone_review.py (6 tests)</td><td class="ok">PASSED</td></tr><tr><td>python -m json.tool on current route/pointer/milestone/scan/preflight/current-truth</td><td class="ok">PASSED</td></tr><tr><td>HTMLParser feed on route HTML</td><td class="ok">PASSED</td></tr><tr><td>node --check tools/rift-game-mcp/index.mjs and validate.mjs</td><td class="ok">PASSED</td></tr><tr><td>npm run validate --prefix tools/rift-game-mcp</td><td class="ok">PASSED</td></tr><tr><td>dotnet build RiftReader.slnx</td><td class="ok">PASSED</td></tr><tr><td>dotnet test RiftReader.slnx --no-build (102 tests)</td><td class="ok">PASSED</td></tr><tr><td>git diff --check plus explicit whitespace check for new files</td><td class="ok">PASSED</td></tr></table>
+<h2>Primary artifacts</h2>
+<table><tr><th>Route JSON</th><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-0948/coordinate-proof-route.json</code></td></tr><tr><th>Route HTML</th><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-0948/coordinate-proof-route.html</code></td></tr><tr><th>Latest route pointer</th><td><code>scripts/captures/latest-coordinate-proof-route.json</code></td></tr><tr><th>Read-only reacquisition scan</th><td><code>scripts/captures/family-scan-currentpid-2928-20260514-094831-020684/family-scan-summary.json</code></td></tr><tr><th>Preflight with route</th><td><code>scripts/captures/coordinate-proof-preflight-20260514-094657-821470/summary.json</code></td></tr><tr><th>Milestone review with route</th><td><code>scripts/captures/riftscan-milestone-review-20260514-095038.json</code></td></tr><tr><th>Handoff template</th><td><code>docs/recovery/coordinate-proof-route-handoff-template.md</code></td></tr></table>
+<h2>Route blockers</h2>
+<ul><li><code>visual-evidence-is-not-coordinate-proof</code></li><li><code>memory-candidate-reacquisition-no-current-hits</code></li></ul>
+<h2>Route warnings</h2>
+<ul><li><code>capture-present-but-no-coordinate-proof-unless-api-memory-static-route-also-passes</code></li><li><code>scan time budget reached at 45s</code></li></ul>
+<h2>Last 5 commits factored in</h2>
+<ul><li><code>0e9ffba Add offline raw frame commands</code></li><li><code>24993d1 Add named capture crop profiles</code></li><li><code>36b45db Add raw BGRA capture artifacts</code></li><li><code>e3a3690 Introduce capture backend interface</code></li><li><code>0657321 Add Python controller for Rift window capture</code></li></ul>
+<div class="card"><strong>Progress chart</strong><div class="bar"><span></span></div><p>9 implementation/validation actions completed; commit/push intentionally held because the current worktree contains unrelated pre-existing MCP/.NET helper changes.</p></div>
+<p class="footer">This HTML summary is timestamped to avoid overwrites and is human-readable for handoff/review.</p>
+</main>
+</body>
+</html>

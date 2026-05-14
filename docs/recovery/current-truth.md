@@ -1,10 +1,10 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T05:49:34Z._
+_Last updated: 2026-05-14T08:28:49.066728Z._
 
 ## Verdict
 
-**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. Two consecutive robust read-only proof-pose runs selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match. The no-attach x64dbg readiness packet now uses the **current-truth candidate** instead of hidden `latest/best` candidate fallback and passed preflight. The family-snapshot sequence helper now defaults to `RRAPICOORD1`, imports current-truth PID/HWND/start/module defaults, and prioritizes the current-truth candidate as the top family prior. Offline passive-stability analysis of the no-input sequence extracted **13 stable near-reference triplet candidates** for family-context seeding, and a fresh readback narrowed those to **3 current reference-matching heap copies** (`0x268D5A80730`, `0x268D5F6C8E0`, and `0x268D5FC52B0`). A grouped pointer/family scan ranks `0x268D5A80730` highest by segment-base pointer context (`22` heap refs), and owner-batch inspection found `9` module-RVA hints with top `0x2641E38`. I followed that lead with module-hint/root sweeps and an expanded no-input duplicate-prior family sequence: the sweeps stayed heap-only/no-static-root, while the expanded passive readback found **10 current reference-matching heap copies**. This remains **candidate-only** because there is no displaced-pose delta, no proven static root, no restart validation, and no same-target `ProofOnly` pass.
+**Read-only live testing is allowed; player-control testing remains blocked.** A fresh read-only `RRAPICOORD1` API/runtime refresh for PID `2928` / HWND `0xC0994` passed at `2026-05-14T08:22:23.8283598Z` with coordinate **`7399.1099, 871.77, 3029.96`**. A same-target read-only memory readback against the prior current-truth candidate file completed with no input, no CE, and no x64dbg, but found **`ReferenceMatchCount=0`** against that fresh API coordinate. The prior best heap candidate **`family-snapshot-hit-000004` at `0x268D5A80730`** is still stable and still matches its old source-preview value, but it is now **stale against API-now** by max abs delta **`4.29000234374962`**. Movement/navigation/player-control remains blocked until current memory agreement across poses, proof-anchor/static-chain promotion, same-target `ProofOnly`, and explicit movement approval all pass.
 
 ## Current target epoch
 
@@ -20,9 +20,21 @@ _Last updated: 2026-05-14T05:49:34Z._
 
 | Surface | Status | Notes |
 |---|---|---|
-| `ReaderBridge_RRAPICOORD1` | **current / usable for read-only proof** | Live `Inspect.Unit.Detail(player)`, `source=rift-api`, `savedVariablesUse=none`. Latest reference: `7403.4, 871.77, 3029.41` at `2026-05-14T03:19:00.9443165Z`. |
+| `ReaderBridge_RRAPICOORD1` | **current / usable for read-only proof** | Live `Inspect.Unit.Detail(player)`, `source=rift-api`, `savedVariablesUse=none`. Latest reference: `7399.1099, 871.77, 3029.96` at `2026-05-14T08:22:23.8283598Z`. |
 | ChromaLink world-state | stale / not authoritative | Still not the authority for coordinate proof in this lane. |
 | SavedVariables | not live truth | Post-save snapshots only; never use as live movement truth. |
+
+## Live testing boundary
+
+| Lane | Status | Notes |
+|---|---|---|
+| Read-only API/runtime coordinate refresh | **Allowed** | No movement, no player input, no CE/x64dbg; used to refresh RRAPICOORD/API-now truth. |
+| Same-target read-only memory candidate readback | **Allowed** | Candidate scoring only; does not promote movement truth by itself. |
+| `ProofOnly` validation | **Allowed** | Read-only proof gate; movementSent must remain `false`. |
+| Exact-HWND/window capture | **Allowed** | Visual evidence only; no player-control input. |
+| Native screenshot key | **Ask / only when explicitly in scope** | It sends a key even if non-movement. |
+| Movement / forward smoke / navigation / player-control keys | **Blocked** | Requires current proof promotion, same-target `ProofOnly`, and explicit movement approval. |
+| CE/x64dbg attach/watchpoints | **Blocked without fresh explicit approval** | Crash/risk-sensitive lane. |
 
 ## Local native screenshot keybind
 
@@ -43,16 +55,18 @@ Key proof artifacts:
 
 | Artifact | Result |
 |---|---|
+| `scripts/captures/rrapicoord-readonly-refresh-20260514-042156-095/rift-api-reference-currentpid-2928-20260514-082156.json` | **New read-only API refresh:** RRAPICOORD1 current API/runtime coordinate `7399.1099, 871.77, 3029.96` captured for PID `2928` / HWND `0xC0994`; `movementSent=false`, `noCheatEngine=true`, `savedVariablesUse=none`. |
+| `scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-042242.json` | **New same-target read-only memory readback:** candidate file decoded successfully, `ReferenceMatchCount=0`; prior best `family-snapshot-hit-000004` stayed stable/source-preview-matching but stale against API-now by max abs delta `4.29000234374962`. |
 | `scripts/captures/native-screenshot-keybind-20260514-014933/native-screenshot-result.json` | Native screenshot keybind verification passed: exported local RIFT keybind is `NUM PAD *` / `VK_MULTIPLY`; exact target PID `2928`/HWND `0xC0994`; screenshot file `2026-05-14_014934.jpg` created; no movement/CE/x64dbg/reloadui. |
-| `scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json` | Latest RRAPICOORD reference used for readback scoring. |
-| `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Latest readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`. |
+| `scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json` | Prior RRAPICOORD reference used for earlier readback scoring; superseded by the `08:22:23Z` read-only refresh above. |
+| `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Prior readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`; superseded by the latest read-only comparison with `ReferenceMatchCount=0`. |
 | `scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json` | Fresh RRAPICOORD reference used for no-attach x64dbg readiness. |
 | `scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json` | Passed no-attach readiness: exact target, fresh API coordinate, current-truth candidate, no debugger attach started. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json` | Passive no-input family sequence now works with `RRAPICOORD1` and current-truth priors; blocked intentionally because no displaced pose was captured. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-033507-237928/summary.json` | Plan-only smoke: no PID/HWND/prior supplied; helper bootstrapped all target fields and `currentTruth=0x268D5A80730` from current truth. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/delta-summary.json` | Offline passive-stability analysis: `13` stable near-reference candidates extracted; still blocked with `blocked-no-displaced-pose` and not promotion-eligible. |
-| `scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json` | Latest read-only proof-pose confirmation: `family-snapshot-hit-000004`, `ReferenceMatchCount=1`, max abs delta `4.1503906231810106e-05`. |
-| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json` | Passive candidate readback: importer-compatible candidates, `ReferenceMatchCount=3`; fixed NaN-safe ranking puts live duplicate heap copies first: `0x268D5A80730`, `0x268D5F6C8E0`, `0x268D5FC52B0`. |
+| `scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json` | Prior read-only proof-pose confirmation: `family-snapshot-hit-000004`, `ReferenceMatchCount=1`, max abs delta `4.1503906231810106e-05`; no longer current after the `08:22:23Z` API-now refresh. |
+| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json` | Prior passive candidate readback: importer-compatible candidates, `ReferenceMatchCount=3`; fixed NaN-safe ranking put then-current duplicate heap copies first: `0x268D5A80730`, `0x268D5F6C8E0`, `0x268D5FC52B0`. |
 | `scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json` | Grouped duplicate-copy pointer scan: exact coordinate copies had `0` direct refs; segment base `0x268D5A80000` had `22` heap refs, `0` module refs. |
 | `scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json` | Offline duplicate disambiguation packet ranks `0x268D5A80730` first, then `0x268D5FC52B0`, then `0x268D5F6C8E0`; candidate-only. |
 | `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json` | Owner batch inspected `36` owners and found `9` module-RVA hints, top `0x2641E38`; no static root proven. |
@@ -69,22 +83,26 @@ Key proof artifacts:
 
 | Gate | Status |
 |---|---|
-| Movement allowed | **No** |
-| Reason | Candidate is read-only heap evidence only; no movement-grade proof anchor, no static pointer chain, no restart validation, and same-target `ProofOnly` has not passed. |
-| Required before movement | Fresh API/runtime reference + current memory candidate agreement + current proof anchor/static chain + same-target `ProofOnly`. |
+| Read-only live testing | **Allowed** |
+| Player-control / movement allowed | **No** |
+| Reason | Latest read-only API refresh passed, but same-target memory readback found `ReferenceMatchCount=0`; prior best heap candidate is stable but stale against API-now. |
+| Required before movement | Fresh API/runtime reference + current memory candidate agreement across poses + proof anchor/static chain + same-target `ProofOnly` + explicit movement approval. |
 
-## Best current coordinate candidate
+## Latest memory candidate status
 
 | Field | Value |
 |---|---|
-| Candidate | `family-snapshot-hit-000004` |
+| Prior candidate | `family-snapshot-hit-000004` |
 | Address | `0x268D5A80730` |
-| Candidate file | `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json` |
-| Readback | `scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json` |
-| Reference | `scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json` |
-| Evidence | `ReferenceMatchCount=1`, `StableDecodedCandidateCount=10`, max abs delta `4.1503906231810106e-05`. |
-| Truth status | **candidate-only, not movement proof** |
-| Selection note | Multiple robust proof-pose/readback passes keep `000004` current; passive candidate readback also found duplicate live heap copy `0x268D5F6C8E0`. Prior `000003` remains family-context only. Duplicate coordinate copies still need multi-pose disambiguation. |
+| Latest status | **stable heap copy, but not current API reference match** |
+| Fresh API reference | `7399.1099, 871.77, 3029.96` at `2026-05-14T08:22:23.8283598Z` |
+| Readback sample at candidate | `7403.39990234375, 871.7699584960938, 3029.409912109375` |
+| ReferenceMatchCount | `0` |
+| Max abs delta vs API-now | `4.29000234374962` |
+| Source preview still matches readback | `true` |
+| Stable across readback samples | `true` |
+| Truth status | **candidate-only / stale against API-now / not movement proof** |
+| Meaning | The previous heap candidate still contains the old coordinate, but the player/API coordinate has changed. Do not use this address as current player coord truth. |
 
 ## Latest coordinate reacquisition evidence
 
@@ -94,9 +112,9 @@ Key proof artifacts:
 | Post-scan reference guard | `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/post-scan-reference/fresh-reference-coordinate.json` | Passed: pre/post RRAPICOORD stable with max abs drift `0.0`. |
 | Passive sequence helper repair | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json` | Read-only/no-input sequence captured two RRAPICOORD references and `33,554,432` bytes per pose from the current-truth family neighborhood; blocked with `blocked-no-displaced-pose` as expected. |
 | Passive stability candidate extraction | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/candidate-vec3.json` | Extracted `13` candidate-only stable near-reference triplets from the passive no-input sequence; best `snapshot-passive-stable-268D4B2A2A0-xyz` at `0x268D4B2A2A0`, `promotionEligible=false`. |
-| Passive stability readback | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json` | Read-only readback imported the passive candidates successfully; `3` current reference matches remain after NaN-safe ranking: `0x268D5A80730`, `0x268D5F6C8E0`, and `0x268D5FC52B0`. |
+| Passive stability readback | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json` | Read-only readback imported the passive candidates successfully; `3` then-current reference matches remained after NaN-safe ranking: `0x268D5A80730`, `0x268D5F6C8E0`, and `0x268D5FC52B0`. |
 | Expanded duplicate-prior passive sequence | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json` | Baseline + passive no-input snapshots from current-truth/duplicate priors; `14` passive candidates / `7` families; blocked as expected with no displaced pose. |
-| Expanded passive readback | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json` | `10` of `14` candidates still match current RRAPICOORD reference on readback; candidate-only heap copies, not proof. |
+| Expanded passive readback | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json` | `10` of `14` candidates matched the then-current RRAPICOORD reference on readback; candidate-only heap copies, not proof, and superseded by the latest API-now stale-candidate result. |
 | Underpowered reference capture | `scripts/captures/riftscan-proof-pose-20260514-024955` | Blocked safely; no usable full marker from the narrow 512-byte context. Superseded, not proof evidence. |
 | Proof-pose wrapper fix | `scripts/capture-riftscan-proof-pose.ps1` | Now passes `4096` context bytes, `512` max hits, `5` attempts, `1500ms` retry delay to the reference capture helper. |
 | Repeat proof-pose confirmation | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Second robust pass again selected `family-snapshot-hit-000004`; read-only only. |
@@ -134,15 +152,16 @@ Key proof artifacts:
 
 ## Current blockers
 
+- Latest read-only memory readback found zero current-reference matches.
 - Movement-grade proof anchor missing.
 - Same-target `ProofOnly` not passing.
 - Static pointer chain not proven.
 - Candidate restart validation not done.
-- Duplicate heap coordinate copies are not yet disambiguated across multiple poses; expanded passive readback now shows `10` current reference-matching heap copies.
+- Duplicate heap coordinate copies are not yet disambiguated across multiple poses; an earlier expanded passive readback showed `10` then-current reference-matching heap copies, but the latest API-now comparison invalidated the prior current-truth candidate file.
 - Module-RVA hints are candidate-only and not connected to a stable/static root; latest module-hint/root sweeps stayed heap-only/no-static-root.
 - x64dbg access events have not been captured; any live debugger capture still requires explicit current-turn approval and the bounded attach policy.
 - Displaced-pose or approved x64dbg/access evidence is still missing; passive stability candidates are family-context seeds only and not movement proof.
-- Passive-stability readback found three current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose a movement-grade source.
+- Passive-stability readback previously found three then-current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose a movement-grade source.
 - Duplicate-copy pointer scan found heap/family owner hints but no module/static pointer hits; `0x2641E38` is candidate-only and not a proven static root.
 - ChromaLink world-state stale/unhealthy.
 - Do not keep repeating heap-only module-RVA sweeps without new evidence; next signal must come from displaced-pose delta or approved access-chain evidence.
@@ -168,10 +187,36 @@ Key proof artifacts:
 | `scripts/captures/root-signature-family-classifier-20260514-041059-384649/summary.json` | Latest classifier output for `0x2641E38`; exports candidate parent leads only. |
 | `scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-041136-003958/summary.json` | Latest batch module-hint sweep from duplicate owner batch. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json` | Latest expanded no-input duplicate-prior family sequence. |
-| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json` | Latest expanded passive candidate readback; `10` current heap copies, candidate-only. |
+| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json` | Prior expanded passive candidate readback; `10` then-current heap copies, candidate-only. |
 | `scripts/captures/riftscan-milestone-review-20260514-041751.json` | Latest post-expanded-passive milestone review; read-only proof allowed, movement blocked. |
+| `scripts/captures/rrapicoord-readonly-refresh-20260514-042156-095/rift-api-reference-currentpid-2928-20260514-082156.json` | Latest read-only API/runtime coordinate refresh; PID `2928`, HWND `0xC0994`, coordinate `7399.1099, 871.77, 3029.96`, no movement/CE/x64dbg/SavedVariables live truth. |
+| `scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-042242.json` | Latest same-target read-only memory-candidate comparison; `ReferenceMatchCount=0`, prior best heap candidate stale against API-now. |
+| `docs/recovery/coord-truth-readonly-actions-1-3-summary-2026-05-14-042849.html` | Human-readable timestamped summary for actions 1-3. |
 | `docs/recovery/native-rift-screenshot-backend.md` | Canonical native screenshot rule: this local RIFT installation uses `NUM PAD *`; live proof shows it works. |
 
 ## Next best action
 
 Capture a displaced-pose family snapshot sequence when safe/manual displacement is available; otherwise use approved x64dbg/access-chain evidence. Do **not** repeat heap-only module-RVA sweeps without new evidence. Movement remains blocked until delta/static-chain proof and same-target `ProofOnly` pass.
+
+## Visual/capture proof-route policy — 2026-05-14T10:06:27Z
+
+| Field | Value |
+|---|---|
+| Route generator | `scripts/coordinate_proof_route.py` |
+| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.json` |
+| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.html` |
+| Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
+| Latest route status | `reacquisition-no-current-hits` |
+| Latest preflight with route | `scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json` |
+| Latest read-only reacquisition | `scripts/captures/family-scan-currentpid-2928-20260514-100425-894650/family-scan-summary.json` |
+| Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-100559.json` |
+| Visual evidence role | `sidecar_only_not_coordinate_or_movement_truth` |
+| Movement allowed by visual evidence | `false` |
+
+Rules:
+
+- Exact-HWND capture, raw BGRA, crop, and diff artifacts are useful visual evidence, but they are **not coordinate proof**.
+- Visual evidence cannot promote coordinate truth unless fresh API/runtime reference and same-target memory readback agree.
+- The latest proof route attached visual capture and a fresh API reference, then blocked readiness because read-only current-PID reacquisition found `0` XYZ triplets near API-now after scanning `478150656` bytes in `76.006` seconds.
+- Static-root work must start from current API/memory agreement; heap-copy, no-hit reacquisition, or visual evidence alone is not a static root.
+- Movement remains blocked until the normal proof gate passes and explicit movement approval is granted.

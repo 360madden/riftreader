@@ -7,6 +7,7 @@ from pathlib import Path
 
 from rift_live_test.riftscan_milestone_review import (
     build_milestone_review,
+    markdown_for_review,
     write_markdown_review,
     write_review,
 )
@@ -112,6 +113,55 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
                         "process_attach_or_memory_read_started": False,
                     },
                     "warnings": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_proof_route(path: Path, *, status: str = "visual-only") -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "coordinate-proof-route",
+                    "status": status,
+                    "decision": {
+                        "readOnlyProofAllowed": False,
+                        "movementAllowed": False,
+                        "visualEvidenceCanPromoteTruth": False,
+                    },
+                    "visualEvidence": {
+                        "status": "usable-sidecar",
+                        "proofRole": "sidecar_only_not_coordinate_or_movement_truth",
+                        "coordinateProof": False,
+                        "movementProof": False,
+                        "items": [],
+                    },
+                    "blockers": ["visual-evidence-is-not-coordinate-proof"],
+                    "safety": {
+                        "movementSent": False,
+                        "inputSent": False,
+                        "noCheatEngine": True,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_proof_route_pointer(path: Path, *, summary_json: Path, status: str = "visual-only") -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "latest-coordinate-proof-route-pointer",
+                    "status": status,
+                    "summaryJson": str(summary_json),
+                    "readOnlyProofAllowed": False,
+                    "movementAllowed": False,
                 }
             ),
             encoding="utf-8",
@@ -297,6 +347,109 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
                 write_review(review, riftscan / "reports" / "generated" / "bad.json", riftscan_root=riftscan)
             with self.assertRaisesRegex(ValueError, "Refusing to write"):
                 write_markdown_review(review, riftscan / "reports" / "generated" / "bad.md", riftscan_root=riftscan)
+
+    def test_review_includes_coordinate_proof_route_without_treating_visual_as_movement_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = riftscan / "reports" / "generated" / "currentpid-123-demo-addon-coordinate-matches.json"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            proof_route = root / "scripts" / "captures" / "route" / "coordinate-proof-route.json"
+            self._write_match(match)
+            self._write_pointer(pointer, match_file=match)
+            self._write_latest_live_pointer(root)
+            self._write_proof_route(proof_route)
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                proof_route_summary=proof_route,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["coordinateProofRoute"]["status"], "visual-only")
+            route_check = [
+                check
+                for check in review["checks"]
+                if check["name"] == "coordinate-proof-route-visual-sidecar"
+            ][0]
+            self.assertEqual(route_check["status"], "pass")
+            current_memory_check = [
+                check
+                for check in review["checks"]
+                if check["name"] == "coordinate-proof-route-current-memory"
+            ][0]
+            self.assertEqual(current_memory_check["status"], "pass")
+            self.assertFalse(review["coordinateProofRoute"]["decision"]["movementAllowed"])
+            self.assertIn("Coordinate proof route", markdown_for_review(review))
+
+    def test_review_resolves_latest_coordinate_proof_route_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = riftscan / "reports" / "generated" / "currentpid-123-demo-addon-coordinate-matches.json"
+            current_pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            proof_route = root / "scripts" / "captures" / "route" / "coordinate-proof-route.json"
+            route_pointer = root / "scripts" / "captures" / "latest-coordinate-proof-route.json"
+            self._write_match(match)
+            self._write_pointer(current_pointer, match_file=match)
+            self._write_latest_live_pointer(root)
+            self._write_proof_route(proof_route)
+            self._write_proof_route_pointer(route_pointer, summary_json=proof_route)
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=current_pointer,
+                proof_route_summary=route_pointer,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["coordinateProofRoute"]["kind"], "coordinate-proof-route")
+            self.assertEqual(review["coordinateProofRoute"]["status"], "visual-only")
+            self.assertEqual(review["coordinateProofRoute"]["pointerPath"], str(route_pointer))
+            route_check = [
+                check
+                for check in review["checks"]
+                if check["name"] == "coordinate-proof-route-visual-sidecar"
+            ][0]
+            self.assertEqual(route_check["status"], "pass")
+
+    def test_review_blocks_when_attached_coordinate_route_says_memory_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = riftscan / "reports" / "generated" / "currentpid-123-demo-addon-coordinate-matches.json"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            proof_route = root / "scripts" / "captures" / "route" / "coordinate-proof-route.json"
+            self._write_match(match)
+            self._write_pointer(pointer, match_file=match)
+            self._write_latest_live_pointer(root)
+            self._write_proof_route(proof_route, status="candidate-only-stale-against-api-now")
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                proof_route_summary=proof_route,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["status"], "blocked")
+            route_check = [
+                check
+                for check in review["checks"]
+                if check["name"] == "coordinate-proof-route-current-memory"
+            ][0]
+            self.assertEqual(route_check["status"], "fail")
+            self.assertFalse(review["strategy"]["readOnlyProofAllowedByReview"])
 
 
 if __name__ == "__main__":

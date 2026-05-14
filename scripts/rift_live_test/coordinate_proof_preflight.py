@@ -152,6 +152,32 @@ def stdout_artifact(command: Mapping[str, Any], name: str) -> str | None:
     return str(value) if value else None
 
 
+def milestone_review_args(
+    *,
+    repo_root: Path,
+    target_pid: int,
+    target_hwnd: str,
+    process_name: str,
+    proof_route_summary: Path | None = None,
+) -> list[str]:
+    args = [
+        sys.executable,
+        str(repo_root / "scripts" / "riftscan_milestone_review.py"),
+        "--pid",
+        str(target_pid),
+        "--hwnd",
+        str(target_hwnd),
+        "--process-name",
+        str(process_name),
+        "--write-summary",
+        "--write-markdown",
+        "--compact-json",
+    ]
+    if proof_route_summary:
+        args.extend(["--proof-route-summary", str(proof_route_summary)])
+    return args
+
+
 def command_failed(commands: Sequence[Mapping[str, Any]]) -> list[str]:
     failures: list[str] = []
     for command in commands:
@@ -191,6 +217,7 @@ def markdown_summary(summary: Mapping[str, Any]) -> str:
         f"| RRAPICOORD reference | `{artifacts.get('rrapicoordReference')}` |",
         f"| RRAPICOORD scan | `{artifacts.get('rrapicoordScan')}` |",
         f"| Reference watchdog | `{artifacts.get('referenceWatchdogSummary')}` |",
+        f"| Coordinate proof route | `{artifacts.get('proofRouteSummary')}` |",
         f"| Milestone review | `{artifacts.get('milestoneReviewSummary')}` |",
         f"| Readiness gate | `{artifacts.get('readinessGateSummary')}` |",
         "",
@@ -314,21 +341,16 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
     commands.append(reference_command)
     reference_summary = stdout_artifact(reference_command, "summaryJson")
 
+    milestone_args = milestone_review_args(
+        repo_root=repo_root,
+        target_pid=args.target_pid,
+        target_hwnd=args.target_hwnd,
+        process_name=args.process_name,
+        proof_route_summary=args.proof_route_summary,
+    )
     milestone_command = run_command(
         name="riftscan-milestone-review",
-        args=[
-            sys.executable,
-            str(repo_root / "scripts" / "riftscan_milestone_review.py"),
-            "--pid",
-            str(args.target_pid),
-            "--hwnd",
-            str(args.target_hwnd),
-            "--process-name",
-            str(args.process_name),
-            "--write-summary",
-            "--write-markdown",
-            "--compact-json",
-        ],
+        args=milestone_args,
         cwd=repo_root,
         timeout_seconds=args.gate_timeout_seconds,
         expected_exit_codes={0, 2},
@@ -407,6 +429,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
             "rrapicoordReference": rrapicoord_reference,
             "rrapicoordScan": rrapicoord_scan,
             "referenceWatchdogSummary": reference_summary,
+            "proofRouteSummary": str(args.proof_route_summary) if args.proof_route_summary else None,
             "milestoneReviewSummary": milestone_summary,
             "readinessGateSummary": readiness_summary,
         },
@@ -448,6 +471,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rrapicoord-scan-attempts", type=int, default=3)
     parser.add_argument("--rrapicoord-retry-delay-ms", type=int, default=1000)
     parser.add_argument("--rrapicoord-max-hits", type=int, default=64)
+    parser.add_argument(
+        "--proof-route-summary",
+        type=Path,
+        help="Optional coordinate-proof-route JSON to attach to the milestone strategy gate.",
+    )
     parser.add_argument("--gate-timeout-seconds", type=int, default=30)
     parser.add_argument("--json", action="store_true")
     return parser

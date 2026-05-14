@@ -53,6 +53,22 @@ def build_checks(packet: dict[str, Any]) -> list[dict[str, str]]:
         else {}
     )
     consumer_safety = consumer.get("safety") if isinstance(consumer.get("safety"), dict) else {}
+    proof_route = (
+        packet.get("coordinateProofRoute")
+        if isinstance(packet.get("coordinateProofRoute"), dict)
+        else {}
+    )
+    proof_route_decision = (
+        proof_route.get("decision")
+        if isinstance(proof_route.get("decision"), dict)
+        else {}
+    )
+    visual_evidence = (
+        proof_route.get("visualEvidence")
+        if isinstance(proof_route.get("visualEvidence"), dict)
+        else {}
+    )
+    proof_route_status = str(proof_route.get("status") or "")
 
     selected_file = selected.get("candidateFile")
     selected_source = selected.get("source")
@@ -115,6 +131,25 @@ def build_checks(packet: dict[str, Any]) -> list[dict[str, str]]:
             severity="warning",
             detail="Provider consumer summary should remain offline-only evidence.",
         ),
+        check_item(
+            "coordinate-proof-route-visual-sidecar",
+            not proof_route
+            or (
+                proof_route_decision.get("visualEvidenceCanPromoteTruth") is False
+                and proof_route_decision.get("movementAllowed") is False
+                and visual_evidence.get("coordinateProof") is False
+            ),
+            severity="blocker",
+            detail="Capture/visual evidence must remain sidecar evidence and must not grant coordinate or movement proof.",
+        ),
+        check_item(
+            "coordinate-proof-route-current-memory",
+            not proof_route
+            or proof_route_status
+            not in {"candidate-only-stale-against-api-now", "reacquisition-no-current-hits", "blocked"},
+            severity="blocker",
+            detail=f"Coordinate proof route status: {proof_route_status or 'not-attached'}. Stale API-now memory routes block promotion/readiness claims.",
+        ),
     ]
 
 
@@ -158,6 +193,10 @@ def build_strategy(review_status_value: str, packet: dict[str, Any]) -> dict[str
 
 def build_recommended_actions(review_status_value: str) -> list[dict[str, str]]:
     common = [
+        {
+            "action": "Attach coordinate-proof-route evidence when visual capture artifacts are part of the milestone.",
+            "why": "The route manifest keeps screenshots/crops/diffs visible while preventing visual evidence from being overclaimed as coordinate proof.",
+        },
         {
             "action": "Re-run this milestone review after every handoff, commit, push, or live target change.",
             "why": "It re-checks the exact PID/HWND, selected RiftScan evidence, no-CE boundary, and no-write boundary.",
@@ -270,12 +309,69 @@ def infer_latest_live_target(repo_root: Path) -> dict[str, Any]:
     return result
 
 
+def resolve_coordinate_proof_route(
+    repo_root: Path,
+    proof_route_summary: Path,
+) -> tuple[dict[str, Any], list[str]]:
+    issues: list[str] = []
+    try:
+        proof_route = read_json_file(proof_route_summary)
+    except Exception as exc:  # noqa: BLE001 - milestone review should report route-read blockers.
+        return (
+            {
+                "status": "unreadable",
+                "path": str(proof_route_summary),
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+            [f"coordinate_proof_route_unreadable:{type(exc).__name__}:{exc}"],
+        )
+    if not isinstance(proof_route, dict):
+        return (
+            {
+                "status": "unreadable",
+                "path": str(proof_route_summary),
+                "error": "route summary was not a JSON object",
+            },
+            ["coordinate_proof_route_not_json_object"],
+        )
+
+    if proof_route.get("kind") != "latest-coordinate-proof-route-pointer":
+        proof_route["path"] = str(proof_route_summary)
+        return proof_route, issues
+
+    summary_json = proof_route.get("summaryJson")
+    if not summary_json:
+        proof_route["path"] = str(proof_route_summary)
+        issues.append("coordinate_proof_route_pointer_missing_summary_json")
+        return proof_route, issues
+
+    summary_path = Path(str(summary_json))
+    if not summary_path.is_absolute():
+        summary_path = repo_root / summary_path
+    try:
+        resolved = read_json_file(summary_path)
+    except Exception as exc:  # noqa: BLE001 - preserve pointer and report unresolved target.
+        proof_route["path"] = str(proof_route_summary)
+        proof_route["unresolvedSummaryJson"] = str(summary_path)
+        issues.append(f"coordinate_proof_route_pointer_summary_unreadable:{type(exc).__name__}:{exc}")
+        return proof_route, issues
+    if not isinstance(resolved, dict):
+        proof_route["path"] = str(proof_route_summary)
+        proof_route["unresolvedSummaryJson"] = str(summary_path)
+        issues.append("coordinate_proof_route_pointer_summary_not_json_object")
+        return proof_route, issues
+    resolved["path"] = str(summary_path)
+    resolved["pointerPath"] = str(proof_route_summary)
+    return resolved, issues
+
+
 def build_milestone_review(
     *,
     repo_root: Path,
     riftscan_root: Path,
     current_proof_pointer: Path,
     candidate_consumer_summary: Path | None = None,
+    proof_route_summary: Path | None = None,
     process_id: int | None = None,
     target_window_handle: str | None = None,
     process_name: str | None = "rift_x64",
@@ -302,6 +398,11 @@ def build_milestone_review(
         process_name=effective_process_name,
         limit=limit,
     )
+    proof_route: dict[str, Any] | None = None
+    if proof_route_summary is not None:
+        proof_route, proof_route_issues = resolve_coordinate_proof_route(repo_root, proof_route_summary)
+        packet.setdefault("issues", []).extend(proof_route_issues)
+    packet["coordinateProofRoute"] = proof_route
     checks = build_checks(packet)
     status = review_status(checks, packet)
     strategy = build_strategy(status, packet)
@@ -328,6 +429,7 @@ def build_milestone_review(
             "explicitProcessName": process_name,
         },
         "selectedCandidate": packet.get("selectedCandidate"),
+        "coordinateProofRoute": packet.get("coordinateProofRoute"),
         "currentProofPointer": packet.get("currentProofPointer"),
         "riftReaderArtifacts": packet.get("riftReaderArtifacts"),
         "forbiddenDownstreamUses": packet.get("forbiddenDownstreamUses", []),
@@ -347,6 +449,11 @@ def markdown_for_review(review: dict[str, Any]) -> str:
     selected = review.get("selectedCandidate") if isinstance(review.get("selectedCandidate"), dict) else {}
     strategy = review.get("strategy") if isinstance(review.get("strategy"), dict) else {}
     target = review.get("requestedTarget") if isinstance(review.get("requestedTarget"), dict) else {}
+    proof_route = (
+        review.get("coordinateProofRoute")
+        if isinstance(review.get("coordinateProofRoute"), dict)
+        else {}
+    )
     checks = review.get("checks") if isinstance(review.get("checks"), list) else []
     actions = review.get("recommendedActions") if isinstance(review.get("recommendedActions"), list) else []
     lines = [
@@ -359,6 +466,7 @@ def markdown_for_review(review: dict[str, Any]) -> str:
         f"| Target | `{target.get('processName')}` PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}` |",
         f"| Selected candidate | `{selected.get('candidateId')}` from `{selected.get('source')}` |",
         f"| Candidate file | `{selected.get('candidateFile')}` |",
+        f"| Coordinate proof route | `{proof_route.get('status')}` from `{proof_route.get('path')}` |",
         f"| Movement allowed by review | `{strategy.get('movementAllowedByReview')}` |",
         "",
         "## Checks",
@@ -423,6 +531,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="RiftScan candidate-ledger consumer summary. Defaults to the provider current handoff path.",
     )
+    parser.add_argument(
+        "--proof-route-summary",
+        type=Path,
+        help="Optional RiftReader coordinate-proof-route JSON summary to attach as visual/API/memory proof routing evidence.",
+    )
     parser.add_argument("--pid", type=int, help="Expected current RIFT process id.")
     parser.add_argument("--hwnd", help="Expected current RIFT window handle.")
     parser.add_argument("--process-name", default="rift_x64")
@@ -459,6 +572,7 @@ def main(argv: list[str] | None = None) -> int:
         riftscan_root=riftscan_root,
         current_proof_pointer=pointer,
         candidate_consumer_summary=args.candidate_consumer_summary,
+        proof_route_summary=args.proof_route_summary,
         process_id=args.pid,
         target_window_handle=args.hwnd,
         process_name=args.process_name,

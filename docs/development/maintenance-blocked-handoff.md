@@ -1,12 +1,14 @@
 # RiftReader Maintenance-Blocked Handoff Helper
 
-Version: v0.1.1
+Version: v0.1.2
 
 ## Purpose
 
 `scripts/riftreader_maintenance_blocked_handoff.py` creates a compact maintenance-blocked handoff when RIFT is down or unavailable.
 
-It records repo state, RIFT process availability, latest Stage 1 summary if present, current blocker, exact next action, and do-not-do notes.
+It records repo state, RIFT process availability, latest Stage 1 summary if
+present, latest coordinate-proof-route pointer if present, current blocker,
+exact next action, and do-not-do notes.
 
 ## Command
 
@@ -24,6 +26,12 @@ handoffs\current\RIFTREADER_CURRENT_HANDOFF.json
 G:\My Drive\RiftReader\status\RIFTREADER_CURRENT_STATUS.md
 G:\My Drive\RiftReader\status\RIFTREADER_CURRENT_STATUS.json
 ```
+
+## v0.1.2 fix
+
+- Includes `scripts/captures/latest-coordinate-proof-route.json` in generated
+  handoffs when present, so visual/capture evidence remains tied to its
+  fail-closed coordinate-proof route status.
 
 ## v0.1.1 fix
 

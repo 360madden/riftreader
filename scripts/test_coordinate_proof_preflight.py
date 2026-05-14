@@ -10,6 +10,7 @@ from rift_live_test.coordinate_proof_preflight import (
     command_failed,
     json_from_stdout,
     latest_file,
+    milestone_review_args,
     preview_text,
 )
 
@@ -61,6 +62,19 @@ class CoordinateProofPreflightTests(unittest.TestCase):
 
         self.assertTrue(preview.startswith("aaaaa"))
         self.assertIn("truncated", preview)
+
+    def test_milestone_review_args_include_optional_proof_route_summary(self) -> None:
+        route = Path("scripts/captures/route/coordinate-proof-route.json")
+        args = milestone_review_args(
+            repo_root=Path("C:/RIFT MODDING/RiftReader"),
+            target_pid=2928,
+            target_hwnd="0xC0994",
+            process_name="rift_x64",
+            proof_route_summary=route,
+        )
+
+        self.assertIn("--proof-route-summary", args)
+        self.assertEqual(args[args.index("--proof-route-summary") + 1], str(route))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-maintenance-blocked-handoff-helper-v0.1.1
+# Version: riftreader-maintenance-blocked-handoff-helper-v0.1.2
 # Total-Character-Count: 18662
 # Purpose: Create a RiftReader maintenance-blocked handoff/status package, normalize repo paths for Git allowlists, optionally update Drive status, and optionally commit/push only generated handoff files.
 
@@ -207,10 +207,27 @@ def find_latest_stage1_summary(repo_root: Path) -> dict[str, Any] | None:
     }
 
 
+def find_latest_coordinate_proof_route(repo_root: Path) -> dict[str, Any] | None:
+    pointer = repo_root / "scripts" / "captures" / "latest-coordinate-proof-route.json"
+    if not pointer.is_file():
+        return None
+    try:
+        parsed = json.loads(pointer.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - handoffs should preserve unreadable pointer evidence.
+        parsed = {"status": "unreadable", "error": f"{type(exc).__name__}: {exc}"}
+    return {
+        "path": repo_relative(pointer, repo_root),
+        "modifiedUtc": datetime.fromtimestamp(pointer.stat().st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+        "summary": parsed,
+    }
+
+
 def current_handoff_markdown(doc: dict[str, Any]) -> str:
     repo = doc.get("repo", {})
     process = doc.get("riftProcessSnapshot", {})
     latest_stage1 = doc.get("latestStage1Summary") or {}
+    latest_route = doc.get("latestCoordinateProofRoute") or {}
+    latest_route_summary = latest_route.get("summary") or {}
     return "\n".join(
         [
             "# RiftReader Current Handoff",
@@ -224,6 +241,8 @@ def current_handoff_markdown(doc: dict[str, Any]) -> str:
             f"- RIFT process snapshot status: `{process.get('status')}`",
             f"- RIFT process count: `{process.get('count', len(process.get('items') or []))}`",
             f"- Latest Stage 1 summary: `{latest_stage1.get('path')}`",
+            f"- Latest coordinate proof route pointer: `{latest_route.get('path')}`",
+            f"- Latest coordinate proof route status: `{latest_route_summary.get('status')}`",
             "",
             "## Current blocker",
             "",
@@ -253,6 +272,8 @@ def current_handoff_markdown(doc: dict[str, Any]) -> str:
 
 def run_summary_markdown(doc: dict[str, Any]) -> str:
     repo = doc.get("repo", {})
+    latest_route = doc.get("latestCoordinateProofRoute") or {}
+    latest_route_summary = latest_route.get("summary") or {}
     return "\n".join(
         [
             "# RiftReader Maintenance-Blocked Handoff",
@@ -263,6 +284,8 @@ def run_summary_markdown(doc: dict[str, Any]) -> str:
             f"- Branch: `{repo.get('branch')}`",
             f"- HEAD: `{repo.get('head')}`",
             f"- Current lane: `{doc.get('currentLane')}`",
+            f"- Latest coordinate proof route: `{latest_route.get('path')}`",
+            f"- Latest coordinate proof route status: `{latest_route_summary.get('status')}`",
             "",
             "## Reason",
             "",
@@ -288,6 +311,7 @@ def build_handoff_doc(repo_root: Path, drive_root: Path, process_name: str) -> d
     status_before = status_lines(repo_root)
     process_snapshot = collect_rift_process_snapshot(repo_root, process_name)
     latest_stage1 = find_latest_stage1_summary(repo_root)
+    latest_coordinate_proof_route = find_latest_coordinate_proof_route(repo_root)
 
     return {
         "schemaVersion": 1,
@@ -306,11 +330,14 @@ def build_handoff_doc(repo_root: Path, drive_root: Path, process_name: str) -> d
         },
         "riftProcessSnapshot": process_snapshot,
         "latestStage1Summary": latest_stage1,
+        "latestCoordinateProofRoute": latest_coordinate_proof_route,
         "verifiedHelpers": [
             "cmd/riftreader-postupdate-proof-reacquire-stage1.cmd",
             "scripts/riftreader_postupdate_proof_reacquire_stage1.py",
             "scripts/test_riftreader_postupdate_proof_reacquire_stage1.py",
             "docs/development/postupdate-proof-reacquire-stage1.md",
+            "scripts/coordinate_proof_route.py",
+            "scripts/captures/latest-coordinate-proof-route.json",
         ],
         "driveArtifactPaths": [
             str(drive_root / "status" / "RIFTREADER_CURRENT_STATUS.md"),

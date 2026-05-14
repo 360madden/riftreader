@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader Recommended Actions 1-10</title>
+<style>
+:root { --bg:#061120; --panel:#101d31; --line:#29415f; --text:#e7f1ff; --muted:#a9bdd7; --ok:#86efac; --bad:#fecaca; --accent:#38bdf8; }
+body { margin:0; background:radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 32%), var(--bg); color:var(--text); font-family:"Segoe UI", system-ui, sans-serif; }
+main { max-width:1180px; margin:0 auto; padding:34px 22px 58px; }
+.hero { border:1px solid var(--line); background:linear-gradient(135deg, rgba(15,29,49,.98), rgba(22,35,58,.9)); border-radius:24px; padding:26px; box-shadow:0 24px 80px rgba(0,0,0,.28); }
+h1 { margin:0 0 8px; font-size:34px; }
+h2 { margin-top:30px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin:18px 0; }
+.card { border:1px solid var(--line); background:rgba(16,29,49,.84); border-radius:18px; padding:16px; }
+.metric { font-size:27px; font-weight:850; color:var(--accent); overflow-wrap:anywhere; }
+table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+th, td { padding:11px 13px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { color:#bae6fd; }
+tr:last-child td, tr:last-child th { border-bottom:0; }
+.pill { display:inline-block; border:1px solid rgba(134,239,172,.45); background:rgba(22,101,52,.32); color:var(--ok); padding:4px 9px; border-radius:999px; font-weight:750; }
+.blocked { color:var(--bad); font-weight:850; }
+code { background:#020817; border:1px solid var(--line); color:#bfdbfe; padding:2px 6px; border-radius:6px; }
+ul { margin-top:8px; }
+.footer { color:var(--muted); margin-top:28px; font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+<section class="hero">
+<h1>Recommended Actions 1-10: Proof Route Continuation</h1>
+<p>Generated UTC: <code>2026-05-14T10:07:22Z</code></p>
+<p><strong>Verdict:</strong> actions advanced safely; coordinate movement remains <span class="blocked">blocked</span> because the expanded read-only scan still found no live XYZ triplets near API-now.</p>
+</section>
+<section class="grid">
+<div class="card"><div class="metric">reacquisition-no-current-hits</div><div>Proof-route status</div></div>
+<div class="card"><div class="metric">0</div><div>Current-PID XYZ hits</div></div>
+<div class="card"><div class="metric">478150656</div><div>Bytes scanned</div></div>
+<div class="card"><div class="metric">0</div><div>Movement/input/CE/x64dbg actions</div></div>
+</section>
+<h2>Completed actions</h2>
+<table><tr><th>#</th><th>Action</th><th>Status</th><th>Evidence</th></tr><tr><td>1</td><td>Split commit plan</td><td><span class="pill">Completed</span></td><td>Separated MCP/WindowTools from coordinate proof-route/current-truth work for staging.</td></tr>
+<tr><td>2</td><td>Preflight via latest proof-route pointer</td><td><span class="pill">Completed</span></td><td>Milestone now resolves latest-coordinate-proof-route pointer to the full route before checks.</td></tr>
+<tr><td>3</td><td>Broaden current-PID reacquisition</td><td><span class="pill">Completed / blocked safely</span></td><td>75s no-input scan found 0 hits after 478150656 bytes.</td></tr>
+<tr><td>4</td><td>Regenerate proof route</td><td><span class="pill">Completed</span></td><td>Latest route status remains reacquisition-no-current-hits; movement stays blocked.</td></tr>
+<tr><td>5</td><td>Update current truth docs</td><td><span class="pill">Completed</span></td><td>Current-truth JSON/Markdown now reference the 75s scan, latest route, pointer, preflight, and milestone.</td></tr>
+<tr><td>6</td><td>Add route to automated handoff helper</td><td><span class="pill">Completed</span></td><td>Maintenance-blocked handoff helper now includes latest coordinate-proof-route pointer/status when present.</td></tr>
+<tr><td>7</td><td>Keep visual capture sidecar-only</td><td><span class="pill">Completed</span></td><td>Milestone visual-sidecar check passes after pointer resolution; memory-no-hit blocker still fails closed.</td></tr>
+<tr><td>8</td><td>Validate code and artifacts</td><td><span class="pill">Completed</span></td><td>Python, Node, .NET, JSON, HTML, and diff validations run before commit.</td></tr>
+<tr><td>9</td><td>Commit/push coherent slices</td><td><span class="pill">Pending at summary generation</span></td><td>This summary was generated before final commit/push so it can be included in the proof-route commit.</td></tr>
+<tr><td>10</td><td>Preserve timestamped HTML summary</td><td><span class="pill">Completed</span></td><td>docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-100722.html</td></tr></table>
+<h2>Primary artifacts</h2>
+<table><tr><th>Route JSON</th><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.json</code></td></tr><tr><th>Route HTML</th><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.html</code></td></tr><tr><th>Latest route pointer</th><td><code>scripts/captures/latest-coordinate-proof-route.json</code></td></tr><tr><th>75s read-only scan</th><td><code>scripts/captures/family-scan-currentpid-2928-20260514-100425-894650/family-scan-summary.json</code></td></tr><tr><th>Preflight with pointer</th><td><code>scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json</code></td></tr><tr><th>Milestone with resolved pointer</th><td><code>scripts/captures/riftscan-milestone-review-20260514-100559.json</code></td></tr><tr><th>Handoff template</th><td><code>docs/recovery/coordinate-proof-route-handoff-template.md</code></td></tr><tr><th>Maintenance handoff helper</th><td><code>scripts/riftreader_maintenance_blocked_handoff.py</code></td></tr></table>
+<h2>Route blockers</h2>
+<ul><li><code>visual-evidence-is-not-coordinate-proof</code></li><li><code>memory-candidate-reacquisition-no-current-hits</code></li></ul>
+<h2>Route warnings</h2>
+<ul><li><code>capture-present-but-no-coordinate-proof-unless-api-memory-static-route-also-passes</code></li><li><code>scan time budget reached at 75s</code></li></ul>
+<h2>Last 5 commits considered</h2>
+<ul><li><code>0e9ffba Add offline raw frame commands</code></li><li><code>24993d1 Add named capture crop profiles</code></li><li><code>36b45db Add raw BGRA capture artifacts</code></li><li><code>e3a3690 Introduce capture backend interface</code></li><li><code>0657321 Add Python controller for Rift window capture</code></li></ul>
+<p class="footer">Timestamped summary; safe to keep alongside earlier summaries without overwriting them.</p>
+</main>
+</body>
+</html>

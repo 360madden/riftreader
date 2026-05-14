@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RiftReader Coord Truth Actions 1-3 Summary - 2026-05-14-042849</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#121a31; --panel2:#18213d; --text:#edf3ff; --muted:#aebbd5; --green:#48d597; --yellow:#ffd166; --red:#ff6b6b; --blue:#6ea8fe; --line:#2c385f; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: Segoe UI, Roboto, Arial, sans-serif; background:linear-gradient(140deg,#07101f,#151a33 50%,#07101f); color:var(--text); }
+    .wrap { max-width:1180px; margin:0 auto; padding:32px 24px 48px; }
+    .hero { border:1px solid var(--line); background:radial-gradient(circle at top left,rgba(110,168,254,.22),transparent 32%),var(--panel); border-radius:22px; padding:28px; box-shadow:0 24px 80px rgba(0,0,0,.35); }
+    h1 { margin:0 0 8px; font-size:32px; letter-spacing:-.02em; }
+    h2 { margin:28px 0 12px; font-size:20px; }
+    .sub { color:var(--muted); margin:0; line-height:1.5; }
+    .badge { display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(72,213,151,.16); color:var(--green); border:1px solid rgba(72,213,151,.45); font-weight:700; font-size:13px; }
+    .blocked { background:rgba(255,107,107,.14); color:#ffb3b3; border-color:rgba(255,107,107,.45); }
+    .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-top:20px; }
+    .card { background:var(--panel2); border:1px solid var(--line); border-radius:16px; padding:16px; }
+    .metric { font-size:24px; font-weight:800; margin-top:8px; }
+    .muted { color:var(--muted); }
+    table { width:100%; border-collapse:collapse; overflow:hidden; border-radius:14px; border:1px solid var(--line); background:rgba(18,26,49,.88); }
+    th,td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:#dbe7ff; background:#17213d; font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+    tr:last-child td { border-bottom:none; }
+    code { background:#0a1225; color:#d8e6ff; padding:2px 6px; border-radius:6px; }
+    .status-ok { color:var(--green); font-weight:800; }
+    .status-warn { color:var(--yellow); font-weight:800; }
+    .status-block { color:#ffb3b3; font-weight:800; }
+    .bars { display:grid; gap:12px; }
+    .bar-label { display:flex; justify-content:space-between; color:var(--muted); margin-bottom:6px; font-size:13px; }
+    .bar { height:16px; background:#0a1225; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+    .fill { height:100%; border-radius:999px; }
+    .fill.green { width:100%; background:linear-gradient(90deg,#24c68a,var(--green)); }
+    .fill.red { width:0%; background:var(--red); }
+    .fill.yellow { width:86%; background:linear-gradient(90deg,#f8b84e,var(--yellow)); }
+    .foot { margin-top:28px; color:var(--muted); font-size:13px; }
+    @media (max-width:900px) { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:560px) { .grid { grid-template-columns:1fr; } .wrap { padding:20px 12px; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <span class="badge">Actions 1-3 completed</span>
+      <span class="badge blocked">Movement still blocked</span>
+      <h1>RiftReader Coordinate Truth: Read-Only Live Proof Summary</h1>
+      <p class="sub">Generated 2026-05-14 04:28:49 EDT / 2026-05-14T08:28:49Z. Scope: reclassify live testing, refresh API/runtime coordinate truth, and run same-target read-only memory readback.</p>
+      <div class="grid">
+        <div class="card"><div class="muted">API refresh</div><div class="metric status-ok">PASS</div></div>
+        <div class="card"><div class="muted">Memory matches</div><div class="metric status-block">0</div></div>
+        <div class="card"><div class="muted">Movement sent</div><div class="metric status-ok">FALSE</div></div>
+        <div class="card"><div class="muted">CE/x64dbg</div><div class="metric status-ok">NONE</div></div>
+      </div>
+    </section>
+
+    <h2>Verdict</h2>
+    <table><tbody>
+      <tr><th>Lane</th><th>Status</th><th>Meaning</th></tr>
+      <tr><td>Read-only live testing</td><td class="status-ok">Allowed</td><td>API/runtime refresh, same-target memory readback, ProofOnly, and visual capture are allowed when no player-control input is sent.</td></tr>
+      <tr><td>Player-control / movement</td><td class="status-block">Blocked</td><td>The prior heap candidate is stale against API-now. Movement needs current memory agreement, proof/static-chain promotion, same-target ProofOnly, and explicit approval.</td></tr>
+    </tbody></table>
+
+    <h2>Actions completed</h2>
+    <table><thead><tr><th>#</th><th>Action</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+      <tr><td>1</td><td>Reclassify live testing</td><td>Completed</td><td>Read-only proof is allowed; player-control/movement remains blocked.</td></tr><tr><td>2</td><td>Run read-only API refresh</td><td>Passed</td><td>RRAPICOORD1/API-now coordinate: 7399.1099, 871.77, 3029.96 at 2026-05-14T08:22:23.8283598Z.</td></tr><tr><td>3</td><td>Run same-target memory readback</td><td>Completed / stale</td><td>Readback decoded successfully, but ReferenceMatchCount=0; prior heap candidate is stale vs API-now.</td></tr>
+    </tbody></table>
+
+    <h2>Key evidence</h2>
+    <table><tbody>
+      <tr><th>PID / HWND</th><td>2928 / 0xC0994</td></tr><tr><th>API marker</th><td>RRAPICOORD1, source=rift-api, view=Inspect.Unit.Detail(player), savedVariablesUse=none</td></tr><tr><th>Fresh API coordinate</th><td>7399.1099, 871.77, 3029.96</td></tr><tr><th>Prior heap candidate</th><td>family-snapshot-hit-000004 @ 0x268D5A80730</td></tr><tr><th>Readback sample at prior candidate</th><td>7403.39990234375, 871.7699584960938, 3029.409912109375</td></tr><tr><th>ReferenceMatchCount</th><td>0</td></tr><tr><th>Max abs delta vs API-now</th><td>4.29000234374962</td></tr><tr><th>Movement sent</th><td>false</td></tr><tr><th>CE/x64dbg used</th><td>false</td></tr>
+    </tbody></table>
+
+    <h2>Quick health chart</h2>
+    <div class="card bars">
+      <div><div class="bar-label"><span>API reference freshness</span><span>passed</span></div><div class="bar"><div class="fill green"></div></div></div>
+      <div><div class="bar-label"><span>Candidate/API agreement</span><span>0 matches</span></div><div class="bar"><div class="fill red"></div></div></div>
+      <div><div class="bar-label"><span>Safety compliance</span><span>no input / no debugger</span></div><div class="bar"><div class="fill green"></div></div></div>
+      <div><div class="bar-label"><span>Promotion readiness</span><span>blocked pending fresh candidate</span></div><div class="bar"><div class="fill yellow"></div></div></div>
+    </div>
+
+    <h2>Artifacts</h2>
+    <table><thead><tr><th>Artifact</th><th>Purpose</th></tr></thead><tbody>
+      <tr><td><code>scripts/captures/rrapicoord-readonly-refresh-20260514-042156-095/rift-api-reference-currentpid-2928-20260514-082156.json</code></td><td>Fresh RRAPICOORD/API-now coordinate reference.</td></tr>
+      <tr><td><code>scripts/captures/rrapicoord-readonly-refresh-20260514-042156-095/rift-api-reference-scan-currentpid-2928-20260514-082156.json</code></td><td>Marker scan evidence for the API reference capture.</td></tr>
+      <tr><td><code>scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-042242.json</code></td><td>Same-target read-only memory readback summary.</td></tr>
+      <tr><td><code>scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-currentpid-2928-passive-vec3-watchset-20260514-042242.json</code></td><td>Passive Vec3 watchset generated for the readback.</td></tr>
+    </tbody></table>
+
+    <h2>Top 10 recommended next actions</h2>
+    <table><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody>
+      <tr><td>1</td><td>Refresh broad current-PID coordinate family around the new API-now coordinate</td><td>The prior family candidate file no longer matches current API truth.</td></tr><tr><td>2</td><td>Run read-only displaced-pose capture after manual/operator displacement</td><td>Disambiguates live heap copies without sending movement keys.</td></tr><tr><td>3</td><td>Compare multi-pose candidates against fresh RRAPICOORD references</td><td>Promotion needs current agreement across poses, not a single stale snapshot.</td></tr><tr><td>4</td><td>Regenerate candidate watchset from only current-reference matches</td><td>Avoids carrying stale heap copies into ProofOnly.</td></tr><tr><td>5</td><td>Run same-target ProofOnly after a candidate is current again</td><td>Keeps player-control blocked until read-only proof passes.</td></tr><tr><td>6</td><td>Attempt static-chain/root provenance only after current candidate agreement</td><td>Pointer work is more valuable once the coord source is live.</td></tr><tr><td>7</td><td>Keep CE/x64dbg blocked unless explicitly re-approved</td><td>Debugger attach/watchpoints remain crash/risk-sensitive.</td></tr><tr><td>8</td><td>Update stale artifact labels in handoff if a new candidate wins</td><td>Prevents old `latest` wording from misleading the next session.</td></tr><tr><td>9</td><td>Run milestone review after the next read-only proof slice</td><td>Maintains the RiftScan/RiftReader strategy gate before expanding scope.</td></tr><tr><td>10</td><td>Only request movement approval after static/proof gates pass</td><td>Keeps live player-control testing bounded and evidence-backed.</td></tr>
+    </tbody></table>
+
+    <p class="foot">This summary is intentionally timestamped and non-overwriting. It is a human-readable companion to <code>docs/recovery/current-truth.md</code> and <code>docs/recovery/current-truth.json</code>.</p>
+  </main>
+</body>
+</html>
