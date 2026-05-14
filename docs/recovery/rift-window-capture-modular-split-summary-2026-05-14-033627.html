@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rift Window Capture Modular Split Summary - 2026-05-14-033627</title>
+<style>
+:root { --bg:#0b1020; --panel:#121a2d; --panel2:#18223a; --text:#eaf0ff; --muted:#aab6d3; --accent:#79d1ff; --ok:#38d996; --warn:#ffd166; --line:#2a3758; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:Segoe UI, Roboto, Arial, sans-serif; background:linear-gradient(135deg,#08101e,#101a32 45%,#08101e); color:var(--text); }
+main { max-width:1180px; margin:0 auto; padding:32px; }
+.hero { border:1px solid var(--line); background:linear-gradient(135deg,rgba(121,209,255,.14),rgba(56,217,150,.08)); border-radius:24px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.28); }
+h1 { margin:0 0 8px; font-size:34px; }
+.subtitle { color:var(--muted); font-size:16px; }
+.grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:22px 0; }
+.card { border:1px solid var(--line); background:rgba(18,26,45,.88); border-radius:18px; padding:18px; }
+.card .num { font-size:28px; font-weight:800; color:var(--accent); }
+.card .label { color:var(--muted); margin-top:4px; }
+section { margin-top:22px; border:1px solid var(--line); background:rgba(18,26,45,.86); border-radius:20px; padding:22px; }
+h2 { margin:0 0 14px; font-size:22px; }
+table { width:100%; border-collapse:collapse; overflow:hidden; border-radius:14px; }
+th,td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { background:var(--panel2); color:#d8e7ff; font-weight:700; }
+tr:last-child td { border-bottom:0; }
+code { color:#c8e9ff; background:#07101d; padding:2px 6px; border-radius:6px; }
+.badge { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px; }
+.badge.ok { color:#062014; background:var(--ok); }
+.badge.warn { color:#332300; background:var(--warn); }
+.bar { width:100%; height:12px; border-radius:999px; background:#07101d; overflow:hidden; border:1px solid #223050; }
+.bar span { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--ok)); }
+.callout { border-left:4px solid var(--ok); padding:12px 14px; background:rgba(56,217,150,.08); border-radius:12px; color:#d9ffe9; }
+.footer { color:var(--muted); font-size:12px; margin-top:18px; }
+@media (max-width:800px) { .grid { grid-template-columns:1fr 1fr; } main { padding:18px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <h1>✅ Rift Window Capture Modular Split</h1>
+    <div class="subtitle">Timestamp: 2026-05-14T03:36:28-04:00 · Code commit summarized: <code>a4a731a</code> · Scope: <code>tools/rift-window-capture</code></div>
+    <div class="grid">
+      <div class="card"><div class="num">18</div><div class="label">tracked files in split</div></div>
+      <div class="card"><div class="num">95</div><div class="label">lines left in Program.cs</div></div>
+      <div class="card"><div class="num">4/4</div><div class="label">CLI smoke tests passed</div></div>
+      <div class="card"><div class="num">641×391</div><div class="label">live WGC smoke PNG</div></div>
+    </div>
+    <div class="callout"><strong>Verdict:</strong> The capture tool is no longer monolithic. <code>Program.cs</code> is now a thin dispatcher and capture/backend/artifact/report logic lives in focused C# modules.</div>
+  </div>
+
+  <section>
+    <h2>What changed</h2>
+    <table>
+      <thead><tr><th>Area</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>CLI entry</td><td><code>Program.cs</code> dispatches commands and handles final JSON/human output only.</td></tr>
+        <tr><td>Capture core</td><td><code>Capture/CaptureRunner.cs</code> owns capture flow and exit-code decisions.</td></tr>
+        <tr><td>Artifacts</td><td><code>Artifacts/RunArtifacts.cs</code> owns manifest, run log, summary, and output paths.</td></tr>
+        <tr><td>Backends/DirectX/Interop</td><td>Desktop Duplication, D3D helpers, WGC interop, and native methods are isolated.</td></tr>
+        <tr><td>Docs</td><td><code>docs/recovery/rift-window-capture-app-plan.md</code> now records the modularization progress and latest smoke artifact.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Validation evidence</h2>
+    <table><thead><tr><th>Check</th><th>Status</th><th>Evidence</th></tr></thead><tbody><tr><td><code>dotnet build tools\rift-window-capture\RiftWindowCapture.csproj --nologo</code></td><td><span class="badge ok">Passed</span></td><td>0 warnings, 0 errors</td></tr>
+<tr><td><code>python scripts\test_rift_window_capture_cli.py</code></td><td><span class="badge ok">Passed</span></td><td>4/4 CLI tests passed</td></tr>
+<tr><td><code>Manifest validate</code></td><td><span class="badge ok">Passed</span></td><td>Prior live exact-HWND manifest parsed and artifact paths existed</td></tr>
+<tr><td><code>Live modular smoke</code></td><td><span class="badge ok">Passed</span></td><td>PID 2928 / HWND 0xC0994 captured usable 641x391 WGC PNG</td></tr>
+<tr><td><code>python -m json.tool docs\recovery\current-truth.json</code></td><td><span class="badge ok">Passed</span></td><td>Current-truth JSON syntax valid</td></tr>
+<tr><td><code>git diff --cached --check</code></td><td><span class="badge ok">Passed</span></td><td>No staged whitespace errors</td></tr></tbody></table>
+  </section>
+
+  <section>
+    <h2>Module size chart</h2>
+    <table><thead><tr><th>File</th><th>Lines</th><th>Relative size</th><th>Role</th></tr></thead><tbody><tr><td><code>Program.cs</code></td><td>95</td><td><div class='bar'><span style='width:38%'></span></div></td><td>Thin CLI dispatcher</td></tr>
+<tr><td><code>Artifacts/RunArtifacts.cs</code></td><td>244</td><td><div class='bar'><span style='width:98%'></span></div></td><td>Manifest/log/summary bundle</td></tr>
+<tr><td><code>Frames/TextureSaver.cs</code></td><td>250</td><td><div class='bar'><span style='width:100%'></span></div></td><td>Texture readback + PNG quality</td></tr>
+<tr><td><code>Cli/Options.cs</code></td><td>219</td><td><div class='bar'><span style='width:88%'></span></div></td><td>Argument parsing and usage</td></tr>
+<tr><td><code>Targeting/WindowFinder.cs</code></td><td>186</td><td><div class='bar'><span style='width:74%'></span></div></td><td>HWND/process validation</td></tr>
+<tr><td><code>Capture/CaptureRunner.cs</code></td><td>165</td><td><div class='bar'><span style='width:66%'></span></div></td><td>Capture orchestration</td></tr>
+<tr><td><code>Benchmarking/BenchmarkCommands.cs</code></td><td>146</td><td><div class='bar'><span style='width:58%'></span></div></td><td>Repeated capture benchmark</td></tr>
+<tr><td><code>Backends/DesktopDuplicationCapture.cs</code></td><td>133</td><td><div class='bar'><span style='width:53%'></span></div></td><td>DXGI fallback backend</td></tr></tbody></table>
+  </section>
+
+  <section>
+    <h2>Top 10 recommended next actions</h2>
+    <table><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody><tr><td>1</td><td>Add Python canonical orchestration wrapper</td><td>Keeps state machines/JSON parsing in Python while C# remains the capture core.</td></tr>
+<tr><td>2</td><td>Introduce ICaptureBackend abstraction</td><td>Makes WGC/DXGI/future backends swappable without widening Program.cs again.</td></tr>
+<tr><td>3</td><td>Add raw BGRA output</td><td>Speeds CV/OCR pipelines by avoiding PNG decode when machine-only data is needed.</td></tr>
+<tr><td>4</td><td>Add named crop profiles</td><td>Standardizes telemetry strip, full-window, and UI-region captures.</td></tr>
+<tr><td>5</td><td>Add offline crop/convert/diff commands</td><td>Allows artifact analysis without live RIFT running.</td></tr>
+<tr><td>6</td><td>Add repeated capture session mode</td><td>Avoids process startup cost and enables fast visual polling.</td></tr>
+<tr><td>7</td><td>Add capture backend benchmarks by mode</td><td>Separates WGC, DXGI, PNG write, and artifact overhead.</td></tr>
+<tr><td>8</td><td>Add third-party dependency review packet</td><td>Safely evaluates mature OSS libraries without blind vendoring.</td></tr>
+<tr><td>9</td><td>Add README examples for common capture workflows</td><td>Improves operator handoff and reduces command mistakes.</td></tr>
+<tr><td>10</td><td>Gate promotion into navigation workflows</td><td>Prevents visual artifacts from being treated as movement proof prematurely.</td></tr></tbody></table>
+  </section>
+
+  <div class="footer">Generated as a timestamped human-readable summary so prior summaries are not overwritten.</div>
+</main>
+</body>
+</html>
