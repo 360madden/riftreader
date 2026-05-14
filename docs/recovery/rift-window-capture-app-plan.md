@@ -34,13 +34,14 @@ monolithic `Program.cs`.
 | Latest backend-interface live smoke | Passed | `scripts/captures/rift-window-capture-backend-interface-live-smoke-20260514-034719-184` |
 | Raw `.bgra` output | Implemented | `--emit-raw-bgra` writes `raw/full-window.bgra` and `raw/full-window.frame.json` |
 | Latest raw `.bgra` live smoke | Passed | `scripts/captures/rift-window-capture-raw-bgra-live-smoke-20260514-040054-154` |
+| Named crop profiles | Implemented | `full-window`, `content`, `top-strip`, `bottom-strip`, and `telemetry-strip` |
+| Latest crop-profile live smoke | Passed | `scripts/captures/rift-window-capture-crop-profiles-live-smoke-20260514-040655-757` |
 
 Safety boundary remained clean: no movement, no game input, no native
 screenshot key, no CE, and no x64dbg.
 
-Still deferred from the full plan: robust named crop profiles beyond
-full-window, offline `convert`/`crop`/`diff` commands, and repeated capture
-session mode.
+Still deferred from the full plan: offline `convert`/`crop`/`diff` commands
+and repeated capture session mode.
 
 ---
 
@@ -448,21 +449,19 @@ Exit codes:
 
 ## ✂️ Crop profiles
 
-Built-in crop profiles should be named and manifest-recorded.
+Built-in crop profiles are named and manifest-recorded.
 
 | Profile | Purpose |
 |---|---|
 | `full-window` | Complete captured window/frame |
-| `client` | Client area if detectable |
-| `telemetry-strip` | ChromaLink / addon telemetry extraction |
-| `top-left` | Debug/probe area |
-| `center` | Player/world visual checks |
-| `chat` | Optional UI/chat validation |
-| `minimap` | Optional navigation visual work |
-| `custom:x,y,w,h` | Script-specified crop |
+| `content` | Full width with the top 40 px skipped, matching the first quality-gate content area |
+| `top-strip` | Top 96 px strip |
+| `bottom-strip` | Bottom 96 px strip |
+| `telemetry-strip` | Current default telemetry candidate, implemented as the top 96 px strip until a ChromaLink-specific overlay rectangle is calibrated |
 
-The crop command must record source frame identity and exact rectangle in the
-manifest so later analysis can reproduce it.
+Each emitted crop records the source rectangle in the manifest so later analysis
+can reproduce it. Future profiles can add `chat`, `minimap`, `center`, and
+`custom:x,y,w,h` after fixture coverage exists.
 
 ---
 

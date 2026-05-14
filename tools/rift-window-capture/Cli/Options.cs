@@ -108,12 +108,7 @@ sealed record Options(
                     emitRawBgra = true;
                     break;
                 case "--crop":
-                    string crop = RequireValue(args, ref i, arg);
-                    if (!string.Equals(crop, "full-window", StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new ArgumentException($"Unsupported --crop profile for this implementation slice: {crop}. Supported: full-window.");
-                    }
-                    cropProfiles.Add("full-window");
+                    cropProfiles.Add(CropProfileRegistry.Normalize(RequireValue(args, ref i, arg)));
                     break;
                 case "--capture-monitor":
                     captureMonitor = true;

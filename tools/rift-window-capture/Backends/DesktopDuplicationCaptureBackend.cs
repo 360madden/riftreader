@@ -8,6 +8,8 @@ sealed class DesktopDuplicationCaptureBackend : ICaptureBackend
         Options options,
         string output,
         string? rawOutput,
+        string? cropImageRoot,
+        string? cropRawRoot,
         RunArtifacts? artifacts)
     {
         IntPtr monitor = NativeMethods.MonitorFromWindow(window.Hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
@@ -16,6 +18,9 @@ sealed class DesktopDuplicationCaptureBackend : ICaptureBackend
             monitor,
             output,
             rawOutput,
+            cropImageRoot,
+            cropRawRoot,
+            options.CropProfiles,
             options.TimeoutMs,
             options.CaptureAttempts,
             options.ShouldEmitPng);

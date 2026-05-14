@@ -8,6 +8,8 @@ interface ICaptureBackend
         Options options,
         string output,
         string? rawOutput,
+        string? cropImageRoot,
+        string? cropRawRoot,
         RunArtifacts? artifacts);
 }
 

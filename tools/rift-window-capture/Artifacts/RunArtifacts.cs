@@ -16,6 +16,8 @@ sealed class RunArtifacts
         SummaryPath = Path.Combine(outputRoot, "summary.md");
         RunLogPath = Path.Combine(outputRoot, "logs", "run.jsonl");
         RawFramePath = Path.Combine(outputRoot, "raw", "full-window.bgra");
+        CropImagesRoot = Path.Combine(outputRoot, "images", "crops");
+        CropRawRoot = Path.Combine(outputRoot, "raw", "crops");
         StartedAtUtc = DateTimeOffset.UtcNow;
     }
 
@@ -26,6 +28,8 @@ sealed class RunArtifacts
     public string SummaryPath { get; }
     public string RunLogPath { get; }
     public string RawFramePath { get; }
+    public string CropImagesRoot { get; }
+    public string CropRawRoot { get; }
     public DateTimeOffset StartedAtUtc { get; }
 
     public static RunArtifacts? Create(Options options)
@@ -44,6 +48,8 @@ sealed class RunArtifacts
         Directory.CreateDirectory(Path.Combine(outputRoot, "logs"));
         Directory.CreateDirectory(Path.Combine(outputRoot, "images"));
         Directory.CreateDirectory(Path.Combine(outputRoot, "raw"));
+        Directory.CreateDirectory(Path.Combine(outputRoot, "images", "crops"));
+        Directory.CreateDirectory(Path.Combine(outputRoot, "raw", "crops"));
         Directory.CreateDirectory(Path.Combine(outputRoot, "debug"));
 
         return new RunArtifacts(outputRoot, imagePath);
@@ -107,7 +113,16 @@ sealed class RunArtifacts
             Relative(RunLogPath),
             report.Output is null ? null : Relative(report.Output),
             report.Quality?.RawOutput is null ? null : Relative(report.Quality.RawOutput),
-            report.Quality?.RawMetadata is null ? null : Relative(report.Quality.RawMetadata));
+            report.Quality?.RawMetadata is null ? null : Relative(report.Quality.RawMetadata),
+            report.Quality?.CropOutputs.Select(crop => new CaptureCropArtifactManifest(
+                crop.Profile,
+                crop.X,
+                crop.Y,
+                crop.Width,
+                crop.Height,
+                Relative(crop.ImageOutput),
+                crop.RawOutput is null ? null : Relative(crop.RawOutput),
+                crop.RawMetadata is null ? null : Relative(crop.RawMetadata))).ToArray() ?? []);
 
         return new CaptureRunManifest(
             "rift-window-capture-manifest/v1",
@@ -157,6 +172,7 @@ sealed class RunArtifacts
         builder.AppendLine($"- Backend: `{report.CaptureMethod}`");
         builder.AppendLine($"- Output: `{report.Output ?? "n/a"}`");
         builder.AppendLine($"- Raw BGRA: `{report.Quality?.RawOutput ?? "n/a"}`");
+        builder.AppendLine($"- Crop outputs: `{report.Quality?.CropOutputs.Length ?? 0}`");
         builder.AppendLine($"- Usable: `{report.Usable}`");
         builder.AppendLine();
         builder.AppendLine("## Safety");
@@ -245,6 +261,8 @@ sealed record CaptureSafetyManifest(bool MovementSent, bool InputSent, bool Relo
     public static CaptureSafetyManifest SafeNoInput { get; } = new(false, false, false, false, false, false);
 }
 
-sealed record CaptureArtifactsManifest(string ManifestJson, string SummaryMarkdown, string RunLogJsonl, string? FullWindowImage, string? FullWindowRaw, string? FullWindowRawMetadata);
+sealed record CaptureArtifactsManifest(string ManifestJson, string SummaryMarkdown, string RunLogJsonl, string? FullWindowImage, string? FullWindowRaw, string? FullWindowRawMetadata, CaptureCropArtifactManifest[] Crops);
+
+sealed record CaptureCropArtifactManifest(string Profile, int X, int Y, int Width, int Height, string ImageOutput, string? RawOutput, string? RawMetadata);
 
 sealed record CaptureErrorManifest(string Stage, string Code, string Message);

@@ -1,6 +1,6 @@
 static class DesktopDuplicationCapture
 {
-    public static QualityReport CaptureNearestMonitor(D3DObjects d3d, IntPtr monitor, string output, string? rawOutput, int timeoutMs, int captureAttempts, bool emitPng)
+    public static QualityReport CaptureNearestMonitor(D3DObjects d3d, IntPtr monitor, string output, string? rawOutput, string? cropImageRoot, string? cropRawRoot, string[] cropProfiles, int timeoutMs, int captureAttempts, bool emitPng)
     {
         using IDXGIOutput1 output1 = FindOutputForMonitor(d3d.Device, monitor, out OutputDescription outputDescription);
         using IDXGIOutputDuplication duplication = output1.DuplicateOutput(d3d.Device);
@@ -28,7 +28,8 @@ static class DesktopDuplicationCapture
                     : captureAttempts == 1
                         ? rawOutput
                         : TextureSaver.CreateAttemptRawOutputPath(rawOutput, attempt);
-                QualityReport quality = TextureSaver.SaveTextureToImage(d3d, desktopTexture, attemptOutput, emitPng, attemptRawOutput) with
+                string[] attemptCropProfiles = captureAttempts == 1 ? cropProfiles : [];
+                QualityReport quality = TextureSaver.SaveTextureToImage(d3d, desktopTexture, attemptOutput, emitPng, attemptRawOutput, cropImageRoot, cropRawRoot, attemptCropProfiles) with
                 {
                     CaptureAttemptCount = captureAttempts,
                     CompletedAttemptCount = completedAttempts,

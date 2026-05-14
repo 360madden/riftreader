@@ -2,13 +2,13 @@ static class TextureSaver
 {
     private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
-    public static QualityReport SaveFrameToImage(D3DObjects d3d, WgiD3D.IDirect3DSurface surface, string output, bool emitPng, string? rawOutput)
+    public static QualityReport SaveFrameToImage(D3DObjects d3d, WgiD3D.IDirect3DSurface surface, string output, bool emitPng, string? rawOutput, string? cropImageRoot, string? cropRawRoot, string[] cropProfiles)
     {
         using ID3D11Texture2D source = Direct3D11Helpers.GetTexture2D(surface);
-        return SaveTextureToImage(d3d, source, output, emitPng, rawOutput);
+        return SaveTextureToImage(d3d, source, output, emitPng, rawOutput, cropImageRoot, cropRawRoot, cropProfiles);
     }
 
-    public static QualityReport SaveTextureToImage(D3DObjects d3d, ID3D11Texture2D source, string output, bool emitPng, string? rawOutput)
+    public static QualityReport SaveTextureToImage(D3DObjects d3d, ID3D11Texture2D source, string output, bool emitPng, string? rawOutput, string? cropImageRoot, string? cropRawRoot, string[] cropProfiles)
     {
         Texture2DDescription sourceDescription = source.Description;
         int width = (int)sourceDescription.Width;
@@ -33,7 +33,7 @@ static class TextureSaver
         d3d.Context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mapped).CheckError();
         try
         {
-            return SaveMappedBgraImage(mapped, width, height, output, emitPng, rawOutput) with
+            return SaveMappedBgraImage(mapped, width, height, output, emitPng, rawOutput, cropImageRoot, cropRawRoot, cropProfiles) with
             {
                 SourceTextureFormat = sourceDescription.Format.ToString(),
                 SourceTextureUsage = sourceDescription.Usage.ToString(),
@@ -48,7 +48,7 @@ static class TextureSaver
         }
     }
 
-    private static QualityReport SaveMappedBgraImage(MappedSubresource mapped, int width, int height, string output, bool emitPng, string? rawOutput)
+    private static QualityReport SaveMappedBgraImage(MappedSubresource mapped, int width, int height, string output, bool emitPng, string? rawOutput, string? cropImageRoot, string? cropRawRoot, string[] cropProfiles)
     {
         long pixelCount = (long)width * height;
         long blackPixels = 0;
@@ -121,6 +121,7 @@ static class TextureSaver
         }
 
         RawFrameWriteResult? raw = rawOutput is null ? null : WriteTopDownBgraRaw(rawOutput, frame);
+        CropOutput[] cropOutputs = WriteCropOutputs(frame, cropProfiles, cropImageRoot, cropRawRoot);
 
         double mean = pixelCount == 0 ? 0 : lumaSum / pixelCount;
         double variance = pixelCount == 0 ? 0 : Math.Max(0, (lumaSquaredSum / pixelCount) - (mean * mean));
@@ -138,6 +139,7 @@ static class TextureSaver
         {
             RawOutput = raw?.RawPath,
             RawMetadata = raw?.MetadataPath,
+            CropOutputs = cropOutputs,
         };
     }
 
@@ -220,6 +222,60 @@ static class TextureSaver
         return new RawFrameWriteResult(rawPath, metadataPath);
     }
 
+    private static CropOutput[] WriteCropOutputs(BgraFrame frame, string[] cropProfiles, string? cropImageRoot, string? cropRawRoot)
+    {
+        string[] profiles = cropProfiles
+            .Select(CropProfileRegistry.Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .Where(profile => !string.Equals(profile, "full-window", StringComparison.Ordinal))
+            .ToArray();
+        if (profiles.Length == 0)
+        {
+            return [];
+        }
+
+        string imageRoot = Path.GetFullPath(cropImageRoot ?? Path.Combine(Environment.CurrentDirectory, "crops"));
+        Directory.CreateDirectory(imageRoot);
+        if (cropRawRoot is not null)
+        {
+            Directory.CreateDirectory(cropRawRoot);
+        }
+
+        List<CropOutput> outputs = [];
+        foreach (string profile in profiles)
+        {
+            CropRectangle rectangle = CropProfileRegistry.Resolve(profile, frame.Width, frame.Height);
+            if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            {
+                continue;
+            }
+
+            BgraFrame cropped = Crop(frame, rectangle);
+            string imageOutput = Path.Combine(imageRoot, $"{profile}.png");
+            WriteTopDownBgraPng(imageOutput, cropped);
+            RawFrameWriteResult? raw = cropRawRoot is null
+                ? null
+                : WriteTopDownBgraRaw(Path.Combine(cropRawRoot, $"{profile}.bgra"), cropped);
+            outputs.Add(new CropOutput(profile, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, Path.GetFullPath(imageOutput), raw?.RawPath, raw?.MetadataPath));
+        }
+
+        return outputs.ToArray();
+    }
+
+    private static BgraFrame Crop(BgraFrame frame, CropRectangle rectangle)
+    {
+        int stride = checked(rectangle.Width * 4);
+        byte[] pixels = new byte[checked(stride * rectangle.Height)];
+        for (int y = 0; y < rectangle.Height; y++)
+        {
+            int sourceOffset = ((rectangle.Y + y) * frame.StrideBytes) + (rectangle.X * 4);
+            int destinationOffset = y * stride;
+            Buffer.BlockCopy(frame.Pixels, sourceOffset, pixels, destinationOffset, stride);
+        }
+
+        return new BgraFrame(rectangle.Width, rectangle.Height, stride, frame.PixelFormat, frame.Orientation, pixels);
+    }
+
     public static string NormalizeImageOutputPath(string output, bool emitPng)
     {
         string full = Path.GetFullPath(output);
@@ -283,6 +339,7 @@ sealed record QualityReport(
 {
     public string? RawOutput { get; init; }
     public string? RawMetadata { get; init; }
+    public CropOutput[] CropOutputs { get; init; } = [];
     public string? SourceTextureFormat { get; init; }
     public string? SourceTextureUsage { get; init; }
     public string? SourceTextureBindFlags { get; init; }

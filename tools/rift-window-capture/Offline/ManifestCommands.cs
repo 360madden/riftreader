@@ -11,6 +11,9 @@ static class ManifestCommands
         string? outputImage = null;
         string? outputRaw = null;
         string? outputRawMetadata = null;
+        List<string> cropImages = [];
+        List<string> cropRaws = [];
+        List<string> cropRawMetadata = [];
         string? runLog = null;
         string? summary = null;
         bool manifestExists = File.Exists(manifestPath);
@@ -20,7 +23,7 @@ static class ManifestCommands
         if (!manifestExists)
         {
             blockers.Add($"Manifest not found: {manifestPath}");
-            return new ManifestInspectionReport(options.Command, false, manifestPath, false, false, null, null, null, null, null, null, null, null, false, blockers.ToArray(), warnings.ToArray());
+            return new ManifestInspectionReport(options.Command, false, manifestPath, false, false, null, null, null, null, null, null, null, null, 0, false, blockers.ToArray(), warnings.ToArray());
         }
 
         try
@@ -48,6 +51,15 @@ static class ManifestCommands
                 outputImage = ResolveArtifact(manifestPath, ReadString(artifacts, "fullWindowImage"));
                 outputRaw = ResolveArtifact(manifestPath, ReadString(artifacts, "fullWindowRaw"));
                 outputRawMetadata = ResolveArtifact(manifestPath, ReadString(artifacts, "fullWindowRawMetadata"));
+                if (artifacts.TryGetProperty("crops", out JsonElement crops) && crops.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (JsonElement crop in crops.EnumerateArray())
+                    {
+                        AddIfNotNull(cropImages, ResolveArtifact(manifestPath, ReadString(crop, "imageOutput")));
+                        AddIfNotNull(cropRaws, ResolveArtifact(manifestPath, ReadString(crop, "rawOutput")));
+                        AddIfNotNull(cropRawMetadata, ResolveArtifact(manifestPath, ReadString(crop, "rawMetadata")));
+                    }
+                }
             }
             else
             {
@@ -95,6 +107,30 @@ static class ManifestCommands
                 {
                     blockers.Add("fullWindowRawMetadata artifact is missing.");
                 }
+
+                foreach (string cropImage in cropImages)
+                {
+                    if (!File.Exists(cropImage) || new FileInfo(cropImage).Length <= 0)
+                    {
+                        blockers.Add($"Crop image artifact is missing or empty: {cropImage}");
+                    }
+                }
+
+                foreach (string cropRaw in cropRaws)
+                {
+                    if (!File.Exists(cropRaw) || new FileInfo(cropRaw).Length <= 0)
+                    {
+                        blockers.Add($"Crop raw artifact is missing or empty: {cropRaw}");
+                    }
+                }
+
+                foreach (string cropMetadata in cropRawMetadata)
+                {
+                    if (!File.Exists(cropMetadata))
+                    {
+                        blockers.Add($"Crop raw metadata artifact is missing: {cropMetadata}");
+                    }
+                }
             }
         }
         else if (options.Command == "inspect")
@@ -123,6 +159,21 @@ static class ManifestCommands
             {
                 warnings.Add("fullWindowRawMetadata artifact path does not exist.");
             }
+
+            foreach (string cropImage in cropImages.Where(path => !File.Exists(path)))
+            {
+                warnings.Add($"Crop image artifact path does not exist: {cropImage}");
+            }
+
+            foreach (string cropRaw in cropRaws.Where(path => !File.Exists(path)))
+            {
+                warnings.Add($"Crop raw artifact path does not exist: {cropRaw}");
+            }
+
+            foreach (string cropMetadata in cropRawMetadata.Where(path => !File.Exists(path)))
+            {
+                warnings.Add($"Crop raw metadata artifact path does not exist: {cropMetadata}");
+            }
         }
 
         artifactPathsExist =
@@ -130,10 +181,13 @@ static class ManifestCommands
             (summary is null || File.Exists(summary)) &&
             (outputImage is null || File.Exists(outputImage)) &&
             (outputRaw is null || File.Exists(outputRaw)) &&
-            (outputRawMetadata is null || File.Exists(outputRawMetadata));
+            (outputRawMetadata is null || File.Exists(outputRawMetadata)) &&
+            cropImages.All(File.Exists) &&
+            cropRaws.All(File.Exists) &&
+            cropRawMetadata.All(File.Exists);
 
         bool ok = blockers.Count == 0;
-        return new ManifestInspectionReport(options.Command, ok, manifestPath, manifestExists, jsonParsed, schema, status, runId, runLog, summary, outputImage, outputRaw, outputRawMetadata, artifactPathsExist, blockers.ToArray(), warnings.ToArray());
+        return new ManifestInspectionReport(options.Command, ok, manifestPath, manifestExists, jsonParsed, schema, status, runId, runLog, summary, outputImage, outputRaw, outputRawMetadata, cropImages.Count, artifactPathsExist, blockers.ToArray(), warnings.ToArray());
     }
 
     private static string? ReadString(JsonElement element, string propertyName)
@@ -153,6 +207,14 @@ static class ManifestCommands
         return Path.IsPathRooted(artifactPath)
             ? Path.GetFullPath(artifactPath)
             : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(manifestPath) ?? Environment.CurrentDirectory, artifactPath));
+    }
+
+    private static void AddIfNotNull(List<string> values, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            values.Add(value);
+        }
     }
 
     private static bool JsonlLooksValid(string path, out string? error)
@@ -196,6 +258,7 @@ sealed record ManifestInspectionReport(
     string? FullWindowImage,
     string? FullWindowRaw,
     string? FullWindowRawMetadata,
+    int CropCount,
     bool ArtifactPathsExist,
     string[] Blockers,
     string[] Warnings);

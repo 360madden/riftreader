@@ -15,6 +15,8 @@ sealed class WgcCaptureBackend : ICaptureBackend
         Options options,
         string output,
         string? rawOutput,
+        string? cropImageRoot,
+        string? cropRawRoot,
         RunArtifacts? artifacts)
     {
         WgiD3D.IDirect3DDevice winrtDevice = Direct3D11Helpers.CreateDirect3DDevice(d3d.Device);
@@ -83,7 +85,7 @@ sealed class WgcCaptureBackend : ICaptureBackend
 
             using (frame)
             {
-                return TextureSaver.SaveFrameToImage(d3d, frame.Surface, output, options.ShouldEmitPng, rawOutput);
+                return TextureSaver.SaveFrameToImage(d3d, frame.Surface, output, options.ShouldEmitPng, rawOutput, cropImageRoot, cropRawRoot, options.CropProfiles);
             }
         }
     }

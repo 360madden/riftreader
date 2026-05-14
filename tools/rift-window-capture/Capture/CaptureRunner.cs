@@ -63,6 +63,10 @@ static class CaptureRunner
         string? rawOutput = options.EmitRawBgra
             ? Path.GetFullPath(artifacts?.RawFramePath ?? Path.ChangeExtension(output, ".bgra"))
             : null;
+        string cropImageRoot = Path.GetFullPath(artifacts?.CropImagesRoot ?? Path.Combine(Path.GetDirectoryName(output) ?? Environment.CurrentDirectory, "crops"));
+        string? cropRawRoot = rawOutput is null
+            ? null
+            : Path.GetFullPath(artifacts?.CropRawRoot ?? Path.Combine(Path.GetDirectoryName(rawOutput) ?? Environment.CurrentDirectory, "crops"));
         Directory.CreateDirectory(Path.GetDirectoryName(output) ?? Environment.CurrentDirectory);
         if (rawOutput is not null)
         {
@@ -75,8 +79,8 @@ static class CaptureRunner
         try
         {
             using D3DObjects d3d = D3DObjects.Create();
-            QualityReport quality = await backend.CaptureAsync(d3d, window, options, output, rawOutput, artifacts).ConfigureAwait(false);
-            artifacts?.Log("info", "frame.acquired", new { backend = backend.Name, quality.Width, quality.Height, quality.Output, quality.RawOutput, quality.Usable });
+            QualityReport quality = await backend.CaptureAsync(d3d, window, options, output, rawOutput, cropImageRoot, cropRawRoot, artifacts).ConfigureAwait(false);
+            artifacts?.Log("info", "frame.acquired", new { backend = backend.Name, quality.Width, quality.Height, quality.Output, quality.RawOutput, cropCount = quality.CropOutputs.Length, quality.Usable });
             return CaptureReport.Success(options, window, quality.Output, quality);
         }
         catch (Exception ex)
