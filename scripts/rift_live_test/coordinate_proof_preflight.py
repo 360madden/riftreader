@@ -160,6 +160,17 @@ def command_failed(commands: Sequence[Mapping[str, Any]]) -> list[str]:
     return failures
 
 
+def command_blockers(commands: Sequence[Mapping[str, Any]]) -> list[str]:
+    blockers: list[str] = []
+    for command in commands:
+        if command.get("status") != "blocked":
+            continue
+        blocker = command.get("blocker")
+        if blocker:
+            blockers.append(f"command-blocked:{command.get('name')}:{blocker}")
+    return blockers
+
+
 def markdown_summary(summary: Mapping[str, Any]) -> str:
     artifacts = summary.get("artifacts") if isinstance(summary.get("artifacts"), dict) else {}
     decision = summary.get("decision") if isinstance(summary.get("decision"), dict) else {}
@@ -357,6 +368,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
     readiness_status = readiness_json.get("status")
     readiness_verdict = readiness_json.get("verdict")
     blockers = list(command_failures)
+    blockers.extend(command_blockers(commands))
     blockers.extend(readiness_json.get("blockers") or [])
     warnings = list(readiness_json.get("warnings") or [])
     if command_failures:

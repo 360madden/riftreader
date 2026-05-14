@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from rift_live_test.coordinate_proof_preflight import (
+    command_blockers,
     command_failed,
     json_from_stdout,
     latest_file,
@@ -29,6 +30,17 @@ class CoordinateProofPreflightTests(unittest.TestCase):
         )
 
         self.assertEqual(failures, ["command-failed:c:exit=1"])
+
+    def test_command_blockers_reports_explicit_blocked_command_reasons(self) -> None:
+        blockers = command_blockers(
+            [
+                {"name": "a", "status": "completed", "exitCode": 0},
+                {"name": "b", "status": "blocked", "exitCode": 2, "blocker": "rrapicoord-no-usable-marker"},
+                {"name": "c", "status": "blocked", "exitCode": 2},
+            ]
+        )
+
+        self.assertEqual(blockers, ["command-blocked:b:rrapicoord-no-usable-marker"])
 
     def test_latest_file_can_filter_by_mtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
