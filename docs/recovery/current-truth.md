@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-14 00:04 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The proof pointer is a same-target `blocked-target-drift` blocker, not movement truth. Latest static-chain work demoted dotted UTF-16-like UI/asset/zone strings, exhausted the remaining non-obvious priority parent leads from the root-signature classifier, and the follow-up pointer scan found `0` module/RIFT-module hits. The selected same-target candidate remains `same-target-268DF21ED30-xyz` from `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json`; it is candidate-only until fresh API-now/reference and memory-now proof pass. The stale runtime proof-anchor cache is historical only and must not shadow current PID `2928`._
+_Last updated: 2026-05-14 00:17 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. Fresh reference is still blocked: ChromaLink world-state is reachable but stale/not healthy, and the RRAPICOORD memory scan found markers but no usable `status=pass, source=rift-api, savedVariablesUse=none` coordinate. The current clean priority root-family lane is now explicitly exhausted by offset-0 and offset-8 batches: `15` exported priority leads, `49` scanned target/ref-storage addresses, `35` heap hits, and `0` module/RIFT-module hits. The selected same-target candidate remains `same-target-268DF21ED30-xyz` and is candidate-only until fresh API-now/reference and memory-now proof pass. The stale runtime proof-anchor cache is historical only and must not shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -261,9 +261,40 @@ only, with `moduleHitCount=0` and `riftModuleHitCount=0` for the ranked targets.
 Milestone review
 `scripts/captures/riftscan-milestone-review-20260514-000430.json` remains
 `ready-for-read-only-proof` with `movementAllowedByReview=false`. This pass
-exhausts the current non-obvious priority parent-lead batch; further broad work
-should either widen into lower-priority family groups or wait for a fresh
-reference surface. Movement remains blocked.
+covered the offset-8 priority window; the next slice regenerated and scanned the
+offset-0 window under the same improved rules before declaring the lane
+exhausted. Movement remains blocked.
+
+**May 14 00:09-00:14 UTC fresh-reference recheck + priority-lane exhaustion report:**
+No-input ChromaLink world-state reference capture
+`scripts/captures/chromalink-world-state-reference-20260514-000940-897289/summary.json`
+was reachable but blocked: `world-state-not-healthy`,
+`world-state-player-position-not-fresh`, `world-state-player-position-stale`,
+and `world-state-navigation-player-position-unavailable`. It reported the last
+player position at `2026-05-13T22:55:23.0397648+00:00` with newest frame age
+about `4,457,665 ms`, so this is stale telemetry and not current proof.
+RRAPICOORD marker scan via `capture-rift-api-reference-coordinate.ps1` also
+blocked: attempts found `8`, `6`, and `13` `RRAPICOORD1` string hits, but no
+usable marker with `status=pass`, `source=rift-api`, `savedVariablesUse=none`,
+and numeric `x/y/z`; latest scan file:
+`scripts/captures/rift-api-reference-scan-currentpid-2928-20260514-001004-attempt3.json`.
+
+Because fresh reference stayed blocked, the safe local-PC work was to finish the
+current clean priority lane accurately. Regenerated offset-0 classifier artifact
+`scripts/captures/root-signature-family-classifier-20260514-001031-007727/summary.json`
+exported `8` of `15` clean priority parent leads, and read-only pointer scan
+`scripts/captures/pointer-family-scan-20260514-001038-968924/summary.json`
+scanned `25` queued target/ref-storage addresses with `0` module/RIFT-module
+hits. Combined with the offset-8 scan
+`scripts/captures/pointer-family-scan-20260514-000246-569593/summary.json`, new
+aggregate report
+`scripts/captures/priority-scan-exhaustion-report-20260514-001700-212349/summary.json`
+verdict is `priority-lane-exhausted-no-static-root`: `15` exported priority
+leads, `49` scanned targets, `35` heap hits, `0` module hits, and `0`
+RIFT-module hits. Latest milestone review
+`scripts/captures/riftscan-milestone-review-20260514-001411.json` remains
+`ready-for-read-only-proof` with `movementAllowedByReview=false`. Movement
+remains blocked.
 
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
@@ -415,7 +446,7 @@ readback is offset-corrected candidate evidence, not direct movement truth.
 | Current proof status | **Not promoted**. PID `2928` now has a high-signal current-PID candidate family (`0x268DF200000`) with repeated offset-corrected live readback (`0x268DF21ED30` best focused address), but still has no static/restart chain or same-target `ProofOnly` promotion. Direct candidate values are offset from API by about `5` units, so this is not direct coordinate truth. |
 | x64dbg status | No successful current-PID attach. One minimized no-debuggee automation self-check passed and two bounded current-PID attach attempts failed before attach. If another x64dbg tactic is used, keep x64dbg/dependent windows minimized unless visibility is required and avoid repeating the same attach attempt without new evidence. |
 | Evidence labels | Current target/API evidence is `responsive-candidate`; there is no `live-proof` chain. Any future debugger-paused scan must be labeled `frozen-snapshot`. |
-| Latest report | Professional HTML summary: `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`. Newest markdown handoff: `docs/handoffs/2026-05-13-2006-priority-offset-context-triage.md`; prior context handoff: `docs/handoffs/2026-05-13-1957-context-triage-lead-export.md`. |
+| Latest report | Professional HTML summary: `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`. Newest markdown handoff: `docs/handoffs/2026-05-13-2014-priority-lane-exhaustion.md`; prior handoff: `docs/handoffs/2026-05-13-2006-priority-offset-context-triage.md`. |
 | Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no movement/nav proof. Bounded exact-HWND input is allowed only for discovery snapshots in this approved chat lane and remains candidate evidence. x64dbg/watchpoints should wait until the focused candidate family needs static-chain provenance and must stay minimized unless visibility is required. |
 
 ## May 13 prior PID 60628 candidate status (candidate-only; not authoritative proof)
