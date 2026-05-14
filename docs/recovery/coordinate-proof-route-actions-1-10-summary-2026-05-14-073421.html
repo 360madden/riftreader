@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader coordinate route session summary - 2026-05-14-073421</title>
+<style>
+:root { --bg:#070b14; --panel:#0f172a; --panel2:#111c31; --line:#27364f; --text:#e5eefb; --muted:#9fb3ca; --cyan:#38bdf8; --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --violet:#a78bfa; }
+* { box-sizing:border-box; } body { margin:0; background:radial-gradient(circle at top left,#172554 0,#070b14 38rem); color:var(--text); font-family:Segoe UI,system-ui,sans-serif; }
+main { max-width:1220px; margin:0 auto; padding:34px 22px 58px; }
+.hero { padding:28px; border:1px solid var(--line); border-radius:26px; background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(167,139,250,.12)); box-shadow:0 20px 70px rgba(0,0,0,.35); }
+h1 { margin:0; font-size:38px; letter-spacing:-.03em; } h2 { margin:30px 0 12px; } p { color:var(--muted); }
+.grid { display:grid; gap:16px; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:18px; }
+.card { background:rgba(15,23,42,.86); border:1px solid var(--line); border-radius:18px; padding:16px; }
+.card .k { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.07em; } .card .v { margin-top:8px; font-size:22px; font-weight:800; }
+.pill { display:inline-block; padding:5px 10px; border-radius:999px; font-weight:800; font-size:12px; letter-spacing:.04em; }
+.pill.done,.pill.pass { background:rgba(34,197,94,.16); color:#bbf7d0; border:1px solid rgba(34,197,94,.5); }
+.pill.blocked { background:rgba(239,68,68,.15); color:#fecaca; border:1px solid rgba(239,68,68,.48); }
+.pill.warn { background:rgba(245,158,11,.15); color:#fde68a; border:1px solid rgba(245,158,11,.48); }
+table { width:100%; border-collapse:collapse; background:rgba(15,23,42,.88); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+th,td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; } th { color:#bae6fd; } tr:last-child td,tr:last-child th { border-bottom:0; }
+.bar-row { display:grid; grid-template-columns:190px 1fr 70px; gap:12px; align-items:center; margin:12px 0; } .bar-label { color:#cbd5e1; } .bar-shell { height:18px; background:#020617; border:1px solid var(--line); border-radius:999px; overflow:hidden; } .bar-fill { height:100%; border-radius:999px; } .bar-value { color:#cbd5e1; text-align:right; font-variant-numeric:tabular-nums; }
+.note { padding:14px 16px; border-radius:16px; border:1px solid rgba(245,158,11,.45); background:rgba(245,158,11,.10); color:#fed7aa; }
+code { background:#020617; border:1px solid var(--line); color:#bfdbfe; padding:2px 6px; border-radius:6px; }
+@media (max-width:900px) { .grid { grid-template-columns:1fr 1fr; } .bar-row { grid-template-columns:1fr; } }
+</style>
+</head>
+<body><main>
+<section class="hero">
+  <h1>RiftReader coordinate route session summary</h1>
+  <p>Generated 2026-05-14T07:34:21. Timestamped report; safe to archive without overwriting prior summaries.</p>
+  <div class="grid">
+    <div class="card"><div class="k">Route status</div><div class="v"><span class="pill pass">api-memory-match</span></div></div>
+    <div class="card"><div class="k">Movement</div><div class="v"><span class="pill blocked">blocked</span></div></div>
+    <div class="card"><div class="k">Target</div><div class="v">PID 2928</div><p>HWND <code>0xC0994</code></p></div>
+    <div class="card"><div class="k">Readback matches</div><div class="v">3</div><p>Candidate <code>api-family-hit-000001</code></p></div>
+  </div>
+</section>
+
+<h2>Verdict</h2>
+<p class="note"><b>Coordinate state improved to API-memory-match for the current PID/HWND, but movement remains blocked.</b> The remaining blocker is proof promotion quality: the displaced/two-reference gate is still stale/blocked and the canonical ProofOnly anchor cache is still target-drifted.</p>
+
+<h2>Top 10 completed actions</h2>
+<table><tr><th>#</th><th>Status</th><th>Action</th><th>Evidence / why it mattered</th></tr><tr><td>1</td><td><span class='pill done'>DONE</span></td><td>Refresh branch and repo state</td><td>Checked clean baseline on main and factored the last 5 commits before editing.</td></tr>
+<tr><td>2</td><td><span class='pill done'>DONE</span></td><td>Preserve safety boundary</td><td>Kept CE/x64dbg/movement/input out of scope; all proof commands remained read-only.</td></tr>
+<tr><td>3</td><td><span class='pill done'>DONE</span></td><td>Test old family-import candidate</td><td>Read-only proof-pose produced 0 reference matches, confirming stale candidate risk.</td></tr>
+<tr><td>4</td><td><span class='pill done'>DONE</span></td><td>Test previous reacquired candidate</td><td>Read-only proof-pose produced 0 reference matches, confirming candidate decay risk.</td></tr>
+<tr><td>5</td><td><span class='pill done'>DONE</span></td><td>Run immediate current-PID centered scan</td><td>Generated fresh current-memory candidates from routed center evidence.</td></tr>
+<tr><td>6</td><td><span class='pill done'>DONE</span></td><td>Run immediate proof-pose/readback</td><td>Captured same-time API/readback with 3 reference matches and delta below tolerance.</td></tr>
+<tr><td>7</td><td><span class='pill done'>DONE</span></td><td>Add displaced-readiness route support</td><td>Route now ingests readiness summaries as a gate, not coordinate or movement proof.</td></tr>
+<tr><td>8</td><td><span class='pill done'>DONE</span></td><td>Regenerate route/current truth</td><td>Latest route moved to api-memory-match while keeping movementAllowed=false.</td></tr>
+<tr><td>9</td><td><span class='pill done'>DONE</span></td><td>Run milestone review</td><td>RiftScan strategy gate stayed ready-for-read-only-proof with no provider writes.</td></tr>
+<tr><td>10</td><td><span class='pill done'>DONE</span></td><td>Run strong validation</td><td>Python, Node/MCP, .NET build/test, and diff checks passed for the edited slice.</td></tr></table>
+
+<h2>Evidence facts</h2>
+<table>
+<tr><th>Route JSON</th><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-072942-proofpose-routing/coordinate-proof-route.json</code></td></tr>
+<tr><th>Route HTML</th><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-072942-proofpose-routing/coordinate-proof-route.html</code></td></tr>
+<tr><th>Milestone review</th><td><code>scripts/captures/riftscan-milestone-review-20260514-112950.json</code> / status <code>ready-for-read-only-proof</code></td></tr>
+<tr><th>API coordinate</th><td>X 7399.1099, Y 871.77, Z 3029.96</td></tr>
+<tr><th>Selected candidate</th><td><code>api-family-hit-000001</code> at <code>0x268E2A1B4B0</code>, max delta 4.1503906231810106e-05</td></tr>
+<tr><th>Candidate routing</th><td>16 routed centers; both-reference match count 0</td></tr>
+<tr><th>Displaced readiness</th><td>Status <code>blocked</code>; summaries 1; movement proof false</td></tr>
+<tr><th>Safety flags</th><td>movementSent=False, inputSent=False, noCheatEngine=True, x64dbgAttached=False</td></tr>
+</table>
+
+<h2>Proof signal chart</h2>
+<div class="card">
+    <div class="bar-row"><div class="bar-label">Reference matches</div><div class="bar-shell"><div class="bar-fill" style="width:100%;background:#22c55e"></div></div><div class="bar-value">3/3</div></div>
+
+
+    <div class="bar-row"><div class="bar-label">Stable decoded candidates</div><div class="bar-shell"><div class="bar-fill" style="width:100%;background:#38bdf8"></div></div><div class="bar-value">3/3</div></div>
+
+
+    <div class="bar-row"><div class="bar-label">Routed centers</div><div class="bar-shell"><div class="bar-fill" style="width:100%;background:#a78bfa"></div></div><div class="bar-value">16/16</div></div>
+
+
+    <div class="bar-row"><div class="bar-label">Both-reference matches</div><div class="bar-shell"><div class="bar-fill" style="width:0%;background:#f97316"></div></div><div class="bar-value">0/1</div></div>
+
+
+    <div class="bar-row"><div class="bar-label">Movement allowed</div><div class="bar-shell"><div class="bar-fill" style="width:0%;background:#ef4444"></div></div><div class="bar-value">0/1</div></div>
+    </div>
+
+<h2>Validation results</h2>
+<table><tr><th>Check</th><th>Status</th><th>Detail</th></tr><tr><td>Read-only proof-pose</td><td><span class='pill pass'>PASS</span></td><td>3 reference matches; movement=false; CE=false</td></tr>
+<tr><td>Python compile/unit</td><td><span class='pill pass'>PASS</span></td><td>compileall + 40 targeted tests</td></tr>
+<tr><td>MCP validation</td><td><span class='pill pass'>PASS</span></td><td>node --check + npm validate</td></tr>
+<tr><td>.NET build</td><td><span class='pill pass'>PASS</span></td><td>dotnet build RiftReader.slnx --no-restore</td></tr>
+<tr><td>.NET tests</td><td><span class='pill pass'>PASS</span></td><td>102 reader tests passed</td></tr>
+<tr><td>Whitespace</td><td><span class='pill pass'>PASS</span></td><td>git diff --check</td></tr></table>
+
+<h2>Route-recommended next actions</h2>
+<table><tr><th>#</th><th>Action</th><th>Why</th></tr><tr><td>1</td><td>Capture a fresh displaced-pose reference before promotion.</td><td>Candidate comparisons still have no both-reference match, so they cannot prove a pose-tracking coordinate lane.</td></tr>
+<tr><td>2</td><td>Use routed center files for bounded current-memory scans before repeating broad sweeps.</td><td>Center files preserve the best candidate neighborhoods without treating stale/candidate evidence as proof.</td></tr>
+<tr><td>3</td><td>Use the matching current-process candidate as the seed for static owner/module-RVA routing.</td><td>API-now and memory-now agree, but movement still needs a canonical proof/static chain and ProofOnly.</td></tr>
+<tr><td>4</td><td>Treat visual capture as sidecar evidence only.</td><td>A screenshot/crop/diff cannot promote coordinate or movement truth without API and memory agreement.</td></tr>
+<tr><td>5</td><td>Refresh API-now RRAPICOORD before any candidate promotion.</td><td>The current route must be grounded in live runtime coordinate truth, not stale SavedVariables or old heap copies.</td></tr>
+<tr><td>6</td><td>Run same-target memory readback against explicit candidate files.</td><td>Readback is the first proof surface that can upgrade from visual-only to API-memory-match.</td></tr></table>
+
+</main></body></html>

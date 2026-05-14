@@ -37,6 +37,15 @@ def path_text(path: Path | None, repo_root: Path) -> str | None:
         return str(path.resolve())
 
 
+def artifact_path_text(value: Any, repo_root: Path) -> str | None:
+    if value in (None, ""):
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = repo_root / path
+    return path_text(path, repo_root)
+
+
 def first_present(mapping: Mapping[str, Any], *names: str) -> Any:
     for name in names:
         if name in mapping and mapping[name] not in (None, ""):
@@ -534,6 +543,123 @@ def build_candidate_routing(
     )
 
 
+def build_displaced_readiness(
+    *,
+    paths: Sequence[Path],
+    repo_root: Path,
+    expected_target: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    items: list[dict[str, Any]] = []
+    passed_count = 0
+    blocked_count = 0
+    failed_count = 0
+    for index, path in enumerate(paths, start=1):
+        data, error = read_optional_json(path)
+        item: dict[str, Any] = {
+            "path": path_text(path, repo_root),
+            "exists": path.exists(),
+            "proofRole": "displaced-reference-readiness-gate-not-coordinate-proof",
+            "coordinateProof": False,
+            "movementProof": False,
+        }
+        if error:
+            warnings.append(error)
+            item["status"] = "unreadable" if path.exists() else "missing"
+            items.append(item)
+            continue
+
+        assert data is not None
+        status = str(data.get("status") or "unknown")
+        artifacts = dict_or_empty(data.get("artifacts"))
+        safety = dict_or_empty(data.get("safety"))
+        baseline_reference = dict_or_empty(data.get("baselineReference"))
+        displaced_reference = dict_or_empty(data.get("displacedReference"))
+        delta = dict_or_empty(data.get("delta"))
+        baseline_target = extract_target(baseline_reference)
+        displaced_target = extract_target(displaced_reference)
+        target_issues: list[str] = []
+        target_issues.extend(target_mismatches(expected_target, baseline_target, label=f"displaced_readiness_{index}_baseline"))
+        target_issues.extend(target_mismatches(expected_target, displaced_target, label=f"displaced_readiness_{index}_displaced"))
+        if target_issues:
+            warnings.extend(target_issues)
+
+        for unsafe_key in (
+            "movementSent",
+            "inputSent",
+            "reloaduiSent",
+            "screenshotKeySent",
+            "x64dbgAttached",
+            "processAttachOrMemoryReadStarted",
+            "providerWrite",
+        ):
+            if safety.get(unsafe_key) is True:
+                blockers.append(f"displaced-readiness-unsafe-{unsafe_key}:index={index}")
+        if safety.get("noCheatEngine") is False:
+            blockers.append(f"displaced-readiness-used-cheat-engine:index={index}")
+
+        if status == "passed":
+            passed_count += 1
+        elif status == "blocked":
+            blocked_count += 1
+            warnings.append("displaced-readiness-not-passed:blocked")
+        elif status == "failed":
+            failed_count += 1
+            warnings.append("displaced-readiness-not-passed:failed")
+        elif status != "unknown":
+            warnings.append(f"displaced-readiness-not-passed:{status}")
+
+        item.update(
+            {
+                "status": status,
+                "summaryJson": artifact_path_text(artifacts.get("summaryJson"), repo_root) or path_text(path, repo_root),
+                "summaryMarkdown": artifact_path_text(artifacts.get("summaryMarkdown"), repo_root),
+                "summaryHtml": artifact_path_text(artifacts.get("summaryHtml"), repo_root),
+                "baselineReferencePath": baseline_reference.get("path"),
+                "displacedReferencePath": displaced_reference.get("path"),
+                "baselineTarget": baseline_target,
+                "displacedTarget": displaced_target,
+                "ageDeltaSeconds": number_or_none(data.get("ageDeltaSeconds")),
+                "planarDistance": number_or_none(delta.get("planarDistance")),
+                "maxAbsDelta": number_or_none(delta.get("maxAbsDelta")),
+                "blockers": list_or_empty(data.get("blockers")),
+                "warnings": list_or_empty(data.get("warnings")),
+                "safety": safety,
+            }
+        )
+        items.append(item)
+
+    if not items:
+        status = "not-provided"
+    elif failed_count:
+        status = "failed"
+    elif blocked_count:
+        status = "blocked"
+    elif passed_count == len(items):
+        status = "passed"
+    elif passed_count:
+        status = "mixed"
+    else:
+        status = "unknown"
+
+    return (
+        {
+            "status": status,
+            "proofRole": "displaced-reference-readiness-gate-not-coordinate-proof",
+            "summaryCount": len(items),
+            "passedCount": passed_count,
+            "blockedCount": blocked_count,
+            "failedCount": failed_count,
+            "movementProof": False,
+            "coordinateProof": False,
+            "items": items,
+        },
+        list(dict.fromkeys(blockers)),
+        list(dict.fromkeys(warnings)),
+    )
+
+
 def route_status(
     *,
     visual: Mapping[str, Any],
@@ -629,6 +755,7 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
     memory = dict_or_empty(route.get("memoryReadback"))
     static_roots = dict_or_empty(route.get("staticRootCandidates"))
     candidate_routing = dict_or_empty(route.get("candidateRouting"))
+    displaced_readiness = dict_or_empty(route.get("displacedReadiness"))
     lines = [
         "# Coordinate proof route",
         "",
@@ -641,6 +768,7 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
         f"| Memory readback | `{memory.get('status')}` |",
         f"| Static root | `{static_roots.get('status')}` |",
         f"| Candidate routing | `{candidate_routing.get('status')}` / centers `{candidate_routing.get('centerCount')}` |",
+        f"| Displaced readiness | `{displaced_readiness.get('status')}` / summaries `{displaced_readiness.get('summaryCount')}` |",
         f"| Read-only proof allowed | `{str(decision.get('readOnlyProofAllowed')).lower()}` |",
         f"| Movement allowed | `{str(decision.get('movementAllowed')).lower()}` |",
         "",
@@ -662,6 +790,14 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
             item_map = dict_or_empty(item)
             lines.append(
                 f"| Candidate comparison | `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('bothReferenceMatchCount')}` |"
+            )
+        lines.append("")
+    if displaced_readiness:
+        lines.extend(["## Displaced readiness", "", "| Path | Status | Age delta seconds | Planar distance |", "|---|---|---:|---:|"])
+        for item in list_or_empty(displaced_readiness.get("items")):
+            item_map = dict_or_empty(item)
+            lines.append(
+                f"| `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('ageDeltaSeconds')}` | `{item_map.get('planarDistance')}` |"
             )
         lines.append("")
     actions = list_or_empty(route.get("recommendedActions"))
@@ -686,6 +822,7 @@ def html_summary(route: Mapping[str, Any]) -> str:
     memory = dict_or_empty(route.get("memoryReadback"))
     static_roots = dict_or_empty(route.get("staticRootCandidates"))
     candidate_routing = dict_or_empty(route.get("candidateRouting"))
+    displaced_readiness = dict_or_empty(route.get("displacedReadiness"))
     blockers = [str(item) for item in list_or_empty(route.get("blockers"))]
     warnings = [str(item) for item in list_or_empty(route.get("warnings"))]
     actions = [dict_or_empty(item) for item in list_or_empty(route.get("recommendedActions"))]
@@ -699,6 +836,7 @@ def html_summary(route: Mapping[str, Any]) -> str:
         ("Memory readback", memory.get("status")),
         ("Static root", static_roots.get("status")),
         ("Candidate routing", f"{candidate_routing.get('status')} / centers {candidate_routing.get('centerCount')}"),
+        ("Displaced readiness", f"{displaced_readiness.get('status')} / summaries {displaced_readiness.get('summaryCount')}"),
         ("Read-only proof allowed", str(decision.get("readOnlyProofAllowed")).lower()),
         ("Movement allowed", str(decision.get("movementAllowed")).lower()),
     ]
@@ -714,6 +852,22 @@ def html_summary(route: Mapping[str, Any]) -> str:
         f"<td>{html_escape(action.get('why'))}</td>"
         "</tr>"
         for index, action in enumerate(actions, start=1)
+    )
+    readiness_items = [dict_or_empty(item) for item in list_or_empty(displaced_readiness.get("items"))]
+    readiness_rows = "\n".join(
+        "<tr>"
+        f"<td>{html_escape(item.get('path'))}</td>"
+        f"<td>{html_escape(item.get('status'))}</td>"
+        f"<td>{html_escape(item.get('ageDeltaSeconds'))}</td>"
+        f"<td>{html_escape(item.get('planarDistance'))}</td>"
+        "</tr>"
+        for item in readiness_items
+    )
+    readiness_table = (
+        "<table><tr><th>Path</th><th>Status</th><th>Age delta seconds</th><th>Planar distance</th></tr>"
+        f"{readiness_rows}</table>"
+        if readiness_rows
+        else "<p>No displaced-readiness summary was provided.</p>"
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -748,6 +902,8 @@ code {{ background: #020817; border: 1px solid #263a57; padding: 2px 6px; border
 </section>
 <h2>Route facts</h2>
 <table>{body_rows}</table>
+<h2>Displaced readiness gate</h2>
+{readiness_table}
 <h2>Blockers</h2>
 <ul>{blocker_items}</ul>
 <h2>Warnings</h2>
@@ -795,6 +951,7 @@ def build_coordinate_proof_route(
     static_root_summaries: Sequence[Path] = (),
     center_files: Sequence[Path] = (),
     candidate_comparisons: Sequence[Path] = (),
+    displaced_readiness_summaries: Sequence[Path] = (),
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     current_truth_data: dict[str, Any] | None = None
@@ -832,8 +989,27 @@ def build_coordinate_proof_route(
         candidate_comparisons=candidate_comparisons,
         repo_root=repo_root,
     )
-    blockers.extend(visual_blockers + api_blockers + memory_blockers + static_blockers + routing_blockers)
-    warnings.extend(visual_warnings + api_warnings + memory_warnings + static_warnings + routing_warnings)
+    displaced_readiness, displaced_blockers, displaced_warnings = build_displaced_readiness(
+        paths=displaced_readiness_summaries,
+        repo_root=repo_root,
+        expected_target=target,
+    )
+    blockers.extend(
+        visual_blockers
+        + api_blockers
+        + memory_blockers
+        + static_blockers
+        + routing_blockers
+        + displaced_blockers
+    )
+    warnings.extend(
+        visual_warnings
+        + api_warnings
+        + memory_warnings
+        + static_warnings
+        + routing_warnings
+        + displaced_warnings
+    )
     blockers = list(dict.fromkeys(blockers))
     warnings = list(dict.fromkeys(warnings))
     status = route_status(visual=visual, api_reference=api_reference, memory_readback=memory_readback, static_roots=static_roots, blockers=blockers)
@@ -857,8 +1033,24 @@ def build_coordinate_proof_route(
         "staticRootSummaries": [path_text(path, repo_root) for path in static_root_summaries],
         "centerFiles": [path_text(path, repo_root) for path in center_files],
         "candidateComparisons": [path_text(path, repo_root) for path in candidate_comparisons],
+        "displacedReadinessSummaries": [path_text(path, repo_root) for path in displaced_readiness_summaries],
     }
     recommended_actions = build_recommended_actions(status)
+    candidate_comparison_needs_fresh_displaced = (
+        candidate_routing.get("bothReferenceMatchCount") == 0 and bool(candidate_routing.get("candidateComparisonCount"))
+    )
+    if (
+        displaced_readiness.get("summaryCount")
+        and displaced_readiness.get("status") != "passed"
+        and not candidate_comparison_needs_fresh_displaced
+    ):
+        recommended_actions.insert(
+            0,
+            {
+                "action": "Refresh the displaced-pose reference before any promotion attempt.",
+                "why": "The displaced-readiness gate is not passed, so two-pose evidence is unavailable even if same-pose API/readback agrees.",
+            },
+        )
     if candidate_routing.get("centerCount"):
         recommended_actions.insert(
             0,
@@ -867,7 +1059,7 @@ def build_coordinate_proof_route(
                 "why": "Center files preserve the best candidate neighborhoods without treating stale/candidate evidence as proof.",
             },
         )
-    if candidate_routing.get("bothReferenceMatchCount") == 0 and candidate_routing.get("candidateComparisonCount"):
+    if candidate_comparison_needs_fresh_displaced:
         recommended_actions.insert(
             0,
             {
@@ -892,6 +1084,7 @@ def build_coordinate_proof_route(
         "memoryReadback": memory_readback,
         "staticRootCandidates": static_roots,
         "candidateRouting": candidate_routing,
+        "displacedReadiness": displaced_readiness,
         "blockers": blockers,
         "warnings": warnings,
         "artifacts": artifacts,
@@ -993,6 +1186,16 @@ def update_current_truth(route: Mapping[str, Any], repo_root: Path) -> None:
     if candidate_routing:
         routing["latestCandidateRoutingStatus"] = str(candidate_routing.get("status"))
         routing["latestCandidateRoutingCenterCount"] = int_or_none(candidate_routing.get("centerCount")) or 0
+    displaced_readiness = dict_or_empty(route.get("displacedReadiness"))
+    if displaced_readiness.get("summaryCount"):
+        routing["latestDisplacedReadinessStatus"] = str(displaced_readiness.get("status"))
+        routing["latestDisplacedReadinessSummaryCount"] = int_or_none(displaced_readiness.get("summaryCount")) or 0
+        readiness_items = [dict_or_empty(item) for item in list_or_empty(displaced_readiness.get("items"))]
+        latest_readiness = next((item for item in readiness_items if item.get("summaryJson")), None)
+        if latest_readiness:
+            routing["latestDisplacedReadinessSummary"] = latest_readiness.get("summaryJson")
+            if latest_readiness.get("summaryHtml"):
+                routing["latestDisplacedReadinessHtml"] = latest_readiness.get("summaryHtml")
     write_json(truth_path, document)
 
     markdown_path = repo_root / "docs" / "recovery" / "current-truth.md"
@@ -1006,6 +1209,9 @@ def update_current_truth(route: Mapping[str, Any], repo_root: Path) -> None:
         "Latest route with candidate routing": str(routing.get("latestProofRouteWithCandidateRouting") or ""),
         "Latest candidate routing status": str(routing.get("latestCandidateRoutingStatus") or ""),
         "Latest candidate routing center count": str(routing.get("latestCandidateRoutingCenterCount") or 0),
+        "Latest displaced readiness status": str(routing.get("latestDisplacedReadinessStatus") or ""),
+        "Latest displaced readiness summary": str(routing.get("latestDisplacedReadinessSummary") or ""),
+        "Latest displaced readiness HTML": str(routing.get("latestDisplacedReadinessHtml") or ""),
     }
     updated = upsert_markdown_table_rows(
         markdown_path.read_text(encoding="utf-8"),
@@ -1030,6 +1236,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--static-root-summary", type=Path, action="append", default=[])
     parser.add_argument("--center-file", type=Path, action="append", default=[])
     parser.add_argument("--candidate-comparison", type=Path, action="append", default=[])
+    parser.add_argument("--displaced-readiness-summary", type=Path, action="append", default=[])
     parser.add_argument("--write-summary", action="store_true")
     parser.add_argument("--summary-file", type=Path, help="Explicit JSON summary path; Markdown is written next to it.")
     parser.add_argument("--update-current-truth", action="store_true")
@@ -1059,6 +1266,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         static_root_summaries=args.static_root_summary,
         center_files=args.center_file,
         candidate_comparisons=args.candidate_comparison,
+        displaced_readiness_summaries=args.displaced_readiness_summary,
     )
     if args.summary_file:
         summary_html = args.summary_file.with_suffix(".html")

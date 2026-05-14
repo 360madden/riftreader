@@ -210,11 +210,11 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Field | Value |
 |---|---|
 | Route generator | `scripts/coordinate_proof_route.py` |
-| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-071050-reacquired-routing/coordinate-proof-route.json` |
-| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-071050-reacquired-routing/coordinate-proof-route.html` |
+| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-072942-proofpose-routing/coordinate-proof-route.json` |
+| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-072942-proofpose-routing/coordinate-proof-route.html` |
 | Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
-| Latest route status | `reacquisition-candidates-found` |
-| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-071447.html` |
+| Latest route status | `api-memory-match` |
+| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-073421.html` |
 | Latest scan-profile plan | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.json` |
 | Latest scan-profile plan HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.html` |
 | Latest manual displacement blocker | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json` |
@@ -223,22 +223,27 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-070724-compact/summary.html` |
 | Latest preflight with route | `scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json` |
 | Latest read-only reacquisition | `scripts/captures/family-scan-currentpid-2928-20260514-110753-631012/family-scan-summary.json` |
-| Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-111416.json` |
+| Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-112950.json` |
 | Visual evidence role | `sidecar_only_not_coordinate_or_movement_truth` |
 | Movement allowed by visual evidence | `false` |
 | Latest generated center file | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/coordinate-scan-centers.json` |
 | Latest generated center file summary | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.json` |
 | Latest generated center file HTML | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.html` |
-| Latest scan-profile run | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-070748-center-top4-stride1/summary.json` |
-| Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-070748-center-top4-stride1/summary.html` |
-| Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-070748-center-top4-stride1/summary.json` |
+| Latest scan-profile run | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-072236-immediate-readback-seeds/summary.json` |
+| Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-072236-immediate-readback-seeds/summary.html` |
+| Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-072236-immediate-readback-seeds/summary.json` |
 | Latest candidate comparison status | `candidate-only-no-two-reference-match` |
-| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-071050-reacquired-routing/coordinate-proof-route.json` |
+| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-072942-proofpose-routing/coordinate-proof-route.json` |
 | Latest candidate routing status | `candidate-routing-ready` |
 | Latest candidate routing center count | `16` |
 | Latest displaced-reference readiness | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-070715/summary.json` |
 | Latest displaced-reference readiness HTML | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-070715/summary.html` |
 | Latest displaced-reference readiness status | `blocked` |
+| Latest displaced readiness status | `blocked` |
+| Latest displaced readiness summary | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-070715/summary.json` |
+| Latest displaced readiness HTML | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-070715/summary.html` |
+| Latest session action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-073421.html` |
+| Latest milestone review status | `ready-for-read-only-proof` |
 
 Rules:
 

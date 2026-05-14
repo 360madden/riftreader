@@ -349,6 +349,63 @@ class CoordinateProofRouteTests(unittest.TestCase):
             self.assertIn("candidate-comparison-has-no-both-reference-match", route["warnings"])
             self.assertFalse(route["decision"]["movementAllowed"])
 
+    def test_displaced_readiness_is_reported_as_gate_not_proof(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            readiness = self._write_json(
+                root / "readiness.json",
+                {
+                    "status": "blocked",
+                    "blockers": ["displaced-reference-age-exceeded:400>300"],
+                    "warnings": ["displaced-reference-older-than-baseline-reference"],
+                    "artifacts": {
+                        "summaryJson": "readiness.json",
+                        "summaryMarkdown": "readiness.md",
+                        "summaryHtml": "readiness.html",
+                    },
+                    "safety": {
+                        "movementSent": False,
+                        "inputSent": False,
+                        "reloaduiSent": False,
+                        "screenshotKeySent": False,
+                        "noCheatEngine": True,
+                        "x64dbgAttached": False,
+                        "processAttachOrMemoryReadStarted": False,
+                        "providerWrite": False,
+                    },
+                    "baselineReference": {
+                        "path": "baseline.json",
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"},
+                    },
+                    "displacedReference": {
+                        "path": "displaced.json",
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"},
+                    },
+                    "ageDeltaSeconds": 400.0,
+                    "delta": {"planarDistance": 4.25, "maxAbsDelta": 4.0},
+                },
+            )
+
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                displaced_readiness_summaries=[readiness],
+            )
+
+            self.assertEqual(route["displacedReadiness"]["status"], "blocked")
+            self.assertEqual(route["displacedReadiness"]["summaryCount"], 1)
+            self.assertEqual(route["displacedReadiness"]["items"][0]["planarDistance"], 4.25)
+            self.assertFalse(route["displacedReadiness"]["movementProof"])
+            self.assertFalse(route["displacedReadiness"]["coordinateProof"])
+            self.assertIn("displaced-readiness-not-passed:blocked", route["warnings"])
+            self.assertEqual(
+                route["recommendedActions"][0]["action"],
+                "Refresh the displaced-pose reference before any promotion attempt.",
+            )
+            self.assertFalse(route["decision"]["movementAllowed"])
+
     def test_cli_returns_blocked_exit_until_read_only_proof_is_allowed(self) -> None:
         with self._root() as temp:
             root = Path(temp) / "RiftReader"
@@ -441,6 +498,56 @@ class CoordinateProofRouteTests(unittest.TestCase):
             self.assertEqual(routing["latestRouteStatus"], route["status"])
             self.assertEqual(routing["latestProofRoute"], "scripts/captures/route/coordinate-proof-route.json")
             self.assertIn("| Latest route | `scripts/captures/route/coordinate-proof-route.json` |", truth_md.read_text(encoding="utf-8"))
+
+    def test_update_current_truth_records_displaced_readiness(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            truth = root / "docs" / "recovery" / "current-truth.json"
+            self._write_json(truth, {"visualEvidenceRouting": {}})
+            truth_md = root / "docs" / "recovery" / "current-truth.md"
+            truth_md.write_text(
+                "\n".join(
+                    [
+                        "# Current truth",
+                        "",
+                        "## Visual/capture proof-route policy — test",
+                        "",
+                        "| Field | Value |",
+                        "|---|---|",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            readiness = self._write_json(
+                root / "readiness.json",
+                {
+                    "status": "passed",
+                    "artifacts": {"summaryJson": "readiness.json", "summaryHtml": "readiness.html"},
+                    "safety": {"movementSent": False, "inputSent": False, "noCheatEngine": True},
+                    "baselineReference": {
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"}
+                    },
+                    "displacedReference": {
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"}
+                    },
+                },
+            )
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                displaced_readiness_summaries=[readiness],
+            )
+            write_route(route, root / "scripts" / "captures" / "route", repo_root=root)
+
+            update_current_truth(route, root)
+
+            routing = json.loads(truth.read_text(encoding="utf-8"))["visualEvidenceRouting"]
+            self.assertEqual(routing["latestDisplacedReadinessStatus"], "passed")
+            self.assertEqual(routing["latestDisplacedReadinessSummary"], "readiness.json")
+            self.assertIn("| Latest displaced readiness status | `passed` |", truth_md.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
