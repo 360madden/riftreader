@@ -1,6 +1,6 @@
 # Coordinate proof preflight + broad family snapshot handoff
 
-_Last updated: 2026-05-14 00:45 UTC._
+_Last updated: 2026-05-14 01:07 UTC._
 
 ## Verdict
 
@@ -34,6 +34,9 @@ Fresh RRAPICOORD reference is available again and read-only proof readiness pass
 | `scripts/captures/riftscan-milestone-review-20260514-005443.json` | Strategy gate now selects proof-backed `family-snapshot-hit-000002` from the family import candidate file; movement still false. |
 | `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-005632-012315/summary.json` | 12 owner/ref-storage windows inspected read-only; no exact ref to `0x268E113FED0`; no static root. |
 | `scripts/captures/root-signature-module-hint-sweep-20260514-005740-921073/summary.json` and sibling sweeps `005745`, `005746`, `005750` | New module-RVA sweeps were heap-only/low-score; no root promotion. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-010553-091229/summary.json` | Repo-owned batch helper inspected 15 owner/ref-storage windows; top module-RVA hint `0x270FE10` repeated across 3 adjacent owners; no exact `0x268E113FED0` root promotion. |
+| `scripts/captures/root-signature-module-hint-sweep-20260514-010614-614734/summary.json` and sibling sweeps `010631`, `010633`, `010637` | Follow-up sweeps for `0x270FE10`, `0x2759FA8`, `0x2650220`, and `0x26502B0`; all heap-only/low-score, no static/module root. |
+| `scripts/captures/riftscan-milestone-review-20260514-010755.json` | Strategy gate remains `ready-for-read-only-proof`; selected candidate unchanged; movement remains false due stale proof pointer gate. |
 
 ## Proven truth vs candidate-only
 
@@ -52,7 +55,8 @@ Fresh RRAPICOORD reference is available again and read-only proof readiness pass
 - Updated `coordinate_proof_preflight.py` to pass the generated RRAPICOORD reference file into the watchdog.
 - Updated `capture_current_pid_coordinate_family_snapshot.py` to emit importable candidate JSON/JSONL packets for readback.
 - Updated `current_pid_family_neighborhood_inspector.py` to parse current readback summaries (`ReferenceCoordinate` / `CandidateReadbacks`).
+- Added `scripts/pointer_owner_batch_inspector.py` and `scripts/rift_live_test/pointer_owner_batch_inspector.py` so owner/ref-storage batch analysis is repeatable instead of one-off. It reads pointer-family summaries, runs read-only owner inspections, ranks rows, extracts module-RVA hints, and writes durable JSON/Markdown summaries.
 
 ## Resume prompt
 
-Resume in `C:\RIFT MODDING\RiftReader` on `main`. Read `docs/recovery/current-truth.md` and this handoff first. Continue from the current strongest candidate `family-snapshot-hit-000002` at `0x268E113FED0` using the fresh-readback artifact `scripts/captures/riftscan-proof-pose-20260514-004221/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-204222.json`. Movement remains blocked. Next best work is static/root provenance: broaden pointer/owner-family scans around `0x268E1130000`, `0x268DD310000`, and existing owner seed `0x268D753AE40`, or capture a second displaced pose only if an explicit safe movement/displacement gate is approved and current reference/proof preflight remains fresh.
+Resume in `C:\RIFT MODDING\RiftReader` on `main`. Read `docs/recovery/current-truth.md` and this handoff first. Continue from the current strongest candidate `family-snapshot-hit-000002` at `0x268E113FED0` using the fresh-readback artifact `scripts/captures/riftscan-proof-pose-20260514-004221/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-204222.json`. Movement remains blocked. Next best work is static/root provenance: use the repeatable `scripts/pointer_owner_batch_inspector.py` workflow on the newest pointer-family scan, then sweep only high-signal module-RVA hints or escalate to access-chain tracing if owner evidence stays heap-only. Do not use stale PID `57656` proof anchors, old absolute pointers, or SavedVariables snapshots as current truth.
