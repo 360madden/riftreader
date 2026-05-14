@@ -5,8 +5,8 @@ param(
     [string]$TargetWindowHandle,
     [string]$RiftScanRoot = 'C:\RIFT MODDING\Riftscan',
     [string]$CandidateFile,
-    [string]$OutputRoot = (Join-Path $PSScriptRoot 'captures'),
-    [string]$ReaderSessionRoot = (Join-Path $PSScriptRoot 'sessions'),
+    [string]$OutputRoot,
+    [string]$ReaderSessionRoot,
     [int]$PassiveSamples = 3,
     [int]$PassiveIntervalMilliseconds = 100,
     [int]$PassiveMaxRegions = 16,
@@ -35,10 +35,21 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$scriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($scriptRoot)) {
+    $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $scriptRoot 'captures'
+}
+if ([string]::IsNullOrWhiteSpace($ReaderSessionRoot)) {
+    $ReaderSessionRoot = Join-Path $scriptRoot 'sessions'
+}
+
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $readerProject = Join-Path $repoRoot 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
-$importerScript = Join-Path $PSScriptRoot 'import-riftscan-coordinate-candidates.ps1'
-$proofAnchorScript = Join-Path $PSScriptRoot 'assert-current-proof-coord-anchor.ps1'
+$importerScript = Join-Path $scriptRoot 'import-riftscan-coordinate-candidates.ps1'
+$proofAnchorScript = Join-Path $scriptRoot 'assert-current-proof-coord-anchor.ps1'
 
 Add-Type -TypeDefinition @"
 using System;
