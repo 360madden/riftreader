@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-14 00:20 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. New reference watchdog artifact `scripts/captures/reference-freshness-watchdog-20260514-002036-448433/summary.json` gives verdict `blocked-fresh-reference-unavailable`: ChromaLink is stale/not healthy and RRAPICOORD has no usable marker. The clean priority root-family lane remains exhausted (`15` exported leads, `49` scanned target/ref-storage addresses, `35` heap hits, `0` module/RIFT-module hits). The selected same-target candidate remains `same-target-268DF21ED30-xyz` and is candidate-only until fresh API-now/reference and memory-now proof pass. The stale runtime proof-anchor cache is historical only and must not shadow current PID `2928`._
+_Last updated: 2026-05-14 00:26 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. Coordinate proof readiness gate `scripts/captures/coordinate-proof-readiness-gate-20260514-002618-599647/summary.json` now fail-closes read-only proof and movement because the reference watchdog is blocked (`blocked-fresh-reference-unavailable`). The clean priority root-family lane remains exhausted (`15` exported leads, `49` scanned target/ref-storage addresses, `35` heap hits, `0` module/RIFT-module hits). The selected same-target candidate remains `same-target-268DF21ED30-xyz` and is candidate-only until fresh API-now/reference and memory-now proof pass. The stale runtime proof-anchor cache is historical only and must not shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -314,6 +314,18 @@ the workflow early. Post-watchdog milestone review
 `ready-for-read-only-proof` with `movementAllowedByReview=false`; this is still
 a strategy/read-only gate, not movement permission.
 
+**May 14 00:26 UTC coordinate proof readiness gate:** new helper
+`scripts/coordinate_proof_readiness_gate.py` composes the reference watchdog and
+latest milestone review into one fail-closed proof gate. First artifact:
+`scripts/captures/coordinate-proof-readiness-gate-20260514-002618-599647/summary.json`.
+It correctly blocks with verdict `blocked-coordinate-proof-readiness`, sets
+`readOnlyProofAllowed=false` and `movementAllowed=false`, and records blockers
+from the reference watchdog: stale/not-healthy ChromaLink plus no usable
+RRAPICOORD marker. This closes the ambiguity where the milestone review alone
+can be `ready-for-read-only-proof` because a same-target candidate exists, while
+fresh API/reference truth is still unavailable. Use this readiness gate before
+any future proof/readback or movement step.
+
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
 seeded the only heap owner plus module-pointer hints. The low-noise type marker
@@ -464,7 +476,7 @@ readback is offset-corrected candidate evidence, not direct movement truth.
 | Current proof status | **Not promoted**. PID `2928` now has a high-signal current-PID candidate family (`0x268DF200000`) with repeated offset-corrected live readback (`0x268DF21ED30` best focused address), but still has no static/restart chain or same-target `ProofOnly` promotion. Direct candidate values are offset from API by about `5` units, so this is not direct coordinate truth. |
 | x64dbg status | No successful current-PID attach. One minimized no-debuggee automation self-check passed and two bounded current-PID attach attempts failed before attach. If another x64dbg tactic is used, keep x64dbg/dependent windows minimized unless visibility is required and avoid repeating the same attach attempt without new evidence. |
 | Evidence labels | Current target/API evidence is `responsive-candidate`; there is no `live-proof` chain. Any future debugger-paused scan must be labeled `frozen-snapshot`. |
-| Latest report | Professional HTML summary: `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`. Newest markdown handoff: `docs/handoffs/2026-05-13-2020-reference-watchdog.md`; prior handoff: `docs/handoffs/2026-05-13-2014-priority-lane-exhaustion.md`. |
+| Latest report | Professional HTML summary: `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`. Newest markdown handoff: `docs/handoffs/2026-05-13-2026-coordinate-proof-readiness-gate.md`; prior handoff: `docs/handoffs/2026-05-13-2020-reference-watchdog.md`. |
 | Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no movement/nav proof. Bounded exact-HWND input is allowed only for discovery snapshots in this approved chat lane and remains candidate evidence. x64dbg/watchpoints should wait until the focused candidate family needs static-chain provenance and must stay minimized unless visibility is required. |
 
 ## May 13 prior PID 60628 candidate status (candidate-only; not authoritative proof)
