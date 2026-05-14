@@ -207,18 +207,25 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.html` |
 | Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
 | Latest route status | `reacquisition-no-current-hits` |
-| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-102755.html` |
-| Latest scan-profile plan | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-latest-dryrun/summary.json` |
-| Latest scan-profile plan HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-latest-dryrun/summary.html` |
+| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-064507.html` |
+| Latest scan-profile plan | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.json` |
+| Latest scan-profile plan HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.html` |
 | Latest manual displacement blocker | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json` |
 | Latest manual displacement blocker HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.html` |
-| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1027-two-reference-smoke/summary.json` |
-| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1027-two-reference-smoke/summary.html` |
+| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-064229-latest-displaced-focused/summary.json` |
+| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-064229-latest-displaced-focused/summary.html` |
 | Latest preflight with route | `scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json` |
 | Latest read-only reacquisition | `scripts/captures/family-scan-currentpid-2928-20260514-100425-894650/family-scan-summary.json` |
 | Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-100559.json` |
 | Visual evidence role | `sidecar_only_not_coordinate_or_movement_truth` |
 | Movement allowed by visual evidence | `false` |
+| Latest generated center file | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/coordinate-scan-centers.json` |
+| Latest generated center file summary | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.json` |
+| Latest generated center file HTML | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.html` |
+| Latest scan-profile run | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.json` |
+| Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.html` |
+| Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.json` |
+| Latest candidate comparison status | `candidate-only-no-two-reference-match` |
 
 Rules:
 

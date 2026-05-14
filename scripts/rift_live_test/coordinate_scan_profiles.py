@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import subprocess
 import sys
 import time
@@ -51,6 +52,15 @@ DEFAULT_HISTORICAL_CENTERS = [
     ("0x2400EA32120", "older-riftscan-first-proof-anchor"),
 ]
 
+DISPLACED_REFERENCE_MARKERS = (
+    "displaced",
+    "manual-displaced",
+    "operator-displaced",
+    "moved-pose",
+    "second-pose",
+    "alternate-pose",
+)
+
 
 def utc_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -58,6 +68,10 @@ def utc_iso() -> str:
 
 def utc_stamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
+
+
+def file_mtime_utc(path: Path) -> str:
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def repo_root_from_module() -> Path:
@@ -98,6 +112,27 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def dict_or_empty(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def int_or_zero(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def float_or_none(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
 def json_hwnd(value: Any) -> str | None:
     if value in (None, ""):
         return None
@@ -116,7 +151,35 @@ def json_pid(value: Any) -> int | None:
             return None
 
 
-def find_latest_reference_file(repo_root: Path, *, pid: int | None, hwnd: str | None) -> Path | None:
+def displaced_reference_marker(path: Path, document: dict[str, Any]) -> str | None:
+    text_parts = [str(path).replace("\\", "/").lower()]
+    for key in (
+        "pose",
+        "poseLabel",
+        "label",
+        "source",
+        "notes",
+        "description",
+        "mode",
+        "captureContext",
+        "referenceKind",
+    ):
+        value = document.get(key)
+        if value not in (None, ""):
+            text_parts.append(str(value).lower())
+    for marker in DISPLACED_REFERENCE_MARKERS:
+        if any(marker in text for text in text_parts):
+            return marker
+    return None
+
+
+def find_latest_reference_file(
+    repo_root: Path,
+    *,
+    pid: int | None,
+    hwnd: str | None,
+    require_displaced: bool = False,
+) -> Path | None:
     captures = repo_root / "scripts" / "captures"
     if not captures.exists():
         return None
@@ -137,6 +200,8 @@ def find_latest_reference_file(repo_root: Path, *, pid: int | None, hwnd: str | 
             continue
         if normalized_hwnd and candidate_hwnd and candidate_hwnd != normalized_hwnd:
             continue
+        if require_displaced and displaced_reference_marker(path, document) is None:
+            continue
         return path
     return None
 
@@ -144,11 +209,13 @@ def find_latest_reference_file(repo_root: Path, *, pid: int | None, hwnd: str | 
 def resolve_reference_file(repo_root: Path, value: Path | None, *, pid: int | None, hwnd: str | None) -> tuple[Path | None, str | None, str | None]:
     if value is None:
         return None, None, None
-    if str(value).strip().lower() == "latest":
-        latest = find_latest_reference_file(repo_root, pid=pid, hwnd=hwnd)
+    alias = str(value).strip().lower()
+    if alias in {"latest", "latest-displaced"}:
+        latest = find_latest_reference_file(repo_root, pid=pid, hwnd=hwnd, require_displaced=alias == "latest-displaced")
         if latest is None:
-            return None, "latest", "reference-file-latest-not-found"
-        return latest, "latest", None
+            error = "displaced-reference-latest-not-found" if alias == "latest-displaced" else "reference-file-latest-not-found"
+            return None, alias, error
+        return latest, alias, None
     path = value if value.is_absolute() else repo_root / value
     return path, None, None
 
@@ -308,6 +375,48 @@ def profile_commands(
     return commands
 
 
+def rank_profile_runs(profile_runs: Sequence[dict[str, Any]], repo_root: Path) -> list[dict[str, Any]]:
+    rankings: list[dict[str, Any]] = []
+    for run in profile_runs:
+        parsed = dict_or_empty(run.get("stdoutJson"))
+        scan = dict_or_empty(parsed.get("scan"))
+        best_hit = dict_or_empty(scan.get("bestHit") or parsed.get("bestHit"))
+        artifacts = dict_or_empty(parsed.get("artifacts"))
+        hit_count = int_or_zero(scan.get("hitCount"))
+        best_max_abs_delta = float_or_none(best_hit.get("maxAbsDelta") or best_hit.get("best_max_abs_distance"))
+        bytes_scanned = int_or_zero(scan.get("bytesScanned"))
+        rankings.append(
+            {
+                "profile": run.get("profile"),
+                "label": run.get("label"),
+                "exitCode": run.get("exitCode"),
+                "status": parsed.get("status"),
+                "hitCount": hit_count,
+                "bestMaxAbsDelta": best_max_abs_delta,
+                "bytesScanned": bytes_scanned,
+                "summaryJson": artifacts.get("summaryJson"),
+                "candidateJson": artifacts.get("candidateJson"),
+                "candidateJsonl": artifacts.get("candidateJsonl"),
+            }
+        )
+    rankings.sort(
+        key=lambda item: (
+            -int_or_zero(item.get("hitCount")),
+            float("inf") if item.get("bestMaxAbsDelta") is None else float(item["bestMaxAbsDelta"]),
+            -int_or_zero(item.get("bytesScanned")),
+            str(item.get("profile") or ""),
+            str(item.get("label") or ""),
+        )
+    )
+    for rank, item in enumerate(rankings, start=1):
+        item["rank"] = rank
+        for key in ("summaryJson", "candidateJson", "candidateJsonl"):
+            value = item.get(key)
+            if value:
+                item[key] = path_text(Path(str(value)), repo_root)
+    return rankings
+
+
 def build_markdown(summary: dict[str, Any]) -> str:
     lines = [
         "# Coordinate scan profile run",
@@ -332,6 +441,22 @@ def build_markdown(summary: dict[str, Any]) -> str:
             f"`{parsed.get('status')}` | `{(parsed.get('scan') or {}).get('hitCount')}` | "
             f"`{(parsed.get('artifacts') or {}).get('summaryJson')}` |"
         )
+    if summary.get("profileRankings"):
+        lines.extend(
+            [
+                "",
+                "## Profile rankings",
+                "",
+                "| Rank | Profile | Label | Hits | Best max abs delta | Bytes scanned | Summary |",
+                "|---:|---|---|---:|---:|---:|---|",
+            ]
+        )
+        for item in summary.get("profileRankings") or []:
+            lines.append(
+                f"| `{item.get('rank')}` | `{item.get('profile')}` | `{item.get('label')}` | "
+                f"`{item.get('hitCount')}` | `{item.get('bestMaxAbsDelta')}` | `{item.get('bytesScanned')}` | "
+                f"`{item.get('summaryJson')}` |"
+            )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{item}`" for item in summary.get("blockers") or [])
@@ -365,6 +490,18 @@ def build_html(summary: dict[str, Any]) -> str:
         "</tr>"
         for item in summary.get("plannedCommands") or []
     )
+    ranking_rows = "\n".join(
+        "<tr>"
+        f"<td>{esc(item.get('rank'))}</td>"
+        f"<td><code>{esc(item.get('profile'))}</code></td>"
+        f"<td><code>{esc(item.get('label'))}</code></td>"
+        f"<td>{esc(item.get('hitCount'))}</td>"
+        f"<td>{esc(item.get('bestMaxAbsDelta'))}</td>"
+        f"<td>{esc(item.get('bytesScanned'))}</td>"
+        f"<td><code>{esc(item.get('summaryJson'))}</code></td>"
+        "</tr>"
+        for item in summary.get("profileRankings") or []
+    )
     blockers = "".join(f"<li><code>{esc(item)}</code></li>" for item in summary.get("blockers") or []) or "<li>None</li>"
     warnings = "".join(f"<li><code>{esc(item)}</code></li>" for item in summary.get("warnings") or []) or "<li>None</li>"
     return f"""<!doctype html>
@@ -392,6 +529,8 @@ code {{ background:#020817; border:1px solid #263a57; padding:2px 6px; border-ra
 </section>
 <h2>Profile runs</h2>
 <table><tr><th>Profile</th><th>Label</th><th>Exit</th><th>Status</th><th>Hits</th><th>Summary</th></tr>{rows}</table>
+<h2>Profile rankings</h2>
+<table><tr><th>Rank</th><th>Profile</th><th>Label</th><th>Hits</th><th>Best max abs delta</th><th>Bytes scanned</th><th>Summary</th></tr>{ranking_rows}</table>
 <h2>Planned commands</h2>
 <table><tr><th>Profile</th><th>Label</th><th>Command</th></tr>{planned_rows}</table>
 <h2>Blockers</h2><ul>{blockers}</ul>
@@ -399,6 +538,51 @@ code {{ background:#020817; border:1px solid #263a57; padding:2px 6px; border-ra
 <p>Movement remains blocked. This helper never sends input and never uses CE/x64dbg.</p>
 </main></body></html>
 """
+
+
+def upsert_markdown_table_rows(text: str, heading_prefix: str, rows: dict[str, str]) -> str:
+    lines = text.splitlines()
+    heading_index = next((index for index, line in enumerate(lines) if line.startswith(heading_prefix)), None)
+    if heading_index is None:
+        appended = [
+            "",
+            heading_prefix,
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            *[f"| {label} | `{value}` |" for label, value in rows.items()],
+        ]
+        return "\n".join([*lines, *appended]).rstrip() + "\n"
+
+    table_start = None
+    for index in range(heading_index + 1, len(lines)):
+        if lines[index].strip() == "| Field | Value |":
+            table_start = index
+            break
+        if index > heading_index and lines[index].startswith("## "):
+            break
+    if table_start is None:
+        insert_at = heading_index + 1
+        new_table = ["", "| Field | Value |", "|---|---|", *[f"| {label} | `{value}` |" for label, value in rows.items()]]
+        lines[insert_at:insert_at] = new_table
+        return "\n".join(lines).rstrip() + "\n"
+
+    table_end = table_start + 2
+    while table_end < len(lines) and lines[table_end].startswith("|"):
+        table_end += 1
+
+    existing_labels: set[str] = set()
+    for index in range(table_start + 2, table_end):
+        parts = [part.strip() for part in lines[index].strip().strip("|").split("|")]
+        if len(parts) < 2:
+            continue
+        label = parts[0]
+        if label in rows:
+            lines[index] = f"| {label} | `{rows[label]}` |"
+            existing_labels.add(label)
+    additions = [f"| {label} | `{value}` |" for label, value in rows.items() if label not in existing_labels]
+    lines[table_end:table_end] = additions
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def update_current_truth(summary: dict[str, Any], repo_root: Path) -> None:
@@ -409,11 +593,42 @@ def update_current_truth(summary: dict[str, Any], repo_root: Path) -> None:
     document = read_json(truth_path)
     routing = document.setdefault("visualEvidenceRouting", {})
     artifacts = summary.get("artifacts") or {}
-    routing["latestScanProfileRun"] = path_text(Path(str(artifacts.get("summaryJson"))), repo_root)
-    routing["latestScanProfileHtml"] = path_text(Path(str(artifacts.get("summaryHtml"))), repo_root)
-    if "manual-displaced-reference-required" in (summary.get("blockers") or []):
+    is_dry_run = "dry-run requested; no profile commands executed" in (summary.get("warnings") or [])
+    if not is_dry_run:
+        routing["latestScanProfileRun"] = path_text(Path(str(artifacts.get("summaryJson"))), repo_root)
+        routing["latestScanProfileHtml"] = path_text(Path(str(artifacts.get("summaryHtml"))), repo_root)
+        if summary.get("profileRankings"):
+            routing["latestScanProfileRanking"] = path_text(Path(str(artifacts.get("summaryJson"))), repo_root)
+    if is_dry_run:
+        routing["latestScanProfilePlan"] = path_text(Path(str(artifacts.get("summaryJson"))), repo_root)
+        routing["latestScanProfilePlanHtml"] = path_text(Path(str(artifacts.get("summaryHtml"))), repo_root)
+    if any(item in (summary.get("blockers") or []) for item in ("manual-displaced-reference-required", "displaced-reference-latest-not-found")):
         routing["latestManualDisplacementBlocker"] = path_text(Path(str(artifacts.get("summaryJson"))), repo_root)
+        routing["latestManualDisplacementBlockerHtml"] = path_text(Path(str(artifacts.get("summaryHtml"))), repo_root)
     write_json(truth_path, document)
+    markdown_path = repo_root / "docs" / "recovery" / "current-truth.md"
+    if not markdown_path.exists():
+        summary.setdefault("warnings", []).append(f"current-truth-markdown-missing:{markdown_path}")
+        return
+    markdown_rows = {
+    }
+    if routing.get("latestScanProfileRun"):
+        markdown_rows["Latest scan-profile run"] = routing["latestScanProfileRun"]
+        markdown_rows["Latest scan-profile run HTML"] = routing["latestScanProfileHtml"]
+    if routing.get("latestScanProfilePlan"):
+        markdown_rows["Latest scan-profile plan"] = routing["latestScanProfilePlan"]
+        markdown_rows["Latest scan-profile plan HTML"] = routing["latestScanProfilePlanHtml"]
+    if routing.get("latestManualDisplacementBlocker"):
+        markdown_rows["Latest manual displacement blocker"] = routing["latestManualDisplacementBlocker"]
+        markdown_rows["Latest manual displacement blocker HTML"] = routing["latestManualDisplacementBlockerHtml"]
+    if routing.get("latestScanProfileRanking"):
+        markdown_rows["Latest scan-profile ranking"] = routing["latestScanProfileRanking"]
+    updated_markdown = upsert_markdown_table_rows(
+        markdown_path.read_text(encoding="utf-8"),
+        "## Visual/capture proof-route policy",
+        markdown_rows,
+    )
+    write_text_atomic(markdown_path, updated_markdown)
 
 
 def final_status(summary: dict[str, Any]) -> tuple[str, int]:
@@ -487,8 +702,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "processId": args.pid,
         "targetWindowHandle": hwnd,
         "referenceFile": str(reference_file) if reference_file else None,
+        "referenceFileModifiedUtc": file_mtime_utc(reference_file) if reference_file and reference_file.exists() else None,
         "referenceFileResolvedFromAlias": reference_alias,
         "displacedReferenceFile": str(displaced_reference_file) if displaced_reference_file else None,
+        "displacedReferenceFileModifiedUtc": file_mtime_utc(displaced_reference_file) if displaced_reference_file and displaced_reference_file.exists() else None,
         "displacedReferenceFileResolvedFromAlias": displaced_reference_alias,
         "profiles": profiles,
         "profileRuns": [],
@@ -526,6 +743,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary["blockers"].append("manual-displaced-reference-required")
         if displaced_reference_file is not None and not displaced_reference_file.exists():
             summary["blockers"].append(f"displaced-reference-file-missing:{displaced_reference_file}")
+        if reference_file is not None and reference_file.exists() and displaced_reference_file is not None and displaced_reference_file.exists():
+            if displaced_reference_file.stat().st_mtime < reference_file.stat().st_mtime:
+                summary["warnings"].append("displaced-reference-older-than-baseline-reference")
         for profile in profiles:
             if profile not in PROFILES:
                 summary["blockers"].append(f"unknown-profile:{profile}")
@@ -555,6 +775,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         for command in commands:
             envelope = run_command(command["args"], repo_root, command["timeoutSeconds"])
             summary["profileRuns"].append({**command, **envelope})
+        summary["profileRankings"] = rank_profile_runs(summary["profileRuns"], repo_root)
+        summary["bestProfileRun"] = summary["profileRankings"][0] if summary["profileRankings"] else None
         status, return_code = final_status(summary)
         summary["status"] = status
         if status == "blocked" and not summary["blockers"]:

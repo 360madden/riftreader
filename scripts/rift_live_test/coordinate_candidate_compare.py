@@ -12,6 +12,14 @@ from .reports import write_json, write_text_atomic
 
 
 SCHEMA_VERSION = 1
+DISPLACED_REFERENCE_MARKERS = (
+    "displaced",
+    "manual-displaced",
+    "operator-displaced",
+    "moved-pose",
+    "second-pose",
+    "alternate-pose",
+)
 
 
 def utc_iso() -> str:
@@ -20,6 +28,10 @@ def utc_iso() -> str:
 
 def utc_stamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
+
+
+def file_mtime_utc(path: Path) -> str:
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def repo_root_from_module() -> Path:
@@ -31,6 +43,28 @@ def path_text(path: Path, repo_root: Path) -> str:
         return str(path.resolve().relative_to(repo_root.resolve())).replace("\\", "/")
     except ValueError:
         return str(path.resolve())
+
+
+def normalize_hwnd(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    try:
+        return f"0x{int(text, 0):X}"
+    except ValueError:
+        return text
+
+
+def json_pid(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(str(value), 0)
+        except (TypeError, ValueError):
+            return None
 
 
 def read_json(path: Path) -> Any:
@@ -75,7 +109,62 @@ def load_reference(path: Path) -> dict[str, Any]:
     if not isinstance(doc, dict):
         raise ValueError(f"reference file is not an object: {path}")
     coordinate = coerce_coordinate(doc)
-    return {"path": str(path), "coordinate": coordinate}
+    target = {
+        "processId": json_pid(doc.get("processId") or doc.get("ProcessId")),
+        "targetWindowHandle": normalize_hwnd(doc.get("targetWindowHandle") or doc.get("TargetWindowHandle")),
+        "processName": doc.get("processName") or doc.get("ProcessName"),
+    }
+    return {"path": str(path), "coordinate": coordinate, "target": target}
+
+
+def displaced_reference_marker(path: Path, document: dict[str, Any]) -> str | None:
+    text_parts = [str(path).replace("\\", "/").lower()]
+    for key in (
+        "pose",
+        "poseLabel",
+        "label",
+        "source",
+        "notes",
+        "description",
+        "mode",
+        "captureContext",
+        "referenceKind",
+    ):
+        value = document.get(key)
+        if value not in (None, ""):
+            text_parts.append(str(value).lower())
+    for marker in DISPLACED_REFERENCE_MARKERS:
+        if any(marker in text for text in text_parts):
+            return marker
+    return None
+
+
+def find_latest_displaced_reference(repo_root: Path, *, pid: int | None, hwnd: str | None) -> Path | None:
+    captures = repo_root / "scripts" / "captures"
+    if not captures.exists():
+        return None
+    normalized_hwnd = normalize_hwnd(hwnd)
+    candidates = sorted(
+        captures.rglob("rift-api-reference-currentpid-*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in candidates:
+        try:
+            document = read_json(path)
+        except Exception:  # noqa: BLE001 - skip unreadable historical artifacts.
+            continue
+        if not isinstance(document, dict):
+            continue
+        candidate_pid = json_pid(document.get("processId") or document.get("ProcessId"))
+        candidate_hwnd = normalize_hwnd(document.get("targetWindowHandle") or document.get("TargetWindowHandle"))
+        if pid is not None and candidate_pid is not None and candidate_pid != pid:
+            continue
+        if normalized_hwnd and candidate_hwnd and candidate_hwnd != normalized_hwnd:
+            continue
+        if displaced_reference_marker(path, document) is not None:
+            return path
+    return None
 
 
 def candidate_records(doc: Any) -> list[dict[str, Any]]:
@@ -303,6 +392,84 @@ code {{ background:#020817; border:1px solid #263a57; padding:2px 6px; border-ra
 """
 
 
+def upsert_markdown_table_rows(text: str, heading_prefix: str, rows: dict[str, str]) -> str:
+    lines = text.splitlines()
+    heading_index = next((index for index, line in enumerate(lines) if line.startswith(heading_prefix)), None)
+    if heading_index is None:
+        appended = [
+            "",
+            heading_prefix,
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            *[f"| {label} | `{value}` |" for label, value in rows.items()],
+        ]
+        return "\n".join([*lines, *appended]).rstrip() + "\n"
+    table_start = None
+    for index in range(heading_index + 1, len(lines)):
+        if lines[index].strip() == "| Field | Value |":
+            table_start = index
+            break
+        if index > heading_index and lines[index].startswith("## "):
+            break
+    if table_start is None:
+        lines[heading_index + 1:heading_index + 1] = [
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            *[f"| {label} | `{value}` |" for label, value in rows.items()],
+        ]
+        return "\n".join(lines).rstrip() + "\n"
+    table_end = table_start + 2
+    while table_end < len(lines) and lines[table_end].startswith("|"):
+        table_end += 1
+    updated: set[str] = set()
+    for index in range(table_start + 2, table_end):
+        parts = [part.strip() for part in lines[index].strip().strip("|").split("|")]
+        if len(parts) < 2:
+            continue
+        label = parts[0]
+        if label in rows:
+            lines[index] = f"| {label} | `{rows[label]}` |"
+            updated.add(label)
+    lines[table_end:table_end] = [f"| {label} | `{value}` |" for label, value in rows.items() if label not in updated]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def update_current_truth(summary: dict[str, Any], repo_root: Path) -> None:
+    truth_path = repo_root / "docs" / "recovery" / "current-truth.json"
+    if not truth_path.exists():
+        summary.setdefault("warnings", []).append(f"current-truth-json-missing:{truth_path}")
+        return
+    document = dict_or_empty(read_json(truth_path))
+    routing = document.setdefault("visualEvidenceRouting", {})
+    artifacts = dict_or_empty(summary.get("artifacts"))
+    if artifacts.get("summaryJson"):
+        routing["latestCandidateComparison"] = path_text(Path(str(artifacts["summaryJson"])), repo_root)
+    if artifacts.get("summaryHtml"):
+        routing["latestCandidateComparisonHtml"] = path_text(Path(str(artifacts["summaryHtml"])), repo_root)
+    routing["latestCandidateComparisonStatus"] = str(summary.get("status"))
+    if summary.get("displacedReferenceResolvedFromAlias"):
+        routing["latestCandidateComparisonMode"] = f"two-reference-{summary.get('displacedReferenceResolvedFromAlias')}"
+    write_json(truth_path, document)
+
+    markdown_path = repo_root / "docs" / "recovery" / "current-truth.md"
+    if not markdown_path.exists():
+        summary.setdefault("warnings", []).append(f"current-truth-markdown-missing:{markdown_path}")
+        return
+    rows = {
+        "Latest candidate comparison": routing.get("latestCandidateComparison", ""),
+        "Latest candidate comparison HTML": routing.get("latestCandidateComparisonHtml", ""),
+        "Latest candidate comparison status": routing.get("latestCandidateComparisonStatus", ""),
+    }
+    updated = upsert_markdown_table_rows(
+        markdown_path.read_text(encoding="utf-8"),
+        "## Visual/capture proof-route policy",
+        {key: value for key, value in rows.items() if value},
+    )
+    write_text_atomic(markdown_path, updated)
+
+
 def default_candidate_files(repo_root: Path, explicit_files: Sequence[Path], discover: bool) -> list[Path]:
     files = [path if path.is_absolute() else repo_root / path for path in explicit_files]
     if discover:
@@ -327,6 +494,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--tolerance", type=float, default=0.25)
     parser.add_argument("--max-records-per-file", type=int, default=100)
     parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--update-current-truth", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
@@ -365,18 +533,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary["status"] = "blocked"
             return 2
         reference = load_reference(api_reference)
-        summary["reference"] = {"path": path_text(api_reference, repo_root), "coordinate": reference["coordinate"]}
+        summary["reference"] = {
+            "path": path_text(api_reference, repo_root),
+            "coordinate": reference["coordinate"],
+            "target": reference.get("target"),
+            "modifiedAtUtc": file_mtime_utc(api_reference),
+        }
         displaced_reference = None
         if args.displaced_api_reference is not None:
-            displaced_api_reference = args.displaced_api_reference if args.displaced_api_reference.is_absolute() else repo_root / args.displaced_api_reference
+            displaced_alias = str(args.displaced_api_reference).strip().lower()
+            if displaced_alias == "latest-displaced":
+                target = dict_or_empty(reference.get("target"))
+                displaced_api_reference = find_latest_displaced_reference(
+                    repo_root,
+                    pid=json_pid(target.get("processId")),
+                    hwnd=normalize_hwnd(target.get("targetWindowHandle")),
+                )
+                summary["displacedReferenceResolvedFromAlias"] = "latest-displaced"
+                if displaced_api_reference is None:
+                    summary["blockers"].append("displaced-api-reference-latest-not-found")
+                    summary["status"] = "blocked"
+                    return 2
+            else:
+                displaced_api_reference = args.displaced_api_reference if args.displaced_api_reference.is_absolute() else repo_root / args.displaced_api_reference
             if not displaced_api_reference.exists():
                 summary["blockers"].append(f"displaced-api-reference-missing:{args.displaced_api_reference}")
                 summary["status"] = "blocked"
                 return 2
             displaced_reference = load_reference(displaced_api_reference)
+            if displaced_api_reference.stat().st_mtime < api_reference.stat().st_mtime:
+                summary["warnings"].append("displaced-api-reference-older-than-baseline-reference")
             summary["displacedReference"] = {
                 "path": path_text(displaced_api_reference, repo_root),
                 "coordinate": displaced_reference["coordinate"],
+                "target": displaced_reference.get("target"),
+                "modifiedAtUtc": file_mtime_utc(displaced_api_reference),
             }
         files = default_candidate_files(repo_root, args.candidate_file, args.discover)
         if not files:
@@ -425,6 +616,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_json(summary_json, summary)
         write_text_atomic(summary_md, build_markdown(summary))
         write_text_atomic(summary_html, build_html(summary))
+        if args.update_current_truth:
+            try:
+                update_current_truth(summary, repo_root)
+            except Exception as exc:  # noqa: BLE001 - preserve comparison output.
+                summary.setdefault("warnings", []).append(f"current-truth-update-failed:{type(exc).__name__}:{exc}")
+                write_json(summary_json, summary)
+                write_text_atomic(summary_md, build_markdown(summary))
+                write_text_atomic(summary_html, build_html(summary))
         if args.json:
             print(json.dumps(summary, indent=2))
         else:

@@ -268,11 +268,18 @@ python .\scripts\coordinate_scan_profiles.py `
 
 `--reference-file latest` selects the newest same-target
 `rift-api-reference-currentpid-*.json` artifact for the requested PID/HWND.
+`--displaced-reference-file latest-displaced` selects only a same-target
+reference that is explicitly marked as a displaced/manual/alternate pose. If no
+such artifact exists, the runner fails closed with
+`displaced-reference-latest-not-found`; it does not reuse the still-pose
+reference as fake movement proof.
 `--historical-center-file` accepts JSON such as
 `{"centers":[{"label":"last-readback","address":"0x268D5A80730"}]}`.
-Each profile run writes JSON, Markdown, and HTML; `--update-current-truth`
-updates `docs/recovery/current-truth.json` with the latest scan-profile summary
-and HTML paths.
+Each profile run writes JSON, Markdown, and HTML, including a ranked table of
+profile hits/deltas when scans execute. `--update-current-truth` updates both
+`docs/recovery/current-truth.json` and the human-readable
+`docs/recovery/current-truth.md` proof-route table with the latest scan-profile
+summary and HTML paths.
 
 If a manual displaced pose has not been captured, use
 `--require-displaced-pose` to fail closed with
@@ -285,9 +292,10 @@ target memory, use the offline comparison helper:
 ```powershell
 python .\scripts\coordinate_candidate_compare.py `
   --api-reference scripts\captures\<fresh-reference>.json `
-  --displaced-api-reference scripts\captures\<manual-displaced-reference>.json `
+  --displaced-api-reference latest-displaced `
   --candidate-file scripts\captures\<candidate-file>.json `
   --discover `
+  --update-current-truth `
   --json
 ```
 
@@ -295,7 +303,27 @@ This report may identify a current API match, but it is still offline evidence:
 movement remains blocked until same-target readback/proof gates pass.
 When `--displaced-api-reference` is supplied, the report includes baseline,
 displaced, and both-reference match counts so stale heap copies are easier to
-separate from pose-tracking candidates.
+separate from pose-tracking candidates. `latest-displaced` uses the same
+fail-closed displaced/manual/alternate-pose marker rule as the scan-profile
+runner. `--update-current-truth` updates both the machine-readable JSON and the
+human-readable proof-route table with the latest comparison paths/status.
+
+To turn the best stale/candidate addresses from a comparison report into a
+repeatable historical-neighborhood scan-center file, use the Python center-file
+generator:
+
+```powershell
+python .\scripts\coordinate_center_file.py `
+  --comparison-summary latest `
+  --max-centers 16 `
+  --update-current-truth `
+  --json
+```
+
+The generated `coordinate-scan-centers.json` can be passed back into
+`coordinate_scan_profiles.py` with `--historical-center-file`. This is still
+candidate routing only: it sends no input, reads no target memory, uses no
+CE/x64dbg, and does not promote coordinate truth by itself.
 
 ## Aggregate validation runner
 

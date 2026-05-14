@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coordinate proof route actions 1-10 - 2026-05-14-064507</title>
+<style>
+:root { --bg:#07111f; --panel:#0f1b2e; --panel2:#12233a; --line:#263a57; --text:#e5eefb; --muted:#9fb3c8; --good:#34d399; --warn:#fbbf24; --bad:#fb7185; --blue:#38bdf8; --violet:#a78bfa; }
+body { margin:0; background:radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 34rem), var(--bg); color:var(--text); font-family:"Segoe UI", system-ui, sans-serif; }
+main { max-width:1220px; margin:0 auto; padding:34px 22px 54px; }
+.hero { border:1px solid var(--line); border-radius:26px; padding:28px; background:linear-gradient(135deg, rgba(56,189,248,.18), rgba(167,139,250,.12)); box-shadow:0 18px 70px rgba(0,0,0,.25); }
+h1 { margin:0 0 10px; font-size:2.15rem; }
+h2 { margin-top:32px; color:#dbeafe; }
+.grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:18px 0 4px; }
+.card { border:1px solid var(--line); border-radius:18px; padding:16px; background:rgba(15,27,46,.82); }
+.card b { display:block; font-size:1.45rem; color:var(--blue); }
+.card span { color:var(--muted); }
+table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { color:#bae6fd; background:#0b1728; }
+tr:last-child td { border-bottom:0; }
+.badge { display:inline-block; padding:4px 9px; border-radius:999px; background:#062b1f; color:var(--good); border:1px solid rgba(52,211,153,.35); font-weight:700; }
+.badge.warn { background:#31240a; color:var(--warn); border-color:rgba(251,191,36,.35); }
+.progress { height:16px; border-radius:999px; background:#0a1322; border:1px solid var(--line); overflow:hidden; }
+.bar { width:100%; height:100%; background:linear-gradient(90deg,var(--good),var(--blue)); }
+.note { color:var(--muted); }
+code { background:#020817; border:1px solid var(--line); padding:2px 6px; border-radius:7px; color:#bfdbfe; overflow-wrap:anywhere; }
+</style>
+</head>
+<body><main>
+<section class="hero">
+<h1>Coordinate proof-route actions 1-10</h1>
+<p><span class="badge">Completed</span> <span class="badge warn">Movement still blocked</span></p>
+<p>Generated local time: <code>2026-05-14-064507</code>. Scope stayed Python/C#/.NET-safe: no movement input, no CE, no x64dbg attach, no RiftScan provider writes.</p>
+<div class="grid">
+  <div class="card"><b>10/10</b><span>actions completed</span></div>
+  <div class="card"><b>16</b><span>center seeds generated</span></div>
+  <div class="card"><b>0</b><span>current scan hits</span></div>
+  <div class="card"><b>175</b><span>Python + .NET tests passed</span></div>
+</div>
+<div class="progress" aria-label="10 of 10 complete"><div class="bar"></div></div>
+</section>
+<h2>Action completion table</h2>
+<table><tr><th>#</th><th>Action</th><th>Status</th><th>Evidence / outcome</th></tr><tr><td>1</td><td>Refreshed current repo/proof route state</td><td>Done</td><td>Confirmed main was clean at a346e30 before edits and latest route was reacquisition-no-current-hits.</td></tr>
+<tr><td>2</td><td>Added latest-displaced alias to scan profiles</td><td>Done</td><td>Scan profile runner can resolve marked displaced/manual/alternate pose references without hard-coded paths.</td></tr>
+<tr><td>3</td><td>Added latest-displaced alias to candidate comparison</td><td>Done</td><td>Offline comparison now resolves same-target displaced references and records stale-reference warnings.</td></tr>
+<tr><td>4</td><td>Updated current-truth Markdown from scan profiles</td><td>Done</td><td>Scan-profile helper now updates both current-truth.json and the human-readable proof-route table.</td></tr>
+<tr><td>5</td><td>Updated current-truth from candidate comparison</td><td>Done</td><td>Comparison helper now records latest comparison paths/status in current truth JSON/Markdown.</td></tr>
+<tr><td>6</td><td>Added scan-profile rankings</td><td>Done</td><td>Executed scan runs now rank profile results by hit count, delta, and bytes scanned.</td></tr>
+<tr><td>7</td><td>Added Python center-file generator</td><td>Done</td><td>New helper emits coordinate-scan-centers.json from existing candidate comparison evidence.</td></tr>
+<tr><td>8</td><td>Generated a current center file artifact</td><td>Done</td><td>16 centers generated for historical-neighborhood scans.</td></tr>
+<tr><td>9</td><td>Ran safe no-input proof-tool artifacts</td><td>Done/blocked-safe</td><td>No movement/input/CE/x64dbg. Quick scan found no current triplets; comparison stayed candidate-only.</td></tr>
+<tr><td>10</td><td>Ran strong validation before commit</td><td>Done</td><td>Python compile/tests, helper smokes, JSON/HTML parse, Node validation, and .NET build/test passed.</td></tr></table>
+<h2>Key artifacts</h2>
+<table><tr><th>Artifact</th><th>Path</th><th>Status</th><th>Notes</th></tr><tr><td>Center file summary</td><td>scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.json</td><td>passed</td><td>centers=16</td></tr>
+<tr><td>Center file JSON</td><td>scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/coordinate-scan-centers.json</td><td>generated</td><td>historical-neighborhood input</td></tr>
+<tr><td>Scan profile latest-displaced run</td><td>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.json</td><td>blocked</td><td>no-profile-found-current-coordinate-triplets</td></tr>
+<tr><td>Scan profile center dry-run</td><td>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.json</td><td>blocked</td><td>planned=23</td></tr>
+<tr><td>Focused candidate comparison</td><td>scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-064229-latest-displaced-focused/summary.json</td><td>candidate-only-no-two-reference-match</td><td>displaced-api-reference-older-than-baseline-reference</td></tr>
+<tr><td>Current truth JSON</td><td>docs/recovery/current-truth.json</td><td>updated</td><td>machine-readable routing</td></tr>
+<tr><td>Current truth Markdown</td><td>docs/recovery/current-truth.md</td><td>updated</td><td>human proof-route table</td></tr></table>
+<h2>Validation</h2>
+<table><tr><th>Check</th><th>Result</th><th>Scope</th></tr><tr><td>Python compileall</td><td>Passed</td><td>coordinate scan/compare/center modules and wrappers</td></tr>
+<tr><td>Python unittest</td><td>Passed</td><td>73 tests in targeted proof-tooling suite</td></tr>
+<tr><td>Helper smoke tests</td><td>Passed</td><td>scan self-test, compare --help, center --help</td></tr>
+<tr><td>JSON/HTML parse</td><td>Passed</td><td>new summaries and current-truth JSON parsed</td></tr>
+<tr><td>Node MCP validation</td><td>Passed</td><td>node --check and npm run validate for tools/rift-game-mcp</td></tr>
+<tr><td>.NET build</td><td>Passed</td><td>dotnet build RiftReader.slnx, net10.0-windows</td></tr>
+<tr><td>.NET tests</td><td>Passed</td><td>102 Reader tests passed</td></tr></table>
+<h2>Remaining blockers</h2>
+<table><tr><th>Area</th><th>State</th><th>Meaning</th></tr><tr><td>Coordinate proof route</td><td>reacquisition-no-current-hits</td><td>Movement remains blocked.</td></tr>
+<tr><td>Quick no-input scan</td><td>blocked</td><td>No current coordinate triplets found near API-now.</td></tr>
+<tr><td>Candidate comparison</td><td>candidate-only-no-two-reference-match</td><td>Displaced-only matches are candidate evidence, not movement proof.</td></tr>
+<tr><td>Displaced reference freshness</td><td>warning</td><td>latest-displaced resolved an older marked operator-displaced reference; fresh manual displacement is still preferred.</td></tr></table>
+<p class="note">This summary is timestamped and intended for human review. Machine routing remains in <code>docs/recovery/current-truth.json</code>.</p>
+</main></body></html>

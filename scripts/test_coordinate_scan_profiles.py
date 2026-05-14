@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from rift_live_test.coordinate_scan_profiles import main, profile_commands
+from rift_live_test.coordinate_scan_profiles import main, profile_commands, rank_profile_runs
 
 
 class CoordinateScanProfilesTests(unittest.TestCase):
@@ -138,6 +138,22 @@ class CoordinateScanProfilesTests(unittest.TestCase):
             truth = root / "docs" / "recovery" / "current-truth.json"
             truth.parent.mkdir(parents=True)
             truth.write_text(json.dumps({"visualEvidenceRouting": {}}), encoding="utf-8")
+            truth_md = root / "docs" / "recovery" / "current-truth.md"
+            truth_md.write_text(
+                "\n".join(
+                    [
+                        "# Current truth",
+                        "",
+                        "## Visual/capture proof-route policy — test",
+                        "",
+                        "| Field | Value |",
+                        "|---|---|",
+                        "| Latest route status | `reacquisition-no-current-hits` |",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
             ref = root / "ref.json"
             ref.write_text(json.dumps({"coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
             out = root / "out"
@@ -165,6 +181,80 @@ class CoordinateScanProfilesTests(unittest.TestCase):
             self.assertEqual(routing["latestScanProfileRun"], "out/summary.json")
             self.assertEqual(routing["latestScanProfileHtml"], "out/summary.html")
             self.assertEqual(routing["latestManualDisplacementBlocker"], "out/summary.json")
+            updated_markdown = truth_md.read_text(encoding="utf-8")
+            self.assertIn("| Latest scan-profile run | `out/summary.json` |", updated_markdown)
+            self.assertIn("| Latest manual displacement blocker | `out/summary.json` |", updated_markdown)
+
+    def test_latest_displaced_alias_blocks_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ref = root / "ref.json"
+            out = root / "out"
+            ref.write_text(json.dumps({"processId": 123, "targetWindowHandle": "0xABC", "coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--pid",
+                    "123",
+                    "--hwnd",
+                    "0xABC",
+                    "--reference-file",
+                    str(ref),
+                    "--displaced-reference-file",
+                    "latest-displaced",
+                    "--require-displaced-pose",
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("displaced-reference-latest-not-found", summary["blockers"])
+            self.assertEqual(summary["displacedReferenceFileResolvedFromAlias"], "latest-displaced")
+
+    def test_rank_profile_runs_orders_hits_then_delta(self) -> None:
+        rankings = rank_profile_runs(
+            [
+                {
+                    "profile": "quick",
+                    "label": "quick",
+                    "exitCode": 2,
+                    "stdoutJson": {
+                        "status": "blocked",
+                        "scan": {"hitCount": 0, "bytesScanned": 100, "bestHit": None},
+                        "artifacts": {"summaryJson": "a.json"},
+                    },
+                },
+                {
+                    "profile": "wide",
+                    "label": "wide",
+                    "exitCode": 0,
+                    "stdoutJson": {
+                        "status": "passed",
+                        "scan": {"hitCount": 2, "bytesScanned": 200, "bestHit": {"maxAbsDelta": 0.2}},
+                        "artifacts": {"summaryJson": "b.json"},
+                    },
+                },
+                {
+                    "profile": "historical-neighborhood",
+                    "label": "center",
+                    "exitCode": 0,
+                    "stdoutJson": {
+                        "status": "passed",
+                        "scan": {"hitCount": 2, "bytesScanned": 300, "bestHit": {"maxAbsDelta": 0.1}},
+                        "artifacts": {"summaryJson": "c.json"},
+                    },
+                },
+            ],
+            Path.cwd(),
+        )
+
+        self.assertEqual(rankings[0]["profile"], "historical-neighborhood")
+        self.assertEqual(rankings[0]["rank"], 1)
+        self.assertEqual(rankings[2]["profile"], "quick")
 
 
 if __name__ == "__main__":

@@ -114,6 +114,140 @@ class CoordinateCandidateCompareTests(unittest.TestCase):
             self.assertEqual(file_result["bothReferenceMatchCount"], 0)
             self.assertEqual(file_result["rows"][0]["twoReferenceStatus"], "baseline-only")
 
+    def test_latest_displaced_alias_blocks_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            baseline = root / "baseline.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            baseline.write_text(
+                json.dumps({"processId": 123, "targetWindowHandle": "0xABC", "coordinate": {"x": 1, "y": 2, "z": 3}}),
+                encoding="utf-8",
+            )
+            candidates.write_text(json.dumps({"candidates": [{"candidate_id": "old", "value_preview": [1, 2, 3]}]}), encoding="utf-8")
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(baseline),
+                    "--displaced-api-reference",
+                    "latest-displaced",
+                    "--candidate-file",
+                    str(candidates),
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "blocked")
+            self.assertIn("displaced-api-reference-latest-not-found", summary["blockers"])
+            self.assertEqual(summary["displacedReferenceResolvedFromAlias"], "latest-displaced")
+
+    def test_latest_displaced_alias_resolves_marked_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            captures = root / "scripts" / "captures" / "manual-displaced-reference"
+            captures.mkdir(parents=True)
+            baseline = root / "baseline.json"
+            displaced = captures / "rift-api-reference-currentpid-123-displaced.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            baseline.write_text(
+                json.dumps({"processId": 123, "targetWindowHandle": "0xABC", "coordinate": {"x": 1, "y": 2, "z": 3}}),
+                encoding="utf-8",
+            )
+            displaced.write_text(
+                json.dumps(
+                    {
+                        "processId": 123,
+                        "targetWindowHandle": "0xABC",
+                        "poseLabel": "manual-displaced",
+                        "coordinate": {"x": 1, "y": 2, "z": 3},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            candidates.write_text(
+                json.dumps({"candidates": [{"candidate_id": "both", "absolute_address_hex": "0x1000", "value_preview": [1, 2, 3]}]}),
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(baseline),
+                    "--displaced-api-reference",
+                    "latest-displaced",
+                    "--candidate-file",
+                    str(candidates),
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "api-candidate-two-reference-match")
+            self.assertEqual(summary["displacedReferenceResolvedFromAlias"], "latest-displaced")
+            self.assertEqual(summary["candidateFiles"][0]["bothReferenceMatchCount"], 1)
+
+    def test_update_current_truth_records_comparison_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            truth = root / "docs" / "recovery" / "current-truth.json"
+            truth.parent.mkdir(parents=True)
+            truth.write_text(json.dumps({"visualEvidenceRouting": {}}), encoding="utf-8")
+            truth_md = root / "docs" / "recovery" / "current-truth.md"
+            truth_md.write_text(
+                "\n".join(
+                    [
+                        "# Current truth",
+                        "",
+                        "## Visual/capture proof-route policy — test",
+                        "",
+                        "| Field | Value |",
+                        "|---|---|",
+                        "| Latest route status | `blocked` |",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            ref = root / "ref.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            ref.write_text(json.dumps({"coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
+            candidates.write_text(
+                json.dumps({"candidates": [{"candidate_id": "match", "absolute_address_hex": "0x1000", "value_preview": [1, 2, 3]}]}),
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(ref),
+                    "--candidate-file",
+                    str(candidates),
+                    "--output-root",
+                    str(out),
+                    "--update-current-truth",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            routing = json.loads(truth.read_text(encoding="utf-8"))["visualEvidenceRouting"]
+            self.assertEqual(routing["latestCandidateComparison"], "out/summary.json")
+            self.assertEqual(routing["latestCandidateComparisonStatus"], "api-candidate-match")
+            self.assertIn("| Latest candidate comparison | `out/summary.json` |", truth_md.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
