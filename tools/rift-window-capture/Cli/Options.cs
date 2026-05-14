@@ -7,6 +7,12 @@ sealed record Options(
     string? Output,
     string? OutputRoot,
     string? ManifestPath,
+    string? RawPath,
+    string? MetadataPath,
+    string? PngPath,
+    string? Profile,
+    string? BeforePath,
+    string? AfterPath,
     DateTimeOffset? ExpectedProcessStartUtc,
     bool Json,
     int TimeoutMs,
@@ -19,7 +25,7 @@ sealed record Options(
     bool EmitRawBgra,
     string[] CropProfiles)
 {
-    public static string Usage => "Usage: RiftWindowCapture [capture] [--process-name rift_x64 | --pid <pid> | --hwnd <0xHWND> | --title-contains <text>] [--expected-process-start-utc <iso-utc>] [--output <image>] [--output-root <dir>] [--emit-png] [--emit-raw-bgra] [--crop full-window] [--json] [--timeout-ms <n>] [--capture-monitor | --desktop-duplication] [--attempts <n>] [--require-usable]\n       RiftWindowCapture benchmark [--frames <n>] [capture target/options] --output-root <dir> [--json]\n       RiftWindowCapture inspect --manifest <manifest.json> [--json]\n       RiftWindowCapture validate --manifest <manifest.json> [--json]";
+    public static string Usage => "Usage: RiftWindowCapture [capture] [--process-name rift_x64 | --pid <pid> | --hwnd <0xHWND> | --title-contains <text>] [--expected-process-start-utc <iso-utc>] [--output <image>] [--output-root <dir>] [--emit-png] [--emit-raw-bgra] [--crop full-window] [--json] [--timeout-ms <n>] [--capture-monitor | --desktop-duplication] [--attempts <n>] [--require-usable]\n       RiftWindowCapture benchmark [--frames <n>] [capture target/options] --output-root <dir> [--json]\n       RiftWindowCapture inspect --manifest <manifest.json> [--json]\n       RiftWindowCapture validate --manifest <manifest.json> [--json]\n       RiftWindowCapture convert --raw <frame.bgra> --metadata <frame.json> --png <out.png> [--json]\n       RiftWindowCapture crop (--manifest <manifest.json> | --raw <frame.bgra> --metadata <frame.json>) --profile <name> [--output-root <dir>] [--png <out.png>] [--emit-raw-bgra] [--json]\n       RiftWindowCapture diff --before <before.bgra> --after <after.bgra> --metadata <frame.json> [--json]";
 
     public string CaptureMethod => CaptureDesktopDuplication
         ? "DXGIDesktopDuplication"
@@ -46,6 +52,12 @@ sealed record Options(
         string? output = null;
         string? outputRoot = null;
         string? manifestPath = null;
+        string? rawPath = null;
+        string? metadataPath = null;
+        string? pngPath = null;
+        string? profile = null;
+        string? beforePath = null;
+        string? afterPath = null;
         DateTimeOffset? expectedProcessStartUtc = null;
         bool json = false;
         int timeoutMs = Defaults.TimeoutMs;
@@ -94,6 +106,24 @@ sealed record Options(
                     break;
                 case "--manifest":
                     manifestPath = RequireValue(args, ref i, arg);
+                    break;
+                case "--raw":
+                    rawPath = RequireValue(args, ref i, arg);
+                    break;
+                case "--metadata":
+                    metadataPath = RequireValue(args, ref i, arg);
+                    break;
+                case "--png":
+                    pngPath = RequireValue(args, ref i, arg);
+                    break;
+                case "--profile":
+                    profile = CropProfileRegistry.Normalize(RequireValue(args, ref i, arg));
+                    break;
+                case "--before":
+                    beforePath = RequireValue(args, ref i, arg);
+                    break;
+                case "--after":
+                    afterPath = RequireValue(args, ref i, arg);
                     break;
                 case "--expected-process-start-utc":
                     expectedProcessStartUtc = ParseUtc(RequireValue(args, ref i, arg), arg);
@@ -154,6 +184,30 @@ sealed record Options(
             }
         }
 
+        if (command == "convert")
+        {
+            RequireOfflineValue(rawPath, "--raw", command);
+            RequireOfflineValue(metadataPath, "--metadata", command);
+            RequireOfflineValue(pngPath, "--png", command);
+        }
+
+        if (command == "crop")
+        {
+            if (string.IsNullOrWhiteSpace(manifestPath) && (string.IsNullOrWhiteSpace(rawPath) || string.IsNullOrWhiteSpace(metadataPath)))
+            {
+                throw new ArgumentException("crop requires either --manifest <manifest.json> or --raw <frame.bgra> --metadata <frame.json>.");
+            }
+
+            RequireOfflineValue(profile, "--profile", command);
+        }
+
+        if (command == "diff")
+        {
+            RequireOfflineValue(beforePath, "--before", command);
+            RequireOfflineValue(afterPath, "--after", command);
+            RequireOfflineValue(metadataPath, "--metadata", command);
+        }
+
         if (command is "capture" or "benchmark" && processName is null && pid is null && hwnd is null && titleContains is null)
         {
             processName = "rift_x64";
@@ -169,14 +223,17 @@ sealed record Options(
             cropProfiles.Add("full-window");
         }
 
-        return new Options(command, processName, pid, hwnd, titleContains, output, outputRoot, manifestPath, expectedProcessStartUtc, json, timeoutMs, captureMonitor, captureDesktopDuplication, captureAttempts, frames, requireUsable, emitPng, emitRawBgra, cropProfiles.ToArray());
+        return new Options(command, processName, pid, hwnd, titleContains, output, outputRoot, manifestPath, rawPath, metadataPath, pngPath, profile, beforePath, afterPath, expectedProcessStartUtc, json, timeoutMs, captureMonitor, captureDesktopDuplication, captureAttempts, frames, requireUsable, emitPng, emitRawBgra, cropProfiles.ToArray());
     }
 
     private static bool IsCommand(string value) =>
         string.Equals(value, "capture", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(value, "benchmark", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(value, "inspect", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(value, "validate", StringComparison.OrdinalIgnoreCase);
+        string.Equals(value, "validate", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "convert", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "crop", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "diff", StringComparison.OrdinalIgnoreCase);
 
     private static string RequireValue(string[] args, ref int index, string name)
     {
@@ -187,6 +244,14 @@ sealed record Options(
 
         index++;
         return args[index];
+    }
+
+    private static void RequireOfflineValue(string? value, string name, string command)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException($"{command} requires {name}.");
+        }
     }
 
     private static IntPtr ParseHwnd(string value)

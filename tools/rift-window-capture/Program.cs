@@ -29,6 +29,24 @@ if (options.Command is "inspect" or "validate")
     return;
 }
 
+if (options.Command is "convert" or "crop" or "diff")
+{
+    OfflineFrameReport offline = OfflineFrameCommands.Run(options);
+    if (options.Json)
+    {
+        Console.WriteLine(JsonSerializer.Serialize(offline, CaptureJsonContext.Default.OfflineFrameReport));
+    }
+    else
+    {
+        Console.WriteLine(offline.Ok
+            ? $"{offline.Command} passed: {offline.Message}"
+            : $"{offline.Command} failed: {string.Join("; ", offline.Blockers)}");
+    }
+
+    Environment.Exit(offline.Ok ? 0 : 2);
+    return;
+}
+
 if (options.Command == "benchmark")
 {
     BenchmarkReport benchmark = await BenchmarkCommands.RunAsync(options, CaptureRunner.CaptureOnceAsync);

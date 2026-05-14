@@ -173,7 +173,7 @@ static class TextureSaver
         writer.Write(frame.Pixels);
     }
 
-    private static void WriteTopDownBgraPng(string output, BgraFrame frame)
+    public static void WriteTopDownBgraPng(string output, BgraFrame frame)
     {
         output = Path.GetFullPath(output);
         string parent = Path.GetDirectoryName(output) ?? Environment.CurrentDirectory;
@@ -199,7 +199,7 @@ static class TextureSaver
         bitmap.Save(output, ImageFormat.Png);
     }
 
-    private static RawFrameWriteResult WriteTopDownBgraRaw(string output, BgraFrame frame)
+    public static RawFrameWriteResult WriteTopDownBgraRaw(string output, BgraFrame frame)
     {
         string rawPath = Path.ChangeExtension(Path.GetFullPath(output), ".bgra");
         string metadataPath = Path.ChangeExtension(rawPath, ".frame.json");
@@ -262,7 +262,7 @@ static class TextureSaver
         return outputs.ToArray();
     }
 
-    private static BgraFrame Crop(BgraFrame frame, CropRectangle rectangle)
+    public static BgraFrame Crop(BgraFrame frame, CropRectangle rectangle)
     {
         int stride = checked(rectangle.Width * 4);
         byte[] pixels = new byte[checked(stride * rectangle.Height)];

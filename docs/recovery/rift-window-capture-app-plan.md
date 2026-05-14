@@ -36,12 +36,14 @@ monolithic `Program.cs`.
 | Latest raw `.bgra` live smoke | Passed | `scripts/captures/rift-window-capture-raw-bgra-live-smoke-20260514-040054-154` |
 | Named crop profiles | Implemented | `full-window`, `content`, `top-strip`, `bottom-strip`, and `telemetry-strip` |
 | Latest crop-profile live smoke | Passed | `scripts/captures/rift-window-capture-crop-profiles-live-smoke-20260514-040655-757` |
+| Offline `convert` / `crop` / `diff` commands | Implemented | Raw BGRA fixture tests plus live raw artifact smoke passed |
+| Latest offline command smoke | Passed | `scripts/captures/rift-window-capture-offline-commands-smoke-20260514-0410` |
 
 Safety boundary remained clean: no movement, no game input, no native
 screenshot key, no CE, and no x64dbg.
 
-Still deferred from the full plan: offline `convert`/`crop`/`diff` commands
-and repeated capture session mode.
+Still deferred from the full plan: repeated capture session mode and deeper
+benchmark/readiness promotion work.
 
 ---
 

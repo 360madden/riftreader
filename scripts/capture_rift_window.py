@@ -33,7 +33,7 @@ EXE = (
 )
 CAPTURES_ROOT = REPO_ROOT / "scripts" / "captures"
 CONTROLLER_SCHEMA = "rift-window-capture-controller/v1"
-COMMANDS = {"capture", "benchmark", "inspect", "validate"}
+COMMANDS = {"capture", "benchmark", "inspect", "validate", "convert", "crop", "diff"}
 
 
 def utc_now() -> str:

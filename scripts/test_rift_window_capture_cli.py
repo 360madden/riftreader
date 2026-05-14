@@ -51,6 +51,43 @@ def assert_jsonl_valid(testcase: unittest.TestCase, path: Path) -> None:
         testcase.assertIsInstance(json.loads(line), dict)
 
 
+def write_raw_fixture(root: Path, name: str, *, changed: bool = False) -> tuple[Path, Path]:
+    root.mkdir(parents=True, exist_ok=True)
+    width = 4
+    height = 128
+    stride = width * 4
+    raw = root / f"{name}.bgra"
+    metadata = root / f"{name}.frame.json"
+    pixels = bytearray()
+    for y in range(height):
+        for x in range(width):
+            value = (x * 13 + y * 3) % 255
+            if changed and x == 0 and y == 0:
+                value = 255
+            pixels.extend([value, value // 2, 255 - value, 255])
+    raw.write_bytes(bytes(pixels))
+    metadata.write_text(
+        json.dumps(
+            {
+                "schema": "rift-window-capture-raw-frame/v1",
+                "rawFrame": raw.name,
+                "createdAtUtc": "2026-05-14T00:00:00.0000000Z",
+                "width": width,
+                "height": height,
+                "strideBytes": stride,
+                "pixelFormat": "BGRA32",
+                "orientation": "top-down",
+                "rowPadding": "none",
+                "layout": "bgra-top-down",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return raw, metadata
+
+
 class RiftWindowCaptureCliTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -196,6 +233,71 @@ class RiftWindowCaptureCliTests(unittest.TestCase):
         self.assertTrue(summary["toolReport"]["knownBlocker"])
         self.assertTrue((output_root / "manifest.json").exists())
         self.assertTrue((output_root / "controller-summary.json").exists())
+
+    def test_offline_convert_crop_and_diff_fixture(self) -> None:
+        output_root = unique_output_root("rift-window-capture-cli-test-offline")
+        before_raw, metadata = write_raw_fixture(output_root / "fixture", "before")
+        after_raw, _ = write_raw_fixture(output_root / "fixture", "after", changed=True)
+
+        convert_png = output_root / "converted.png"
+        convert = run(
+            [
+                str(EXE),
+                "convert",
+                "--raw",
+                str(before_raw),
+                "--metadata",
+                str(metadata),
+                "--png",
+                str(convert_png),
+                "--json",
+            ]
+        )
+        self.assertEqual(convert.returncode, 0, convert.stdout + convert.stderr)
+        self.assertTrue(convert_png.exists())
+        self.assertEqual(json.loads(convert.stdout)["status"], "passed")
+
+        crop_root = output_root / "crop"
+        crop = run(
+            [
+                str(EXE),
+                "crop",
+                "--raw",
+                str(before_raw),
+                "--metadata",
+                str(metadata),
+                "--profile",
+                "top-strip",
+                "--output-root",
+                str(crop_root),
+                "--emit-raw-bgra",
+                "--json",
+            ]
+        )
+        self.assertEqual(crop.returncode, 0, crop.stdout + crop.stderr)
+        crop_report = json.loads(crop.stdout)
+        self.assertEqual(crop_report["height"], 96)
+        self.assertTrue(Path(crop_report["outputPng"]).exists())
+        self.assertTrue(Path(crop_report["outputRaw"]).exists())
+        self.assertTrue(Path(crop_report["outputMetadata"]).exists())
+
+        diff = run(
+            [
+                str(EXE),
+                "diff",
+                "--before",
+                str(before_raw),
+                "--after",
+                str(after_raw),
+                "--metadata",
+                str(metadata),
+                "--json",
+            ]
+        )
+        self.assertEqual(diff.returncode, 0, diff.stdout + diff.stderr)
+        diff_report = json.loads(diff.stdout)
+        self.assertGreater(diff_report["changedPixelCount"], 0)
+        self.assertGreater(diff_report["changedPixelRatio"], 0)
 
 
 if __name__ == "__main__":
