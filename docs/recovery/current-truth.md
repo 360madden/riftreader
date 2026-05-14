@@ -1,10 +1,10 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T08:28:49.066728Z._
+_Last updated: 2026-05-14T12:04:16Z._
 
 ## Verdict
 
-**Read-only live testing is allowed; player-control testing remains blocked.** A fresh read-only `RRAPICOORD1` API/runtime refresh for PID `2928` / HWND `0xC0994` passed at `2026-05-14T08:22:23.8283598Z` with coordinate **`7399.1099, 871.77, 3029.96`**. A same-target read-only memory readback against the prior current-truth candidate file completed with no input, no CE, and no x64dbg, but found **`ReferenceMatchCount=0`** against that fresh API coordinate. The prior best heap candidate **`family-snapshot-hit-000004` at `0x268D5A80730`** is still stable and still matches its old source-preview value, but it is now **stale against API-now** by max abs delta **`4.29000234374962`**. Movement/navigation/player-control remains blocked until current memory agreement across poses, proof-anchor/static-chain promotion, same-target `ProofOnly`, and explicit movement approval all pass.
+**Read-only live testing is allowed; player-control testing remains blocked.** The latest route-selected candidate is **`api-family-hit-000001` at `0x268E2BC09E0`**, selected from `latest-coordinate-proof-route-memory-readback` for PID `2928` / HWND `0xC0994`. Fresh RRAPICOORD/API-now coordinate `7399.1099, 871.77, 3029.96` at `2026-05-14T11:46:05.1378983Z` matched same-target memory readback with max abs delta `4.1503906231810106e-05` and `ReferenceMatchCount=2`. This is still **candidate-only / read-only proof planning**: promotion readiness is `blocked-promotion-readiness`, proof-anchor promotion allowed is `False`, and movement/navigation/player-control remains blocked until fresh displaced/two-reference proof or static-chain proof, same-target `ProofOnly`, and explicit movement approval all pass.
 
 ## Current target epoch
 
@@ -27,7 +27,8 @@ coordinate read, with per-axis deltas inside tolerance. Latest recorded coordina
 
 | Surface | Status | Notes |
 |---|---|---|
-| `ReaderBridge_RRAPICOORD1` | **current / usable for read-only proof** | Live `Inspect.Unit.Detail(player)`, `source=rift-api`, `savedVariablesUse=none`. Latest reference: `7399.1099, 871.77, 3029.96` at `2026-05-14T08:22:23.8283598Z`. |
+| `ReaderBridge_RRAPICOORD1` | **current / usable for read-only proof** | Live `Inspect.Unit.Detail(player)`, `source=rift-api`, `savedVariablesUse=none`. Latest route reference: `7399.1099, 871.77, 3029.96` at `2026-05-14T11:46:05.1378983Z`. |
+| Same-target memory readback | **API-memory match, candidate-only** | `api-family-hit-000001` at `0x268E2BC09E0`, `ReferenceMatchCount=2`, max abs delta `4.1503906231810106e-05`. |
 | ChromaLink world-state | stale / not authoritative | Still not the authority for coordinate proof in this lane. |
 | SavedVariables | not live truth | Post-save snapshots only; never use as live movement truth. |
 
@@ -62,8 +63,11 @@ Key proof artifacts:
 
 | Artifact | Result |
 |---|---|
-| `scripts/captures/rrapicoord-readonly-refresh-20260514-042156-095/rift-api-reference-currentpid-2928-20260514-082156.json` | **New read-only API refresh:** RRAPICOORD1 current API/runtime coordinate `7399.1099, 871.77, 3029.96` captured for PID `2928` / HWND `0xC0994`; `movementSent=false`, `noCheatEngine=true`, `savedVariablesUse=none`. |
-| `scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-042242.json` | **New same-target read-only memory readback:** candidate file decoded successfully, `ReferenceMatchCount=0`; prior best `family-snapshot-hit-000004` stayed stable/source-preview-matching but stale against API-now by max abs delta `4.29000234374962`. |
+| `scripts/captures/coordinate-proof-route-current-reacquire-20260514-074641-promotion-readiness-routing/coordinate-proof-route.json` | **Latest route:** API-memory match for `api-family-hit-000001` at `0x268E2BC09E0`; read-only candidate only, movement blocked. |
+| `scripts/captures/riftscan-milestone-review-20260514-120033.json` | **Latest milestone gate:** route selection applied and selected `latest-coordinate-proof-route-memory-readback`; status `ready-for-read-only-proof`. |
+| `scripts/captures/coordinate-proof-readiness-gate-20260514-080033-route-selection/summary.json` | **Latest readiness gate:** `passed` / `ready-for-read-only-proof`; `movementAllowed=false`; proof pointer warnings preserved. |
+| `scripts/captures/rrapicoord-readonly-refresh-20260514-042156-095/rift-api-reference-currentpid-2928-20260514-082156.json` | Historical read-only API refresh: RRAPICOORD1 current API/runtime coordinate `7399.1099, 871.77, 3029.96` captured for PID `2928` / HWND `0xC0994`; `movementSent=false`, `noCheatEngine=true`, `savedVariablesUse=none`. |
+| `scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-042242.json` | Historical same-target read-only memory readback: candidate file decoded successfully, `ReferenceMatchCount=0`; prior best `family-snapshot-hit-000004` stayed stable/source-preview-matching but stale against API-now by max abs delta `4.29000234374962`. |
 | `scripts/captures/native-screenshot-keybind-20260514-014933/native-screenshot-result.json` | Native screenshot keybind verification passed: exported local RIFT keybind is `NUM PAD *` / `VK_MULTIPLY`; exact target PID `2928`/HWND `0xC0994`; screenshot file `2026-05-14_014934.jpg` created; no movement/CE/x64dbg/reloadui. |
 | `scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json` | Prior RRAPICOORD reference used for earlier readback scoring; superseded by the `08:22:23Z` read-only refresh above. |
 | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Prior readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`; superseded by the latest read-only comparison with `ReferenceMatchCount=0`. |
@@ -82,7 +86,7 @@ Key proof artifacts:
 | `scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-041136-003958/summary.json` | Batch swept `6` additional duplicate-owner RVAs; completed, but stayed heap-only/no static root. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json` | Expanded no-input duplicate-prior family sequence read target memory safely, captured baseline + passive poses, and remained blocked intentionally because there was no displaced pose. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json` | Readback of all `14` expanded passive candidates: `10` current reference matches, `14` stable decoded candidates, no input/CE/movement; still candidate-only. |
-| `scripts/captures/riftscan-milestone-review-20260514-041751.json` | Latest post-expanded-passive milestone gate: `ready-for-read-only-proof`; movement remains blocked. |
+| `scripts/captures/riftscan-milestone-review-20260514-041751.json` | Historical post-expanded-passive milestone gate: `ready-for-read-only-proof`; movement remains blocked. |
 | `scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json` | Usable marker present after direct robust scan. |
 | `scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json` | Addon installed and live marker observed. |
 
@@ -92,24 +96,29 @@ Key proof artifacts:
 |---|---|
 | Read-only live testing | **Allowed** |
 | Player-control / movement allowed | **No** |
-| Reason | Latest read-only API refresh passed, but same-target memory readback found `ReferenceMatchCount=0`; prior best heap candidate is stable but stale against API-now. |
-| Required before movement | Fresh API/runtime reference + current memory candidate agreement across poses + proof anchor/static chain + same-target `ProofOnly` + explicit movement approval. |
+| Latest selected candidate | `api-family-hit-000001` at `0x268E2BC09E0` |
+| Selection source | `latest-coordinate-proof-route-memory-readback` |
+| Reason | Latest route has API-now/memory-now agreement for a read-only candidate, but promotion is blocked by missing fresh displaced/two-reference proof and no movement-grade proof anchor. |
+| Required before movement | Fresh displaced/two-reference or static-chain proof + promotion readiness + same-target `ProofOnly` + explicit movement approval. |
 
 ## Latest memory candidate status
 
 | Field | Value |
 |---|---|
-| Prior candidate | `family-snapshot-hit-000004` |
-| Address | `0x268D5A80730` |
-| Latest status | **stable heap copy, but not current API reference match** |
-| Fresh API reference | `7399.1099, 871.77, 3029.96` at `2026-05-14T08:22:23.8283598Z` |
-| Readback sample at candidate | `7403.39990234375, 871.7699584960938, 3029.409912109375` |
-| ReferenceMatchCount | `0` |
-| Max abs delta vs API-now | `4.29000234374962` |
-| Source preview still matches readback | `true` |
-| Stable across readback samples | `true` |
-| Truth status | **candidate-only / stale against API-now / not movement proof** |
-| Meaning | The previous heap candidate still contains the old coordinate, but the player/API coordinate has changed. Do not use this address as current player coord truth. |
+| Candidate | `api-family-hit-000001` |
+| Address | `0x268E2BC09E0` |
+| Latest status | **API-memory match candidate, not promoted** |
+| Fresh API reference | `7399.1099, 871.77, 3029.96` at `2026-05-14T11:46:05.1378983Z` |
+| Candidate file | `scripts/captures/family-scan-currentpid-2928-20260514-114535-319032/api-family-vec3-candidates.jsonl` |
+| Readback summary | `scripts/captures/riftscan-proof-readonly-current-after-drift-best-1-20260514-114545/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-074606.json` |
+| ReferenceMatchCount | `2` |
+| Max abs delta vs API-now | `4.1503906231810106e-05` |
+| Source preview still matches readback | `True` |
+| Stable across readback samples | `True` |
+| Promotion readiness | `blocked-promotion-readiness` |
+| Proof-anchor promotion allowed | `False` |
+| Truth status | **candidate-only / current API-memory match / not movement proof** |
+| Meaning | Use this candidate for read-only proof planning ahead of older family-import snapshots; do not use it as movement-grade coordinate truth until promotion gates pass. |
 
 ## Latest coordinate reacquisition evidence
 
@@ -256,3 +265,23 @@ Rules:
 - The latest proof route attached visual capture and a fresh API reference, then blocked readiness because read-only current-PID reacquisition found `0` XYZ triplets near API-now after scanning `478150656` bytes in `76.006` seconds.
 - Static-root work must start from current API/memory agreement; heap-copy, no-hit reacquisition, or visual evidence alone is not a static root.
 - Movement remains blocked until the normal proof gate passes and explicit movement approval is granted.
+
+## Route-selected candidate milestone — 2026-05-14T12:04:16Z
+
+| Field | Value |
+|---|---|
+| Milestone review | `scripts/captures/riftscan-milestone-review-20260514-120033.json` |
+| Review status | `ready-for-read-only-proof` |
+| Route selection applied | `True` |
+| Selected candidate source | `latest-coordinate-proof-route-memory-readback` |
+| Candidate file | `scripts/captures/family-scan-currentpid-2928-20260514-114535-319032/api-family-vec3-candidates.jsonl` |
+| Candidate ID | `api-family-hit-000001` |
+| Candidate address | `0x268E2BC09E0` |
+| Memory readback | `scripts/captures/riftscan-proof-readonly-current-after-drift-best-1-20260514-114545/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-074606.json` |
+| Readiness gate | `scripts/captures/coordinate-proof-readiness-gate-20260514-080033-route-selection/summary.json` |
+| Readiness verdict | `ready-for-read-only-proof` |
+| Movement allowed | `None` |
+| HTML summary | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-120416.html` |
+| Handoff | `docs/handoffs/2026-05-14-120416-route-selection-candidate-gate.md` |
+
+Blockers preserved: fresh displaced/two-reference match is missing, displaced readiness is `blocked`, proof-anchor promotion allowed is `False`, and movement remains blocked.

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiftReader Route-Selected Candidate Summary 2026-05-14T12:04:16Z</title>
+<style>
+:root { --bg:#0b1020; --panel:#141a2e; --panel2:#1b2542; --text:#eef4ff; --muted:#aab7d4; --ok:#36d399; --warn:#fbbf24; --bad:#fb7185; --accent:#7dd3fc; --line:#2c385d; }
+* { box-sizing:border-box; } body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:linear-gradient(135deg,#0b1020,#172554); color:var(--text); }
+header { padding:32px 40px; border-bottom:1px solid var(--line); } h1 { margin:0 0 8px; font-size:30px; } h2 { margin-top:0; } .sub { color:var(--muted); }
+main { padding:28px 40px 48px; max-width:1280px; margin:auto; } .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+.card { background:rgba(20,26,46,.92); border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 16px 40px rgba(0,0,0,.22); }
+.metric { font-size:26px; font-weight:800; margin:6px 0; } .label { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+table { width:100%; border-collapse:collapse; overflow:hidden; border-radius:14px; } th,td { padding:11px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; } th { background:var(--panel2); color:#dbeafe; } tr:nth-child(even) td { background:rgba(255,255,255,.025); }
+.pill { display:inline-block; padding:4px 9px; border-radius:999px; font-weight:700; font-size:12px; } .ok { background:rgba(54,211,153,.18); color:var(--ok); } .warn { background:rgba(251,191,36,.18); color:var(--warn); } .bad { background:rgba(251,113,133,.18); color:var(--bad); }
+.bar { height:14px; background:#263352; border-radius:999px; overflow:hidden; margin:10px 0 2px; } .fill { height:100%; background:linear-gradient(90deg,var(--ok),var(--accent)); } code { color:#bae6fd; word-break:break-all; }
+.two { display:grid; grid-template-columns:1.2fr .8fr; gap:16px; } ul { margin:10px 0 0 20px; color:#fef3c7; } footer { color:var(--muted); margin-top:28px; font-size:12px; }
+@media (max-width:900px) { .grid,.two { grid-template-columns:1fr; } main,header { padding-left:18px; padding-right:18px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>✅ RiftReader Route-Selected Candidate Gate</h1>
+  <div class="sub">Timestamp: <code>2026-05-14T12:04:16Z</code> · Target PID <code>2928</code> / HWND <code>0xC0994</code></div>
+</header>
+<main>
+  <section class="grid">
+    <div class="card"><div class="label">Review</div><div class="metric">ready-for-read-only-proof</div><span class="pill ok">read-only</span></div>
+    <div class="card"><div class="label">Candidate</div><div class="metric">api-family-hit-000001</div><code>0x268E2BC09E0</code></div>
+    <div class="card"><div class="label">API-memory delta</div><div class="metric">4.1503906231810106e-05</div><span class="pill ok">match</span></div>
+    <div class="card"><div class="label">Movement</div><div class="metric">Blocked</div><span class="pill bad">no movement</span></div>
+  </section>
+
+  <section class="two">
+    <div class="card">
+      <h2>Top 10 completed actions</h2>
+      <table><thead><tr><th>#</th><th>Action</th><th>Why</th><th>Status</th></tr></thead><tbody><tr><td>1</td><td>Refresh repo and route state</td><td>Confirmed main/origin alignment, latest route, target PID/HWND, and latest five commits before editing.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>2</td><td>Identify stale selection bug</td><td>Milestone review was still choosing an older family-import candidate even though the proof route had fresher API-memory agreement.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>3</td><td>Patch selection policy</td><td>Added route-selected candidate override for api-memory-match routes tied to the requested target.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>4</td><td>Gate route override by safety</td><td>Route selection now requires no movement/input, no CE, no x64dbg, and movementAllowed=false.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>5</td><td>Gate route override by target</td><td>Route target and readback target must match requested PID/HWND/process before selection is applied.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>6</td><td>Use readback SourceCandidateFile</td><td>NextCommands now point to the latest route readback candidate file instead of the older family snapshot JSON.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>7</td><td>Add regression coverage</td><td>Added a test proving latest route API-memory candidate wins over older candidates without granting movement.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>8</td><td>Regenerate milestone review</td><td>New review selects latest-coordinate-proof-route-memory-readback and remains ready-for-read-only-proof only.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>9</td><td>Regenerate proof readiness gate</td><td>Read-only readiness gate passed; movement remains false with proof pointer warnings preserved.</td><td><span class='pill ok'>Done</span></td></tr>
+<tr><td>10</td><td>Refresh human handoff and summary</td><td>Wrote timestamped handoff/current-truth/HTML artifacts so the next session resumes from current evidence.</td><td><span class='pill ok'>Done</span></td></tr></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Gate chart</h2>
+      <div class="label">Read-only readiness</div><div class="bar"><div class="fill" style="width:100%"></div></div><span class="pill ok">passed</span>
+      <div class="label" style="margin-top:16px">Promotion readiness</div><div class="bar"><div class="fill" style="width:45%;background:linear-gradient(90deg,var(--warn),#fb923c)"></div></div><span class="pill warn">blocked-promotion-readiness</span>
+      <div class="label" style="margin-top:16px">Movement permission</div><div class="bar"><div class="fill" style="width:0%;background:var(--bad)"></div></div><span class="pill bad">blocked</span>
+      <h2 style="margin-top:24px">Remaining blockers</h2><ul><li>fresh displaced/two-reference match missing; bothReferenceMatchCount=0</li>
+<li>displaced-reference readiness is blocked</li>
+<li>proof-anchor promotion allowed=False</li>
+<li>same-target movement-grade ProofOnly anchor is still not promoted</li>
+<li>movement/player-control input remains blocked without explicit approval and proof-gate pass</li></ul>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Validation</h2>
+    <table><thead><tr><th>Check</th><th>Status</th><th>Details</th></tr></thead><tbody><tr><td>Python compile</td><td><span class='pill ok'>passed</span></td><td>python -m compileall milestone review + test files</td></tr>
+<tr><td>Python unit tests</td><td><span class='pill ok'>passed</span></td><td>55 targeted tests</td></tr>
+<tr><td>Node MCP syntax/validate</td><td><span class='pill ok'>passed</span></td><td>node --check + npm run validate</td></tr>
+<tr><td>.NET build</td><td><span class='pill ok'>passed</span></td><td>dotnet build RiftReader.slnx --no-restore; 0 warnings/errors</td></tr>
+<tr><td>.NET tests</td><td><span class='pill ok'>passed</span></td><td>102 RiftReader.Reader.Tests passed</td></tr>
+<tr><td>Readiness gate</td><td><span class='pill ok'>passed</span></td><td>verdict=ready-for-read-only-proof; movementAllowed=None</td></tr></tbody></table>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Artifact links</h2>
+    <table><thead><tr><th>Artifact</th><th>Path</th></tr></thead><tbody>
+      <tr><td>Milestone review</td><td><code>scripts/captures/riftscan-milestone-review-20260514-120033.json</code></td></tr>
+      <tr><td>Readiness gate</td><td><code>scripts/captures/coordinate-proof-readiness-gate-20260514-080033-route-selection/summary.json</code></td></tr>
+      <tr><td>Route</td><td><code>scripts/captures/coordinate-proof-route-current-reacquire-20260514-074641-promotion-readiness-routing/coordinate-proof-route.json</code></td></tr>
+      <tr><td>Candidate file</td><td><code>scripts/captures/family-scan-currentpid-2928-20260514-114535-319032/api-family-vec3-candidates.jsonl</code></td></tr>
+      <tr><td>Handoff</td><td><code>docs/handoffs/2026-05-14-120416-route-selection-candidate-gate.md</code></td></tr>
+    </tbody></table>
+  </section>
+  <footer>Generated by Python documentation updater. PowerShell was used only for convenience command launching.</footer>
+</main>
+</body>
+</html>

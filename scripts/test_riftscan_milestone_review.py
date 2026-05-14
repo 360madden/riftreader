@@ -78,6 +78,26 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
         )
 
     @staticmethod
+    def _write_pointer_without_candidate(path: Path, *, pid: int = 123, hwnd: str = "0xABC") -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "mode": "current-proof-anchor-readback-pointer",
+                    "status": "blocked-target-drift",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": pid,
+                        "targetWindowHandle": hwnd,
+                    },
+                    "riftscanCandidateSource": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
     def _write_consumer_summary(path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -145,6 +165,109 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
                         "inputSent": False,
                         "noCheatEngine": True,
                     },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_api_memory_proof_route(
+        path: Path,
+        *,
+        readback_summary: Path,
+        pid: int = 123,
+        hwnd: str = "0xABC",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "coordinate-proof-route",
+                    "status": "api-memory-match",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": pid,
+                        "targetWindowHandle": hwnd,
+                    },
+                    "decision": {
+                        "readOnlyProofAllowed": True,
+                        "movementAllowed": False,
+                        "visualEvidenceCanPromoteTruth": False,
+                    },
+                    "visualEvidence": {
+                        "status": "usable-sidecar",
+                        "proofRole": "sidecar_only_not_coordinate_or_movement_truth",
+                        "coordinateProof": False,
+                        "movementProof": False,
+                        "items": [],
+                    },
+                    "safety": {
+                        "movementSent": False,
+                        "inputSent": False,
+                        "reloaduiSent": False,
+                        "screenshotKeySent": False,
+                        "noCheatEngine": True,
+                        "x64dbgAttached": False,
+                    },
+                    "memoryReadback": {
+                        "status": "api-memory-match",
+                        "referenceMatchCount": 2,
+                        "stableDecodedCandidateCount": 2,
+                        "selectedCandidate": {
+                            "candidateId": "api-family-hit-000001",
+                            "addressHex": "0x10000120",
+                            "referenceMaxAbsDelta": 0.000041,
+                            "referenceMatchesReadback": True,
+                            "stableAcrossReadbackSamples": True,
+                            "sourcePreviewMatchesReadback": True,
+                        },
+                        "apiMemoryMatch": True,
+                        "staleAgainstApiNow": False,
+                        "movementAllowed": False,
+                    },
+                    "artifacts": {
+                        "memoryReadback": str(readback_summary),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_route_readback_summary(
+        path: Path,
+        *,
+        candidate_file: Path,
+        pid: int = 123,
+        hwnd: str = "0xABC",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        candidate_file.parent.mkdir(parents=True, exist_ok=True)
+        candidate_file.write_text(
+            json.dumps({"candidate_id": "api-family-hit-000001"}) + "\n",
+            encoding="utf-8",
+        )
+        path.write_text(
+            json.dumps(
+                {
+                    "ProcessId": pid,
+                    "TargetWindowHandle": hwnd,
+                    "ProcessName": "rift_x64",
+                    "SourceCandidateFile": str(candidate_file),
+                    "ReferenceMatchCount": 2,
+                    "StableDecodedCandidateCount": 2,
+                    "MovementAllowed": False,
+                    "BestReferenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x10000120",
+                            "ReferenceMatchesReadback": True,
+                            "ReferenceMaxAbsDelta": 0.000041,
+                            "StableAcrossReadbackSamples": True,
+                            "SourcePreviewMatchesReadback": True,
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -477,6 +600,56 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
             ][0]
             self.assertEqual(route_check["status"], "fail")
             self.assertFalse(review["strategy"]["readOnlyProofAllowedByReview"])
+
+    def test_review_prefers_latest_api_memory_route_candidate_over_older_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            proof_route = root / "scripts" / "captures" / "route" / "coordinate-proof-route.json"
+            route_readback = root / "scripts" / "captures" / "route" / "readback-summary.json"
+            route_candidate_file = root / "scripts" / "captures" / "family-scan-currentpid-123" / "api-family-vec3-candidates.jsonl"
+            old_candidate_file = (
+                root
+                / "scripts"
+                / "captures"
+                / "coordinate-family-snapshot-currentpid-123-old"
+                / "family-import-candidates.json"
+            )
+            self._write_pointer_without_candidate(pointer)
+            self._write_match(old_candidate_file, candidate_id="older-family-hit-000004")
+            self._write_latest_live_pointer(root)
+            self._write_route_readback_summary(route_readback, candidate_file=route_candidate_file)
+            self._write_api_memory_proof_route(proof_route, readback_summary=route_readback)
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                proof_route_summary=proof_route,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["status"], "ready-for-read-only-proof")
+            self.assertTrue(review["selectedCandidatePolicy"]["routeSelectionApplied"])
+            self.assertEqual(
+                review["selectedCandidate"]["source"],
+                "latest-coordinate-proof-route-memory-readback",
+            )
+            self.assertEqual(review["selectedCandidate"]["candidateId"], "api-family-hit-000001")
+            self.assertEqual(review["selectedCandidate"]["candidateFile"], str(route_candidate_file))
+            self.assertEqual(
+                review["selectedCandidate"]["proofEvidence"]["memoryReadback"],
+                str(route_readback),
+            )
+            self.assertIn(
+                str(route_candidate_file),
+                review["nextCommands"]["readOnlyCandidateReadback"],
+            )
+            self.assertFalse(review["strategy"]["movementAllowedByReview"])
+            self.assertTrue(review["strategy"]["readOnlyProofAllowedByReview"])
 
 
 if __name__ == "__main__":

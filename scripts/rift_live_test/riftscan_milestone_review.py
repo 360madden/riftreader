@@ -9,6 +9,7 @@ from typing import Any
 
 from .riftscan_coordination import (
     DEFAULT_RIFTSCAN_ROOT,
+    build_next_commands,
     coerce_int,
     is_relative_to,
     normalize_hwnd,
@@ -365,6 +366,161 @@ def resolve_coordinate_proof_route(
     return resolved, issues
 
 
+def _path_from_route_artifact(repo_root: Path, value: Any) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = repo_root / path
+    return path
+
+
+def _route_matches_requested_target(
+    route: dict[str, Any],
+    *,
+    process_id: int | None,
+    target_window_handle: str | None,
+    process_name: str | None,
+) -> tuple[bool, list[str]]:
+    target = route.get("target") if isinstance(route.get("target"), dict) else {}
+    issues: list[str] = []
+    route_pid = coerce_int(target.get("processId"))
+    route_hwnd = normalize_hwnd(target.get("targetWindowHandle"))
+    route_process = str(target.get("processName") or "").lower()
+    expected_hwnd = normalize_hwnd(target_window_handle)
+    expected_process = str(process_name or "").lower()
+
+    if process_id is not None and route_pid != process_id:
+        issues.append(f"coordinate_proof_route_pid_mismatch:actual={route_pid};expected={process_id}")
+    if expected_hwnd and route_hwnd != expected_hwnd:
+        issues.append(f"coordinate_proof_route_hwnd_mismatch:actual={route_hwnd};expected={expected_hwnd}")
+    if expected_process and route_process and route_process != expected_process:
+        issues.append(
+            f"coordinate_proof_route_process_mismatch:actual={target.get('processName')};expected={process_name}"
+        )
+    return not issues, issues
+
+
+def _route_safety_allows_read_only_selection(route: dict[str, Any]) -> tuple[bool, list[str]]:
+    safety = route.get("safety") if isinstance(route.get("safety"), dict) else {}
+    decision = route.get("decision") if isinstance(route.get("decision"), dict) else {}
+    issues: list[str] = []
+    if safety.get("movementSent") is not False:
+        issues.append("coordinate_proof_route_selection_movement_sent")
+    if safety.get("inputSent") is not False:
+        issues.append("coordinate_proof_route_selection_input_sent")
+    if safety.get("noCheatEngine") is not True:
+        issues.append("coordinate_proof_route_selection_ce_not_excluded")
+    if safety.get("x64dbgAttached") is True:
+        issues.append("coordinate_proof_route_selection_x64dbg_attached")
+    if decision.get("movementAllowed") is not False:
+        issues.append("coordinate_proof_route_selection_movement_allowed")
+    return not issues, issues
+
+
+def selected_candidate_from_coordinate_proof_route(
+    *,
+    repo_root: Path,
+    proof_route: dict[str, Any] | None,
+    process_id: int | None,
+    target_window_handle: str | None,
+    process_name: str | None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if not isinstance(proof_route, dict):
+        return None, []
+    if proof_route.get("status") != "api-memory-match":
+        return None, []
+
+    target_matches, target_issues = _route_matches_requested_target(
+        proof_route,
+        process_id=process_id,
+        target_window_handle=target_window_handle,
+        process_name=process_name,
+    )
+    safety_ok, safety_issues = _route_safety_allows_read_only_selection(proof_route)
+    issues = [*target_issues, *safety_issues]
+    if not target_matches or not safety_ok:
+        return None, issues
+
+    memory = proof_route.get("memoryReadback") if isinstance(proof_route.get("memoryReadback"), dict) else {}
+    selected = (
+        memory.get("selectedCandidate")
+        if isinstance(memory.get("selectedCandidate"), dict)
+        else {}
+    )
+    if memory.get("status") != "api-memory-match" or memory.get("apiMemoryMatch") is not True:
+        return None, ["coordinate_proof_route_memory_readback_not_api_memory_match"]
+    if memory.get("staleAgainstApiNow") is True:
+        return None, ["coordinate_proof_route_memory_readback_stale_against_api_now"]
+    if memory.get("movementAllowed") is not False:
+        return None, ["coordinate_proof_route_memory_readback_movement_allowed"]
+    candidate_id = selected.get("candidateId")
+    if not candidate_id:
+        return None, ["coordinate_proof_route_selected_candidate_missing_id"]
+
+    artifacts = proof_route.get("artifacts") if isinstance(proof_route.get("artifacts"), dict) else {}
+    readback_path = _path_from_route_artifact(repo_root, artifacts.get("memoryReadback") or memory.get("path"))
+    if readback_path is None:
+        return None, ["coordinate_proof_route_memory_readback_artifact_missing"]
+    try:
+        readback = read_json_file(readback_path)
+    except Exception as exc:  # noqa: BLE001 - report artifact-specific skip reason.
+        return None, [f"coordinate_proof_route_memory_readback_unreadable:{type(exc).__name__}:{exc}"]
+
+    readback_target = _target_from_mapping(readback)
+    readback_issues: list[str] = []
+    expected_hwnd = normalize_hwnd(target_window_handle)
+    if process_id is not None and readback_target.get("processId") != process_id:
+        readback_issues.append(
+            f"coordinate_proof_route_readback_pid_mismatch:actual={readback_target.get('processId')};expected={process_id}"
+        )
+    if expected_hwnd and readback_target.get("targetWindowHandle") != expected_hwnd:
+        readback_issues.append(
+            f"coordinate_proof_route_readback_hwnd_mismatch:actual={readback_target.get('targetWindowHandle')};expected={expected_hwnd}"
+        )
+    expected_process = str(process_name or "").lower()
+    readback_process = str(readback_target.get("processName") or "").lower()
+    if expected_process and readback_process and readback_process != expected_process:
+        readback_issues.append(
+            f"coordinate_proof_route_readback_process_mismatch:actual={readback_target.get('processName')};expected={process_name}"
+        )
+    if readback_issues:
+        return None, readback_issues
+
+    source_candidate_file = readback.get("SourceCandidateFile")
+    if not source_candidate_file:
+        return None, ["coordinate_proof_route_readback_missing_source_candidate_file"]
+    candidate_file = _path_from_route_artifact(repo_root, source_candidate_file)
+    if candidate_file is None:
+        return None, ["coordinate_proof_route_readback_missing_source_candidate_file"]
+    if not candidate_file.exists():
+        return None, [f"coordinate_proof_route_readback_source_candidate_file_missing:{candidate_file}"]
+
+    return (
+        {
+            "source": "latest-coordinate-proof-route-memory-readback",
+            "candidateFile": str(candidate_file),
+            "candidateId": candidate_id,
+            "proofEvidence": {
+                "source": "coordinate-proof-route-api-memory-match",
+                "path": proof_route.get("path"),
+                "memoryReadback": str(readback_path),
+                "candidateId": candidate_id,
+                "candidateAddressHex": selected.get("addressHex"),
+                "referenceMaxAbsDelta": selected.get("referenceMaxAbsDelta"),
+                "referenceMatchCount": memory.get("referenceMatchCount"),
+                "stableDecodedCandidateCount": memory.get("stableDecodedCandidateCount"),
+            },
+            "recommendedAction": "use-latest-coordinate-proof-route-candidate-read-only",
+            "why": (
+                "The latest coordinate proof route has API-now/memory-now agreement for the requested target; "
+                "use this route-selected candidate before older family/import snapshots."
+            ),
+        },
+        [],
+    )
+
+
 def build_milestone_review(
     *,
     repo_root: Path,
@@ -403,6 +559,26 @@ def build_milestone_review(
         proof_route, proof_route_issues = resolve_coordinate_proof_route(repo_root, proof_route_summary)
         packet.setdefault("issues", []).extend(proof_route_issues)
     packet["coordinateProofRoute"] = proof_route
+    route_selection, route_selection_issues = selected_candidate_from_coordinate_proof_route(
+        repo_root=repo_root,
+        proof_route=proof_route,
+        process_id=effective_process_id,
+        target_window_handle=effective_target_window_handle,
+        process_name=effective_process_name,
+    )
+    packet.setdefault("issues", []).extend(route_selection_issues)
+    route_selection_applied = False
+    if route_selection:
+        packet["selectedCandidate"] = route_selection
+        packet["status"] = "ready-for-read-only-proof"
+        packet["nextCommands"] = build_next_commands(
+            repo_root=repo_root,
+            process_id=effective_process_id,
+            target_window_handle=effective_target_window_handle,
+            process_name=effective_process_name or "rift_x64",
+            selection=route_selection,
+        )
+        route_selection_applied = True
     checks = build_checks(packet)
     status = review_status(checks, packet)
     strategy = build_strategy(status, packet)
@@ -427,6 +603,10 @@ def build_milestone_review(
             "explicitProcessId": process_id,
             "explicitTargetWindowHandle": normalize_hwnd(target_window_handle),
             "explicitProcessName": process_name,
+        },
+        "selectedCandidatePolicy": {
+            "routeSelectionApplied": route_selection_applied,
+            "routeSelectionIssues": route_selection_issues,
         },
         "selectedCandidate": packet.get("selectedCandidate"),
         "coordinateProofRoute": packet.get("coordinateProofRoute"),
