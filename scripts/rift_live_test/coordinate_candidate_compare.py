@@ -38,6 +38,21 @@ def file_age_delta_seconds(first: Path, second: Path) -> float:
     return abs(first.stat().st_mtime - second.stat().st_mtime)
 
 
+def coordinate_delta(first: dict[str, Any], second: dict[str, Any]) -> dict[str, float]:
+    first_coordinate = first["coordinate"]
+    second_coordinate = second["coordinate"]
+    delta_x = float(second_coordinate["x"]) - float(first_coordinate["x"])
+    delta_y = float(second_coordinate["y"]) - float(first_coordinate["y"])
+    delta_z = float(second_coordinate["z"]) - float(first_coordinate["z"])
+    return {
+        "deltaX": delta_x,
+        "deltaY": delta_y,
+        "deltaZ": delta_z,
+        "planarDistance": math.hypot(delta_x, delta_z),
+        "maxAbsDelta": max(abs(delta_x), abs(delta_y), abs(delta_z)),
+    }
+
+
 def repo_root_from_module() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -510,6 +525,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--max-summary-rows-per-file", type=int, help="Keep counts/best over all compared rows but write only this many detailed rows per file.")
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--max-displaced-reference-age-seconds", type=float, help="Fail closed when baseline and displaced reference file mtimes differ by more than this.")
+    parser.add_argument(
+        "--min-displaced-planar-distance",
+        type=float,
+        help="Fail closed when baseline and displaced references are too close to prove a real second pose.",
+    )
     parser.add_argument("--update-current-truth", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -579,6 +599,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             displaced_reference = load_reference(displaced_api_reference)
             age_delta = file_age_delta_seconds(api_reference, displaced_api_reference)
             summary["displacedReferenceAgeDeltaSeconds"] = round(age_delta, 3)
+            displacement_delta = coordinate_delta(reference, displaced_reference)
+            summary["displacedReferenceDelta"] = {
+                "deltaX": displacement_delta["deltaX"],
+                "deltaY": displacement_delta["deltaY"],
+                "deltaZ": displacement_delta["deltaZ"],
+                "planarDistance": displacement_delta["planarDistance"],
+                "maxAbsDelta": displacement_delta["maxAbsDelta"],
+            }
             if displaced_api_reference.stat().st_mtime < api_reference.stat().st_mtime:
                 summary["warnings"].append("displaced-api-reference-older-than-baseline-reference")
             if args.max_displaced_reference_age_seconds is not None and age_delta > args.max_displaced_reference_age_seconds:
@@ -587,6 +615,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 summary["status"] = "blocked"
                 return 2
+            if (
+                args.min_displaced_planar_distance is not None
+                and displacement_delta["planarDistance"] < args.min_displaced_planar_distance
+            ):
+                summary["blockers"].append(
+                    "displaced-api-reference-planar-distance-too-small:"
+                    f"{displacement_delta['planarDistance']:.6g}<{args.min_displaced_planar_distance}"
+                )
             summary["displacedReference"] = {
                 "path": path_text(displaced_api_reference, repo_root),
                 "coordinate": displaced_reference["coordinate"],
@@ -632,6 +668,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if any(item.get("matchCount", 0) > 0 for item in summary["candidateFiles"])
                 else "candidate-only-no-current-api-match"
             )
+        if summary["blockers"]:
+            summary["status"] = "blocked"
+            return 2
         return 0 if summary["status"] in {"api-candidate-match", "api-candidate-two-reference-match"} else 2
     except Exception as exc:  # noqa: BLE001
         summary["status"] = "failed"

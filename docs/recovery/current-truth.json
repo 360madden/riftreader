@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T12:12:52Z",
-  "status": "read_only_api_memory_match_no_displacement_promotion_blocked_movement_blocked",
+  "updatedAtUtc": "2026-05-14T12:19:34Z",
+  "status": "read_only_api_memory_match_displacement_gate_blocked_movement_blocked",
   "target": {
     "processName": "rift_x64",
     "processId": 2928,
@@ -13,7 +13,7 @@
   },
   "liveReferenceSurface": {
     "authoritative": "ReaderBridge_RRAPICOORD1",
-    "status": "usable_for_read_only_proof_latest_same_pose_api_memory_match",
+    "status": "usable_for_read_only_proof_displacement_gate_blocked",
     "source": "rift-api",
     "view": "Inspect.Unit.Detail(player)",
     "savedVariablesUse": "none",
@@ -44,7 +44,7 @@
   "movementGate": {
     "allowed": false,
     "status": "blocked",
-    "reason": "Latest no-input API/readback still matches the route-selected candidate, but the attempted displaced reference was not actually displaced enough and static pointer scan found no direct refs.",
+    "reason": "Same-pose API-memory match remains usable for read-only proof planning, but displacement-gated comparison has valid both-reference count 0; no promotion or movement proof.",
     "requiredBeforeMovement": [
       "fresh API/runtime reference",
       "current-process memory candidate agreement across poses",
@@ -68,16 +68,16 @@
     "referenceMatchCount": 1,
     "stableDecodedCandidateCount": 2,
     "referenceMaxAbsDelta": 4.960937758369255e-07,
-    "stableAcrossReadbackSamples": true,
-    "sourcePreviewMatchesReadback": true,
-    "status": "same_pose_api_memory_match_candidate_not_promoted",
-    "whySelected": "Latest route-selected candidate remains the freshest API-memory-match candidate, but it is same-pose only because displaced readiness blocked.",
+    "status": "same_pose_api_memory_match_candidate_displacement_gate_blocked",
+    "whySelected": "Latest route-selected candidate remains the freshest API-memory-match candidate, but displacement-gated comparison proves the second reference was not a valid moved pose.",
     "notMovementProofBecause": [
+      "promotion-two-reference-candidate-match-missing",
       "promotion-displaced-readiness-not-passed:blocked",
+      "displaced-api-reference-planar-distance-too-small:5.37587e-05<1.0",
       "displaced-reference-age-exceeded:1363.884>300.0",
       "displaced-reference-planar-distance-too-small:5.6e-05<1.0",
-      "pointer-scan-current-candidate-direct-hit-count=0",
-      "movement remains blocked until promotion readiness, proof/static chain, same-target ProofOnly, and explicit approval"
+      "route-valid-both-reference-count=0-after-displacement-gate",
+      "movement remains blocked until true displaced proof/static proof/same-target ProofOnly/explicit approval"
     ]
   },
   "latestPointerEvidence": {
@@ -104,7 +104,7 @@
     "x64dbgReadinessStatus": "ready_for_current_turn_approval_no_attach_only_current_truth_candidate",
     "x64dbgAttachStarted": false,
     "staleLatestCandidateFallback": "blocked_by_default_in_x64dbg_no_attach_readiness_packet",
-    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-121022.json",
+    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-121756.json",
     "latestMilestoneReviewStatus": "ready-for-read-only-proof",
     "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
     "latestDuplicateCopyPointerFamilyScanStatus": "passed",
@@ -158,17 +158,22 @@
     "latestRouteSelectedCandidateId": "api-family-hit-000001",
     "latestRouteSelectedCandidateAddress": "0x268E2BC09E0",
     "latestRouteSelectedCandidateReadback": "scripts/captures/riftscan-proof-readonly-fresh-displaced-attempt-1-20260514-120812/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-080850.json",
-    "latestProofReadinessGate": "scripts/captures/coordinate-proof-readiness-gate-20260514-081022-fresh-no-displacement/summary.json",
+    "latestProofReadinessGate": "scripts/captures/coordinate-proof-readiness-gate-20260514-081756-displacement-gated/summary.json",
     "latestProofReadinessGateStatus": "passed",
     "latestProofReadinessGateVerdict": "ready-for-read-only-proof",
     "latestPromotionReadinessStatus": "blocked-promotion-readiness",
     "latestProofAnchorPromotionAllowed": false,
     "latestPromotionReadinessBlockers": [
+      "promotion-two-reference-candidate-match-missing",
       "promotion-displaced-readiness-not-passed:blocked"
     ],
     "latestRoutePointerFamilyScan": "scripts/captures/pointer-family-scan-route-selected-currentpid-2928-20260514-081030/summary.json",
     "latestRoutePointerFamilyScanStatus": "passed",
-    "latestRoutePointerTopTargetHitCount": null
+    "latestRoutePointerTopTargetHitCount": null,
+    "latestDisplacementGatedComparison": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.json",
+    "latestDisplacementGatedComparisonStatus": "blocked",
+    "latestRawBothReferenceMatchCount": 2,
+    "latestValidBothReferenceMatchCount": 0
   },
   "staleOrInvalid": [
     {
@@ -209,9 +214,13 @@
     }
   ],
   "currentBlockers": [
+    "promotion-two-reference-candidate-match-missing",
     "promotion-displaced-readiness-not-passed:blocked",
+    "displaced-api-reference-planar-distance-too-small:5.37587e-05<1.0",
     "displaced-reference-age-exceeded:1363.884>300.0",
     "displaced-reference-planar-distance-too-small:5.6e-05<1.0",
+    "route-valid-both-reference-count=0-after-displacement-gate",
+    "movement remains blocked until true displaced proof/static proof/same-target ProofOnly/explicit approval",
     "pointer-scan-current-candidate-direct-hit-count=0",
     "movement remains blocked until promotion readiness, proof/static chain, same-target ProofOnly, and explicit approval",
     "fresh displaced/two-reference match missing; bothReferenceMatchCount=0",
@@ -236,7 +245,7 @@
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
     "machineTruth": "docs/recovery/current-truth.json",
-    "latestHandoff": "docs/handoffs/2026-05-14-121252-fresh-no-displacement-route-gate.md",
+    "latestHandoff": "docs/handoffs/2026-05-14-121934-displacement-gated-comparison.md",
     "historicalFullTruth": "docs/recovery/historical/current-truth-full-2026-05-14-0216-before-trim.md",
     "milestoneReview": "scripts/captures/riftscan-milestone-review-20260514-021300.json",
     "previousLiveTruthHandoff": "docs/handoffs/2026-05-14-0213-live-truth-repaired-fresh-family-snapshot.md",
@@ -245,7 +254,7 @@
     "latestReferenceDriftedSnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-snapshot-summary.json",
     "latestReferenceDriftedReadback": "scripts/captures/riftscan-proof-pose-20260514-022841/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222855.json",
     "referenceDriftGuardSmokeTest": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/family-snapshot-summary.json",
-    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-121022.json",
+    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-121756.json",
     "latestStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
     "latestStableFamilyCandidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
     "latestStableFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json",
@@ -297,12 +306,13 @@
     "latestReadOnlyMemoryReadback": "scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-042242.json",
     "latestReadOnlyMemoryReadbackWatchset": "scripts/captures/riftscan-readonly-currenttruth-compare-20260514-042242-452/riftscan-currentpid-2928-passive-vec3-watchset-20260514-042242.json",
     "latestReadOnlyActions123HtmlSummary": "docs/recovery/coord-truth-readonly-actions-1-3-summary-2026-05-14-042849.html",
-    "latestActionSummaryHtml": "docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-121252.html",
-    "latestProofReadinessGate": "scripts/captures/coordinate-proof-readiness-gate-20260514-081022-fresh-no-displacement/summary.json",
-    "latestCoordinateProofRoute": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.json",
-    "latestRoutePointerFamilyScan": "scripts/captures/pointer-family-scan-route-selected-currentpid-2928-20260514-081030/summary.json"
+    "latestActionSummaryHtml": "docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-121934.html",
+    "latestProofReadinessGate": "scripts/captures/coordinate-proof-readiness-gate-20260514-081756-displacement-gated/summary.json",
+    "latestCoordinateProofRoute": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json",
+    "latestRoutePointerFamilyScan": "scripts/captures/pointer-family-scan-route-selected-currentpid-2928-20260514-081030/summary.json",
+    "latestDisplacementGatedComparison": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.json"
   },
-  "nextRecommendedAction": "Capture a genuinely displaced API reference for the same PID/HWND, then rerun candidate comparison and route generation; keep movement blocked until promotion readiness/static proof and same-target ProofOnly pass.",
+  "nextRecommendedAction": "Capture a genuinely displaced API reference for the same PID/HWND, rerun displacement-gated comparison, regenerate route/review/readiness, then keep movement blocked until proof promotion and same-target ProofOnly pass.",
   "latestCoordinateReacquisition": {
     "status": "latest_readonly_api_refresh_memory_candidate_stale_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -713,7 +723,7 @@
   "visualEvidenceRouting": {
     "status": "sidecar_only_not_coordinate_or_movement_truth",
     "proofRouteGenerator": "scripts/coordinate_proof_route.py",
-    "latestProofRoute": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.json",
+    "latestProofRoute": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json",
     "latestMilestoneReviewWithRoute": "scripts/captures/riftscan-milestone-review-20260514-114648.json",
     "latestRouteStatus": "api-memory-match",
     "movementAllowedByVisualEvidence": false,
@@ -725,7 +735,7 @@
       "static root remains unproven until module/RVA or pointer-chain evidence survives restart validation",
       "movement remains blocked until proof gate passes and explicit movement approval is granted"
     ],
-    "latestProofRouteHtml": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.html",
+    "latestProofRouteHtml": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.html",
     "latestProofRoutePointer": "scripts/captures/latest-coordinate-proof-route.json",
     "latestReadOnlyReacquisition": "scripts/captures/family-scan-currentpid-2928-20260514-110753-631012/family-scan-summary.json",
     "latestPreflightWithRoute": "scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json",
@@ -741,8 +751,8 @@
     "latestActionSummaryHtml": "docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-074856.html",
     "latestScanProfilePlan": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.json",
     "latestManualDisplacementBlocker": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json",
-    "latestCandidateComparison": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-080912-fresh-attempt/summary.json",
-    "latestCandidateComparisonHtml": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-080912-fresh-attempt/summary.html",
+    "latestCandidateComparison": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.json",
+    "latestCandidateComparisonHtml": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.html",
     "latestScanProfileRun": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.json",
     "latestScanProfileHtml": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.html",
     "latestCandidateComparisonMode": "two-reference-latest-displaced",
@@ -752,8 +762,8 @@
     "latestGeneratedCenterFileSummary": "scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.json",
     "latestGeneratedCenterFileHtml": "scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.html",
     "latestScanProfileRanking": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.json",
-    "latestCandidateComparisonStatus": "api-candidate-two-reference-match",
-    "latestProofRouteWithCandidateRouting": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.json",
+    "latestCandidateComparisonStatus": "blocked",
+    "latestProofRouteWithCandidateRouting": "scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json",
     "latestCandidateRoutingStatus": "candidate-routing-ready",
     "latestCandidateRoutingCenterCount": 16,
     "latestDisplacedReferenceReadiness": "scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-080912-fresh-attempt/summary.json",
@@ -769,6 +779,7 @@
     "latestPromotionReadinessStatus": "blocked-promotion-readiness",
     "latestProofAnchorPromotionAllowed": false,
     "latestPromotionReadinessBlockers": [
+      "promotion-two-reference-candidate-match-missing",
       "promotion-displaced-readiness-not-passed:blocked"
     ],
     "latestProofReadinessGate": "scripts/captures/coordinate-proof-readiness-gate-20260514-074648-route/summary.json",

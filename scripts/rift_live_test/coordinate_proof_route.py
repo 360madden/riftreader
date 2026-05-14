@@ -506,7 +506,12 @@ def build_candidate_routing(
         files = [dict_or_empty(value) for value in list_or_empty(data.get("candidateFiles"))]
         baseline_matches = sum(int_or_none(file_result.get("matchCount")) or 0 for file_result in files)
         displaced_matches = sum(int_or_none(file_result.get("displacedMatchCount")) or 0 for file_result in files)
-        both_matches = sum(int_or_none(file_result.get("bothReferenceMatchCount")) or 0 for file_result in files)
+        raw_both_matches = sum(int_or_none(file_result.get("bothReferenceMatchCount")) or 0 for file_result in files)
+        comparison_blockers = list_or_empty(data.get("blockers"))
+        valid_for_two_reference = data.get("status") == "api-candidate-two-reference-match" and not comparison_blockers
+        both_matches = raw_both_matches if valid_for_two_reference else 0
+        if raw_both_matches > 0 and not valid_for_two_reference:
+            warnings.append(f"candidate-comparison-two-reference-matches-blocked:{data.get('status')}")
         if both_matches <= 0:
             warnings.append("candidate-comparison-has-no-both-reference-match")
         item.update(
@@ -514,9 +519,11 @@ def build_candidate_routing(
                 "status": data.get("status"),
                 "baselineMatchCount": baseline_matches,
                 "displacedMatchCount": displaced_matches,
+                "rawBothReferenceMatchCount": raw_both_matches,
                 "bothReferenceMatchCount": both_matches,
                 "warningCount": len(list_or_empty(data.get("warnings"))),
-                "blockerCount": len(list_or_empty(data.get("blockers"))),
+                "blockerCount": len(comparison_blockers),
+                "blockers": [str(value) for value in comparison_blockers],
             }
         )
         comparison_items.append(item)

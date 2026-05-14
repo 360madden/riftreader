@@ -328,6 +328,59 @@ class CoordinateCandidateCompareTests(unittest.TestCase):
             self.assertEqual(summary["status"], "blocked")
             self.assertTrue(any(str(item).startswith("displaced-api-reference-age-exceeded:") for item in summary["blockers"]))
 
+    def test_displaced_reference_planar_distance_budget_blocks_but_preserves_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            baseline = root / "baseline.json"
+            displaced = root / "displaced.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            baseline.write_text(json.dumps({"coordinate": {"x": 1.0, "y": 2.0, "z": 3.0}}), encoding="utf-8")
+            displaced.write_text(json.dumps({"coordinate": {"x": 1.01, "y": 2.0, "z": 3.0}}), encoding="utf-8")
+            candidates.write_text(
+                json.dumps(
+                    {
+                        "candidates": [
+                            {
+                                "candidate_id": "same-pose-copy",
+                                "absolute_address_hex": "0x1000",
+                                "value_preview": [1.0, 2.0, 3.0],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(baseline),
+                    "--displaced-api-reference",
+                    str(displaced),
+                    "--candidate-file",
+                    str(candidates),
+                    "--min-displaced-planar-distance",
+                    "1.0",
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["candidateFiles"][0]["bothReferenceMatchCount"], 1)
+            self.assertAlmostEqual(summary["displacedReferenceDelta"]["planarDistance"], 0.01)
+            self.assertTrue(
+                any(
+                    str(item).startswith("displaced-api-reference-planar-distance-too-small:")
+                    for item in summary["blockers"]
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

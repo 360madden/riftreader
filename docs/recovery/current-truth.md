@@ -1,10 +1,10 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T12:12:52Z._
+_Last updated: 2026-05-14T12:19:34Z._
 
 ## Verdict
 
-**Read-only live testing is allowed; player-control testing remains blocked.** A fresh no-input API/readback pass at `2026-05-14T12:08:49.0014728Z` still matches route-selected candidate **`api-family-hit-000001` at `0x268E2BC09E0`** with max abs delta `4.960937758369255e-07` and `ReferenceMatchCount=1`. However, the attempted displaced reference is **not a valid displaced pose**: planar distance `5.59732083466666e-05` and blockers `['displaced-reference-age-exceeded:1363.884>300.0', 'displaced-reference-planar-distance-too-small:5.6e-05<1.0']`. Promotion readiness remains `blocked-promotion-readiness`, direct pointer scan found `None` refs, and movement/navigation/player-control remains blocked.
+**Read-only live testing is allowed; player-control testing remains blocked.** Candidate **`api-family-hit-000001` at `0x268E2BC09E0`** remains the latest API-memory-match lead, but the newest displacement-gated comparison is **blocked**: raw both-reference matches `2` are preserved for audit, while valid both-reference matches are `0` because the displaced reference moved only `5.59732083466666e-05` planar units. Promotion readiness is `blocked-promotion-readiness`, proof-anchor promotion allowed is `False`, and movement remains blocked.
 
 ## Current target epoch
 
@@ -221,8 +221,8 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Field | Value |
 |---|---|
 | Route generator | `scripts/coordinate_proof_route.py` |
-| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.json` |
-| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.html` |
+| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json` |
+| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.html` |
 | Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
 | Latest route status | `api-memory-match` |
 | Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-074856.html` |
@@ -230,8 +230,8 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest scan-profile plan HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.html` |
 | Latest manual displacement blocker | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json` |
 | Latest manual displacement blocker HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.html` |
-| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-080912-fresh-attempt/summary.json` |
-| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-080912-fresh-attempt/summary.html` |
+| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.json` |
+| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.html` |
 | Latest preflight with route | `scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json` |
 | Latest read-only reacquisition | `scripts/captures/family-scan-currentpid-2928-20260514-110753-631012/family-scan-summary.json` |
 | Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-114648.json` |
@@ -243,8 +243,8 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest scan-profile run | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.json` |
 | Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.html` |
 | Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-074529-current-after-drift/summary.json` |
-| Latest candidate comparison status | `api-candidate-two-reference-match` |
-| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-080919-fresh-no-displacement/coordinate-proof-route.json` |
+| Latest candidate comparison status | `blocked` |
+| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json` |
 | Latest candidate routing status | `candidate-routing-ready` |
 | Latest candidate routing center count | `16` |
 | Latest displaced-reference readiness | `scripts/captures/coordinate-displaced-reference-readiness-currentpid-2928-20260514-080912-fresh-attempt/summary.json` |
@@ -309,3 +309,22 @@ Blockers preserved: fresh displaced/two-reference match is missing, displaced re
 | Handoff | `docs/handoffs/2026-05-14-121252-fresh-no-displacement-route-gate.md` |
 
 Conclusion: the candidate remains a strong same-pose read-only lead, but the new reference did not produce valid displaced proof. Do not promote or move from this evidence alone.
+
+## Displacement-gated comparison milestone — 2026-05-14T12:19:34Z
+
+| Field | Value |
+|---|---|
+| Route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-081737-displacement-gated/coordinate-proof-route.json` |
+| Route status | `api-memory-match` |
+| Candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-081730-displacement-gated/summary.json` |
+| Comparison status | `blocked` |
+| Raw both-reference matches | `2` |
+| Valid both-reference matches | `0` |
+| Comparison blockers | `['displaced-api-reference-planar-distance-too-small:5.37587e-05<1.0']` |
+| Displaced readiness | `blocked` |
+| Displaced planar distance | `5.59732083466666e-05` |
+| Promotion readiness | `blocked-promotion-readiness` |
+| Handoff | `docs/handoffs/2026-05-14-121934-displacement-gated-comparison.md` |
+| HTML summary | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-121934.html` |
+
+Conclusion: same-pose matches cannot be promoted. The valid two-reference count is now fail-closed to `0` until a real displaced pose is captured.

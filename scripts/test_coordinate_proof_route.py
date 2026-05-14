@@ -481,6 +481,88 @@ class CoordinateProofRouteTests(unittest.TestCase):
                 "Review and promote the two-pose API/readback candidate through the no-CE proof-anchor path.",
             )
 
+    def test_blocked_candidate_comparison_does_not_count_as_two_reference_proof(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            api = self._write_json(
+                root / "api.json",
+                {
+                    "processId": 123,
+                    "processName": "rift_x64",
+                    "targetWindowHandle": "0xABC",
+                    "coordinate": {"x": 10.0, "y": 20.0, "z": 30.0},
+                    "tolerance": 0.25,
+                },
+            )
+            readback = self._write_json(
+                root / "readback.json",
+                {
+                    "ProcessId": 123,
+                    "ProcessName": "rift_x64",
+                    "TargetWindowHandle": "0xABC",
+                    "ReferenceMatchCount": 1,
+                    "BestReferenceMatches": [
+                        {
+                            "CandidateId": "same-pose-copy",
+                            "CandidateAddressHex": "0x2000",
+                            "ReferenceMatchesReadback": True,
+                            "ReferenceMaxAbsDelta": 0.001,
+                            "StableAcrossReadbackSamples": True,
+                        }
+                    ],
+                },
+            )
+            comparison = self._write_json(
+                root / "comparison.json",
+                {
+                    "status": "blocked",
+                    "blockers": ["displaced-api-reference-planar-distance-too-small:0.01<1.0"],
+                    "candidateFiles": [
+                        {"matchCount": 1, "displacedMatchCount": 1, "bothReferenceMatchCount": 1}
+                    ],
+                },
+            )
+            readiness = self._write_json(
+                root / "readiness.json",
+                {
+                    "status": "blocked",
+                    "blockers": ["displaced-reference-planar-distance-too-small:0.01<1.0"],
+                    "artifacts": {"summaryJson": "readiness.json"},
+                    "safety": {"movementSent": False, "inputSent": False, "noCheatEngine": True},
+                    "baselineReference": {
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"}
+                    },
+                    "displacedReference": {
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"}
+                    },
+                    "delta": {"planarDistance": 0.01, "maxAbsDelta": 0.01},
+                },
+            )
+
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                api_reference_path=api,
+                memory_readback_path=readback,
+                candidate_comparisons=[comparison],
+                displaced_readiness_summaries=[readiness],
+            )
+
+            comparison_item = route["candidateRouting"]["candidateComparisons"][0]
+            self.assertEqual(comparison_item["rawBothReferenceMatchCount"], 1)
+            self.assertEqual(comparison_item["bothReferenceMatchCount"], 0)
+            self.assertEqual(route["candidateRouting"]["bothReferenceMatchCount"], 0)
+            self.assertEqual(route["promotionReadiness"]["status"], "blocked-promotion-readiness")
+            self.assertFalse(route["promotionReadiness"]["proofAnchorPromotionAllowed"])
+            self.assertIn("promotion-two-reference-candidate-match-missing", route["promotionReadiness"]["blockers"])
+            self.assertIn(
+                "promotion-displaced-readiness-not-passed:blocked",
+                route["promotionReadiness"]["blockers"],
+            )
+            self.assertIn("candidate-comparison-two-reference-matches-blocked:blocked", route["warnings"])
+
     def test_cli_returns_blocked_exit_until_read_only_proof_is_allowed(self) -> None:
         with self._root() as temp:
             root = Path(temp) / "RiftReader"
