@@ -166,6 +166,7 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
                 "schema_version",
                 "schemaVersion",
             ),
+            "mode": data.get("mode"),
             "success": data.get("success"),
             "processIdHint": target_hint_process_id(path, data),
             "sessionPath": data.get("session_path"),
@@ -313,11 +314,15 @@ def find_riftreader_candidate_files(repo_root: Path, process_id: int | None, lim
     captures = repo_root / "scripts" / "captures"
     if not captures.exists():
         return []
-    files = sorted(
-        captures.glob("same-target-candidate-synth-*/same-target-candidates.json"),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
+    discovered: dict[Path, Path] = {}
+    for pattern in (
+        "coordinate-family-snapshot-currentpid-*/family-import-candidates.json",
+        "same-target-candidate-synth-*/same-target-candidates.json",
+    ):
+        for path in captures.glob(pattern):
+            if path.is_file():
+                discovered[path.resolve()] = path
+    files = sorted(discovered.values(), key=lambda path: path.stat().st_mtime, reverse=True)
     if process_id is not None:
         selected: list[Path] = []
         for path in files:
@@ -468,12 +473,28 @@ def choose_candidate(
             if isinstance(candidate, dict) and candidate.get("schemaSupported")
         ]
         if candidates:
+            is_family_import = (
+                str(match.get("mode") or "") == "riftreader-current-pid-coordinate-family-import-candidates"
+                or str(match.get("path") or "").endswith("family-import-candidates.json")
+            )
             return {
-                "source": "latest-riftreader-same-target-candidate-file",
+                "source": (
+                    "latest-riftreader-family-import-candidate-file"
+                    if is_family_import
+                    else "latest-riftreader-same-target-candidate-file"
+                ),
                 "candidateFile": match["path"],
                 "candidateId": candidates[0].get("candidateId"),
-                "recommendedAction": "use-riftreader-same-target-candidate-file-read-only",
-                "why": "RiftReader synthesized a same-target current-PID candidate file from existing readback evidence; it is candidate-only and must be used only through explicit read-only proof/readback.",
+                "recommendedAction": (
+                    "use-riftreader-family-import-candidate-file-read-only"
+                    if is_family_import
+                    else "use-riftreader-same-target-candidate-file-read-only"
+                ),
+                "why": (
+                    "RiftReader exported a current-PID family snapshot candidate file from broad grouped scanning; it is candidate-only and must be used only through explicit read-only proof/readback."
+                    if is_family_import
+                    else "RiftReader synthesized a same-target current-PID candidate file from existing readback evidence; it is candidate-only and must be used only through explicit read-only proof/readback."
+                ),
             }
 
     return {
@@ -634,6 +655,10 @@ def build_coordination_notes(
     if selection.get("source") == "latest-riftscan-match-file":
         notes.append(
             "A latest same-PID match file was selected only as read-only candidate evidence; it still needs RiftReader proof-pose/readback before promotion."
+        )
+    elif selection.get("source") == "latest-riftreader-family-import-candidate-file":
+        notes.append(
+            "A latest RiftReader family snapshot import candidate file was selected from grouped current-PID scanning; it still needs proof-pose/readback and static/root provenance before promotion."
         )
     return notes
 

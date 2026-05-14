@@ -10,6 +10,7 @@ _Last updated: 2026-05-14 00:45 UTC. Current live target remains `rift_x64` PID 
 - The proof anchor is still not valid for movement: `ProofAnchorStatus=failed` because the stale cache belongs to PID `57656` / HWND `0x5417BC`; movement gate remains `blocked_until_current_process_validated_coord_trace_anchor_or_equivalent_canonical_source`.
 - Neighborhood inspection now supports the current readback summary shape and passed at `scripts/captures/current-pid-family-neighborhood-inspector-20260514-004343-502721/summary.json`, confirming the exact hit at `0x268E113FED0` inside a 16 KiB read-only window.
 - Pointer-family scan of exact hits, family bases, and prior owner seeds passed at `scripts/captures/pointer-family-scan-20260514-004408-853398/summary.json`: `23` targets scanned, `0` module hits, `0` `rift_x64.exe` hits. `0x268E1130000` and `0x268DD310000` have heap-only refs; this is useful owner/family evidence but not a static root.
+- Post-fix milestone review `scripts/captures/riftscan-milestone-review-20260514-005112.json` now selects the newest RiftReader family import candidate file (`scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-004131/family-import-candidates.json`) instead of the older same-target candidate packet. It still allows only read-only proof and keeps `movementAllowedByReview=false`.
 
 ## Superseded historical status from 2026-05-14 00:26 UTC
 

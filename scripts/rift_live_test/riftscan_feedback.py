@@ -162,6 +162,14 @@ def build_feedback_recommendations(coordination_plan: dict[str, Any]) -> list[di
                 "why": "The selected RiftReader candidate file is current-PID evidence, but it is still candidate-only and may be offset-corrected rather than direct coordinate truth.",
             },
         )
+    elif source == "latest-riftreader-family-import-candidate-file":
+        recommendations.insert(
+            0,
+            {
+                "action": "Run explicit read-only proof-pose/readback against the broad family snapshot candidate file.",
+                "why": "The selected RiftReader candidate file came from grouped current-PID family scanning and must still be re-proven before promotion.",
+            },
+        )
     return recommendations
 
 
