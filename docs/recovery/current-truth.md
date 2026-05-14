@@ -1,14 +1,14 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T20:19:12Z._
+_Last updated: 2026-05-14T21:03:41.227934Z._
 
 ## Verdict
 
-**Active RIFT target discovered, but coordinate proof is blocked.** The current window is PID `23496` / HWND `0x2C1024`; however, the former PID `16536` proof pointer `0x21487DF8F64` is historical/stale after game close. `ProofOnly` against PID `23496` blocked with target drift and sent no movement.
+**Coordinate proof remains restored for the active RIFT target.** PID `23496` / HWND `0x2C1024` has a same-PID/HWND no-CE multi-pose proof anchor and the latest same-target `ProofOnly` passed with `movementSent=false`.
 
-Movement remains **blocked** until PID `23496` gets a fresh same-target proof anchor and `ProofOnly` passes.
+Movement/navigation is still subject to each profile's normal exact-target, proof-age, readback, and input-safety gates, but the coordinate proof gate is currently satisfied for this process epoch.
 
-## Current target candidate
+## Current target
 
 | Field | Value |
 |---|---|
@@ -18,53 +18,68 @@ Movement remains **blocked** until PID `23496` gets a fresh same-target proof an
 | Window title | `RIFT` |
 | Process start | `2026-05-14T20:02:28.245722Z` |
 | Module base | `0x7FF71CD90000` |
+| ProofOnly | `passed-proof-only` |
+| Movement sent by ProofOnly | `false` |
+| Current coordinate | `x=7327.9052734375, y=873.8124389648438, z=3050.353271484375` |
+| Coordinate recorded | `2026-05-14T21:03:40.2010424Z` |
+
+## Current proof anchor
+
+| Field | Value |
+|---|---|
+| Candidate | `api-family-hit-000005` |
+| Address | `0x27236F46750` |
+| Region base | `0x27236F46710` |
+| Region offset | `0x40` |
+| Axis order | `xyz` |
+| Support count | `2` |
+| Proof support count | `2` |
+| Latest max abs distance | `0.004802343749815918` |
+| Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-23496-20260514-204452-232834\api-family-vec3-candidates.json` |
+| Candidate JSONL | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-23496-20260514-204452-232834\api-family-vec3-candidates.jsonl` |
+| Proof anchor cache | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` |
+| Current proof pointer | `docs/recovery/current-proof-anchor-readback.json` |
+
+## Displacement proof
+
+| Field | Value |
+|---|---|
+| Pose count | `2` |
+| Max reference planar displacement | `4.285970374371978` |
+| Max candidate/reference delta error | `0.006023046874815918` |
+| Promotion result | `validated` |
+| Pose A readback | `scripts/captures/fast-proof-lane-pid23496-promote-poses-20260514-1650/riftscan-proof-poseA-displaced1-20260514-205119/riftscan-riftreader-currentpid-23496-readback-wrapper-summary-20260514-165156.json` |
+| Pose B readback | `scripts/captures/fast-proof-lane-pid23496-promote-poses-20260514-1650/riftscan-proof-poseB-displaced2-20260514-205249/riftscan-riftreader-currentpid-23496-readback-wrapper-summary-20260514-165322.json` |
+
+## Latest validation
+
+| Check | Result |
+|---|---|
 | Target-control | `passed-target-control` / `exact-hwnd-foreground` |
-| ProofOnly | `blocked-target-drift` |
-| Movement allowed | `false` |
+| Target-control artifact | `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-6-pid23496-proofonly-20260514-170236\live-test-ProofOnly-20260514-210237\target-control\target-control-status.json` |
+| Readback assertion | `valid` |
+| Movement allowed by current proof pointer | `true` |
+| Readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-23496-readback-summary-20260514-170330.json` |
+| ProofOnly | `passed-proof-only` |
+| ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-6-pid23496-proofonly-20260514-170236\live-test-ProofOnly-20260514-210237\run-summary.json` |
+| ProofOnly movement | `movementSent=false`, `movementAttempted=false` |
+| Cheat Engine | `not used` |
+| SavedVariables as live truth | `not used` |
 
-## Candidate-only live reference from blocked ProofOnly
+## Historical / stale evidence
 
-| Field | Value |
+| Item | Status |
 |---|---|
-| Coordinate | `x=7405.1499, y=871.77, z=3028.53` |
-| Recorded | `2026-05-14T20:08:04.6985193Z` |
-| Artifact | `scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json` |
-| Truth status | Candidate/reference only; not movement proof. |
-| Issues | `target_drift:current_proof_pointer_pid_mismatch:actual=None;expected=23496; target_drift:current_proof_pointer_hwnd_missing` |
+| PID `16536` / address `0x21487DF8F64` | Historical/stale after client close; recovery evidence only. |
+| PID `2928` candidates | Historical/stale target epoch. |
+| x64dbg access proof from PID `16536` | Structural recovery evidence only; not current movement truth. |
 
-## Historical / stale PID 16536 proof
+## Required before any movement profile
 
-| Field | Value |
-|---|---|
-| Former PID/HWND | `16536` / `0x1E0D66` |
-| Former candidate | `snapshot-delta-21487DF8F64-xyz` |
-| Former address | `0x21487DF8F64` |
-| Current status | Historical/stale after game close. |
-| Reuse policy | Recovery seed/access-proof history only; do not use as current movement truth. |
-
-## Preserved x64dbg access proof pattern
-
-This is useful structure evidence to guide reacquisition, not a live pointer after process restart.
-
-| Field | Value |
-|---|---|
-| Access instruction | `rift_x64.exe+0x678A79: movsd qword ptr [rax+0xC4], xmm0` |
-| Component base at hit | `rax/rbx = 0x21487DF8EA0` |
-| XYZ offsets from component base | X `+0xC4`, Y `+0xC8`, Z `+0xCC` |
-| Source/copy context candidate | `rdi = 0x214E38B5A00` |
-| Decoded proof | `scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.json` |
-
-## Current blockers
-
-- `target-drift-current-target-pid23496-proof-anchor-missing`
-- `prior-pid16536-proof-pointer-stale-after-game-close`
-- `current-pid-family-recovery-required-before-movement`
-- `movement-blocked-until-fresh-same-target-proofonly-passes`
-
-## Required before movement/live truth use
-
-1. Use PID `23496` / HWND `0x2C1024` as the next recovery target if it remains active.
-2. Rebuild/reacquire current-PID coordinate proof for PID `23496`.
-3. Validate API-now vs memory-now against the new proof candidate.
-4. Promote only after same-target current proof anchor exists.
-5. Rerun `ProofOnly` and require `passed-proof-only`.
+1. Reconfirm exact PID/HWND target-control.
+2. Enforce proof-anchor max-age/readback gates.
+3. Use `ProofOnly` as the immediate freshness gate before movement work.
+4. Keep `api-family-hit-000005 @ 0x27236F46750` scoped to PID `23496` / HWND `0x2C1024` only.
+5. Do not reuse PID `16536` address `0x21487DF8F64` as current truth.
+6. Do not use x64dbg/static-chain unless the fast proof lane fails.
+7. Treat this proof pointer as stale after any client restart, PID/HWND change, logout/close, or failed freshness gate.

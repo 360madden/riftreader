@@ -1,7 +1,11 @@
 # RiftReader handoff — current-PID coordinate proof restored
 
 Generated: `2026-05-14T17:11:47Z`
-Updated: `2026-05-14T18:36:23Z`
+Updated: `2026-05-14T21:03:41.227934Z`
+
+## Current state override — newest
+
+As of `2026-05-14T21:03:41.227934Z`, the active current coordinate proof target is PID `23496` / HWND `0x2C1024`, not PID `16536`. Candidate `api-family-hit-000005` at `0x27236F46750` passed same-target `ProofOnly` with `movementSent=false`. PID `16536` address `0x21487DF8F64` remains historical/stale only. Older sections below are chronological recovery history and may be superseded by this newest update.
 
 <!-- PID16536_CLOSED_AFTER_X64DBG_UPDATE -->
 
@@ -121,3 +125,31 @@ Target discovery found active `rift_x64` PID `23496` / HWND `0x2C1024` after the
 | ProofOnly artifact | `scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json` |
 
 Next recovery target is PID `23496` / HWND `0x2C1024` if it remains active. Reacquire/promote a same-target proof anchor, then rerun `ProofOnly` before movement.
+
+
+---
+
+## PID23496_FAST_PROOF_RESTORED_UPDATE — 2026-05-14T20:58:25Z
+
+- Active target: PID `23496`, HWND `0x2C1024`.
+- Fast proof lane restored coordinate proof without CE/x64dbg.
+- Promoted candidate: `api-family-hit-000005` at `0x27236F46750`.
+- Displacement support: 2 poses, max reference planar displacement `4.285970374371978`, max delta error `0.006023046874815918`.
+- Readback assertion: `valid`, stable samples `3`, read failures `0`.
+- ProofOnly: `passed-proof-only`, movement sent `false`.
+- Current proof pointer: `docs/recovery/current-proof-anchor-readback.json`.
+- ProofOnly run: `scripts/captures/fast-proof-lane-pid23496-proofonly-20260514-1654/live-test-ProofOnly-20260514-205441/run-summary.json`.
+- Old PID `16536` pointer/address `0x21487DF8F64` remains historical/stale only.
+
+
+---
+
+## PID23496_DO_1_6_REFRESH_COMMIT_PUSH_UPDATE — 2026-05-14T21:03:41.227934Z
+
+- Re-ran target-control before movement/proof use: `passed-target-control`, classification `exact-hwnd-foreground`.
+- Re-ran same-target `ProofOnly`: `passed-proof-only`, movement sent `false`.
+- Current anchor remains `api-family-hit-000005` at `0x27236F46750`, valid only for PID `23496` / HWND `0x2C1024`.
+- PID `16536` address `0x21487DF8F64` remains historical/stale only.
+- Latest ProofOnly run: `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-6-pid23496-proofonly-20260514-170236\live-test-ProofOnly-20260514-210237\run-summary.json`.
+- Latest readback summary: `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-23496-readback-summary-20260514-170330.json`.
+- This update is the commit/push readiness checkpoint for requested steps 1-6.
