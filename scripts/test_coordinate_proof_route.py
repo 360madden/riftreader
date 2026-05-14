@@ -207,6 +207,51 @@ class CoordinateProofRouteTests(unittest.TestCase):
             self.assertEqual(route["memoryReadback"]["reacquisition"]["hitCount"], 0)
             self.assertFalse(route["decision"]["readOnlyProofAllowed"])
 
+    def test_reacquisition_scan_hits_allow_read_only_proof_not_movement(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            api = self._write_json(
+                root / "api.json",
+                {
+                    "processId": 123,
+                    "processName": "rift_x64",
+                    "targetWindowHandle": "0xABC",
+                    "coordinate": {"x": 10.0, "y": 20.0, "z": 30.0},
+                    "tolerance": 0.25,
+                },
+            )
+            scan = self._write_json(
+                root / "scan.json",
+                {
+                    "mode": "riftreader-current-pid-coordinate-family-scan",
+                    "processId": 123,
+                    "processName": "rift_x64",
+                    "targetWindowHandle": "0xABC",
+                    "status": "passed",
+                    "blockers": [],
+                    "warnings": [],
+                    "target": {"ownerPid": 123, "requestedHwnd": "0xABC"},
+                    "scan": {"hitCount": 2, "bytesScanned": 1000000, "durationSeconds": 1.5},
+                    "artifacts": {"candidateJson": "candidates.json", "summaryJson": "scan.json"},
+                },
+            )
+
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                api_reference_path=api,
+                memory_readback_path=scan,
+            )
+
+            self.assertEqual(route["status"], "reacquisition-candidates-found")
+            self.assertTrue(route["memoryReadback"]["apiMemoryMatch"])
+            self.assertEqual(route["memoryReadback"]["target"]["processId"], 123)
+            self.assertEqual(route["memoryReadback"]["reacquisition"]["hitCount"], 2)
+            self.assertTrue(route["decision"]["readOnlyProofAllowed"])
+            self.assertFalse(route["decision"]["movementAllowed"])
+
     def test_static_root_candidate_is_not_promotion_without_restart_validation(self) -> None:
         with self._root() as temp:
             root = Path(temp) / "RiftReader"

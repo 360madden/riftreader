@@ -90,8 +90,11 @@ def read_optional_json(path: Path | None) -> tuple[dict[str, Any] | None, str | 
 
 
 def extract_target(document: Mapping[str, Any]) -> dict[str, Any]:
-    source = dict_or_empty(document.get("target")) or document
-    process_id = int_or_none(first_present(source, "processId", "ProcessId", "pid", "Pid", "requestedPid"))
+    nested_target = dict_or_empty(document.get("target"))
+    source = nested_target or document
+    process_id = int_or_none(first_present(source, "processId", "ProcessId", "pid", "Pid", "requestedPid", "ownerPid"))
+    if process_id is None and nested_target:
+        process_id = int_or_none(first_present(document, "processId", "ProcessId", "pid", "Pid", "requestedPid", "ownerPid"))
     hwnd = normalize_hwnd(
         first_present(
             source,
@@ -103,7 +106,21 @@ def extract_target(document: Mapping[str, Any]) -> dict[str, Any]:
             "requestedHwnd",
         )
     )
+    if hwnd is None and nested_target:
+        hwnd = normalize_hwnd(
+            first_present(
+                document,
+                "targetWindowHandle",
+                "TargetWindowHandle",
+                "hwnd",
+                "Hwnd",
+                "windowHandle",
+                "requestedHwnd",
+            )
+        )
     process_name = first_present(source, "processName", "ProcessName", "requestedProcessName")
+    if process_name is None and nested_target:
+        process_name = first_present(document, "processName", "ProcessName", "requestedProcessName")
     process_start = first_present(
         source,
         "processStartUtc",
@@ -111,6 +128,14 @@ def extract_target(document: Mapping[str, Any]) -> dict[str, Any]:
         "expectedProcessStartUtc",
         "ExpectedProcessStartUtc",
     )
+    if process_start is None and nested_target:
+        process_start = first_present(
+            document,
+            "processStartUtc",
+            "ProcessStartUtc",
+            "expectedProcessStartUtc",
+            "ExpectedProcessStartUtc",
+        )
     return {
         "processName": process_name,
         "processId": process_id,
@@ -526,6 +551,8 @@ def route_status(
         return "static-root-candidate"
     if memory_readback.get("status") == "api-memory-match":
         return "api-memory-match"
+    if memory_readback.get("status") == "reacquisition-candidates-found" and memory_readback.get("apiMemoryMatch") is True:
+        return "reacquisition-candidates-found"
     if memory_readback.get("status") in {
         "candidate-only-stale-against-api-now",
         "reacquisition-no-current-hits",
@@ -557,6 +584,14 @@ def build_recommended_actions(status: str) -> list[dict[str, str]]:
             {
                 "action": "Reacquire current-process memory candidates before static-root work.",
                 "why": "The selected heap copy is stable but stale against API-now, so root scans from it risk chasing an old coordinate copy.",
+            },
+        )
+    elif status == "reacquisition-candidates-found":
+        actions.insert(
+            0,
+            {
+                "action": "Run explicit read-only candidate readback and multi-pose validation from the reacquired current-memory candidates.",
+                "why": "The scan found current API-matching memory candidates, but movement still needs a stronger proof chain and explicit approval.",
             },
         )
     elif status == "reacquisition-no-current-hits":
@@ -802,7 +837,12 @@ def build_coordinate_proof_route(
     blockers = list(dict.fromkeys(blockers))
     warnings = list(dict.fromkeys(warnings))
     status = route_status(visual=visual, api_reference=api_reference, memory_readback=memory_readback, static_roots=static_roots, blockers=blockers)
-    read_only_proof_allowed = status in {"api-memory-match", "static-root-candidate", "promotion-eligible-static-root"}
+    read_only_proof_allowed = status in {
+        "api-memory-match",
+        "reacquisition-candidates-found",
+        "static-root-candidate",
+        "promotion-eligible-static-root",
+    }
     movement_allowed = False
     artifacts = {
         "outputRoot": path_text(output_root, repo_root) if output_root else None,

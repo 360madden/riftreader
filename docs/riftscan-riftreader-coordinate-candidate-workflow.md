@@ -317,6 +317,37 @@ fail-closed displaced/manual/alternate-pose marker rule as the scan-profile
 runner. `--update-current-truth` updates both the machine-readable JSON and the
 human-readable proof-route table with the latest comparison paths/status.
 
+Use `--max-summary-rows-per-file <n>` when candidate files are large and the
+JSON/HTML summary needs to stay reviewable. The helper still computes
+`comparedCount`, match counts, and `best` across all compared records; it only
+compacts the detailed per-candidate `rows` array.
+
+## Displaced-reference readiness gate
+
+Before treating two-pose candidate scoring as strong evidence, verify that the
+baseline and displaced API references are same-target, close enough in capture
+time, and actually displaced enough to be useful:
+
+```powershell
+python .\scripts\coordinate_displaced_reference_readiness.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --api-reference latest `
+  --displaced-api-reference latest-displaced `
+  --max-age-delta-seconds 300 `
+  --min-planar-displacement 1 `
+  --update-current-truth `
+  --json
+```
+
+This helper is Python-first, sends no input, uses no Cheat Engine/x64dbg path,
+does not read process memory, and writes JSON/Markdown/HTML summaries under
+RiftReader. If it blocks on age or insufficient displacement, refresh the
+displaced reference before using strict two-reference comparison as proof.
+Inside this readiness helper, `--api-reference latest` resolves to the latest
+same-target reference that is not marked as displaced, while
+`latest-displaced` requires an explicit displaced/manual/alternate-pose marker.
+
 To turn the best stale/candidate addresses from a comparison report into a
 repeatable historical-neighborhood scan-center file, use the Python center-file
 generator:

@@ -235,6 +235,7 @@ def compare_file(
     tolerance: float,
     max_records: int,
     displaced_reference: dict[str, Any] | None = None,
+    max_summary_rows: int | None = None,
 ) -> dict[str, Any]:
     doc = read_json(path)
     records = candidate_records(doc)
@@ -306,15 +307,21 @@ def compare_file(
         key=lambda row: float(row["maxAbsDelta"]),
         default=None,
     )
+    summary_rows = rows
+    if max_summary_rows is not None and max_summary_rows >= 0 and len(rows) > max_summary_rows:
+        summary_rows = rows[:max_summary_rows]
     return {
         "path": path_text(path, repo_root),
         "recordCount": len(records),
         "comparedCount": len(rows),
+        "summaryRowCount": len(summary_rows),
+        "omittedRowCount": len(rows) - len(summary_rows),
+        "rowsCompacted": len(summary_rows) != len(rows),
         "matchCount": len(matching),
         "displacedMatchCount": len(displaced_matching) if displaced_reference else None,
         "bothReferenceMatchCount": len(both_matching) if displaced_reference else None,
         "best": best,
-        "rows": rows,
+        "rows": summary_rows,
     }
 
 
@@ -331,13 +338,14 @@ def build_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Files",
         "",
-        "| File | Records | Baseline matches | Displaced matches | Both-ref matches | Best candidate | Best max abs delta |",
-        "|---|---:|---:|---:|---:|---|---:|",
+        "| File | Records | Rows shown | Rows omitted | Baseline matches | Displaced matches | Both-ref matches | Best candidate | Best max abs delta |",
+        "|---|---:|---:|---:|---:|---:|---:|---|---:|",
     ]
     for file_result in summary.get("candidateFiles") or []:
         best = dict_or_empty(file_result.get("best"))
         lines.append(
-            f"| `{file_result.get('path')}` | `{file_result.get('recordCount')}` | `{file_result.get('matchCount')}` | "
+            f"| `{file_result.get('path')}` | `{file_result.get('recordCount')}` | `{file_result.get('summaryRowCount')}` | "
+            f"`{file_result.get('omittedRowCount')}` | `{file_result.get('matchCount')}` | "
             f"`{file_result.get('displacedMatchCount')}` | `{file_result.get('bothReferenceMatchCount')}` | "
             f"`{best.get('candidateId')}` | `{best.get('maxAbsDelta')}` |"
         )
@@ -356,6 +364,8 @@ def build_html(summary: dict[str, Any]) -> str:
         "<tr>"
         f"<td><code>{esc(item.get('path'))}</code></td>"
         f"<td>{esc(item.get('recordCount'))}</td>"
+        f"<td>{esc(item.get('summaryRowCount'))}</td>"
+        f"<td>{esc(item.get('omittedRowCount'))}</td>"
         f"<td>{esc(item.get('matchCount'))}</td>"
         f"<td>{esc(item.get('displacedMatchCount'))}</td>"
         f"<td>{esc(item.get('bothReferenceMatchCount'))}</td>"
@@ -389,7 +399,7 @@ code {{ background:#020817; border:1px solid #263a57; padding:2px 6px; border-ra
 <p>Displaced reference: <code>{esc(summary.get('displacedReference', {}).get('path'))}</code></p>
 </section>
 <h2>Files</h2>
-<table><tr><th>File</th><th>Records</th><th>Baseline matches</th><th>Displaced matches</th><th>Both-ref matches</th><th>Best candidate</th><th>Best max abs delta</th></tr>{rows}</table>
+<table><tr><th>File</th><th>Records</th><th>Rows shown</th><th>Rows omitted</th><th>Baseline matches</th><th>Displaced matches</th><th>Both-ref matches</th><th>Best candidate</th><th>Best max abs delta</th></tr>{rows}</table>
 <h2>Blockers</h2>
 <ul>{blockers}</ul>
 </main></body></html>
@@ -497,6 +507,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--discover", action="store_true")
     parser.add_argument("--tolerance", type=float, default=0.25)
     parser.add_argument("--max-records-per-file", type=int, default=100)
+    parser.add_argument("--max-summary-rows-per-file", type=int, help="Keep counts/best over all compared rows but write only this many detailed rows per file.")
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--max-displaced-reference-age-seconds", type=float, help="Fail closed when baseline and displaced reference file mtimes differ by more than this.")
     parser.add_argument("--update-current-truth", action="store_true")
@@ -600,6 +611,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         args.tolerance,
                         args.max_records_per_file,
                         displaced_reference=displaced_reference,
+                        max_summary_rows=args.max_summary_rows_per_file,
                     )
                 )
             except Exception as exc:  # noqa: BLE001 - keep comparing other files.

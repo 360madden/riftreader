@@ -46,6 +46,48 @@ class CoordinateCandidateCompareTests(unittest.TestCase):
             self.assertEqual(result["matchCount"], 1)
             self.assertEqual(result["best"]["candidateId"], "match")
 
+    def test_compare_file_compacts_summary_rows_without_changing_counts_or_best(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            candidates = root / "candidates.json"
+            candidates.write_text(
+                json.dumps(
+                    {
+                        "candidates": [
+                            {
+                                "candidate_id": "best",
+                                "absolute_address_hex": "0x1000",
+                                "value_preview": [10.0, 20.0, 30.0],
+                            },
+                            {
+                                "candidate_id": "also-compared",
+                                "absolute_address_hex": "0x2000",
+                                "value_preview": [11.0, 20.0, 30.0],
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = compare_file(
+                candidates,
+                {"coordinate": {"x": 10.0, "y": 20.0, "z": 30.0}},
+                root,
+                tolerance=0.25,
+                max_records=10,
+                max_summary_rows=1,
+            )
+
+            self.assertEqual(result["recordCount"], 2)
+            self.assertEqual(result["comparedCount"], 2)
+            self.assertEqual(result["summaryRowCount"], 1)
+            self.assertEqual(result["omittedRowCount"], 1)
+            self.assertTrue(result["rowsCompacted"])
+            self.assertEqual(len(result["rows"]), 1)
+            self.assertEqual(result["matchCount"], 1)
+            self.assertEqual(result["best"]["candidateId"], "best")
+
     def test_cli_blocks_when_no_candidate_matches_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
