@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T02:41:56Z",
-  "status": "no_current_candidate_movement_blocked",
+  "updatedAtUtc": "2026-05-14T02:48:05Z",
+  "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
     "processId": 2928,
     "targetWindowHandle": "0xC0994",
     "processStartUtc": "2026-05-13T16:17:56.208370Z",
     "moduleBase": "0x7FF71CD90000",
-    "lastVerifiedUtc": "2026-05-14T02:41:56Z"
+    "lastVerifiedUtc": "2026-05-14T02:48:05Z"
   },
   "liveReferenceSurface": {
     "authoritative": "ReaderBridge_RRAPICOORD1",
@@ -18,7 +18,7 @@
     "view": "Inspect.Unit.Detail(player)",
     "savedVariablesUse": "none",
     "latestPreflight": "scripts/captures/coordinate-proof-preflight-20260514-020050-354005/summary.json",
-    "latestReference": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/post-scan-reference/fresh-reference-coordinate.json",
+    "latestReference": "scripts/captures/riftscan-proof-pose-20260514-024510/pose-api-reference.json",
     "latestMarkerDiagnostic": "scripts/captures/rrapicoord-scan-diagnostics-20260514-020126-043153/summary.json",
     "latestAddonDiagnostic": "scripts/captures/rrapicoord-addon-state-diagnostics-20260514-020130-043012/summary.json",
     "nonAuthoritative": [
@@ -44,29 +44,20 @@
     ]
   },
   "bestCurrentCandidate": {
-    "candidateId": null,
-    "addressHex": null,
-    "candidateFile": null,
-    "readbackSummary": null,
-    "status": "none_current_reacquisition_required",
-    "reason": "repeat readback invalidated the prior candidate, and the newest broad family snapshot matched the start reference but failed against the post-scan/current RRAPICOORD reference",
-    "lastRejected": [
-      {
-        "candidateId": "family-snapshot-hit-000001",
-        "addressHex": "0x268D1FA6120",
-        "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-020258/family-import-candidates.json",
-        "readbackSummary": "scripts/captures/riftscan-proof-pose-20260514-022700/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222716.json",
-        "referenceMatchCount": 0,
-        "rejectionReason": "repeat readback decoded the prior best candidate as near-zero floats; stale/unstable old snapshot candidate"
-      },
-      {
-        "candidateId": "family-snapshot-hit-000001",
-        "addressHex": "0x268D1EF0870",
-        "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-import-candidates.json",
-        "readbackSummary": "scripts/captures/riftscan-proof-pose-20260514-022841/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222855.json",
-        "referenceMatchCount": 0,
-        "rejectionReason": "candidate stayed at the 02:27:15 start reference while RRAPICOORD moved to the 02:28:54 reference; snapshot/reference drift exceeded tolerance"
-      }
+    "candidateId": "family-snapshot-hit-000003",
+    "addressHex": "0x268D506BC50",
+    "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
+    "readbackSummary": "scripts/captures/riftscan-proof-pose-20260514-024510/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-224524.json",
+    "referenceMatchCount": 7,
+    "stableDecodedCandidateCount": 5,
+    "referenceMaxAbsDelta": 4.960937758369255e-07,
+    "status": "candidate_only_current_readback_reference_match_not_movement_proof",
+    "whySelected": "latest milestone selection now prefers stable reference matches; rank-1 family-snapshot-hit-000002 matched reference but was unstable across readback samples",
+    "notMovementProofBecause": [
+      "Proof anchor preflight still failed",
+      "same-target ProofOnly has not passed",
+      "static pointer chain/root provenance not proven",
+      "candidate is read-only memory evidence only"
     ]
   },
   "latestPointerEvidence": {
@@ -109,12 +100,11 @@
     }
   ],
   "currentBlockers": [
-    "no validated current coordinate candidate after repeat readback",
     "movement-grade proof anchor missing",
-    "static pointer chain not proven",
-    "latest owner batch found no module-RVA hints",
-    "restart validation not done",
     "same-target ProofOnly not passing",
+    "static pointer chain not proven",
+    "candidate restart validation not done",
+    "latest owner batch found no module-RVA hints",
     "ChromaLink world-state stale/unhealthy"
   ],
   "canonicalArtifacts": {
@@ -129,37 +119,42 @@
     "latestReferenceDriftedSnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-snapshot-summary.json",
     "latestReferenceDriftedReadback": "scripts/captures/riftscan-proof-pose-20260514-022841/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222855.json",
     "referenceDriftGuardSmokeTest": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/family-snapshot-summary.json",
-    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-024029.json"
+    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-024659.json",
+    "latestStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
+    "latestStableFamilyCandidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
+    "latestStableFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-024510/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-224524.json"
   },
-  "nextRecommendedAction": "Run a fresh, shorter/current family snapshot with the post-scan drift guard; if it blocks again, reduce range/time or use a multi-pose sequence before any readback promotion.",
+  "nextRecommendedAction": "Run a second stable read-only pose/family snapshot or proof-pose cycle against the selected stable family group, then use multi-pose evidence to decide whether bounded tracing/static-owner recovery is worth running. Movement remains blocked.",
   "latestCoordinateReacquisition": {
-    "status": "blocked_reference_drift_no_current_candidate",
-    "oldCandidateRepeatReadback": "scripts/captures/riftscan-proof-pose-20260514-022700/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222716.json",
-    "oldCandidateReferenceMatchCount": 0,
-    "freshFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-snapshot-summary.json",
-    "freshFamilyCandidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-import-candidates.json",
-    "freshFamilyBytesScanned": 361066496,
-    "freshFamilyTripletCount": 46693,
-    "freshFamilyNearReferenceTripletCount": 14,
-    "freshFamilyBestStartAddressHex": "0x268D1EF0870",
-    "freshFamilyStartReference": {
-      "x": 7402.0,
-      "y": 871.769958,
-      "z": 3029.419922,
-      "capturedAtUtc": "2026-05-14T02:27:15.7613636Z"
+    "status": "stable_candidate_only_movement_blocked",
+    "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
+    "freshStableCandidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
+    "startReferenceFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/fresh-reference-coordinate.json",
+    "postScanReferenceFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/post-scan-reference/fresh-reference-coordinate.json",
+    "referenceStabilityStatus": "stable",
+    "referenceStabilityMaxAbsDelta": 0.0,
+    "bytesScanned": 363360256,
+    "tripletCount": 47193,
+    "nearReferenceTripletCount": 12,
+    "bestSnapshotTripletAddressHex": "0x268D4AFA790",
+    "bestStableReadbackCandidate": {
+      "candidateId": "family-snapshot-hit-000003",
+      "addressHex": "0x268D506BC50",
+      "referenceMaxAbsDelta": 4.960937758369255e-07,
+      "stableAcrossReadbackSamples": true,
+      "sourcePreviewMatchesReadback": true
     },
-    "freshFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-022841/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222855.json",
-    "freshFamilyReadbackReference": {
-      "x": 7403.3999,
-      "y": 871.77,
-      "z": 3029.4099,
-      "capturedAtUtc": "2026-05-14T02:28:54.8255056Z"
-    },
-    "freshFamilyReadbackReferenceMatchCount": 0,
-    "observedMaxReferenceDrift": 1.3999,
-    "codeGuardAdded": "scripts/capture_current_pid_coordinate_family_snapshot.py now performs a default post-scan RRAPICOORD check and blocks stale snapshots when drift exceeds tolerance",
-    "driftGuardSmokeTest": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/family-snapshot-summary.json",
-    "driftGuardSmokeStatus": "blocked_reference_drift_as_expected",
-    "milestoneReviewAfterGuard": "scripts/captures/riftscan-milestone-review-20260514-024029.json"
+    "readbackProofPose": "scripts/captures/riftscan-proof-pose-20260514-024510/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-224524.json",
+    "readbackReferenceFile": "scripts/captures/riftscan-proof-pose-20260514-024510/pose-api-reference.json",
+    "readbackReferenceMatchCount": 7,
+    "stableDecodedCandidateCount": 5,
+    "milestoneReviewAfterStableSelection": "scripts/captures/riftscan-milestone-review-20260514-024659.json",
+    "movementAllowed": false,
+    "movementBlocker": "proof-anchor-preflight-failed-and-static-chain-not-proven",
+    "previousFailedEvidence": {
+      "oldCandidateRepeatReadback": "scripts/captures/riftscan-proof-pose-20260514-022700/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222716.json",
+      "referenceDriftedSnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-snapshot-summary.json",
+      "referenceDriftGuardSmokeTest": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/family-snapshot-summary.json"
+    }
   }
 }

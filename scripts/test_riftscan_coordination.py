@@ -9,6 +9,7 @@ from pathlib import Path
 
 from rift_live_test.riftscan_coordination import (
     build_coordination_plan,
+    summarize_readback_proof,
     write_plan,
 )
 
@@ -333,6 +334,50 @@ class RiftScanCoordinationTests(unittest.TestCase):
             self.assertEqual(plan["selectedCandidate"]["candidateId"], "family-snapshot-hit-000002")
             self.assertEqual(plan["selectedCandidate"]["proofEvidence"]["path"], str(proof))
             self.assertIn("-CandidateFile", plan["nextCommands"]["readOnlyProofPose"])
+
+    def test_readback_summary_prefers_stable_reference_match_over_unstable_rank_one(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            candidate_file = root / "family-import-candidates.json"
+            proof = root / "riftscan-riftreader-currentpid-456-readback-wrapper-summary-demo.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "ProcessId": 456,
+                        "TargetWindowHandle": "0xDEF",
+                        "ProcessName": "rift_x64",
+                        "SourceCandidateFile": str(candidate_file),
+                        "ReferenceMatchCount": 2,
+                        "StableDecodedCandidateCount": 1,
+                        "MovementAllowed": False,
+                        "BestReferenceMatches": [
+                            {
+                                "CandidateId": "unstable-rank-one",
+                                "CandidateAddressHex": "0x1",
+                                "ReferenceMatchesReadback": True,
+                                "ReferenceMaxAbsDelta": 0.000001,
+                                "StableAcrossReadbackSamples": False,
+                                "SourcePreviewMatchesReadback": True,
+                            },
+                            {
+                                "CandidateId": "stable-rank-two",
+                                "CandidateAddressHex": "0x2",
+                                "ReferenceMatchesReadback": True,
+                                "ReferenceMaxAbsDelta": 0.000002,
+                                "StableAcrossReadbackSamples": True,
+                                "SourcePreviewMatchesReadback": True,
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            summary = summarize_readback_proof(proof)
+
+            self.assertEqual(summary["status"], "reference-match")
+            self.assertEqual(summary["bestReferenceMatch"]["candidateId"], "stable-rank-two")
+            self.assertEqual(summary["stableReferenceMatchCount"], 1)
 
     def test_plan_rejects_family_import_candidate_with_drifted_reference_stability(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

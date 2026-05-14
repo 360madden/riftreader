@@ -235,10 +235,29 @@ def summarize_readback_proof(path: Path) -> dict[str, Any]:
         for match in best_matches
         if isinstance(match, dict) and bool(match.get("ReferenceMatchesReadback"))
     ]
-    selected = true_matches[0] if true_matches else (best_matches[0] if best_matches else {})
+    stable_true_matches = [
+        match
+        for match in true_matches
+        if bool(match.get("StableAcrossReadbackSamples"))
+        and match.get("SourcePreviewMatchesReadback") is not False
+    ]
+    selected = (
+        stable_true_matches[0]
+        if stable_true_matches
+        else (true_matches[0] if true_matches else (best_matches[0] if best_matches else {}))
+    )
     if not isinstance(selected, dict):
         selected = {}
-    status = "reference-match" if reference_match_count > 0 and bool(selected.get("ReferenceMatchesReadback")) else "no-reference-match"
+    status = (
+        "reference-match"
+        if reference_match_count > 0
+        and bool(selected.get("ReferenceMatchesReadback"))
+        and bool(selected.get("StableAcrossReadbackSamples"))
+        and selected.get("SourcePreviewMatchesReadback") is not False
+        else "reference-match-unstable"
+        if reference_match_count > 0 and bool(selected.get("ReferenceMatchesReadback"))
+        else "no-reference-match"
+    )
     item.update(
         {
             "status": status,
@@ -247,6 +266,7 @@ def summarize_readback_proof(path: Path) -> dict[str, Any]:
             "processName": data.get("ProcessName"),
             "sourceCandidateFile": data.get("SourceCandidateFile"),
             "referenceMatchCount": reference_match_count,
+            "stableReferenceMatchCount": len(stable_true_matches),
             "stableDecodedCandidateCount": coerce_int(data.get("StableDecodedCandidateCount")),
             "proofAnchorStatus": data.get("ProofAnchorStatus"),
             "movementAllowed": bool(data.get("MovementAllowed")),
@@ -262,7 +282,11 @@ def summarize_readback_proof(path: Path) -> dict[str, Any]:
         }
     )
     if status != "reference-match":
-        item["issues"].append("readback_proof_no_reference_match")
+        item["issues"].append(
+            "readback_proof_no_stable_reference_match"
+            if status == "reference-match-unstable"
+            else "readback_proof_no_reference_match"
+        )
     return item
 
 
