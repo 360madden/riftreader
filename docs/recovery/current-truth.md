@@ -1,6 +1,6 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T02:20:17Z._
+_Last updated: 2026-05-14T02:25:51Z._
 
 ## Verdict
 
@@ -57,7 +57,8 @@ Key proof artifacts:
 | Evidence | Result |
 |---|---|
 | `scripts/captures/pointer-family-scan-20260514-021700-380199/summary.json` | Capped read-only scan hit `max-total-targets-reached:40`; top target heap-only; `0` module/RIFT-module hits. |
-| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-021250-664397/summary.json` | `16` owner windows inspected; `0` module-RVA hints. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-022426-567809/summary.json` | `24` owner windows inspected; `0` module-RVA hints. |
+| `scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-022439-156492/summary.json` | Blocked as expected: no module-RVA hints to sweep. |
 | Static pointer chain | **not proven** |
 
 ## Explicitly stale / invalid
@@ -73,6 +74,7 @@ Key proof artifacts:
 
 - Movement-grade proof anchor missing.
 - Static pointer chain not proven.
+- Latest owner batch found no module-RVA hints.
 - Restart validation not done.
 - Same-target `ProofOnly` not passing.
 - ChromaLink world-state stale/unhealthy.
@@ -84,8 +86,8 @@ Key proof artifacts:
 | `docs/recovery/current-truth.md` | This concise human dashboard. |
 | `docs/recovery/current-truth.json` | Small machine-readable canonical truth. |
 | `docs/recovery/historical/current-truth-full-2026-05-14-0216-before-trim.md` | Historical full chronology; stale/audit only. |
-| `docs/handoffs/2026-05-14-0220-current-truth-dashboard-trim.md` | Latest dashboard-trim handoff. |
+| `docs/handoffs/2026-05-14-0226-static-chain-heap-only-followup.md` | Latest static-chain follow-up handoff. |
 
 ## Next best action
 
-Run bounded read-only owner/static-chain investigation from `family-snapshot-hit-000001`; do **not** move, navigate, or promote until same-target `ProofOnly` or equivalent static-chain proof passes.
+Stop repeating module-hint sweeps for this heap-only owner batch. Next static-chain step should use a different evidence source, such as bounded access-chain tracing or a fresh multi-pose family snapshot when safe.

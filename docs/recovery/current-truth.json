@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T02:20:17Z",
+  "updatedAtUtc": "2026-05-14T02:25:51Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -9,7 +9,7 @@
     "targetWindowHandle": "0xC0994",
     "processStartUtc": "2026-05-13T16:17:56.208370Z",
     "moduleBase": "0x7FF71CD90000",
-    "lastVerifiedUtc": "2026-05-14T02:20:17Z"
+    "lastVerifiedUtc": "2026-05-14T02:25:51Z"
   },
   "liveReferenceSurface": {
     "authoritative": "ReaderBridge_RRAPICOORD1",
@@ -60,8 +60,11 @@
     "limitWarning": "max-total-targets-reached:40",
     "moduleHitCount": 0,
     "riftModuleHitCount": 0,
-    "ownerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-021250-664397/summary.json",
-    "moduleRvaHintCount": 0
+    "ownerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-022426-567809/summary.json",
+    "inspectedOwnerCount": 24,
+    "moduleRvaHintCount": 0,
+    "rootSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-022439-156492/summary.json",
+    "rootSweepStatus": "blocked_no_module_rva_hints"
   },
   "staleOrInvalid": [
     {
@@ -84,6 +87,7 @@
   "currentBlockers": [
     "movement-grade proof anchor missing",
     "static pointer chain not proven",
+    "latest owner batch found no module-RVA hints",
     "restart validation not done",
     "same-target ProofOnly not passing",
     "ChromaLink world-state stale/unhealthy"
@@ -91,10 +95,11 @@
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
     "machineTruth": "docs/recovery/current-truth.json",
-    "latestHandoff": "docs/handoffs/2026-05-14-0220-current-truth-dashboard-trim.md",
+    "latestHandoff": "docs/handoffs/2026-05-14-0226-static-chain-heap-only-followup.md",
     "historicalFullTruth": "docs/recovery/historical/current-truth-full-2026-05-14-0216-before-trim.md",
     "milestoneReview": "scripts/captures/riftscan-milestone-review-20260514-021300.json",
-    "previousLiveTruthHandoff": "docs/handoffs/2026-05-14-0213-live-truth-repaired-fresh-family-snapshot.md"
+    "previousLiveTruthHandoff": "docs/handoffs/2026-05-14-0213-live-truth-repaired-fresh-family-snapshot.md",
+    "dashboardTrimHandoff": "docs/handoffs/2026-05-14-0220-current-truth-dashboard-trim.md"
   },
-  "nextRecommendedAction": "Run bounded read-only owner/static-chain investigation from the current candidate; do not move or promote until same-target ProofOnly/static-chain proof passes."
+  "nextRecommendedAction": "Stop repeating module-hint sweeps for this heap-only owner batch; next static-chain step should use a different evidence source such as bounded access-chain tracing or a fresh multi-pose family snapshot when safe."
 }
