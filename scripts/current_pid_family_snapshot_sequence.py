@@ -44,6 +44,8 @@ from scan_current_pid_coordinate_family import (  # noqa: E402
 
 SCHEMA_VERSION = 1
 DEFAULT_POSE_PLAN = "baseline-still:baseline:0,passive-still-500ms:passive:0.5,passive-still-1500ms:passive:1.5,operator-displaced-settled:displaced:0.5"
+DEFAULT_REFERENCE_SOURCE = "rrapicoord"
+DEFAULT_REFERENCE_TIMEOUT_SECONDS = 180
 DEFAULT_PRIOR_ADDRESSES = [
     # Highest-signal May 13 PID 2928 candidate family from prior-first
     # sequential snapshots + offline delta comparison.  These are
@@ -70,6 +72,12 @@ DEFAULT_PRIOR_ADDRESSES = [
     ("0x216F87CDDD0", "historical-trace-linked-source-object"),
     ("0x216FE3C6280", "historical-facing-source-object"),
 ]
+
+
+class CommandEnvelopeError(RuntimeError):
+    def __init__(self, message: str, envelope: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.envelope = envelope
 
 
 def utc_iso() -> str:
@@ -137,6 +145,15 @@ def run_command(args: list[str], cwd: Path, timeout_seconds: int) -> dict[str, A
             "timedOut": True,
             "timeoutSeconds": timeout_seconds,
         }
+
+
+def compact_envelope(envelope: dict[str, Any], stage: str) -> dict[str, Any]:
+    return {
+        **{k: v for k, v in envelope.items() if k not in {"stdout", "stderr"}},
+        "stdoutPreview": str(envelope.get("stdout") or "")[:2000],
+        "stderrPreview": str(envelope.get("stderr") or "")[:2000],
+        "stage": stage,
+    }
 
 
 def latest_scan_plan(repo_root: Path, pid: int) -> Path:
@@ -225,14 +242,20 @@ def build_prior_ranges(args: argparse.Namespace) -> list[dict[str, Any]]:
     family_step = max(0x1000, int(args.prior_family_step))
     neighbor_count = max(0, int(args.prior_neighbor_family_count))
 
-    raw_priors = documented_prior_specs(args.disable_default_priors)
-    raw_priors.extend(parse_prior_specs(args.prior_address or []))
-    raw_priors.extend(parse_prior_specs(args.prior_family or []))
+    # Operator/current-truth priors must outrank documented historical priors.
+    # Earlier versions sorted every exact prior only by address, so low-address
+    # historical anchors could crowd out the newest current-truth family when a
+    # bounded run used --max-prior-ranges.  That is stale-prone and wastes the
+    # highest-signal scan budget.
+    raw_priors: list[tuple[int, str, int]] = []
+    raw_priors.extend((address, label, 10) for address, label in documented_prior_specs(args.disable_default_priors))
+    raw_priors.extend((address, label, 0) for address, label in parse_prior_specs(args.prior_address or []))
+    raw_priors.extend((address, label, 0) for address, label in parse_prior_specs(args.prior_family or []))
 
     ranges: list[dict[str, Any]] = []
     rank = 1
     seen: set[tuple[int, int, str]] = set()
-    for address, label in raw_priors:
+    for address, label, priority_base in raw_priors:
         exact_min = page_align_down(max(0, address - radius), page)
         exact_max = page_align_up(address + radius, page)
         key = (exact_min, exact_max, f"prior-exact:{label}")
@@ -244,7 +267,7 @@ def build_prior_ranges(args: argparse.Namespace) -> list[dict[str, Any]]:
                     rank=rank,
                     source="prior-exact-window",
                     label=label,
-                    priority=0,
+                    priority=priority_base,
                 )
             )
             rank += 1
@@ -264,7 +287,7 @@ def build_prior_ranges(args: argparse.Namespace) -> list[dict[str, Any]]:
                     rank=rank,
                     source="prior-family-neighborhood",
                     label=f"{label}:neighbor{neighbor:+d}",
-                    priority=1 + abs(neighbor),
+                    priority=priority_base + 1 + abs(neighbor),
                 )
             )
             rank += 1
@@ -444,11 +467,76 @@ def capture_chromalink_reference(repo_root: Path, args: argparse.Namespace, pose
     ]
     envelope = run_command(command, repo_root, timeout_seconds=args.reference_timeout_seconds)
     if envelope["timedOut"] or envelope["exitCode"] != 0:
-        raise RuntimeError(f"reference_capture_failed: exit={envelope['exitCode']}; timedOut={envelope['timedOut']}; stderr={str(envelope['stderr'])[:500]}")
+        raise CommandEnvelopeError(
+            f"reference_capture_failed: source=chromalink; exit={envelope['exitCode']}; "
+            f"timedOut={envelope['timedOut']}; stdout={str(envelope.get('stdout') or '')[:500]}; "
+            f"stderr={str(envelope.get('stderr') or '')[:500]}",
+            envelope,
+        )
     parsed = extract_json(str(envelope["stdout"]))
     reference_path = Path(parsed["referenceJson"]).resolve()
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     return reference, reference_path, envelope
+
+
+def capture_rrapicoord_reference(repo_root: Path, args: argparse.Namespace, pose_dir: Path) -> tuple[dict[str, Any], Path, dict[str, Any]]:
+    command = [
+        "pwsh",
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(repo_root / "scripts" / "capture-rift-api-reference-coordinate.ps1"),
+        "-ProcessId",
+        str(args.pid),
+        "-TargetWindowHandle",
+        str(args.hwnd),
+        "-OutputRoot",
+        str(pose_dir),
+        "-ScanContextBytes",
+        str(args.reference_scan_context_bytes),
+        "-MaxHits",
+        str(args.reference_max_hits),
+        "-ScanAttempts",
+        str(args.reference_scan_attempts),
+        "-ScanRetryDelayMilliseconds",
+        str(args.reference_scan_retry_delay_milliseconds),
+        "-ReferenceTolerance",
+        str(args.reference_tolerance),
+        "-Json",
+    ]
+    envelope = run_command(command, repo_root, timeout_seconds=args.reference_timeout_seconds)
+    parsed: dict[str, Any] | None = None
+    if envelope.get("stdout"):
+        try:
+            parsed = extract_json(str(envelope["stdout"]))
+        except Exception:
+            parsed = None
+    if envelope["timedOut"] or envelope["exitCode"] != 0:
+        raise CommandEnvelopeError(
+            "reference_capture_failed:"
+            f" source=rrapicoord; exit={envelope['exitCode']}; timedOut={envelope['timedOut']}; "
+            f"stdout={str(envelope.get('stdout') or '')[:500]}; stderr={str(envelope.get('stderr') or '')[:500]}",
+            envelope,
+        )
+    if not isinstance(parsed, dict):
+        raise CommandEnvelopeError("reference_capture_failed: source=rrapicoord; stdout-json-missing", envelope)
+    reference_path_value = parsed.get("ReferenceFile") or parsed.get("referenceFile")
+    if not reference_path_value:
+        raise CommandEnvelopeError("reference_capture_failed: source=rrapicoord; reference-file-missing", envelope)
+    reference_path = Path(str(reference_path_value)).resolve()
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    return reference, reference_path, envelope
+
+
+def capture_reference(repo_root: Path, args: argparse.Namespace, pose_dir: Path) -> tuple[dict[str, Any], Path, dict[str, Any]]:
+    source = str(args.reference_source or DEFAULT_REFERENCE_SOURCE).strip().lower()
+    if source == "chromalink":
+        return capture_chromalink_reference(repo_root, args, pose_dir)
+    if source == "rrapicoord":
+        return capture_rrapicoord_reference(repo_root, args, pose_dir)
+    raise RuntimeError(f"unsupported-reference-source:{source}")
 
 
 def gzip_write(path: Path, data: bytes) -> tuple[str, int]:
@@ -468,7 +556,7 @@ def snapshot_pose(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     pose_dir = run_dir / f"pose-{int(pose_spec['index']):03d}-{pose_spec['label']}"
     pose_dir.mkdir(parents=True, exist_ok=True)
-    reference, reference_path, reference_envelope = capture_chromalink_reference(repo_root, args, pose_dir)
+    reference, reference_path, reference_envelope = capture_reference(repo_root, args, pose_dir)
 
     hwnd_info = verify_hwnd_owner(args.hwnd, args.pid)
     if hwnd_info.get("blocker"):
@@ -548,12 +636,7 @@ def snapshot_pose(
         "warnings": warnings,
     }
     command_envelopes = [
-        {
-            **{k: v for k, v in reference_envelope.items() if k not in {"stdout", "stderr"}},
-            "stdoutPreview": str(reference_envelope.get("stdout") or "")[:2000],
-            "stderrPreview": str(reference_envelope.get("stderr") or "")[:2000],
-            "stage": f"reference:{pose_spec['label']}",
-        }
+        compact_envelope(reference_envelope, f"reference:{pose_spec['label']}")
     ]
     write_json(pose_dir / "pose-summary.json", pose)
     return pose, command_envelopes
@@ -572,6 +655,7 @@ def render_markdown(summary: dict[str, Any], manifest: dict[str, Any]) -> str:
             "",
             f"- Status: `{summary.get('status')}`",
             f"- PID/HWND: `{summary.get('processId')}` / `{summary.get('targetWindowHandle')}`",
+            f"- Reference source: `{summary.get('referenceSource')}`",
             f"- Scan plan: `{summary.get('scanPlanJson')}`",
             f"- Manifest: `{summary.get('artifacts', {}).get('manifestJson')}`",
             f"- Delta summary: `{summary.get('artifacts', {}).get('deltaSummaryJson')}`",
@@ -651,8 +735,22 @@ def main() -> int:
     parser.add_argument("--skip-analysis", action="store_true")
     parser.add_argument("--axis-orders", default="xyz")
     parser.add_argument("--candidate-scan-stride", type=int, choices=(1, 4), default=1)
+    parser.add_argument(
+        "--reference-source",
+        choices=("rrapicoord", "chromalink"),
+        default=DEFAULT_REFERENCE_SOURCE,
+        help=(
+            "Reference coordinate source captured before each pose. Default is RRAPICOORD because "
+            "ChromaLink world-state can be reachable but stale."
+        ),
+    )
+    parser.add_argument("--reference-scan-context-bytes", type=int, default=4096)
+    parser.add_argument("--reference-max-hits", type=int, default=512)
+    parser.add_argument("--reference-scan-attempts", type=int, default=5)
+    parser.add_argument("--reference-scan-retry-delay-milliseconds", type=int, default=1500)
+    parser.add_argument("--reference-tolerance", type=float, default=0.25)
     parser.add_argument("--preflight-timeout-seconds", type=int, default=30)
-    parser.add_argument("--reference-timeout-seconds", type=int, default=45)
+    parser.add_argument("--reference-timeout-seconds", type=int, default=DEFAULT_REFERENCE_TIMEOUT_SECONDS)
     parser.add_argument("--analysis-timeout-seconds", type=int, default=300)
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--self-test", action="store_true")
@@ -679,6 +777,7 @@ def main() -> int:
         "processId": args.pid,
         "targetWindowHandle": args.hwnd,
         "scanPlanJson": None,
+        "referenceSource": args.reference_source,
         "safety": {
             "movementSent": False,
             "inputSent": False,
@@ -709,6 +808,7 @@ def main() -> int:
         "processId": args.pid,
         "targetWindowHandle": args.hwnd,
         "processName": args.process_name,
+        "referenceSource": args.reference_source,
         "safety": summary["safety"].copy(),
         "poses": [],
     }
@@ -752,12 +852,7 @@ def main() -> int:
         run_dir.mkdir(parents=True, exist_ok=True)
         preflight, preflight_envelope = run_preflight(repo_root, args, run_dir)
         command_envelopes.append(
-            {
-                **{k: v for k, v in preflight_envelope.items() if k not in {"stdout", "stderr"}},
-                "stdoutPreview": str(preflight_envelope.get("stdout") or "")[:2000],
-                "stderrPreview": str(preflight_envelope.get("stderr") or "")[:2000],
-                "stage": "preflight",
-            }
+            compact_envelope(preflight_envelope, "preflight")
         )
         manifest["preflight"] = preflight
 
@@ -766,12 +861,7 @@ def main() -> int:
                 if args.auto_displacement_key:
                     ok, input_envelope = run_auto_displacement(repo_root, args)
                     command_envelopes.append(
-                        {
-                            **{k: v for k, v in input_envelope.items() if k not in {"stdout", "stderr"}},
-                            "stdoutPreview": str(input_envelope.get("stdout") or "")[:2000],
-                            "stderrPreview": str(input_envelope.get("stderr") or "")[:2000],
-                            "stage": "auto-displacement",
-                        }
+                        compact_envelope(input_envelope, "auto-displacement")
                     )
                     if not ok:
                         summary["blockers"].append("auto-displacement-input-failed")
@@ -789,7 +879,11 @@ def main() -> int:
                     break
             if float(pose_spec["settleSeconds"]) > 0:
                 time.sleep(float(pose_spec["settleSeconds"]))
-            pose, envelopes = snapshot_pose(repo_root=repo_root, run_dir=run_dir, pose_spec=pose_spec, scan_ranges=scan_ranges, args=args)
+            try:
+                pose, envelopes = snapshot_pose(repo_root=repo_root, run_dir=run_dir, pose_spec=pose_spec, scan_ranges=scan_ranges, args=args)
+            except CommandEnvelopeError as exc:
+                command_envelopes.append(compact_envelope(exc.envelope, f"reference:{pose_spec['label']}"))
+                raise RuntimeError(str(exc)) from exc
             manifest["poses"].append(pose)
             command_envelopes.extend(envelopes)
             summary["safety"]["targetMemoryBytesRead"] = True
@@ -804,12 +898,7 @@ def main() -> int:
             write_json(manifest_path, manifest)
             analysis, analysis_envelope = run_analyzer(repo_root, run_dir, args)
             command_envelopes.append(
-                {
-                    **{k: v for k, v in analysis_envelope.items() if k not in {"stdout", "stderr"}},
-                    "stdoutPreview": str(analysis_envelope.get("stdout") or "")[:2000],
-                    "stderrPreview": str(analysis_envelope.get("stderr") or "")[:2000],
-                    "stage": "delta-analysis",
-                }
+                compact_envelope(analysis_envelope, "delta-analysis")
             )
             summary["analysis"] = analysis
             summary["artifacts"]["deltaSummaryJson"] = str(run_dir / "delta-analysis" / "delta-summary.json")

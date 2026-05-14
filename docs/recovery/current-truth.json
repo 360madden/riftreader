@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:19:08Z",
+  "updatedAtUtc": "2026-05-14T03:29:15Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -9,7 +9,7 @@
     "targetWindowHandle": "0xC0994",
     "processStartUtc": "2026-05-13T16:17:56.208370Z",
     "moduleBase": "0x7FF71CD90000",
-    "lastVerifiedUtc": "2026-05-14T03:08:56Z"
+    "lastVerifiedUtc": "2026-05-14T03:29:15Z"
   },
   "liveReferenceSurface": {
     "authoritative": "ReaderBridge_RRAPICOORD1",
@@ -146,7 +146,8 @@
     "candidate restart validation not done",
     "ChromaLink world-state stale/unhealthy",
     "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs",
-    "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy"
+    "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy",
+    "family snapshot delta analysis still needs a displaced pose or approved input; latest passive no-input sequence intentionally blocked with blocked-no-displaced-pose"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -181,9 +182,12 @@
     "latestX64dbgNoAttachReadiness": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json",
     "latestX64dbgPreflight": "scripts/captures/x64dbg-target-preflight-20260514-031908-073743/summary.json",
     "latestX64dbgCoordChainPlan": "scripts/captures/x64dbg-coord-chain-plan-20260514-031908-113310/coord-chain-plan-summary.json",
-    "latestX64dbgAccessEventTemplate": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/access-event-template/x64dbg-manual-access-events-template.json"
+    "latestX64dbgAccessEventTemplate": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/access-event-template/x64dbg-manual-access-events-template.json",
+    "latestPassiveFamilySnapshotSequence": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json",
+    "latestPassiveFamilySnapshotSequenceManifest": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/manifest.json",
+    "latestPassiveFamilySnapshotSequenceDelta": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/delta-analysis/delta-summary.json"
   },
-  "nextRecommendedAction": "With stale latest-candidate fallback blocked, either run a bounded current-turn-approved x64dbg 12-byte coord access capture on family-snapshot-hit-000004, or continue read-only multi-pose family-group snapshots if debugger attach is not approved. Movement remains blocked.",
+  "nextRecommendedAction": "Now that family snapshot sequence defaults to RRAPICOORD and prioritizes current-truth priors, capture a displaced pose via explicit approval/operator movement for offline delta ranking, or proceed to bounded x64dbg access capture if approved. Movement/navigation remains blocked.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -227,6 +231,14 @@
     "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
     "latestX64dbgNoAttachReadiness": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json",
     "x64dbgCandidateSelectionSource": "current-truth",
-    "staleLatestCandidateFallbackBlockedByDefault": true
+    "staleLatestCandidateFallbackBlockedByDefault": true,
+    "latestPassiveFamilySnapshotSequence": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json",
+    "latestPassiveFamilySnapshotSequenceStatus": "blocked_no_displaced_pose_but_rrapicoord_reference_and_current_truth_prior_scan_worked",
+    "latestPassiveFamilySnapshotSequenceReferenceSource": "rrapicoord",
+    "latestPassiveFamilySnapshotSequenceBytesPerPose": 33554432,
+    "latestPassiveFamilySnapshotSequencePoseCount": 2,
+    "latestPassiveFamilySnapshotSequenceMovementSent": false,
+    "currentTruthPriorOrderingFixed": true,
+    "chromalinkReferenceDependencyRemovedFromSequenceDefault": true
   }
 }

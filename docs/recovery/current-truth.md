@@ -1,10 +1,10 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T03:19:08Z._
+_Last updated: 2026-05-14T03:29:15Z._
 
 ## Verdict
 
-**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. Two consecutive robust read-only proof-pose runs selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match. The no-attach x64dbg readiness packet now uses the **current-truth candidate** instead of hidden `latest/best` candidate fallback and passed preflight, but this is still **candidate-only** because there is no static chain, no restart validation, and no same-target `ProofOnly` pass.
+**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. Two consecutive robust read-only proof-pose runs selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match. The no-attach x64dbg readiness packet now uses the **current-truth candidate** instead of hidden `latest/best` candidate fallback and passed preflight. The family-snapshot sequence helper now defaults to `RRAPICOORD1` and prioritizes current-truth priors, but this is still **candidate-only** because there is no static chain, no restart validation, and no same-target `ProofOnly` pass.
 
 ## Current target epoch
 
@@ -32,6 +32,7 @@ Key proof artifacts:
 | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Latest readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`. |
 | `scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json` | Fresh RRAPICOORD reference used for no-attach x64dbg readiness. |
 | `scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json` | Passed no-attach readiness: exact target, fresh API coordinate, current-truth candidate, no debugger attach started. |
+| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json` | Passive no-input family sequence now works with `RRAPICOORD1` and current-truth priors; blocked intentionally because no displaced pose was captured. |
 | `scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json` | Usable marker present after direct robust scan. |
 | `scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json` | Addon installed and live marker observed. |
 
@@ -62,6 +63,7 @@ Key proof artifacts:
 |---|---|---|
 | Fresh broad family snapshot | `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json` | Read-only scan captured `47,193` triplets / `12` near-reference triplets over `363,360,256` bytes. |
 | Post-scan reference guard | `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/post-scan-reference/fresh-reference-coordinate.json` | Passed: pre/post RRAPICOORD stable with max abs drift `0.0`. |
+| Passive sequence helper repair | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json` | Read-only/no-input sequence captured two RRAPICOORD references and `33,554,432` bytes per pose from the current-truth family neighborhood; blocked with `blocked-no-displaced-pose` as expected. |
 | Underpowered reference capture | `scripts/captures/riftscan-proof-pose-20260514-024955` | Blocked safely; no usable full marker from the narrow 512-byte context. Superseded, not proof evidence. |
 | Proof-pose wrapper fix | `scripts/capture-riftscan-proof-pose.ps1` | Now passes `4096` context bytes, `512` max hits, `5` attempts, `1500ms` retry delay to the reference capture helper. |
 | Repeat proof-pose confirmation | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Second robust pass again selected `family-snapshot-hit-000004`; read-only only. |
@@ -101,6 +103,7 @@ Key proof artifacts:
 - Duplicate heap coordinate copies are not yet disambiguated across multiple poses.
 - Module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs.
 - x64dbg access events have not been captured; any live debugger capture still requires explicit current-turn approval and the bounded attach policy.
+- Family snapshot delta analysis still needs a displaced pose or explicitly approved input; the latest passive no-input sequence intentionally blocked with `blocked-no-displaced-pose`.
 - ChromaLink world-state stale/unhealthy.
 
 ## Canonical files
@@ -112,7 +115,8 @@ Key proof artifacts:
 | `docs/recovery/historical/current-truth-full-2026-05-14-0216-before-trim.md` | Historical full chronology; stale/audit only. |
 | `docs/handoffs/2026-05-14-0226-static-chain-heap-only-followup.md` | Latest static-chain follow-up handoff. |
 | `scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json` | Latest no-attach x64dbg readiness packet; current-truth candidate, no attach. |
+| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json` | Latest passive family-snapshot sequence; RRAPICOORD default, current-truth prior first, no input. |
 
 ## Next best action
 
-With stale latest-candidate fallback blocked, either run a bounded current-turn-approved x64dbg 12-byte coord access capture on `family-snapshot-hit-000004`, or continue read-only multi-pose family-group snapshots if debugger attach is not approved. Movement remains blocked.
+Now that family snapshot sequence defaults to RRAPICOORD and prioritizes current-truth priors, capture a displaced pose via explicit approval/operator movement for offline delta ranking, or proceed to bounded x64dbg access capture if approved. Movement/navigation remains blocked.

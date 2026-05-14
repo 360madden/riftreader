@@ -68,6 +68,20 @@ class CurrentPidFamilySnapshotSequenceTests(unittest.TestCase):
         self.assertIn("pid60628-destination-copy-family", labels)
         self.assertIn("pid60628-best-moving-slot-family", labels)
 
+    def test_operator_prior_outranks_documented_historical_priors(self) -> None:
+        ranges = sequence.build_prior_ranges(
+            args(
+                disable_default_priors=False,
+                prior_address=["currentTruth=0x268D5A80730"],
+                max_prior_ranges=4,
+            )
+        )
+
+        self.assertEqual(ranges[0]["label"], "currentTruth")
+        self.assertEqual(ranges[0]["source"], "prior-exact-window")
+        self.assertLess(ranges[0]["priority"], 10)
+        self.assertTrue(any("currentTruth" in item["label"] for item in ranges))
+
     def test_auto_displacement_uses_exact_hwnd_window_message_backend(self) -> None:
         captured = {}
 
@@ -102,6 +116,114 @@ class CurrentPidFamilySnapshotSequenceTests(unittest.TestCase):
         self.assertIn("0xABC", command)
         self.assertIn("-SkipBackgroundFocus", command)
         self.assertIn("-UseWindowMessage", command)
+
+    def test_rrapicoord_reference_uses_robust_capture_helper(self) -> None:
+        captured = {}
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            reference = temp_path / "rift-api-reference-currentpid-1234.json"
+            reference.write_text(
+                json.dumps(
+                    {
+                        "source": "rrapicoord1-memory-scan",
+                        "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0, "capturedAtUtc": "2026-05-13T01:00:00Z"},
+                        "processId": 1234,
+                        "targetWindowHandle": "0xABC",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_command(command, cwd, timeout_seconds):  # noqa: ANN001
+                captured["command"] = command
+                captured["timeout_seconds"] = timeout_seconds
+                return {
+                    "exitCode": 0,
+                    "timedOut": False,
+                    "stdout": json.dumps({"Status": "captured", "ReferenceFile": str(reference)}),
+                    "stderr": "",
+                }
+
+            original = sequence.run_command
+            try:
+                sequence.run_command = fake_run_command
+                loaded, reference_path, envelope = sequence.capture_rrapicoord_reference(
+                    Path("C:/repo"),
+                    args(
+                        pid=1234,
+                        hwnd="0xABC",
+                        reference_scan_context_bytes=4096,
+                        reference_max_hits=512,
+                        reference_scan_attempts=5,
+                        reference_scan_retry_delay_milliseconds=1500,
+                        reference_tolerance=0.25,
+                        reference_timeout_seconds=45,
+                    ),
+                    temp_path,
+                )
+            finally:
+                sequence.run_command = original
+
+            self.assertEqual(reference_path, reference.resolve())
+            self.assertEqual(loaded["source"], "rrapicoord1-memory-scan")
+            self.assertEqual(envelope["exitCode"], 0)
+            command = captured["command"]
+            self.assertIn("capture-rift-api-reference-coordinate.ps1", " ".join(command))
+            self.assertIn("-ProcessId", command)
+            self.assertIn("1234", command)
+            self.assertIn("-TargetWindowHandle", command)
+            self.assertIn("0xABC", command)
+            self.assertIn("-ScanContextBytes", command)
+            self.assertIn("4096", command)
+            self.assertIn("-MaxHits", command)
+            self.assertIn("512", command)
+            self.assertIn("-ScanAttempts", command)
+            self.assertIn("5", command)
+            self.assertIn("-ScanRetryDelayMilliseconds", command)
+            self.assertIn("1500", command)
+            self.assertIn("-Json", command)
+
+    def test_rrapicoord_reference_failure_preserves_command_envelope(self) -> None:
+        captured = {}
+
+        def fake_run_command(command, cwd, timeout_seconds):  # noqa: ANN001
+            captured["command"] = command
+            return {
+                "args": command,
+                "cwd": str(cwd),
+                "exitCode": None,
+                "timedOut": True,
+                "stdout": "",
+                "stderr": "",
+            }
+
+        original = sequence.run_command
+        try:
+            sequence.run_command = fake_run_command
+            with self.assertRaises(sequence.CommandEnvelopeError) as context:
+                sequence.capture_rrapicoord_reference(
+                    Path("C:/repo"),
+                    args(
+                        pid=1234,
+                        hwnd="0xABC",
+                        reference_scan_context_bytes=4096,
+                        reference_max_hits=512,
+                        reference_scan_attempts=5,
+                        reference_scan_retry_delay_milliseconds=1500,
+                        reference_tolerance=0.25,
+                        reference_timeout_seconds=45,
+                    ),
+                    Path("C:/out"),
+                )
+        finally:
+            sequence.run_command = original
+
+        self.assertIn("reference_capture_failed: source=rrapicoord", str(context.exception))
+        self.assertTrue(context.exception.envelope["timedOut"])
+        self.assertEqual(context.exception.envelope["args"], captured["command"])
+        compact = sequence.compact_envelope(context.exception.envelope, "reference:baseline")
+        self.assertEqual(compact["stage"], "reference:baseline")
+        self.assertIn("capture-rift-api-reference-coordinate.ps1", " ".join(compact["args"]))
 
 
 if __name__ == "__main__":
