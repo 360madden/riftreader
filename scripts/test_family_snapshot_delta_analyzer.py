@@ -22,6 +22,8 @@ def default_args() -> argparse.Namespace:
         max_abs_coordinate=100000.0,
         max_candidate_starts_per_segment=250000,
         max_candidates=1000,
+        passive_stable_tolerance=0.01,
+        passive_reference_tolerance=0.25,
         top=100,
     )
 
@@ -49,6 +51,11 @@ class FamilySnapshotDeltaAnalyzerTests(unittest.TestCase):
 
             self.assertEqual(summary["status"], "blocked")
             self.assertIn("blocked-no-displaced-pose", summary["blockers"])
+            self.assertEqual(summary["analysis"]["passiveStabilityCandidateCount"], 2)
+            best = summary["analysis"]["bestCandidate"]
+            self.assertEqual(best["candidateKind"], "passive-stability-near-reference")
+            self.assertEqual(best["passiveMaxValueDrift"], 0.0)
+            self.assertFalse(best["promotionEligible"])
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ DEFAULT_MIN_API_PLANAR_DELTA = 0.05
 DEFAULT_MAX_ABS_COORDINATE = 100000.0
 DEFAULT_MAX_CANDIDATE_STARTS_PER_SEGMENT = 250000
 DEFAULT_TOP = 100
+DEFAULT_PASSIVE_STABLE_TOLERANCE = 0.01
+DEFAULT_PASSIVE_REFERENCE_TOLERANCE = 0.25
 
 
 def utc_iso() -> str:
@@ -165,6 +167,10 @@ def plausible_coordinate(value: dict[str, float], reference: dict[str, float], a
     )
 
 
+def near_reference(value: dict[str, float], reference: dict[str, float], tolerance: float) -> bool:
+    return all(abs(value[axis] - reference[axis]) <= tolerance for axis in ("x", "y", "z"))
+
+
 def decode_vec3(data: bytes, offset: int, axis_order: str) -> dict[str, float] | None:
     try:
         raw = struct.unpack_from("<fff", data, offset)
@@ -216,6 +222,15 @@ def score_candidate(candidate: dict[str, Any]) -> float:
         + (int(candidate["passiveNoiseByteOverlap"]) * 0.05),
         6,
     )
+
+
+def candidate_error_value(candidate: dict[str, Any]) -> float:
+    tracking_error = candidate.get("trackingError") if isinstance(candidate.get("trackingError"), dict) else {}
+    for key in ("maxAbs", "spatial", "planar"):
+        value = tracking_error.get(key)
+        if value is not None:
+            return float(value)
+    return float(candidate.get("passiveMaxValueDrift") or candidate.get("baselineMaxAbsDelta") or 0.0)
 
 
 def build_candidate(
@@ -274,6 +289,82 @@ def build_candidate(
     return candidate
 
 
+def score_passive_candidate(candidate: dict[str, Any]) -> float:
+    return round(
+        float(candidate["baselineMaxAbsDelta"])
+        + float(candidate["passiveMaxAbsDelta"])
+        + float(candidate["passiveMaxValueDrift"])
+        + (int(candidate["passiveNoiseByteOverlap"]) * 0.05),
+        6,
+    )
+
+
+def build_passive_candidate(
+    *,
+    base_address: int,
+    offset: int,
+    segment: dict[str, Any],
+    axis_order: str,
+    baseline_label: str,
+    baseline_ref: dict[str, float],
+    baseline_value: dict[str, float],
+    passive_observations: list[dict[str, Any]],
+    passive_noise: set[int],
+) -> dict[str, Any]:
+    absolute = base_address + offset
+    passive_values = [observation["value"] for observation in passive_observations]
+    passive_refs = [observation["reference"] for observation in passive_observations]
+    passive_overlap = sum(1 for pos in range(offset, offset + 12) if pos in passive_noise)
+    baseline_max_abs = max(abs(baseline_value[axis] - baseline_ref[axis]) for axis in ("x", "y", "z"))
+    passive_max_abs = max(
+        max(abs(value[axis] - reference[axis]) for axis in ("x", "y", "z"))
+        for value, reference in zip(passive_values, passive_refs, strict=True)
+    )
+    passive_max_drift = max(
+        max(abs(value[axis] - baseline_value[axis]) for axis in ("x", "y", "z"))
+        for value in passive_values
+    )
+    candidate = {
+        "candidateId": f"snapshot-passive-stable-{absolute:X}-{axis_order}",
+        "candidateKind": "passive-stability-near-reference",
+        "address": absolute,
+        "addressHex": format_hex(absolute),
+        "segmentBaseHex": format_hex(base_address),
+        "segmentOffset": offset,
+        "segmentOffsetHex": format_hex(offset),
+        "rangeRank": segment.get("rangeRank"),
+        "rangeSource": segment.get("rangeSource"),
+        "rangeLabel": segment.get("rangeLabel"),
+        "familyBaseHex": format_hex(absolute & ~0xFFFFF),
+        "pageHex": format_hex(absolute & ~0xFFF),
+        "residueMod4": absolute % 4,
+        "residueMod16Hex": format_hex(absolute % 16),
+        "residueMod48Hex": format_hex(absolute % 48),
+        "residueMod256Hex": format_hex(absolute % 256),
+        "axisOrder": axis_order,
+        "baselinePose": baseline_label,
+        "baselineValue": baseline_value,
+        "baselineReference": baseline_ref,
+        "passiveObservations": passive_observations,
+        "passivePoseCount": len(passive_observations),
+        "baselineMaxAbsDelta": baseline_max_abs,
+        "passiveMaxAbsDelta": passive_max_abs,
+        "passiveMaxValueDrift": passive_max_drift,
+        "passiveNoiseByteOverlap": passive_overlap,
+        "stableAcrossPassive": passive_overlap == 0,
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "notMovementProofBecause": [
+            "no displaced pose",
+            "no API-vs-memory movement delta",
+            "no static chain/root provenance",
+            "no ProofOnly pass",
+        ],
+    }
+    candidate["score"] = score_passive_candidate(candidate)
+    return candidate
+
+
 def summarize_families(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     families: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for candidate in candidates:
@@ -287,7 +378,7 @@ def summarize_families(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
         residue_mod_16 = Counter(str(row["residueMod16Hex"]) for row in rows)
         residue_mod_48 = Counter(str(row["residueMod48Hex"]) for row in rows)
         residue_mod_256 = Counter(str(row["residueMod256Hex"]) for row in rows)
-        best = min(rows, key=lambda item: (float(item["score"]), float(item["trackingError"]["maxAbs"]), int(item["passiveNoiseByteOverlap"])))
+        best = min(rows, key=lambda item: (float(item["score"]), candidate_error_value(item), int(item["passiveNoiseByteOverlap"])))
         summaries.append(
             {
                 "familyBaseHex": family,
@@ -298,8 +389,10 @@ def summarize_families(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
                     "addressHex": best["addressHex"],
                     "axisOrder": best["axisOrder"],
                     "score": best["score"],
-                    "trackingErrorMaxAbs": best["trackingError"]["maxAbs"],
+                    "trackingErrorMaxAbs": best.get("trackingError", {}).get("maxAbs") if isinstance(best.get("trackingError"), dict) else None,
+                    "passiveMaxValueDrift": best.get("passiveMaxValueDrift"),
                     "passiveNoiseByteOverlap": best["passiveNoiseByteOverlap"],
+                    "candidateKind": best.get("candidateKind", "delta-tracking"),
                 },
                 "commonAddressDeltaHex": format_hex(gap_counts.most_common(1)[0][0]) if gap_counts else None,
                 "commonAddressDeltaCount": gap_counts.most_common(1)[0][1] if gap_counts else 0,
@@ -310,6 +403,137 @@ def summarize_families(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
         )
 
     return sorted(summaries, key=lambda item: (float(item["bestCandidate"]["score"]), -int(item["candidateCount"])))
+
+
+def build_passive_stability_candidates(
+    *,
+    manifest_path: Path,
+    baseline_pose: dict[str, Any],
+    passive_poses: list[dict[str, Any]],
+    baseline_ref: dict[str, float],
+    axis_orders: list[str],
+    args: argparse.Namespace,
+    summary: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    baseline_segments = {segment_key(segment): segment for segment in baseline_pose.get("segments", [])}
+    passive_by_key = {
+        key: [
+            (pose, segment)
+            for pose in passive_poses
+            for segment in pose.get("segments", [])
+            if segment_key(segment) == key
+        ]
+        for key in baseline_segments
+    }
+    candidates: list[dict[str, Any]] = []
+    segment_summaries: list[dict[str, Any]] = []
+
+    if not passive_poses:
+        summary["warnings"].append("passive-stability-skipped-no-passive-pose")
+        return candidates, segment_summaries
+
+    for key, base_segment in baseline_segments.items():
+        base_data = read_segment_bytes(manifest_path, base_segment)
+        base_addr = segment_base(base_segment)
+        passive_noise: set[int] = set()
+        passive_changed_total = 0
+        passive_segments = passive_by_key.get(key, [])
+        passive_payloads: list[tuple[str, dict[str, float], bytes]] = []
+
+        for passive_pose, passive_segment in passive_segments:
+            passive_label = str(passive_pose.get("label") or "passive")
+            passive_ref = pose_reference(passive_pose or {})
+            if passive_ref is None:
+                summary["warnings"].append(f"passive-reference-missing:{passive_label}")
+                continue
+            passive_data = read_segment_bytes(manifest_path, passive_segment)
+            if len(passive_data) != len(base_data):
+                summary["warnings"].append(f"passive-segment-size-mismatch:{key}")
+                continue
+            changes = changed_offsets(base_data, passive_data)
+            passive_changed_total += len(changes)
+            passive_noise.update(changes)
+            passive_payloads.append((passive_label, passive_ref, passive_data))
+
+        if not passive_payloads:
+            continue
+
+        scanned_starts = 0
+        truncated = False
+        limit = max(0, len(base_data) - 12)
+        for offset in range(0, limit + 1):
+            if args.candidate_scan_stride != 1 and offset % args.candidate_scan_stride != 0:
+                continue
+            scanned_starts += 1
+            if scanned_starts > args.max_candidate_starts_per_segment:
+                truncated = True
+                break
+            for axis_order in axis_orders:
+                baseline_value = decode_vec3(base_data, offset, axis_order)
+                if (
+                    baseline_value is None
+                    or not plausible_coordinate(baseline_value, baseline_ref, args)
+                    or not near_reference(baseline_value, baseline_ref, args.passive_reference_tolerance)
+                ):
+                    continue
+                observations: list[dict[str, Any]] = []
+                stable = True
+                for passive_label, passive_ref, passive_data in passive_payloads:
+                    passive_value = decode_vec3(passive_data, offset, axis_order)
+                    if (
+                        passive_value is None
+                        or not plausible_coordinate(passive_value, passive_ref, args)
+                        or not near_reference(passive_value, passive_ref, args.passive_reference_tolerance)
+                    ):
+                        stable = False
+                        break
+                    max_drift = max(abs(passive_value[axis] - baseline_value[axis]) for axis in ("x", "y", "z"))
+                    if max_drift > args.passive_stable_tolerance:
+                        stable = False
+                        break
+                    observations.append(
+                        {
+                            "pose": passive_label,
+                            "reference": passive_ref,
+                            "value": passive_value,
+                            "maxDriftFromBaseline": max_drift,
+                        }
+                    )
+                if not stable:
+                    continue
+                candidates.append(
+                    build_passive_candidate(
+                        base_address=base_addr,
+                        offset=offset,
+                        segment=base_segment,
+                        axis_order=axis_order,
+                        baseline_label=str(baseline_pose.get("label") or "baseline"),
+                        baseline_ref=baseline_ref,
+                        baseline_value=baseline_value,
+                        passive_observations=observations,
+                        passive_noise=passive_noise,
+                    )
+                )
+
+        if truncated:
+            summary["warnings"].append(f"passive-candidate-starts-truncated:{key}:{args.max_candidate_starts_per_segment}")
+
+        segment_summaries.append(
+            {
+                "segmentKey": key,
+                "baseHex": format_hex(base_addr),
+                "rangeRank": base_segment.get("rangeRank"),
+                "rangeSource": base_segment.get("rangeSource"),
+                "rangeLabel": base_segment.get("rangeLabel"),
+                "sizeBytes": len(base_data),
+                "passiveChangedBytes": passive_changed_total,
+                "passiveNoiseByteCount": len(passive_noise),
+                "candidateStartsScanned": min(scanned_starts, args.max_candidate_starts_per_segment),
+                "tooNoisyForFullPassiveCandidateScan": truncated,
+            }
+        )
+
+    return candidates, segment_summaries
 
 
 def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argparse.Namespace) -> tuple[dict[str, Any], Path, Path, Path, Path, Path]:
@@ -381,24 +605,76 @@ def analyze_manifest(manifest_path: Path, output_root: Path | None, args: argpar
         summary["blockers"].append("blocked-no-displaced-pose")
 
     if summary["blockers"]:
+        passive_candidates: list[dict[str, Any]] = []
+        passive_segment_summaries: list[dict[str, Any]] = []
+        families: list[dict[str, Any]] = []
+        if baseline_ref is not None and not displaced_poses:
+            axis_orders = [order.strip().lower() for order in str(args.axis_orders).split(",") if order.strip()]
+            passive_candidates, passive_segment_summaries = build_passive_stability_candidates(
+                manifest_path=manifest_path,
+                baseline_pose=baseline_pose,
+                passive_poses=passive_poses,
+                baseline_ref=baseline_ref,
+                axis_orders=axis_orders,
+                args=args,
+                summary=summary,
+            )
+            passive_candidates = sorted(
+                passive_candidates,
+                key=lambda item: (
+                    float(item["score"]),
+                    int(item["passiveNoiseByteOverlap"]),
+                    float(item["passiveMaxValueDrift"]),
+                    int(item["address"]),
+                ),
+            )[: args.max_candidates]
+            families = summarize_families(passive_candidates)
+
         write_json(
             candidates_json_path,
             {
                 "schemaVersion": SCHEMA_VERSION,
-                "mode": "riftreader-family-snapshot-delta-candidates",
+                "mode": "riftreader-family-snapshot-passive-stability-candidates"
+                if passive_candidates
+                else "riftreader-family-snapshot-delta-candidates",
                 "generatedAtUtc": utc_iso(),
                 "processId": manifest.get("processId"),
                 "targetWindowHandle": manifest.get("targetWindowHandle"),
-                "candidateCount": 0,
-                "candidates": [],
+                "candidateCount": len(passive_candidates),
+                "candidateOnly": True,
+                "promotionEligible": False,
+                "candidates": passive_candidates,
             },
         )
-        write_jsonl(candidates_path, [])
-        write_json(families_path, {"schemaVersion": SCHEMA_VERSION, "families": []})
+        write_jsonl(candidates_path, passive_candidates)
+        write_json(
+            families_path,
+            {
+                "schemaVersion": SCHEMA_VERSION,
+                "generatedAtUtc": utc_iso(),
+                "familyCount": len(families),
+                "families": families,
+            },
+        )
         summary["status"] = "blocked"
-        summary["next"]["recommendedAction"] = "Capture a baseline pose and at least one manually displaced pose, then rerun offline delta analysis."
+        summary["analysis"].update(
+            {
+                "segmentCount": len(passive_segment_summaries),
+                "candidateCount": len(passive_candidates),
+                "familyCount": len(families),
+                "passiveStabilityCandidateCount": len(passive_candidates),
+                "bestCandidate": passive_candidates[0] if passive_candidates else None,
+                "topFamily": families[0] if families else None,
+                "segments": passive_segment_summaries[: args.top],
+            }
+        )
+        summary["next"]["recommendedAction"] = (
+            "Use passive-stability candidates only as family-context seeds; capture a displaced pose for offline delta proof."
+            if passive_candidates
+            else "Capture a baseline pose and at least one manually displaced pose, then rerun offline delta analysis."
+        )
         write_json(summary_path, summary)
-        markdown_path.write_text(render_markdown(summary, []), encoding="utf-8")
+        markdown_path.write_text(render_markdown(summary, families[: args.top]), encoding="utf-8")
         return summary, summary_path, markdown_path, candidates_json_path, candidates_path, families_path
 
     baseline_segments = {segment_key(segment): segment for segment in baseline_pose.get("segments", [])}
@@ -671,6 +947,8 @@ def main() -> int:
     parser.add_argument("--max-abs-coordinate", type=float, default=DEFAULT_MAX_ABS_COORDINATE)
     parser.add_argument("--max-candidate-starts-per-segment", type=int, default=DEFAULT_MAX_CANDIDATE_STARTS_PER_SEGMENT)
     parser.add_argument("--max-candidates", type=int, default=1000)
+    parser.add_argument("--passive-stable-tolerance", type=float, default=DEFAULT_PASSIVE_STABLE_TOLERANCE)
+    parser.add_argument("--passive-reference-tolerance", type=float, default=DEFAULT_PASSIVE_REFERENCE_TOLERANCE)
     parser.add_argument("--top", type=int, default=DEFAULT_TOP)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--self-test-no-displaced", action="store_true")
