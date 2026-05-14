@@ -1,6 +1,6 @@
 # RiftReader Screen Capture App Plan
 
-**Status:** planning artifact for later coding resume  
+**Status:** active implementation artifact for later coding resume
 **Created:** 2026-05-14  
 **Scope:** `tools/rift-window-capture` and repo-owned capture wrappers/docs  
 **Current target stack:** C# / `.NET 10` low-level capture core, Python orchestration wrapper, thin `.cmd` or legacy `.ps1` convenience launchers only
@@ -10,11 +10,13 @@
 ## ✅ Implementation progress — 2026-05-14
 
 The first implementation slice is now live-validated for exact-HWND
-full-window capture.
+full-window capture, and the capture code has been split out of the original
+monolithic `Program.cs`.
 
 | Item | Status | Evidence |
 |---|---|---|
-| C#/.NET 10 core | Implemented | `tools/rift-window-capture/Program.cs` |
+| C#/.NET 10 core | Implemented | Thin dispatcher in `tools/rift-window-capture/Program.cs`; capture logic split under `Capture/`, `Backends/`, `Frames/`, `Targeting/`, `Artifacts/`, and related folders |
+| Modular source layout | Implemented | `Program.cs` is now CLI dispatch only; reusable capture/report/artifact/backend code lives in focused C# files |
 | Exact `--hwnd` targeting | Implemented | Safe invalid-HWND blocker tests plus live HWND `0xC0994` capture |
 | Process-start validation | Implemented | `--expected-process-start-utc` matched `2026-05-13T16:17:56.2083705Z` |
 | `--output-root` bundle | Implemented | Writes `manifest.json`, `logs/run.jsonl`, `summary.md`, and PNG |
@@ -24,6 +26,7 @@ full-window capture.
 | Automated CLI tests | Added | `python scripts\test_rift_window_capture_cli.py` |
 | Latest live capture bundle | Passed | `scripts/captures/rift-window-capture-live-exact-hwnd-20260514-031455-830` |
 | Latest benchmark bundle | Passed | `scripts/captures/rift-window-capture-live-benchmark-20260514-032103-202` |
+| Latest modular smoke bundle | Passed | `scripts/captures/rift-window-capture-modular-smoke-20260514-033313-843` |
 
 Safety boundary remained clean: no movement, no game input, no native
 screenshot key, no CE, and no x64dbg.
@@ -89,6 +92,11 @@ especially from GPL projects, without license review.
 ---
 
 ## 🧱 Proposed code organization
+
+Current implementation note: the 2026-05-14 modular split keeps the top-level
+`Program.cs` as a thin command dispatcher, with the first-stage modules already
+split into focused folders. The deeper target layout below remains the
+direction for future backend/frame/crop/quality expansion.
 
 Target directory:
 

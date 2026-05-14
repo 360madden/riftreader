@@ -1,0 +1,17 @@
+global using System.Diagnostics;
+global using System.Drawing;
+global using System.Drawing.Imaging;
+global using System.Globalization;
+global using System.Runtime.InteropServices;
+global using System.Text;
+global using System.Text.Json;
+global using System.Text.Json.Serialization;
+global using SharpGen.Runtime;
+global using Vortice.Direct3D;
+global using Vortice.Direct3D11;
+global using Vortice.DXGI;
+global using WinRT;
+global using Windows.Graphics;
+global using Windows.Graphics.Capture;
+global using Windows.Graphics.DirectX;
+global using WgiD3D = Windows.Graphics.DirectX.Direct3D11;
