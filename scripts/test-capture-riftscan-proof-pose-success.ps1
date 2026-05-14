@@ -233,6 +233,12 @@ exit 0
     Assert-Equal -Actual $summary.BestReferenceMatch.CandidateId -Expected 'fixture-candidate-000001' -Message 'Best reference match should be preserved.'
     Assert-True -Condition ($summaryJson -match '"RecordedAtUtc":\s*"2026-05-07T04:00:01.0000000Z"') -Message 'Wrapper JSON should preserve readback timestamps as ISO UTC strings.'
     Assert-Equal -Actual (ConvertTo-TestUtcString -Value $summary.CurrentCoordinate.RecordedAtUtc) -Expected '2026-05-07T04:00:01.0000000Z' -Message 'Current coordinate should be copied from readback summary.'
+    Assert-True -Condition ($summary.Commands.Reference.Arguments -contains '-ScanContextBytes') -Message 'Reference capture should receive robust scan context control.'
+    Assert-True -Condition ($summary.Commands.Reference.Arguments -contains '4096') -Message 'Reference capture should default to a wider RRAPICOORD scan context.'
+    Assert-True -Condition ($summary.Commands.Reference.Arguments -contains '-MaxHits') -Message 'Reference capture should receive robust max-hit control.'
+    Assert-True -Condition ($summary.Commands.Reference.Arguments -contains '512') -Message 'Reference capture should default to enough RRAPICOORD scan hits for live-marker capture.'
+    Assert-True -Condition ($summary.Commands.Reference.Arguments -contains '-ScanAttempts') -Message 'Reference capture should receive retry control.'
+    Assert-True -Condition ($summary.Commands.Reference.Arguments -contains '5') -Message 'Reference capture should default to repeated RRAPICOORD capture attempts.'
     Assert-True -Condition ($summary.Commands.Readback.Arguments -contains '-ReferenceFile') -Message 'Readback should receive -ReferenceFile on reference success.'
     Assert-Equal -Actual $summary.Commands.Readback.ExitCode -Expected 0 -Message 'Readback command exit code should be preserved.'
 

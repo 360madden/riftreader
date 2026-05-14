@@ -10,6 +10,10 @@ param(
     [string]$PoseLabel = 'pose',
     [double]$ReferenceTolerance = 0.25,
     [int]$ReferenceMaxAgeSeconds = 120,
+    [int]$ReferenceScanContextBytes = 4096,
+    [int]$ReferenceMaxHits = 512,
+    [int]$ReferenceScanAttempts = 5,
+    [int]$ReferenceScanRetryDelayMilliseconds = 1500,
     [int]$ReadbackSampleCount = 4,
     [int]$ReadbackIntervalMilliseconds = 100,
     [int]$TopReferenceMatches = 5,
@@ -414,6 +418,10 @@ if ($ReferenceMaxAgeSeconds -lt 0 -or $ReadbackSampleCount -le 0 -or $ReadbackIn
     throw "ReferenceMaxAgeSeconds must be zero or greater; ReadbackSampleCount and TopReferenceMatches must be greater than zero; ReadbackIntervalMilliseconds must be zero or greater."
 }
 
+if ($ReferenceScanContextBytes -le 0 -or $ReferenceMaxHits -le 0 -or $ReferenceScanAttempts -le 0 -or $ReferenceScanRetryDelayMilliseconds -lt 0) {
+    throw "ReferenceScanContextBytes, ReferenceMaxHits, and ReferenceScanAttempts must be greater than zero; ReferenceScanRetryDelayMilliseconds must be zero or greater."
+}
+
 $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
@@ -435,6 +443,14 @@ if ([string]::IsNullOrWhiteSpace($ReferenceFile)) {
         $referenceOutputFile,
         '-ReferenceTolerance',
         $ReferenceTolerance.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-ScanContextBytes',
+        $ReferenceScanContextBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-MaxHits',
+        $ReferenceMaxHits.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-ScanAttempts',
+        $ReferenceScanAttempts.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+        '-ScanRetryDelayMilliseconds',
+        $ReferenceScanRetryDelayMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
         '-Json'
     )
     if ($ProcessId -gt 0) {
