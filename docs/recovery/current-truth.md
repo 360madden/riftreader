@@ -1,6 +1,6 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T21:03:41.227934Z._
+_Last updated: 2026-05-14T21:42:09.699992Z._
 
 ## Verdict
 
@@ -20,8 +20,8 @@ Movement/navigation is still subject to each profile's normal exact-target, proo
 | Module base | `0x7FF71CD90000` |
 | ProofOnly | `passed-proof-only` |
 | Movement sent by ProofOnly | `false` |
-| Current coordinate | `x=7327.9052734375, y=873.8124389648438, z=3050.353271484375` |
-| Coordinate recorded | `2026-05-14T21:03:40.2010424Z` |
+| Current coordinate | `x=7312.89453125, y=875.28466796875, z=3050.156005859375` |
+| Coordinate recorded | `2026-05-14T21:42:09.0269307Z` |
 
 ## Current proof anchor
 
@@ -32,9 +32,9 @@ Movement/navigation is still subject to each profile's normal exact-target, proo
 | Region base | `0x27236F46710` |
 | Region offset | `0x40` |
 | Axis order | `xyz` |
-| Support count | `2` |
-| Proof support count | `2` |
-| Latest max abs distance | `0.004802343749815918` |
+| Support count | `4` |
+| Proof support count | `4` |
+| Latest max abs distance | `0.007873437499256397` |
 | Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-23496-20260514-204452-232834\api-family-vec3-candidates.json` |
 | Candidate JSONL | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-23496-20260514-204452-232834\api-family-vec3-candidates.jsonl` |
 | Proof anchor cache | `C:\RIFT MODDING\RiftReader\scripts\captures\telemetry-proof-coord-anchor.json` |
@@ -56,12 +56,12 @@ Movement/navigation is still subject to each profile's normal exact-target, proo
 | Check | Result |
 |---|---|
 | Target-control | `passed-target-control` / `exact-hwnd-foreground` |
-| Target-control artifact | `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-6-pid23496-proofonly-20260514-170236\live-test-ProofOnly-20260514-210237\target-control\target-control-status.json` |
+| Target-control artifact | `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-8-pid23496-proofonly-20260514-174113\live-test-ProofOnly-20260514-214114\target-control\target-control-status.json` |
 | Readback assertion | `valid` |
 | Movement allowed by current proof pointer | `true` |
-| Readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-23496-readback-summary-20260514-170330.json` |
+| Readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-23496-readback-summary-20260514-174203.json` |
 | ProofOnly | `passed-proof-only` |
-| ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-6-pid23496-proofonly-20260514-170236\live-test-ProofOnly-20260514-210237\run-summary.json` |
+| ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\do-1-8-pid23496-proofonly-20260514-174113\live-test-ProofOnly-20260514-214114\run-summary.json` |
 | ProofOnly movement | `movementSent=false`, `movementAttempted=false` |
 | Cheat Engine | `not used` |
 | SavedVariables as live truth | `not used` |
@@ -81,5 +81,6 @@ Movement/navigation is still subject to each profile's normal exact-target, proo
 3. Use `ProofOnly` as the immediate freshness gate before movement work.
 4. Keep `api-family-hit-000005 @ 0x27236F46750` scoped to PID `23496` / HWND `0x2C1024` only.
 5. Do not reuse PID `16536` address `0x21487DF8F64` as current truth.
-6. Do not use x64dbg/static-chain unless the fast proof lane fails.
-7. Treat this proof pointer as stale after any client restart, PID/HWND change, logout/close, or failed freshness gate.
+6. If `ProofOnly` fails, start with current-PID family scan, not old-address probing.
+7. Do not use x64dbg/static-chain unless the fast proof lane fails.
+8. Treat this proof pointer as stale after any client restart, PID/HWND change, logout/close, or failed freshness gate.
