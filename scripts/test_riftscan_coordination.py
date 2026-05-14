@@ -123,7 +123,53 @@ class RiftScanCoordinationTests(unittest.TestCase):
                             "axis_order": "xyz",
                             "support_count": 2,
                             "best_max_abs_distance": 0.0001,
+                        },
+                        {
+                            "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
+                            "candidate_id": "family-snapshot-hit-000002",
+                            "base_address_hex": "0x30010000",
+                            "offset_hex": "0x90",
+                            "absolute_address_hex": "0x30010090",
+                            "axis_order": "xyz",
+                            "support_count": 2,
+                            "best_max_abs_distance": 0.00005,
                         }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_readback_proof(path: Path, *, candidate_file: Path, pid: int = 456, hwnd: str = "0xDEF") -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "ProcessId": pid,
+                    "TargetWindowHandle": hwnd,
+                    "ProcessName": "rift_x64",
+                    "SourceCandidateFile": str(candidate_file),
+                    "ReferenceMatchCount": 1,
+                    "StableDecodedCandidateCount": 2,
+                    "MovementAllowed": False,
+                    "ProofAnchorStatus": "failed",
+                    "BestReferenceMatches": [
+                        {
+                            "CandidateId": "family-snapshot-hit-000002",
+                            "CandidateAddressHex": "0x30010090",
+                            "ReferenceMatchesReadback": True,
+                            "ReferenceMaxAbsDelta": 0.00005,
+                            "ReferencePlanarDistance": 0.00006,
+                            "ReferenceSpatialDistance": 0.00007,
+                            "StableAcrossReadbackSamples": True,
+                        },
+                        {
+                            "CandidateId": "family-snapshot-hit-000001",
+                            "CandidateAddressHex": "0x30000080",
+                            "ReferenceMatchesReadback": False,
+                            "ReferenceMaxAbsDelta": 0.25,
+                        },
                     ],
                 }
             ),
@@ -242,11 +288,20 @@ class RiftScanCoordinationTests(unittest.TestCase):
             )
             same_target = root / "scripts" / "captures" / "same-target-candidate-synth-demo" / "same-target-candidates.json"
             family_import = root / "scripts" / "captures" / "coordinate-family-snapshot-currentpid-456-demo" / "family-import-candidates.json"
+            proof = (
+                root
+                / "scripts"
+                / "captures"
+                / "riftscan-proof-pose-demo"
+                / "riftscan-riftreader-currentpid-456-readback-wrapper-summary-demo.json"
+            )
             self._write_riftreader_candidate(same_target)
             self._write_family_import_candidate(family_import)
+            self._write_readback_proof(proof, candidate_file=family_import)
             now = time.time()
             os.utime(same_target, (now - 10, now - 10))
             os.utime(family_import, (now, now))
+            os.utime(proof, (now, now))
 
             plan = build_coordination_plan(
                 repo_root=root,
@@ -260,6 +315,8 @@ class RiftScanCoordinationTests(unittest.TestCase):
             self.assertEqual(plan["status"], "ok")
             self.assertEqual(plan["selectedCandidate"]["source"], "latest-riftreader-family-import-candidate-file")
             self.assertEqual(plan["selectedCandidate"]["candidateFile"], str(family_import))
+            self.assertEqual(plan["selectedCandidate"]["candidateId"], "family-snapshot-hit-000002")
+            self.assertEqual(plan["selectedCandidate"]["proofEvidence"]["path"], str(proof))
             self.assertIn("-CandidateFile", plan["nextCommands"]["readOnlyProofPose"])
 
     def test_write_plan_refuses_to_write_inside_riftscan(self) -> None:

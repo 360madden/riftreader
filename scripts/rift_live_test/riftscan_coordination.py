@@ -184,6 +184,106 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
     return item
 
 
+def same_path(left: Any, right: Any) -> bool:
+    if not left or not right:
+        return False
+    try:
+        return Path(str(left)).resolve() == Path(str(right)).resolve()
+    except OSError:
+        return str(left).lower() == str(right).lower()
+
+
+def summarize_readback_proof(path: Path) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.exists(),
+        "lastWriteUtc": utc_from_mtime(path) if path.exists() else None,
+        "status": "missing",
+        "issues": [],
+    }
+    if not path.exists():
+        item["issues"].append("readback_proof_missing")
+        return item
+
+    try:
+        data = read_json_file(path)
+    except Exception as exc:  # noqa: BLE001 - artifact inspection should report bad files.
+        item["status"] = "unreadable"
+        item["issues"].append(f"readback_proof_unreadable:{type(exc).__name__}:{exc}")
+        return item
+
+    best_matches = data.get("BestReferenceMatches")
+    if not isinstance(best_matches, list):
+        best = data.get("BestReferenceMatch")
+        best_matches = [best] if isinstance(best, dict) else []
+    reference_match_count = coerce_int(data.get("ReferenceMatchCount")) or 0
+    true_matches = [
+        match
+        for match in best_matches
+        if isinstance(match, dict) and bool(match.get("ReferenceMatchesReadback"))
+    ]
+    selected = true_matches[0] if true_matches else (best_matches[0] if best_matches else {})
+    if not isinstance(selected, dict):
+        selected = {}
+    status = "reference-match" if reference_match_count > 0 and bool(selected.get("ReferenceMatchesReadback")) else "no-reference-match"
+    item.update(
+        {
+            "status": status,
+            "processId": coerce_int(data.get("ProcessId")),
+            "targetWindowHandle": normalize_hwnd(data.get("TargetWindowHandle")),
+            "processName": data.get("ProcessName"),
+            "sourceCandidateFile": data.get("SourceCandidateFile"),
+            "referenceMatchCount": reference_match_count,
+            "stableDecodedCandidateCount": coerce_int(data.get("StableDecodedCandidateCount")),
+            "proofAnchorStatus": data.get("ProofAnchorStatus"),
+            "movementAllowed": bool(data.get("MovementAllowed")),
+            "bestReferenceMatch": {
+                "candidateId": selected.get("CandidateId"),
+                "candidateAddressHex": selected.get("CandidateAddressHex"),
+                "referenceMatchesReadback": bool(selected.get("ReferenceMatchesReadback")),
+                "referenceMaxAbsDelta": selected.get("ReferenceMaxAbsDelta"),
+                "referencePlanarDistance": selected.get("ReferencePlanarDistance"),
+                "referenceSpatialDistance": selected.get("ReferenceSpatialDistance"),
+                "stableAcrossReadbackSamples": selected.get("StableAcrossReadbackSamples"),
+            },
+        }
+    )
+    if status != "reference-match":
+        item["issues"].append("readback_proof_no_reference_match")
+    return item
+
+
+def find_riftreader_readback_proofs(
+    repo_root: Path,
+    process_id: int | None,
+    target_window_handle: str | None,
+    limit: int,
+) -> list[Path]:
+    captures = repo_root / "scripts" / "captures"
+    if not captures.exists():
+        return []
+    files = sorted(
+        captures.glob("riftscan-proof-pose-*/riftscan-riftreader-currentpid-*-readback-wrapper-summary-*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    expected_hwnd = normalize_hwnd(target_window_handle)
+    selected: list[Path] = []
+    for path in files:
+        try:
+            data = read_json_file(path)
+        except Exception:  # noqa: BLE001 - unreadable files are ignored during discovery.
+            continue
+        if process_id is not None and coerce_int(data.get("ProcessId")) != process_id:
+            continue
+        if expected_hwnd and normalize_hwnd(data.get("TargetWindowHandle")) != expected_hwnd:
+            continue
+        selected.append(path)
+        if len(selected) >= max(1, limit):
+            break
+    return selected
+
+
 def summarize_consumer_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     artifacts = candidate.get("source_artifacts")
     return {
@@ -429,6 +529,7 @@ def choose_candidate(
     pointer_match_summary: dict[str, Any] | None,
     latest_matches: list[dict[str, Any]],
     latest_riftreader_candidates: list[dict[str, Any]],
+    latest_riftreader_readback_proofs: list[dict[str, Any]],
     target_has_mismatch: bool,
 ) -> dict[str, Any]:
     source = pointer_summary.get("candidateSource")
@@ -473,6 +574,29 @@ def choose_candidate(
             if isinstance(candidate, dict) and candidate.get("schemaSupported")
         ]
         if candidates:
+            proof = next(
+                (
+                    item
+                    for item in latest_riftreader_readback_proofs
+                    if item.get("status") == "reference-match"
+                    and same_path(item.get("sourceCandidateFile"), match.get("path"))
+                    and item.get("bestReferenceMatch", {}).get("candidateId")
+                ),
+                None,
+            )
+            proof_candidate_id = (
+                proof.get("bestReferenceMatch", {}).get("candidateId")
+                if isinstance(proof, dict)
+                else None
+            )
+            selected_candidate = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if proof_candidate_id and candidate.get("candidateId") == proof_candidate_id
+                ),
+                candidates[0],
+            )
             is_family_import = (
                 str(match.get("mode") or "") == "riftreader-current-pid-coordinate-family-import-candidates"
                 or str(match.get("path") or "").endswith("family-import-candidates.json")
@@ -484,7 +608,15 @@ def choose_candidate(
                     else "latest-riftreader-same-target-candidate-file"
                 ),
                 "candidateFile": match["path"],
-                "candidateId": candidates[0].get("candidateId"),
+                "candidateId": selected_candidate.get("candidateId"),
+                "proofEvidence": {
+                    "source": "latest-readback-reference-match",
+                    "path": proof.get("path"),
+                    "candidateId": proof_candidate_id,
+                    "candidateAddressHex": proof.get("bestReferenceMatch", {}).get("candidateAddressHex"),
+                    "referenceMaxAbsDelta": proof.get("bestReferenceMatch", {}).get("referenceMaxAbsDelta"),
+                    "referenceMatchCount": proof.get("referenceMatchCount"),
+                } if isinstance(proof, dict) else None,
                 "recommendedAction": (
                     "use-riftreader-family-import-candidate-file-read-only"
                     if is_family_import
@@ -564,6 +696,15 @@ def build_coordination_plan(
         summarize_match_file(path)
         for path in find_riftreader_candidate_files(repo_root, current_pid, max(1, limit))
     ]
+    latest_riftreader_readback_proofs = [
+        summarize_readback_proof(path)
+        for path in find_riftreader_readback_proofs(
+            repo_root,
+            current_pid,
+            target_window_handle,
+            max(1, limit),
+        )
+    ]
     if not latest_matches and not pointer_match_summary and not latest_riftreader_candidates:
         issues.append(f"no_riftscan_match_files_found:{riftscan_root}")
 
@@ -572,6 +713,7 @@ def build_coordination_plan(
         pointer_match_summary=pointer_match_summary,
         latest_matches=latest_matches,
         latest_riftreader_candidates=latest_riftreader_candidates,
+        latest_riftreader_readback_proofs=latest_riftreader_readback_proofs,
         target_has_mismatch=target_has_mismatch,
     )
     coordination_notes = build_coordination_notes(
@@ -609,6 +751,7 @@ def build_coordination_plan(
         "pointerMatchFile": pointer_match_summary,
         "latestRiftScanMatchFiles": latest_matches,
         "latestRiftReaderCandidateFiles": latest_riftreader_candidates,
+        "latestRiftReaderReadbackProofs": latest_riftreader_readback_proofs,
         "selectedCandidate": selection,
         "coordinationNotes": coordination_notes,
         "nextCommands": build_next_commands(
