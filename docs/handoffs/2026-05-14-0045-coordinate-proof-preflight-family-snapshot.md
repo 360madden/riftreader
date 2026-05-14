@@ -1,10 +1,10 @@
 # Coordinate proof preflight + broad family snapshot handoff
 
-_Last updated: 2026-05-14 01:18 UTC._
+_Last updated: 2026-05-14 01:27 UTC._
 
 ## Verdict
 
-Fresh RRAPICOORD reference was available for the 00:42 UTC readback, but the newest preflight is blocked again because no fresh reference surface is currently available. Movement remains blocked. The strongest candidate is still `family-snapshot-hit-000002` at `0x268E113FED0`; it matched the then-fresh RRAPICOORD reference in readback, but no static/module root, current proof-anchor gate, or fresh current reference exists yet.
+Fresh RRAPICOORD reference was available for the 00:42 UTC readback, but it is historical now. The newest preflight and RRAPICOORD diagnostics are blocked because no fresh reference surface is currently available. The latest RRAPICOORD scan artifacts hit source/error/static text only, not a live `RRAPICOORD1|...source=rift-api...x/y/z...savedVariablesUse=none` marker. Movement remains blocked. The strongest candidate is still `family-snapshot-hit-000002` at `0x268E113FED0`; it matched the then-fresh RRAPICOORD reference in readback, but no static/module root, current proof-anchor gate, or fresh current reference exists yet.
 
 ## Current target
 
@@ -39,12 +39,15 @@ Fresh RRAPICOORD reference was available for the 00:42 UTC readback, but the new
 | `scripts/captures/riftscan-milestone-review-20260514-010755.json` | Strategy gate remains `ready-for-read-only-proof`; selected candidate unchanged; movement remains false due stale proof pointer gate. |
 | `scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-011513-452096/summary.json` | Automated root-RVA sweep selector consumed the owner batch and selected `0` new sweeps; all `10` hints were already swept for the current target or old root-signature fields. |
 | `scripts/captures/coordinate-proof-preflight-20260514-011824-911933/summary.json` | Latest coordinate proof preflight blocked: ChromaLink stale/unhealthy, RRAPICOORD scan had no usable marker, previous RRAPICOORD reference too old. |
+| `scripts/captures/rrapicoord-scan-diagnostics-20260514-012713-317516/summary.json` | Read-only scan-artifact diagnostic over latest 3 RRAPICOORD scans: 29 hits loaded; 3 `RRAPICOORD1` text hits; 0 marker-like records; 0 usable markers. Inferred cause: source/error/static text only, no live source/view/coordinate fields. |
+| `scripts/captures/riftscan-milestone-review-20260514-012910.json` | Post-diagnostic strategy gate remains `ready-for-read-only-proof` and `movementAllowedByReview=false`; it does not override the stricter fresh-reference/preflight blocker. |
 
 ## Proven truth vs candidate-only
 
 | Item | Status |
 |---|---|
-| Fresh RRAPICOORD reference | Proven current reference surface for candidate scoring. |
+| Fresh RRAPICOORD reference | Historical 00:42 UTC scoring reference only; not current now. |
+| Current RRAPICOORD scan | Blocked: latest 3 scans have source/error/static `RRAPICOORD1` text only; no usable live marker. |
 | `0x268E113FED0` | Strong current candidate; stable same-pose memory/readback match. |
 | Static pointer chain | Not proven; pointer scan found no module/static root. |
 | Movement/navigation use | Blocked. |
@@ -60,7 +63,8 @@ Fresh RRAPICOORD reference was available for the 00:42 UTC readback, but the new
 - Added `scripts/pointer_owner_batch_inspector.py` and `scripts/rift_live_test/pointer_owner_batch_inspector.py` so owner/ref-storage batch analysis is repeatable instead of one-off. It reads pointer-family summaries, runs read-only owner inspections, ranks rows, extracts module-RVA hints, and writes durable JSON/Markdown summaries.
 - Added `scripts/root_signature_batch_sweep.py` and `scripts/rift_live_test/root_signature_batch_sweep.py` so module-RVA sweep selection is automated. It consumes owner-batch summaries, skips already-swept current-target RVAs and stale root-signature field RVAs, runs or dry-runs root sweeps, and writes durable JSON/Markdown summaries.
 - Updated `coordinate_proof_preflight.py` to promote explicit blocked child-command reasons into top-level blockers. Current benefit: `rrapicoord-no-usable-marker` is now visible at the top level instead of being obscured by the old stale-reference fallback.
+- Added `scripts/rrapicoord_scan_diagnostics.py` and `scripts/rift_live_test/rrapicoord_scan_diagnostics.py` so blocked RRAPICOORD scan artifacts can be diagnosed offline without rereading process memory, sending input, using CE, or attaching x64dbg.
 
 ## Resume prompt
 
-Resume in `C:\RIFT MODDING\RiftReader` on `main`. Read `docs/recovery/current-truth.md` and this handoff first. Continue from the current strongest candidate `family-snapshot-hit-000002` at `0x268E113FED0` using the readback artifact `scripts/captures/riftscan-proof-pose-20260514-004221/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-204222.json` as historical candidate evidence only. Movement remains blocked. Passive pointer/owner/module-hint sweeps are currently exhausted for this owner batch: `scripts/root_signature_batch_sweep.py` selected `0` new RVAs. The newest preflight `scripts/captures/coordinate-proof-preflight-20260514-011824-911933/summary.json` blocks because there is no fresh reference surface. Next best work is to restore/verify live reference freshness before any readback/proof or debugger access-chain tracing. Do not use stale PID `57656` proof anchors, old absolute pointers, old RRAPICOORD coordinates, or SavedVariables snapshots as current truth.
+Resume in `C:\RIFT MODDING\RiftReader` on `main`. Read `docs/recovery/current-truth.md` and this handoff first. Continue from the current strongest candidate `family-snapshot-hit-000002` at `0x268E113FED0` using the readback artifact `scripts/captures/riftscan-proof-pose-20260514-004221/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-204222.json` as historical candidate evidence only. Movement remains blocked. Passive pointer/owner/module-hint sweeps are currently exhausted for this owner batch: `scripts/root_signature_batch_sweep.py` selected `0` new RVAs. The newest preflight `scripts/captures/coordinate-proof-preflight-20260514-011824-911933/summary.json` blocks because there is no fresh reference surface. The newest RRAPICOORD diagnostic `scripts/captures/rrapicoord-scan-diagnostics-20260514-012713-317516/summary.json` shows the latest scans are source/error/static text only, with 0 marker-like records and 0 usable markers. Next best work is to restore/verify a true live reference surface before any readback/proof or debugger access-chain tracing. Do not use stale PID `57656` proof anchors, old absolute pointers, old RRAPICOORD coordinates, or SavedVariables snapshots as current truth.
