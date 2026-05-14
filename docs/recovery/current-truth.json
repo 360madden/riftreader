@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T04:07:32Z",
+  "updatedAtUtc": "2026-05-14T04:18:27Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -9,7 +9,7 @@
     "targetWindowHandle": "0xC0994",
     "processStartUtc": "2026-05-13T16:17:56.208370Z",
     "moduleBase": "0x7FF71CD90000",
-    "lastVerifiedUtc": "2026-05-14T03:29:15Z"
+    "lastVerifiedUtc": "2026-05-14T04:15:52.9724482Z"
   },
   "liveReferenceSurface": {
     "authoritative": "ReaderBridge_RRAPICOORD1",
@@ -139,7 +139,20 @@
     "latestDuplicateCopyOwnerBatchStatus": "passed",
     "latestDuplicateCopyOwnerInspectedCount": 36,
     "latestDuplicateCopyModuleRvaHintCount": 9,
-    "latestDuplicateCopyTopModuleRva": "0x2641E38"
+    "latestDuplicateCopyTopModuleRva": "0x2641E38",
+    "latestDuplicateCopyTopModuleRvaSweep": "scripts/captures/root-signature-module-hint-sweep-20260514-041048-549694/summary.json",
+    "latestDuplicateCopyTopModuleRvaSweepStatus": "passed",
+    "latestDuplicateCopyTopModuleRvaSweepModulePointerHitCount": 567,
+    "latestDuplicateCopyTopModuleRvaSweepNonZeroOwnerFieldCandidateCount": 0,
+    "latestDuplicateCopyTopModuleRvaSweepNonZeroParentSlotCandidateCount": 236,
+    "latestDuplicateCopyTopModuleRvaClassifier": "scripts/captures/root-signature-family-classifier-20260514-041059-384649/summary.json",
+    "latestDuplicateCopyTopModuleRvaClassifierPriorityParentLeadCount": 106,
+    "latestDuplicateCopyTopModuleRvaClassifierExportedPriorityParentLeadCount": 32,
+    "latestDuplicateCopyRootSignatureBatchSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-041136-003958/summary.json",
+    "latestDuplicateCopyRootSignatureBatchSweepStatus": "passed",
+    "latestDuplicateCopyRootSignatureBatchSelectedRvaCount": 6,
+    "latestDuplicateCopyRootSignatureBatchResultCount": 6,
+    "latestDuplicateCopyRootSignatureBatchConclusion": "selected module-hint sweeps stayed heap-only; no static root proven"
   },
   "staleOrInvalid": [
     {
@@ -185,7 +198,9 @@
     "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy",
     "displaced-pose or approved x64dbg/access evidence still missing; passive stability candidates are family-context seeds only and not movement proof",
     "passive-stability readback found three current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose movement-grade source",
-    "duplicate-copy pointer scan found heap/family owner hints but no module/static pointer hits; 0x2641E38 is candidate-only and not a proven static root"
+    "duplicate-copy pointer scan found heap/family owner hints but no module/static pointer hits; 0x2641E38 is candidate-only and not a proven static root",
+    "expanded passive duplicate-copy scan found 10 current reference-matching heap copies; displaced-pose/static-chain proof is still required to choose a movement-grade source",
+    "latest module-hint sweeps stayed heap-only with no static root; do not keep repeating the same module-RVA sweep pattern without new evidence"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -199,11 +214,11 @@
     "latestReferenceDriftedSnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-snapshot-summary.json",
     "latestReferenceDriftedReadback": "scripts/captures/riftscan-proof-pose-20260514-022841/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222855.json",
     "referenceDriftGuardSmokeTest": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/family-snapshot-summary.json",
-    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-034635.json",
+    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-041751.json",
     "latestStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
     "latestStableFamilyCandidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
     "latestStableFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json",
-    "latestMilestoneReviewMarkdown": "scripts/captures/riftscan-milestone-review-20260514-034635.md",
+    "latestMilestoneReviewMarkdown": "scripts/captures/riftscan-milestone-review-20260514-041751.md",
     "latestStableFamilyReference": "scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json",
     "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
     "latestPassedRrapicoordDiagnostic": "scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json",
@@ -237,9 +252,15 @@
     "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
     "latestDuplicateCopyDisambiguationPacket": "scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json",
     "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json",
-    "latestDuplicateCopyBootstrappedFamilySequencePlan": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-040711-152712/summary.json"
+    "latestDuplicateCopyBootstrappedFamilySequencePlan": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-040711-152712/summary.json",
+    "latestDuplicateCopyTopModuleRvaSweep": "scripts/captures/root-signature-module-hint-sweep-20260514-041048-549694/summary.json",
+    "latestDuplicateCopyTopModuleRvaClassifier": "scripts/captures/root-signature-family-classifier-20260514-041059-384649/summary.json",
+    "latestDuplicateCopyRootSignatureBatchSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-041136-003958/summary.json",
+    "latestDuplicateCopyPassiveFamilySnapshotSequence": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json",
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceDelta": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/delta-summary.json",
+    "latestDuplicateCopyPassiveFamilySnapshotReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json"
   },
-  "nextRecommendedAction": "Run a displaced-pose family snapshot sequence when a safe/manual displacement is available; the sequence helper now imports ranked duplicate-copy priors from current truth. Movement remains blocked until delta/static-chain proof and same-target ProofOnly pass.",
+  "nextRecommendedAction": "Capture a displaced-pose family snapshot sequence when safe/manual displacement is available; otherwise use approved x64dbg/access-chain evidence. Do not repeat heap-only module-RVA sweeps without new evidence. Movement remains blocked until delta/static-chain proof and same-target ProofOnly pass.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -391,6 +412,143 @@
       "providerWrites": false,
       "githubConnectorWrites": false
     },
-    "familySequenceImportsDuplicateCopyPriorsFromCurrentTruth": true
+    "familySequenceImportsDuplicateCopyPriorsFromCurrentTruth": true,
+    "latestDuplicateCopyPassiveFamilySnapshotSequence": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json",
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceStatus": "blocked_no_displaced_pose_candidate_only",
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceMovementSent": false,
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceTargetMemoryBytesRead": true,
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceCandidateCount": 14,
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceFamilyCount": 7,
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceTopFamily": {
+      "familyBaseHex": "0x268D5F00000",
+      "candidateCount": 4,
+      "addressCount": 4,
+      "bestCandidate": {
+        "candidateId": "snapshot-passive-stable-268D5F08ED0-xyz",
+        "addressHex": "0x268D5F08ED0",
+        "axisOrder": "xyz",
+        "score": 8.3e-05,
+        "trackingErrorMaxAbs": null,
+        "passiveMaxValueDrift": 0.0,
+        "passiveNoiseByteOverlap": 0,
+        "candidateKind": "passive-stability-near-reference"
+      },
+      "commonAddressDeltaHex": "0xED0",
+      "commonAddressDeltaCount": 1,
+      "residueMod16Counts": {
+        "0x0": 4
+      },
+      "residueMod48Counts": {
+        "0x0": 4
+      },
+      "residueMod256Counts": {
+        "0x70": 2,
+        "0xD0": 1,
+        "0x40": 1
+      }
+    },
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceDelta": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/delta-summary.json",
+    "latestDuplicateCopyPassiveFamilySnapshotSequenceCandidates": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/candidate-vec3.json",
+    "latestDuplicateCopyPassiveFamilySnapshotReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json",
+    "latestDuplicateCopyPassiveFamilySnapshotReadbackCandidateCount": 14,
+    "latestDuplicateCopyPassiveFamilySnapshotReadbackReferenceMatchCount": 10,
+    "latestDuplicateCopyPassiveFamilySnapshotReadbackStableDecodedCandidateCount": 14,
+    "latestDuplicateCopyPassiveFamilySnapshotReadbackCurrentMatches": [
+      {
+        "candidateId": "snapshot-passive-stable-268D4B5A500-xyz",
+        "addressHex": "0x268D4B5A500",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D4B6A660-xyz",
+        "addressHex": "0x268D4B6A660",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D50893D0-xyz",
+        "addressHex": "0x268D50893D0",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5A80730-xyz",
+        "addressHex": "0x268D5A80730",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5A87AF0-xyz",
+        "addressHex": "0x268D5A87AF0",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5EFAA20-xyz",
+        "addressHex": "0x268D5EFAA20",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5F64970-xyz",
+        "addressHex": "0x268D5F64970",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5F95570-xyz",
+        "addressHex": "0x268D5F95570",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D6095690-xyz",
+        "addressHex": "0x268D6095690",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D6096280-xyz",
+        "addressHex": "0x268D6096280",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      }
+    ],
+    "latestDuplicateCopyPassiveFamilySnapshotReadbackCurrentMatchAddresses": [
+      "0x268D4B5A500",
+      "0x268D4B6A660",
+      "0x268D50893D0",
+      "0x268D5A80730",
+      "0x268D5A87AF0",
+      "0x268D5EFAA20",
+      "0x268D5F64970",
+      "0x268D5F95570",
+      "0x268D6095690",
+      "0x268D6096280"
+    ],
+    "moduleHintSweepConclusion": "latest duplicate-owner module-RVA sweeps produced candidate parent leads only; no static root and no movement proof",
+    "latestMilestoneReviewAfterExpandedPassive": "scripts/captures/riftscan-milestone-review-20260514-041751.json",
+    "latestMilestoneReviewAfterExpandedPassiveStatus": "ready-for-read-only-proof"
   }
 }
