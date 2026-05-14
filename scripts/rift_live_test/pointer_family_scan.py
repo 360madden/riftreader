@@ -27,6 +27,7 @@ DEFAULT_CONTEXT_BYTES = 64
 DEFAULT_MAX_HITS = 64
 DEFAULT_DEPTH = 1
 DEFAULT_MAX_NEXT_TARGETS = 24
+DEFAULT_MAX_TOTAL_TARGETS = 96
 
 
 def utc_iso() -> str:
@@ -368,10 +369,17 @@ def run_scan(args: argparse.Namespace) -> dict[str, Any]:
 
     modules_doc = scan_module_list(reader_dll=reader_dll, pid=args.target_pid, raw_dir=raw_dir, timeout_seconds=args.timeout_seconds)
     modules = modules_doc.get("Modules") if isinstance(modules_doc.get("Modules"), list) else []
+    started = time.monotonic()
     scanned: set[int] = set()
     queue: deque[tuple[dict[str, Any], int]] = deque((target_item, 0) for target_item in targets)
     scan_summaries: list[dict[str, Any]] = []
     while queue:
+        if args.max_elapsed_seconds and time.monotonic() - started >= args.max_elapsed_seconds:
+            warnings.append(f"max-elapsed-seconds-reached:{args.max_elapsed_seconds}")
+            break
+        if args.max_total_targets and len(scanned) >= args.max_total_targets:
+            warnings.append(f"max-total-targets-reached:{args.max_total_targets}")
+            break
         target_item, depth = queue.popleft()
         address = int(target_item["address"])
         if address in scanned:
@@ -413,6 +421,14 @@ def run_scan(args: argparse.Namespace) -> dict[str, Any]:
     summary["status"] = "passed"
     summary["counts"]["scannedTargetCount"] = len(scan_summaries)
     summary["counts"]["queuedTargetCount"] = len(scanned)
+    summary["counts"]["remainingQueueCount"] = len(queue)
+    summary["limits"] = {
+        "depth": args.depth,
+        "maxNextTargets": args.max_next_targets,
+        "maxHits": args.max_hits,
+        "maxTotalTargets": args.max_total_targets,
+        "maxElapsedSeconds": args.max_elapsed_seconds,
+    }
     summary["rankedTargets"] = ranked
     summary["warnings"] = warnings
     summary["moduleList"] = {
@@ -443,6 +459,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--target-file", type=Path, default=None)
     parser.add_argument("--depth", type=int, default=DEFAULT_DEPTH)
     parser.add_argument("--max-next-targets", type=int, default=DEFAULT_MAX_NEXT_TARGETS)
+    parser.add_argument("--max-total-targets", type=int, default=DEFAULT_MAX_TOTAL_TARGETS)
+    parser.add_argument("--max-elapsed-seconds", type=float, default=0.0)
     parser.add_argument("--context-bytes", type=int, default=DEFAULT_CONTEXT_BYTES)
     parser.add_argument("--max-hits", type=int, default=DEFAULT_MAX_HITS)
     parser.add_argument("--timeout-seconds", type=int, default=60)

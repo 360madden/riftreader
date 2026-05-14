@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from rift_live_test.pointer_family_scan import module_for_address, parse_targets, rank_summaries, summarize_scan
+from rift_live_test.pointer_family_scan import build_parser, module_for_address, parse_targets, rank_summaries, summarize_scan
 
 
 class PointerFamilyScanTests(unittest.TestCase):
@@ -54,6 +54,23 @@ class PointerFamilyScanTests(unittest.TestCase):
         )
 
         self.assertEqual(ranked[0]["target"], "0x2")
+
+    def test_parser_has_runaway_breadth_limits(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--target-pid",
+                "123",
+                "--target-hwnd",
+                "0x456",
+                "--max-total-targets",
+                "12",
+                "--max-elapsed-seconds",
+                "30",
+            ]
+        )
+
+        self.assertEqual(args.max_total_targets, 12)
+        self.assertEqual(args.max_elapsed_seconds, 30)
 
 
 if __name__ == "__main__":
