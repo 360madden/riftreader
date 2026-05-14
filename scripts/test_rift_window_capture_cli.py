@@ -72,7 +72,7 @@ class RiftWindowCaptureCliTests(unittest.TestCase):
 
     def test_invalid_hwnd_writes_blocked_bundle_and_validates(self) -> None:
         output_root = unique_output_root("rift-window-capture-cli-test-invalid-hwnd")
-        result = run([str(EXE), "--hwnd", "0x1", "--output-root", str(output_root), "--json"])
+        result = run([str(EXE), "--hwnd", "0x1", "--output-root", str(output_root), "--emit-raw-bgra", "--json"])
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         report = json.loads(result.stdout)
         self.assertFalse(report["ok"])
@@ -84,6 +84,8 @@ class RiftWindowCaptureCliTests(unittest.TestCase):
         self.assertEqual(manifest["schema"], "rift-window-capture-manifest/v1")
         self.assertEqual(manifest["status"], "blocked")
         self.assertEqual(manifest["target"]["requestedHwnd"], "0x1")
+        self.assertIsNone(manifest["artifacts"]["fullWindowRaw"])
+        self.assertTrue((output_root / "raw").exists())
         self.assertFalse(manifest["safety"]["movementSent"])
         self.assertFalse(manifest["safety"]["inputSent"])
         self.assertTrue((output_root / "summary.md").exists())

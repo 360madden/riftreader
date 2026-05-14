@@ -1,6 +1,6 @@
 static class DesktopDuplicationCapture
 {
-    public static QualityReport CaptureNearestMonitor(D3DObjects d3d, IntPtr monitor, string output, int timeoutMs, int captureAttempts, bool emitPng)
+    public static QualityReport CaptureNearestMonitor(D3DObjects d3d, IntPtr monitor, string output, string? rawOutput, int timeoutMs, int captureAttempts, bool emitPng)
     {
         using IDXGIOutput1 output1 = FindOutputForMonitor(d3d.Device, monitor, out OutputDescription outputDescription);
         using IDXGIOutputDuplication duplication = output1.DuplicateOutput(d3d.Device);
@@ -23,7 +23,12 @@ static class DesktopDuplicationCapture
 
                 using ID3D11Texture2D desktopTexture = desktopResource.QueryInterface<ID3D11Texture2D>();
                 string attemptOutput = captureAttempts == 1 ? output : TextureSaver.CreateAttemptOutputPath(output, attempt, emitPng);
-                QualityReport quality = TextureSaver.SaveTextureToImage(d3d, desktopTexture, attemptOutput, emitPng) with
+                string? attemptRawOutput = rawOutput is null
+                    ? null
+                    : captureAttempts == 1
+                        ? rawOutput
+                        : TextureSaver.CreateAttemptRawOutputPath(rawOutput, attempt);
+                QualityReport quality = TextureSaver.SaveTextureToImage(d3d, desktopTexture, attemptOutput, emitPng, attemptRawOutput) with
                 {
                     CaptureAttemptCount = captureAttempts,
                     CompletedAttemptCount = completedAttempts,
@@ -71,6 +76,25 @@ static class DesktopDuplicationCapture
             Directory.CreateDirectory(Path.GetDirectoryName(finalOutput) ?? Environment.CurrentDirectory);
             File.Copy(best.Output, finalOutput, overwrite: true);
             best = best with { Output = finalOutput };
+        }
+
+        if (rawOutput is not null)
+        {
+            string finalRawOutput = Path.ChangeExtension(Path.GetFullPath(rawOutput), ".bgra");
+            string finalRawMetadata = Path.ChangeExtension(finalRawOutput, ".frame.json");
+            if (best.RawOutput is not null && !string.Equals(best.RawOutput, finalRawOutput, StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(finalRawOutput) ?? Environment.CurrentDirectory);
+                File.Copy(best.RawOutput, finalRawOutput, overwrite: true);
+            }
+
+            if (best.RawMetadata is not null && !string.Equals(best.RawMetadata, finalRawMetadata, StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(finalRawMetadata) ?? Environment.CurrentDirectory);
+                File.Copy(best.RawMetadata, finalRawMetadata, overwrite: true);
+            }
+
+            best = best with { RawOutput = finalRawOutput, RawMetadata = finalRawMetadata };
         }
 
         return best with

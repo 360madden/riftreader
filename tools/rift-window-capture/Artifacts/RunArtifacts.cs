@@ -15,6 +15,7 @@ sealed class RunArtifacts
         ManifestPath = Path.Combine(outputRoot, "manifest.json");
         SummaryPath = Path.Combine(outputRoot, "summary.md");
         RunLogPath = Path.Combine(outputRoot, "logs", "run.jsonl");
+        RawFramePath = Path.Combine(outputRoot, "raw", "full-window.bgra");
         StartedAtUtc = DateTimeOffset.UtcNow;
     }
 
@@ -24,6 +25,7 @@ sealed class RunArtifacts
     public string ManifestPath { get; }
     public string SummaryPath { get; }
     public string RunLogPath { get; }
+    public string RawFramePath { get; }
     public DateTimeOffset StartedAtUtc { get; }
 
     public static RunArtifacts? Create(Options options)
@@ -41,6 +43,7 @@ sealed class RunArtifacts
         Directory.CreateDirectory(outputRoot);
         Directory.CreateDirectory(Path.Combine(outputRoot, "logs"));
         Directory.CreateDirectory(Path.Combine(outputRoot, "images"));
+        Directory.CreateDirectory(Path.Combine(outputRoot, "raw"));
         Directory.CreateDirectory(Path.Combine(outputRoot, "debug"));
 
         return new RunArtifacts(outputRoot, imagePath);
@@ -102,7 +105,9 @@ sealed class RunArtifacts
             Relative(ManifestPath),
             Relative(SummaryPath),
             Relative(RunLogPath),
-            report.Output is null ? null : Relative(report.Output));
+            report.Output is null ? null : Relative(report.Output),
+            report.Quality?.RawOutput is null ? null : Relative(report.Quality.RawOutput),
+            report.Quality?.RawMetadata is null ? null : Relative(report.Quality.RawMetadata));
 
         return new CaptureRunManifest(
             "rift-window-capture-manifest/v1",
@@ -151,6 +156,7 @@ sealed class RunArtifacts
         builder.AppendLine($"- Target: PID `{report.WindowPid?.ToString(CultureInfo.InvariantCulture) ?? "n/a"}`, HWND `{report.Hwnd ?? "n/a"}`, process `{report.WindowProcessName ?? "n/a"}`");
         builder.AppendLine($"- Backend: `{report.CaptureMethod}`");
         builder.AppendLine($"- Output: `{report.Output ?? "n/a"}`");
+        builder.AppendLine($"- Raw BGRA: `{report.Quality?.RawOutput ?? "n/a"}`");
         builder.AppendLine($"- Usable: `{report.Usable}`");
         builder.AppendLine();
         builder.AppendLine("## Safety");
@@ -239,6 +245,6 @@ sealed record CaptureSafetyManifest(bool MovementSent, bool InputSent, bool Relo
     public static CaptureSafetyManifest SafeNoInput { get; } = new(false, false, false, false, false, false);
 }
 
-sealed record CaptureArtifactsManifest(string ManifestJson, string SummaryMarkdown, string RunLogJsonl, string? FullWindowImage);
+sealed record CaptureArtifactsManifest(string ManifestJson, string SummaryMarkdown, string RunLogJsonl, string? FullWindowImage, string? FullWindowRaw, string? FullWindowRawMetadata);
 
 sealed record CaptureErrorManifest(string Stage, string Code, string Message);

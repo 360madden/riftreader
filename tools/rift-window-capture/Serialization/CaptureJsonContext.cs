@@ -1,4 +1,5 @@
 [JsonSerializable(typeof(QualityReport))]
+[JsonSerializable(typeof(RawFrameMetadata))]
 [JsonSerializable(typeof(CaptureReport))]
 [JsonSerializable(typeof(CaptureRunManifest))]
 [JsonSerializable(typeof(ManifestInspectionReport))]

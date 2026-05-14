@@ -32,13 +32,15 @@ monolithic `Program.cs`.
 | Latest Python controller live smoke | Passed | `scripts/captures/rift-window-capture-python-live-smoke-20260514-034349-044` |
 | Backend interface split | Implemented | `Backends/ICaptureBackend.cs`, `WgcCaptureBackend.cs`, and `DesktopDuplicationCaptureBackend.cs` |
 | Latest backend-interface live smoke | Passed | `scripts/captures/rift-window-capture-backend-interface-live-smoke-20260514-034719-184` |
+| Raw `.bgra` output | Implemented | `--emit-raw-bgra` writes `raw/full-window.bgra` and `raw/full-window.frame.json` |
+| Latest raw `.bgra` live smoke | Passed | `scripts/captures/rift-window-capture-raw-bgra-live-smoke-20260514-040054-154` |
 
 Safety boundary remained clean: no movement, no game input, no native
 screenshot key, no CE, and no x64dbg.
 
-Still deferred from the full plan: raw `.bgra` artifact output, robust named
-crop profiles beyond full-window, offline `convert`/`crop`/`diff` commands,
-and repeated capture session mode.
+Still deferred from the full plan: robust named crop profiles beyond
+full-window, offline `convert`/`crop`/`diff` commands, and repeated capture
+session mode.
 
 ---
 
@@ -296,6 +298,7 @@ python .\scripts\capture_rift_window.py capture `
   --expected-process-start-utc 2026-05-13T16:17:56.208370Z `
   --output-root scripts\captures\rift-window-capture-python-20260514 `
   --emit-png `
+  --emit-raw-bgra `
   --crop full-window `
   --require-usable `
   --json
@@ -328,6 +331,7 @@ RiftWindowCapture.exe capture `
   --crop full-window `
   --crop telemetry-strip `
   --emit-png `
+  --emit-raw-bgra `
   --require-usable `
   --json
 ```

@@ -7,6 +7,7 @@ sealed class DesktopDuplicationCaptureBackend : ICaptureBackend
         WindowMatch window,
         Options options,
         string output,
+        string? rawOutput,
         RunArtifacts? artifacts)
     {
         IntPtr monitor = NativeMethods.MonitorFromWindow(window.Hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
@@ -14,6 +15,7 @@ sealed class DesktopDuplicationCaptureBackend : ICaptureBackend
             d3d,
             monitor,
             output,
+            rawOutput,
             options.TimeoutMs,
             options.CaptureAttempts,
             options.ShouldEmitPng);

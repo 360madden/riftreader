@@ -1,12 +1,14 @@
 static class TextureSaver
 {
-    public static QualityReport SaveFrameToImage(D3DObjects d3d, WgiD3D.IDirect3DSurface surface, string output, bool emitPng)
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+    public static QualityReport SaveFrameToImage(D3DObjects d3d, WgiD3D.IDirect3DSurface surface, string output, bool emitPng, string? rawOutput)
     {
         using ID3D11Texture2D source = Direct3D11Helpers.GetTexture2D(surface);
-        return SaveTextureToImage(d3d, source, output, emitPng);
+        return SaveTextureToImage(d3d, source, output, emitPng, rawOutput);
     }
 
-    public static QualityReport SaveTextureToImage(D3DObjects d3d, ID3D11Texture2D source, string output, bool emitPng)
+    public static QualityReport SaveTextureToImage(D3DObjects d3d, ID3D11Texture2D source, string output, bool emitPng, string? rawOutput)
     {
         Texture2DDescription sourceDescription = source.Description;
         int width = (int)sourceDescription.Width;
@@ -31,7 +33,7 @@ static class TextureSaver
         d3d.Context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mapped).CheckError();
         try
         {
-            return SaveMappedBgraImage(mapped, width, height, output, emitPng) with
+            return SaveMappedBgraImage(mapped, width, height, output, emitPng, rawOutput) with
             {
                 SourceTextureFormat = sourceDescription.Format.ToString(),
                 SourceTextureUsage = sourceDescription.Usage.ToString(),
@@ -46,7 +48,7 @@ static class TextureSaver
         }
     }
 
-    private static QualityReport SaveMappedBgraImage(MappedSubresource mapped, int width, int height, string output, bool emitPng)
+    private static QualityReport SaveMappedBgraImage(MappedSubresource mapped, int width, int height, string output, bool emitPng, string? rawOutput)
     {
         long pixelCount = (long)width * height;
         long blackPixels = 0;
@@ -118,6 +120,8 @@ static class TextureSaver
             WriteTopDownBgraBmp(actualOutput, frame);
         }
 
+        RawFrameWriteResult? raw = rawOutput is null ? null : WriteTopDownBgraRaw(rawOutput, frame);
+
         double mean = pixelCount == 0 ? 0 : lumaSum / pixelCount;
         double variance = pixelCount == 0 ? 0 : Math.Max(0, (lumaSquaredSum / pixelCount) - (mean * mean));
         double stdDev = Math.Sqrt(variance);
@@ -130,7 +134,11 @@ static class TextureSaver
         double contentTransparentRatio = contentPixelCount == 0 ? 1 : contentTransparentPixels / (double)contentPixelCount;
         bool usable = contentPixelCount > 0 && contentTransparentRatio < 0.95 && contentBlackRatio < 0.98 && contentStdDev >= 2.0;
 
-        return new QualityReport(width, height, frame.StrideBytes, frame.PixelFormat, frame.Orientation, blackRatio, transparentRatio, stdDev, contentBlackRatio, contentTransparentRatio, contentStdDev, usable, actualOutput);
+        return new QualityReport(width, height, frame.StrideBytes, frame.PixelFormat, frame.Orientation, blackRatio, transparentRatio, stdDev, contentBlackRatio, contentTransparentRatio, contentStdDev, usable, actualOutput)
+        {
+            RawOutput = raw?.RawPath,
+            RawMetadata = raw?.MetadataPath,
+        };
     }
 
     private static void WriteTopDownBgraBmp(string output, BgraFrame frame)
@@ -189,6 +197,29 @@ static class TextureSaver
         bitmap.Save(output, ImageFormat.Png);
     }
 
+    private static RawFrameWriteResult WriteTopDownBgraRaw(string output, BgraFrame frame)
+    {
+        string rawPath = Path.ChangeExtension(Path.GetFullPath(output), ".bgra");
+        string metadataPath = Path.ChangeExtension(rawPath, ".frame.json");
+        string parent = Path.GetDirectoryName(rawPath) ?? Environment.CurrentDirectory;
+        Directory.CreateDirectory(parent);
+
+        File.WriteAllBytes(rawPath, frame.Pixels);
+        RawFrameMetadata metadata = new(
+            "rift-window-capture-raw-frame/v1",
+            Path.GetFileName(rawPath),
+            DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+            frame.Width,
+            frame.Height,
+            frame.StrideBytes,
+            frame.PixelFormat,
+            frame.Orientation,
+            "none",
+            "bgra-top-down");
+        File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, CaptureJsonContext.Default.RawFrameMetadata), Utf8NoBom);
+        return new RawFrameWriteResult(rawPath, metadataPath);
+    }
+
     public static string NormalizeImageOutputPath(string output, bool emitPng)
     {
         string full = Path.GetFullPath(output);
@@ -209,9 +240,31 @@ static class TextureSaver
         string extension = Path.GetExtension(imageOutput);
         return Path.Combine(directory, $"{fileName}.attempt{attempt}{extension}");
     }
+
+    public static string CreateAttemptRawOutputPath(string rawOutput, int attempt)
+    {
+        string rawPath = Path.ChangeExtension(Path.GetFullPath(rawOutput), ".bgra");
+        string directory = Path.GetDirectoryName(rawPath) ?? Environment.CurrentDirectory;
+        string fileName = Path.GetFileNameWithoutExtension(rawPath);
+        return Path.Combine(directory, $"{fileName}.attempt{attempt}.bgra");
+    }
 }
 
 sealed record BgraFrame(int Width, int Height, int StrideBytes, string PixelFormat, string Orientation, byte[] Pixels);
+
+sealed record RawFrameWriteResult(string RawPath, string MetadataPath);
+
+sealed record RawFrameMetadata(
+    string Schema,
+    string RawFrame,
+    string CreatedAtUtc,
+    int Width,
+    int Height,
+    int StrideBytes,
+    string PixelFormat,
+    string Orientation,
+    string RowPadding,
+    string Layout);
 
 sealed record QualityReport(
     int Width,
@@ -228,6 +281,8 @@ sealed record QualityReport(
     bool Usable,
     string Output)
 {
+    public string? RawOutput { get; init; }
+    public string? RawMetadata { get; init; }
     public string? SourceTextureFormat { get; init; }
     public string? SourceTextureUsage { get; init; }
     public string? SourceTextureBindFlags { get; init; }

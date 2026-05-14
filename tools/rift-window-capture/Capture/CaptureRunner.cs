@@ -60,7 +60,14 @@ static class CaptureRunner
         }
 
         string output = Path.GetFullPath(options.Output ?? artifacts?.ImagePath ?? Defaults.CreateDefaultOutputPath());
+        string? rawOutput = options.EmitRawBgra
+            ? Path.GetFullPath(artifacts?.RawFramePath ?? Path.ChangeExtension(output, ".bgra"))
+            : null;
         Directory.CreateDirectory(Path.GetDirectoryName(output) ?? Environment.CurrentDirectory);
+        if (rawOutput is not null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(rawOutput) ?? Environment.CurrentDirectory);
+        }
 
         ICaptureBackend backend = CaptureBackendFactory.Create(options);
         artifacts?.Log("info", "backend.selected", new { backend = backend.Name });
@@ -68,8 +75,8 @@ static class CaptureRunner
         try
         {
             using D3DObjects d3d = D3DObjects.Create();
-            QualityReport quality = await backend.CaptureAsync(d3d, window, options, output, artifacts).ConfigureAwait(false);
-            artifacts?.Log("info", "frame.acquired", new { backend = backend.Name, quality.Width, quality.Height, quality.Output, quality.Usable });
+            QualityReport quality = await backend.CaptureAsync(d3d, window, options, output, rawOutput, artifacts).ConfigureAwait(false);
+            artifacts?.Log("info", "frame.acquired", new { backend = backend.Name, quality.Width, quality.Height, quality.Output, quality.RawOutput, quality.Usable });
             return CaptureReport.Success(options, window, quality.Output, quality);
         }
         catch (Exception ex)

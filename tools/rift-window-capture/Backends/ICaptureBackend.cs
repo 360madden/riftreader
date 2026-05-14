@@ -7,6 +7,7 @@ interface ICaptureBackend
         WindowMatch window,
         Options options,
         string output,
+        string? rawOutput,
         RunArtifacts? artifacts);
 }
 

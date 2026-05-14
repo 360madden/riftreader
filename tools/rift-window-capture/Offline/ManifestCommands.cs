@@ -9,6 +9,8 @@ static class ManifestCommands
         string? status = null;
         string? runId = null;
         string? outputImage = null;
+        string? outputRaw = null;
+        string? outputRawMetadata = null;
         string? runLog = null;
         string? summary = null;
         bool manifestExists = File.Exists(manifestPath);
@@ -18,7 +20,7 @@ static class ManifestCommands
         if (!manifestExists)
         {
             blockers.Add($"Manifest not found: {manifestPath}");
-            return new ManifestInspectionReport(options.Command, false, manifestPath, false, false, null, null, null, null, null, null, false, blockers.ToArray(), warnings.ToArray());
+            return new ManifestInspectionReport(options.Command, false, manifestPath, false, false, null, null, null, null, null, null, null, null, false, blockers.ToArray(), warnings.ToArray());
         }
 
         try
@@ -44,6 +46,8 @@ static class ManifestCommands
                 runLog = ResolveArtifact(manifestPath, ReadString(artifacts, "runLogJsonl"));
                 summary = ResolveArtifact(manifestPath, ReadString(artifacts, "summaryMarkdown"));
                 outputImage = ResolveArtifact(manifestPath, ReadString(artifacts, "fullWindowImage"));
+                outputRaw = ResolveArtifact(manifestPath, ReadString(artifacts, "fullWindowRaw"));
+                outputRawMetadata = ResolveArtifact(manifestPath, ReadString(artifacts, "fullWindowRawMetadata"));
             }
             else
             {
@@ -81,6 +85,16 @@ static class ManifestCommands
                 {
                     blockers.Add("fullWindowImage artifact is empty.");
                 }
+
+                if (outputRaw is not null && (!File.Exists(outputRaw) || new FileInfo(outputRaw).Length <= 0))
+                {
+                    blockers.Add("fullWindowRaw artifact is missing or empty.");
+                }
+
+                if (outputRawMetadata is not null && !File.Exists(outputRawMetadata))
+                {
+                    blockers.Add("fullWindowRawMetadata artifact is missing.");
+                }
             }
         }
         else if (options.Command == "inspect")
@@ -99,15 +113,27 @@ static class ManifestCommands
             {
                 warnings.Add("fullWindowImage artifact path does not exist.");
             }
+
+            if (outputRaw is not null && !File.Exists(outputRaw))
+            {
+                warnings.Add("fullWindowRaw artifact path does not exist.");
+            }
+
+            if (outputRawMetadata is not null && !File.Exists(outputRawMetadata))
+            {
+                warnings.Add("fullWindowRawMetadata artifact path does not exist.");
+            }
         }
 
         artifactPathsExist =
             (runLog is null || File.Exists(runLog)) &&
             (summary is null || File.Exists(summary)) &&
-            (outputImage is null || File.Exists(outputImage));
+            (outputImage is null || File.Exists(outputImage)) &&
+            (outputRaw is null || File.Exists(outputRaw)) &&
+            (outputRawMetadata is null || File.Exists(outputRawMetadata));
 
         bool ok = blockers.Count == 0;
-        return new ManifestInspectionReport(options.Command, ok, manifestPath, manifestExists, jsonParsed, schema, status, runId, runLog, summary, outputImage, artifactPathsExist, blockers.ToArray(), warnings.ToArray());
+        return new ManifestInspectionReport(options.Command, ok, manifestPath, manifestExists, jsonParsed, schema, status, runId, runLog, summary, outputImage, outputRaw, outputRawMetadata, artifactPathsExist, blockers.ToArray(), warnings.ToArray());
     }
 
     private static string? ReadString(JsonElement element, string propertyName)
@@ -168,6 +194,8 @@ sealed record ManifestInspectionReport(
     string? RunLog,
     string? Summary,
     string? FullWindowImage,
+    string? FullWindowRaw,
+    string? FullWindowRawMetadata,
     bool ArtifactPathsExist,
     string[] Blockers,
     string[] Warnings);

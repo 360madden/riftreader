@@ -16,9 +16,10 @@ sealed record Options(
     int Frames,
     bool RequireUsable,
     bool EmitPng,
+    bool EmitRawBgra,
     string[] CropProfiles)
 {
-    public static string Usage => "Usage: RiftWindowCapture [capture] [--process-name rift_x64 | --pid <pid> | --hwnd <0xHWND> | --title-contains <text>] [--expected-process-start-utc <iso-utc>] [--output <image>] [--output-root <dir>] [--emit-png] [--crop full-window] [--json] [--timeout-ms <n>] [--capture-monitor | --desktop-duplication] [--attempts <n>] [--require-usable]\n       RiftWindowCapture benchmark [--frames <n>] [capture target/options] --output-root <dir> [--json]\n       RiftWindowCapture inspect --manifest <manifest.json> [--json]\n       RiftWindowCapture validate --manifest <manifest.json> [--json]";
+    public static string Usage => "Usage: RiftWindowCapture [capture] [--process-name rift_x64 | --pid <pid> | --hwnd <0xHWND> | --title-contains <text>] [--expected-process-start-utc <iso-utc>] [--output <image>] [--output-root <dir>] [--emit-png] [--emit-raw-bgra] [--crop full-window] [--json] [--timeout-ms <n>] [--capture-monitor | --desktop-duplication] [--attempts <n>] [--require-usable]\n       RiftWindowCapture benchmark [--frames <n>] [capture target/options] --output-root <dir> [--json]\n       RiftWindowCapture inspect --manifest <manifest.json> [--json]\n       RiftWindowCapture validate --manifest <manifest.json> [--json]";
 
     public string CaptureMethod => CaptureDesktopDuplication
         ? "DXGIDesktopDuplication"
@@ -54,6 +55,7 @@ sealed record Options(
         int frames = 30;
         bool requireUsable = false;
         bool emitPng = false;
+        bool emitRawBgra = false;
         List<string> cropProfiles = [];
 
         for (int i = startIndex; i < args.Length; i++)
@@ -101,6 +103,9 @@ sealed record Options(
                     break;
                 case "--emit-png":
                     emitPng = true;
+                    break;
+                case "--emit-raw-bgra":
+                    emitRawBgra = true;
                     break;
                 case "--crop":
                     string crop = RequireValue(args, ref i, arg);
@@ -169,7 +174,7 @@ sealed record Options(
             cropProfiles.Add("full-window");
         }
 
-        return new Options(command, processName, pid, hwnd, titleContains, output, outputRoot, manifestPath, expectedProcessStartUtc, json, timeoutMs, captureMonitor, captureDesktopDuplication, captureAttempts, frames, requireUsable, emitPng, cropProfiles.ToArray());
+        return new Options(command, processName, pid, hwnd, titleContains, output, outputRoot, manifestPath, expectedProcessStartUtc, json, timeoutMs, captureMonitor, captureDesktopDuplication, captureAttempts, frames, requireUsable, emitPng, emitRawBgra, cropProfiles.ToArray());
     }
 
     private static bool IsCommand(string value) =>
