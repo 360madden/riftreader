@@ -1,0 +1,55 @@
+# Coordinate proof preflight + broad family snapshot handoff
+
+_Last updated: 2026-05-14 00:45 UTC._
+
+## Verdict
+
+Fresh RRAPICOORD reference is available again and read-only proof readiness passed, but movement remains blocked. The strongest current candidate is `family-snapshot-hit-000002` at `0x268E113FED0`; it matched fresh RRAPICOORD reference in readback, but no static/module root or current proof-anchor gate exists yet.
+
+## Current target
+
+| Field | Value |
+|---|---|
+| Process | `rift_x64.exe` |
+| PID | `2928` |
+| HWND | `0xC0994` |
+| Process start | `2026-05-13T16:17:56.208370Z` |
+| Module base | `0x7FF71CD90000` |
+| Movement | `blocked` |
+| CE/x64dbg | Not used in this slice |
+
+## New evidence
+
+| Artifact | Result |
+|---|---|
+| `scripts/captures/coordinate-proof-preflight-20260514-003348-430776/summary.json` | Preflight passed read-only proof readiness; movement false. |
+| `scripts/captures/riftscan-proof-pose-20260514-003555/` | Old same-target candidate set stable but no strict reference match. |
+| `scripts/captures/family-scan-currentpid-2928-20260514-003713-458360/family-scan-summary.json` | 80 MiB targeted family scan; 10 near-reference hits; best `0x268E1122890` delta ~0.600. |
+| `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-003904/family-snapshot-summary.json` | Broad family snapshot; exact candidate `0x268E113FED0` delta ~0.0000488. |
+| `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-004131/family-import-candidates.json` | Importable candidate packet generated from broad snapshot for readback. |
+| `scripts/captures/manual-reference-check-currentpid-2928-20260513-204202/rift-api-reference-currentpid-2928-20260514-004203.json` | Fresh RRAPICOORD reference `7402.5898, 871.78, 3028.45`; no CE/movement/SavedVariables. |
+| `scripts/captures/riftscan-proof-pose-20260514-004221/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-204222.json` | `ReferenceMatchCount=1`; best `family-snapshot-hit-000002` at `0x268E113FED0`; stable 4 samples. |
+| `scripts/captures/current-pid-family-neighborhood-inspector-20260514-004343-502721/summary.json` | Neighborhood inspector confirmed the exact hit in a read-only 16 KiB window. |
+| `scripts/captures/pointer-family-scan-20260514-004408-853398/summary.json` | 23 pointer targets scanned; 0 module/RIFT-module hits; heap-only owner evidence. |
+
+## Proven truth vs candidate-only
+
+| Item | Status |
+|---|---|
+| Fresh RRAPICOORD reference | Proven current reference surface for candidate scoring. |
+| `0x268E113FED0` | Strong current candidate; stable same-pose memory/readback match. |
+| Static pointer chain | Not proven; pointer scan found no module/static root. |
+| Movement/navigation use | Blocked. |
+| Old proof-anchor cache | Historical/stale only; PID `57656`, HWND `0x5417BC`. |
+
+## Code changes in this slice
+
+- Added `scripts/coordinate_proof_preflight.py` and `scripts/rift_live_test/coordinate_proof_preflight.py` as a one-command preflight orchestrator.
+- Updated `reference_freshness_watchdog.py` to accept RRAPICOORD reference files directly, not only raw scans.
+- Updated `coordinate_proof_preflight.py` to pass the generated RRAPICOORD reference file into the watchdog.
+- Updated `capture_current_pid_coordinate_family_snapshot.py` to emit importable candidate JSON/JSONL packets for readback.
+- Updated `current_pid_family_neighborhood_inspector.py` to parse current readback summaries (`ReferenceCoordinate` / `CandidateReadbacks`).
+
+## Resume prompt
+
+Resume in `C:\RIFT MODDING\RiftReader` on `main`. Read `docs/recovery/current-truth.md` and this handoff first. Continue from the current strongest candidate `family-snapshot-hit-000002` at `0x268E113FED0` using the fresh-readback artifact `scripts/captures/riftscan-proof-pose-20260514-004221/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-204222.json`. Movement remains blocked. Next best work is static/root provenance: broaden pointer/owner-family scans around `0x268E1130000`, `0x268DD310000`, and existing owner seed `0x268D753AE40`, or capture a second displaced pose only if an explicit safe movement/displacement gate is approved and current reference/proof preflight remains fresh.

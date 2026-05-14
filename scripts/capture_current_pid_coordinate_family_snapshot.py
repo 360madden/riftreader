@@ -101,7 +101,13 @@ def normalize_reference(label: str, source_file: Path, document: dict[str, Any])
         "x": coord[0],
         "y": coord[1],
         "z": coord[2],
-        "generatedAtUtc": document.get("generatedAtUtc") or document.get("GeneratedAtUtc") or coord_doc.get("CapturedAtUtc"),
+        "generatedAtUtc": (
+            document.get("generatedAtUtc")
+            or document.get("GeneratedAtUtc")
+            or document.get("captured_at_utc")
+            or coord_doc.get("CapturedAtUtc")
+            or coord_doc.get("captured_at_utc")
+        ),
     }
 
 
@@ -376,6 +382,81 @@ def compact_triplet(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def make_import_candidate(item: dict[str, Any], index: int) -> dict[str, Any]:
+    region_offset = int(str(item["regionOffsetHex"]), 0)
+    current_delta = float(item["currentMaxAbsDelta"])
+    near_count = int(item.get("nearReferenceCount") or 0)
+    observed_count = int(item.get("addressObservationCount") or 0)
+    support_count = max(1, near_count + observed_count)
+    score = max(0.0, 100000.0 - (current_delta * 10000.0)) + (near_count * 100.0) + (observed_count * 250.0)
+
+    return {
+        "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
+        "candidate_id": f"family-snapshot-hit-{index:06d}",
+        "base_address_hex": item["regionBaseHex"],
+        "offset_hex": item["regionOffsetHex"],
+        "x_offset_hex": item["regionOffsetHex"],
+        "y_offset_hex": format_hex(region_offset + 4),
+        "z_offset_hex": format_hex(region_offset + 8),
+        "absolute_address_hex": item["addressHex"],
+        "axis_order": item.get("axisOrder") or "xyz",
+        "value_preview": [item["x"], item["y"], item["z"]],
+        "best_memory_x": item["x"],
+        "best_memory_y": item["y"],
+        "best_memory_z": item["z"],
+        "best_max_abs_distance": current_delta,
+        "score_total": score,
+        "rank_score": score,
+        "support_count": support_count,
+        "observation_support_count": observed_count,
+        "classification": "current-pid-family-snapshot-triplet",
+        "validation_status": "near_reference_candidate" if near_count > 0 else "broad_family_window_candidate",
+        "truth_readiness": "candidate_only_not_movement_proof",
+        "confidence_level": "candidate",
+        "evidence_summary": (
+            f"currentMaxAbsDelta={current_delta:.6g}; nearReferenceCount={near_count}; "
+            f"addressObservationCount={observed_count}; familyBase={item['familyBaseHex']}"
+        ),
+        "next_validation_step": "Run read-only proof-pose readback; require current-process proof anchor before movement.",
+        "family_base_hex": item["familyBaseHex"],
+        "nearest_reference_label": item["nearestReferenceLabel"],
+        "nearest_reference_max_abs_delta": item["nearestReferenceMaxAbsDelta"],
+        "near_reference_count": near_count,
+        "address_observation_count": observed_count,
+        "residue_mod48_hex": item["residueMod48Hex"],
+        "residue_mod256_hex": item["residueMod256Hex"],
+    }
+
+
+def select_import_candidates(triplets: list[dict[str, Any]], top_count: int) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    seen: set[int] = set()
+
+    def add_ordered(items: list[dict[str, Any]]) -> None:
+        for item in items:
+            address = int(item["address"])
+            if address in seen:
+                continue
+            selected.append(item)
+            seen.add(address)
+            if len(selected) >= top_count:
+                return
+
+    near_or_observed = sorted(
+        [item for item in triplets if int(item.get("nearReferenceCount") or 0) > 0 or int(item.get("addressObservationCount") or 0) > 0],
+        key=lambda item: (
+            float(item["currentMaxAbsDelta"]),
+            -int(item.get("addressObservationCount") or 0),
+            int(item["address"]),
+        ),
+    )
+    add_ordered(near_or_observed)
+    if len(selected) < top_count:
+        add_ordered(sorted(triplets, key=lambda item: (float(item["currentMaxAbsDelta"]), int(item["address"]))))
+
+    return [make_import_candidate(item, index) for index, item in enumerate(selected[:top_count], start=1)]
+
+
 def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(record) for record in records) + ("\n" if records else ""), encoding="utf-8")
@@ -417,6 +498,8 @@ def main() -> int:
     markdown_path = run_dir / "family-snapshot-summary.md"
     triplets_jsonl = run_dir / "family-triplets.jsonl"
     top_triplets_json = run_dir / "family-top-triplets.json"
+    candidate_json = run_dir / "family-import-candidates.json"
+    candidate_jsonl = run_dir / "family-import-candidates.jsonl"
 
     summary: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -442,6 +525,8 @@ def main() -> int:
             "summaryMarkdown": str(markdown_path),
             "tripletsJsonl": str(triplets_jsonl),
             "topTripletsJson": str(top_triplets_json),
+            "candidateJson": str(candidate_json),
+            "candidateJsonl": str(candidate_jsonl),
         },
         "blockers": [],
         "warnings": [],
@@ -622,6 +707,32 @@ def main() -> int:
             }
             write_json(top_triplets_json, top_payload)
 
+            import_candidates = select_import_candidates(triplets, args.top_count)
+            write_json(
+                candidate_json,
+                {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "mode": "riftreader-current-pid-coordinate-family-import-candidates",
+                    "generatedAtUtc": utc_iso(),
+                    "processId": args.pid,
+                    "targetWindowHandle": args.hwnd,
+                    "sourceFamilySnapshot": str(summary_path),
+                    "currentReference": current_reference,
+                    "candidateCount": len(import_candidates),
+                    "candidates": import_candidates,
+                    "truthStatus": {
+                        "candidateOnly": True,
+                        "promotionEligible": False,
+                        "promotionBlockers": [
+                            "family-snapshot-candidates-are-read-only-evidence",
+                            "same-target-proof-readback-not-yet-run",
+                            "no-current-process-proof-anchor",
+                        ],
+                    },
+                },
+            )
+            write_jsonl(candidate_jsonl, import_candidates)
+
             summary["scan"].update(
                 {
                     "durationSeconds": round(time.monotonic() - started, 3),
@@ -637,6 +748,7 @@ def main() -> int:
                     "bestCurrentTriplet": compact_triplet(top_current[0]) if top_current else None,
                     "bestNearestReferenceTriplet": compact_triplet(top_nearest[0]) if top_nearest else None,
                     "clusterCount": len(clusters),
+                    "importCandidateCount": len(import_candidates),
                 }
             )
             summary["topClusters"] = clusters[: args.top_count]
@@ -678,6 +790,7 @@ def main() -> int:
                     f"- Near-reference triplets: `{summary.get('scan', {}).get('nearReferenceTripletCount')}`",
                     f"- Observed-address triplets: `{summary.get('scan', {}).get('observedAddressTripletCount')}`",
                     f"- Best current: `{(summary.get('scan', {}).get('bestCurrentTriplet') or {}).get('addressHex')}`",
+                    f"- Import candidates: `{summary.get('artifacts', {}).get('candidateJson')}`",
                     f"- Blockers: `{', '.join(summary.get('blockers') or [])}`",
                     "",
                     "This is read-only candidate evidence. It sends no input, writes no memory, and sets no breakpoints.",

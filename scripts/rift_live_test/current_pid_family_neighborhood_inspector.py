@@ -83,21 +83,51 @@ def max_abs_delta(left: Mapping[str, float], right: Mapping[str, float]) -> floa
     return max(abs(float(left[axis]) - float(right[axis])) for axis in ("x", "y", "z"))
 
 
-def load_offset_profiles(readback_doc: Mapping[str, Any]) -> list[dict[str, Any]]:
+def average_decoded_coordinate(readback: Mapping[str, Any]) -> dict[str, float] | None:
+    samples = readback.get("DecodedSamples") or readback.get("decodedSamples")
+    if not isinstance(samples, list) or not samples:
+        first = readback.get("FirstDecodedSample") or readback.get("firstDecodedSample")
+        samples = [first] if isinstance(first, Mapping) else []
+    values = [coordinate_from_mapping(sample) for sample in samples if isinstance(sample, Mapping)]
+    values = [value for value in values if value is not None]
+    if not values:
+        return None
+    return {
+        axis: sum(float(value[axis]) for value in values) / len(values)
+        for axis in ("x", "y", "z")
+    }
+
+
+def subtract(left: Mapping[str, float], right: Mapping[str, float]) -> dict[str, float]:
+    return {axis: float(left[axis]) - float(right[axis]) for axis in ("x", "y", "z")}
+
+
+def load_offset_profiles(readback_doc: Mapping[str, Any], reference: Mapping[str, float] | None = None) -> list[dict[str, Any]]:
     profiles: list[dict[str, Any]] = []
     raw_readbacks = readback_doc.get("readbacks")
+    if not isinstance(raw_readbacks, list):
+        raw_readbacks = readback_doc.get("CandidateReadbacks") or readback_doc.get("candidateReadbacks")
     if not isinstance(raw_readbacks, list):
         return profiles
     for readback in raw_readbacks:
         if not isinstance(readback, Mapping):
             continue
         avg_offset = coordinate_from_mapping(readback.get("averageOffset"))
-        address = parse_int(readback.get("address") or readback.get("addressHex"))
+        address = parse_int(
+            readback.get("address")
+            or readback.get("addressHex")
+            or readback.get("CandidateAddressHex")
+            or readback.get("candidateAddressHex")
+        )
+        if avg_offset is None and reference is not None:
+            average_memory = average_decoded_coordinate(readback)
+            if average_memory is not None:
+                avg_offset = subtract(reference, average_memory)
         if avg_offset is None:
             continue
         profiles.append(
             {
-                "candidateId": readback.get("candidateId"),
+                "candidateId": readback.get("candidateId") or readback.get("CandidateId"),
                 "sourceAddress": int_hex(address),
                 "sourceAddressInt": address,
                 "averageOffset": avg_offset,
@@ -115,12 +145,17 @@ def known_candidate_addresses(candidate_doc: Mapping[str, Any]) -> dict[int, dic
     for index, candidate in enumerate(raw, start=1):
         if not isinstance(candidate, Mapping):
             continue
-        address = parse_int(candidate.get("address") or candidate.get("addressHex"))
+        address = parse_int(
+            candidate.get("address")
+            or candidate.get("addressHex")
+            or candidate.get("absolute_address_hex")
+            or candidate.get("AbsoluteAddressHex")
+        )
         if address is None:
             continue
         result[address] = {
-            "candidateId": candidate.get("candidateId") or f"candidate-{index:03d}",
-            "familyBase": candidate.get("familyBaseHex"),
+            "candidateId": candidate.get("candidateId") or candidate.get("candidate_id") or f"candidate-{index:03d}",
+            "familyBase": candidate.get("familyBaseHex") or candidate.get("family_base_hex"),
             "rangeLabel": candidate.get("rangeLabel"),
         }
     return result
@@ -389,11 +424,11 @@ def main(argv: list[str] | None = None) -> int:
                     target_memory_bytes_read = True
                 finally:
                     close_handle(handle)
-        reference = coordinate_from_mapping(readback_doc.get("reference"))
+        reference = coordinate_from_mapping(readback_doc.get("reference") or readback_doc.get("ReferenceCoordinate"))
         if reference is None:
             blockers.append("missing-readback-reference-coordinate")
             reference = {"x": 0.0, "y": 0.0, "z": 0.0}
-        profiles = load_offset_profiles(readback_doc)
+        profiles = load_offset_profiles(readback_doc, reference)
         if not profiles:
             blockers.append("missing-offset-profiles")
         known_addresses = known_candidate_addresses(candidate_doc)

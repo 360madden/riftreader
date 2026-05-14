@@ -74,6 +74,34 @@ def latest_rrapicoord_scan(repo_root: Path, target_pid: int | None) -> Path | No
     return latest_file(list(capture_root.glob(pattern)))
 
 
+def latest_rrapicoord_reference(repo_root: Path, target_pid: int | None) -> Path | None:
+    capture_root = repo_root / "scripts" / "captures"
+    pattern = f"rift-api-reference-currentpid-{target_pid}-*.json" if target_pid is not None else "rift-api-reference-currentpid-*.json"
+    return latest_file(list(capture_root.glob(pattern)))
+
+
+def parse_utc_datetime(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def age_seconds(value: Any) -> float | None:
+    parsed = parse_utc_datetime(value)
+    if parsed is None:
+        return None
+    return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
+
+
 def target_mismatches(expected: Mapping[str, Any], observed: Mapping[str, Any]) -> list[str]:
     mismatches: list[str] = []
     expected_pid = expected.get("pid")
@@ -287,6 +315,91 @@ def summarize_rrapicoord(path: Path | None, repo_root: Path, expected: Mapping[s
     }
 
 
+def summarize_rrapicoord_reference(
+    path: Path | None,
+    repo_root: Path,
+    expected: Mapping[str, Any],
+    *,
+    max_age_seconds: float,
+) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    try:
+        document = load_json_object(path)
+    except Exception as exc:
+        return {
+            "path": path_text(path, repo_root),
+            "sourceKind": "rrapicoord-reference-file",
+            "status": "read-failed",
+            "fresh": False,
+            "usable": False,
+            "blockers": [f"rrapicoord-reference-read-failed:{type(exc).__name__}:{exc}"],
+            "warnings": [],
+        }
+    coordinate = safe_dict(document.get("coordinate"))
+    marker = safe_dict(document.get("marker"))
+    raw_marker_fields = marker_fields(str(marker.get("raw") or ""))
+    observed = {
+        "pid": document.get("processId"),
+        "processName": document.get("processName"),
+        "hwnd": document.get("targetWindowHandle"),
+    }
+    blockers = [f"rrapicoord-target-mismatch:{mismatch}" for mismatch in target_mismatches(expected, observed)]
+    captured_at = document.get("captured_at_utc")
+    captured_age_seconds = age_seconds(captured_at)
+    if captured_age_seconds is None:
+        blockers.append("rrapicoord-reference-missing-captured-at")
+    elif captured_age_seconds > max_age_seconds:
+        blockers.append(f"rrapicoord-reference-too-old:{captured_age_seconds:.3f}>{max_age_seconds:.3f}")
+    if document.get("noCheatEngine") is not True:
+        blockers.append("rrapicoord-reference-no-cheat-engine-not-true")
+    if document.get("movementSent") is not False:
+        blockers.append("rrapicoord-reference-movement-sent-not-false")
+    if str(document.get("savedVariablesUse") or "").lower() != "none":
+        blockers.append(f"rrapicoord-reference-savedvariables-use:{document.get('savedVariablesUse')}")
+    if str(marker.get("status") or "").lower() != "pass":
+        blockers.append(f"rrapicoord-marker-status:{marker.get('status')}")
+    if str(marker.get("source") or "").lower() != "rift-api":
+        blockers.append(f"rrapicoord-marker-source:{marker.get('source')}")
+    marker_saved_variables_use = marker.get("savedVariablesUse") or raw_marker_fields.get("savedVariablesUse")
+    if str(marker_saved_variables_use or "").lower() != "none":
+        blockers.append(f"rrapicoord-marker-savedvariables-use:{marker_saved_variables_use}")
+    try:
+        x_value = float(coordinate["x"])
+        y_value = float(coordinate["y"])
+        z_value = float(coordinate["z"])
+    except (KeyError, TypeError, ValueError):
+        blockers.append("rrapicoord-reference-missing-coordinate")
+        x_value = y_value = z_value = None
+    usable = not blockers
+    return {
+        "path": path_text(path, repo_root),
+        "sourceKind": "rrapicoord-reference-file",
+        "status": "passed" if usable else "blocked",
+        "fresh": usable,
+        "usable": usable,
+        "target": observed,
+        "hitCount": None,
+        "markerCount": 1 if marker else 0,
+        "usableMarkerCount": 1 if usable else 0,
+        "selectedCoordinate": {
+            "x": x_value,
+            "y": y_value,
+            "z": z_value,
+            "sampledAt": marker.get("sampledAt"),
+            "seq": marker.get("seq"),
+            "capturedAtUtc": captured_at,
+            "capturedAgeSeconds": captured_age_seconds,
+        }
+        if x_value is not None
+        else None,
+        "referenceFile": str(path),
+        "scanFile": document.get("scanFile"),
+        "blockers": blockers,
+        "warnings": [],
+    }
+
+
 def verdict_for(chromalink: Mapping[str, Any], rrapicoord: Mapping[str, Any]) -> str:
     if chromalink.get("usable"):
         return "fresh-reference-ready:chromalink"
@@ -340,9 +453,15 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         "hwnd": args.target_hwnd,
     }
     chromalink_path = args.chromalink_summary or latest_chromalink_summary(repo_root)
+    rrapicoord_reference_path = args.rrapicoord_reference_file or latest_rrapicoord_reference(repo_root, args.target_pid)
     rrapicoord_path = args.rrapicoord_scan or latest_rrapicoord_scan(repo_root, args.target_pid)
     chromalink = summarize_chromalink(chromalink_path, repo_root, expected)
-    rrapicoord = summarize_rrapicoord(rrapicoord_path, repo_root, expected)
+    rrapicoord = summarize_rrapicoord_reference(
+        rrapicoord_reference_path,
+        repo_root,
+        expected,
+        max_age_seconds=args.max_reference_age_seconds,
+    ) or summarize_rrapicoord(rrapicoord_path, repo_root, expected)
     blockers = [f"chromalink:{blocker}" for blocker in safe_list(chromalink.get("blockers"))]
     blockers.extend(f"rrapicoord:{blocker}" for blocker in safe_list(rrapicoord.get("blockers")))
     warnings = [f"chromalink:{warning}" for warning in safe_list(chromalink.get("warnings"))]
@@ -401,7 +520,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--chromalink-summary", type=Path)
+    parser.add_argument("--rrapicoord-reference-file", type=Path)
     parser.add_argument("--rrapicoord-scan", type=Path)
+    parser.add_argument("--max-reference-age-seconds", type=float, default=300.0)
     parser.add_argument("--target-pid", type=int, required=True)
     parser.add_argument("--target-hwnd", required=True)
     parser.add_argument("--process-name", default="rift_x64")
