@@ -26,6 +26,8 @@ is offset-indexed; any drift will break the integrity guards.
 ReaderBridge = ReaderBridge or {}
 ReaderBridge_v3 = ReaderBridge_v3 or ""
 ReaderBridge_State = ReaderBridge_State or {}
+ReaderBridge_RRAPICOORD1 = ReaderBridge_RRAPICOORD1 or "RRAPICOORD1|status=starting|savedVariablesUse=none"
+ReaderBridge_RRAPICOORD1_State = ReaderBridge_RRAPICOORD1_State or {}
 
 local VERSION    = "0.3.0"
 local TICK_MS    = 50           -- publish cadence in milliseconds (20 Hz)
@@ -213,6 +215,61 @@ local function toNumber(value, fallback)
         return fallback
     end
     return 0
+end
+
+local function markerValue(value)
+    if value == nil then return "" end
+    local text = tostring(value)
+    text = string.gsub(text, "|", " ")
+    text = string.gsub(text, "%c", " ")
+    return text
+end
+
+local function publishRrapicoordMarker(sequence, sampledAtMs, playerOk)
+    local p = state.player
+    local x = toNumber(p.x)
+    local y = toNumber(p.y)
+    local z = toNumber(p.z)
+    local status = playerOk and "pass" or "fail"
+    local sampledAt = toNumber(sampledAtMs) / 1000
+
+    local fields = {
+        "RRAPICOORD1",
+        "schema=1",
+        "seq=" .. tostring(sequence or 0),
+        "sampledAt=" .. format("%.3f", sampledAt),
+        "source=rift-api",
+        "view=Inspect.Unit.Detail(player)",
+        "status=" .. status,
+    }
+
+    if status == "pass" then
+        insert(fields, "x=" .. format("%.6f", x))
+        insert(fields, "y=" .. format("%.6f", y))
+        insert(fields, "z=" .. format("%.6f", z))
+    end
+
+    insert(fields, "playerId=" .. markerValue(playerUnitID or "player"))
+    insert(fields, "name=" .. markerValue(p.name))
+    insert(fields, "addon=ReaderBridge")
+    insert(fields, "savedVariablesUse=none")
+
+    ReaderBridge_RRAPICOORD1 = concat(fields, "|")
+    ReaderBridge_RRAPICOORD1_State = {
+        schema = 1,
+        seq = sequence or 0,
+        sampledAt = sampledAt,
+        source = "rift-api",
+        view = "Inspect.Unit.Detail(player)",
+        status = status,
+        x = x,
+        y = y,
+        z = z,
+        playerId = playerUnitID or "player",
+        name = p.name,
+        addon = "ReaderBridge",
+        savedVariablesUse = "none",
+    }
 end
 
 -- ---------- resource kind detection ----------
@@ -620,7 +677,7 @@ end
 local function publish()
     local tStart = frameTimeMs()
 
-    refreshPlayer()
+    local playerOk = refreshPlayer()
     resolveTarget()
     refreshTarget()
     refreshBuffs()
@@ -697,6 +754,7 @@ local function publish()
 
     ReaderBridge_v3   = full
     ReaderBridge_State = state
+    publishRrapicoordMarker(seq, tStart, playerOk)
 
     publishDurMs = frameTimeMs() - tStart
     lastPublishMs = tStart
