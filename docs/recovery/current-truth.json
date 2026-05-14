@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:56:03Z",
+  "updatedAtUtc": "2026-05-14T04:05:13Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -105,7 +105,41 @@
     "x64dbgAttachStarted": false,
     "staleLatestCandidateFallback": "blocked_by_default_in_x64dbg_no_attach_readiness_packet",
     "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-034635.json",
-    "latestMilestoneReviewStatus": "ready-for-read-only-proof"
+    "latestMilestoneReviewStatus": "ready-for-read-only-proof",
+    "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
+    "latestDuplicateCopyPointerFamilyScanStatus": "passed",
+    "latestDuplicateCopyPointerScanScannedTargetCount": 44,
+    "latestDuplicateCopyPointerTopTarget": "0x268D5A80000",
+    "latestDuplicateCopyPointerTopTargetHitCount": 22,
+    "latestDuplicateCopyDisambiguationPacket": "scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json",
+    "latestDuplicateCopyDisambiguationStatus": "blocked",
+    "latestDuplicateCopyBestCandidate": {
+      "candidateId": "snapshot-passive-stable-268D5A80730-xyz",
+      "addressHex": "0x268D5A80730",
+      "role": "current-truth-best",
+      "segmentBaseHex": "0x268D5A80000",
+      "familyBaseHex": "0x268D5A00000",
+      "referenceMaxAbsDelta": 4.1503906231810106e-05,
+      "sourcePreviewMatchesReadback": true,
+      "stableAcrossReadbackSamples": true,
+      "exactPointerHitCount": 0,
+      "segmentBasePointerHitCount": 22,
+      "familyBasePointerHitCount": 0,
+      "modulePointerHitCount": 0,
+      "riftModulePointerHitCount": 0,
+      "exactPointerSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260514-035912-983112\\raw\\scan-268D5A80730.json",
+      "segmentPointerSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260514-035912-983112\\raw\\scan-268D5A80000.json",
+      "familyPointerSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260514-035912-983112\\raw\\scan-268D5A00000.json",
+      "candidateOnly": true,
+      "promotionEligible": false,
+      "score": 11219.999958,
+      "nextValidationStep": "Capture displaced-pose delta proof or approved access evidence before promotion."
+    },
+    "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json",
+    "latestDuplicateCopyOwnerBatchStatus": "passed",
+    "latestDuplicateCopyOwnerInspectedCount": 36,
+    "latestDuplicateCopyModuleRvaHintCount": 9,
+    "latestDuplicateCopyTopModuleRva": "0x2641E38"
   },
   "staleOrInvalid": [
     {
@@ -150,7 +184,8 @@
     "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs",
     "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy",
     "displaced-pose or approved x64dbg/access evidence still missing; passive stability candidates are family-context seeds only and not movement proof",
-    "passive-stability readback found three current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose movement-grade source"
+    "passive-stability readback found three current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose movement-grade source",
+    "duplicate-copy pointer scan found heap/family owner hints but no module/static pointer hits; 0x2641E38 is candidate-only and not a proven static root"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -198,9 +233,12 @@
     "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json",
     "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235522.json",
     "latestCurrentCandidateProofPose": "scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json",
-    "latestCurrentCandidateProofPoseReference": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json"
+    "latestCurrentCandidateProofPoseReference": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json",
+    "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
+    "latestDuplicateCopyDisambiguationPacket": "scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json",
+    "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json"
   },
-  "nextRecommendedAction": "Capture a displaced-pose/offline delta proof using current-truth bootstrapped family snapshots, or proceed to approved bounded x64dbg access evidence. Passive-stability readback now narrows live duplicate heap copies to three candidate-only matches; movement/navigation remains blocked.",
+  "nextRecommendedAction": "Use the duplicate disambiguation packet as priors for a displaced-pose family snapshot sequence, or use approved bounded x64dbg/access capture on the ranked copies. Pointer/owner scans found heap/family context and module-RVA hints only, not a static chain; movement remains blocked.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -319,6 +357,18 @@
     ],
     "passiveCandidateImporterCompatibilityFixed": true,
     "latestMilestoneReviewAfterPassiveCandidates": "scripts/captures/riftscan-milestone-review-20260514-034635.json",
-    "bestReferenceMatchSortHardenedForNaN": true
+    "bestReferenceMatchSortHardenedForNaN": true,
+    "latestDuplicateCopyDisambiguationPacket": "scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json",
+    "latestDuplicateCopyRankedAddresses": [
+      "0x268D5A80730",
+      "0x268D5FC52B0",
+      "0x268D5F6C8E0"
+    ],
+    "latestDuplicateCopyBestAddress": "0x268D5A80730",
+    "latestDuplicateCopyBestSegmentBasePointerHitCount": 22,
+    "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
+    "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json",
+    "latestDuplicateCopyModuleRvaHintCount": 9,
+    "latestDuplicateCopyTopModuleRva": "0x2641E38"
   }
 }

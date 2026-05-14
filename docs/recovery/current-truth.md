@@ -1,10 +1,10 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T03:56:03Z._
+_Last updated: 2026-05-14T04:05:13Z._
 
 ## Verdict
 
-**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. Two consecutive robust read-only proof-pose runs selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match. The no-attach x64dbg readiness packet now uses the **current-truth candidate** instead of hidden `latest/best` candidate fallback and passed preflight. The family-snapshot sequence helper now defaults to `RRAPICOORD1`, imports current-truth PID/HWND/start/module defaults, and prioritizes the current-truth candidate as the top family prior. Offline passive-stability analysis of the no-input sequence extracted **13 stable near-reference triplet candidates** for family-context seeding, and a fresh readback narrowed those to **3 current reference-matching heap copies** (`0x268D5A80730`, `0x268D5F6C8E0`, and `0x268D5FC52B0`). This is still **candidate-only** because there is no displaced-pose delta, no static chain, no restart validation, and no same-target `ProofOnly` pass.
+**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. Two consecutive robust read-only proof-pose runs selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match. The no-attach x64dbg readiness packet now uses the **current-truth candidate** instead of hidden `latest/best` candidate fallback and passed preflight. The family-snapshot sequence helper now defaults to `RRAPICOORD1`, imports current-truth PID/HWND/start/module defaults, and prioritizes the current-truth candidate as the top family prior. Offline passive-stability analysis of the no-input sequence extracted **13 stable near-reference triplet candidates** for family-context seeding, and a fresh readback narrowed those to **3 current reference-matching heap copies** (`0x268D5A80730`, `0x268D5F6C8E0`, and `0x268D5FC52B0`). A grouped pointer/family scan ranks `0x268D5A80730` highest by segment-base pointer context (`22` heap refs), and owner-batch inspection found `9` module-RVA hints with top `0x2641E38`, but this remains **candidate-only** because there is no displaced-pose delta, no proven static root, no restart validation, and no same-target `ProofOnly` pass.
 
 ## Current target epoch
 
@@ -37,6 +37,9 @@ Key proof artifacts:
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/delta-summary.json` | Offline passive-stability analysis: `13` stable near-reference candidates extracted; still blocked with `blocked-no-displaced-pose` and not promotion-eligible. |
 | `scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json` | Latest read-only proof-pose confirmation: `family-snapshot-hit-000004`, `ReferenceMatchCount=1`, max abs delta `4.1503906231810106e-05`. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json` | Passive candidate readback: importer-compatible candidates, `ReferenceMatchCount=3`; fixed NaN-safe ranking puts live duplicate heap copies first: `0x268D5A80730`, `0x268D5F6C8E0`, `0x268D5FC52B0`. |
+| `scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json` | Grouped duplicate-copy pointer scan: exact coordinate copies had `0` direct refs; segment base `0x268D5A80000` had `22` heap refs, `0` module refs. |
+| `scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json` | Offline duplicate disambiguation packet ranks `0x268D5A80730` first, then `0x268D5FC52B0`, then `0x268D5F6C8E0`; candidate-only. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json` | Owner batch inspected `36` owners and found `9` module-RVA hints, top `0x2641E38`; no static root proven. |
 | `scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json` | Usable marker present after direct robust scan. |
 | `scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json` | Addon installed and live marker observed. |
 
@@ -86,6 +89,8 @@ Key proof artifacts:
 | `scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json` | Reverse pointer scan for self-derived owner base `0x26887C277C8` found `0` refs. |
 | `scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json` | No-attach readiness passed with current-truth `family-snapshot-hit-000004`; stale hidden `latest/best` candidate fallback is now blocked by default. |
 | `scripts/captures/x64dbg-coord-chain-plan-20260514-031908-113310/coord-chain-plan-summary.json` | Planned only; ready for current-turn approval, but no x64dbg attach/watchpoint/access event was executed. |
+| `scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json` | Duplicate-copy pointer scan: `0` direct refs to exact coordinate copies; heap/family base refs only, no module hits. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json` | Candidate module-RVA hints only; top `0x2641E38`, not connected to a proven static root. |
 | Static pointer chain | **not proven** |
 
 ## Explicitly stale / invalid / not current best
@@ -111,6 +116,7 @@ Key proof artifacts:
 - x64dbg access events have not been captured; any live debugger capture still requires explicit current-turn approval and the bounded attach policy.
 - Displaced-pose or approved x64dbg/access evidence is still missing; passive stability candidates are family-context seeds only and not movement proof.
 - Passive-stability readback found three current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose a movement-grade source.
+- Duplicate-copy pointer scan found heap/family owner hints but no module/static pointer hits; `0x2641E38` is candidate-only and not a proven static root.
 - ChromaLink world-state stale/unhealthy.
 
 ## Canonical files
@@ -126,7 +132,10 @@ Key proof artifacts:
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-033507-237928/summary.json` | Latest current-truth bootstrapped plan-only sequence; no manual PID/HWND/prior needed. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/candidate-vec3.json` | Candidate-only passive stable triplets from the latest no-input family sequence; family-context seeds only. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json` | Latest passive candidate readback; narrows current live duplicate heap copies with fixed NaN-safe ranking but remains candidate-only. |
+| `scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json` | Latest grouped pointer scan around the three duplicate coordinate copies. |
+| `scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json` | Latest offline duplicate-copy ranking packet. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json` | Latest owner/ref-storage inspection from duplicate pointer scan. |
 
 ## Next best action
 
-Capture a displaced-pose/offline delta proof using current-truth bootstrapped family snapshots, or proceed to approved bounded x64dbg access evidence. Passive-stability readback now narrows live duplicate heap copies to three candidate-only matches; movement/navigation remains blocked.
+Use the duplicate disambiguation packet as priors for a displaced-pose family snapshot sequence, or use approved bounded x64dbg/access capture on the ranked copies. Pointer/owner scans found heap/family context and module-RVA hints only, not a static chain; movement remains blocked.
