@@ -1,10 +1,10 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T02:55:56Z._
+_Last updated: 2026-05-14T03:01:20Z._
 
 ## Verdict
 
-**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. The newest read-only proof-pose selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match, but this is still **candidate-only** because there is no static chain, no restart validation, and no same-target `ProofOnly` pass.
+**Movement is blocked.** The live `RRAPICOORD1` reference surface is usable again and the proof-pose wrapper now uses a wider RRAPICOORD scan window. Two consecutive robust read-only proof-pose runs selected **`family-snapshot-hit-000004` at `0x268D5A80730`** as the latest current-reference match, but this is still **candidate-only** because there is no static chain, no restart validation, and no same-target `ProofOnly` pass.
 
 ## Current target epoch
 
@@ -20,7 +20,7 @@ _Last updated: 2026-05-14T02:55:56Z._
 
 | Surface | Status | Notes |
 |---|---|---|
-| `ReaderBridge_RRAPICOORD1` | **current / usable for read-only proof** | Live `Inspect.Unit.Detail(player)`, `source=rift-api`, `savedVariablesUse=none`. Latest reference: `7403.3999, 871.77, 3029.4099` at `2026-05-14T02:55:28.6172170Z`. |
+| `ReaderBridge_RRAPICOORD1` | **current / usable for read-only proof** | Live `Inspect.Unit.Detail(player)`, `source=rift-api`, `savedVariablesUse=none`. Latest reference: `7403.399902, 871.769958, 3029.409912` at `2026-05-14T03:01:03.9957548Z`. |
 | ChromaLink world-state | stale / not authoritative | Still not the authority for coordinate proof in this lane. |
 | SavedVariables | not live truth | Post-save snapshots only; never use as live movement truth. |
 
@@ -28,10 +28,10 @@ Key proof artifacts:
 
 | Artifact | Result |
 |---|---|
-| `scripts/captures/riftscan-proof-pose-20260514-025519/pose-api-reference.json` | Latest RRAPICOORD reference used for readback scoring. |
-| `scripts/captures/riftscan-proof-pose-20260514-025519/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-225529.json` | Latest readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`. |
-| `scripts/captures/rrapicoord-scan-diagnostics-20260514-025408-955923/summary.json` | Usable marker present after direct robust scan. |
-| `scripts/captures/rrapicoord-addon-state-diagnostics-20260514-025640-473138/summary.json` | Addon installed and live marker observed. |
+| `scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json` | Latest RRAPICOORD reference used for readback scoring. |
+| `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Latest readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`. |
+| `scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json` | Usable marker present after direct robust scan. |
+| `scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json` | Addon installed and live marker observed. |
 
 ## Movement gate
 
@@ -48,11 +48,11 @@ Key proof artifacts:
 | Candidate | `family-snapshot-hit-000004` |
 | Address | `0x268D5A80730` |
 | Candidate file | `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json` |
-| Readback | `scripts/captures/riftscan-proof-pose-20260514-025519/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-225529.json` |
-| Reference | `scripts/captures/riftscan-proof-pose-20260514-025519/pose-api-reference.json` |
-| Evidence | `ReferenceMatchCount=1`, `StableDecodedCandidateCount=8`, max abs delta `4.1503906231810106e-05`. |
+| Readback | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` |
+| Reference | `scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json` |
+| Evidence | `ReferenceMatchCount=1`, `StableDecodedCandidateCount=10`, max abs delta `4.960937758369255e-07`. |
 | Truth status | **candidate-only, not movement proof** |
-| Selection note | Latest robust proof-pose selected `000004`; prior `000003` is now family-context only because the latest readback did not match the current reference. Duplicate coordinate copies still need multi-pose disambiguation. |
+| Selection note | Two consecutive robust proof-pose runs selected `000004`; prior `000003` is now family-context only because newer readbacks did not match the current reference. Duplicate coordinate copies still need multi-pose disambiguation. |
 
 ## Latest coordinate reacquisition evidence
 
@@ -62,8 +62,8 @@ Key proof artifacts:
 | Post-scan reference guard | `scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/post-scan-reference/fresh-reference-coordinate.json` | Passed: pre/post RRAPICOORD stable with max abs drift `0.0`. |
 | Underpowered reference capture | `scripts/captures/riftscan-proof-pose-20260514-024955` | Blocked safely; no usable full marker from the narrow 512-byte context. Superseded, not proof evidence. |
 | Proof-pose wrapper fix | `scripts/capture-riftscan-proof-pose.ps1` | Now passes `4096` context bytes, `512` max hits, `5` attempts, `1500ms` retry delay to the reference capture helper. |
-| Latest proof-pose readback | `scripts/captures/riftscan-proof-pose-20260514-025519/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-225529.json` | Selected `family-snapshot-hit-000004` at `0x268D5A80730`; movement still blocked. |
-| Milestone strategy gate | `scripts/captures/riftscan-milestone-review-20260514-025556.json` | Ready for more read-only proof; movement still not allowed. |
+| Repeat proof-pose confirmation | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Second robust pass again selected `family-snapshot-hit-000004`; read-only only. |
+| Milestone strategy gate | `scripts/captures/riftscan-milestone-review-20260514-030120.json` | Ready for more read-only proof; movement still not allowed. |
 
 ## Static-chain / pointer status
 
