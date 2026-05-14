@@ -6,13 +6,48 @@ import argparse
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import current_pid_family_snapshot_sequence as sequence
 
 
+def write_current_truth(path: Path, *, pid: int = 79184, hwnd: str = "0xA90BFC", address: str = "0x268D5A80730") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "kind": "riftreader-current-truth",
+                "target": {
+                    "processName": "rift_x64",
+                    "processId": pid,
+                    "targetWindowHandle": hwnd,
+                    "processStartUtc": "2026-05-13T00:43:12.080812Z",
+                    "moduleBase": "0x7FF796B50000",
+                },
+                "bestCurrentCandidate": {
+                    "candidateId": "family-snapshot-hit-000004",
+                    "addressHex": address,
+                    "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-79184/family-import-candidates.json",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def args(**overrides) -> argparse.Namespace:
     values = {
+        "pid": None,
+        "hwnd": None,
+        "expected_start_time_utc": None,
+        "expected_module_base": None,
+        "current_truth_json": None,
+        "disable_current_truth": False,
+        "self_test": False,
         "top_count": 1,
         "max_total_ranges": 4,
         "max_prior_ranges": 3,
@@ -81,6 +116,93 @@ class CurrentPidFamilySnapshotSequenceTests(unittest.TestCase):
         self.assertEqual(ranges[0]["source"], "prior-exact-window")
         self.assertLess(ranges[0]["priority"], 10)
         self.assertTrue(any("currentTruth" in item["label"] for item in ranges))
+
+    def test_current_truth_context_fills_target_and_candidate_prior(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            truth = write_current_truth(temp_path / "docs" / "recovery" / "current-truth.json")
+            parsed = args(current_truth_json=truth, prior_address=[])
+
+            context = sequence.apply_current_truth_context(parsed, temp_path)
+
+            self.assertTrue(context["loaded"])
+            self.assertEqual(parsed.pid, 79184)
+            self.assertEqual(parsed.hwnd, "0xA90BFC")
+            self.assertEqual(parsed.expected_start_time_utc, "2026-05-13T00:43:12.080812Z")
+            self.assertEqual(parsed.expected_module_base, "0x7FF796B50000")
+            self.assertIn("currentTruth=0x268D5A80730", parsed.prior_address)
+            self.assertEqual(context["targetDefaultsApplied"], ["pid", "hwnd", "expected-start-time-utc", "expected-module-base"])
+            self.assertFalse(context["blockers"])
+
+    def test_current_truth_context_blocks_explicit_target_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            truth = write_current_truth(temp_path / "docs" / "recovery" / "current-truth.json")
+            parsed = args(current_truth_json=truth, pid=12345, hwnd="0xA90BFC", prior_address=[])
+
+            context = sequence.apply_current_truth_context(parsed, temp_path)
+
+            self.assertIn("current-truth-target-pid-mismatch:12345!=79184", context["blockers"])
+            self.assertIn("currentTruth=0x268D5A80730", parsed.prior_address)
+
+    def test_plan_only_can_bootstrap_from_current_truth_without_manual_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            write_current_truth(temp_path / "docs" / "recovery" / "current-truth.json")
+            scan_plan = (
+                temp_path
+                / "scripts"
+                / "captures"
+                / "memory-region-inventory-currentpid-79184-test"
+                / "scan-plan.json"
+            )
+            scan_plan.parent.mkdir(parents=True, exist_ok=True)
+            scan_plan.write_text(
+                json.dumps(
+                    {
+                        "ranges": [
+                            {
+                                "rank": 1,
+                                "minAddressHex": "0x900000",
+                                "maxAddressHex": "0xA00000",
+                                "spanMiB": 1.0,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = temp_path / "sequence"
+
+            original_argv = None
+            import sys
+
+            original_argv = sys.argv
+            try:
+                sys.argv = [
+                    "current_pid_family_snapshot_sequence.py",
+                    "--repo-root",
+                    str(temp_path),
+                    "--output-root",
+                    str(out),
+                    "--plan-only",
+                    "--disable-default-priors",
+                    "--max-prior-ranges",
+                    "1",
+                    "--json",
+                ]
+                with redirect_stdout(StringIO()):
+                    code = sequence.main()
+            finally:
+                sys.argv = original_argv
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["processId"], 79184)
+            self.assertEqual(summary["targetWindowHandle"], "0xA90BFC")
+            self.assertTrue(summary["currentTruth"]["loaded"])
+            self.assertEqual(manifest["scanRanges"][0]["label"], "currentTruth")
 
     def test_auto_displacement_uses_exact_hwnd_window_message_backend(self) -> None:
         captured = {}

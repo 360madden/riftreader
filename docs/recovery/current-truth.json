@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:29:15Z",
+  "updatedAtUtc": "2026-05-14T03:35:07Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -185,9 +185,10 @@
     "latestX64dbgAccessEventTemplate": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/access-event-template/x64dbg-manual-access-events-template.json",
     "latestPassiveFamilySnapshotSequence": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/summary.json",
     "latestPassiveFamilySnapshotSequenceManifest": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/manifest.json",
-    "latestPassiveFamilySnapshotSequenceDelta": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/delta-analysis/delta-summary.json"
+    "latestPassiveFamilySnapshotSequenceDelta": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/delta-analysis/delta-summary.json",
+    "latestCurrentTruthBootstrappedFamilySequencePlan": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-033507-237928/summary.json"
   },
-  "nextRecommendedAction": "Now that family snapshot sequence defaults to RRAPICOORD and prioritizes current-truth priors, capture a displaced pose via explicit approval/operator movement for offline delta ranking, or proceed to bounded x64dbg access capture if approved. Movement/navigation remains blocked.",
+  "nextRecommendedAction": "Use current-truth bootstrapped family snapshot sequence for the next displaced-pose/offline delta run, or proceed to bounded x64dbg access capture if approved. Movement/navigation remains blocked.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -239,6 +240,22 @@
     "latestPassiveFamilySnapshotSequencePoseCount": 2,
     "latestPassiveFamilySnapshotSequenceMovementSent": false,
     "currentTruthPriorOrderingFixed": true,
-    "chromalinkReferenceDependencyRemovedFromSequenceDefault": true
+    "chromalinkReferenceDependencyRemovedFromSequenceDefault": true,
+    "latestCurrentTruthBootstrappedFamilySequencePlan": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-033507-237928/summary.json",
+    "currentTruthBootstrapPlanStatus": "passed_plan_only_no_memory_read",
+    "currentTruthBootstrapDefaultsApplied": [
+      "pid",
+      "hwnd",
+      "expected-start-time-utc",
+      "expected-module-base",
+      "currentTruth prior"
+    ],
+    "currentTruthBootstrapSafety": {
+      "movementSent": false,
+      "inputSent": false,
+      "x64dbgLaunched": false,
+      "debuggerAttached": false,
+      "targetMemoryBytesRead": false
+    }
   }
 }

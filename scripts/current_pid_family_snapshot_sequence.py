@@ -46,6 +46,7 @@ SCHEMA_VERSION = 1
 DEFAULT_POSE_PLAN = "baseline-still:baseline:0,passive-still-500ms:passive:0.5,passive-still-1500ms:passive:1.5,operator-displaced-settled:displaced:0.5"
 DEFAULT_REFERENCE_SOURCE = "rrapicoord"
 DEFAULT_REFERENCE_TIMEOUT_SECONDS = 180
+DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_PRIOR_ADDRESSES = [
     # Highest-signal May 13 PID 2928 candidate family from prior-first
     # sequential snapshots + offline delta comparison.  These are
@@ -91,6 +92,10 @@ def utc_stamp() -> str:
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2), encoding="utf-8")
+
+
+def load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def extract_json(text: str) -> Any:
@@ -154,6 +159,128 @@ def compact_envelope(envelope: dict[str, Any], stage: str) -> dict[str, Any]:
         "stderrPreview": str(envelope.get("stderr") or "")[:2000],
         "stage": stage,
     }
+
+
+def resolve_repo_path(repo_root: Path, path_value: Path | str | None) -> Path | None:
+    if path_value is None:
+        return None
+    path = Path(str(path_value))
+    return path if path.is_absolute() else repo_root / path
+
+
+def to_int_or_none(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(str(value), 0)
+        except (TypeError, ValueError):
+            return None
+
+
+def normalize_hwnd(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return f"0x{int(str(value), 0):X}"
+    except (TypeError, ValueError):
+        return str(value).strip()
+
+
+def normalize_hex(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return format_hex(int(str(value), 0))
+    except (TypeError, ValueError):
+        return str(value).strip()
+
+
+def append_if_missing(values: list[str], candidate: str) -> bool:
+    if candidate in values:
+        return False
+    values.append(candidate)
+    return True
+
+
+def apply_current_truth_context(args: argparse.Namespace, repo_root: Path) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "enabled": not bool(getattr(args, "disable_current_truth", False)),
+        "path": None,
+        "loaded": False,
+        "targetDefaultsApplied": [],
+        "priorDefaultsApplied": [],
+        "blockers": [],
+        "warnings": [],
+    }
+    args.current_truth_context = context
+    args.current_truth_blockers = context["blockers"]
+    args.current_truth_warnings = context["warnings"]
+    if not context["enabled"] or getattr(args, "self_test", False):
+        return context
+
+    path = resolve_repo_path(repo_root, args.current_truth_json if args.current_truth_json else DEFAULT_CURRENT_TRUTH_JSON)
+    context["path"] = str(path) if path else None
+    if path is None or not path.exists():
+        if args.current_truth_json:
+            context["blockers"].append(f"current-truth-json-not-found:{path}")
+        return context
+
+    try:
+        document = load_json(path)
+    except Exception as exc:  # noqa: BLE001
+        context["blockers"].append(f"current-truth-json-read-failed:{type(exc).__name__}:{exc}")
+        return context
+    if not isinstance(document, dict):
+        context["blockers"].append("current-truth-json-must-be-object")
+        return context
+    context["loaded"] = True
+
+    target = document.get("target") if isinstance(document.get("target"), dict) else {}
+    truth_pid = to_int_or_none(target.get("processId") or target.get("pid") or target.get("Pid"))
+    truth_hwnd = normalize_hwnd(target.get("targetWindowHandle") or target.get("hwnd") or target.get("hwndHex"))
+    truth_start = target.get("processStartUtc") or target.get("startTimeUtc")
+    truth_module_base = normalize_hex(target.get("moduleBase") or target.get("moduleBaseAddressHex") or target.get("moduleBaseAddress"))
+
+    if args.pid is None and truth_pid is not None:
+        args.pid = truth_pid
+        context["targetDefaultsApplied"].append("pid")
+    elif args.pid is not None and truth_pid is not None and int(args.pid) != int(truth_pid):
+        context["blockers"].append(f"current-truth-target-pid-mismatch:{args.pid}!={truth_pid}")
+
+    if not args.hwnd and truth_hwnd:
+        args.hwnd = truth_hwnd
+        context["targetDefaultsApplied"].append("hwnd")
+    elif args.hwnd and truth_hwnd and normalize_hwnd(args.hwnd) != truth_hwnd:
+        context["blockers"].append(f"current-truth-target-hwnd-mismatch:{normalize_hwnd(args.hwnd)}!={truth_hwnd}")
+
+    if not args.expected_start_time_utc and truth_start:
+        args.expected_start_time_utc = str(truth_start)
+        context["targetDefaultsApplied"].append("expected-start-time-utc")
+    elif args.expected_start_time_utc and truth_start and str(args.expected_start_time_utc) != str(truth_start):
+        context["blockers"].append(f"current-truth-target-start-mismatch:{args.expected_start_time_utc}!={truth_start}")
+
+    if not args.expected_module_base and truth_module_base:
+        args.expected_module_base = truth_module_base
+        context["targetDefaultsApplied"].append("expected-module-base")
+    elif args.expected_module_base and truth_module_base and normalize_hex(args.expected_module_base) != truth_module_base:
+        context["blockers"].append(
+            f"current-truth-target-module-base-mismatch:{normalize_hex(args.expected_module_base)}!={truth_module_base}"
+        )
+
+    candidate = document.get("bestCurrentCandidate") if isinstance(document.get("bestCurrentCandidate"), dict) else {}
+    candidate_address = candidate.get("addressHex") or candidate.get("address") or candidate.get("absoluteAddressHex")
+    if candidate_address:
+        prior = f"currentTruth={candidate_address}"
+        args.prior_address = list(args.prior_address or [])
+        if append_if_missing(args.prior_address, prior):
+            context["priorDefaultsApplied"].append(prior)
+    else:
+        context["warnings"].append("current-truth-best-current-candidate-address-missing")
+
+    return context
 
 
 def latest_scan_plan(repo_root: Path, pid: int) -> Path:
@@ -710,6 +837,22 @@ def main() -> int:
     parser.add_argument("--hwnd", required=False)
     parser.add_argument("--process-name", default="rift_x64")
     parser.add_argument("--repo-root", default=None)
+    parser.add_argument("--output-root", type=Path, default=None)
+    parser.add_argument(
+        "--current-truth-json",
+        type=Path,
+        default=None,
+        help=(
+            "Current truth JSON used to fill missing PID/HWND/start/module fields and add the "
+            "bestCurrentCandidate as the highest-priority family prior. Defaults to "
+            "docs/recovery/current-truth.json when present."
+        ),
+    )
+    parser.add_argument(
+        "--disable-current-truth",
+        action="store_true",
+        help="Do not import target defaults or candidate priors from current-truth.json.",
+    )
     parser.add_argument("--scan-plan", default=None)
     parser.add_argument("--top-count", type=int, default=20)
     parser.add_argument("--max-total-ranges", type=int, default=40)
@@ -758,8 +901,9 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
+    apply_current_truth_context(args, repo_root)
     run_pid = args.pid if args.pid is not None else "selftest"
-    run_dir = repo_root / "scripts" / "captures" / f"family-snapshot-sequence-currentpid-{run_pid}-{utc_stamp()}"
+    run_dir = args.output_root.resolve() if args.output_root else repo_root / "scripts" / "captures" / f"family-snapshot-sequence-currentpid-{run_pid}-{utc_stamp()}"
     summary_path = run_dir / "summary.json"
     markdown_path = run_dir / "summary.md"
     manifest_path = run_dir / "manifest.json"
@@ -774,6 +918,7 @@ def main() -> int:
         "warnings": [],
         "errors": [],
         "repoRoot": str(repo_root),
+        "currentTruth": getattr(args, "current_truth_context", None),
         "processId": args.pid,
         "targetWindowHandle": args.hwnd,
         "scanPlanJson": None,
@@ -805,6 +950,7 @@ def main() -> int:
         "mode": "riftreader-family-snapshot-sequence",
         "generatedAtUtc": utc_iso(),
         "repoRoot": str(repo_root),
+        "currentTruth": getattr(args, "current_truth_context", None),
         "processId": args.pid,
         "targetWindowHandle": args.hwnd,
         "processName": args.process_name,
@@ -826,6 +972,16 @@ def main() -> int:
             else:
                 summary["errors"].extend(self_test["errors"])
                 exit_code = 1
+            return exit_code
+
+        summary["warnings"].extend(getattr(args, "current_truth_warnings", []) or [])
+        if getattr(args, "current_truth_blockers", None):
+            summary["blockers"].extend(str(blocker) for blocker in args.current_truth_blockers)
+            summary["status"] = "blocked"
+            summary["next"]["recommendedAction"] = (
+                "Refresh current-truth, pass the matching target, or use --disable-current-truth for an explicit exploratory run."
+            )
+            exit_code = 2
             return exit_code
 
         if args.pid is None or args.hwnd is None:
