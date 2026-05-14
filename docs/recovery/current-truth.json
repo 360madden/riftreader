@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:08:56Z",
+  "updatedAtUtc": "2026-05-14T03:19:08Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -18,7 +18,7 @@
     "view": "Inspect.Unit.Detail(player)",
     "savedVariablesUse": "none",
     "latestPreflight": "scripts/captures/coordinate-proof-preflight-20260514-020050-354005/summary.json",
-    "latestReference": "scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json",
+    "latestReference": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
     "latestMarkerDiagnostic": "scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json",
     "latestAddonDiagnostic": "scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json",
     "nonAuthoritative": [
@@ -31,8 +31,14 @@
         "status": "post_save_snapshot_not_live_truth"
       }
     ],
-    "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260514-0254/rift-api-reference-currentpid-2928-20260514-025327.json",
-    "latestReferenceCaptureHardenedBy": "scripts/capture-riftscan-proof-pose.ps1"
+    "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
+    "latestReferenceCaptureHardenedBy": "scripts/capture-riftscan-proof-pose.ps1",
+    "latestReferenceCoordinate": {
+      "x": 7403.4,
+      "y": 871.77,
+      "z": 3029.41,
+      "capturedAtUtc": "2026-05-14T03:19:00.9443165Z"
+    }
   },
   "movementGate": {
     "allowed": false,
@@ -91,7 +97,13 @@
     "ownerBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json",
     "ownerBasePointerHitCount": 0,
     "movementAllowed": false,
-    "promotionEligible": false
+    "promotionEligible": false,
+    "latestX64dbgNoAttachReadiness": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json",
+    "latestX64dbgCoordChainPlan": "scripts/captures/x64dbg-coord-chain-plan-20260514-031908-113310/coord-chain-plan-summary.json",
+    "latestX64dbgAccessEventTemplate": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/access-event-template/x64dbg-manual-access-events-template.json",
+    "x64dbgReadinessStatus": "ready_for_current_turn_approval_no_attach_only_current_truth_candidate",
+    "x64dbgAttachStarted": false,
+    "staleLatestCandidateFallback": "blocked_by_default_in_x64dbg_no_attach_readiness_packet"
   },
   "staleOrInvalid": [
     {
@@ -133,7 +145,8 @@
     "static pointer chain not proven",
     "candidate restart validation not done",
     "ChromaLink world-state stale/unhealthy",
-    "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs"
+    "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs",
+    "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -153,7 +166,7 @@
     "latestStableFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json",
     "latestMilestoneReviewMarkdown": "scripts/captures/riftscan-milestone-review-20260514-030120.md",
     "latestStableFamilyReference": "scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json",
-    "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260514-0254/rift-api-reference-currentpid-2928-20260514-025327.json",
+    "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
     "latestPassedRrapicoordDiagnostic": "scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json",
     "latestAddonDiagnostic": "scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json",
     "latestUnderpoweredReferenceBlocker": "scripts/captures/riftscan-proof-pose-20260514-024955",
@@ -164,9 +177,13 @@
     "latestPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-030612-600628/summary.json",
     "latestManualRootSignature": "scripts/captures/manual-root-signature-from-owner-batch-20260514-030612/root-signature.json",
     "latestRootSignatureSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-030832-821868/summary.json",
-    "latestOwnerBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json"
+    "latestOwnerBasePointerScan": "scripts/captures/pointer-family-scan-20260514-030856-814392/summary.json",
+    "latestX64dbgNoAttachReadiness": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json",
+    "latestX64dbgPreflight": "scripts/captures/x64dbg-target-preflight-20260514-031908-073743/summary.json",
+    "latestX64dbgCoordChainPlan": "scripts/captures/x64dbg-coord-chain-plan-20260514-031908-113310/coord-chain-plan-summary.json",
+    "latestX64dbgAccessEventTemplate": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/access-event-template/x64dbg-manual-access-events-template.json"
   },
-  "nextRecommendedAction": "Continue read-only family-group/multi-pose proof against the latest selected heap family, then pivot to owner/static-root recovery only after duplicate coordinate copies are disambiguated. Movement remains blocked.",
+  "nextRecommendedAction": "With stale latest-candidate fallback blocked, either run a bounded current-turn-approved x64dbg 12-byte coord access capture on family-snapshot-hit-000004, or continue read-only multi-pose family-group snapshots if debugger attach is not approved. Movement remains blocked.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -206,6 +223,10 @@
       "directRefresh": "scripts/captures/rrapicoord-reference-refresh-20260514-0254/rift-api-reference-currentpid-2928-20260514-025327.json"
     },
     "previousRobustReadbackProofPose": "scripts/captures/riftscan-proof-pose-20260514-025519/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-225529.json",
-    "previousRobustReadbackReferenceFile": "scripts/captures/riftscan-proof-pose-20260514-025519/pose-api-reference.json"
+    "previousRobustReadbackReferenceFile": "scripts/captures/riftscan-proof-pose-20260514-025519/pose-api-reference.json",
+    "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
+    "latestX64dbgNoAttachReadiness": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/summary.json",
+    "x64dbgCandidateSelectionSource": "current-truth",
+    "staleLatestCandidateFallbackBlockedByDefault": true
   }
 }

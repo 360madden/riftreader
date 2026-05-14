@@ -20,6 +20,7 @@ from .reports import write_json, write_text_atomic
 
 SCHEMA_VERSION = 1
 DEFAULT_PROCESS_NAME = "rift_x64"
+DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 
 
 ToolMain = Callable[[list[str] | None], int]
@@ -119,6 +120,175 @@ def read_optional_json(path_value: Any) -> dict[str, Any] | None:
     return document if isinstance(document, dict) else None
 
 
+def resolve_repo_path(repo_root: Path, path_value: Path | str | None) -> Path | None:
+    if path_value is None:
+        return None
+    path = Path(str(path_value))
+    return path if path.is_absolute() else repo_root / path
+
+
+def append_target_mismatch(
+    blockers: list[str],
+    *,
+    name: str,
+    requested: Any,
+    current_truth: Any,
+    normalize: Callable[[Any], Any] | None = None,
+) -> None:
+    if requested in (None, "") or current_truth in (None, ""):
+        return
+    requested_value = normalize(requested) if normalize else requested
+    truth_value = normalize(current_truth) if normalize else current_truth
+    if requested_value != truth_value:
+        blockers.append(f"current-truth-target-{name}-mismatch:{requested_value}!={truth_value}")
+
+
+def current_truth_target_blockers(args: argparse.Namespace, document: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    target = document.get("target") if isinstance(document.get("target"), dict) else {}
+    truth_pid = x64dbg_coord_chain_plan.to_int_or_none(
+        target.get("processId") or target.get("pid") or target.get("Pid")
+    )
+    truth_hwnd = target.get("targetWindowHandle") or target.get("hwnd") or target.get("hwndHex")
+    truth_start = target.get("processStartUtc") or target.get("startTimeUtc")
+    truth_module_base = target.get("moduleBase") or target.get("moduleBaseAddressHex") or target.get("moduleBaseAddress")
+
+    if args.target_pid is not None and truth_pid is None:
+        blockers.append("current-truth-target-pid-missing")
+    if args.target_hwnd and not truth_hwnd:
+        blockers.append("current-truth-target-hwnd-missing")
+    if args.expected_start_time_utc and not truth_start:
+        blockers.append("current-truth-target-start-missing")
+    if args.expected_module_base and not truth_module_base:
+        blockers.append("current-truth-target-module-base-missing")
+
+    append_target_mismatch(
+        blockers,
+        name="pid",
+        requested=args.target_pid,
+        current_truth=truth_pid,
+        normalize=lambda value: int(value),
+    )
+    append_target_mismatch(
+        blockers,
+        name="hwnd",
+        requested=args.target_hwnd,
+        current_truth=truth_hwnd,
+        normalize=lambda value: x64dbg_coord_chain_plan.normalize_hwnd(str(value)),
+    )
+    append_target_mismatch(
+        blockers,
+        name="start",
+        requested=args.expected_start_time_utc,
+        current_truth=truth_start,
+        normalize=lambda value: str(value).strip(),
+    )
+    append_target_mismatch(
+        blockers,
+        name="module-base",
+        requested=args.expected_module_base,
+        current_truth=truth_module_base,
+        normalize=lambda value: x64dbg_coord_chain_plan.normalize_hex_int(value),
+    )
+    return blockers
+
+
+def latest_candidate_selection(args: argparse.Namespace) -> tuple[str, str, list[str], list[str]]:
+    warnings = [
+        "latest-candidate-fallback-explicitly-allowed",
+        "latest-candidate-fallback-is-not-default; prefer current-truth or explicit candidate selection",
+    ]
+    args.candidate_selection_source = "latest-fallback"
+    args.candidate_selection_current_truth_json = None
+    args.candidate_selection_candidate_file = "latest"
+    args.candidate_selection_candidate_id = "best"
+    return "latest", "best", [], warnings
+
+
+def resolve_candidate_selection(args: argparse.Namespace, repo_root: Path) -> tuple[str | None, str | None, list[str], list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    args.candidate_selection_source = None
+    args.candidate_selection_current_truth_json = None
+    args.candidate_selection_candidate_file = None
+    args.candidate_selection_candidate_id = None
+
+    if args.candidate_file:
+        raw_candidate_file = str(args.candidate_file).strip()
+        if raw_candidate_file.lower() == "latest":
+            candidate_id = args.candidate_id or "best"
+            if not args.allow_latest_candidate_fallback:
+                blockers.append("candidate-file-latest-requires-allow-latest-candidate-fallback")
+            warnings.append("candidate-file-latest-explicitly-requested")
+            args.candidate_selection_source = "explicit-latest"
+            args.candidate_selection_candidate_file = "latest"
+            args.candidate_selection_candidate_id = candidate_id
+            return "latest", candidate_id, blockers, warnings
+
+        candidate_file = resolve_repo_path(repo_root, args.candidate_file)
+        candidate_id = args.candidate_id or "best"
+        if candidate_file is None:
+            blockers.append("candidate-file-resolve-failed")
+        elif not candidate_file.exists():
+            blockers.append(f"candidate-file-not-found:{candidate_file}")
+        if not args.candidate_id:
+            warnings.append("candidate-id-not-supplied-defaulted-to-best")
+        args.candidate_selection_source = "explicit"
+        args.candidate_selection_candidate_file = str(candidate_file if candidate_file else args.candidate_file)
+        args.candidate_selection_candidate_id = candidate_id
+        return args.candidate_selection_candidate_file, candidate_id, blockers, warnings
+
+    current_truth_path = resolve_repo_path(
+        repo_root,
+        args.current_truth_json if args.current_truth_json else DEFAULT_CURRENT_TRUTH_JSON,
+    )
+    args.candidate_selection_current_truth_json = str(current_truth_path) if current_truth_path else None
+    if current_truth_path is None or not current_truth_path.exists():
+        blockers.append(f"current-truth-json-not-found:{current_truth_path}")
+    else:
+        try:
+            document = json.loads(current_truth_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            blockers.append(f"current-truth-json-read-failed:{type(exc).__name__}:{exc}")
+            document = None
+        if not isinstance(document, dict):
+            blockers.append("current-truth-json-must-be-object")
+        else:
+            blockers.extend(current_truth_target_blockers(args, document))
+            candidate = document.get("bestCurrentCandidate")
+            if not isinstance(candidate, dict):
+                blockers.append("current-truth-best-current-candidate-missing")
+            else:
+                candidate_file_value = candidate.get("candidateFile")
+                candidate_id_value = candidate.get("candidateId")
+                if not candidate_file_value:
+                    blockers.append("current-truth-candidate-file-missing")
+                if not candidate_id_value:
+                    blockers.append("current-truth-candidate-id-missing")
+                candidate_file = resolve_repo_path(repo_root, candidate_file_value) if candidate_file_value else None
+                if candidate_file is not None and not candidate_file.exists():
+                    blockers.append(f"current-truth-candidate-file-not-found:{candidate_file}")
+                if candidate_file is not None and candidate_id_value:
+                    args.candidate_selection_source = "current-truth"
+                    args.candidate_selection_candidate_file = str(candidate_file)
+                    args.candidate_selection_candidate_id = str(candidate_id_value)
+
+    if blockers and args.allow_latest_candidate_fallback:
+        _, _, _, fallback_warnings = latest_candidate_selection(args)
+        warnings.extend([f"current-truth-candidate-selection-blocker:{blocker}" for blocker in blockers])
+        warnings.extend(fallback_warnings)
+        return "latest", "best", [], warnings
+
+    if blockers:
+        return None, None, blockers, warnings
+
+    if args.candidate_selection_candidate_file and args.candidate_selection_candidate_id:
+        return args.candidate_selection_candidate_file, args.candidate_selection_candidate_id, blockers, warnings
+
+    blockers.append("current-truth-candidate-selection-unresolved")
+    return None, None, blockers, warnings
+
+
 def template_candidate_evidence(template_payload: dict[str, Any]) -> dict[str, Any] | None:
     summary = read_optional_json(template_payload.get("summaryJson"))
     if isinstance(summary, dict) and isinstance(summary.get("candidateEvidence"), dict):
@@ -214,6 +384,20 @@ def markdown_summary(summary: dict[str, Any]) -> str:
                 "- Promotion state: `candidate-only`",
             ]
         )
+    if summary.get("candidateSelection"):
+        selection = summary["candidateSelection"]
+        lines.extend(
+            [
+                "",
+                "## Candidate selection",
+                "",
+                f"- Source: `{selection.get('source')}`",
+                f"- Current-truth JSON: `{selection.get('currentTruthJson')}`",
+                f"- Candidate file: `{selection.get('candidateFile')}`",
+                f"- Candidate id: `{selection.get('candidateId')}`",
+                f"- Latest fallback allowed: `{str(selection.get('allowLatestCandidateFallback')).lower()}`",
+            ]
+        )
     if summary.get("candidateEvidence"):
         evidence = summary["candidateEvidence"]
         selected = evidence.get("selectedAddress") if isinstance(evidence.get("selectedAddress"), dict) else {}
@@ -294,6 +478,13 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
             "noAttachWorkflow": True,
         },
         "candidate": candidate,
+        "candidateSelection": {
+            "source": getattr(args, "candidate_selection_source", None),
+            "currentTruthJson": getattr(args, "candidate_selection_current_truth_json", None),
+            "candidateFile": getattr(args, "candidate_selection_candidate_file", None),
+            "candidateId": getattr(args, "candidate_selection_candidate_id", None),
+            "allowLatestCandidateFallback": bool(getattr(args, "allow_latest_candidate_fallback", False)),
+        },
         "candidateEvidence": candidate_evidence,
         "plannerStatus": planner_summary.get("status"),
         "steps": steps,
@@ -405,6 +596,28 @@ def run_packet(args: argparse.Namespace, tool_runner: ToolRunner = run_json_tool
             write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
             return summary
 
+    candidate_file, candidate_id, candidate_blockers, candidate_warnings = resolve_candidate_selection(args, repo_root)
+    if candidate_blockers:
+        steps.append(blocked_step("candidate_selection", candidate_blockers))
+        summary = build_summary(args, run_dir, steps)
+        write_json(Path(summary["artifacts"]["summaryJson"]), summary)
+        write_text_atomic(Path(summary["artifacts"]["summaryMarkdown"]), markdown_summary(summary))
+        return summary
+    if candidate_warnings:
+        steps.append(
+            {
+                "name": "candidate_selection",
+                "argv": [],
+                "exitCode": 0,
+                "payload": {
+                    "status": "passed",
+                    "blockers": [],
+                    "warnings": candidate_warnings,
+                },
+                "stdout": "",
+            }
+        )
+
     planner_argv = [
         "--repo-root",
         str(repo_root),
@@ -413,9 +626,9 @@ def run_packet(args: argparse.Namespace, tool_runner: ToolRunner = run_json_tool
         "--api-coordinate-file",
         str(reference_json),
         "--candidate-file",
-        "latest",
+        str(candidate_file),
         "--candidate-id",
-        "best",
+        str(candidate_id),
         "--strict-live-debugger-readiness",
     ]
     planner_step = tool_runner("x64dbg_coord_chain_plan", x64dbg_coord_chain_plan.main, planner_argv)
@@ -452,7 +665,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Generate a no-attach x64dbg readiness packet from exact preflight, an API coordinate reference, "
-            "and the latest candidate scan."
+            "and an explicit or current-truth coordinate candidate."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=None)
@@ -465,6 +678,37 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world-state-file", type=Path, default=None)
     parser.add_argument("--world-state-url", default=chromalink_world_state_reference.DEFAULT_WORLD_STATE_URL)
     parser.add_argument("--timeout-seconds", type=float, default=2.0)
+    parser.add_argument(
+        "--candidate-file",
+        type=Path,
+        default=None,
+        help=(
+            "Planner-compatible coordinate candidate JSON. When omitted, the helper uses "
+            "docs/recovery/current-truth.json bestCurrentCandidate and verifies it matches the exact target."
+        ),
+    )
+    parser.add_argument(
+        "--candidate-id",
+        default=None,
+        help="Candidate id inside --candidate-file. Defaults to current-truth candidate id, or 'best' only for explicit files.",
+    )
+    parser.add_argument(
+        "--current-truth-json",
+        type=Path,
+        default=None,
+        help=(
+            "Current truth dashboard JSON used to select the candidate when --candidate-file is omitted. "
+            "Defaults to docs/recovery/current-truth.json under --repo-root."
+        ),
+    )
+    parser.add_argument(
+        "--allow-latest-candidate-fallback",
+        action="store_true",
+        help=(
+            "Explicitly allow the older planner --candidate-file latest/--candidate-id best fallback if "
+            "current-truth candidate selection fails. Default is fail-closed to avoid stale candidates."
+        ),
+    )
     parser.add_argument(
         "--api-coordinate-file",
         default=None,
@@ -501,6 +745,7 @@ def main(argv: list[str] | None = None) -> int:
                     "plannerSummaryJson": summary["artifacts"]["plannerSummaryJson"],
                     "accessEventTemplateJson": summary["artifacts"]["accessEventTemplateJson"],
                     "compactHandoffMarkdown": summary["artifacts"]["compactHandoffMarkdown"],
+                    "candidateSelection": summary.get("candidateSelection"),
                     "candidateEvidence": summary.get("candidateEvidence"),
                     "blockers": summary["blockers"],
                     "warnings": summary["warnings"],
