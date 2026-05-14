@@ -246,6 +246,30 @@ def classify_readback(
     }
 
 
+def route_reference_match(item: dict[str, Any]) -> dict[str, Any]:
+    reference_delta = item.get("directMaxAbsDelta")
+    if item.get("classification") == "offset-corrected-current-coordinate-candidate":
+        reference_delta = item.get("offsetCorrectedMaxAbsDelta")
+    reference_matches = item.get("classification") in {
+        "direct-current-coordinate-candidate",
+        "offset-corrected-current-coordinate-candidate",
+    }
+    spread = item.get("offsetSpread") if isinstance(item.get("offsetSpread"), dict) else {}
+    return {
+        "CandidateId": item.get("candidateId"),
+        "CandidateAddressHex": item.get("addressHex"),
+        "ReferenceMatchesReadback": reference_matches,
+        "ReferenceMaxAbsDelta": reference_delta,
+        "StableAcrossReadbackSamples": bool(reference_matches and item.get("snapshotOffsetCount", 0) >= 1),
+        "SourcePreviewMatchesReadback": reference_matches,
+        "Classification": item.get("classification"),
+        "DirectMaxAbsDelta": item.get("directMaxAbsDelta"),
+        "OffsetCorrectedMaxAbsDelta": item.get("offsetCorrectedMaxAbsDelta"),
+        "OffsetSpreadMaxAbs": spread.get("maxAbs"),
+        "TruthReadiness": item.get("truthReadiness"),
+    }
+
+
 def render_markdown(summary: dict[str, Any]) -> str:
     rows = []
     for item in summary.get("readbacks", [])[:10]:
@@ -336,8 +360,15 @@ def main() -> int:
         "errors": [],
         "repoRoot": str(repo_root),
         "processId": args.pid,
+        "ProcessId": args.pid,
+        "ProcessName": args.process_name,
         "targetWindowHandle": args.hwnd,
+        "TargetWindowHandle": args.hwnd,
         "candidateFile": str(Path(args.candidate_jsonl).resolve()) if args.candidate_jsonl else None,
+        "SourceCandidateFile": str(Path(args.candidate_jsonl).resolve()) if args.candidate_jsonl else None,
+        "MovementSent": False,
+        "InputSent": False,
+        "NoCheatEngine": True,
         "safety": {
             "movementSent": False,
             "inputSent": False,
@@ -474,6 +505,10 @@ def main() -> int:
         summary["bestReadback"] = matching[0] if matching else (summary["readbacks"][0] if summary["readbacks"] else None)
         summary["readbackCandidateCount"] = len(summary["readbacks"])
         summary["matchingCandidateCount"] = len(matching)
+        summary["DecodedCandidateCount"] = len(summary["readbacks"])
+        summary["StableDecodedCandidateCount"] = len(matching)
+        summary["ReferenceMatchCount"] = len(matching)
+        summary["BestReferenceMatches"] = [route_reference_match(item) for item in matching[:10]]
         if matching:
             summary["status"] = "passed"
             summary["next"]["recommendedAction"] = "Run another short snapshot/readback after a distinct movement vector; still do not promote until proof-chain gates pass."

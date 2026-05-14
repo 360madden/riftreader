@@ -157,6 +157,57 @@ class CoordinateCandidateCompareTests(unittest.TestCase):
             self.assertEqual(file_result["bothReferenceMatchCount"], 0)
             self.assertEqual(file_result["rows"][0]["twoReferenceStatus"], "baseline-only")
 
+    def test_two_reference_mode_uses_snapshot_delta_pose_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            baseline = root / "baseline.json"
+            displaced = root / "displaced.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            baseline.write_text(json.dumps({"coordinate": {"x": 1.0, "y": 2.0, "z": 3.0}}), encoding="utf-8")
+            displaced.write_text(json.dumps({"coordinate": {"x": 5.0, "y": 2.0, "z": 4.0}}), encoding="utf-8")
+            candidates.write_text(
+                json.dumps(
+                    {
+                        "candidates": [
+                            {
+                                "candidate_id": "delta-tracker",
+                                "absolute_address_hex": "0x1000",
+                                "value_preview": [5.01, 2.0, 4.02],
+                                "baselineValue": {"x": 1.01, "y": 2.0, "z": 3.02},
+                                "displacedValue": {"x": 5.01, "y": 2.0, "z": 4.02},
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(baseline),
+                    "--displaced-api-reference",
+                    str(displaced),
+                    "--candidate-file",
+                    str(candidates),
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "api-candidate-two-reference-match")
+            file_result = summary["candidateFiles"][0]
+            self.assertEqual(file_result["matchCount"], 1)
+            self.assertEqual(file_result["displacedMatchCount"], 1)
+            self.assertEqual(file_result["bothReferenceMatchCount"], 1)
+            self.assertEqual(file_result["rows"][0]["twoReferenceStatus"], "matches-both-references")
+            self.assertEqual(file_result["rows"][0]["twoReferenceValueMode"], "baseline-and-displaced-values")
+
     def test_latest_displaced_alias_blocks_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

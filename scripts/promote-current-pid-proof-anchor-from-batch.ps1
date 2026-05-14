@@ -210,18 +210,20 @@
 
   $PromoteCommand = @"
 `$ErrorActionPreference = 'Stop'
-& $(ConvertTo-PowerShellSingleQuotedString -Value $PromoteScript) `
-  -ReadbackSummaryFile $ReadbackArrayLiteral `
-  -CandidateId $(ConvertTo-PowerShellSingleQuotedString -Value $CandidateId) `
-  -ProcessName $(ConvertTo-PowerShellSingleQuotedString -Value $ProcessName) `
-  -ProcessId $RiftPid `
-  -TargetWindowHandle $(ConvertTo-PowerShellSingleQuotedString -Value $RiftHwnd) `
-  -OutputFile $(ConvertTo-PowerShellSingleQuotedString -Value $ProofAnchorFile) `
-  -MinPoseCount $MinimumSupport `
-  -MinReferenceDisplacement 1.0 `
-  -MaxDeltaError 0.25 `
-  -MaxEvidenceAgeSeconds 14400 `
-  -Json
+`$PromoteParams = @{
+  ReadbackSummaryFile = $ReadbackArrayLiteral
+  CandidateId = $(ConvertTo-PowerShellSingleQuotedString -Value $CandidateId)
+  ProcessName = $(ConvertTo-PowerShellSingleQuotedString -Value $ProcessName)
+  ProcessId = $RiftPid
+  TargetWindowHandle = $(ConvertTo-PowerShellSingleQuotedString -Value $RiftHwnd)
+  OutputFile = $(ConvertTo-PowerShellSingleQuotedString -Value $ProofAnchorFile)
+  MinPoseCount = $MinimumSupport
+  MinReferenceDisplacement = 1.0
+  MaxDeltaError = 0.25
+  MaxEvidenceAgeSeconds = 14400
+  Json = `$true
+}
+& $(ConvertTo-PowerShellSingleQuotedString -Value $PromoteScript) @PromoteParams
 "@
 
   $PromoteArgs = New-EncodedPowerShellCommandArguments -CommandText $PromoteCommand
@@ -252,16 +254,18 @@
 
   $AssertCommand = @"
 `$ErrorActionPreference = 'Stop'
-& $(ConvertTo-PowerShellSingleQuotedString -Value $AssertScript) `
-  -ProcessName $(ConvertTo-PowerShellSingleQuotedString -Value $ProcessName) `
-  -ProcessId $RiftPid `
-  -TargetWindowHandle $(ConvertTo-PowerShellSingleQuotedString -Value $RiftHwnd) `
-  -ProofCoordAnchorFile $(ConvertTo-PowerShellSingleQuotedString -Value $ProofAnchorFile) `
-  -OutputRoot $(ConvertTo-PowerShellSingleQuotedString -Value $PromoteRoot) `
-  -ProofAnchorMaxAgeSeconds 120 `
-  -ReadbackSampleCount 4 `
-  -ReadbackIntervalMilliseconds 100 `
-  -Json
+`$AssertParams = @{
+  ProcessName = $(ConvertTo-PowerShellSingleQuotedString -Value $ProcessName)
+  ProcessId = $RiftPid
+  TargetWindowHandle = $(ConvertTo-PowerShellSingleQuotedString -Value $RiftHwnd)
+  ProofCoordAnchorFile = $(ConvertTo-PowerShellSingleQuotedString -Value $ProofAnchorFile)
+  OutputRoot = $(ConvertTo-PowerShellSingleQuotedString -Value $PromoteRoot)
+  ProofAnchorMaxAgeSeconds = 120
+  ReadbackSampleCount = 4
+  ReadbackIntervalMilliseconds = 100
+  Json = `$true
+}
+& $(ConvertTo-PowerShellSingleQuotedString -Value $AssertScript) @AssertParams
 "@
 
   $AssertArgs = New-EncodedPowerShellCommandArguments -CommandText $AssertCommand

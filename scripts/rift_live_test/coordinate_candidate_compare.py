@@ -216,6 +216,18 @@ def candidate_value(candidate: dict[str, Any]) -> tuple[float, float, float] | N
     return None
 
 
+def candidate_mapping_value(candidate: dict[str, Any], *keys: str) -> tuple[float, float, float] | None:
+    for key in keys:
+        value = candidate.get(key)
+        if isinstance(value, dict):
+            x = number_or_none(value.get("x", value.get("X")))
+            y = number_or_none(value.get("y", value.get("Y")))
+            z = number_or_none(value.get("z", value.get("Z")))
+            if x is not None and y is not None and z is not None:
+                return x, y, z
+    return None
+
+
 def candidate_id(candidate: dict[str, Any], index: int) -> str:
     return str(candidate.get("candidate_id") or candidate.get("candidateId") or f"candidate-{index:06d}")
 
@@ -258,8 +270,10 @@ def compare_file(
     displaced_ref = displaced_reference["coordinate"] if displaced_reference else None
     rows: list[dict[str, Any]] = []
     for index, record in enumerate(records[:max_records], start=1):
-        value = candidate_value(record)
-        if value is None:
+        preview_value = candidate_value(record)
+        baseline_value = candidate_mapping_value(record, "baselineValue", "baseline_value") or preview_value
+        displaced_value = candidate_mapping_value(record, "displacedValue", "displaced_value") or preview_value
+        if baseline_value is None:
             rows.append(
                 {
                     "candidateId": candidate_id(record, index),
@@ -269,7 +283,7 @@ def compare_file(
                 }
             )
             continue
-        x, y, z = value
+        x, y, z = baseline_value
         dx = x - float(ref["x"])
         dy = y - float(ref["y"])
         dz = z - float(ref["z"])
@@ -290,9 +304,10 @@ def compare_file(
             "classification": record.get("classification"),
         }
         if displaced_ref is not None:
-            ddx = x - float(displaced_ref["x"])
-            ddy = y - float(displaced_ref["y"])
-            ddz = z - float(displaced_ref["z"])
+            displaced_x, displaced_y, displaced_z = displaced_value if displaced_value is not None else (x, y, z)
+            ddx = displaced_x - float(displaced_ref["x"])
+            ddy = displaced_y - float(displaced_ref["y"])
+            ddz = displaced_z - float(displaced_ref["z"])
             displaced_max_abs = max(abs(ddx), abs(ddy), abs(ddz))
             displaced_match = displaced_max_abs <= tolerance
             if baseline_match and displaced_match:
@@ -311,6 +326,13 @@ def compare_file(
                     "displacedMaxAbsDelta": displaced_max_abs,
                     "displacedStatus": "matches-displaced-api" if displaced_match else "stale-or-not-displaced-pose",
                     "twoReferenceStatus": two_reference_status,
+                    "displacedX": displaced_x,
+                    "displacedY": displaced_y,
+                    "displacedZ": displaced_z,
+                    "twoReferenceValueMode": "baseline-and-displaced-values"
+                    if candidate_mapping_value(record, "baselineValue", "baseline_value")
+                    or candidate_mapping_value(record, "displacedValue", "displaced_value")
+                    else "single-value",
                 }
             )
         rows.append(row)
