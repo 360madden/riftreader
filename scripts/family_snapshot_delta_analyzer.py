@@ -233,6 +233,64 @@ def candidate_error_value(candidate: dict[str, Any]) -> float:
     return float(candidate.get("passiveMaxValueDrift") or candidate.get("baselineMaxAbsDelta") or 0.0)
 
 
+def readback_rank_score(candidate_score: float) -> float:
+    return round(max(0.0, 100000.0 - (float(candidate_score) * 1000.0)), 6)
+
+
+def xyz_preview(value: dict[str, float]) -> list[float]:
+    return [float(value[axis]) for axis in ("x", "y", "z")]
+
+
+def add_readback_compat_fields(
+    candidate: dict[str, Any],
+    *,
+    schema_version: str,
+    base_address: int,
+    offset: int,
+    axis_order: str,
+    value_preview: dict[str, float],
+    best_max_abs_distance: float,
+    classification: str,
+    validation_status: str,
+    support_count: int,
+    evidence_summary: str,
+    next_validation_step: str,
+) -> None:
+    absolute = base_address + offset
+    rank_score = readback_rank_score(float(candidate["score"]))
+    preview = xyz_preview(value_preview)
+    candidate.update(
+        {
+            "schema_version": schema_version,
+            "candidate_id": candidate["candidateId"],
+            "base_address_hex": format_hex(base_address),
+            "offset_hex": format_hex(offset),
+            "x_offset_hex": format_hex(offset),
+            "y_offset_hex": format_hex(offset + 4),
+            "z_offset_hex": format_hex(offset + 8),
+            "absolute_address_hex": format_hex(absolute),
+            "axis_order": axis_order,
+            "value_preview": preview,
+            "best_memory_x": preview[0],
+            "best_memory_y": preview[1],
+            "best_memory_z": preview[2],
+            "best_max_abs_distance": float(best_max_abs_distance),
+            "score_total": rank_score,
+            "rank_score": rank_score,
+            "support_count": int(support_count),
+            "classification": classification,
+            "validation_status": validation_status,
+            "truth_readiness": "candidate_only_not_movement_proof",
+            "confidence_level": "candidate",
+            "evidence_summary": evidence_summary,
+            "next_validation_step": next_validation_step,
+            "family_base_hex": candidate["familyBaseHex"],
+            "residue_mod48_hex": candidate["residueMod48Hex"],
+            "residue_mod256_hex": candidate["residueMod256Hex"],
+        }
+    )
+
+
 def build_candidate(
     *,
     base_address: int,
@@ -286,6 +344,23 @@ def build_candidate(
         "cleanDisplacementWindow": passive_overlap == 0,
     }
     candidate["score"] = score_candidate(candidate)
+    add_readback_compat_fields(
+        candidate,
+        schema_version="riftreader.family_snapshot_delta_candidate.v1",
+        base_address=base_address,
+        offset=offset,
+        axis_order=axis_order,
+        value_preview=displaced_value,
+        best_max_abs_distance=displaced_max_abs,
+        classification="current-pid-family-snapshot-delta-triplet",
+        validation_status="delta_tracking_candidate",
+        support_count=2,
+        evidence_summary=(
+            f"trackingMaxAbs={error['maxAbs']:.6g}; baselineMaxAbs={baseline_max_abs:.6g}; "
+            f"displacedMaxAbs={displaced_max_abs:.6g}; passiveNoiseByteOverlap={passive_overlap}"
+        ),
+        next_validation_step="Run read-only proof-pose readback; require current proof/static chain before movement.",
+    )
     return candidate
 
 
@@ -362,6 +437,23 @@ def build_passive_candidate(
         ],
     }
     candidate["score"] = score_passive_candidate(candidate)
+    add_readback_compat_fields(
+        candidate,
+        schema_version="riftreader.family_snapshot_passive_stability_candidate.v1",
+        base_address=base_address,
+        offset=offset,
+        axis_order=axis_order,
+        value_preview=baseline_value,
+        best_max_abs_distance=baseline_max_abs,
+        classification="current-pid-family-snapshot-passive-stability-triplet",
+        validation_status="passive_stability_near_reference_candidate",
+        support_count=len(passive_observations) + 1,
+        evidence_summary=(
+            f"baselineMaxAbs={baseline_max_abs:.6g}; passiveMaxAbs={passive_max_abs:.6g}; "
+            f"passiveMaxValueDrift={passive_max_drift:.6g}; passiveNoiseByteOverlap={passive_overlap}"
+        ),
+        next_validation_step="Use only as a family-context seed; capture displaced-pose delta before promotion.",
+    )
     return candidate
 
 

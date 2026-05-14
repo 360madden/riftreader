@@ -41,6 +41,11 @@ class FamilySnapshotDeltaAnalyzerTests(unittest.TestCase):
             self.assertEqual(best["residueMod4"], 3)
             self.assertEqual(best["trackingError"]["maxAbs"], 0.0)
             self.assertEqual(best["passiveNoiseByteOverlap"], 0)
+            self.assertEqual(best["candidate_id"], best["candidateId"])
+            self.assertEqual(best["base_address_hex"], best["segmentBaseHex"])
+            self.assertEqual(best["offset_hex"], best["segmentOffsetHex"])
+            self.assertEqual(best["axis_order"], "xyz")
+            self.assertEqual(best["truth_readiness"], "candidate_only_not_movement_proof")
             self.assertEqual(summary["analysis"]["topFamily"]["commonAddressDeltaHex"], "0x100")
 
     def test_missing_displaced_pose_blocks_cleanly(self) -> None:
@@ -56,6 +61,11 @@ class FamilySnapshotDeltaAnalyzerTests(unittest.TestCase):
             self.assertEqual(best["candidateKind"], "passive-stability-near-reference")
             self.assertEqual(best["passiveMaxValueDrift"], 0.0)
             self.assertFalse(best["promotionEligible"])
+            self.assertEqual(best["candidate_id"], best["candidateId"])
+            self.assertEqual(best["base_address_hex"], best["segmentBaseHex"])
+            self.assertEqual(best["offset_hex"], best["segmentOffsetHex"])
+            self.assertEqual(best["axis_order"], "xyz")
+            self.assertEqual(best["truth_readiness"], "candidate_only_not_movement_proof")
 
 
 if __name__ == "__main__":

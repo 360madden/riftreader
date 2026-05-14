@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:44:12Z",
+  "updatedAtUtc": "2026-05-14T03:52:57Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -55,9 +55,9 @@
     "candidateId": "family-snapshot-hit-000004",
     "addressHex": "0x268D5A80730",
     "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
-    "readbackSummary": "scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json",
-    "proofPoseRoot": "scripts/captures/riftscan-proof-pose-20260514-030047",
-    "referenceFile": "scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json",
+    "readbackSummary": "scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json",
+    "proofPoseRoot": "scripts/captures/riftscan-proof-pose-20260514-034648",
+    "referenceFile": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json",
     "referenceCoordinate": {
       "x": 7403.399902,
       "y": 871.769958,
@@ -67,11 +67,11 @@
     "referenceMatchCount": 1,
     "stableDecodedCandidateCount": 10,
     "readbackTotalRegionReadFailures": 0,
-    "referenceMaxAbsDelta": 4.960937758369255e-07,
+    "referenceMaxAbsDelta": 4.1503906231810106e-05,
     "stableAcrossReadbackSamples": true,
     "sourcePreviewMatchesReadback": true,
     "status": "latest_readback_reference_match_candidate_only_not_movement_proof",
-    "whySelected": "Two consecutive robust proof-pose/readback passes selected family-snapshot-hit-000004 as the current reference match; prior 000003 remains family-context only until multi-pose proof disambiguates duplicate coordinate copies.",
+    "whySelected": "Latest robust proof-pose plus passive-candidate readback both keep 0x268D5A80730 as the top current-reference match; passive readback also found one duplicate live coordinate copy, so promotion still needs displaced-pose/static-chain proof.",
     "notMovementProofBecause": [
       "Proof anchor preflight still failed",
       "same-target ProofOnly has not passed",
@@ -103,7 +103,9 @@
     "latestX64dbgAccessEventTemplate": "scripts/captures/x64dbg-no-attach-readiness-packet-20260514-031908-072876/access-event-template/x64dbg-manual-access-events-template.json",
     "x64dbgReadinessStatus": "ready_for_current_turn_approval_no_attach_only_current_truth_candidate",
     "x64dbgAttachStarted": false,
-    "staleLatestCandidateFallback": "blocked_by_default_in_x64dbg_no_attach_readiness_packet"
+    "staleLatestCandidateFallback": "blocked_by_default_in_x64dbg_no_attach_readiness_packet",
+    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-034635.json",
+    "latestMilestoneReviewStatus": "ready-for-read-only-proof"
   },
   "staleOrInvalid": [
     {
@@ -147,7 +149,8 @@
     "ChromaLink world-state stale/unhealthy",
     "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs",
     "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy",
-    "displaced-pose or approved x64dbg/access evidence still missing; passive stability candidates are family-context seeds only and not movement proof"
+    "displaced-pose or approved x64dbg/access evidence still missing; passive stability candidates are family-context seeds only and not movement proof",
+    "passive-stability readback found two current reference-matching heap copies; displaced-pose/static-chain proof is still required to choose movement-grade source"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -161,11 +164,11 @@
     "latestReferenceDriftedSnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-022754/family-snapshot-summary.json",
     "latestReferenceDriftedReadback": "scripts/captures/riftscan-proof-pose-20260514-022841/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-222855.json",
     "referenceDriftGuardSmokeTest": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-023611/family-snapshot-summary.json",
-    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-030120.json",
+    "latestMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-034635.json",
     "latestStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
     "latestStableFamilyCandidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-import-candidates.json",
     "latestStableFamilyReadback": "scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json",
-    "latestMilestoneReviewMarkdown": "scripts/captures/riftscan-milestone-review-20260514-030120.md",
+    "latestMilestoneReviewMarkdown": "scripts/captures/riftscan-milestone-review-20260514-034635.md",
     "latestStableFamilyReference": "scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json",
     "latestReferenceRefresh": "scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json",
     "latestPassedRrapicoordDiagnostic": "scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json",
@@ -190,9 +193,14 @@
     "latestPassiveFamilySnapshotStabilityAnalysis": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/delta-summary.json",
     "latestPassiveFamilySnapshotStabilityCandidates": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/candidate-vec3.json",
     "latestPassiveFamilySnapshotStabilityFamilies": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/candidate-families.json",
-    "latestPassiveFamilySnapshotStabilityMarkdown": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/delta-summary.md"
+    "latestPassiveFamilySnapshotStabilityMarkdown": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/delta-summary.md",
+    "latestPassiveStabilityImportWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/passive-candidates-watchset.json",
+    "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235142.json",
+    "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235142.json",
+    "latestCurrentCandidateProofPose": "scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json",
+    "latestCurrentCandidateProofPoseReference": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json"
   },
-  "nextRecommendedAction": "Use passive-stability candidates only as family-context seeds, then capture a displaced pose/offline delta proof or approved bounded x64dbg access evidence. Movement/navigation remains blocked until current proof/static chain and same-target ProofOnly pass.",
+  "nextRecommendedAction": "Capture a displaced-pose/offline delta proof using current-truth bootstrapped family snapshots, or proceed to approved bounded x64dbg access evidence. Passive-stability readback now narrows live duplicate heap copies but remains candidate-only; movement/navigation remains blocked.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -218,8 +226,8 @@
       "previousReadback": "scripts/captures/riftscan-proof-pose-20260514-024510/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-224524.json",
       "currentStatus": "superseded_by_latest_readback_not_current_best"
     },
-    "latestReadbackProofPose": "scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json",
-    "latestReadbackReferenceFile": "scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json",
+    "latestReadbackProofPose": "scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json",
+    "latestReadbackReferenceFile": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json",
     "latestReadbackReferenceMatchCount": 1,
     "stableDecodedCandidateCount": 10,
     "milestoneReviewAfterLatestSelection": "scripts/captures/riftscan-milestone-review-20260514-030120.json",
@@ -277,6 +285,31 @@
       "passiveNoiseByteOverlap": 0,
       "promotionEligible": false,
       "status": "candidate_only_family_context_not_movement_proof"
-    }
+    },
+    "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235142.json",
+    "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235142.json",
+    "latestPassiveStabilityReadbackCandidateCount": 10,
+    "latestPassiveStabilityReadbackReferenceMatchCount": 2,
+    "latestPassiveStabilityReadbackStableDecodedCandidateCount": 10,
+    "latestPassiveStabilityCurrentMatches": [
+      {
+        "candidateId": "snapshot-passive-stable-268D5A80730-xyz",
+        "addressHex": "0x268D5A80730",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5F6C8E0-xyz",
+        "addressHex": "0x268D5F6C8E0",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
+      }
+    ],
+    "passiveCandidateImporterCompatibilityFixed": true,
+    "latestMilestoneReviewAfterPassiveCandidates": "scripts/captures/riftscan-milestone-review-20260514-034635.json"
   }
 }
