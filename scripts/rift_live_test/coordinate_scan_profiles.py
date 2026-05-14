@@ -40,6 +40,14 @@ PROFILES: dict[str, ScanProfile] = {
         scan_stride=4,
         tolerance=0.25,
     ),
+    "historical-neighborhood-stride1": ScanProfile(
+        "historical-neighborhood-stride1",
+        max_seconds=20,
+        max_hits=128,
+        chunk_bytes=2 * 1024 * 1024,
+        scan_stride=1,
+        tolerance=0.25,
+    ),
 }
 
 DEFAULT_HISTORICAL_CENTERS = [
@@ -72,6 +80,10 @@ def utc_stamp() -> str:
 
 def file_mtime_utc(path: Path) -> str:
     return datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def file_age_delta_seconds(first: Path, second: Path) -> float:
+    return abs(first.stat().st_mtime - second.stat().st_mtime)
 
 
 def repo_root_from_module() -> Path:
@@ -238,15 +250,23 @@ def load_center_file(path: Path) -> list[tuple[int, str]]:
     return centers
 
 
-def all_centers(extra_centers: Iterable[str], center_files: Iterable[Path], repo_root: Path) -> list[tuple[int, str]]:
-    centers = default_centers(extra_centers)
+def all_centers(
+    extra_centers: Iterable[str],
+    center_files: Iterable[Path],
+    repo_root: Path,
+    *,
+    include_defaults: bool = True,
+    max_centers: int | None = None,
+) -> list[tuple[int, str]]:
+    centers = default_centers(extra_centers) if include_defaults else [parse_center(value) for value in extra_centers]
     for file_value in center_files:
         path = file_value if file_value.is_absolute() else repo_root / file_value
         centers.extend(load_center_file(path))
     dedup: dict[int, str] = {}
     for address, label in centers:
         dedup.setdefault(address, label)
-    return [(address, label) for address, label in dedup.items()]
+    values = [(address, label) for address, label in dedup.items()]
+    return values if max_centers is None else values[: max(0, max_centers)]
 
 
 def run_command(args: list[str], cwd: Path, timeout_seconds: int) -> dict[str, Any]:
@@ -344,7 +364,7 @@ def profile_commands(
             str(profile.tolerance),
             "--json",
         ]
-        if name == "historical-neighborhood":
+        if name.startswith("historical-neighborhood"):
             for address, label in centers:
                 minimum = max(0, address - historical_radius_bytes)
                 maximum = address + historical_radius_bytes
@@ -667,7 +687,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--profile", choices=sorted(PROFILES), action="append", default=[])
     parser.add_argument("--historical-center", action="append", default=[], help="Optional label=0xADDRESS center.")
     parser.add_argument("--historical-center-file", type=Path, action="append", default=[], help="JSON file with centers as strings or objects.")
+    parser.add_argument("--no-default-historical-centers", action="store_true", help="Use only explicit --historical-center and --historical-center-file values.")
+    parser.add_argument("--max-historical-centers", type=int, help="Limit the number of expanded historical centers after de-duplication.")
     parser.add_argument("--historical-radius-bytes", type=lambda v: int(v, 0), default=16 * 1024 * 1024)
+    parser.add_argument("--max-displaced-reference-age-seconds", type=float, help="Fail closed when baseline and displaced reference file mtimes differ by more than this.")
     parser.add_argument("--update-current-truth", action="store_true")
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--dry-run", action="store_true")
@@ -744,14 +767,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         if displaced_reference_file is not None and not displaced_reference_file.exists():
             summary["blockers"].append(f"displaced-reference-file-missing:{displaced_reference_file}")
         if reference_file is not None and reference_file.exists() and displaced_reference_file is not None and displaced_reference_file.exists():
+            age_delta = file_age_delta_seconds(reference_file, displaced_reference_file)
+            summary["displacedReferenceAgeDeltaSeconds"] = round(age_delta, 3)
             if displaced_reference_file.stat().st_mtime < reference_file.stat().st_mtime:
                 summary["warnings"].append("displaced-reference-older-than-baseline-reference")
+            if args.max_displaced_reference_age_seconds is not None and age_delta > args.max_displaced_reference_age_seconds:
+                summary["blockers"].append(
+                    f"displaced-reference-age-exceeded:{round(age_delta, 3)}>{args.max_displaced_reference_age_seconds}"
+                )
         for profile in profiles:
             if profile not in PROFILES:
                 summary["blockers"].append(f"unknown-profile:{profile}")
         centers: list[tuple[int, str]] = []
         try:
-            centers = all_centers(args.historical_center, args.historical_center_file, repo_root)
+            centers = all_centers(
+                args.historical_center,
+                args.historical_center_file,
+                repo_root,
+                include_defaults=not args.no_default_historical_centers,
+                max_centers=args.max_historical_centers,
+            )
         except Exception as exc:  # noqa: BLE001 - center files are operator input.
             summary["blockers"].append(f"historical-center-file-unreadable:{type(exc).__name__}:{exc}")
         if summary["blockers"]:

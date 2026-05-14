@@ -7,7 +7,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from rift_live_test.coordinate_proof_route import build_coordinate_proof_route, main, write_route
+from rift_live_test.coordinate_proof_route import build_coordinate_proof_route, main, update_current_truth, write_route
 
 
 class CoordinateProofRouteTests(unittest.TestCase):
@@ -266,6 +266,44 @@ class CoordinateProofRouteTests(unittest.TestCase):
             self.assertIn("static-root-candidate-not-restart-validated", route["blockers"])
             self.assertFalse(route["decision"]["movementAllowed"])
 
+    def test_candidate_routing_is_reported_but_not_proof(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            center_file = self._write_json(
+                root / "centers.json",
+                {
+                    "centers": [
+                        {"rank": 1, "label": "best", "address": "0x1000", "maxAbsDelta": 0.1},
+                        {"rank": 2, "label": "next", "address": "0x2000", "maxAbsDelta": 0.2},
+                    ]
+                },
+            )
+            comparison = self._write_json(
+                root / "comparison.json",
+                {
+                    "status": "candidate-only-no-two-reference-match",
+                    "candidateFiles": [
+                        {"matchCount": 0, "displacedMatchCount": 1, "bothReferenceMatchCount": 0}
+                    ],
+                },
+            )
+
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                center_files=[center_file],
+                candidate_comparisons=[comparison],
+            )
+
+            self.assertEqual(route["candidateRouting"]["status"], "candidate-routing-ready")
+            self.assertEqual(route["candidateRouting"]["centerCount"], 2)
+            self.assertEqual(route["candidateRouting"]["bothReferenceMatchCount"], 0)
+            self.assertFalse(route["candidateRouting"]["movementProof"])
+            self.assertIn("candidate-comparison-has-no-both-reference-match", route["warnings"])
+            self.assertFalse(route["decision"]["movementAllowed"])
+
     def test_cli_returns_blocked_exit_until_read_only_proof_is_allowed(self) -> None:
         with self._root() as temp:
             root = Path(temp) / "RiftReader"
@@ -322,6 +360,42 @@ class CoordinateProofRouteTests(unittest.TestCase):
             self.assertEqual(pointer["status"], route["status"])
             self.assertFalse(pointer["movementAllowed"])
             self.assertIn("Visual capture is sidecar evidence only", html_path.read_text(encoding="utf-8"))
+
+    def test_update_current_truth_records_route_and_candidate_routing(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            truth = root / "docs" / "recovery" / "current-truth.json"
+            self._write_json(truth, {"visualEvidenceRouting": {}})
+            truth_md = root / "docs" / "recovery" / "current-truth.md"
+            truth_md.write_text(
+                "\n".join(
+                    [
+                        "# Current truth",
+                        "",
+                        "## Visual/capture proof-route policy — test",
+                        "",
+                        "| Field | Value |",
+                        "|---|---|",
+                        "| Latest route status | `old` |",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+            write_route(route, root / "scripts" / "captures" / "route", repo_root=root)
+
+            update_current_truth(route, root)
+
+            routing = json.loads(truth.read_text(encoding="utf-8"))["visualEvidenceRouting"]
+            self.assertEqual(routing["latestRouteStatus"], route["status"])
+            self.assertEqual(routing["latestProofRoute"], "scripts/captures/route/coordinate-proof-route.json")
+            self.assertIn("| Latest route | `scripts/captures/route/coordinate-proof-route.json` |", truth_md.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

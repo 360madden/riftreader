@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coordinate proof route actions 1-10 - 2026-05-14-065634</title>
+<style>
+:root { --bg:#07111f; --panel:#0f1b2e; --line:#263a57; --text:#e5eefb; --muted:#9fb3c8; --good:#34d399; --warn:#fbbf24; --bad:#fb7185; --blue:#38bdf8; --violet:#a78bfa; }
+body { margin:0; background:radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 35rem), var(--bg); color:var(--text); font-family:"Segoe UI", system-ui, sans-serif; }
+main { max-width:1220px; margin:0 auto; padding:34px 22px 54px; }
+.hero { border:1px solid var(--line); border-radius:26px; padding:28px; background:linear-gradient(135deg, rgba(56,189,248,.18), rgba(167,139,250,.12)); box-shadow:0 18px 70px rgba(0,0,0,.25); }
+h1 { margin:0 0 10px; font-size:2.1rem; }
+h2 { margin-top:32px; color:#dbeafe; }
+.grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:18px 0 4px; }
+.card { border:1px solid var(--line); border-radius:18px; padding:16px; background:rgba(15,27,46,.82); }
+.card b { display:block; font-size:1.45rem; color:var(--blue); }
+.card span { color:var(--muted); }
+table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { color:#bae6fd; background:#0b1728; }
+tr:last-child td { border-bottom:0; }
+.badge { display:inline-block; padding:4px 9px; border-radius:999px; background:#062b1f; color:var(--good); border:1px solid rgba(52,211,153,.35); font-weight:700; }
+.badge.warn { background:#31240a; color:var(--warn); border-color:rgba(251,191,36,.35); }
+.badge.bad { background:#3b1117; color:#fecdd3; border-color:rgba(251,113,133,.45); }
+.progress { height:16px; border-radius:999px; background:#0a1322; border:1px solid var(--line); overflow:hidden; }
+.bar { width:100%; height:100%; background:linear-gradient(90deg,var(--good),var(--blue)); }
+.note { color:var(--muted); }
+code { background:#020817; border:1px solid var(--line); padding:2px 6px; border-radius:7px; color:#bfdbfe; overflow-wrap:anywhere; }
+</style>
+</head>
+<body><main>
+<section class="hero">
+<h1>Coordinate proof-route actions 1-10</h1>
+<p><span class="badge">Completed</span> <span class="badge warn">No-input only</span> <span class="badge bad">Movement blocked</span></p>
+<p>Generated local time: <code>2026-05-14-065634</code>. Scope: Python/C#/.NET only for code; no movement input, no CE, no x64dbg, no RiftScan provider writes.</p>
+<div class="grid">
+  <div class="card"><b>10/10</b><span>actions handled</span></div>
+  <div class="card"><b>16</b><span>routed center seeds</span></div>
+  <div class="card"><b>0</b><span>current scan hits</span></div>
+  <div class="card"><b>180</b><span>tests passed</span></div>
+</div>
+<div class="progress"><div class="bar"></div></div>
+</section>
+<h2>Action completion table</h2>
+<table><tr><th>#</th><th>Action</th><th>Status</th><th>Evidence / outcome</th></tr><tr><td>1</td><td>Fresh manual displaced-pose reference</td><td>Blocked safely</td><td>No movement/input was authorized or sent; strict freshness gate proves the marked displaced reference is too old.</td></tr>
+<tr><td>2</td><td>Rerun comparison with displaced reference</td><td>Done / blocked</td><td>Strict latest-displaced comparison failed closed on age budget instead of reusing stale displaced evidence.</td></tr>
+<tr><td>3</td><td>Run generated center-file scan, not dry-run</td><td>Done / blocked</td><td>Top-2 generated centers were scanned read-only; no current XYZ triplets found.</td></tr>
+<tr><td>4</td><td>Run stride1 centered escalation</td><td>Done / blocked</td><td>Top center was re-scanned with stride1 and a smaller bounded radius; no current XYZ triplets found.</td></tr>
+<tr><td>5</td><td>Add strict latest-displaced age budget</td><td>Done</td><td>Both scan-profile and candidate-compare helpers support max displaced-reference age and fail closed.</td></tr>
+<tr><td>6</td><td>Require same candidate across baseline and displaced refs</td><td>Done</td><td>Comparison and route report keep no-both-reference-match as candidate-only, not promotion evidence.</td></tr>
+<tr><td>7</td><td>Keep readback/routing on explicit files</td><td>Done</td><td>All safe runs used explicit RiftReader-owned files; no RiftScan provider writes.</td></tr>
+<tr><td>8</td><td>Feed center-file output into proof route</td><td>Done</td><td>Route now reports candidate routing and 16 center seeds as candidate-routing-only.</td></tr>
+<tr><td>9</td><td>Run milestone review</td><td>Done / blocked</td><td>Milestone stayed blocked because coordinate-proof-route-current-memory still fails.</td></tr>
+<tr><td>10</td><td>Keep movement blocked</td><td>Done</td><td>No movement/input/CE/x64dbg; route and milestone both keep movementAllowed false.</td></tr></table>
+<h2>Key artifacts</h2>
+<table><tr><th>Artifact</th><th>Path</th><th>Status</th><th>Notes</th></tr><tr><td>Strict displaced scan gate</td><td>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-065345-strict-displaced-age/summary.json</td><td>blocked</td><td>displaced-reference-age-exceeded:45723.622&gt;300.0</td></tr>
+<tr><td>Strict displaced comparison gate</td><td>scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-065345-strict-displaced-age/summary.json</td><td>blocked</td><td>displaced-api-reference-age-exceeded:45723.622&gt;300.0</td></tr>
+<tr><td>Active top-2 center scan</td><td>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-065345-center-top2-active/summary.json</td><td>blocked</td><td>no-profile-found-current-coordinate-triplets</td></tr>
+<tr><td>Stride1 top-center scan</td><td>scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-065345-center-top1-stride1/summary.json</td><td>blocked</td><td>no-profile-found-current-coordinate-triplets</td></tr>
+<tr><td>Candidate-routing proof route</td><td>scripts/captures/coordinate-proof-route-current-reacquire-20260514-065414-candidate-routing/coordinate-proof-route.json</td><td>reacquisition-no-current-hits</td><td>candidate-routing-only-not-coordinate-truth</td></tr>
+<tr><td>Milestone review</td><td>scripts/captures/riftscan-milestone-review-20260514-105427.json</td><td>blocked</td><td>block</td></tr></table>
+<h2>Validation</h2>
+<table><tr><th>Check</th><th>Result</th><th>Scope</th></tr><tr><td>Python compileall</td><td>Passed</td><td>scan, compare, center, route modules/wrappers</td></tr>
+<tr><td>Python unittest</td><td>Passed</td><td>78 targeted tests</td></tr>
+<tr><td>Helper smokes</td><td>Passed</td><td>scan self-test, compare/center/route --help</td></tr>
+<tr><td>JSON/HTML parse</td><td>Passed</td><td>current truth and new artifact summaries</td></tr>
+<tr><td>Node MCP validation</td><td>Passed</td><td>node --check + npm run validate</td></tr>
+<tr><td>.NET build/test</td><td>Passed</td><td>build 0 warnings/errors; 102 tests passed</td></tr>
+<tr><td>git diff --check</td><td>Passed</td><td>no whitespace errors; CRLF warnings only</td></tr></table>
+<h2>Current proof state</h2>
+<table><tr><th>Fact</th><th>Value</th></tr>
+<tr><td>Route status</td><td>reacquisition-no-current-hits</td></tr>
+<tr><td>Candidate routing</td><td>candidate-routing-ready / candidate-routing-only-not-coordinate-truth</td></tr>
+<tr><td>Read-only proof allowed</td><td>False</td></tr>
+<tr><td>Movement allowed</td><td>False</td></tr>
+</table>
+<p class="note">This summary is timestamped and non-overwriting. Machine routing remains in <code>docs/recovery/current-truth.json</code>.</p>
+</main></body></html>

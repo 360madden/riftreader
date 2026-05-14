@@ -203,17 +203,17 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Field | Value |
 |---|---|
 | Route generator | `scripts/coordinate_proof_route.py` |
-| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.json` |
-| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-1004/coordinate-proof-route.html` |
+| Latest route | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-065414-candidate-routing/coordinate-proof-route.json` |
+| Latest route HTML | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-065414-candidate-routing/coordinate-proof-route.html` |
 | Latest route pointer | `scripts/captures/latest-coordinate-proof-route.json` |
 | Latest route status | `reacquisition-no-current-hits` |
-| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-064507.html` |
+| Latest action summary HTML | `docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-065634.html` |
 | Latest scan-profile plan | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.json` |
 | Latest scan-profile plan HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-center-dryrun/summary.html` |
 | Latest manual displacement blocker | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json` |
 | Latest manual displacement blocker HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.html` |
-| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-064229-latest-displaced-focused/summary.json` |
-| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-064229-latest-displaced-focused/summary.html` |
+| Latest candidate comparison | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-065345-strict-displaced-age/summary.json` |
+| Latest candidate comparison HTML | `scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-065345-strict-displaced-age/summary.html` |
 | Latest preflight with route | `scripts/captures/coordinate-proof-preflight-20260514-100345-771125/summary.json` |
 | Latest read-only reacquisition | `scripts/captures/family-scan-currentpid-2928-20260514-100425-894650/family-scan-summary.json` |
 | Latest milestone review with route | `scripts/captures/riftscan-milestone-review-20260514-100559.json` |
@@ -222,10 +222,13 @@ Capture a displaced-pose family snapshot sequence when safe/manual displacement 
 | Latest generated center file | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/coordinate-scan-centers.json` |
 | Latest generated center file summary | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.json` |
 | Latest generated center file HTML | `scripts/captures/coordinate-center-file-currentpid-2928-20260514-063920/summary.html` |
-| Latest scan-profile run | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.json` |
-| Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.html` |
-| Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-063920-latest-displaced-required/summary.json` |
-| Latest candidate comparison status | `candidate-only-no-two-reference-match` |
+| Latest scan-profile run | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-065345-center-top1-stride1/summary.json` |
+| Latest scan-profile run HTML | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-065345-center-top1-stride1/summary.html` |
+| Latest scan-profile ranking | `scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-065345-center-top1-stride1/summary.json` |
+| Latest candidate comparison status | `blocked` |
+| Latest route with candidate routing | `scripts/captures/coordinate-proof-route-current-reacquire-20260514-065414-candidate-routing/coordinate-proof-route.json` |
+| Latest candidate routing status | `candidate-routing-ready` |
+| Latest candidate routing center count | `16` |
 
 Rules:
 

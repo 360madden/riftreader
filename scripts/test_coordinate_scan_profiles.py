@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -255,6 +256,83 @@ class CoordinateScanProfilesTests(unittest.TestCase):
         self.assertEqual(rankings[0]["profile"], "historical-neighborhood")
         self.assertEqual(rankings[0]["rank"], 1)
         self.assertEqual(rankings[2]["profile"], "quick")
+
+    def test_no_default_and_max_historical_centers_limit_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ref = root / "ref.json"
+            centers = root / "centers.json"
+            out = root / "out"
+            ref.write_text(json.dumps({"coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
+            centers.write_text(
+                json.dumps({"centers": [{"label": "one", "address": "0x1000"}, {"label": "two", "address": "0x2000"}]}),
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--pid",
+                    "123",
+                    "--hwnd",
+                    "0xABC",
+                    "--reference-file",
+                    str(ref),
+                    "--profile",
+                    "historical-neighborhood-stride1",
+                    "--historical-center-file",
+                    str(centers),
+                    "--no-default-historical-centers",
+                    "--max-historical-centers",
+                    "1",
+                    "--output-root",
+                    str(out),
+                    "--dry-run",
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(summary["plannedCommands"]), 1)
+            self.assertEqual(summary["plannedCommands"][0]["profile"], "historical-neighborhood-stride1")
+            self.assertEqual(summary["plannedCommands"][0]["centerAddress"], "0x1000")
+            args = summary["plannedCommands"][0]["args"]
+            self.assertEqual(args[args.index("--scan-stride") + 1], "1")
+
+    def test_displaced_reference_age_budget_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ref = root / "ref.json"
+            displaced = root / "displaced.json"
+            out = root / "out"
+            ref.write_text(json.dumps({"coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
+            displaced.write_text(json.dumps({"poseLabel": "manual-displaced", "coordinate": {"x": 2, "y": 2, "z": 3}}), encoding="utf-8")
+            os.utime(displaced, (ref.stat().st_mtime - 1000, ref.stat().st_mtime - 1000))
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--pid",
+                    "123",
+                    "--hwnd",
+                    "0xABC",
+                    "--reference-file",
+                    str(ref),
+                    "--displaced-reference-file",
+                    str(displaced),
+                    "--max-displaced-reference-age-seconds",
+                    "30",
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(str(item).startswith("displaced-reference-age-exceeded:") for item in summary["blockers"]))
+            self.assertIn("displaced-reference-older-than-baseline-reference", summary["warnings"])
 
 
 if __name__ == "__main__":

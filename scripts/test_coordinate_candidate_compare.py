@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -247,6 +248,43 @@ class CoordinateCandidateCompareTests(unittest.TestCase):
             self.assertEqual(routing["latestCandidateComparison"], "out/summary.json")
             self.assertEqual(routing["latestCandidateComparisonStatus"], "api-candidate-match")
             self.assertIn("| Latest candidate comparison | `out/summary.json` |", truth_md.read_text(encoding="utf-8"))
+
+    def test_displaced_reference_age_budget_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            baseline = root / "baseline.json"
+            displaced = root / "displaced.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            baseline.write_text(json.dumps({"coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
+            displaced.write_text(json.dumps({"coordinate": {"x": 2, "y": 2, "z": 3}}), encoding="utf-8")
+            candidates.write_text(
+                json.dumps({"candidates": [{"candidate_id": "old", "absolute_address_hex": "0x1000", "value_preview": [1, 2, 3]}]}),
+                encoding="utf-8",
+            )
+            os.utime(displaced, (baseline.stat().st_mtime - 1000, baseline.stat().st_mtime - 1000))
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(baseline),
+                    "--displaced-api-reference",
+                    str(displaced),
+                    "--candidate-file",
+                    str(candidates),
+                    "--max-displaced-reference-age-seconds",
+                    "30",
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "blocked")
+            self.assertTrue(any(str(item).startswith("displaced-api-reference-age-exceeded:") for item in summary["blockers"]))
 
 
 if __name__ == "__main__":

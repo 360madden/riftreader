@@ -262,6 +262,7 @@ python .\scripts\coordinate_scan_profiles.py `
   --profile wide `
   --profile historical-neighborhood `
   --historical-center-file scripts\captures\<historical-centers>.json `
+  --max-historical-centers 4 `
   --update-current-truth `
   --json
 ```
@@ -272,9 +273,16 @@ python .\scripts\coordinate_scan_profiles.py `
 reference that is explicitly marked as a displaced/manual/alternate pose. If no
 such artifact exists, the runner fails closed with
 `displaced-reference-latest-not-found`; it does not reuse the still-pose
-reference as fake movement proof.
+reference as fake movement proof. Use
+`--max-displaced-reference-age-seconds <seconds>` when the displaced reference
+must be near the baseline reference timestamp; this fails closed with
+`displaced-reference-age-exceeded` if an older marked pose is found.
 `--historical-center-file` accepts JSON such as
 `{"centers":[{"label":"last-readback","address":"0x268D5A80730"}]}`.
+`--no-default-historical-centers --max-historical-centers <n>` is the preferred
+way to run a small bounded scan from a generated center file before expanding
+to broader/default neighborhoods. `historical-neighborhood-stride1` uses the
+same centered scan shape with byte-stride scanning for the next escalation.
 Each profile run writes JSON, Markdown, and HTML, including a ranked table of
 profile hits/deltas when scans execute. `--update-current-truth` updates both
 `docs/recovery/current-truth.json` and the human-readable
@@ -295,6 +303,7 @@ python .\scripts\coordinate_candidate_compare.py `
   --displaced-api-reference latest-displaced `
   --candidate-file scripts\captures\<candidate-file>.json `
   --discover `
+  --max-displaced-reference-age-seconds 300 `
   --update-current-truth `
   --json
 ```
@@ -324,6 +333,25 @@ The generated `coordinate-scan-centers.json` can be passed back into
 `coordinate_scan_profiles.py` with `--historical-center-file`. This is still
 candidate routing only: it sends no input, reads no target memory, uses no
 CE/x64dbg, and does not promote coordinate truth by itself.
+
+To make the proof route explain this candidate routing explicitly, attach the
+center file and latest comparison when rebuilding the route:
+
+```powershell
+python .\scripts\coordinate_proof_route.py `
+  --pid <current_rift_pid> `
+  --hwnd <current_rift_hwnd> `
+  --process-name rift_x64 `
+  --api-reference scripts\captures\<fresh-reference>.json `
+  --memory-readback scripts\captures\<scan-or-readback-summary>.json `
+  --center-file scripts\captures\<center-run>\coordinate-scan-centers.json `
+  --candidate-comparison scripts\captures\<comparison-run>\summary.json `
+  --write-summary `
+  --compact-json
+```
+
+The route records candidate routing as `candidate-routing-only-not-coordinate-truth`;
+it is visible in the JSON/Markdown/HTML report but still cannot grant movement.
 
 ## Aggregate validation runner
 

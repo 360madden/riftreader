@@ -425,6 +425,90 @@ def build_static_roots(paths: Sequence[Path], *, repo_root: Path, expected_targe
     return ({"status": status, "candidateCount": candidate_count, "provenCount": proven_count, "items": items}, blockers, warnings)
 
 
+def build_candidate_routing(
+    *,
+    center_files: Sequence[Path],
+    candidate_comparisons: Sequence[Path],
+    repo_root: Path,
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    center_items: list[dict[str, Any]] = []
+    comparison_items: list[dict[str, Any]] = []
+    for path in center_files:
+        data, error = read_optional_json(path)
+        item: dict[str, Any] = {"path": path_text(path, repo_root), "exists": data is not None}
+        if error:
+            warnings.append(error)
+            item["status"] = "unreadable"
+            center_items.append(item)
+            continue
+        centers = list_or_empty(data.get("centers") if data else None)
+        item.update(
+            {
+                "status": data.get("status") or "available",
+                "centerCount": len(centers),
+                "topCenters": [
+                    {
+                        "rank": dict_or_empty(center).get("rank"),
+                        "label": dict_or_empty(center).get("label"),
+                        "address": dict_or_empty(center).get("address"),
+                        "maxAbsDelta": dict_or_empty(center).get("maxAbsDelta"),
+                    }
+                    for center in centers[:5]
+                    if isinstance(center, dict)
+                ],
+            }
+        )
+        center_items.append(item)
+    for path in candidate_comparisons:
+        data, error = read_optional_json(path)
+        item = {"path": path_text(path, repo_root), "exists": data is not None}
+        if error:
+            warnings.append(error)
+            item["status"] = "unreadable"
+            comparison_items.append(item)
+            continue
+        files = [dict_or_empty(value) for value in list_or_empty(data.get("candidateFiles"))]
+        baseline_matches = sum(int_or_none(file_result.get("matchCount")) or 0 for file_result in files)
+        displaced_matches = sum(int_or_none(file_result.get("displacedMatchCount")) or 0 for file_result in files)
+        both_matches = sum(int_or_none(file_result.get("bothReferenceMatchCount")) or 0 for file_result in files)
+        if both_matches <= 0:
+            warnings.append("candidate-comparison-has-no-both-reference-match")
+        item.update(
+            {
+                "status": data.get("status"),
+                "baselineMatchCount": baseline_matches,
+                "displacedMatchCount": displaced_matches,
+                "bothReferenceMatchCount": both_matches,
+                "warningCount": len(list_or_empty(data.get("warnings"))),
+                "blockerCount": len(list_or_empty(data.get("blockers"))),
+            }
+        )
+        comparison_items.append(item)
+    center_count = sum(int_or_none(item.get("centerCount")) or 0 for item in center_items)
+    both_reference_count = sum(int_or_none(item.get("bothReferenceMatchCount")) or 0 for item in comparison_items)
+    status = "not-provided"
+    if center_items or comparison_items:
+        status = "candidate-routing-ready" if center_count > 0 else "candidate-routing-no-centers"
+    return (
+        {
+            "status": status,
+            "proofRole": "candidate-routing-only-not-coordinate-truth",
+            "centerFileCount": len(center_items),
+            "centerCount": center_count,
+            "candidateComparisonCount": len(comparison_items),
+            "bothReferenceMatchCount": both_reference_count,
+            "movementProof": False,
+            "coordinateProof": False,
+            "centerFiles": center_items,
+            "candidateComparisons": comparison_items,
+        },
+        blockers,
+        list(dict.fromkeys(warnings)),
+    )
+
+
 def route_status(
     *,
     visual: Mapping[str, Any],
@@ -509,6 +593,7 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
     api = dict_or_empty(route.get("apiReference"))
     memory = dict_or_empty(route.get("memoryReadback"))
     static_roots = dict_or_empty(route.get("staticRootCandidates"))
+    candidate_routing = dict_or_empty(route.get("candidateRouting"))
     lines = [
         "# Coordinate proof route",
         "",
@@ -520,6 +605,7 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
         f"| API reference | `{api.get('status')}` |",
         f"| Memory readback | `{memory.get('status')}` |",
         f"| Static root | `{static_roots.get('status')}` |",
+        f"| Candidate routing | `{candidate_routing.get('status')}` / centers `{candidate_routing.get('centerCount')}` |",
         f"| Read-only proof allowed | `{str(decision.get('readOnlyProofAllowed')).lower()}` |",
         f"| Movement allowed | `{str(decision.get('movementAllowed')).lower()}` |",
         "",
@@ -531,6 +617,17 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
     if route.get("warnings"):
         lines.extend(["## Warnings", ""])
         lines.extend(f"- `{warning}`" for warning in route.get("warnings", []))
+        lines.append("")
+    if candidate_routing:
+        lines.extend(["## Candidate routing", "", "| Type | Path | Status | Count |", "|---|---|---|---:|"])
+        for item in list_or_empty(candidate_routing.get("centerFiles")):
+            item_map = dict_or_empty(item)
+            lines.append(f"| Center file | `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('centerCount')}` |")
+        for item in list_or_empty(candidate_routing.get("candidateComparisons")):
+            item_map = dict_or_empty(item)
+            lines.append(
+                f"| Candidate comparison | `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('bothReferenceMatchCount')}` |"
+            )
         lines.append("")
     actions = list_or_empty(route.get("recommendedActions"))
     if actions:
@@ -553,6 +650,7 @@ def html_summary(route: Mapping[str, Any]) -> str:
     api = dict_or_empty(route.get("apiReference"))
     memory = dict_or_empty(route.get("memoryReadback"))
     static_roots = dict_or_empty(route.get("staticRootCandidates"))
+    candidate_routing = dict_or_empty(route.get("candidateRouting"))
     blockers = [str(item) for item in list_or_empty(route.get("blockers"))]
     warnings = [str(item) for item in list_or_empty(route.get("warnings"))]
     actions = [dict_or_empty(item) for item in list_or_empty(route.get("recommendedActions"))]
@@ -565,6 +663,7 @@ def html_summary(route: Mapping[str, Any]) -> str:
         ("API reference", api.get("status")),
         ("Memory readback", memory.get("status")),
         ("Static root", static_roots.get("status")),
+        ("Candidate routing", f"{candidate_routing.get('status')} / centers {candidate_routing.get('centerCount')}"),
         ("Read-only proof allowed", str(decision.get("readOnlyProofAllowed")).lower()),
         ("Movement allowed", str(decision.get("movementAllowed")).lower()),
     ]
@@ -659,6 +758,8 @@ def build_coordinate_proof_route(
     api_reference_path: Path | None = None,
     memory_readback_path: Path | None = None,
     static_root_summaries: Sequence[Path] = (),
+    center_files: Sequence[Path] = (),
+    candidate_comparisons: Sequence[Path] = (),
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     current_truth_data: dict[str, Any] | None = None
@@ -691,8 +792,13 @@ def build_coordinate_proof_route(
         tolerance=tolerance,
     )
     static_roots, static_blockers, static_warnings = build_static_roots(static_root_summaries, repo_root=repo_root, expected_target=target)
-    blockers.extend(visual_blockers + api_blockers + memory_blockers + static_blockers)
-    warnings.extend(visual_warnings + api_warnings + memory_warnings + static_warnings)
+    candidate_routing, routing_blockers, routing_warnings = build_candidate_routing(
+        center_files=center_files,
+        candidate_comparisons=candidate_comparisons,
+        repo_root=repo_root,
+    )
+    blockers.extend(visual_blockers + api_blockers + memory_blockers + static_blockers + routing_blockers)
+    warnings.extend(visual_warnings + api_warnings + memory_warnings + static_warnings + routing_warnings)
     blockers = list(dict.fromkeys(blockers))
     warnings = list(dict.fromkeys(warnings))
     status = route_status(visual=visual, api_reference=api_reference, memory_readback=memory_readback, static_roots=static_roots, blockers=blockers)
@@ -709,7 +815,26 @@ def build_coordinate_proof_route(
         "apiReference": path_text(api_reference_path, repo_root),
         "memoryReadback": path_text(memory_readback_path, repo_root),
         "staticRootSummaries": [path_text(path, repo_root) for path in static_root_summaries],
+        "centerFiles": [path_text(path, repo_root) for path in center_files],
+        "candidateComparisons": [path_text(path, repo_root) for path in candidate_comparisons],
     }
+    recommended_actions = build_recommended_actions(status)
+    if candidate_routing.get("centerCount"):
+        recommended_actions.insert(
+            0,
+            {
+                "action": "Use routed center files for bounded current-memory scans before repeating broad sweeps.",
+                "why": "Center files preserve the best candidate neighborhoods without treating stale/candidate evidence as proof.",
+            },
+        )
+    if candidate_routing.get("bothReferenceMatchCount") == 0 and candidate_routing.get("candidateComparisonCount"):
+        recommended_actions.insert(
+            0,
+            {
+                "action": "Capture a fresh displaced-pose reference before promotion.",
+                "why": "Candidate comparisons still have no both-reference match, so they cannot prove a pose-tracking coordinate lane.",
+            },
+        )
     route: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "coordinate-proof-route",
@@ -726,6 +851,7 @@ def build_coordinate_proof_route(
         "apiReference": api_reference,
         "memoryReadback": memory_readback,
         "staticRootCandidates": static_roots,
+        "candidateRouting": candidate_routing,
         "blockers": blockers,
         "warnings": warnings,
         "artifacts": artifacts,
@@ -740,7 +866,7 @@ def build_coordinate_proof_route(
             "githubConnectorWrites": False,
             "savedVariablesUsedAsLiveTruth": False,
         },
-        "recommendedActions": build_recommended_actions(status),
+        "recommendedActions": recommended_actions,
     }
     return route
 
@@ -762,6 +888,93 @@ def write_route(route: dict[str, Any], output_root: Path, *, repo_root: Path) ->
     return route
 
 
+def upsert_markdown_table_rows(text: str, heading_prefix: str, rows: Mapping[str, str]) -> str:
+    lines = text.splitlines()
+    heading_index = next((index for index, line in enumerate(lines) if line.startswith(heading_prefix)), None)
+    if heading_index is None:
+        appended = [
+            "",
+            heading_prefix,
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            *[f"| {label} | `{value}` |" for label, value in rows.items()],
+        ]
+        return "\n".join([*lines, *appended]).rstrip() + "\n"
+    table_start = None
+    for index in range(heading_index + 1, len(lines)):
+        if lines[index].strip() == "| Field | Value |":
+            table_start = index
+            break
+        if index > heading_index and lines[index].startswith("## "):
+            break
+    if table_start is None:
+        lines[heading_index + 1:heading_index + 1] = [
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            *[f"| {label} | `{value}` |" for label, value in rows.items()],
+        ]
+        return "\n".join(lines).rstrip() + "\n"
+    table_end = table_start + 2
+    while table_end < len(lines) and lines[table_end].startswith("|"):
+        table_end += 1
+    updated: set[str] = set()
+    for index in range(table_start + 2, table_end):
+        parts = [part.strip() for part in lines[index].strip().strip("|").split("|")]
+        if len(parts) < 2:
+            continue
+        label = parts[0]
+        if label in rows:
+            lines[index] = f"| {label} | `{rows[label]}` |"
+            updated.add(label)
+    lines[table_end:table_end] = [f"| {label} | `{value}` |" for label, value in rows.items() if label not in updated]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def update_current_truth(route: Mapping[str, Any], repo_root: Path) -> None:
+    truth_path = repo_root / "docs" / "recovery" / "current-truth.json"
+    if not truth_path.exists():
+        return
+    document = read_json_file(truth_path)
+    if not isinstance(document, dict):
+        return
+    routing = document.setdefault("visualEvidenceRouting", {})
+    artifacts = dict_or_empty(route.get("artifacts"))
+    if artifacts.get("summaryJson"):
+        routing["latestProofRoute"] = artifacts["summaryJson"]
+        routing["latestProofRouteWithCandidateRouting"] = artifacts["summaryJson"]
+    if artifacts.get("summaryHtml"):
+        routing["latestProofRouteHtml"] = artifacts["summaryHtml"]
+    if artifacts.get("latestPointer"):
+        routing["latestProofRoutePointer"] = artifacts["latestPointer"]
+    routing["latestRouteStatus"] = str(route.get("status"))
+    candidate_routing = dict_or_empty(route.get("candidateRouting"))
+    if candidate_routing:
+        routing["latestCandidateRoutingStatus"] = str(candidate_routing.get("status"))
+        routing["latestCandidateRoutingCenterCount"] = int_or_none(candidate_routing.get("centerCount")) or 0
+    write_json(truth_path, document)
+
+    markdown_path = repo_root / "docs" / "recovery" / "current-truth.md"
+    if not markdown_path.exists():
+        return
+    rows = {
+        "Latest route": str(routing.get("latestProofRoute") or ""),
+        "Latest route HTML": str(routing.get("latestProofRouteHtml") or ""),
+        "Latest route pointer": str(routing.get("latestProofRoutePointer") or ""),
+        "Latest route status": str(routing.get("latestRouteStatus") or ""),
+        "Latest route with candidate routing": str(routing.get("latestProofRouteWithCandidateRouting") or ""),
+        "Latest candidate routing status": str(routing.get("latestCandidateRoutingStatus") or ""),
+        "Latest candidate routing center count": str(routing.get("latestCandidateRoutingCenterCount") or 0),
+    }
+    updated = upsert_markdown_table_rows(
+        markdown_path.read_text(encoding="utf-8"),
+        "## Visual/capture proof-route policy",
+        {key: value for key, value in rows.items() if value},
+    )
+    write_text_atomic(markdown_path, updated)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a fail-closed coordinate proof route manifest from existing evidence artifacts.")
     parser.add_argument("--repo-root", type=Path, default=repo_root_from_module())
@@ -775,8 +988,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-reference", type=Path)
     parser.add_argument("--memory-readback", type=Path)
     parser.add_argument("--static-root-summary", type=Path, action="append", default=[])
+    parser.add_argument("--center-file", type=Path, action="append", default=[])
+    parser.add_argument("--candidate-comparison", type=Path, action="append", default=[])
     parser.add_argument("--write-summary", action="store_true")
     parser.add_argument("--summary-file", type=Path, help="Explicit JSON summary path; Markdown is written next to it.")
+    parser.add_argument("--update-current-truth", action="store_true")
     parser.add_argument("--compact-json", action="store_true")
     return parser
 
@@ -801,6 +1017,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         api_reference_path=args.api_reference,
         memory_readback_path=args.memory_readback,
         static_root_summaries=args.static_root_summary,
+        center_files=args.center_file,
+        candidate_comparisons=args.candidate_comparison,
     )
     if args.summary_file:
         summary_html = args.summary_file.with_suffix(".html")
@@ -815,6 +1033,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_json(latest_pointer, latest_pointer_payload(route))
     elif args.write_summary:
         write_route(route, output_root, repo_root=repo_root)
+    if args.update_current_truth:
+        update_current_truth(route, repo_root)
     if args.compact_json:
         print(json.dumps(route, separators=(",", ":")))
     else:
