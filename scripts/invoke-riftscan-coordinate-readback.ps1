@@ -635,6 +635,32 @@ function New-CandidateReadbackSummary {
     return @($results.ToArray())
 }
 
+function Convert-FiniteDoubleOrNull {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    $number = [double]$Value
+    if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) {
+        return $null
+    }
+
+    return $number
+}
+
+function Get-FiniteReferenceSortValue {
+    param($Value)
+
+    $number = Convert-FiniteDoubleOrNull -Value $Value
+    if ($null -eq $number) {
+        return [double]::PositiveInfinity
+    }
+
+    return [double]$number
+}
+
 function New-BestReferenceMatchSummary {
     param(
         [Parameter(Mandatory = $true)]
@@ -652,9 +678,10 @@ function New-BestReferenceMatchSummary {
         $CandidateReadbacks |
             Where-Object { $null -ne $_.ReferenceMaxAbsDelta } |
             Sort-Object `
-                @{ Expression = { [double]$_.ReferenceMaxAbsDelta }; Ascending = $true },
-                @{ Expression = { [double]$_.ReferencePlanarDistance }; Ascending = $true },
-                @{ Expression = { [double]$_.ReferenceSpatialDistance }; Ascending = $true },
+                @{ Expression = { if ($_.ReferenceMatchesReadback -eq $true) { 0 } else { 1 } }; Ascending = $true },
+                @{ Expression = { Get-FiniteReferenceSortValue -Value $_.ReferenceMaxAbsDelta }; Ascending = $true },
+                @{ Expression = { Get-FiniteReferenceSortValue -Value $_.ReferencePlanarDistance }; Ascending = $true },
+                @{ Expression = { Get-FiniteReferenceSortValue -Value $_.ReferenceSpatialDistance }; Ascending = $true },
                 @{ Expression = { [string]$_.CandidateId }; Ascending = $true } |
             Select-Object -First $TopCount
     )
@@ -669,11 +696,11 @@ function New-BestReferenceMatchSummary {
                 RegionAddressHex = [string]$_.RegionAddressHex
                 CandidateOffsetInRegion = [int]$_.CandidateOffsetInRegion
                 ReferenceMatchesReadback = if ($null -eq $_.ReferenceMatchesReadback) { $null } else { [bool]$_.ReferenceMatchesReadback }
-                ReferenceMaxAbsDelta = [double]$_.ReferenceMaxAbsDelta
-                ReferencePlanarDistance = [double]$_.ReferencePlanarDistance
-                ReferenceSpatialDistance = [double]$_.ReferenceSpatialDistance
+                ReferenceMaxAbsDelta = Convert-FiniteDoubleOrNull -Value $_.ReferenceMaxAbsDelta
+                ReferencePlanarDistance = Convert-FiniteDoubleOrNull -Value $_.ReferencePlanarDistance
+                ReferenceSpatialDistance = Convert-FiniteDoubleOrNull -Value $_.ReferenceSpatialDistance
                 StableAcrossReadbackSamples = [bool]$_.StableAcrossReadbackSamples
-                MaxAbsDeltaFromSourcePreview = if ($null -eq $_.MaxAbsDeltaFromSourcePreview) { $null } else { [double]$_.MaxAbsDeltaFromSourcePreview }
+                MaxAbsDeltaFromSourcePreview = Convert-FiniteDoubleOrNull -Value $_.MaxAbsDeltaFromSourcePreview
                 SourcePreviewTolerance = if ($null -eq $_.SourcePreviewTolerance) { $null } else { [double]$_.SourcePreviewTolerance }
                 SourcePreviewComparisonKind = [string]$_.SourcePreviewComparisonKind
                 SourcePreviewMatchesReadback = if ($null -eq $_.SourcePreviewMatchesReadback) { $null } else { [bool]$_.SourcePreviewMatchesReadback }
@@ -685,9 +712,9 @@ function New-BestReferenceMatchSummary {
                     [pscustomobject][ordered]@{
                         SampleIndex = [int]$firstSample[0].SampleIndex
                         RecordedAtUtc = [string]$firstSample[0].RecordedAtUtc
-                        X = [double]$firstSample[0].X
-                        Y = [double]$firstSample[0].Y
-                        Z = [double]$firstSample[0].Z
+                        X = Convert-FiniteDoubleOrNull -Value $firstSample[0].X
+                        Y = Convert-FiniteDoubleOrNull -Value $firstSample[0].Y
+                        Z = Convert-FiniteDoubleOrNull -Value $firstSample[0].Z
                     }
                 }
             }

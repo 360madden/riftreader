@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T03:52:57Z",
+  "updatedAtUtc": "2026-05-14T03:56:03Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -150,7 +150,7 @@
     "module-RVA hints are candidate-only and not connected to a stable/static root; owner-base reverse pointer scan found no refs",
     "x64dbg access events not captured yet; live debugger capture still requires explicit current-turn approval and bounded attach policy",
     "displaced-pose or approved x64dbg/access evidence still missing; passive stability candidates are family-context seeds only and not movement proof",
-    "passive-stability readback found two current reference-matching heap copies; displaced-pose/static-chain proof is still required to choose movement-grade source"
+    "passive-stability readback found three current reference-matching heap copies after fixed NaN-safe ranking; displaced-pose/static-chain proof is still required to choose movement-grade source"
   ],
   "canonicalArtifacts": {
     "humanTruth": "docs/recovery/current-truth.md",
@@ -195,12 +195,12 @@
     "latestPassiveFamilySnapshotStabilityFamilies": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/candidate-families.json",
     "latestPassiveFamilySnapshotStabilityMarkdown": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/delta-summary.md",
     "latestPassiveStabilityImportWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/passive-candidates-watchset.json",
-    "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235142.json",
-    "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235142.json",
+    "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json",
+    "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235522.json",
     "latestCurrentCandidateProofPose": "scripts/captures/riftscan-proof-pose-20260514-034648/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-234714.json",
     "latestCurrentCandidateProofPoseReference": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json"
   },
-  "nextRecommendedAction": "Capture a displaced-pose/offline delta proof using current-truth bootstrapped family snapshots, or proceed to approved bounded x64dbg access evidence. Passive-stability readback now narrows live duplicate heap copies but remains candidate-only; movement/navigation remains blocked.",
+  "nextRecommendedAction": "Capture a displaced-pose/offline delta proof using current-truth bootstrapped family snapshots, or proceed to approved bounded x64dbg access evidence. Passive-stability readback now narrows live duplicate heap copies to three candidate-only matches; movement/navigation remains blocked.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -286,11 +286,11 @@
       "promotionEligible": false,
       "status": "candidate_only_family_context_not_movement_proof"
     },
-    "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235142.json",
-    "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0351/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235142.json",
-    "latestPassiveStabilityReadbackCandidateCount": 10,
-    "latestPassiveStabilityReadbackReferenceMatchCount": 2,
-    "latestPassiveStabilityReadbackStableDecodedCandidateCount": 10,
+    "latestPassiveStabilityReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-235522.json",
+    "latestPassiveStabilityReadbackWatchset": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-032849-991117/passive-stability-analysis/readback-currentpid-2928-20260514-0355-top13-fixed-sort/riftscan-currentpid-2928-passive-vec3-watchset-20260513-235522.json",
+    "latestPassiveStabilityReadbackCandidateCount": 13,
+    "latestPassiveStabilityReadbackReferenceMatchCount": 3,
+    "latestPassiveStabilityReadbackStableDecodedCandidateCount": 11,
     "latestPassiveStabilityCurrentMatches": [
       {
         "candidateId": "snapshot-passive-stable-268D5A80730-xyz",
@@ -307,9 +307,18 @@
         "sourcePreviewMatchesReadback": true,
         "stableAcrossReadbackSamples": true,
         "status": "current_reference_match_candidate_only_not_movement_proof"
+      },
+      {
+        "candidateId": "snapshot-passive-stable-268D5FC52B0-xyz",
+        "addressHex": "0x268D5FC52B0",
+        "referenceMaxAbsDelta": 4.1503906231810106e-05,
+        "sourcePreviewMatchesReadback": true,
+        "stableAcrossReadbackSamples": true,
+        "status": "current_reference_match_candidate_only_not_movement_proof"
       }
     ],
     "passiveCandidateImporterCompatibilityFixed": true,
-    "latestMilestoneReviewAfterPassiveCandidates": "scripts/captures/riftscan-milestone-review-20260514-034635.json"
+    "latestMilestoneReviewAfterPassiveCandidates": "scripts/captures/riftscan-milestone-review-20260514-034635.json",
+    "bestReferenceMatchSortHardenedForNaN": true
   }
 }
