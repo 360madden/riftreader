@@ -707,10 +707,15 @@
       "blocker": "no_xyz_triplets_near_reference_found",
       "safety": "no movement, no input, no CE, no x64dbg"
     },
-    "latestActionSummaryHtml": "docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-101947.html",
-    "latestScanProfilePlan": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1018-dryrun/summary.json",
-    "latestManualDisplacementBlocker": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1018/summary.json",
-    "latestCandidateComparison": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1018/summary.json",
-    "latestCandidateComparisonHtml": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1018/summary.html"
+    "latestActionSummaryHtml": "docs/recovery/coordinate-proof-route-actions-1-10-summary-2026-05-14-102755.html",
+    "latestScanProfilePlan": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-latest-dryrun/summary.json",
+    "latestManualDisplacementBlocker": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.json",
+    "latestCandidateComparison": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1027-two-reference-smoke/summary.json",
+    "latestCandidateComparisonHtml": "scripts/captures/coordinate-candidate-comparison-currentpid-2928-20260514-1027-two-reference-smoke/summary.html",
+    "latestScanProfileRun": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-latest-dryrun/summary.json",
+    "latestScanProfileHtml": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-latest-dryrun/summary.html",
+    "latestCandidateComparisonMode": "two-reference-smoke-same-reference-no-displaced-pose",
+    "latestScanProfilePlanHtml": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-latest-dryrun/summary.html",
+    "latestManualDisplacementBlockerHtml": "scripts/captures/coordinate-scan-profiles-currentpid-2928-20260514-1027-displaced-required/summary.html"
   }
 }

@@ -258,11 +258,21 @@ python .\scripts\coordinate_scan_profiles.py `
   --pid <current_rift_pid> `
   --hwnd <current_rift_hwnd> `
   --process-name rift_x64 `
-  --reference-file scripts\captures\<fresh-reference>.json `
+  --reference-file latest `
   --profile wide `
   --profile historical-neighborhood `
+  --historical-center-file scripts\captures\<historical-centers>.json `
+  --update-current-truth `
   --json
 ```
+
+`--reference-file latest` selects the newest same-target
+`rift-api-reference-currentpid-*.json` artifact for the requested PID/HWND.
+`--historical-center-file` accepts JSON such as
+`{"centers":[{"label":"last-readback","address":"0x268D5A80730"}]}`.
+Each profile run writes JSON, Markdown, and HTML; `--update-current-truth`
+updates `docs/recovery/current-truth.json` with the latest scan-profile summary
+and HTML paths.
 
 If a manual displaced pose has not been captured, use
 `--require-displaced-pose` to fail closed with
@@ -275,6 +285,7 @@ target memory, use the offline comparison helper:
 ```powershell
 python .\scripts\coordinate_candidate_compare.py `
   --api-reference scripts\captures\<fresh-reference>.json `
+  --displaced-api-reference scripts\captures\<manual-displaced-reference>.json `
   --candidate-file scripts\captures\<candidate-file>.json `
   --discover `
   --json
@@ -282,6 +293,9 @@ python .\scripts\coordinate_candidate_compare.py `
 
 This report may identify a current API match, but it is still offline evidence:
 movement remains blocked until same-target readback/proof gates pass.
+When `--displaced-api-reference` is supplied, the report includes baseline,
+displaced, and both-reference match counts so stale heap copies are easier to
+separate from pose-tracking candidates.
 
 ## Aggregate validation runner
 

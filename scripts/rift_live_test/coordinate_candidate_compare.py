@@ -135,10 +135,18 @@ def discover_candidate_files(repo_root: Path) -> list[Path]:
     return candidates
 
 
-def compare_file(path: Path, reference: dict[str, Any], repo_root: Path, tolerance: float, max_records: int) -> dict[str, Any]:
+def compare_file(
+    path: Path,
+    reference: dict[str, Any],
+    repo_root: Path,
+    tolerance: float,
+    max_records: int,
+    displaced_reference: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     doc = read_json(path)
     records = candidate_records(doc)
     ref = reference["coordinate"]
+    displaced_ref = displaced_reference["coordinate"] if displaced_reference else None
     rows: list[dict[str, Any]] = []
     for index, record in enumerate(records[:max_records], start=1):
         value = candidate_value(record)
@@ -157,23 +165,49 @@ def compare_file(path: Path, reference: dict[str, Any], repo_root: Path, toleran
         dy = y - float(ref["y"])
         dz = z - float(ref["z"])
         max_abs = max(abs(dx), abs(dy), abs(dz))
-        rows.append(
-            {
-                "candidateId": candidate_id(record, index),
-                "address": candidate_address(record),
-                "status": "matches-current-api" if max_abs <= tolerance else "stale-or-different-pose",
-                "x": x,
-                "y": y,
-                "z": z,
-                "deltaX": dx,
-                "deltaY": dy,
-                "deltaZ": dz,
-                "maxAbsDelta": max_abs,
-                "supportCount": record.get("support_count") or record.get("supportCount"),
-                "classification": record.get("classification"),
-            }
-        )
+        baseline_match = max_abs <= tolerance
+        row = {
+            "candidateId": candidate_id(record, index),
+            "address": candidate_address(record),
+            "status": "matches-current-api" if baseline_match else "stale-or-different-pose",
+            "x": x,
+            "y": y,
+            "z": z,
+            "deltaX": dx,
+            "deltaY": dy,
+            "deltaZ": dz,
+            "maxAbsDelta": max_abs,
+            "supportCount": record.get("support_count") or record.get("supportCount"),
+            "classification": record.get("classification"),
+        }
+        if displaced_ref is not None:
+            ddx = x - float(displaced_ref["x"])
+            ddy = y - float(displaced_ref["y"])
+            ddz = z - float(displaced_ref["z"])
+            displaced_max_abs = max(abs(ddx), abs(ddy), abs(ddz))
+            displaced_match = displaced_max_abs <= tolerance
+            if baseline_match and displaced_match:
+                two_reference_status = "matches-both-references"
+            elif baseline_match:
+                two_reference_status = "baseline-only"
+            elif displaced_match:
+                two_reference_status = "displaced-only"
+            else:
+                two_reference_status = "matches-neither-reference"
+            row.update(
+                {
+                    "displacedDeltaX": ddx,
+                    "displacedDeltaY": ddy,
+                    "displacedDeltaZ": ddz,
+                    "displacedMaxAbsDelta": displaced_max_abs,
+                    "displacedStatus": "matches-displaced-api" if displaced_match else "stale-or-not-displaced-pose",
+                    "twoReferenceStatus": two_reference_status,
+                }
+            )
+        rows.append(row)
     matching = [row for row in rows if row.get("status") == "matches-current-api"]
+    displaced_matching = [row for row in rows if row.get("displacedStatus") == "matches-displaced-api"]
+    both_matching = [row for row in rows if row.get("twoReferenceStatus") == "matches-both-references"]
     best = min(
         [row for row in rows if isinstance(row.get("maxAbsDelta"), float)],
         key=lambda row: float(row["maxAbsDelta"]),
@@ -184,6 +218,8 @@ def compare_file(path: Path, reference: dict[str, Any], repo_root: Path, toleran
         "recordCount": len(records),
         "comparedCount": len(rows),
         "matchCount": len(matching),
+        "displacedMatchCount": len(displaced_matching) if displaced_reference else None,
+        "bothReferenceMatchCount": len(both_matching) if displaced_reference else None,
         "best": best,
         "rows": rows,
     }
@@ -196,18 +232,20 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"- Status: `{summary.get('status')}`",
         f"- Generated UTC: `{summary.get('generatedAtUtc')}`",
         f"- Reference file: `{summary.get('reference', {}).get('path')}`",
+        f"- Displaced reference file: `{summary.get('displacedReference', {}).get('path')}`",
         f"- Tolerance: `{summary.get('tolerance')}`",
         f"- Movement sent: `{str(summary.get('safety', {}).get('movementSent')).lower()}`",
         "",
         "## Files",
         "",
-        "| File | Records | Matches | Best candidate | Best max abs delta |",
-        "|---|---:|---:|---|---:|",
+        "| File | Records | Baseline matches | Displaced matches | Both-ref matches | Best candidate | Best max abs delta |",
+        "|---|---:|---:|---:|---:|---|---:|",
     ]
     for file_result in summary.get("candidateFiles") or []:
         best = dict_or_empty(file_result.get("best"))
         lines.append(
             f"| `{file_result.get('path')}` | `{file_result.get('recordCount')}` | `{file_result.get('matchCount')}` | "
+            f"`{file_result.get('displacedMatchCount')}` | `{file_result.get('bothReferenceMatchCount')}` | "
             f"`{best.get('candidateId')}` | `{best.get('maxAbsDelta')}` |"
         )
     if summary.get("blockers"):
@@ -226,6 +264,8 @@ def build_html(summary: dict[str, Any]) -> str:
         f"<td><code>{esc(item.get('path'))}</code></td>"
         f"<td>{esc(item.get('recordCount'))}</td>"
         f"<td>{esc(item.get('matchCount'))}</td>"
+        f"<td>{esc(item.get('displacedMatchCount'))}</td>"
+        f"<td>{esc(item.get('bothReferenceMatchCount'))}</td>"
         f"<td><code>{esc(dict_or_empty(item.get('best')).get('candidateId'))}</code></td>"
         f"<td>{esc(dict_or_empty(item.get('best')).get('maxAbsDelta'))}</td>"
         "</tr>"
@@ -253,9 +293,10 @@ code {{ background:#020817; border:1px solid #263a57; padding:2px 6px; border-ra
 <h1>Coordinate candidate comparison</h1>
 <p>Status: <code>{esc(summary.get('status'))}</code></p>
 <p>Reference: <code>{esc(summary.get('reference', {}).get('path'))}</code></p>
+<p>Displaced reference: <code>{esc(summary.get('displacedReference', {}).get('path'))}</code></p>
 </section>
 <h2>Files</h2>
-<table><tr><th>File</th><th>Records</th><th>Matches</th><th>Best candidate</th><th>Best max abs delta</th></tr>{rows}</table>
+<table><tr><th>File</th><th>Records</th><th>Baseline matches</th><th>Displaced matches</th><th>Both-ref matches</th><th>Best candidate</th><th>Best max abs delta</th></tr>{rows}</table>
 <h2>Blockers</h2>
 <ul>{blockers}</ul>
 </main></body></html>
@@ -280,6 +321,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Compare existing coordinate candidate files against a fresh API reference.")
     parser.add_argument("--repo-root", type=Path, default=repo_root_from_module())
     parser.add_argument("--api-reference", type=Path, required=True)
+    parser.add_argument("--displaced-api-reference", type=Path)
     parser.add_argument("--candidate-file", type=Path, action="append", default=[])
     parser.add_argument("--discover", action="store_true")
     parser.add_argument("--tolerance", type=float, default=0.25)
@@ -324,6 +366,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
         reference = load_reference(api_reference)
         summary["reference"] = {"path": path_text(api_reference, repo_root), "coordinate": reference["coordinate"]}
+        displaced_reference = None
+        if args.displaced_api_reference is not None:
+            displaced_api_reference = args.displaced_api_reference if args.displaced_api_reference.is_absolute() else repo_root / args.displaced_api_reference
+            if not displaced_api_reference.exists():
+                summary["blockers"].append(f"displaced-api-reference-missing:{args.displaced_api_reference}")
+                summary["status"] = "blocked"
+                return 2
+            displaced_reference = load_reference(displaced_api_reference)
+            summary["displacedReference"] = {
+                "path": path_text(displaced_api_reference, repo_root),
+                "coordinate": displaced_reference["coordinate"],
+            }
         files = default_candidate_files(repo_root, args.candidate_file, args.discover)
         if not files:
             summary["blockers"].append("candidate-file-required")
@@ -334,19 +388,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 summary["warnings"].append(f"candidate-file-missing:{file_path}")
                 continue
             try:
-                summary["candidateFiles"].append(compare_file(file_path, reference, repo_root, args.tolerance, args.max_records_per_file))
+                summary["candidateFiles"].append(
+                    compare_file(
+                        file_path,
+                        reference,
+                        repo_root,
+                        args.tolerance,
+                        args.max_records_per_file,
+                        displaced_reference=displaced_reference,
+                    )
+                )
             except Exception as exc:  # noqa: BLE001 - keep comparing other files.
                 summary["warnings"].append(f"candidate-file-unreadable:{file_path}:{type(exc).__name__}:{exc}")
         if not summary["candidateFiles"]:
             summary["blockers"].append("no-readable-candidate-files")
             summary["status"] = "blocked"
             return 2
-        summary["status"] = (
-            "api-candidate-match"
-            if any(item.get("matchCount", 0) > 0 for item in summary["candidateFiles"])
-            else "candidate-only-no-current-api-match"
-        )
-        return 0 if summary["status"] == "api-candidate-match" else 2
+        if displaced_reference is not None:
+            summary["status"] = (
+                "api-candidate-two-reference-match"
+                if any(item.get("bothReferenceMatchCount", 0) > 0 for item in summary["candidateFiles"])
+                else "candidate-only-no-two-reference-match"
+            )
+        else:
+            summary["status"] = (
+                "api-candidate-match"
+                if any(item.get("matchCount", 0) > 0 for item in summary["candidateFiles"])
+                else "candidate-only-no-current-api-match"
+            )
+        return 0 if summary["status"] in {"api-candidate-match", "api-candidate-two-reference-match"} else 2
     except Exception as exc:  # noqa: BLE001
         summary["status"] = "failed"
         summary["errors"].append({"type": type(exc).__name__, "message": str(exc)})

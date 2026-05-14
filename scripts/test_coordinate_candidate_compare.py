@@ -76,6 +76,44 @@ class CoordinateCandidateCompareTests(unittest.TestCase):
             self.assertEqual(summary["status"], "candidate-only-no-current-api-match")
             self.assertFalse(summary["safety"]["movementSent"])
 
+    def test_two_reference_mode_classifies_baseline_only_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            baseline = root / "baseline.json"
+            displaced = root / "displaced.json"
+            candidates = root / "candidates.json"
+            out = root / "out"
+            baseline.write_text(json.dumps({"coordinate": {"x": 1, "y": 2, "z": 3}}), encoding="utf-8")
+            displaced.write_text(json.dumps({"coordinate": {"x": 5, "y": 2, "z": 3}}), encoding="utf-8")
+            candidates.write_text(
+                json.dumps({"candidates": [{"candidate_id": "baseline-copy", "value_preview": [1.0, 2.0, 3.0]}]}),
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "--repo-root",
+                    str(root),
+                    "--api-reference",
+                    str(baseline),
+                    "--displaced-api-reference",
+                    str(displaced),
+                    "--candidate-file",
+                    str(candidates),
+                    "--output-root",
+                    str(out),
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "candidate-only-no-two-reference-match")
+            file_result = summary["candidateFiles"][0]
+            self.assertEqual(file_result["matchCount"], 1)
+            self.assertEqual(file_result["displacedMatchCount"], 0)
+            self.assertEqual(file_result["bothReferenceMatchCount"], 0)
+            self.assertEqual(file_result["rows"][0]["twoReferenceStatus"], "baseline-only")
+
 
 if __name__ == "__main__":
     unittest.main()
