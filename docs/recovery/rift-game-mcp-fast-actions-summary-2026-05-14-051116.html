@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rift Game MCP Fast Actions Summary - 2026-05-14-051116</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #08111f;
+    --panel: #0f1b2e;
+    --panel-2: #13223a;
+    --text: #e5eefb;
+    --muted: #9fb1c8;
+    --line: #263a57;
+    --green: #22c55e;
+    --blue: #38bdf8;
+    --purple: #a78bfa;
+    --orange: #f97316;
+    --red: #fb7185;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: radial-gradient(circle at 20% 0%, #15375c 0, transparent 34%), var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 34px 24px 48px; }
+  .hero {
+    border: 1px solid rgba(56, 189, 248, .35);
+    background: linear-gradient(135deg, rgba(34,197,94,.14), rgba(56,189,248,.10) 45%, rgba(167,139,250,.12));
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.35);
+  }
+  .eyebrow { color: var(--blue); text-transform: uppercase; letter-spacing: .14em; font-weight: 700; font-size: 12px; }
+  h1 { margin: 8px 0 8px; font-size: clamp(30px, 5vw, 52px); line-height: 1.02; }
+  h2 { margin: 30px 0 14px; font-size: 24px; }
+  p { color: var(--muted); margin: 8px 0; }
+  .verdict { display: inline-flex; align-items: center; gap: 8px; color: #06210f; background: var(--green); font-weight: 800; border-radius: 999px; padding: 8px 14px; margin-top: 14px; }
+  .grid { display: grid; gap: 14px; }
+  .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 20px 0 4px; }
+  .card {
+    background: rgba(15,27,46,.84);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 16px;
+  }
+  .card .label { color: var(--muted); font-size: 13px; }
+  .card .value { font-size: 32px; font-weight: 850; margin-top: 4px; }
+  .bar-wrap { margin-top: 10px; height: 8px; background: #07101d; border-radius: 999px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 999px; }
+  table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 18px; background: rgba(15,27,46,.78); border: 1px solid var(--line); }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: rgba(19,34,58,.95); color: #c9ddf6; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: 0; }
+  .status { display: inline-block; min-width: 92px; text-align: center; padding: 4px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; background: rgba(34,197,94,.16); color: #86efac; border: 1px solid rgba(34,197,94,.38); }
+  code { background: #07101d; border: 1px solid var(--line); border-radius: 7px; padding: 2px 6px; color: #bae6fd; }
+  .note { background: rgba(249,115,22,.10); border: 1px solid rgba(249,115,22,.35); border-radius: 18px; padding: 14px 16px; color: #fed7aa; }
+  .footer { margin-top: 28px; color: var(--muted); font-size: 13px; }
+  @media (max-width: 850px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } table { font-size: 14px; } }
+  @media (max-width: 560px) { main { padding: 18px 12px 32px; } .cards { grid-template-columns: 1fr; } th, td { padding: 10px; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="eyebrow">RiftReader • rift_game MCP</div>
+    <h1>Top 10 Fast Actions Completed</h1>
+    <p>Generated 2026-05-14T05:11:16.392433-04:00. This summary is timestamped and will not overwrite prior reports.</p>
+    <div class="verdict">✅ RESULT: 10 / 10 completed with validation</div>
+    <div class="grid cards">
+      <div class="card"><div class="label">Actions completed</div><div class="value" style="color:#22c55e">10 / 10</div><div class="bar-wrap"><div class="bar" style="width:100%; background:#22c55e"></div></div></div>
+      <div class="card"><div class="label">MCP tools registered</div><div class="value" style="color:#38bdf8">19</div><div class="bar-wrap"><div class="bar" style="width:100%; background:#38bdf8"></div></div></div>
+      <div class="card"><div class="label">New tools added</div><div class="value" style="color:#a78bfa">4</div><div class="bar-wrap"><div class="bar" style="width:40%; background:#a78bfa"></div></div></div>
+      <div class="card"><div class="label">Game key input sent</div><div class="value" style="color:#f97316">0</div><div class="bar-wrap"><div class="bar" style="width:0%; background:#f97316"></div></div></div>
+    </div>
+  </section>
+
+  <h2>Completion Matrix</h2>
+  <table>
+    <thead><tr><th>#</th><th>Action</th><th>Status</th><th>What changed</th><th>Files</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><strong>Add inspect_bound_window</strong></td><td><span class="status">Completed</span></td><td>Read-only exact-HWND reinspection tool wired through window-tools.ps1 inspect.</td><td><code>tools/rift-game-mcp/index.mjs; tools/rift-game-mcp/helpers/window-tools.ps1</code></td></tr>
+      <tr><td>2</td><td><strong>Add get_bound_window_state</strong></td><td><span class="status">Completed</span></td><td>Read-only session state exposes bound window, last capture path, and runtime paths.</td><td><code>tools/rift-game-mcp/index.mjs</code></td></tr>
+      <tr><td>3</td><td><strong>Add get_riftreader_current_truth</strong></td><td><span class="status">Completed</span></td><td>Reads docs/recovery/current-truth.json and returns the movement gate, target, blockers, and canonical artifacts.</td><td><code>tools/rift-game-mcp/index.mjs</code></td></tr>
+      <tr><td>4</td><td><strong>Strengthen validate.mjs</strong></td><td><span class="status">Completed</span></td><td>Validation now requires all 19 tools and checks key/resize schemas.</td><td><code>tools/rift-game-mcp/validate.mjs</code></td></tr>
+      <tr><td>5</td><td><strong>Update README tool list/docs</strong></td><td><span class="status">Completed</span></td><td>README documents new state/resize tools, safety model, dry-run usage, and examples.</td><td><code>tools/rift-game-mcp/README.md</code></td></tr>
+      <tr><td>6</td><td><strong>Add structured log duration/status fields</strong></td><td><span class="status">Completed</span></td><td>Action log envelopes now include status, riskClass, started/ended timestamps, durationMs, boundWindow, result/error details.</td><td><code>tools/rift-game-mcp/index.mjs</code></td></tr>
+      <tr><td>7</td><td><strong>Add send_key dry-run</strong></td><td><span class="status">Completed</span></td><td>send_key can classify and report a key plan without sending input.</td><td><code>tools/rift-game-mcp/index.mjs; tools/rift-game-mcp/validate.mjs</code></td></tr>
+      <tr><td>8</td><td><strong>Add movement-key classifier</strong></td><td><span class="status">Completed</span></td><td>Movement-risk keys W/A/S/D/Q/E/arrows/Space block by default unless explicitly allowed; literal space is classified as Space.</td><td><code>tools/rift-game-mcp/index.mjs</code></td></tr>
+      <tr><td>9</td><td><strong>Add resize_game_window dry-run</strong></td><td><span class="status">Completed</span></td><td>resize_game_window defaults to dryRun:true and reports computed client/window dimensions without SetWindowPos.</td><td><code>tools/rift-game-mcp/index.mjs; tools/rift-game-mcp/helpers/window-tools.ps1</code></td></tr>
+      <tr><td>10</td><td><strong>Add actual resize_game_window</strong></td><td><span class="status">Completed</span></td><td>dryRun:false calls existing Win32 helper path with SetWindowPos, exact target identity checks, minimized-window fail-closed handling, and resizeOk readback.</td><td><code>tools/rift-game-mcp/index.mjs; tools/rift-game-mcp/helpers/window-tools.ps1</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Validation Evidence</h2>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td><strong>JavaScript syntax</strong></td><td><span class="status">Passed</span></td><td>node --check tools/rift-game-mcp/index.mjs; node --check tools/rift-game-mcp/validate.mjs</td></tr>
+      <tr><td><strong>MCP schema validation</strong></td><td><span class="status">Passed</span></td><td>npm run validate --prefix tools/rift-game-mcp reported 19/19 expected tools and required schemas.</td></tr>
+      <tr><td><strong>Helper resize dry-run</strong></td><td><span class="status">Passed</span></td><td>Exact target PID 2928 / HWND 0xC0994 planned 640x360 client resize with no mutation.</td></tr>
+      <tr><td><strong>Helper actual resize</strong></td><td><span class="status">Passed</span></td><td>Exact target same-size SetWindowPos smoke returned resizeApplied=true and resizeOk=true at 640x360 client area.</td></tr>
+      <tr><td><strong>MCP smoke</strong></td><td><span class="status">Passed</span></td><td>State/current-truth reads passed; send_key dry-run classified W and literal Space as movementInput; non-dry-run W was refused; resize dry-run did not apply.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Safety Notes</h2>
+  <div class="note">
+    <ul>
+      <li>No game key input was sent by the smoke tests; movement-risk <code>send_key</code> calls now fail closed unless explicitly allowed.</li>
+      <li>Final movement smoke verified both <code>w</code> and literal Space classify as <code>movementInput</code>.</li>
+      <li>Resize support is client-area based and exact-target gated by PID/HWND/process name.</li>
+      <li>Actual resize validation was a same-size 640×360 SetWindowPos readback, so the final client area remained unchanged.</li>
+      <li>No Cheat Engine, x64dbg, movement navigation, or player-control proof promotion was used.</li>
+    </ul>
+  </div>
+
+  <h2>Repo Hygiene</h2>
+  <p>This MCP pass intentionally changed <code>tools/rift-game-mcp/README.md</code>, <code>tools/rift-game-mcp/helpers/window-tools.ps1</code>, <code>tools/rift-game-mcp/index.mjs</code>, <code>tools/rift-game-mcp/validate.mjs</code>, and this timestamped HTML report. Pre-existing recovery/current-truth working-tree changes were left untouched.</p>
+
+  <div class="footer">Generated by Codex for the autonomous Rift game MCP 1-10 action pass.</div>
+</main>
+</body>
+</html>

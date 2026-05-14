@@ -14,6 +14,22 @@ const logsDir = path.join(runtimeDir, 'logs');
 const logFilePath = path.join(logsDir, 'actions.jsonl');
 const helperScriptPath = path.join(__dirname, 'helpers', 'window-tools.ps1');
 const repoRoot = path.resolve(__dirname, '..', '..');
+const currentTruthPath = path.join(repoRoot, 'docs', 'recovery', 'current-truth.json');
+const windowToolsProjectPath = path.join(
+  repoRoot,
+  'tools',
+  'RiftReader.WindowTools',
+  'RiftReader.WindowTools.csproj',
+);
+const windowToolsExePath = path.join(
+  repoRoot,
+  'tools',
+  'RiftReader.WindowTools',
+  'bin',
+  'Debug',
+  'net10.0-windows',
+  'RiftReader.WindowTools.exe',
+);
 const inventoryReferencesDir = path.join(
   repoRoot,
   'artifacts',
@@ -54,6 +70,50 @@ const state = {
   boundWindow: null,
   lastCapturePath: null,
 };
+
+const toolRiskClasses = Object.freeze({
+  validate_config: 'readOnly',
+  find_game_window: 'readOnly',
+  get_bound_window_state: 'readOnly',
+  inspect_bound_window: 'readOnly',
+  get_riftreader_current_truth: 'readOnly',
+  focus_game_window: 'windowMutation',
+  capture_game_window: 'readOnly',
+  capture_inventory_reference: 'readOnly',
+  click_client: 'uiInput',
+  send_key: 'uiInput',
+  wait_for_frame_change: 'readOnly',
+  suggest_inventory_region: 'readOnlyConfigWriteOptional',
+  toggle_inventory: 'uiInput',
+  ensure_inventory_open: 'uiInput',
+  ensure_inventory_closed: 'uiInput',
+  open_inventory: 'uiInput',
+  open_bags: 'uiInput',
+  press_hotbar_slot: 'uiInput',
+  resize_game_window: 'windowMutation',
+});
+
+const keyModifiers = new Set(['shift', 'ctrl', 'control', 'alt']);
+const movementKeys = new Set([
+  'w',
+  'a',
+  's',
+  'd',
+  'q',
+  'e',
+  'up',
+  'down',
+  'left',
+  'right',
+  'space',
+]);
+const keyAliases = new Map([
+  ['arrowup', 'up'],
+  ['arrowdown', 'down'],
+  ['arrowleft', 'left'],
+  ['arrowright', 'right'],
+  [' ', 'space'],
+]);
 
 function nowStamp() {
   const now = new Date();
@@ -218,6 +278,39 @@ function normalizeNumber(value, name, { min } = {}) {
   }
 
   return normalized;
+}
+
+function normalizeKeyToken(token) {
+  const raw = String(token ?? '');
+  const trimmed = raw.trim().toLowerCase();
+  const normalized = trimmed || (raw.includes(' ') ? ' ' : '');
+  return keyAliases.get(normalized) ?? normalized;
+}
+
+function classifyKeyChord(keyChord) {
+  const tokens = String(keyChord ?? '')
+    .split('+')
+    .map(normalizeKeyToken)
+    .filter(Boolean);
+  const mainKeys = tokens.filter((token) => !keyModifiers.has(token));
+  const movementMatches = mainKeys.filter((token) => movementKeys.has(token));
+  const hasMovementKey = movementMatches.length > 0;
+
+  return {
+    keyChord,
+    tokens,
+    mainKeys,
+    movementKeys: movementMatches,
+    riskClass: hasMovementKey ? 'movementInput' : 'uiInput',
+    blockedByDefault: hasMovementKey,
+    blockReason: hasMovementKey
+      ? `movement-risk key(s): ${movementMatches.join(', ')}`
+      : null,
+  };
+}
+
+function getToolRiskClass(action) {
+  return toolRiskClasses[action] ?? 'unknown';
 }
 
 function normalizeInteger(value, name, { min } = {}) {
@@ -399,6 +492,88 @@ async function captureBoundWindow(outputPath = nextScreenshotPath()) {
 
   updateBoundWindow(result.window);
   updateLastCapturePath(result.screenshotPath);
+  return result;
+}
+
+function getBoundWindowState() {
+  return {
+    bound: Boolean(state.boundWindow),
+    window: state.boundWindow,
+    lastCapturePath: state.lastCapturePath,
+    runtime: {
+      screenshotsDir,
+      logFilePath,
+    },
+  };
+}
+
+async function inspectBoundWindow() {
+  const window = await runDotnetWindowTool('inspect', buildBoundWindowSpec());
+  updateBoundWindow(window);
+  return {
+    bound: true,
+    window: state.boundWindow,
+  };
+}
+
+async function getRiftReaderCurrentTruth() {
+  const status = await getFileStatus(currentTruthPath);
+  if (!status.exists || !status.isFile) {
+    return {
+      ok: false,
+      path: currentTruthPath,
+      file: status,
+      error: 'current-truth.json was not found.',
+    };
+  }
+
+  let document;
+  try {
+    document = JSON.parse(await readFile(currentTruthPath, 'utf8'));
+  } catch (error) {
+    return {
+      ok: false,
+      path: currentTruthPath,
+      file: status,
+      error: `current-truth.json could not be parsed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  return {
+    ok: true,
+    path: currentTruthPath,
+    file: status,
+    schemaVersion: document.schemaVersion ?? null,
+    kind: document.kind ?? null,
+    updatedAtUtc: document.updatedAtUtc ?? null,
+    status: document.status ?? null,
+    target: document.target ?? null,
+    liveTestingBoundary: document.liveTestingBoundary ?? null,
+    movementGate: document.movementGate ?? null,
+    liveReferenceSurface: document.liveReferenceSurface ?? null,
+    bestCurrentCandidate: document.bestCurrentCandidate ?? null,
+    latestReadOnlyApiRefresh: document.latestReadOnlyApiRefresh ?? null,
+    latestReadOnlyMemoryReadback: document.latestReadOnlyMemoryReadback ?? null,
+    currentBlockers: document.currentBlockers ?? [],
+    nextRecommendedAction: document.nextRecommendedAction ?? null,
+    canonicalArtifacts: document.canonicalArtifacts ?? null,
+  };
+}
+
+async function resizeBoundWindow({ clientWidth, clientHeight, dryRun }) {
+  const result = await runDotnetWindowTool('resize', {
+    ...buildBoundWindowSpec(),
+    ClientWidth: clientWidth,
+    ClientHeight: clientHeight,
+    DryRun: dryRun,
+  });
+
+  if (result.after) {
+    updateBoundWindow(result.after);
+  } else if (result.before) {
+    updateBoundWindow(result.before);
+  }
+
   return result;
 }
 
@@ -1208,6 +1383,117 @@ function stripAnsi(text) {
   return String(text).replace(/\u001b\[[0-9;]*m/g, '');
 }
 
+function buildWindowToolArgs(command, parameters = {}) {
+  const optionMap = new Map([
+    ['WindowHandle', '--hwnd'],
+    ['ExpectedProcessId', '--expected-pid'],
+    ['ExpectedProcessName', '--expected-process-name'],
+    ['ExpectedTitleContains', '--expected-title-contains'],
+    ['ClientWidth', '--client-width'],
+    ['ClientHeight', '--client-height'],
+    ['DryRun', '--dry-run'],
+  ]);
+  const args = [command, '--json'];
+
+  for (const [key, value] of Object.entries(parameters)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+
+    const optionName = optionMap.get(key);
+    if (!optionName) {
+      throw new Error(`Unsupported RiftReader.WindowTools parameter: ${key}`);
+    }
+
+    args.push(optionName, String(value));
+  }
+
+  return args;
+}
+
+async function runDotnetWindowTool(command, parameters = {}) {
+  const toolArgs = buildWindowToolArgs(command, parameters);
+  const useBuiltExe = await fileExists(windowToolsExePath);
+  const executable = useBuiltExe ? windowToolsExePath : 'dotnet';
+  const args = useBuiltExe
+    ? toolArgs
+    : ['run', '--project', windowToolsProjectPath, '--', ...toolArgs];
+
+  return await new Promise((resolve, reject) => {
+    const child = spawn(executable, args, {
+      cwd: repoRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      const cleanStdout = stripAnsi(stdout).trim();
+      const cleanStderr = stripAnsi(stderr).trim();
+      let parsedStdout = null;
+
+      if (cleanStdout) {
+        try {
+          parsedStdout = JSON.parse(cleanStdout);
+        } catch {
+          parsedStdout = null;
+        }
+      }
+
+      if (code !== 0) {
+        const message =
+          parsedStdout?.error ||
+          cleanStderr ||
+          cleanStdout ||
+          `RiftReader.WindowTools exited with code ${code}.`;
+        reject(
+          createDetailedError(message, {
+            helper: 'RiftReader.WindowTools',
+            exitCode: code,
+            status: parsedStdout?.status ?? 'failed',
+            output: parsedStdout,
+            stderr: cleanStderr || null,
+          }),
+        );
+        return;
+      }
+
+      if (!cleanStdout) {
+        reject(new Error('RiftReader.WindowTools returned no JSON output.'));
+        return;
+      }
+
+      if (!parsedStdout) {
+        reject(
+          new Error(
+            `Failed to parse RiftReader.WindowTools JSON output.\n${cleanStdout}`,
+          ),
+        );
+        return;
+      }
+
+      resolve(parsedStdout);
+    });
+  });
+}
+
 async function runPowerShell(operation, parameters = {}) {
   const candidates = ['pwsh.exe', 'powershell.exe'];
   const args = [
@@ -1303,14 +1589,36 @@ async function runPowerShell(operation, parameters = {}) {
 }
 
 async function runLoggedTool(action, fn) {
+  const startedAtUtc = new Date();
+  const startedMs = Date.now();
+  const riskClass = getToolRiskClass(action);
   try {
     const payload = await fn();
-    await logAction(action, payload);
+    const endedAtUtc = new Date();
+    await logAction(action, {
+      status: 'passed',
+      riskClass,
+      startedAtUtc: startedAtUtc.toISOString(),
+      endedAtUtc: endedAtUtc.toISOString(),
+      durationMs: endedAtUtc.getTime() - startedMs,
+      boundWindow: state.boundWindow,
+      result: payload,
+    });
     return toToolResult(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const details = getErrorDetails(error);
-    await logAction(`${action}:error`, { message, ...details });
+    const endedAtUtc = new Date();
+    await logAction(`${action}:error`, {
+      status: 'failed',
+      riskClass,
+      startedAtUtc: startedAtUtc.toISOString(),
+      endedAtUtc: endedAtUtc.toISOString(),
+      durationMs: endedAtUtc.getTime() - startedMs,
+      boundWindow: state.boundWindow,
+      message,
+      ...details,
+    });
     return toToolError(message, details);
   }
 }
@@ -1385,6 +1693,41 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_bound_window_state',
+  {
+    title: 'Get bound game window state',
+    description:
+      'Returns the MCP session bound-window state and last capture path without touching the live game window.',
+  },
+  async () =>
+    runLoggedTool('get_bound_window_state', async () => getBoundWindowState()),
+);
+
+server.registerTool(
+  'inspect_bound_window',
+  {
+    title: 'Inspect bound game window',
+    description:
+      'Re-checks the bound Rift window against the stored exact HWND/process identity and returns current window/client rectangles. Read-only.',
+  },
+  async () =>
+    runLoggedTool('inspect_bound_window', async () => inspectBoundWindow()),
+);
+
+server.registerTool(
+  'get_riftreader_current_truth',
+  {
+    title: 'Get RiftReader current truth',
+    description:
+      'Reads docs/recovery/current-truth.json and returns the current target, live-testing boundary, movement gate, latest proof/readback status, and blockers. Read-only.',
+  },
+  async () =>
+    runLoggedTool('get_riftreader_current_truth', async () =>
+      getRiftReaderCurrentTruth(),
+    ),
+);
+
+server.registerTool(
   'focus_game_window',
   {
     title: 'Focus bound game window',
@@ -1418,6 +1761,55 @@ server.registerTool(
         screenshotPath: result.screenshotPath,
         window: state.boundWindow,
         imageSize: result.imageSize,
+      };
+    }),
+);
+
+server.registerTool(
+  'resize_game_window',
+  {
+    title: 'Resize bound game window',
+    description:
+      'Resizes the bound game window to an exact client-area width/height. Defaults to dry-run; pass dryRun=false to apply. Does not send game input.',
+    inputSchema: {
+      clientWidth: z
+        .number()
+        .int()
+        .min(160)
+        .max(7680)
+        .describe('Requested game client-area width in pixels.'),
+      clientHeight: z
+        .number()
+        .int()
+        .min(120)
+        .max(4320)
+        .describe('Requested game client-area height in pixels.'),
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe(
+          'When true, only reports the resize plan. Set false to call SetWindowPos.',
+        ),
+    },
+  },
+  async ({ clientWidth, clientHeight, dryRun }) =>
+    runLoggedTool('resize_game_window', async () => {
+      const result = await resizeBoundWindow({
+        clientWidth,
+        clientHeight,
+        dryRun,
+      });
+
+      return {
+        resized: Boolean(result.resizeApplied),
+        dryRun: Boolean(result.dryRun),
+        resizeOk: Boolean(result.resizeOk),
+        requestedClientSize: result.requestedClientSize,
+        requestedWindow: result.requestedWindow,
+        border: result.border,
+        before: result.before,
+        after: result.after,
+        window: state.boundWindow,
       };
     }),
 );
@@ -1514,15 +1906,55 @@ server.registerTool(
         .max(5000)
         .default(80)
         .describe('How long to hold the main key(s) down.'),
+      dryRun: z
+        .boolean()
+        .default(false)
+        .describe('When true, classifies the key and returns the plan without sending input.'),
+      allowMovementKeys: z
+        .boolean()
+        .default(false)
+        .describe(
+          'Required to actually send movement-risk keys such as W/A/S/D/Q/E, arrows, or Space.',
+        ),
     },
   },
-  async ({ keyChord, holdMilliseconds }) =>
+  async ({ keyChord, holdMilliseconds, dryRun, allowMovementKeys }) =>
     runLoggedTool('send_key', async () => {
+      const keyClassification = classifyKeyChord(keyChord);
+      const blockedByMovementPolicy =
+        keyClassification.blockedByDefault && !allowMovementKeys;
+
+      if (dryRun) {
+        return {
+          sent: false,
+          dryRun: true,
+          wouldSend: !blockedByMovementPolicy,
+          keyChord,
+          keyClassification,
+          allowMovementKeys,
+          holdMilliseconds,
+          window: state.boundWindow,
+        };
+      }
+
+      if (blockedByMovementPolicy) {
+        throw createDetailedError(
+          `Refusing send_key for movement-risk keyChord "${keyChord}". Pass allowMovementKeys=true only after the current movement/input approval gate is satisfied.`,
+          {
+            keyClassification,
+            allowMovementKeys,
+            holdMilliseconds,
+          },
+        );
+      }
+
       const keyResult = await sendBoundKey(keyChord, holdMilliseconds);
 
       return {
         sent: true,
         keyChord,
+        keyClassification,
+        allowMovementKeys,
         keyboardInputMethod: keyResult.keyboardInputMethod,
         holdMilliseconds,
         window: state.boundWindow,
