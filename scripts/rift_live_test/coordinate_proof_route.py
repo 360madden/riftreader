@@ -660,6 +660,47 @@ def build_displaced_readiness(
     )
 
 
+def build_promotion_readiness(
+    *,
+    memory_readback: Mapping[str, Any],
+    candidate_routing: Mapping[str, Any],
+    displaced_readiness: Mapping[str, Any],
+    static_roots: Mapping[str, Any],
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    api_memory_match = memory_readback.get("apiMemoryMatch") is True
+    both_reference_match_count = int_or_none(candidate_routing.get("bothReferenceMatchCount")) or 0
+    displaced_status = str(displaced_readiness.get("status") or "not-provided")
+    static_root_status = str(static_roots.get("status") or "absent")
+    static_root_proven = (int_or_none(static_roots.get("provenCount")) or 0) > 0
+
+    if not api_memory_match:
+        blockers.append("promotion-api-memory-match-missing")
+    if both_reference_match_count <= 0:
+        blockers.append("promotion-two-reference-candidate-match-missing")
+    if displaced_status != "passed":
+        blockers.append(f"promotion-displaced-readiness-not-passed:{displaced_status}")
+    if not static_root_proven:
+        warnings.append(f"promotion-static-root-not-restart-validated:{static_root_status}")
+
+    proof_anchor_promotion_allowed = not blockers
+    status = "ready-for-proof-anchor-promotion-review" if proof_anchor_promotion_allowed else "blocked-promotion-readiness"
+    return {
+        "status": status,
+        "proofRole": "promotion-readiness-gate-not-movement-permission",
+        "apiMemoryMatch": api_memory_match,
+        "bothReferenceMatchCount": both_reference_match_count,
+        "displacedReadinessStatus": displaced_status,
+        "staticRootStatus": static_root_status,
+        "staticRootProven": static_root_proven,
+        "proofAnchorPromotionAllowed": proof_anchor_promotion_allowed,
+        "movementAllowed": False,
+        "blockers": blockers,
+        "warnings": warnings,
+    }
+
+
 def route_status(
     *,
     visual: Mapping[str, Any],
@@ -756,6 +797,7 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
     static_roots = dict_or_empty(route.get("staticRootCandidates"))
     candidate_routing = dict_or_empty(route.get("candidateRouting"))
     displaced_readiness = dict_or_empty(route.get("displacedReadiness"))
+    promotion_readiness = dict_or_empty(route.get("promotionReadiness"))
     lines = [
         "# Coordinate proof route",
         "",
@@ -769,6 +811,7 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
         f"| Static root | `{static_roots.get('status')}` |",
         f"| Candidate routing | `{candidate_routing.get('status')}` / centers `{candidate_routing.get('centerCount')}` |",
         f"| Displaced readiness | `{displaced_readiness.get('status')}` / summaries `{displaced_readiness.get('summaryCount')}` |",
+        f"| Promotion readiness | `{promotion_readiness.get('status')}` |",
         f"| Read-only proof allowed | `{str(decision.get('readOnlyProofAllowed')).lower()}` |",
         f"| Movement allowed | `{str(decision.get('movementAllowed')).lower()}` |",
         "",
@@ -800,6 +843,25 @@ def markdown_summary(route: Mapping[str, Any]) -> str:
                 f"| `{item_map.get('path')}` | `{item_map.get('status')}` | `{item_map.get('ageDeltaSeconds')}` | `{item_map.get('planarDistance')}` |"
             )
         lines.append("")
+    if promotion_readiness:
+        lines.extend(
+            [
+                "## Promotion readiness",
+                "",
+                "| Field | Value |",
+                "|---|---|",
+                f"| Status | `{promotion_readiness.get('status')}` |",
+                f"| API-memory match | `{str(promotion_readiness.get('apiMemoryMatch')).lower()}` |",
+                f"| Both-reference matches | `{promotion_readiness.get('bothReferenceMatchCount')}` |",
+                f"| Displaced readiness | `{promotion_readiness.get('displacedReadinessStatus')}` |",
+                f"| Proof-anchor promotion allowed | `{str(promotion_readiness.get('proofAnchorPromotionAllowed')).lower()}` |",
+                f"| Movement allowed | `{str(promotion_readiness.get('movementAllowed')).lower()}` |",
+                "",
+            ]
+        )
+        if promotion_readiness.get("blockers"):
+            lines.extend(f"- `{blocker}`" for blocker in list_or_empty(promotion_readiness.get("blockers")))
+            lines.append("")
     actions = list_or_empty(route.get("recommendedActions"))
     if actions:
         lines.extend(["## Recommended actions", "", "| # | Action | Why |", "|---:|---|---|"])
@@ -823,6 +885,7 @@ def html_summary(route: Mapping[str, Any]) -> str:
     static_roots = dict_or_empty(route.get("staticRootCandidates"))
     candidate_routing = dict_or_empty(route.get("candidateRouting"))
     displaced_readiness = dict_or_empty(route.get("displacedReadiness"))
+    promotion_readiness = dict_or_empty(route.get("promotionReadiness"))
     blockers = [str(item) for item in list_or_empty(route.get("blockers"))]
     warnings = [str(item) for item in list_or_empty(route.get("warnings"))]
     actions = [dict_or_empty(item) for item in list_or_empty(route.get("recommendedActions"))]
@@ -837,6 +900,7 @@ def html_summary(route: Mapping[str, Any]) -> str:
         ("Static root", static_roots.get("status")),
         ("Candidate routing", f"{candidate_routing.get('status')} / centers {candidate_routing.get('centerCount')}"),
         ("Displaced readiness", f"{displaced_readiness.get('status')} / summaries {displaced_readiness.get('summaryCount')}"),
+        ("Promotion readiness", promotion_readiness.get("status")),
         ("Read-only proof allowed", str(decision.get("readOnlyProofAllowed")).lower()),
         ("Movement allowed", str(decision.get("movementAllowed")).lower()),
     ]
@@ -869,6 +933,8 @@ def html_summary(route: Mapping[str, Any]) -> str:
         if readiness_rows
         else "<p>No displaced-readiness summary was provided.</p>"
     )
+    promotion_blockers = "\n".join(f"<li>{html_escape(item)}</li>" for item in list_or_empty(promotion_readiness.get("blockers"))) or "<li>None</li>"
+    promotion_warnings = "\n".join(f"<li>{html_escape(item)}</li>" for item in list_or_empty(promotion_readiness.get("warnings"))) or "<li>None</li>"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -904,6 +970,14 @@ code {{ background: #020817; border: 1px solid #263a57; padding: 2px 6px; border
 <table>{body_rows}</table>
 <h2>Displaced readiness gate</h2>
 {readiness_table}
+<h2>Promotion readiness gate</h2>
+<table>
+<tr><th>Status</th><td>{html_escape(promotion_readiness.get("status"))}</td></tr>
+<tr><th>Proof-anchor promotion allowed</th><td>{html_escape(str(promotion_readiness.get("proofAnchorPromotionAllowed")).lower())}</td></tr>
+<tr><th>Movement allowed</th><td>{html_escape(str(promotion_readiness.get("movementAllowed")).lower())}</td></tr>
+<tr><th>Blockers</th><td><ul>{promotion_blockers}</ul></td></tr>
+<tr><th>Warnings</th><td><ul>{promotion_warnings}</ul></td></tr>
+</table>
 <h2>Blockers</h2>
 <ul>{blocker_items}</ul>
 <h2>Warnings</h2>
@@ -994,6 +1068,12 @@ def build_coordinate_proof_route(
         repo_root=repo_root,
         expected_target=target,
     )
+    promotion_readiness = build_promotion_readiness(
+        memory_readback=memory_readback,
+        candidate_routing=candidate_routing,
+        displaced_readiness=displaced_readiness,
+        static_roots=static_roots,
+    )
     blockers.extend(
         visual_blockers
         + api_blockers
@@ -1067,6 +1147,14 @@ def build_coordinate_proof_route(
                 "why": "Candidate comparisons still have no both-reference match, so they cannot prove a pose-tracking coordinate lane.",
             },
         )
+    if promotion_readiness.get("proofAnchorPromotionAllowed") is True:
+        recommended_actions.insert(
+            0,
+            {
+                "action": "Review and promote the two-pose API/readback candidate through the no-CE proof-anchor path.",
+                "why": "The promotion readiness gate passed, but movement still requires ProofOnly and explicit live approval.",
+            },
+        )
     route: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "coordinate-proof-route",
@@ -1085,6 +1173,7 @@ def build_coordinate_proof_route(
         "staticRootCandidates": static_roots,
         "candidateRouting": candidate_routing,
         "displacedReadiness": displaced_readiness,
+        "promotionReadiness": promotion_readiness,
         "blockers": blockers,
         "warnings": warnings,
         "artifacts": artifacts,
@@ -1196,6 +1285,11 @@ def update_current_truth(route: Mapping[str, Any], repo_root: Path) -> None:
             routing["latestDisplacedReadinessSummary"] = latest_readiness.get("summaryJson")
             if latest_readiness.get("summaryHtml"):
                 routing["latestDisplacedReadinessHtml"] = latest_readiness.get("summaryHtml")
+    promotion_readiness = dict_or_empty(route.get("promotionReadiness"))
+    if promotion_readiness:
+        routing["latestPromotionReadinessStatus"] = str(promotion_readiness.get("status"))
+        routing["latestProofAnchorPromotionAllowed"] = promotion_readiness.get("proofAnchorPromotionAllowed") is True
+        routing["latestPromotionReadinessBlockers"] = list_or_empty(promotion_readiness.get("blockers"))
     write_json(truth_path, document)
 
     markdown_path = repo_root / "docs" / "recovery" / "current-truth.md"
@@ -1212,6 +1306,8 @@ def update_current_truth(route: Mapping[str, Any], repo_root: Path) -> None:
         "Latest displaced readiness status": str(routing.get("latestDisplacedReadinessStatus") or ""),
         "Latest displaced readiness summary": str(routing.get("latestDisplacedReadinessSummary") or ""),
         "Latest displaced readiness HTML": str(routing.get("latestDisplacedReadinessHtml") or ""),
+        "Latest promotion readiness status": str(routing.get("latestPromotionReadinessStatus") or ""),
+        "Latest proof-anchor promotion allowed": str(routing.get("latestProofAnchorPromotionAllowed")).lower(),
     }
     updated = upsert_markdown_table_rows(
         markdown_path.read_text(encoding="utf-8"),

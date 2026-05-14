@@ -103,6 +103,16 @@ def parse_hwnd(value: str | int | None) -> int | None:
     return int(text, 10)
 
 
+def hwnd_to_int(value: Any) -> int:
+    """Convert Win32 HWND values from ctypes callbacks/restypes without int(c_void_p)."""
+    if value is None:
+        return 0
+    raw_value = getattr(value, "value", value)
+    if raw_value is None:
+        return 0
+    return int(raw_value)
+
+
 def _require_windows() -> None:
     if os.name != "nt":
         raise RuntimeError("RiftReader target-control live preflight requires Windows.")
@@ -215,7 +225,7 @@ def get_window_snapshot(user32: Any, hwnd: int) -> WindowSnapshot | None:
 
 
 def get_foreground_snapshot(user32: Any) -> ForegroundSnapshot:
-    hwnd = int(user32.GetForegroundWindow())
+    hwnd = hwnd_to_int(user32.GetForegroundWindow())
     if hwnd <= 0 or not user32.IsWindow(wintypes.HWND(hwnd)):
         return ForegroundSnapshot(hwnd=0, hwnd_hex=None, process_id=None, process_name=None, title=None)
 
@@ -234,7 +244,7 @@ def enumerate_windows_for_pid(user32: Any, pid: int) -> list[WindowSnapshot]:
 
     @WNDENUMPROC  # type: ignore[misc]
     def enum_proc(hwnd: wintypes.HWND, _lparam: wintypes.LPARAM) -> bool:
-        hwnd_int = int(hwnd)
+        hwnd_int = hwnd_to_int(hwnd)
         if get_window_pid(user32, hwnd_int) != pid:
             return True
         snapshot = get_window_snapshot(user32, hwnd_int)
@@ -251,7 +261,7 @@ def enumerate_top_level_windows(user32: Any) -> list[WindowSnapshot]:
 
     @WNDENUMPROC  # type: ignore[misc]
     def enum_proc(hwnd: wintypes.HWND, _lparam: wintypes.LPARAM) -> bool:
-        snapshot = get_window_snapshot(user32, int(hwnd))
+        snapshot = get_window_snapshot(user32, hwnd_to_int(hwnd))
         if snapshot is not None:
             windows.append(snapshot)
         return True

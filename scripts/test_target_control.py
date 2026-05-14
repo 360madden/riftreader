@@ -23,6 +23,7 @@ from rift_live_test.target_control import (
     parse_hwnd,
     select_target_window_from_candidates,
     TargetControlOptions,
+    hwnd_to_int,
 )
 
 
@@ -61,6 +62,14 @@ class TargetControlTests(unittest.TestCase):
         self.assertEqual(0x5121A, parse_hwnd(str(0x5121A)))
         self.assertIsNone(parse_hwnd(None))
         self.assertIsNone(parse_hwnd(""))
+
+    def test_hwnd_to_int_handles_ctypes_void_pointer_values(self) -> None:
+        from ctypes import wintypes
+
+        self.assertEqual(0x5121A, hwnd_to_int(wintypes.HWND(0x5121A)))
+        self.assertEqual(0x5121A, hwnd_to_int(0x5121A))
+        self.assertEqual(0, hwnd_to_int(wintypes.HWND()))
+        self.assertEqual(0, hwnd_to_int(None))
 
     def test_exact_hwnd_foreground_is_strong_pass(self) -> None:
         target = make_window()

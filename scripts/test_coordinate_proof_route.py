@@ -406,6 +406,81 @@ class CoordinateProofRouteTests(unittest.TestCase):
             )
             self.assertFalse(route["decision"]["movementAllowed"])
 
+    def test_promotion_readiness_passes_only_for_api_memory_and_two_reference_gate(self) -> None:
+        with self._root() as temp:
+            root = Path(temp) / "RiftReader"
+            api = self._write_json(
+                root / "api.json",
+                {
+                    "processId": 123,
+                    "processName": "rift_x64",
+                    "targetWindowHandle": "0xABC",
+                    "coordinate": {"x": 10.0, "y": 20.0, "z": 30.0},
+                    "tolerance": 0.25,
+                },
+            )
+            readback = self._write_json(
+                root / "readback.json",
+                {
+                    "ProcessId": 123,
+                    "ProcessName": "rift_x64",
+                    "TargetWindowHandle": "0xABC",
+                    "ReferenceMatchCount": 1,
+                    "BestReferenceMatches": [
+                        {
+                            "CandidateId": "two-pose",
+                            "CandidateAddressHex": "0x2000",
+                            "ReferenceMatchesReadback": True,
+                            "ReferenceMaxAbsDelta": 0.001,
+                            "StableAcrossReadbackSamples": True,
+                        }
+                    ],
+                },
+            )
+            comparison = self._write_json(
+                root / "comparison.json",
+                {
+                    "status": "api-candidate-two-reference-match",
+                    "candidateFiles": [
+                        {"matchCount": 1, "displacedMatchCount": 1, "bothReferenceMatchCount": 1}
+                    ],
+                },
+            )
+            readiness = self._write_json(
+                root / "readiness.json",
+                {
+                    "status": "passed",
+                    "artifacts": {"summaryJson": "readiness.json"},
+                    "safety": {"movementSent": False, "inputSent": False, "noCheatEngine": True},
+                    "baselineReference": {
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"}
+                    },
+                    "displacedReference": {
+                        "target": {"processId": 123, "targetWindowHandle": "0xABC", "processName": "rift_x64"}
+                    },
+                },
+            )
+
+            route = build_coordinate_proof_route(
+                repo_root=root,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+                api_reference_path=api,
+                memory_readback_path=readback,
+                candidate_comparisons=[comparison],
+                displaced_readiness_summaries=[readiness],
+            )
+
+            self.assertEqual(route["promotionReadiness"]["status"], "ready-for-proof-anchor-promotion-review")
+            self.assertTrue(route["promotionReadiness"]["proofAnchorPromotionAllowed"])
+            self.assertFalse(route["promotionReadiness"]["movementAllowed"])
+            self.assertIn("promotion-static-root-not-restart-validated:absent", route["promotionReadiness"]["warnings"])
+            self.assertEqual(
+                route["recommendedActions"][0]["action"],
+                "Review and promote the two-pose API/readback candidate through the no-CE proof-anchor path.",
+            )
+
     def test_cli_returns_blocked_exit_until_read_only_proof_is_allowed(self) -> None:
         with self._root() as temp:
             root = Path(temp) / "RiftReader"
@@ -547,7 +622,10 @@ class CoordinateProofRouteTests(unittest.TestCase):
             routing = json.loads(truth.read_text(encoding="utf-8"))["visualEvidenceRouting"]
             self.assertEqual(routing["latestDisplacedReadinessStatus"], "passed")
             self.assertEqual(routing["latestDisplacedReadinessSummary"], "readiness.json")
+            self.assertEqual(routing["latestPromotionReadinessStatus"], "blocked-promotion-readiness")
+            self.assertFalse(routing["latestProofAnchorPromotionAllowed"])
             self.assertIn("| Latest displaced readiness status | `passed` |", truth_md.read_text(encoding="utf-8"))
+            self.assertIn("| Latest promotion readiness status | `blocked-promotion-readiness` |", truth_md.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
