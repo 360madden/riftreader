@@ -30,13 +30,15 @@ monolithic `Program.cs`.
 | Python orchestration wrapper | Implemented | `scripts/capture_rift_window.py`; writes `controller-summary.json` and `controller-summary.md` |
 | Thin `.cmd` launcher | Implemented | `scripts/capture-rift-window.cmd` calls Python and forwards arguments |
 | Latest Python controller live smoke | Passed | `scripts/captures/rift-window-capture-python-live-smoke-20260514-034349-044` |
+| Backend interface split | Implemented | `Backends/ICaptureBackend.cs`, `WgcCaptureBackend.cs`, and `DesktopDuplicationCaptureBackend.cs` |
+| Latest backend-interface live smoke | Passed | `scripts/captures/rift-window-capture-backend-interface-live-smoke-20260514-034719-184` |
 
 Safety boundary remained clean: no movement, no game input, no native
 screenshot key, no CE, and no x64dbg.
 
 Still deferred from the full plan: raw `.bgra` artifact output, robust named
 crop profiles beyond full-window, offline `convert`/`crop`/`diff` commands,
-backend interfaces, and repeated capture session mode.
+and repeated capture session mode.
 
 ---
 

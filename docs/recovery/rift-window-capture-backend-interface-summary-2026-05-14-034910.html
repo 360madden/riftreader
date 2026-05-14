@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rift Window Capture Backend Interface Summary - 2026-05-14-034910</title>
+<style>
+:root{--bg:#0a0f1f;--panel:#111a2e;--panel2:#192743;--text:#edf5ff;--muted:#b1bfd8;--line:#2c3c60;--accent:#9cc9ff;--ok:#40e39a;--warn:#ffd166;}
+body{margin:0;background:linear-gradient(140deg,#07101f,#132541 52%,#07101f);font-family:Segoe UI,Roboto,Arial,sans-serif;color:var(--text);} main{max-width:1160px;margin:0 auto;padding:32px;}
+.hero,section{background:rgba(17,26,46,.92);border:1px solid var(--line);border-radius:22px;padding:24px;margin-bottom:20px;box-shadow:0 18px 50px rgba(0,0,0,.25);}
+h1{margin:0 0 8px;font-size:34px;} h2{margin:0 0 14px;font-size:22px;} .muted{color:var(--muted);} code{background:#07111f;color:#d7eeff;padding:2px 6px;border-radius:6px;}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;} .card{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:16px;} .num{font-size:28px;font-weight:800;color:var(--accent);} .label{color:var(--muted);}
+table{width:100%;border-collapse:collapse;overflow:hidden;border-radius:14px;} th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;} th{background:var(--panel2);}
+.badge{border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;display:inline-block;} .ok{background:var(--ok);color:#052315;} .warn{background:var(--warn);color:#332200;}
+.callout{border-left:4px solid var(--ok);background:rgba(64,227,154,.09);border-radius:12px;padding:12px 14px;}
+@media(max-width:850px){.grid{grid-template-columns:1fr 1fr;}main{padding:18px;}}
+</style></head><body><main>
+<div class="hero"><h1>✅ Top 10 Action #2 Complete: Backend Interface</h1><div class="muted">Timestamp: 2026-05-14T03:49:11-04:00 · Base commit before this slice: <code>0657321</code></div>
+<div class="grid"><div class="card"><div class="num">3</div><div class="label">backend files added</div></div><div class="card"><div class="num">2</div><div class="label">backend adapters</div></div><div class="card"><div class="num">6/6</div><div class="label">tests passed</div></div><div class="card"><div class="num">0</div><div class="label">movement/input/debugger actions</div></div></div>
+<p class="callout"><strong>Verdict:</strong> CaptureRunner now resolves the target once and delegates capture to an explicit backend contract. WGC and DXGI are separated behind <code>ICaptureBackend</code>, reducing future monolith risk.</p></div>
+<section><h2>Changed files</h2><table><thead><tr><th>File</th><th>Purpose</th></tr></thead><tbody><tr><td><code>Backends/ICaptureBackend.cs</code></td><td>New backend contract and factory</td></tr>
+<tr><td><code>Backends/WgcCaptureBackend.cs</code></td><td>Windows.Graphics.Capture backend implementation</td></tr>
+<tr><td><code>Backends/DesktopDuplicationCaptureBackend.cs</code></td><td>DXGI Desktop Duplication adapter</td></tr>
+<tr><td><code>Capture/CaptureRunner.cs</code></td><td>Now resolves target then delegates to selected backend</td></tr>
+<tr><td><code>Capture/CaptureReport.cs</code></td><td>Backend-neutral success message</td></tr>
+<tr><td><code>docs/recovery/rift-window-capture-app-plan.md</code></td><td>Records interface split and live smoke evidence</td></tr></tbody></table></section>
+<section><h2>Validation</h2><table><thead><tr><th>Check</th><th>Status</th><th>Evidence</th></tr></thead><tbody><tr><td><code>dotnet build tools\rift-window-capture\RiftWindowCapture.csproj --nologo</code></td><td><span class='badge ok'>Passed</span></td><td>0 warnings, 0 errors</td></tr>
+<tr><td><code>python scripts\test_rift_window_capture_cli.py</code></td><td><span class='badge ok'>Passed</span></td><td>6/6 tests passed</td></tr>
+<tr><td><code>Python controller backend-interface live smoke</code></td><td><span class='badge ok'>Passed</span></td><td>Exact PID/HWND WGC capture returned usable 641x391 frame</td></tr>
+<tr><td><code>git diff --check</code></td><td><span class='badge warn'>Pending before commit</span></td><td>Will be rerun after HTML summary is staged</td></tr></tbody></table></section>
+<section><h2>Top 10 recommended next actions</h2><table><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody><tr><td>1</td><td>Add raw BGRA output</td><td>Machine vision and diff workflows should avoid PNG encode/decode overhead.</td></tr>
+<tr><td>2</td><td>Add named crop profiles</td><td>Full-window and telemetry-strip need stable contracts.</td></tr>
+<tr><td>3</td><td>Add offline crop/convert/diff</td><td>Analyze captures without live RIFT.</td></tr>
+<tr><td>4</td><td>Add repeated capture/session mode</td><td>Reuse D3D/WGC resources and reduce startup overhead.</td></tr>
+<tr><td>5</td><td>Run backend benchmark matrix</td><td>Quantify WGC vs DXGI and write overhead.</td></tr>
+<tr><td>6</td><td>Evaluate mature OSS capture tools</td><td>Adopt lessons/dependencies safely after license review.</td></tr>
+<tr><td>7</td><td>Add README operator examples</td><td>Make Python controller the obvious entrypoint.</td></tr>
+<tr><td>8</td><td>Add visual-proof routing guard</td><td>Capture output must not imply movement proof.</td></tr>
+<tr><td>9</td><td>Add crop/quality unit fixtures</td><td>Protect frame math before more visual features.</td></tr>
+<tr><td>10</td><td>Add artifact retention notes</td><td>Clarify ignored live bundles vs committed evidence summaries.</td></tr></tbody></table></section>
+<p class="muted">Generated as a timestamped HTML summary; existing summaries are not overwritten.</p>
+</main></body></html>

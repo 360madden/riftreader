@@ -37,7 +37,7 @@ sealed record CaptureReport(
         quality.Usable,
         options.CaptureMethod,
         output,
-        quality.Usable ? "Captured a non-empty WGC frame." : "Captured a frame, but pixel statistics look black/flat/transparent.",
+        quality.Usable ? "Captured a non-empty frame." : "Captured a frame, but pixel statistics look black/flat/transparent.",
         null,
         options.ProcessName,
         options.Pid,

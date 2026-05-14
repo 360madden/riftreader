@@ -12,7 +12,7 @@ static class CaptureRunner
 
     public static async Task<CaptureReport> CaptureOnceAsync(Options options, RunArtifacts? artifacts)
     {
-        if (!GraphicsCaptureSession.IsSupported())
+        if (!options.CaptureDesktopDuplication && !GraphicsCaptureSession.IsSupported())
         {
             return CaptureReport.Error(options, "Windows Graphics Capture is not supported on this OS/session.", null);
         }
@@ -62,104 +62,19 @@ static class CaptureRunner
         string output = Path.GetFullPath(options.Output ?? artifacts?.ImagePath ?? Defaults.CreateDefaultOutputPath());
         Directory.CreateDirectory(Path.GetDirectoryName(output) ?? Environment.CurrentDirectory);
 
-        using D3DObjects d3d = D3DObjects.Create();
+        ICaptureBackend backend = CaptureBackendFactory.Create(options);
+        artifacts?.Log("info", "backend.selected", new { backend = backend.Name });
 
-        if (options.CaptureDesktopDuplication)
-        {
-            try
-            {
-                artifacts?.Log("info", "backend.selected", new { backend = "dxgi-desktop" });
-                IntPtr monitor = NativeMethods.MonitorFromWindow(window.Hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
-                QualityReport quality = DesktopDuplicationCapture.CaptureNearestMonitor(
-                    d3d,
-                    monitor,
-                    output,
-                    options.TimeoutMs,
-                    options.CaptureAttempts,
-                    options.ShouldEmitPng);
-                artifacts?.Log("info", "frame.acquired", new { quality.Width, quality.Height, quality.Output, quality.Usable });
-                return CaptureReport.Success(options, window, quality.Output, quality);
-            }
-            catch (Exception ex)
-            {
-                return CaptureReport.Error(options, $"DXGI Desktop Duplication failed: {ex}", ex.GetType().Name, window);
-            }
-        }
-
-        WgiD3D.IDirect3DDevice winrtDevice;
         try
         {
-            winrtDevice = Direct3D11Helpers.CreateDirect3DDevice(d3d.Device);
+            using D3DObjects d3d = D3DObjects.Create();
+            QualityReport quality = await backend.CaptureAsync(d3d, window, options, output, artifacts).ConfigureAwait(false);
+            artifacts?.Log("info", "frame.acquired", new { backend = backend.Name, quality.Width, quality.Height, quality.Output, quality.Usable });
+            return CaptureReport.Success(options, window, quality.Output, quality);
         }
         catch (Exception ex)
         {
-            return CaptureReport.Error(options, $"CreateDirect3DDevice failed: {ex.Message}", ex.GetType().Name, window);
-        }
-
-        GraphicsCaptureItem item;
-        try
-        {
-            artifacts?.Log("info", "backend.selected", new { backend = options.CaptureMonitor ? "wgc-monitor" : "wgc-window" });
-            item = options.CaptureMonitor
-                ? GraphicsCaptureItemFactory.CreateForMonitor(NativeMethods.MonitorFromWindow(window.Hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST))
-                : GraphicsCaptureItemFactory.CreateForWindow(window.Hwnd);
-        }
-        catch (Exception ex)
-        {
-            string captureSource = options.CaptureMonitor ? "CreateForMonitor" : "CreateForWindow";
-            return CaptureReport.Error(options, $"{captureSource} failed: {ex.Message}", ex.GetType().Name, window);
-        }
-        SizeInt32 size = item.Size;
-        if (size.Width <= 0 || size.Height <= 0)
-        {
-            size = new SizeInt32 { Width = width, Height = height };
-        }
-
-        using Direct3D11CaptureFramePool framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-            winrtDevice,
-            DirectXPixelFormat.B8G8R8A8UIntNormalized,
-            1,
-            size);
-
-        using GraphicsCaptureSession session = framePool.CreateCaptureSession(item);
-        TaskCompletionSource<Direct3D11CaptureFrame> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        framePool.FrameArrived += (_, _) =>
-        {
-            try
-            {
-                Direct3D11CaptureFrame? frame = framePool.TryGetNextFrame();
-                if (frame is not null)
-                {
-                    tcs.TrySetResult(frame);
-                }
-            }
-            catch (Exception ex)
-            {
-                tcs.TrySetException(ex);
-            }
-        };
-
-        session.StartCapture();
-
-        using CancellationTokenSource timeout = new(options.TimeoutMs);
-        await using (timeout.Token.Register(() => tcs.TrySetCanceled(timeout.Token)))
-        {
-            Direct3D11CaptureFrame frame;
-            try
-            {
-                frame = await tcs.Task.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return CaptureReport.Error(options, $"Timed out waiting for a WGC frame after {options.TimeoutMs} ms.", null, window);
-            }
-
-            using (frame)
-            {
-                QualityReport quality = TextureSaver.SaveFrameToImage(d3d, frame.Surface, output, options.ShouldEmitPng);
-                artifacts?.Log("info", "frame.acquired", new { quality.Width, quality.Height, quality.Output, quality.Usable });
-                return CaptureReport.Success(options, window, quality.Output, quality);
-            }
+            return CaptureReport.Error(options, $"{backend.Name} capture failed: {ex.Message}", ex.GetType().Name, window);
         }
     }
 }
