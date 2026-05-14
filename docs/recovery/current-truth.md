@@ -1,6 +1,6 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T04:05:13Z._
+_Last updated: 2026-05-14T04:07:32Z._
 
 ## Verdict
 
@@ -40,6 +40,7 @@ Key proof artifacts:
 | `scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json` | Grouped duplicate-copy pointer scan: exact coordinate copies had `0` direct refs; segment base `0x268D5A80000` had `22` heap refs, `0` module refs. |
 | `scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json` | Offline duplicate disambiguation packet ranks `0x268D5A80730` first, then `0x268D5FC52B0`, then `0x268D5F6C8E0`; candidate-only. |
 | `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json` | Owner batch inspected `36` owners and found `9` module-RVA hints, top `0x2641E38`; no static root proven. |
+| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-040711-152712/summary.json` | Plan-only family sequence now bootstraps ranked duplicate-copy priors from current truth: `currentTruth`, `duplicateCopy2`, `duplicateCopy3`; no memory read/input. |
 | `scripts/captures/rrapicoord-scan-diagnostics-20260514-030154-581879/summary.json` | Usable marker present after direct robust scan. |
 | `scripts/captures/rrapicoord-addon-state-diagnostics-20260514-030154-988294/summary.json` | Addon installed and live marker observed. |
 
@@ -135,7 +136,8 @@ Key proof artifacts:
 | `scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json` | Latest grouped pointer scan around the three duplicate coordinate copies. |
 | `scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json` | Latest offline duplicate-copy ranking packet. |
 | `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json` | Latest owner/ref-storage inspection from duplicate pointer scan. |
+| `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-040711-152712/summary.json` | Latest plan-only sequence showing duplicate-copy current-truth priors are imported. |
 
 ## Next best action
 
-Use the duplicate disambiguation packet as priors for a displaced-pose family snapshot sequence, or use approved bounded x64dbg/access capture on the ranked copies. Pointer/owner scans found heap/family context and module-RVA hints only, not a static chain; movement remains blocked.
+Run a displaced-pose family snapshot sequence when a safe/manual displacement is available; the sequence helper now imports ranked duplicate-copy priors from current truth. Movement remains blocked until delta/static-chain proof and same-target `ProofOnly` pass.

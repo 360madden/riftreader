@@ -205,6 +205,35 @@ def append_if_missing(values: list[str], candidate: str) -> bool:
     return True
 
 
+def prior_address_value_exists(values: list[str], candidate_address: str) -> bool:
+    try:
+        candidate = int(str(candidate_address), 0)
+    except (TypeError, ValueError):
+        return False
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        if "=" in text:
+            _, address_text = text.split("=", 1)
+        else:
+            address_text = text
+        try:
+            if int(address_text, 0) == candidate:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def append_prior_address_if_missing(values: list[str], label: str, candidate_address: str) -> str | None:
+    if prior_address_value_exists(values, candidate_address):
+        return None
+    prior = f"{label}={candidate_address}"
+    values.append(prior)
+    return prior
+
+
 def apply_current_truth_context(args: argparse.Namespace, repo_root: Path) -> dict[str, Any]:
     context: dict[str, Any] = {
         "enabled": not bool(getattr(args, "disable_current_truth", False)),
@@ -273,12 +302,23 @@ def apply_current_truth_context(args: argparse.Namespace, repo_root: Path) -> di
     candidate = document.get("bestCurrentCandidate") if isinstance(document.get("bestCurrentCandidate"), dict) else {}
     candidate_address = candidate.get("addressHex") or candidate.get("address") or candidate.get("absoluteAddressHex")
     if candidate_address:
-        prior = f"currentTruth={candidate_address}"
         args.prior_address = list(args.prior_address or [])
-        if append_if_missing(args.prior_address, prior):
+        prior = append_prior_address_if_missing(args.prior_address, "currentTruth", str(candidate_address))
+        if prior:
             context["priorDefaultsApplied"].append(prior)
     else:
         context["warnings"].append("current-truth-best-current-candidate-address-missing")
+
+    latest = document.get("latestCoordinateReacquisition") if isinstance(document.get("latestCoordinateReacquisition"), dict) else {}
+    duplicate_addresses = latest.get("latestDuplicateCopyRankedAddresses")
+    if isinstance(duplicate_addresses, list):
+        args.prior_address = list(args.prior_address or [])
+        for index, address in enumerate(duplicate_addresses, start=1):
+            if not address:
+                continue
+            prior = append_prior_address_if_missing(args.prior_address, f"duplicateCopy{index}", str(address))
+            if prior:
+                context["priorDefaultsApplied"].append(prior)
 
     return context
 

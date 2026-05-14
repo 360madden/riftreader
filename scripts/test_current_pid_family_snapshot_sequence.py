@@ -13,7 +13,14 @@ from pathlib import Path
 import current_pid_family_snapshot_sequence as sequence
 
 
-def write_current_truth(path: Path, *, pid: int = 79184, hwnd: str = "0xA90BFC", address: str = "0x268D5A80730") -> Path:
+def write_current_truth(
+    path: Path,
+    *,
+    pid: int = 79184,
+    hwnd: str = "0xA90BFC",
+    address: str = "0x268D5A80730",
+    duplicate_addresses: list[str] | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -31,6 +38,9 @@ def write_current_truth(path: Path, *, pid: int = 79184, hwnd: str = "0xA90BFC",
                     "candidateId": "family-snapshot-hit-000004",
                     "addressHex": address,
                     "candidateFile": "scripts/captures/coordinate-family-snapshot-currentpid-79184/family-import-candidates.json",
+                },
+                "latestCoordinateReacquisition": {
+                    "latestDuplicateCopyRankedAddresses": duplicate_addresses or [],
                 },
             }
         ),
@@ -133,6 +143,28 @@ class CurrentPidFamilySnapshotSequenceTests(unittest.TestCase):
             self.assertIn("currentTruth=0x268D5A80730", parsed.prior_address)
             self.assertEqual(context["targetDefaultsApplied"], ["pid", "hwnd", "expected-start-time-utc", "expected-module-base"])
             self.assertFalse(context["blockers"])
+
+    def test_current_truth_context_adds_duplicate_copy_priors_after_best_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            truth = write_current_truth(
+                temp_path / "docs" / "recovery" / "current-truth.json",
+                address="0x268D5A80730",
+                duplicate_addresses=["0x268D5A80730", "0x268D5FC52B0", "0x268D5F6C8E0"],
+            )
+            parsed = args(current_truth_json=truth, prior_address=[])
+
+            context = sequence.apply_current_truth_context(parsed, temp_path)
+
+            self.assertEqual(
+                parsed.prior_address,
+                [
+                    "currentTruth=0x268D5A80730",
+                    "duplicateCopy2=0x268D5FC52B0",
+                    "duplicateCopy3=0x268D5F6C8E0",
+                ],
+            )
+            self.assertEqual(context["priorDefaultsApplied"], parsed.prior_address)
 
     def test_current_truth_context_blocks_explicit_target_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

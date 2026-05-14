@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T04:05:13Z",
+  "updatedAtUtc": "2026-05-14T04:07:32Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -236,9 +236,10 @@
     "latestCurrentCandidateProofPoseReference": "scripts/captures/riftscan-proof-pose-20260514-034648/pose-api-reference.json",
     "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
     "latestDuplicateCopyDisambiguationPacket": "scripts/captures/coordinate-duplicate-disambiguation-20260514-040347-025295/summary.json",
-    "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json"
+    "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json",
+    "latestDuplicateCopyBootstrappedFamilySequencePlan": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-040711-152712/summary.json"
   },
-  "nextRecommendedAction": "Use the duplicate disambiguation packet as priors for a displaced-pose family snapshot sequence, or use approved bounded x64dbg/access capture on the ranked copies. Pointer/owner scans found heap/family context and module-RVA hints only, not a static chain; movement remains blocked.",
+  "nextRecommendedAction": "Run a displaced-pose family snapshot sequence when a safe/manual displacement is available; the sequence helper now imports ranked duplicate-copy priors from current truth. Movement remains blocked until delta/static-chain proof and same-target ProofOnly pass.",
   "latestCoordinateReacquisition": {
     "status": "repeat_reference_matched_candidate_only_movement_blocked",
     "freshStableFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-2928-20260514-024349/family-snapshot-summary.json",
@@ -369,6 +370,27 @@
     "latestDuplicateCopyPointerFamilyScan": "scripts/captures/pointer-family-scan-20260514-035912-983112/summary.json",
     "latestDuplicateCopyPointerOwnerBatch": "scripts/captures/pointer-owner-batch-currentpid-2928-20260514-040413-052088/summary.json",
     "latestDuplicateCopyModuleRvaHintCount": 9,
-    "latestDuplicateCopyTopModuleRva": "0x2641E38"
+    "latestDuplicateCopyTopModuleRva": "0x2641E38",
+    "latestDuplicateCopyBootstrappedFamilySequencePlan": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-040711-152712/summary.json",
+    "duplicateCopyBootstrapPriorDefaultsApplied": [
+      "currentTruth=0x268D5A80730",
+      "duplicateCopy2=0x268D5FC52B0",
+      "duplicateCopy3=0x268D5F6C8E0"
+    ],
+    "duplicateCopyBootstrapPlanStatus": "passed_plan_only_no_memory_read",
+    "duplicateCopyBootstrapSafety": {
+      "movementSent": false,
+      "inputSent": false,
+      "reloaduiSent": false,
+      "screenshotKeySent": false,
+      "noCheatEngine": true,
+      "x64dbgLaunched": false,
+      "debuggerAttached": false,
+      "targetMemoryBytesRead": false,
+      "targetMemoryBytesWritten": false,
+      "providerWrites": false,
+      "githubConnectorWrites": false
+    },
+    "familySequenceImportsDuplicateCopyPriorsFromCurrentTruth": true
   }
 }
