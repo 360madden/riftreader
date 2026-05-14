@@ -30,6 +30,26 @@ If proof-anchor reacquisition blocks, use broad family-group sequential
 snapshots plus offline delta comparison before narrow stale-address or nearby
 offset probes. Keep that work scoped to unblocking navigation.
 
+
+## Coordinate proof-anchor discovery walkthroughs
+
+Use these walkthroughs before future restart/PID/HWND-drift recovery so the next
+operator or agent starts from the proven fast path instead of stale absolute
+addresses or weak single-pose heuristics:
+
+| Document | Use |
+|---|---|
+| `docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.html` | Human-readable current PID `16536` proof-anchor discovery tutorial for `snapshot-delta-21487DF8F64-xyz` at `0x21487DF8F64`. |
+| `docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.md` | Markdown source/companion for the current PID discovery walkthrough. |
+| `docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.html` | Human-readable historical timeline comparing successful, partial, and blocked proof-anchor attempts. |
+| `docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.md` | Human-readable Markdown version of the historical timeline. |
+| `docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.machine.md` | Machine-readable JSON-in-Markdown timeline for agents/tools. |
+
+Fast-path recovery pattern from the timelines: archive stale proof pointers,
+prove current PID/HWND, capture fresh API/runtime truth, scan grouped current-PID
+families, rank by displacement tracking, promote only same-PID multi-pose stable
+readbacks, then rerun `ProofOnly` before any movement.
+
 ## Coordinate freshness rule
 
 Do not treat a stored coordinate from

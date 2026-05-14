@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Current-PID Coordinate Proof Anchor Discovery — 2026-05-14</title>
+<style>
+:root{--bg:#0b1020;--panel:#111936;--text:#e7edf7;--muted:#9fb1d0;--line:#2a3863;--blue:#69a7ff;--green:#4bd49b;--yellow:#ffd166;--red:#ff6b7a;--purple:#b892ff;--cyan:#64e3ff;--code:#071023;--shadow:0 12px 30px rgba(0,0,0,.28)}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:linear-gradient(135deg,#080c18 0%,#0b1020 45%,#101a37 100%);color:var(--text);font:15px/1.55 "Segoe UI",Roboto,Arial,sans-serif} a{color:var(--cyan)} code,pre{font-family:"Cascadia Code","Consolas",monospace} code{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:.08rem .32rem;word-break:break-word} pre{white-space:pre-wrap;overflow:auto;background:var(--code);border:1px solid var(--line);border-radius:12px;padding:1rem;color:#dbe8ff;max-height:36rem}.wrap{max-width:1280px;margin:auto;padding:28px}.hero{border:1px solid var(--line);background:radial-gradient(circle at top left,rgba(105,167,255,.25),transparent 32%),linear-gradient(135deg,var(--panel),#0f1730);border-radius:22px;padding:30px;box-shadow:var(--shadow)}.hero h1{font-size:clamp(2rem,4vw,3.4rem);margin:.2rem 0 .8rem}.subtitle{color:var(--muted);font-size:1.05rem;max-width:78rem}.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin:18px 0}.card{background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}.card .k{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}.card .v{font-size:1.25rem;font-weight:700;margin-top:.35rem;word-break:break-word}.toc{position:sticky;top:0;z-index:5;background:rgba(11,16,32,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}.toc .wrap{padding-top:12px;padding-bottom:12px}.toc a{display:inline-block;text-decoration:none;margin:.25rem .6rem .25rem 0;padding:.32rem .6rem;border:1px solid var(--line);border-radius:999px;color:var(--text);font-size:.88rem}.toc a:hover{background:#162044}section{margin:28px 0;padding:22px;border:1px solid var(--line);background:rgba(17,25,54,.78);border-radius:18px;box-shadow:var(--shadow)}h2{margin-top:0;color:#f8fbff;font-size:1.65rem}h3{color:#dce8ff;margin-top:1.8rem}.callout{border-left:5px solid var(--yellow);background:rgba(255,209,102,.08);padding:14px 16px;border-radius:12px;margin:16px 0}.danger{border-left-color:var(--red);background:rgba(255,107,122,.08)}.ok{border-left-color:var(--green);background:rgba(75,212,155,.08)}.badge{display:inline-flex;align-items:center;gap:.3rem;border-radius:999px;border:1px solid var(--line);font-size:.78rem;font-weight:700;letter-spacing:.03em;padding:.22rem .55rem;text-transform:uppercase}.badge.proven{background:rgba(75,212,155,.16);color:#a8ffd9;border-color:rgba(75,212,155,.45)}.badge.candidate{background:rgba(255,209,102,.15);color:#ffe29a;border-color:rgba(255,209,102,.45)}.badge.blocked,.badge.stale{background:rgba(255,107,122,.16);color:#ffc1c8;border-color:rgba(255,107,122,.45)}.badge.info{background:rgba(105,167,255,.15);color:#c8ddff;border-color:rgba(105,167,255,.45)}.badge.warn{background:rgba(255,209,102,.15);color:#ffe29a;border-color:rgba(255,209,102,.45)}table{width:100%;border-collapse:collapse;margin:14px 0;background:rgba(5,9,20,.35);border-radius:12px;overflow:hidden}caption{text-align:left;color:var(--muted);font-weight:600;margin:.4rem 0}th,td{border:1px solid var(--line);padding:.66rem .75rem;vertical-align:top}th{background:rgba(105,167,255,.11);text-align:left;color:#eaf2ff}td{color:#dce7f7}.timeline{list-style:none;padding:0;margin:0}.timeline li{display:grid;grid-template-columns:minmax(170px,260px) 1fr;gap:16px;border-left:3px solid var(--blue);padding:0 0 18px 18px;margin-left:8px;position:relative}.timeline li:before{content:"";position:absolute;left:-8px;top:.25rem;width:13px;height:13px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 5px rgba(105,167,255,.18)}time{color:#b8c8e8;font-weight:700}.barrow{display:grid;grid-template-columns:190px 1fr 130px;gap:12px;align-items:center;margin:.65rem 0}.bar{height:16px;background:#081024;border:1px solid var(--line);border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;border-radius:999px}.bar i.blue{background:var(--blue)}.bar i.green{background:var(--green)}.bar i.purple{background:var(--purple)}.bar i.red{background:var(--red)}details{border:1px solid var(--line);border-radius:12px;padding:12px;background:rgba(255,255,255,.035);margin:12px 0}summary{cursor:pointer;font-weight:700;color:#eef6ff}.two{grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}.small{font-size:.9rem;color:var(--muted)}.checklist td:first-child{font-weight:700}.footer{color:var(--muted);font-size:.9rem;margin:2rem 0}@media print{body{background:white;color:#111}.toc{position:static;background:white}.hero,section,.card{box-shadow:none;background:white;color:#111;border-color:#aaa}.wrap{max-width:none}.badge{border-color:#777;color:#111}code,pre{background:#f4f4f4;color:#111;border-color:#bbb}th{background:#eee;color:#111}td{color:#111}.timeline li{break-inside:avoid}a{color:#0645ad}}
+</style>
+</head>
+<body>
+<header class="hero wrap">
+  <div><span class='badge proven'>PROVEN CURRENT-PID ANCHOR</span> <span class='badge info'>NO CE / NO X64DBG SUCCESS PATH</span> <span class='badge warn'>NOT RESTART-STATIC</span></div>
+  <h1>Current-PID Coordinate Proof Anchor Discovery — 2026-05-14</h1>
+  <p class="subtitle">A detailed, artifact-backed walkthrough of how the player coordinate proof anchor was reacquired for the restarted RIFT client, why earlier attempts failed or stayed blocked, and how to reproduce or improve future recovery attempts.</p>
+  <div class="grid cards">
+    <div class="card"><div class="k">Candidate</div><div class="v">snapshot-delta-21487DF8F64-xyz</div></div>
+    <div class="card"><div class="k">Address</div><div class="v">0x21487DF8F64</div></div>
+    <div class="card"><div class="k">Target</div><div class="v">PID 16536 / 0x1E0D66</div></div>
+    <div class="card"><div class="k">Status</div><div class="v">current-target-proofonly-passed</div></div>
+    <div class="card"><div class="k">Latest ProofOnly</div><div class="v">passed-proof-only</div></div>
+    <div class="card"><div class="k">Movement Gate</div><div class="v">True</div></div>
+  </div>
+  <div class="callout danger"><b>Validity caveat:</b> this is current-process proof for PID 16536 / HWND 0x1E0D66. If RIFT restarts or PID/HWND changes, this absolute address must be treated as stale until revalidated or rediscovered.</div>
+</header>
+<nav class="toc"><div class="wrap">
+  <a href="#how">How to use</a><a href="#related-history">History</a><a href="#timeline">Timeline</a><a href="#anatomy">Proof anatomy</a><a href="#workflow">Workflow</a><a href="#families">Families & ranking</a><a href="#past">Past attempts</a><a href="#commits">Commits</a><a href="#reproduce">Reproduce/improve</a><a href="#appendix">Appendix</a>
+</div></nav>
+<main class="wrap">
+<section id="how">
+<h2>How to use this page</h2>
+<div class="grid two">
+<div class="callout ok"><b>For future recovery:</b> start with the reproduction recipe, then use the artifact appendix to locate exact source data. Re-check live PID/HWND before trusting any address.</div>
+<div class="callout"><b>For review:</b> inspect the timeline, proof anatomy, and commit map. The page intentionally separates candidate evidence from movement-grade proof.</div>
+</div>
+<table class=''><caption>Legend</caption><thead><tr><th>Truth class</th><th>Meaning</th><th>Example</th></tr></thead><tbody><tr><td><span class='badge proven'>PROVEN</span></td><td>Current PID/HWND proof gate has passed.</td><td><code>docs/recovery/current-proof-anchor-readback.json</code></td></tr><tr><td><span class='badge candidate'>CANDIDATE</span></td><td>Good evidence, not movement truth by itself.</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/delta-summary.json</code></td></tr><tr><td><span class='badge stale'>STALE</span></td><td>Different process epoch or target drift.</td><td><code>docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json</code></td></tr><tr><td><span class='badge info'>SIDE-CAR</span></td><td>Strategy/visual/read-only evidence only.</td><td><code>scripts/captures/riftscan-milestone-review-20260514-171113.json</code></td></tr><tr><td><span class='badge warn'>OPEN GAP</span></td><td>Static owner/source-chain remains unresolved.</td><td>Restart-safe chain provenance.</td></tr></tbody></table>
+</section>
+
+<section id="related-history">
+<h2>Related historical timelines</h2>
+<div class="callout ok"><b>Historical comparison:</b> for earlier successful, partial, and blocked coordinate proof-anchor recovery attempts, see <a href="historical-coordinate-proof-anchor-discovery-timelines-2026-05.html"><code>historical-coordinate-proof-anchor-discovery-timelines-2026-05.html</code></a>. Use that page before future PID/HWND drift recovery to compare fast-path patterns, failure modes, and commit history.</div>
+</section>
+<section id="timeline"><h2>Chronological discovery timeline</h2><p class="small">Timestamps come from artifact fields such as <code>startedAtUtc</code>, <code>completedAtUtc</code>, <code>generatedAtUtc</code>, and <code>recordedAtUtc</code> where available.</p><ul class="timeline"><li><time>2026-05-14T16:25:50.653704Z</time><div><b>preflight</b> <span class='badge proven'>passed</span><p>C:\Users\mrkoo\AppData\Local\Programs\Python\Python314\python.exe C:\RIFT MODDING\RiftReader\scripts\x64dbg_preflight.py --require-exact-target --require-no-debugger-process --target-pid 16536 --target-hwnd 0x1E0D66 --json → completed 2026-05-14T16:25:50.858423Z</p></div></li><li><time>2026-05-14T16:25:50.860217Z</time><div><b>reference:pose-c-baseline</b> <span class='badge proven'>passed</span><p>pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\capture-rift-api-reference-coordinate.ps1 -ProcessId 16536 ... → completed 2026-05-14T16:26:01.720333Z</p></div></li><li><time>2026-05-14T16:26:01.783205Z</time><div><b>auto-displacement</b> <span class='badge proven'>passed</span><p>pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -Key W ... → completed 2026-05-14T16:26:05.629521Z</p></div></li><li><time>2026-05-14T16:26:06.132337Z</time><div><b>reference:pose-d-after-approved-w</b> <span class='badge proven'>passed</span><p>pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\capture-rift-api-reference-coordinate.ps1 -ProcessId 16536 ... → completed 2026-05-14T16:26:18.177805Z</p></div></li><li><time>2026-05-14T16:26:18.237780Z</time><div><b>auto-displacement</b> <span class='badge proven'>passed</span><p>pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\post-rift-key.ps1 -Key W ... → completed 2026-05-14T16:26:22.000712Z</p></div></li><li><time>2026-05-14T16:26:22.502943Z</time><div><b>reference:pose-e-after-approved-w2</b> <span class='badge proven'>passed</span><p>pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\RIFT MODDING\RiftReader\scripts\capture-rift-api-reference-coordinate.ps1 -ProcessId 16536 ... → completed 2026-05-14T16:26:34.273866Z</p></div></li><li><time>2026-05-14T16:26:34.338228Z</time><div><b>delta-analysis</b> <span class='badge proven'>passed</span><p>C:\Users\mrkoo\AppData\Local\Programs\Python\Python314\python.exe C:\RIFT MODDING\RiftReader\scripts\family_snapshot_delta_analyzer.py --manifest C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022\manifest.json --output-root C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022\delta-analysis --axis-orders xyz --candidate-scan-stride ... → completed 2026-05-14T16:26:35.156509Z</p></div></li><li><time>2026-05-14T16:26:34.569237Z</time><div><b>delta-analysis</b> <span class='badge proven'>passed</span><p>Best candidate snapshot-delta-21487DF8F64-xyz at 0x21487DF8F64.</p></div></li><li><time>2026-05-14T16:35:09Z</time><div><b>coordinate-proof-route</b> <span class='badge proven'>api-memory-match</span><p>Selected snapshot-delta-21487DF8F64-xyz at 0x21487DF8F64; movement still not granted by route.</p></div></li><li><time>2026-05-14T16:39:42.7661150Z</time><div><b>promotion-batch</b> <span class='badge proven'>promotion-candidate-found</span><p>3 poses, 2 movement pulses, top support 3.</p></div></li><li><time>2026-05-14T16:43:12.863417+00:00</time><div><b>live-movement-smoke</b> <span class='badge proven'>passed</span><p>MovementSent=True; planar delta=0.3315185178299767.</p></div></li><li><time>2026-05-14T17:46:22.783527+00:00</time><div><b>latest-proofonly</b> <span class='badge proven'>passed-proof-only</span><p>No movement; current coord 7404.44091796875, 871.7135009765625, 3028.63232421875.</p></div></li><li><time>2026-05-14T17:46:22.792929+00:00</time><div><b>proof-pointer-update</b> <span class='badge proven'>current-target-proofonly-passed</span><p>Current pointer updated to 0x21487DF8F64.</p></div></li></ul></section>
+<section id="anatomy">
+<h2>Current proof anatomy</h2>
+<div class="grid two">
+<div><table class=''><caption>Target and pointer</caption><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Process</td><td><code>rift_x64</code></td></tr><tr><td>PID</td><td><code>16536</code></td></tr><tr><td>HWND</td><td><code>0x1E0D66</code></td></tr><tr><td>Pointer status</td><td><span class='badge proven'>current-target-proofonly-passed</span></td></tr><tr><td>Last updated</td><td><code>2026-05-14T17:46:22.792929+00:00</code></td></tr><tr><td>No CE</td><td><span class='badge proven'>True</span></td></tr></tbody></table></div>
+<div><table class=''><caption>Anchor layout</caption><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Candidate</td><td><code>snapshot-delta-21487DF8F64-xyz</code></td></tr><tr><td>Candidate address</td><td><code>0x21487DF8F64</code></td></tr><tr><td>Region address</td><td><code>0x21487DF8F24</code></td></tr><tr><td>Candidate offset in region</td><td><code>64</code></td></tr><tr><td>X/Y/Z offsets</td><td><code>0 / 4 / 8</code></td></tr><tr><td>Proof support count</td><td><code>5</code></td></tr></tbody></table></div>
+</div>
+<table class=''><caption>Latest proof readback stability</caption><thead><tr><th>Readback field</th><th>Value</th></tr></thead><tbody><tr><td>Status</td><td><span class='badge proven'>valid</span></td></tr><tr><td>Stable across samples</td><td><span class='badge proven'>True</span></td></tr><tr><td>Decoded sample count</td><td><code>3</code></td></tr><tr><td>Readback failures</td><td><code>0</code></td></tr><tr><td>Max abs delta across samples</td><td><code>0.0</code></td></tr><tr><td>MovementAllowed</td><td><span class='badge proven'>True</span></td></tr><tr><td>MovementSent</td><td><span class='badge info'>False</span></td></tr></tbody></table>
+<table class=''><caption>Latest current coordinate from ProofOnly</caption><thead><tr><th>Axis</th><th>Latest current coordinate</th></tr></thead><tbody><tr><td>X</td><td><code>7404.44091796875</code></td></tr><tr><td>Y</td><td><code>871.7135009765625</code></td></tr><tr><td>Z</td><td><code>3028.63232421875</code></td></tr><tr><td>RecordedAtUtc</td><td><code>2026-05-14T17:46:22.1910144Z</code></td></tr></tbody></table>
+</section>
+<section id="workflow">
+<h2>Discovery workflow walkthrough</h2>
+<ol>
+<li><b>Invalidate stale pointer.</b> The old PID/HWND pointer was archived at <code>docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json</code>; stale fields were preserved only as audit/reacquisition hints.</li>
+<li><b>Resolve exact target.</b> Exact target was <code>rift_x64</code> PID <code>16536</code>, HWND <code>0x1E0D66</code>; target-control had to pass before proof or movement.</li>
+<li><b>Capture fresh RRAPICOORD/API truth.</b> References came from the live runtime marker, not SavedVariables.</li>
+<li><b>Scan/decode full targeted family groups.</b> Primary transform, secondary dense, and negative-control groups were scanned as groups rather than one-offset probes.</li>
+<li><b>Rank by displacement tracking.</b> The selected candidate won because memory displacement matched API displacement with tracking max abs error <code>0.006591796875</code>.</li>
+<li><b>Fix comparison/readback/promotion plumbing.</b> Commit <code>3c452a0</code> made snapshot-delta baseline/displaced comparisons accurate and fixed promotion-wrapper encoded-command splatting.</li>
+<li><b>Route API-now vs memory-now proof.</b> Route status became <span class='badge proven'>api-memory-match</span> with selected candidate <code>snapshot-delta-21487DF8F64-xyz</code>.</li>
+<li><b>Run promotion-ready multi-pose batch.</b> Batch status <span class='badge candidate'>promotion-candidate-found</span> captured <code>3</code> poses with <code>2</code> movement pulses.</li>
+<li><b>Promote proof anchor/watchset.</b> The anchor was written to the proof pointer and proof-anchor cache; movement still required ProofOnly.</li>
+<li><b>Confirm with ProofOnly.</b> Latest ProofOnly status is <span class='badge proven'>passed-proof-only</span>; movement was not sent.</li>
+<li><b>Validate live movement separately.</b> Forward250 used the proof gate and moved planar distance <code>0.3315185178299767</code>.</li>
+</ol>
+</section>
+<section id="families">
+<h2>Family scan and candidate ranking</h2>
+<table class=''><caption>Scanned full family groups</caption><thead><tr><th>Segment</th><th>Label</th><th>Source</th><th>Size bytes</th><th>Displaced changed bytes</th><th>Passive changed bytes</th><th>Status</th></tr></thead><tbody><tr><td><code>0X21487DE0000-0X21487DF0000</code></td><td><code>primary-transform-family-21487DF-nearby</code></td><td><code>explicit-current-lead</code></td><td>65536</td><td>37</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr><tr><td><code>0X21487DF0000-0X21487E00000</code></td><td><code>primary-transform-family-21487DF-nearby</code></td><td><code>explicit-current-lead</code></td><td>65536</td><td>56</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr><tr><td><code>0X21487E00000-0X21487E10000</code></td><td><code>primary-transform-family-21487DF-nearby</code></td><td><code>explicit-current-lead</code></td><td>65536</td><td>253</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr><tr><td><code>0XB655958000-0XB655970000</code></td><td><code>secondary-dense-family-B655958-nearby</code></td><td><code>explicit-current-lead</code></td><td>98304</td><td>14845</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr><tr><td><code>0X214808C0000-0X214808D0000</code></td><td><code>negative-control-demoted-214808D-nearby</code></td><td><code>explicit-control</code></td><td>65536</td><td>175</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr><tr><td><code>0X214808D0000-0X214808E0000</code></td><td><code>negative-control-demoted-214808D-nearby</code></td><td><code>explicit-control</code></td><td>65536</td><td>2763</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr><tr><td><code>0X214808E0000-0X214808F0000</code></td><td><code>negative-control-demoted-214808D-nearby</code></td><td><code>explicit-control</code></td><td>65536</td><td>0</td><td>0</td><td><span class='badge candidate'>scanned</span></td></tr></tbody></table>
+<h3>Winning candidate values</h3><table class=''><caption>Baseline and displaced API/memory agreement</caption><thead><tr><th>Pose/axis</th><th>API reference</th><th>Memory candidate</th><th>Absolute difference</th></tr></thead><tbody><tr><td>Baseline X</td><td>7408.02</td><td>7408.01953125</td><td>0.00046875000043655746</td></tr><tr><td>Baseline Y</td><td>871.78</td><td>871.7153930664062</td><td>0.06460693359372272</td></tr><tr><td>Baseline Z</td><td>3029.01</td><td>3029.012939453125</td><td>0.0029394531247817213</td></tr><tr><td>Displaced X</td><td>7413.8696</td><td>7413.86669921875</td><td>0.002900781249991269</td></tr><tr><td>Displaced Y</td><td>871.78</td><td>871.7219848632812</td><td>0.058015136718722715</td></tr><tr><td>Displaced Z</td><td>3027.03</td><td>3027.03369140625</td><td>0.003691406249799911</td></tr></tbody></table>
+<h3>Delta tracking</h3><table class=''><caption>Movement vector tracking</caption><thead><tr><th>Metric</th><th>API</th><th>Memory</th><th>Tracking error</th></tr></thead><tbody><tr><td>API dx/dy/dz</td><td>5.849599999999555</td><td>0.0</td><td>-1.9800000000000182</td></tr><tr><td>Memory dx/dy/dz</td><td>5.84716796875</td><td>0.006591796875</td><td>-1.979248046875</td></tr><tr><td>Tracking error dx/dy/dz</td><td>-0.0024320312495547114</td><td>0.006591796875</td><td>0.0007519531250181899</td></tr><tr><td>Planar delta</td><td>6.175614962090404</td><td>6.173070231727038</td><td>0.002545625561828619</td></tr><tr><td>Max abs</td><td>5.849599999999555</td><td>5.84716796875</td><td>0.006591796875</td></tr></tbody></table>
+<div class="card"><h3>Visual metric chart</h3><div class='barrow'><span>API planar delta</span><div class='bar'><i class='blue' style='width:100.000%'></i></div><b>6.17561496</b></div><div class='barrow'><span>Memory planar delta</span><div class='bar'><i class='green' style='width:99.959%'></i></div><b>6.17307023</b></div><div class='barrow'><span>Support poses</span><div class='bar'><i class='purple' style='width:48.578%'></i></div><b>3</b></div><div class='barrow'><span>Tracking max abs error</span><div class='bar'><i class='red' style='width:0.107%'></i></div><b>0.00659179688</b></div></div>
+<div class="callout ok"><b>Why this won:</b> the memory vector tracked the API vector across poses. This demoted same-pose coincidences and dense/cache copies that only looked correct in one sample.</div>
+</section>
+<section id="past"><h2>Past attempts and lessons factored into this recovery</h2><table class=''><caption>Successful, failed, and blocked recovery attempts</caption><thead><tr><th>Date/time</th><th>Attempt</th><th>Target</th><th>Candidate/address</th><th>Result</th><th>Why</th><th>Artifact</th></tr></thead><tbody><tr><td>2026-05-06</td><td>No-CE proof-anchor workflow</td><td>current-PID varied</td><td><code>api-probe-triplet-000007 / 0x2400EA32120</code></td><td><span class='badge proven'>success</span></td><td>Direct no-input readback proved MovementAllowed semantics and no-CE promotion bridge.</td><td><code>docs/handoffs/2026-05-06-233226-riftscan-first-proof-anchor-resume-handoff.md</code></td></tr><tr><td>2026-05-07/08</td><td>RefreshBaseline / live-test hardening</td><td>current-PID varied</td><td>proof baseline pool</td><td><span class='badge candidate'>partial success</span></td><td>Improved interruption recovery, ProofOnly usage, and exact-target movement gates; not a static chain.</td><td><code>docs/handoffs/2026-05-08-005330-post-refreshbaseline-proofonly-needed-handoff.md</code></td></tr><tr><td>2026-05-13 20:26 EDT</td><td>Coordinate proof readiness gate</td><td>PID 2928 / HWND 0xC0994</td><td><code>0x268DF21ED20 chain candidate</code></td><td><span class='badge blocked'>blocked</span></td><td>Fresh reference unavailable; readiness gate blocked read-only proof and movement.</td><td><code>docs/handoffs/2026-05-13-2026-coordinate-proof-readiness-gate.md</code></td></tr><tr><td>2026-05-14 02:13 UTC</td><td>RRAPICOORD repaired + fresh family snapshot</td><td>PID 2928 / HWND 0xC0994</td><td><code>family-snapshot-hit-000001 / 0x268D1FA6120</code></td><td><span class='badge candidate'>candidate-only</span></td><td>Read-only same-pose match existed, but movement stayed blocked due missing movement-grade proof/static chain.</td><td><code>docs/handoffs/2026-05-14-0213-live-truth-repaired-fresh-family-snapshot.md</code></td></tr><tr><td>2026-05-14 12:34 UTC</td><td>Manual displacement runner compact truth</td><td>PID 2928 / HWND 0xC0994</td><td><code>api-family-hit-000001 / 0x268E2BC09E0</code></td><td><span class='badge blocked'>blocked</span></td><td>Raw both-reference matches existed, but valid matches were zero because displacement was too small/stale.</td><td><code>docs/handoffs/2026-05-14-123423-manual-displacement-runner-compact-truth.md</code></td></tr><tr><td>2026-05-14 16:25-17:46 UTC</td><td>Current-PID grouped family recovery</td><td>PID 16536 / HWND 0x1E0D66</td><td><code>snapshot-delta-21487DF8F64-xyz / 0x21487DF8F64</code></td><td><span class='badge proven'>success</span></td><td>Full-family multi-pose displacement tracking, route proof, promotion batch, ProofOnly, and movement smoke passed.</td><td><code>docs/handoffs/2026-05-14-1711-current-pid-coordinate-proof-restored.md</code></td></tr></tbody></table><div class="callout"><b>Pattern:</b> fast successful recoveries used fresh runtime truth, grouped current-PID family snapshots, displacement tracking, stable readback, and ProofOnly. Slow/blocked attempts usually reused stale handoffs, lacked fresh API truth, lacked real displacement, or treated candidate-only evidence as proof.</div></section>
+<section id="commits"><h2>Related commit map</h2><table class=''><caption>Coordinate/proof/anchor/movement commits from git history</caption><thead><tr><th>SHA</th><th>Subject</th><th>Category</th><th>Role in recovery</th></tr></thead><tbody><tr><td><code>3c452a0</code></td><td>(HEAD -&amp;gt; main, origin/main, origin/HEAD) Restore current-pid coordinate proof promotion</td><td><span class='badge proven'>successful promotion</span></td><td>Current-PID milestone: promoted pointer, archived stale pointer, fixed snapshot-delta comparison/readback/promotion wrapper, added tests and handoff.</td></tr><tr><td><code>2fb7483</code></td><td>Add manual displacement proof runner</td><td><span class='badge candidate'>tooling</span></td><td>Manual displaced-pose runner and compact truth helper before final recovery.</td></tr><tr><td><code>d940893</code></td><td>Gate same-pose coordinate comparisons</td><td><span class='badge warn'>safety gate</span></td><td>Blocked same-pose comparisons from becoming proof.</td></tr><tr><td><code>b8e1646</code></td><td>Prefer route-selected coordinate candidates</td><td><span class='badge candidate'>tooling</span></td><td>Preferred route-selected candidates over stale/older snapshots.</td></tr><tr><td><code>50a6032</code></td><td>Gate coordinate promotion readiness</td><td><span class='badge warn'>safety gate</span></td><td>Promotion-readiness gate before proof-anchor promotion.</td></tr><tr><td><code>6a4f05f</code></td><td>Route coordinate center evidence safely</td><td><span class='badge warn'>safety gate</span></td><td>Kept coordinate-center and visual evidence sidecar-only.</td></tr><tr><td><code>ba1eb9d</code></td><td>Harden coordinate displaced-pose tooling</td><td><span class='badge candidate'>tooling</span></td><td>Hardened displaced-pose tooling.</td></tr><tr><td><code>a346e30</code></td><td>Harden coordinate scan profile workflows</td><td><span class='badge candidate'>tooling</span></td><td>Hardened scan-profile workflows.</td></tr><tr><td><code>5697968</code></td><td>Add coordinate scan profile tooling</td><td><span class='badge candidate'>tooling</span></td><td>Added coordinate scan profile tooling.</td></tr><tr><td><code>d08bf36</code></td><td>Add coordinate proof route gating</td><td><span class='badge warn'>safety gate</span></td><td>Added coordinate proof route gating.</td></tr><tr><td><code>60cd66f</code></td><td>Rank duplicate coordinate copies offline</td><td><span class='badge candidate'>tooling</span></td><td>Ranked duplicate coordinate copies offline to separate caches/copies.</td></tr><tr><td><code>7d6d1a5</code></td><td>Use RRAPICOORD for family snapshot sequences</td><td><span class='badge candidate'>truth-source repair</span></td><td>Used RRAPICOORD for family snapshot sequences.</td></tr><tr><td><code>97fd6ab</code></td><td>Update truth with repeat proof-pose confirmation</td><td><span class='badge candidate'>proof refresh</span></td><td>Updated truth with repeat proof-pose confirmation.</td></tr><tr><td><code>5c32803</code></td><td>Harden proof-pose reference capture</td><td><span class='badge candidate'>tooling</span></td><td>Hardened proof-pose reference capture.</td></tr><tr><td><code>db17e5a</code></td><td>Repair ReaderBridge live coord marker</td><td><span class='badge candidate'>truth-source repair</span></td><td>Repaired ReaderBridge live coordinate marker.</td></tr><tr><td><code>c841da7</code></td><td>Repair RRAPICOORD addon settings</td><td><span class='badge candidate'>truth-source repair</span></td><td>Repaired RRAPICOORD addon settings.</td></tr><tr><td><code>a79c651</code></td><td>Detect disabled RRAPICOORD addon settings</td><td><span class='badge candidate'>diagnostics</span></td><td>Detected disabled RRAPICOORD addon settings.</td></tr><tr><td><code>342562e</code></td><td>Add RRAPICOORD addon state diagnostics</td><td><span class='badge candidate'>diagnostics</span></td><td>Added RRAPICOORD addon state diagnostics.</td></tr><tr><td><code>ff3ff54</code></td><td>Add RRAPICOORD scan diagnostics</td><td><span class='badge candidate'>diagnostics</span></td><td>Added RRAPICOORD scan diagnostics.</td></tr><tr><td><code>e055974</code></td><td>Surface blocked reference scan in coord preflight</td><td><span class='badge warn'>safety gate</span></td><td>Surfaced blocked reference scan in coordinate preflight.</td></tr><tr><td><code>20fa261</code></td><td>Document coordinate root follow-up evidence</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>38dd1c2</code></td><td>Select proof-backed family candidate in milestone review</td><td><span class='badge candidate'>strategy/read-only</span></td><td>Selected proof-backed family candidate in milestone review.</td></tr><tr><td><code>84c578c</code></td><td>Add coordinate proof preflight and family candidate export</td><td><span class='badge candidate'>tooling</span></td><td>Added coordinate proof preflight and family candidate export.</td></tr><tr><td><code>027d31d</code></td><td>Add coordinate proof readiness gate</td><td><span class='badge warn'>safety gate</span></td><td>Added coordinate proof readiness gate.</td></tr><tr><td><code>c3732a9</code></td><td>Guard stale proof anchors and select same-target candidates</td><td><span class='badge warn'>safety gate</span></td><td>Guarded stale proof anchors and selected same-target candidates.</td></tr><tr><td><code>b507d57</code></td><td>Invalidate stale proof pointer on target drift</td><td><span class='badge warn'>safety gate</span></td><td>Invalidated stale proof pointer on target drift.</td></tr><tr><td><code>b79f745</code></td><td>Rank coord parent slot container</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>37869ea</code></td><td>Rank coord owner structural signature</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>3b38711</code></td><td>Graph coord module hint chain</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>3e252ed</code></td><td>Find coord module hint occurrences</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>7c507b1</code></td><td>Rank coord parent slot module hints</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>5445aff</code></td><td>Summarize coord parent slot neighborhoods</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>6a4be4a</code></td><td>Summarize coord owner parent graph</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>8e26191</code></td><td>Trace coord candidate owner type lead</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>104e610</code></td><td>Rank repeat-stable coord readbacks</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>787d57f</code></td><td>Compare coord candidate families for navigation proof</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>59dcbde</code></td><td>Fix navigation target discovery and record proof blocker</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>1c988d2</code></td><td>Record pointer-family scan for coord cluster</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>325ca13</code></td><td>Package static code leads for coord family</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>0ae8e58</code></td><td>Refresh latest coordinate family readback</td><td><span class='badge info'>related evidence</span></td><td>Related coordinate/proof/anchor/movement history from git search.</td></tr><tr><td><code>c34f262</code></td><td>Document fresh no-displacement gate</td><td><span class='badge warn'>failed-attempt documentation</span></td><td>Documented fresh but no-displacement evidence as non-promotable.</td></tr><tr><td><code>3160f88</code></td><td>Route displaced readiness evidence</td><td><span class='badge warn'>safety gate</span></td><td>Routed displaced readiness into the proof route.</td></tr><tr><td><code>e386c2a</code></td><td>Add displaced readiness gate and route current hits</td><td><span class='badge warn'>safety gate</span></td><td>Added displaced-reference gate and current-hit routing.</td></tr></tbody></table><details><summary>Raw git search output</summary><pre>3c452a0 (HEAD -&gt; main, origin/main, origin/HEAD) Restore current-pid coordinate proof promotion
+2fb7483 Add manual displacement proof runner
+d940893 Gate same-pose coordinate comparisons
+b8e1646 Prefer route-selected coordinate candidates
+50a6032 Gate coordinate promotion readiness
+6a4f05f Route coordinate center evidence safely
+ba1eb9d Harden coordinate displaced-pose tooling
+a346e30 Harden coordinate scan profile workflows
+5697968 Add coordinate scan profile tooling
+d08bf36 Add coordinate proof route gating
+60cd66f Rank duplicate coordinate copies offline
+7d6d1a5 Use RRAPICOORD for family snapshot sequences
+97fd6ab Update truth with repeat proof-pose confirmation
+5c32803 Harden proof-pose reference capture
+db17e5a Repair ReaderBridge live coord marker
+c841da7 Repair RRAPICOORD addon settings
+a79c651 Detect disabled RRAPICOORD addon settings
+342562e Add RRAPICOORD addon state diagnostics
+ff3ff54 Add RRAPICOORD scan diagnostics
+e055974 Surface blocked reference scan in coord preflight
+20fa261 Document coordinate root follow-up evidence
+38dd1c2 Select proof-backed family candidate in milestone review
+84c578c Add coordinate proof preflight and family candidate export
+027d31d Add coordinate proof readiness gate
+c3732a9 Guard stale proof anchors and select same-target candidates
+b507d57 Invalidate stale proof pointer on target drift
+b79f745 Rank coord parent slot container
+37869ea Rank coord owner structural signature
+3b38711 Graph coord module hint chain
+3e252ed Find coord module hint occurrences
+7c507b1 Rank coord parent slot module hints
+5445aff Summarize coord parent slot neighborhoods
+6a4be4a Summarize coord owner parent graph
+8e26191 Trace coord candidate owner type lead
+104e610 Rank repeat-stable coord readbacks
+787d57f Compare coord candidate families for navigation proof
+59dcbde Fix navigation target discovery and record proof blocker
+1c988d2 Record pointer-family scan for coord cluster
+325ca13 Package static code leads for coord family
+0ae8e58 Refresh latest coordinate family readback</pre></details><details><summary>Recent HEAD commits</summary><pre>3c452a0 (HEAD -&gt; main, origin/main, origin/HEAD) Restore current-pid coordinate proof promotion
+2fb7483 Add manual displacement proof runner
+d940893 Gate same-pose coordinate comparisons
+c34f262 Document fresh no-displacement gate
+b8e1646 Prefer route-selected coordinate candidates
+50a6032 Gate coordinate promotion readiness
+3160f88 Route displaced readiness evidence
+e386c2a Add displaced readiness gate and route current hits
+6a4f05f Route coordinate center evidence safely
+ba1eb9d Harden coordinate displaced-pose tooling
+a346e30 Harden coordinate scan profile workflows
+5697968 Add coordinate scan profile tooling
+d08bf36 Add coordinate proof route gating
+b86cd0e Add Rift window tools MCP helpers
+0e9ffba Add offline raw frame commands
+24993d1 Add named capture crop profiles
+36b45db Add raw BGRA capture artifacts
+e3a3690 Introduce capture backend interface
+0657321 Add Python controller for Rift window capture
+62a11b3 Add capture modularization HTML summary</pre></details></section>
+<section id="reproduce">
+<h2>Reproduce and improve future discovery attempts</h2>
+<div class="grid two"><div><h3>Future recovery recipe</h3><ol><li>Read newest handoff and this HTML page.</li><li>Resolve current PID/HWND and process-start truth.</li><li>Archive stale proof pointers under <code>docs/recovery/historical/</code>.</li><li>Capture fresh RRAPICOORD/API/runtime coordinates.</li><li>Run grouped current-PID family snapshots over prior winning/nearby families.</li><li>Decode full family groups and rank by displacement tracking.</li><li>Require baseline and displaced API references to match separate candidate pose values.</li><li>Run current-PID readback and coordinate proof route.</li><li>Promote only same-PID, multi-pose, sufficiently displaced, stable candidates.</li><li>Run ProofOnly before movement.</li><li>Use a short bounded movement smoke before longer navigation.</li><li>Commit only a coherent, validated recovery slice.</li></ol></div><div><h3>Improve next time</h3><ul><li>Automate this HTML generation from JSON artifacts once the layout is accepted.</li><li>Continue owner/module/RVA provenance research from the proven family.</li><li>Keep grouped snapshot batches and command envelopes; they explain why a candidate won.</li><li>Add stronger mocked promotion-wrapper execution tests.</li><li>Never rank by single-pose closeness or midpoint coincidence.</li><li>Keep route readiness separate from movement permission.</li><li>Keep ProofOnly and MovementSent distinct in all summaries.</li></ul></div></div>
+<h3>Failure-mode checklist</h3><table class='checklist'><thead><tr><th>Failure mode</th><th>Symptom</th><th>Required response</th></tr></thead><tbody><tr><td>Stale PID/HWND</td><td>Old pointer looks valid but target changed</td><td>Archive as stale; recover current PID.</td></tr><tr><td>Proof anchor aged out</td><td>Pre-input gate would expire during postcheck</td><td>Rerun ProofOnly or refresh proof.</td></tr><tr><td>SavedVariables treated as live</td><td>Coordinate comes from old file snapshot</td><td>Reject; use live runtime/API or memory proof.</td></tr><tr><td>Same-pose displacement too small</td><td>Raw matches exist but valid both-reference count is zero</td><td>Block promotion.</td></tr><tr><td>Dense cache/copy false positive</td><td>Many repeated coordinate copies</td><td>Rank by displacement tracking and readback stability.</td></tr><tr><td>Route readiness overclaimed</td><td>api-memory-match treated as movement permission</td><td>Require ProofOnly and explicit live profile gate.</td></tr><tr><td>MovementAllowed confused with MovementSent</td><td>ProofOnly shows gate true but no input sent</td><td>Report both fields separately.</td></tr></tbody></table>
+</section>
+<section id="appendix"><h2>Artifact appendix</h2><table class=''><caption>Key artifact paths</caption><thead><tr><th>Artifact</th><th>Path</th><th>Class</th><th>Purpose</th></tr></thead><tbody><tr><td>Current proof pointer</td><td><code>docs/recovery/current-proof-anchor-readback.json</code></td><td><span class='badge proven'>current proof</span></td><td>Movement gate source for current PID/HWND.</td></tr><tr><td>Historical stale pointer</td><td><code>docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json</code></td><td><span class='badge stale'>stale</span></td><td>Old PID/HWND blocker; never use as current truth.</td></tr><tr><td>Markdown source</td><td><code>docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.md</code></td><td><span class='badge info'>source doc</span></td><td>Detailed draft used as source context.</td></tr><tr><td>Family snapshot summary</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/summary.json</code></td><td><span class='badge candidate'>candidate evidence</span></td><td>Grouped current-PID scan sequence.</td></tr><tr><td>Command envelopes</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/command-envelopes.json</code></td><td><span class='badge info'>timeline</span></td><td>Exact helper invocations and timestamps.</td></tr><tr><td>Delta summary</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/delta-summary.json</code></td><td><span class='badge candidate'>candidate evidence</span></td><td>Displacement tracking/ranking details.</td></tr><tr><td>Winning candidate</td><td><code>scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/candidate-vec3.json</code></td><td><span class='badge candidate'>candidate evidence</span></td><td>Snapshot-delta candidate details.</td></tr><tr><td>Coordinate proof route</td><td><code>scripts/captures/coordinate-proof-route-20260514-163509-016518/coordinate-proof-route.json</code></td><td><span class='badge candidate'>promotion evidence</span></td><td>API-now vs memory-now agreement; not movement permission.</td></tr><tr><td>Promotion batch</td><td><code>scripts/captures/current-pid-coordinate-anchor-batch-16536-live-approved-route-20260514-163620/coordinate-anchor-batch-summary.json</code></td><td><span class='badge candidate'>promotion evidence</span></td><td>Multi-pose promotion-ready evidence.</td></tr><tr><td>Latest ProofOnly</td><td><code>scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json</code></td><td><span class='badge proven'>current proof</span></td><td>Fresh proof validation without movement.</td></tr><tr><td>Proof readback</td><td><code>scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json</code></td><td><span class='badge proven'>current proof</span></td><td>Stable watchset/current readback.</td></tr><tr><td>Live movement smoke</td><td><code>scripts/captures/live-test-Forward250-20260514-164220/run-summary.json</code></td><td><span class='badge proven'>movement validation</span></td><td>Bounded proof-gated movement result.</td></tr><tr><td>RiftScan milestone review</td><td><code>scripts/captures/riftscan-milestone-review-20260514-171113.json</code></td><td><span class='badge info'>strategy gate</span></td><td>Read-only strategy gate; never grants movement by itself.</td></tr></tbody></table><details><summary>Condensed raw proof data snapshot</summary><pre>{
+  &quot;currentProofPointer&quot;: {
+    &quot;status&quot;: &quot;current-target-proofonly-passed&quot;,
+    &quot;target&quot;: {
+      &quot;processName&quot;: &quot;rift_x64&quot;,
+      &quot;processId&quot;: 16536,
+      &quot;targetWindowHandle&quot;: &quot;0x1E0D66&quot;
+    },
+    &quot;candidate&quot;: {
+      &quot;sourceKind&quot;: &quot;current-proof-anchor-candidate-file&quot;,
+      &quot;compatibilityNote&quot;: &quot;Field name is retained for existing pointer consumers; the candidate file may be RiftReader-owned evidence and must still be gated by current proof-anchor/readback.&quot;,
+      &quot;riftScanRoot&quot;: null,
+      &quot;matchFile&quot;: &quot;C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022\\delta-analysis\\candidate-vec3.json&quot;,
+      &quot;candidateId&quot;: &quot;snapshot-delta-21487DF8F64-xyz&quot;,
+      &quot;sourceBaseAddressHex&quot;: &quot;0x21487DF0000&quot;,
+      &quot;sourceOffsetHex&quot;: &quot;0x8F64&quot;,
+      &quot;sourceAbsoluteAddressHex&quot;: &quot;0x21487DF8F64&quot;,
+      &quot;axisOrder&quot;: &quot;xyz&quot;,
+      &quot;supportCount&quot;: 2,
+      &quot;proofSupportCount&quot;: 5,
+      &quot;bestMaxAbsDistance&quot;: 0.058015136718722715,
+      &quot;promotedByProofAnchor&quot;: true,
+      &quot;proofAnchorFile&quot;: &quot;C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json&quot;,
+      &quot;notes&quot;: [
+        &quot;Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.&quot;,
+        &quot;Do not treat this pointer as valid after a client restart unless target metadata still matches.&quot;
+      ]
+    },
+    &quot;latestValidation&quot;: {
+      &quot;status&quot;: &quot;valid&quot;,
+      &quot;movementAllowed&quot;: true,
+      &quot;movementSent&quot;: false,
+      &quot;noCheatEngine&quot;: true,
+      &quot;readbackSummaryFile&quot;: &quot;C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-16536-readback-summary-20260514-134617.json&quot;,
+      &quot;proofAnchorFile&quot;: &quot;C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json&quot;,
+      &quot;proofAnchorCandidateId&quot;: &quot;snapshot-delta-21487DF8F64-xyz&quot;,
+      &quot;proofAnchorCandidateAddressHex&quot;: &quot;0x21487DF8F64&quot;,
+      &quot;currentCoordinate&quot;: {
+        &quot;x&quot;: 7404.44091796875,
+        &quot;y&quot;: 871.7135009765625,
+        &quot;z&quot;: 3028.63232421875,
+        &quot;recordedAtUtc&quot;: &quot;2026-05-14T17:46:22.1910144Z&quot;
+      },
+      &quot;generatedAtUtc&quot;: &quot;2026-05-14T17:46:22.5080453+00:00&quot;
+    },
+    &quot;latestProofOnly&quot;: {
+      &quot;runSummaryFile&quot;: &quot;C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260514-174521\\run-summary.json&quot;,
+      &quot;status&quot;: &quot;passed-proof-only&quot;,
+      &quot;generatedAtUtc&quot;: &quot;2026-05-14T17:46:22.783527+00:00&quot;,
+      &quot;movementSent&quot;: false,
+      &quot;movementAttempted&quot;: false,
+      &quot;currentCoordinate&quot;: {
+        &quot;x&quot;: 7404.44091796875,
+        &quot;y&quot;: 871.7135009765625,
+        &quot;z&quot;: 3028.63232421875,
+        &quot;recordedAtUtc&quot;: &quot;2026-05-14T17:46:22.1910144Z&quot;
+      },
+      &quot;coordinateDelta&quot;: null,
+      &quot;readbackSummaryFile&quot;: &quot;C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-16536-readback-summary-20260514-134617.json&quot;
+    }
+  },
+  &quot;bestCandidate&quot;: {
+    &quot;candidateId&quot;: &quot;snapshot-delta-21487DF8F64-xyz&quot;,
+    &quot;address&quot;: 2287202176868,
+    &quot;addressHex&quot;: &quot;0x21487DF8F64&quot;,
+    &quot;segmentBaseHex&quot;: &quot;0x21487DF0000&quot;,
+    &quot;segmentOffset&quot;: 36708,
+    &quot;segmentOffsetHex&quot;: &quot;0x8F64&quot;,
+    &quot;rangeRank&quot;: 1,
+    &quot;rangeSource&quot;: &quot;explicit-current-lead&quot;,
+    &quot;rangeLabel&quot;: &quot;primary-transform-family-21487DF-nearby&quot;,
+    &quot;familyBaseHex&quot;: &quot;0x21487D00000&quot;,
+    &quot;pageHex&quot;: &quot;0x21487DF8000&quot;,
+    &quot;residueMod4&quot;: 0,
+    &quot;residueMod16Hex&quot;: &quot;0x4&quot;,
+    &quot;residueMod48Hex&quot;: &quot;0x14&quot;,
+    &quot;residueMod256Hex&quot;: &quot;0x64&quot;,
+    &quot;axisOrder&quot;: &quot;xyz&quot;,
+    &quot;baselinePose&quot;: &quot;pose-c-baseline&quot;,
+    &quot;displacedPose&quot;: &quot;pose-e-after-approved-w2&quot;,
+    &quot;baselineValue&quot;: {
+      &quot;x&quot;: 7408.01953125,
+      &quot;y&quot;: 871.7153930664062,
+      &quot;z&quot;: 3029.012939453125
+    },
+    &quot;displacedValue&quot;: {
+      &quot;x&quot;: 7413.86669921875,
+      &quot;y&quot;: 871.7219848632812,
+      &quot;z&quot;: 3027.03369140625
+    },
+    &quot;baselineReference&quot;: {
+      &quot;x&quot;: 7408.02,
+      &quot;y&quot;: 871.78,
+      &quot;z&quot;: 3029.01
+    },
+    &quot;displacedReference&quot;: {
+      &quot;x&quot;: 7413.8696,
+      &quot;y&quot;: 871.78,
+      &quot;z&quot;: 3027.03
+    },
+    &quot;apiDelta&quot;: {
+      &quot;dx&quot;: 5.849599999999555,
+      &quot;dy&quot;: 0.0,
+      &quot;dz&quot;: -1.9800000000000182,
+      &quot;planar&quot;: 6.175614962090404,
+      &quot;spatial&quot;: 6.175614962090404,
+      &quot;maxAbs&quot;: 5.849599999999555
+    },
+    &quot;memoryDelta&quot;: {
+      &quot;dx&quot;: 5.84716796875,
+      &quot;dy&quot;: 0.006591796875,
+      &quot;dz&quot;: -1.979248046875,
+      &quot;planar&quot;: 6.173070231727038,
+      &quot;spatial&quot;: 6.173073751189155,
+      &quot;maxAbs&quot;: 5.84716796875
+    },
+    &quot;trackingError&quot;: {
+      &quot;dx&quot;: -0.0024320312495547114,
+      &quot;dy&quot;: 0.006591796875,
+      &quot;dz&quot;: 0.0007519531250181899,
+      &quot;planar&quot;: 0.002545625561828619,
+      &quot;spatial&quot;: 0.00706625753438799,
+      &quot;maxAbs&quot;: 0.006591796875
+    },
+    &quot;baselineMaxAbsDelta&quot;: 0.06460693359372272,
+    &quot;displacedMaxAbsDelta&quot;: 0.058015136718722715,
+    &quot;passiveNoiseByteOverlap&quot;: 0,
+    &quot;cleanDisplacementWindow&quot;: true,
+    &quot;score&quot;: 0.007818,
+    &quot;schema_version&quot;: &quot;riftreader.family_snapshot_delta_candidate.v1&quot;,
+    &quot;candidate_id&quot;: &quot;snapshot-delta-21487DF8F64-xyz&quot;,
+    &quot;base_address_hex&quot;: &quot;0x21487DF0000&quot;,
+    &quot;offset_hex&quot;: &quot;0x8F64&quot;,
+    &quot;x_offset_hex&quot;: &quot;0x8F64&quot;,
+    &quot;y_offset_hex&quot;: &quot;0x8F68&quot;,
+    &quot;z_offset_hex&quot;: &quot;0x8F6C&quot;,
+    &quot;absolute_address_hex&quot;: &quot;0x21487DF8F64&quot;,
+    &quot;axis_order&quot;: &quot;xyz&quot;,
+    &quot;value_preview&quot;: [
+      7413.86669921875,
+      871.7219848632812,
+      3027.03369140625
+    ],
+    &quot;best_memory_x&quot;: 7413.86669921875,
+    &quot;best_memory_y&quot;: 871.7219848632812,
+    &quot;best_memory_z&quot;: 3027.03369140625,
+    &quot;best_max_abs_distance&quot;: 0.058015136718722715,
+    &quot;score_total&quot;: 99992.182,
+    &quot;rank_score&quot;: 99992.182,
+    &quot;support_count&quot;: 2,
+    &quot;classification&quot;: &quot;current-pid-family-snapshot-delta-triplet&quot;,
+    &quot;validation_status&quot;: &quot;delta_tracking_candidate&quot;,
+    &quot;truth_readiness&quot;: &quot;candidate_only_not_movement_proof&quot;,
+    &quot;confidence_level&quot;: &quot;candidate&quot;,
+    &quot;evidence_summary&quot;: &quot;trackingMaxAbs=0.0065918; baselineMaxAbs=0.0646069; displacedMaxAbs=0.0580151; passiveNoiseByteOverlap=0&quot;,
+    &quot;next_validation_step&quot;: &quot;Run read-only proof-pose readback; require current proof/static chain before movement.&quot;,
+    &quot;family_base_hex&quot;: &quot;0x21487D00000&quot;,
+    &quot;residue_mod48_hex&quot;: &quot;0x14&quot;,
+    &quot;residue_mod256_hex&quot;: &quot;0x64&quot;
+  },
+  &quot;routeSelectedCandidate&quot;: {
+    &quot;candidateId&quot;: &quot;snapshot-delta-21487DF8F64-xyz&quot;,
+    &quot;addressHex&quot;: &quot;0x21487DF8F64&quot;,
+    &quot;referenceMaxAbsDelta&quot;: 0.058015136718722715,
+    &quot;referenceMatchesReadback&quot;: true,
+    &quot;stableAcrossReadbackSamples&quot;: true,
+    &quot;sourcePreviewMatchesReadback&quot;: true
+  },
+  &quot;promotionBatchTopCandidate&quot;: {
+    &quot;key&quot;: &quot;snapshot-delta-21487DF8F64-xyz@0x21487DF8F64&quot;,
+    &quot;candidateId&quot;: &quot;snapshot-delta-21487DF8F64-xyz&quot;,
+    &quot;candidateAddressHex&quot;: &quot;0x21487DF8F64&quot;,
+    &quot;supportPoseCount&quot;: 3,
+    &quot;evidenceRowCount&quot;: 3,
+    &quot;maxReferenceMaxAbsDelta&quot;: 0.06362792968752728,
+    &quot;averageReferencePlanarDistance&quot;: 0.004247989294412953,
+    &quot;poseNames&quot;: [
+      &quot;pose-01&quot;,
+      &quot;pose-02&quot;,
+      &quot;pose-03&quot;
+    ]
+  }
+}</pre></details><details><summary>Existing Markdown draft excerpt</summary><pre># Current-PID coordinate proof anchor discovery workflow — 2026-05-14
+
+Generated: `2026-05-14T17:54:32Z`
+Repo: `C:\RIFT MODDING\RiftReader`
+Branch/commit at time of writing: `main` / `3c452a0 Restore current-pid coordinate proof promotion`
+
+## Purpose
+
+This document records the precise successful workflow that rediscovered and promoted the current player coordinate proof anchor after the local PC/RIFT client restart changed the live process epoch. It is intentionally detailed so a future recovery can repeat the proven path without falling back to stale pointers, weak single-pose heuristics, or broad debugger/watchpoint fishing.
+
+## Final verdict
+
+| Field | Value |
+|---|---|
+| Current proof pointer status | `current-target-proofonly-passed` |
+| Current process | `rift_x64` PID `16536` |
+| Current HWND | `0x1E0D66` |
+| Candidate ID | `snapshot-delta-21487DF8F64-xyz` |
+| Coord address | `0x21487DF8F64` |
+| Coord layout | `X +0`, `Y +4`, `Z +8` |
+| Source base / offset | `0x21487DF0000` + `0x8F64` |
+| Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022\delta-analysis\candidate-vec3.json` |
+| Latest validation | `valid` |
+| Movement gate | `True` |
+| Latest ProofOnly | `passed-proof-only` |
+| Proof support count | `5` |
+| No Cheat Engine | `True` |
+| SavedVariables used as live truth | `False` |
+
+The discovered anchor is current-process truth for PID `16536` / HWND `0x1E0D66`. It is **not** a restart-safe static chain. If RIFT restarts or PID/HWND changes, archive this pointer as stale and rerun current-PID recovery.
+
+## Safety and boundary conditions used
+
+| Boundary | Applied behavior |
+|---|---|
+| Old pointer after restart | Treated as stale and archived under `docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json`. |
+| Cheat Engine / x64dbg | Not used in this successful no-CE recovery path. |
+| SavedVariables | Not accepted as live coordinate truth. |
+| Live movement | Only sent after exact PID/HWND targeting and proof gates; movement was bounded. |
+| RiftScan | Used as evidence/readback provider only; RiftReader remained the proof/movement gate. |
+| Promotion rule | Candidate evidence stayed candidate-only until multi-pose same-PID proof and `ProofOnly` passed. |
+
+## Discovery chain at a glance
+
+| Stage | Evidence | Verdict |
+|---|---|---|
+| Target preflight | PID `16536`, HWND `0x1E0D66` | Exact live target selected. |
+| Fresh API truth | `RRAPICOORD1`/RIFT API reference captures | Fresh live coordinate surface available. |
+| Full family snapshots | `scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/summary.json` | `status=passed`, 3 explicit scan ranges. |
+| Delta analysis | `scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/delta-summary.json` | `candidateCount=32`, `familyCount=2`, `cleanCandidateCount=32`. |
+| Best candidate | `scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/candidate-vec3.json` | `snapshot-delta-21487DF8F64-xyz` at `0x21487DF8F64`. |
+| API/memory proof route | `scripts/captures/coordinate-proof-route-20260514-163509-016518/coordinate-proof-route.json` | `status=api-memory-match`, selected candidate `snapshot-delta-21487DF8F64-xyz` at `0x21487DF8F64`. |
+| Promotion batch | `scripts/captures/current-pid-coordinate-anchor-batch-16536-live-approved-route-20260514-163620/coordinate-anchor-batch-summary.json` | `status=promotion-candidate-found`, captured poses `3`, movement pulses `2`. |
+| Proof pointer | `docs/recovery/current-proof-anchor-readback.json` | `status=current-target-proofonly-passed`. |
+| Latest ProofOnly | `scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json` | `status=passed-proof-only`, movement sent `False`. |
+| Live movement smoke | `scripts/captures/live-test-Forward250-20260514-164220/run-summary.json` | `status=passed`, planar delta `0.3315185178299767`. |
+
+## Step-by-step successful workflow
+
+### 1. Block the stale pointer first
+
+After the local PC/game restart, the previously promoted proof pointer was no longer current. The recovery started by treating the older pointer as `blocked-target-drift` / historical-only and preserving it at:
+
+```text
+docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json
+```
+
+Do **not** reuse stale fields such as old `candidateId`, `matchFile`, absolute address, or `movementAllowed=true` from a different PID/HWND except as broad historical hints.
+
+### 2. Resolve the current exact target
+
+The current target used for the successful recovery was:
+
+| Field | Value |
+|---|---|
+| Process | `rift_x64` |
+| PID | `16536` |
+| HWND | `0x1E0D66` |
+| Window title | `RIFT` |
+| Client size during recovery | `640x360` |
+
+The family snapshot preflight used exact target checks and verified no debugger process was attached before scanning.
+
+### 3. Use fresh API/runtime coordinate truth
+
+The successful workflow used the live `RRAPICOORD1` / RIFT API coordinate surface, not SavedVariables. In the family snapshot run, the reference source was:
+
+```text
+referenceSource: rrapicoord
+```
+
+Example baseline reference from the winning candidate:
+
+| Axis | API/reference | Memory candidate |
+|---|---:|---:|
+| X | `7408.02` | `7408.01953125` |
+| Y | `871.78` | `871.7153930664062` |
+| Z | `3029.01` | `3029.012939453125` |
+
+Example displaced reference:
+
+| Axis | API/reference | Memory candidate |
+|---|---:|---:|
+| X | `7413.8696` | `7413.86669921875` |
+| Y | `871.78` | `871.7219848632812` |
+| Z | `3027.03` | `3027.03369140625` |
+
+### 4. Scan/decode entire targeted family groups
+
+The successful family-snapshot sequence used full grouped family ranges instead of narrow offset probing. The selected ranges were:
+
+| Segment | Label | Source | Size bytes | Displaced changed bytes | Passive changed bytes |
+|---|---|---|---:|---:|---:|
+| `0X21487DE0000-0X21487DF0000` | `primary-transform-family-21487DF-nearby` | `explicit-current-lead` | `65536` | `37` | `0` |
+| `0X21487DF0000-0X21487E00000` | `primary-transform-family-21487DF-nearby` | `explicit-current-lead` | `65536` | `56` | `0` |
+| `0X21487E00000-0X21487E10000` | `primary-transform-family-21487DF-nearby` | `explicit-current-lead` | `65536` | `253` | `0` |
+| `0XB655958000-0XB655970000` | `secondary-dense-family-B655958-nearby` | `explicit-current-lead` | `98304` | `14845` | `0` |
+| `0X214808C0000-0X214808D0000` | `negative-control-demoted-214808D-nearby` | `explicit-control` | `65536` | `175` | `0` |
+| `0X214808D0000-0X214808E0000` | `negative-control-demoted-214808D-nearby` | `explicit-control` | `65536` | `2763` | `0` |
+| `0X214808E0000-0X214808F0000` | `negative-control-demoted-214808D-nearby` | `explicit-control` | `65536` | `0` | `0` |
+
+Key points:
+
+- Primary transform-like family: `0x21487D00000` / page `0x21487DF8000`.
+- Secondary dense family was scanned as a secondary lead, but the primary family won by displacement tracking.
+- The negative control family was included to avoid overpromoting general memory churn.
+- The scan used multi-pose deltas and candidate ranking, not a single coordinate snapshot.
+
+### 5. Rank by displacement tracking, not one-pose closeness
+
+The winning candidate:
+
+| Field | Value |
+|---|---|
+| Candidate | `snapshot-delta-21487DF8F64-xyz` |
+| Absolute address | `0x21487DF8F64` |
+| Family base | `0x21487D00000` |
+| Page | `0x21487DF8000` |
+| Segment base | `0x21487DF0000` |
+| Segment offset | `0x8F64` |
+| Axis order | `xyz` |
+| Classification at this stage | `current-pid-family-snapshot-delta-triplet` |
+| Truth readiness at this stage | `candidate_only_not_movement_proof` |
+
+Delta tracking metrics:
+
+| Metric | Value |
+|---|---:|
+| API delta dx | `5.849599999999555` |
+| API delta dy | `0.0` |
+| API delta dz | `-1.9800000000000182` |
+| API planar delta | `6.175614962090404` |
+| Memory delta dx | `5.84716796875` |
+| Memory delta dy | `0.006591796875` |
+| Memory delta dz | `-1.979248046875` |
+| Memory planar delta | `6.173070231727038` |
+| Tracking max abs error | `0.006591796875` |
+| Baseline max abs delta | `0.06460693359372272` |
+| Displaced max abs delta | `0.058015136718722715` |
+| Passive noise byte overlap | `0` |
+| Clean displacement window | `True` |
+| Score | `0.007818` |
+
+Why this mattered: dense coordinate-copy/cache families can look plausible in a single pose. This candidate won because the memory displacement vector matched the API displacement vector with very low tracking error.
+
+### 6. Fix the candidate comparison path so snapshot-delta records could prove correctly
+
+A key implementation fix was required before promotion. Snapshot-delta candidates contain separate `baselineValue` and `displacedValue` fields. The comparison route had been too weak because it effectively used a single preview/best value for both references. That could falsely classify a good displacement-tracking candidate as `candidate-only-no-two-reference-match`.
+
+The fix in commit `3c452a0` changed:
+
+| File | Change |
+|---|---|
+| `scripts/rift_live_test/coordinate_candidate_compare.py` | Added mapping-aware comparison so baseline API is compared against `baselineValue` and displaced API is compared against `displacedValue`. |
+| `scripts/test_coordinate_candidate_compare.py` | Added regression for snapshot-delta two-reference candidates. |
+| `scripts/current_pid_candidate_readback.py` | Added proof-route compatible fields such as `ProcessId`, `TargetWindowHandle`, `NoCheatEngine`, `ReferenceMatchCount`, and `BestReferenceMatches`. |
+| `scripts/promote-current-pid-proof-anchor-from-batch.ps1` | Replaced fragile encoded-command line continuations with hashtable splatting. |
+| `scripts/test_promote_current_pid_proof_anchor_from_batch.py` | Added regression to ensure encoded child commands use splatted parameters and no trailing line continuations. |
+
+### 7. Route candidate through API-now vs memory-now proof
+
+After the comparison/readback fixes, the proof route reported:
+
+| Field | Value |
+|---|---|
+| Route status | `api-memory-match` |
+| Displaced readiness | `passed` |
+| Both-reference match count | `16` |
+| Memory readback status | `api-memory-match` |
+| Reference match count | `32` |
+| Decoded candidate count | `32` |
+| Stable decoded candidate count | `32` |
+| Selected candidate | `snapshot-delta-21487DF8F64-xyz` |
+| Selected address | `0x21487DF8F64` |
+| Reference max abs delta | `0.058015136718722715` |
+| Promotion allowed by route | `True` |
+| Movement allowed by route | `False` |
+
+The route intentionally did **not** grant movement. It only established API/memory agreement and promotion readiness.
+
+### 8. Run the promotion-ready multi-pose batch
+
+The promotion batch used controlled same-target poses and readbacks:
+
+| Field | Value |
+|---|---|
+| Status | `promotion-candidate-found` |
+| OK | `True` |
+| Captured pose count | `3` |
+| Movement sent count | `2` |
+| Movement evidence satisfied | `True` |
+| Top candidate | `snapshot-delta-21487DF8F64-xyz` |
+| Support pose count | `3` |
+| Max reference max abs delta | `0.06362792968752728` |
+
+This is the point where the candidate became strong enough to promote into the proof-anchor path.
+
+### 9. Promote into the canonical proof anchor/watchset
+
+Promotion produced the current proof pointer at:
+
+```text
+docs/recovery/current-proof-anchor-readback.json
+```
+
+The anchor/readback layout is:
+
+| Field | Value |
+|---|---|
+| Candidate address | `0x21487DF8F64` |
+| Region/address base used by proof readback | `0x21487DF8F24` |
+| Candidate offset inside region | `64` |
+| X/Y/Z relative offsets | `0 / 4 / 8` |
+| Canonical proof source kind | `riftscan-reference-validated-candidate` |
+| Proof method | `no-ce-riftscan-reference-multisample` |
+
+### 10. Confirm freshness with ProofOnly
+
+Latest `ProofOnly` rerun:
+
+| Field | Value |
+|---|---|
+| </pre></details></section>
+<div class="footer">Generated at 2026-05-14T18:11:09Z from local repository artifacts in <code>C:\RIFT MODDING\RiftReader</code>. This page is static/self-contained and does not perform live reads, movement, CE, x64dbg, or network access.</div>
+</main>
+</body>
+</html>
