@@ -97,33 +97,65 @@ def sanitize_ascii_preview(value: Any, *, limit: int = ASCII_PREVIEW_LIMIT) -> s
     return text[:limit]
 
 
+def context_search_text(value: Any) -> str:
+    text = sanitize_ascii_preview(value, limit=4096).lower()
+    dedotted = re.sub(r"(?<=[a-z0-9_])\.+(?=[a-z0-9_])", "", text)
+    compact = re.sub(r"[^a-z0-9_./:-]+", "", dedotted)
+    return f"{text}\n{dedotted}\n{compact}"
+
+
 def classify_ascii_context(value: Any) -> dict[str, Any]:
     text = sanitize_ascii_preview(value)
-    lower = text.lower()
+    search_text = context_search_text(value)
     matched: list[str] = []
     rules: list[tuple[str, list[str]]] = [
         (
             "ui-event",
             [
                 "event.",
+                "event",
                 "vent.",
                 "layout.update",
                 "mail_",
+                "mail",
                 "auction",
                 "currency",
                 "buff.",
+                "buff",
+                "friends",
+                "objective",
+                "targettag",
                 "gui",
                 "guil",
                 "banker",
             ],
         ),
         ("addon-path", ["interface/addons", "addons/", ".lua", "leader telemetry bridge"]),
-        ("asset-resource", [".dds", "assets", "vfx_", "music", "texture"]),
+        (
+            "asset-resource",
+            [
+                ".dds",
+                "dds",
+                "assets",
+                "vfx_",
+                "music",
+                "texture",
+                "anim",
+                ".kf",
+                "kf",
+                "unarmed_",
+                "idle_",
+                "run_",
+                "mount",
+                "star_",
+            ],
+        ),
+        ("game-label-string", ["sanctuary", "greybriar", "dwarven", "level "]),
         ("path-string", ["c:/users/", "onedrive", "documents/rift"]),
     ]
     selected_kind = "binary-or-unknown"
     for kind, patterns in rules:
-        hits = [pattern for pattern in patterns if pattern in lower]
+        hits = [pattern for pattern in patterns if pattern in search_text]
         if hits:
             selected_kind = kind
             matched.extend(hits)
@@ -132,7 +164,14 @@ def classify_ascii_context(value: Any) -> dict[str, Any]:
         alpha_count = sum(1 for char in text if char.isalpha())
         if alpha_count >= 16:
             selected_kind = "string-heavy"
-    obvious_non_entity = selected_kind in {"ui-event", "addon-path", "asset-resource", "path-string", "string-heavy"}
+    obvious_non_entity = selected_kind in {
+        "ui-event",
+        "addon-path",
+        "asset-resource",
+        "game-label-string",
+        "path-string",
+        "string-heavy",
+    }
     return {
         "kind": selected_kind,
         "signals": matched,
@@ -285,6 +324,24 @@ def priority_parent_leads(
     return filtered[:limit]
 
 
+def priority_parent_lead_window(
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    known_parent_slot: int | None,
+    module_base: int | None,
+    offset: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    all_priority = priority_parent_leads(
+        candidates,
+        known_parent_slot=known_parent_slot,
+        module_base=module_base,
+        limit=10_000,
+    )
+    start = max(0, offset)
+    return all_priority[start : start + limit]
+
+
 def parent_lead_targets(leads: Sequence[Mapping[str, Any]], *, limit: int) -> list[dict[str, Any]]:
     targets: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -314,6 +371,7 @@ def build_summary(
     root_signature_path: Path | None = None,
     sample_limit: int = 8,
     lead_limit: int = 24,
+    priority_offset: int = 0,
 ) -> dict[str, Any]:
     repo_root = repo_root_from_module()
     sweep = load_json_object(module_hint_sweep_path)
@@ -397,7 +455,13 @@ def build_summary(
     top_owner = owner_candidates[0] if owner_candidates else None
     top_parent = parent_candidates[0] if parent_candidates else None
     non_player_parent_leads = strong_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, limit=lead_limit)
-    priority_leads = priority_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, module_base=module_base, limit=lead_limit)
+    priority_leads = priority_parent_lead_window(
+        parent_candidates,
+        known_parent_slot=known_parent_slot,
+        module_base=module_base,
+        offset=priority_offset,
+        limit=lead_limit,
+    )
     warnings.extend(field_mismatch_warnings(top_owner if isinstance(top_owner, Mapping) else None))
     if warnings:
         warnings = list(dict.fromkeys(warnings))
@@ -417,6 +481,7 @@ def build_summary(
             "selectedRva": f"0x{selected_rva:X}" if selected_rva is not None else None,
             "sampleLimit": sample_limit,
             "leadLimit": lead_limit,
+            "priorityOffset": priority_offset,
         },
         "counts": {
             "modulePointerHitCount": int(raw_scan.get("HitCount") or len(safe_list(raw_scan.get("Hits")))),
@@ -427,6 +492,7 @@ def build_summary(
             "parentOwnerPointerRegionClusterCount": len(parent_clusters),
             "nonPlayerParentLeadCount": len(strong_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, limit=10_000)),
             "priorityParentLeadCount": len(priority_parent_leads(parent_candidates, known_parent_slot=known_parent_slot, module_base=module_base, limit=10_000)),
+            "exportedPriorityParentLeadCount": len(priority_leads),
         },
         "contextKindCounts": {
             "ownerFieldCandidates": context_kind_counts(owner_candidates),
@@ -587,6 +653,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--sample-limit", type=int, default=8)
     parser.add_argument("--lead-limit", type=int, default=24)
+    parser.add_argument("--priority-offset", type=int, default=0)
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -606,6 +673,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         root_signature_path=args.root_signature_json,
         sample_limit=args.sample_limit,
         lead_limit=args.lead_limit,
+        priority_offset=args.priority_offset,
     )
     summary["repoRoot"] = str(repo_root)
     summary["artifacts"] = {

@@ -1,6 +1,6 @@
 # Current Truth
 
-_Last updated: 2026-05-13 23:57 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The current proof pointer is no longer stale truth: `docs/recovery/current-proof-anchor-readback.json` is a same-target `blocked-target-drift` blocker for PID `2928` / HWND `0xC0994`, and the old PID `57656` / HWND `0x5417BC` pointer is preserved only under `docs/recovery/historical/`. The current best recovery evidence is the narrow same-target family around `0x268DF21E000`; `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json` contains three candidate-only current-PID addresses, with `same-target-268DF21ED30-xyz` selected by the milestone review for read-only proof. These candidates are **not movement truth**: latest readback shows stable bytes for current PID but no fresh reference match/proof anchor promotion yet. The stale runtime proof-anchor cache `scripts/captures/telemetry-proof-coord-anchor.json` still contains historical PID `57656` data, but the preflight now ignores mismatched PID/HWND cache entries and reports `ignored_stale_cache` warnings instead of allowing that cache to shadow current PID `2928`._
+_Last updated: 2026-05-14 00:04 UTC. Current live target remains `rift_x64` PID `2928`, HWND `0xC0994`, process start `2026-05-13T16:17:56.208370Z`, module base `0x7FF71CD90000`. Movement/navigation remains **blocked**. The proof pointer is a same-target `blocked-target-drift` blocker, not movement truth. Latest static-chain work demoted dotted UTF-16-like UI/asset/zone strings, exhausted the remaining non-obvious priority parent leads from the root-signature classifier, and the follow-up pointer scan found `0` module/RIFT-module hits. The selected same-target candidate remains `same-target-268DF21ED30-xyz` from `scripts/captures/same-target-candidate-synth-20260513-230531-602926/same-target-candidates.json`; it is candidate-only until fresh API-now/reference and memory-now proof pass. The stale runtime proof-anchor cache is historical only and must not shadow current PID `2928`._
 
 **May 13 focus pivot:** RiftReader's active product focus is now **RIFT MMO
 navigation**, not a full standalone reverse-engineering product. The candidate
@@ -240,6 +240,31 @@ review `scripts/captures/riftscan-milestone-review-20260513-235622.json` remains
 `ready-for-read-only-proof` with `movementAllowedByReview=false`. Movement
 remains blocked.
 
+**May 14 00:02-00:04 UTC priority-offset context triage pass:**
+`root_signature_family_classifier.py` now treats dotted UTF-16-like zone/game
+labels such as `S.a.n.c.t.u.a.r.y` as `game-label-string` and marks them
+`obviousNonEntity=true`, matching the existing UI/addon/asset/path/string-heavy
+exclusions. Regenerated classifier artifact:
+`scripts/captures/root-signature-family-classifier-20260514-000240-826658/summary.json`.
+Counts stayed at `575` module-pointer hits, `6` owner families, `6` parent-slot
+families, and `205` owner-pointer region clusters, but the clean priority lane
+is now only `15` parent leads after demoting UI/addon/asset/path/string-heavy,
+game-label, and tagged/unaligned pseudo-pointer noise. The `--priority-offset 8`
+window exported the remaining `7` parent leads as `14` parent/owner targets at
+`scripts/captures/root-signature-family-classifier-20260514-000240-826658/priority-parent-lead-targets.json`.
+
+Read-only pointer scan
+`scripts/captures/pointer-family-scan-20260514-000246-569593/summary.json`
+scanned `24` queued target/ref-storage addresses from that remaining priority
+batch with depth `1`. It found no module/static roots: top hits were heap-local
+only, with `moduleHitCount=0` and `riftModuleHitCount=0` for the ranked targets.
+Milestone review
+`scripts/captures/riftscan-milestone-review-20260514-000430.json` remains
+`ready-for-read-only-proof` with `movementAllowedByReview=false`. This pass
+exhausts the current non-obvious priority parent-lead batch; further broad work
+should either widen into lower-priority family groups or wait for a fresh
+reference surface. Movement remains blocked.
+
 **May 13 21:53 UTC owner/type source-chain lead:** read-only pointer scan
 `scripts/captures/pointer-family-scan-20260513-214606-072853/summary.json`
 seeded the only heap owner plus module-pointer hints. The low-noise type marker
@@ -390,7 +415,7 @@ readback is offset-corrected candidate evidence, not direct movement truth.
 | Current proof status | **Not promoted**. PID `2928` now has a high-signal current-PID candidate family (`0x268DF200000`) with repeated offset-corrected live readback (`0x268DF21ED30` best focused address), but still has no static/restart chain or same-target `ProofOnly` promotion. Direct candidate values are offset from API by about `5` units, so this is not direct coordinate truth. |
 | x64dbg status | No successful current-PID attach. One minimized no-debuggee automation self-check passed and two bounded current-PID attach attempts failed before attach. If another x64dbg tactic is used, keep x64dbg/dependent windows minimized unless visibility is required and avoid repeating the same attach attempt without new evidence. |
 | Evidence labels | Current target/API evidence is `responsive-candidate`; there is no `live-proof` chain. Any future debugger-paused scan must be labeled `frozen-snapshot`. |
-| Latest report | Professional HTML summary: `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`. Newest markdown handoff: `docs/handoffs/2026-05-13-1304-currentpid-2928-no-candidate-scan-blocker.md`; supporting compact resume `docs/handoffs/2026-05-13-1231-compact-static-pointer-chain-resume.md`. |
+| Latest report | Professional HTML summary: `docs/recovery/static-chain-pointer-reacquisition-summary-2026-05-13.html`. Newest markdown handoff: `docs/handoffs/2026-05-13-2006-priority-offset-context-triage.md`; prior context handoff: `docs/handoffs/2026-05-13-1957-context-triage-lead-export.md`. |
 | Safety boundary | No Cheat Engine; no memory writes/patches; no static pointer promotion; no movement/nav proof. Bounded exact-HWND input is allowed only for discovery snapshots in this approved chat lane and remains candidate evidence. x64dbg/watchpoints should wait until the focused candidate family needs static-chain provenance and must stay minimized unless visibility is required. |
 
 ## May 13 prior PID 60628 candidate status (candidate-only; not authoritative proof)

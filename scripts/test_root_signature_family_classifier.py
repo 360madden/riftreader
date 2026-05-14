@@ -5,11 +5,13 @@ import unittest
 from rift_live_test.root_signature_family_classifier import (
     build_families,
     classify_ascii_context,
+    context_search_text,
     field_offsets,
     parent_region_clusters,
     parent_lead_targets,
     pointer_class,
     priority_parent_leads,
+    priority_parent_lead_window,
     raw_hit_contexts,
     region_hex,
     sanitize_ascii_preview,
@@ -88,6 +90,14 @@ class RootSignatureFamilyClassifierTests(unittest.TestCase):
         self.assertIn("C:/Users/<user>", context["preview"])
         self.assertIn("C:/Users/<user>", sanitize_ascii_preview("C:/Users/mrkoo/foo"))
 
+    def test_context_classifier_handles_dotted_utf16_like_resources(self) -> None:
+        self.assertIn("friends", context_search_text("F.R.I.E.N.D.S.: [FRIENDS]"))
+        self.assertEqual(classify_ascii_context("s.t.a.r._.0.9...d.d.s")["kind"], "asset-resource")
+        self.assertEqual(classify_ascii_context("F.R.I.E.N.D.S.: [FRIENDS]")["kind"], "ui-event")
+        zone_context = classify_ascii_context("S.a.n.c.t.u.a.r.y")
+        self.assertEqual(zone_context["kind"], "game-label-string")
+        self.assertTrue(zone_context["obviousNonEntity"])
+
     def test_raw_hit_contexts_indexes_by_hit_address(self) -> None:
         contexts = raw_hit_contexts(
             {
@@ -130,6 +140,30 @@ class RootSignatureFamilyClassifierTests(unittest.TestCase):
         )
 
         self.assertEqual([lead["parentSlot"] for lead in leads], ["0x3000"])
+
+    def test_priority_parent_lead_window_offsets_export_batch(self) -> None:
+        leads = priority_parent_lead_window(
+            [
+                {
+                    "parentSlot": "0x1000",
+                    "ownerPointer": "0x268D0000000",
+                    "score": 15,
+                    "context": {"contextKind": {"kind": "binary-or-unknown", "obviousNonEntity": False}},
+                },
+                {
+                    "parentSlot": "0x2000",
+                    "ownerPointer": "0x268D0001000",
+                    "score": 15,
+                    "context": {"contextKind": {"kind": "binary-or-unknown", "obviousNonEntity": False}},
+                },
+            ],
+            known_parent_slot=None,
+            module_base=0x700000000000,
+            offset=1,
+            limit=1,
+        )
+
+        self.assertEqual([lead["parentSlot"] for lead in leads], ["0x2000"])
 
     def test_parent_lead_targets_exports_parent_and_owner_deduped(self) -> None:
         targets = parent_lead_targets(
