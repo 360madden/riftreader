@@ -19,6 +19,7 @@ EXE = (
     / "RiftWindowCapture.exe"
 )
 CAPTURES = REPO_ROOT / "scripts" / "captures"
+PY_CONTROLLER = REPO_ROOT / "scripts" / "capture_rift_window.py"
 
 
 def run(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -145,6 +146,53 @@ class RiftWindowCaptureCliTests(unittest.TestCase):
         self.assertTrue((output_root / "benchmark.json").exists())
         self.assertTrue((output_root / "summary.md").exists())
         self.assertEqual(load_json(output_root / "benchmark.json")["framesRequested"], 2)
+
+    def test_python_controller_dry_run_writes_command_plan(self) -> None:
+        output_root = unique_output_root("rift-window-capture-python-test-dry-run")
+        result = run(
+            [
+                "python",
+                str(PY_CONTROLLER),
+                "--dry-run",
+                "--output-root",
+                str(output_root),
+                "--hwnd",
+                "0x1",
+                "--json",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["schema"], "rift-window-capture-controller/v1")
+        self.assertEqual(summary["status"], "passed")
+        self.assertTrue(summary["dryRun"])
+        self.assertFalse(summary["commands"])
+        self.assertTrue(any("--hwnd" in command for command in summary["commandPlan"] for command in command))
+        self.assertTrue((output_root / "controller-summary.json").exists())
+        self.assertTrue((output_root / "controller-summary.md").exists())
+
+    def test_python_controller_self_test_observes_known_blocker(self) -> None:
+        output_root = unique_output_root("rift-window-capture-python-test-self-test")
+        result = run(
+            [
+                "python",
+                str(PY_CONTROLLER),
+                "--self-test",
+                "--no-build",
+                "--output-root",
+                str(output_root),
+                "--json",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["status"], "passed")
+        self.assertTrue(summary["selfTest"])
+        self.assertTrue(summary["expectedBlockerObserved"])
+        self.assertEqual(summary["toolReport"]["requestedHwnd"], "0x1")
+        self.assertTrue(summary["toolReport"]["knownBlocker"])
+        self.assertTrue((output_root / "manifest.json").exists())
+        self.assertTrue((output_root / "controller-summary.json").exists())
 
 
 if __name__ == "__main__":

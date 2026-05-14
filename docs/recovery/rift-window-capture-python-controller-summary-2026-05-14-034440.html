@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rift Window Capture Python Controller Summary - 2026-05-14-034440</title>
+<style>
+:root{--bg:#08111f;--panel:#101b30;--panel2:#17243d;--text:#eef5ff;--muted:#aebbd4;--line:#2a3a5d;--accent:#8bd3ff;--ok:#46e6a3;}
+body{margin:0;background:radial-gradient(circle at top left,#162b4d,#08111f 55%);color:var(--text);font-family:Segoe UI,Roboto,Arial,sans-serif;}
+main{max-width:1160px;margin:0 auto;padding:32px;}
+.hero,section{background:rgba(16,27,48,.9);border:1px solid var(--line);border-radius:22px;padding:24px;margin-bottom:20px;box-shadow:0 18px 55px rgba(0,0,0,.25);}
+h1{margin:0 0 8px;font-size:34px;} h2{margin:0 0 14px;font-size:22px;}
+.muted{color:var(--muted);} code{background:#07101e;color:#cceeff;padding:2px 6px;border-radius:6px;}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:16px;}
+.num{font-size:28px;font-weight:800;color:var(--accent);} .label{color:var(--muted);}
+table{width:100%;border-collapse:collapse;border-radius:14px;overflow:hidden;} th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;} th{background:var(--panel2);}
+.badge{display:inline-block;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;} .ok{background:var(--ok);color:#052315;}
+.callout{background:rgba(70,230,163,.09);border-left:4px solid var(--ok);border-radius:12px;padding:12px 14px;}
+@media(max-width:850px){.grid{grid-template-columns:1fr 1fr;}main{padding:18px;}}
+</style></head><body><main>
+<div class="hero"><h1>✅ Top 10 Action #1 Complete: Python Capture Controller</h1>
+<div class="muted">Timestamp: 2026-05-14T03:44:41-04:00 · Base commit before this slice: <code>62a11b3</code></div>
+<div class="grid"><div class="card"><div class="num">1</div><div class="label">canonical Python controller</div></div><div class="card"><div class="num">6/6</div><div class="label">tests passed</div></div><div class="card"><div class="num">0</div><div class="label">movement/input/debugger actions</div></div><div class="card"><div class="num">641×391</div><div class="label">live smoke PNG</div></div></div>
+<p class="callout"><strong>Verdict:</strong> Repo workflows now have a Python-first entrypoint that wraps the C#/.NET 10 capture core, records command envelopes, writes controller summaries, and fails closed while preserving no-input safety.</p></div>
+<section><h2>Artifacts</h2><table><thead><tr><th>Type</th><th>Path</th><th>Purpose</th></tr></thead><tbody><tr><td>Controller</td><td><code>scripts/capture_rift_window.py</code></td><td>Python-first orchestration, summaries, command envelopes</td></tr>
+<tr><td>Launcher</td><td><code>scripts/capture-rift-window.cmd</code></td><td>Thin launcher: cd repo, call Python, forward args</td></tr>
+<tr><td>Tests</td><td><code>scripts/test_rift_window_capture_cli.py</code></td><td>Dry-run and self-test coverage added</td></tr>
+<tr><td>Docs</td><td><code>docs/recovery/rift-window-capture-app-plan.md</code></td><td>Plan now records canonical Python controller</td></tr>
+<tr><td>Live smoke</td><td><code>scripts/captures/rift-window-capture-python-live-smoke-20260514-034349-044</code></td><td>Ignored artifact bundle with controller + native summaries</td></tr></tbody></table></section>
+<section><h2>Validation</h2><table><thead><tr><th>Check</th><th>Status</th><th>Evidence</th></tr></thead><tbody><tr><td><code>python -m py_compile scripts\capture_rift_window.py scripts\test_rift_window_capture_cli.py</code></td><td><span class="badge ok">Passed</span></td><td>Python syntax check passed</td></tr>
+<tr><td><code>python scripts\capture_rift_window.py --dry-run ...</code></td><td><span class="badge ok">Passed</span></td><td>Controller wrote command plan and summaries without child commands</td></tr>
+<tr><td><code>scripts\capture-rift-window.cmd --dry-run ...</code></td><td><span class="badge ok">Passed</span></td><td>Thin cmd launcher forwarded to Python correctly</td></tr>
+<tr><td><code>dotnet build tools\rift-window-capture\RiftWindowCapture.csproj --nologo</code></td><td><span class="badge ok">Passed</span></td><td>0 warnings, 0 errors</td></tr>
+<tr><td><code>python scripts\test_rift_window_capture_cli.py</code></td><td><span class="badge ok">Passed</span></td><td>6/6 CLI and controller tests passed</td></tr>
+<tr><td><code>Python controller live smoke</code></td><td><span class="badge ok">Passed</span></td><td>Exact PID/HWND capture produced usable 641x391 WGC PNG</td></tr>
+<tr><td><code>git diff --check</code></td><td><span class="badge ok">Passed</span></td><td>No whitespace errors in modified tracked files</td></tr></tbody></table></section>
+<section><h2>Top 10 recommended next actions</h2><table><thead><tr><th>#</th><th>Action</th><th>Why</th></tr></thead><tbody><tr><td>1</td><td>Introduce ICaptureBackend in C#</td><td>Next modularity step: isolate backend selection from orchestration.</td></tr>
+<tr><td>2</td><td>Add raw BGRA output</td><td>Removes PNG decode cost for machine vision workflows.</td></tr>
+<tr><td>3</td><td>Add named crop profiles</td><td>Creates stable contract for full-window and telemetry-strip captures.</td></tr>
+<tr><td>4</td><td>Add offline crop/convert/diff</td><td>Allows post-run analysis without live RIFT.</td></tr>
+<tr><td>5</td><td>Add repeated capture/session mode</td><td>Avoids process startup overhead for polling.</td></tr>
+<tr><td>6</td><td>Add backend benchmark matrix</td><td>Compares WGC window, monitor, DXGI, PNG, raw.</td></tr>
+<tr><td>7</td><td>Write OSS dependency review packet</td><td>Safely evaluates mature free capture libraries.</td></tr>
+<tr><td>8</td><td>Add README operator examples</td><td>Makes canonical Python entrypoint obvious.</td></tr>
+<tr><td>9</td><td>Add visual-proof routing guard</td><td>Prevents capture output from being promoted as movement truth.</td></tr>
+<tr><td>10</td><td>Run final end-to-end smoke after next code slice</td><td>Keeps incremental validation tight.</td></tr></tbody></table></section>
+<p class="muted">Generated as a timestamped HTML summary; existing summaries are not overwritten.</p>
+</main></body></html>

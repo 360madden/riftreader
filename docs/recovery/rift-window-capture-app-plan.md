@@ -27,13 +27,16 @@ monolithic `Program.cs`.
 | Latest live capture bundle | Passed | `scripts/captures/rift-window-capture-live-exact-hwnd-20260514-031455-830` |
 | Latest benchmark bundle | Passed | `scripts/captures/rift-window-capture-live-benchmark-20260514-032103-202` |
 | Latest modular smoke bundle | Passed | `scripts/captures/rift-window-capture-modular-smoke-20260514-033313-843` |
+| Python orchestration wrapper | Implemented | `scripts/capture_rift_window.py`; writes `controller-summary.json` and `controller-summary.md` |
+| Thin `.cmd` launcher | Implemented | `scripts/capture-rift-window.cmd` calls Python and forwards arguments |
+| Latest Python controller live smoke | Passed | `scripts/captures/rift-window-capture-python-live-smoke-20260514-034349-044` |
 
 Safety boundary remained clean: no movement, no game input, no native
 screenshot key, no CE, and no x64dbg.
 
 Still deferred from the full plan: raw `.bgra` artifact output, robust named
-crop profiles beyond full-window, offline `convert`/`crop`/`diff` commands, and
-a Python canonical orchestration wrapper.
+crop profiles beyond full-window, offline `convert`/`crop`/`diff` commands,
+backend interfaces, and repeated capture session mode.
 
 ---
 
@@ -278,6 +281,35 @@ Minimum `manifest.json` fields:
 ---
 
 ## 🧰 CLI command set
+
+### Canonical Python controller
+
+Use Python as the repo workflow entry point when a capture run needs durable
+controller evidence around the C# tool invocation:
+
+```powershell
+python .\scripts\capture_rift_window.py capture `
+  --hwnd 0xC0994 `
+  --pid 2928 `
+  --expected-process-start-utc 2026-05-13T16:17:56.208370Z `
+  --output-root scripts\captures\rift-window-capture-python-20260514 `
+  --emit-png `
+  --crop full-window `
+  --require-usable `
+  --json
+```
+
+Safe command-plan/self-test examples:
+
+```powershell
+python .\scripts\capture_rift_window.py --dry-run --hwnd 0x1 --json
+python .\scripts\capture_rift_window.py --self-test --no-build --json
+```
+
+The Python controller writes `controller-summary.json` and
+`controller-summary.md` beside the native C# capture manifest. The thin
+`scripts\capture-rift-window.cmd` launcher only calls Python and forwards
+arguments.
 
 ### `capture`
 
