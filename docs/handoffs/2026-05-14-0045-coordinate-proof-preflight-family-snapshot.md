@@ -32,6 +32,8 @@ Fresh RRAPICOORD reference is available again and read-only proof readiness pass
 | `scripts/captures/current-pid-family-neighborhood-inspector-20260514-004343-502721/summary.json` | Neighborhood inspector confirmed the exact hit in a read-only 16 KiB window. |
 | `scripts/captures/pointer-family-scan-20260514-004408-853398/summary.json` | 23 pointer targets scanned; 0 module/RIFT-module hits; heap-only owner evidence. |
 | `scripts/captures/riftscan-milestone-review-20260514-005443.json` | Strategy gate now selects proof-backed `family-snapshot-hit-000002` from the family import candidate file; movement still false. |
+| `scripts/captures/pointer-owner-batch-currentpid-2928-20260514-005632-012315/summary.json` | 12 owner/ref-storage windows inspected read-only; no exact ref to `0x268E113FED0`; no static root. |
+| `scripts/captures/root-signature-module-hint-sweep-20260514-005740-921073/summary.json` and sibling sweeps `005745`, `005746`, `005750` | New module-RVA sweeps were heap-only/low-score; no root promotion. |
 
 ## Proven truth vs candidate-only
 
