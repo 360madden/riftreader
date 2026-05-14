@@ -2,14 +2,18 @@
 param(
     [string]$ProcessName = 'rift_x64',
     [int]$ProcessId,
+    [string]$Hwnd,
     [string]$TitleContains,
     [string]$OutputPath,
+    [string]$OutputRoot,
+    [string]$ExpectedProcessStartUtc,
     [int]$TimeoutMs = 2500,
     [ValidateRange(1, 20)]
     [int]$Attempts = 1,
     [switch]$CaptureMonitor,
     [switch]$DesktopDuplication,
     [switch]$RequireUsable,
+    [switch]$EmitPng,
     [switch]$Json
 )
 
@@ -27,50 +31,88 @@ if ($CaptureMonitor -and $DesktopDuplication) {
     throw '-CaptureMonitor and -DesktopDuplication are mutually exclusive.'
 }
 
-if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+if ([string]::IsNullOrWhiteSpace($OutputPath) -and [string]::IsNullOrWhiteSpace($OutputRoot)) {
     $captureRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'RiftReader-window-capture\wgc'
     New-Item -ItemType Directory -Force -Path $captureRoot | Out-Null
     $OutputPath = Join-Path $captureRoot ('capture-{0}.png' -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 }
-elseif (-not [System.IO.Path]::IsPathRooted($OutputPath)) {
+elseif (-not [string]::IsNullOrWhiteSpace($OutputPath) -and -not [System.IO.Path]::IsPathRooted($OutputPath)) {
     $OutputPath = Join-Path $repoRoot $OutputPath
 }
 
-$toolArgs = @(
-    'run',
-    '--project', $projectPath,
-    '--',
-    '--output', $OutputPath,
+$appArgs = @(
     '--timeout-ms', $TimeoutMs.ToString([Globalization.CultureInfo]::InvariantCulture),
     '--attempts', $Attempts.ToString([Globalization.CultureInfo]::InvariantCulture)
 )
 
+if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+    $appArgs += @('--output', $OutputPath)
+}
+
 if ($PSBoundParameters.ContainsKey('ProcessId')) {
-    $toolArgs += @('--pid', $ProcessId.ToString([Globalization.CultureInfo]::InvariantCulture))
+    $appArgs += @('--pid', $ProcessId.ToString([Globalization.CultureInfo]::InvariantCulture))
 }
 elseif (-not [string]::IsNullOrWhiteSpace($ProcessName)) {
-    $toolArgs += @('--process-name', $ProcessName)
+    $appArgs += @('--process-name', $ProcessName)
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Hwnd)) {
+    $appArgs += @('--hwnd', $Hwnd)
 }
 
 if (-not [string]::IsNullOrWhiteSpace($TitleContains)) {
-    $toolArgs += @('--title-contains', $TitleContains)
+    $appArgs += @('--title-contains', $TitleContains)
+}
+
+if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
+    if (-not [System.IO.Path]::IsPathRooted($OutputRoot)) {
+        # Keep repo-relative paths relative for the native process. Windows
+        # PowerShell 5.x can split native arguments that contain spaces (for
+        # example the repo root `C:\RIFT MODDING\...`).
+        $OutputRoot = $OutputRoot
+    }
+    $appArgs += @('--output-root', $OutputRoot)
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ExpectedProcessStartUtc)) {
+    $appArgs += @('--expected-process-start-utc', $ExpectedProcessStartUtc)
 }
 
 if ($Json) {
-    $toolArgs += '--json'
+    $appArgs += '--json'
+}
+
+if ($EmitPng) {
+    $appArgs += '--emit-png'
 }
 
 if ($CaptureMonitor) {
-    $toolArgs += '--capture-monitor'
+    $appArgs += '--capture-monitor'
 }
 
 if ($DesktopDuplication) {
-    $toolArgs += '--desktop-duplication'
+    $appArgs += '--desktop-duplication'
 }
 
 if ($RequireUsable) {
-    $toolArgs += '--require-usable'
+    $appArgs += '--require-usable'
 }
 
-& dotnet @toolArgs
-exit $LASTEXITCODE
+& dotnet build $projectPath --nologo --verbosity quiet
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
+$toolExe = Join-Path (Split-Path -Parent $projectPath) 'bin\Debug\net10.0-windows10.0.19041.0\RiftWindowCapture.exe'
+if (-not (Test-Path -LiteralPath $toolExe)) {
+    throw "Built Rift window capture executable not found: $toolExe"
+}
+
+Push-Location -LiteralPath $repoRoot
+try {
+    & $toolExe @appArgs
+    exit $LASTEXITCODE
+}
+finally {
+    Pop-Location
+}

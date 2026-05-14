@@ -1,11 +1,17 @@
 # Native RIFT Screenshot Backend
 
-_Last updated: May 8, 2026 20:08 EDT / May 9, 2026 00:08 UTC._
+_Last updated: May 14, 2026 01:49 EDT / May 14, 2026 05:49 UTC._
 
 ## Verdict
 
-The RIFT native screenshot blocker is resolved for the current live workflow:
-use the in-game **Take Screenshot** binding, currently **`NUM PAD *`**.
+The local RIFT game installation is verified to use the in-game
+**Take Screenshot** binding **`NUM PAD *` / `VK_MULTIPLY` / `0x6A`**, and the
+binding works. A live trial against the current `rift_x64` target created a new
+native RIFT screenshot immediately.
+
+This is the canonical local screenshot key for RiftReader workflows on this
+machine. Do **not** substitute `Ctrl+P`, `PrtSc`, Windows Snipping Tool
+shortcuts, or any stale/default keybinding assumption.
 
 | Rule | Status |
 |---|---|
@@ -15,7 +21,41 @@ use the in-game **Take Screenshot** binding, currently **`NUM PAD *`**.
 | `Win+Shift+S` / Snipping Tool | Manual/operator fallback only; not exact-HWND automation |
 | `Take Screenshot Without UI` | Not bound in RIFT; do not assume it exists |
 
-## Live proof
+## Keybind source of truth
+
+Do not look for the screenshot keybind in `rift.cfg`; that file holds client
+settings, not the exported keybinding table. The current keybind proof is the
+exported RIFT keybinding file:
+
+`C:\Program Files (x86)\Glyph\Games\RIFT\Live\mykeybindings`
+
+| Field | Value |
+|---|---|
+| Exported file timestamp | May 14, 2026 01:39:32 EDT |
+| Action | `Take Screenshot` |
+| Action id | `20010` |
+| Default record | `02 2C 07 AA 9C 01` = `PrintScreen` / `VK_SNAPSHOT` / `0x2C` |
+| Current exported record | `02 6A 07 AA 9C 01` = `NUM PAD *` / `VK_MULTIPLY` / `0x6A` |
+
+## Latest live proof
+
+| Field | Value |
+|---|---|
+| Target | `rift_x64` PID `2928`, HWND `0xC0994` |
+| Time | May 14, 2026 01:49 EDT / May 14, 2026 05:49 UTC |
+| Key sent | `numpad_multiply`, virtual key `0x6A` |
+| Input method | `window-message` |
+| Fallback used | No |
+| Native screenshot file | `C:\Users\mrkoo\OneDrive\Documents\RIFT\Screenshots\2026-05-14_014934.jpg` |
+| Repo artifact copy | `C:\RIFT MODDING\RiftReader\scripts\captures\native-screenshot-keybind-20260514-014933\rift-native-numpad-multiply-screenshot-20260514-054934.jpg` |
+| Result JSON | `C:\RIFT MODDING\RiftReader\scripts\captures\native-screenshot-keybind-20260514-014933\native-screenshot-result.json` |
+| Result Markdown | `C:\RIFT MODDING\RiftReader\scripts\captures\native-screenshot-keybind-20260514-014933\native-screenshot-result.md` |
+| MCP frame-change follow-up | `changed=true`, `changePercent=9.5069`, screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260514-014942-533.png` |
+
+Safety note: this proof sent only the approved screenshot key. It did not send
+movement, `/reloadui`, Cheat Engine, x64dbg, or provider writes.
+
+## Previous live proof
 
 | Field | Value |
 |---|---|

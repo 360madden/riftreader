@@ -361,8 +361,35 @@ Start with:
 
 For screenshot or visual-capture blockers, use
 `C:\RIFT MODDING\RiftReader\docs\recovery\native-rift-screenshot-backend.md`.
-The current RIFT native screenshot key is `NUM PAD *`; `Ctrl+P`, `PrtSc`, and
-Snipping Tool automation are forbidden for RiftReader screenshot workflows.
+The current local RIFT native screenshot key is **`NUM PAD *`**. This was
+confirmed from the exported keybindings file
+`C:\Program Files (x86)\Glyph\Games\RIFT\Live\mykeybindings` and live-verified
+on May 14, 2026 by creating
+`C:\Users\mrkoo\OneDrive\Documents\RIFT\Screenshots\2026-05-14_014934.jpg`.
+`Ctrl+P`, `PrtSc`, and Snipping Tool automation are forbidden for RiftReader
+screenshot workflows.
+
+## Full-window capture helper note
+
+For repo-owned full-window capture without sending game input, use the
+C#/.NET 10 helper in `tools\rift-window-capture` through the thin launcher
+`scripts\capture-rift-window-wgc.ps1`. The implementation plan and acceptance
+criteria are in
+`C:\RIFT MODDING\RiftReader\docs\recovery\rift-window-capture-app-plan.md`.
+
+Latest exact-HWND live validation:
+
+- target: `rift_x64` PID `2928`, HWND `0xC0994`, process start
+  `2026-05-13T16:17:56.2083705Z`
+- capture bundle:
+  `C:\RIFT MODDING\RiftReader\scripts\captures\rift-window-capture-live-exact-hwnd-20260514-031455-830`
+- benchmark bundle:
+  `C:\RIFT MODDING\RiftReader\scripts\captures\rift-window-capture-live-benchmark-20260514-032103-202`
+- safety: no movement, no input, no native screenshot key, no CE, no x64dbg
+
+Use exact `-ProcessId`, `-Hwnd`, and `-ExpectedProcessStartUtc` for live
+captures. Treat screenshots as visual evidence only, not coordinate or movement
+truth.
 
 ## Use these files only
 

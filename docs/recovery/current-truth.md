@@ -1,6 +1,6 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-14T04:18:27Z._
+_Last updated: 2026-05-14T05:49:34Z._
 
 ## Verdict
 
@@ -24,10 +24,26 @@ _Last updated: 2026-05-14T04:18:27Z._
 | ChromaLink world-state | stale / not authoritative | Still not the authority for coordinate proof in this lane. |
 | SavedVariables | not live truth | Post-save snapshots only; never use as live movement truth. |
 
+## Local native screenshot keybind
+
+| Field | Value |
+|---|---|
+| Status | **Verified working for this local RIFT installation** |
+| RIFT action | `Take Screenshot` |
+| Current keybind | **`NUM PAD *` / `numpad_multiply` / `VK_MULTIPLY` / `0x6A`** |
+| Keybind proof source | `C:\Program Files (x86)\Glyph\Games\RIFT\Live\mykeybindings` |
+| Exported keybinding record | `02 6A 07 AA 9C 01` for action id `20010` |
+| Default comparison | `02 2C 07 AA 9C 01` = default `PrintScreen`; local export overrides it to `NUM PAD *` |
+| Live proof | A new native RIFT screenshot was created at `2026-05-14T05:49:34Z`: `C:\Users\mrkoo\OneDrive\Documents\RIFT\Screenshots\2026-05-14_014934.jpg` |
+| Repo proof packet | `scripts/captures/native-screenshot-keybind-20260514-014933/native-screenshot-result.json` |
+| Strong rule | Use only `NUM PAD *` for native RIFT screenshots on this machine. Do **not** use `Ctrl+P`, `Control+P`, `PrtSc`, or Snipping Tool automation. |
+| Truth scope | Visual/screenshot evidence only; this is **not** coordinate or movement truth. |
+
 Key proof artifacts:
 
 | Artifact | Result |
 |---|---|
+| `scripts/captures/native-screenshot-keybind-20260514-014933/native-screenshot-result.json` | Native screenshot keybind verification passed: exported local RIFT keybind is `NUM PAD *` / `VK_MULTIPLY`; exact target PID `2928`/HWND `0xC0994`; screenshot file `2026-05-14_014934.jpg` created; no movement/CE/x64dbg/reloadui. |
 | `scripts/captures/riftscan-proof-pose-20260514-030047/pose-api-reference.json` | Latest RRAPICOORD reference used for readback scoring. |
 | `scripts/captures/riftscan-proof-pose-20260514-030047/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260513-230104.json` | Latest readback: `ReferenceMatchCount=1`, selected `family-snapshot-hit-000004`. |
 | `scripts/captures/rrapicoord-reference-refresh-20260513-231853/rift-api-reference-currentpid-2928-20260514-031853.json` | Fresh RRAPICOORD reference used for no-attach x64dbg readiness. |
@@ -154,6 +170,7 @@ Key proof artifacts:
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json` | Latest expanded no-input duplicate-prior family sequence. |
 | `scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json` | Latest expanded passive candidate readback; `10` current heap copies, candidate-only. |
 | `scripts/captures/riftscan-milestone-review-20260514-041751.json` | Latest post-expanded-passive milestone review; read-only proof allowed, movement blocked. |
+| `docs/recovery/native-rift-screenshot-backend.md` | Canonical native screenshot rule: this local RIFT installation uses `NUM PAD *`; live proof shows it works. |
 
 ## Next best action
 

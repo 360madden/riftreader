@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T04:18:27Z",
+  "updatedAtUtc": "2026-05-14T05:49:34Z",
   "status": "candidate_only_movement_blocked",
   "target": {
     "processName": "rift_x64",
@@ -258,7 +258,9 @@
     "latestDuplicateCopyRootSignatureBatchSweep": "scripts/captures/root-signature-batch-sweep-currentpid-2928-20260514-041136-003958/summary.json",
     "latestDuplicateCopyPassiveFamilySnapshotSequence": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/summary.json",
     "latestDuplicateCopyPassiveFamilySnapshotSequenceDelta": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/delta-summary.json",
-    "latestDuplicateCopyPassiveFamilySnapshotReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json"
+    "latestDuplicateCopyPassiveFamilySnapshotReadback": "scripts/captures/family-snapshot-sequence-currentpid-2928-20260514-041256-974242/delta-analysis/readback-currentpid-2928-20260514-0416-top14-all/riftscan-riftreader-currentpid-2928-readback-wrapper-summary-20260514-001550.json",
+    "nativeScreenshotBackendDoc": "docs/recovery/native-rift-screenshot-backend.md",
+    "latestNativeScreenshotKeybindProof": "scripts/captures/native-screenshot-keybind-20260514-014933/native-screenshot-result.json"
   },
   "nextRecommendedAction": "Capture a displaced-pose family snapshot sequence when safe/manual displacement is available; otherwise use approved x64dbg/access-chain evidence. Do not repeat heap-only module-RVA sweeps without new evidence. Movement remains blocked until delta/static-chain proof and same-target ProofOnly pass.",
   "latestCoordinateReacquisition": {
@@ -550,5 +552,45 @@
     "moduleHintSweepConclusion": "latest duplicate-owner module-RVA sweeps produced candidate parent leads only; no static root and no movement proof",
     "latestMilestoneReviewAfterExpandedPassive": "scripts/captures/riftscan-milestone-review-20260514-041751.json",
     "latestMilestoneReviewAfterExpandedPassiveStatus": "ready-for-read-only-proof"
+  },
+  "nativeScreenshotKeybind": {
+    "status": "verified_working_for_local_rift_installation",
+    "verifiedAtUtc": "2026-05-14T05:49:34Z",
+    "action": "Take Screenshot",
+    "currentKeybind": "NUM PAD *",
+    "normalizedKeyChord": "numpad_multiply",
+    "virtualKey": "0x6A",
+    "virtualKeyName": "VK_MULTIPLY",
+    "keybindSource": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\mykeybindings",
+    "keybindSourceLastWriteLocal": "2026-05-14T01:39:32-04:00",
+    "actionId": 20010,
+    "exportedRecordHex": "02 6A 07 AA 9C 01",
+    "defaultRecordHex": "02 2C 07 AA 9C 01",
+    "defaultKey": "PrintScreen / VK_SNAPSHOT / 0x2C",
+    "currentLocalInstallKey": "NUM PAD * / VK_MULTIPLY / 0x6A",
+    "verificationTarget": {
+      "processName": "rift_x64",
+      "processId": 2928,
+      "targetWindowHandle": "0xC0994",
+      "windowTitle": "RIFT"
+    },
+    "createdScreenshot": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Screenshots\\2026-05-14_014934.jpg",
+    "createdScreenshotLastWriteUtc": "2026-05-14T05:49:34.447128+00:00",
+    "repoProofPacket": "scripts/captures/native-screenshot-keybind-20260514-014933/native-screenshot-result.json",
+    "repoArtifactCopy": "scripts/captures/native-screenshot-keybind-20260514-014933/rift-native-numpad-multiply-screenshot-20260514-054934.jpg",
+    "forbiddenKeys": [
+      "Ctrl+P",
+      "Control+P",
+      "PrintScreen",
+      "Win+Shift+S automation"
+    ],
+    "truthScope": "visual_screenshot_evidence_only_not_coordinate_or_movement_truth",
+    "safety": {
+      "movementSent": false,
+      "cheatEngineUsed": false,
+      "x64dbgUsed": false,
+      "reloadUiSent": false,
+      "providerWrites": false
+    }
   }
 }
