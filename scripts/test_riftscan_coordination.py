@@ -103,45 +103,60 @@ class RiftScanCoordinationTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _write_family_import_candidate(path: Path, *, pid: int = 456, hwnd: str = "0xDEF") -> None:
+    def _write_family_import_candidate(
+        path: Path,
+        *,
+        pid: int = 456,
+        hwnd: str = "0xDEF",
+        reference_stability: dict | None = None,
+    ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
+        payload = {
+            "schemaVersion": 1,
+            "mode": "riftreader-current-pid-coordinate-family-import-candidates",
+            "processId": pid,
+            "targetWindowHandle": hwnd,
+            "candidateCount": 1,
+            "candidates": [
                 {
-                    "schemaVersion": 1,
-                    "mode": "riftreader-current-pid-coordinate-family-import-candidates",
-                    "processId": pid,
-                    "targetWindowHandle": hwnd,
-                    "candidateCount": 1,
-                    "candidates": [
-                        {
-                            "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
-                            "candidate_id": "family-snapshot-hit-000001",
-                            "base_address_hex": "0x30000000",
-                            "offset_hex": "0x80",
-                            "absolute_address_hex": "0x30000080",
-                            "axis_order": "xyz",
-                            "support_count": 2,
-                            "best_max_abs_distance": 0.0001,
-                        },
-                        {
-                            "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
-                            "candidate_id": "family-snapshot-hit-000002",
-                            "base_address_hex": "0x30010000",
-                            "offset_hex": "0x90",
-                            "absolute_address_hex": "0x30010090",
-                            "axis_order": "xyz",
-                            "support_count": 2,
-                            "best_max_abs_distance": 0.00005,
-                        }
-                    ],
-                }
-            ),
+                    "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
+                    "candidate_id": "family-snapshot-hit-000001",
+                    "base_address_hex": "0x30000000",
+                    "offset_hex": "0x80",
+                    "absolute_address_hex": "0x30000080",
+                    "axis_order": "xyz",
+                    "support_count": 2,
+                    "best_max_abs_distance": 0.0001,
+                },
+                {
+                    "schema_version": "riftreader.current_pid_family_snapshot_candidate.v1",
+                    "candidate_id": "family-snapshot-hit-000002",
+                    "base_address_hex": "0x30010000",
+                    "offset_hex": "0x90",
+                    "absolute_address_hex": "0x30010090",
+                    "axis_order": "xyz",
+                    "support_count": 2,
+                    "best_max_abs_distance": 0.00005,
+                },
+            ],
+        }
+        if reference_stability is not None:
+            payload["referenceStability"] = reference_stability
+        path.write_text(
+            json.dumps(payload),
             encoding="utf-8",
         )
 
     @staticmethod
-    def _write_readback_proof(path: Path, *, candidate_file: Path, pid: int = 456, hwnd: str = "0xDEF") -> None:
+    def _write_readback_proof(
+        path: Path,
+        *,
+        candidate_file: Path,
+        pid: int = 456,
+        hwnd: str = "0xDEF",
+        reference_match_count: int = 1,
+        best_matches_reference: bool = True,
+    ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(
@@ -150,7 +165,7 @@ class RiftScanCoordinationTests(unittest.TestCase):
                     "TargetWindowHandle": hwnd,
                     "ProcessName": "rift_x64",
                     "SourceCandidateFile": str(candidate_file),
-                    "ReferenceMatchCount": 1,
+                    "ReferenceMatchCount": reference_match_count,
                     "StableDecodedCandidateCount": 2,
                     "MovementAllowed": False,
                     "ProofAnchorStatus": "failed",
@@ -158,7 +173,7 @@ class RiftScanCoordinationTests(unittest.TestCase):
                         {
                             "CandidateId": "family-snapshot-hit-000002",
                             "CandidateAddressHex": "0x30010090",
-                            "ReferenceMatchesReadback": True,
+                            "ReferenceMatchesReadback": best_matches_reference,
                             "ReferenceMaxAbsDelta": 0.00005,
                             "ReferencePlanarDistance": 0.00006,
                             "ReferenceSpatialDistance": 0.00007,
@@ -318,6 +333,112 @@ class RiftScanCoordinationTests(unittest.TestCase):
             self.assertEqual(plan["selectedCandidate"]["candidateId"], "family-snapshot-hit-000002")
             self.assertEqual(plan["selectedCandidate"]["proofEvidence"]["path"], str(proof))
             self.assertIn("-CandidateFile", plan["nextCommands"]["readOnlyProofPose"])
+
+    def test_plan_rejects_family_import_candidate_with_drifted_reference_stability(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True, exist_ok=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "current-proof-anchor-readback-pointer",
+                        "status": "blocked-target-drift",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 456,
+                            "targetWindowHandle": "0xDEF",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            family_import = root / "scripts" / "captures" / "coordinate-family-snapshot-currentpid-456-demo" / "family-import-candidates.json"
+            self._write_family_import_candidate(
+                family_import,
+                reference_stability={
+                    "enabled": True,
+                    "status": "drifted",
+                    "withinTolerance": False,
+                    "maxAbsDelta": 1.4,
+                    "tolerance": 0.25,
+                },
+            )
+
+            plan = build_coordination_plan(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                process_id=456,
+                target_window_handle="0xDEF",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(plan["status"], "blocked")
+            self.assertEqual(plan["selectedCandidate"]["source"], "none")
+            self.assertIsNone(plan["selectedCandidate"]["candidateFile"])
+            self.assertIn("riftreader_candidates_rejected_by_freshness_gates", plan["issues"])
+            self.assertEqual(
+                plan["selectedCandidate"]["rejectedCandidateFiles"][0]["status"],
+                "blocked-stale-reference",
+            )
+            self.assertNotIn("readOnlyProofPose", plan["nextCommands"])
+
+    def test_plan_rejects_family_import_candidate_when_latest_readback_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            pointer.parent.mkdir(parents=True, exist_ok=True)
+            pointer.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "current-proof-anchor-readback-pointer",
+                        "status": "blocked-target-drift",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 456,
+                            "targetWindowHandle": "0xDEF",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            family_import = root / "scripts" / "captures" / "coordinate-family-snapshot-currentpid-456-demo" / "family-import-candidates.json"
+            proof = (
+                root
+                / "scripts"
+                / "captures"
+                / "riftscan-proof-pose-demo"
+                / "riftscan-riftreader-currentpid-456-readback-wrapper-summary-demo.json"
+            )
+            self._write_family_import_candidate(family_import)
+            self._write_readback_proof(
+                proof,
+                candidate_file=family_import,
+                reference_match_count=0,
+                best_matches_reference=False,
+            )
+
+            plan = build_coordination_plan(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                process_id=456,
+                target_window_handle="0xDEF",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(plan["status"], "blocked")
+            self.assertEqual(plan["selectedCandidate"]["source"], "none")
+            self.assertIn("riftreader_candidates_rejected_by_freshness_gates", plan["issues"])
+            self.assertEqual(
+                plan["selectedCandidate"]["rejectedCandidateFiles"][0]["status"],
+                "latest-readback-no-reference-match",
+            )
 
     def test_write_plan_refuses_to_write_inside_riftscan(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

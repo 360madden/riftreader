@@ -43,6 +43,7 @@ DEFAULT_WINDOW_X = 2048.0
 DEFAULT_WINDOW_Y = 512.0
 DEFAULT_WINDOW_Z = 2048.0
 DEFAULT_NEAR_TOLERANCE = 0.25
+DEFAULT_REFERENCE_DRIFT_TOLERANCE = DEFAULT_NEAR_TOLERANCE
 DEFAULT_MAX_ABS_COORDINATE = 100000.0
 DEFAULT_MAX_TRIPLETS = 50000
 DEFAULT_CLUSTER_GAP = 0x80
@@ -109,6 +110,68 @@ def normalize_reference(label: str, source_file: Path, document: dict[str, Any])
             or coord_doc.get("captured_at_utc")
         ),
     }
+
+
+def normalize_captured_reference(label: str, source_file: Path, parsed_reference: dict[str, Any]) -> dict[str, Any]:
+    coord = parsed_reference.get("Coordinate") or parsed_reference.get("coordinate") or {}
+    if not isinstance(coord, dict):
+        raise RuntimeError("captured_reference_missing_coordinate_object")
+    xyz = coord_from_mapping(coord)
+    if xyz is None:
+        raise RuntimeError("captured_reference_missing_xyz")
+    return {
+        "label": label,
+        "sourceFile": str(source_file),
+        "x": xyz[0],
+        "y": xyz[1],
+        "z": xyz[2],
+        "generatedAtUtc": coord.get("CapturedAtUtc") or coord.get("captured_at_utc") or parsed_reference.get("GeneratedAtUtc"),
+    }
+
+
+def compact_reference(reference: dict[str, Any] | None) -> dict[str, Any] | None:
+    if reference is None:
+        return None
+    return {
+        "label": reference.get("label"),
+        "sourceFile": reference.get("sourceFile"),
+        "x": float(reference["x"]),
+        "y": float(reference["y"]),
+        "z": float(reference["z"]),
+        "generatedAtUtc": reference.get("generatedAtUtc"),
+    }
+
+
+def summarize_reference_drift(
+    start_reference: dict[str, Any],
+    end_reference: dict[str, Any],
+    *,
+    tolerance: float,
+) -> dict[str, Any]:
+    dx = float(end_reference["x"]) - float(start_reference["x"])
+    dy = float(end_reference["y"]) - float(start_reference["y"])
+    dz = float(end_reference["z"]) - float(start_reference["z"])
+    max_delta = max(abs(dx), abs(dy), abs(dz))
+    distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+    within_tolerance = max_delta <= tolerance
+    return {
+        "enabled": True,
+        "status": "stable" if within_tolerance else "drifted",
+        "withinTolerance": within_tolerance,
+        "tolerance": tolerance,
+        "maxAbsDelta": max_delta,
+        "spatialDistance": distance,
+        "delta": {"x": dx, "y": dy, "z": dz},
+        "startReference": compact_reference(start_reference),
+        "endReference": compact_reference(end_reference),
+    }
+
+
+def compact_command_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
+    compact = {key: value for key, value in envelope.items() if key not in {"stdout", "stderr"}}
+    compact["stdoutPreview"] = str(envelope.get("stdout", ""))[:2000]
+    compact["stderrPreview"] = str(envelope.get("stderr", ""))[:2000]
+    return compact
 
 
 def load_observation_files(paths: list[str]) -> dict[str, Any]:
@@ -484,6 +547,17 @@ def main() -> int:
     parser.add_argument("--window-y", type=float, default=DEFAULT_WINDOW_Y)
     parser.add_argument("--window-z", type=float, default=DEFAULT_WINDOW_Z)
     parser.add_argument("--near-tolerance", type=float, default=DEFAULT_NEAR_TOLERANCE)
+    parser.add_argument(
+        "--reference-drift-tolerance",
+        type=float,
+        default=DEFAULT_REFERENCE_DRIFT_TOLERANCE,
+        help="Maximum allowed pre/post RRAPICOORD max-axis drift before the snapshot is blocked as stale.",
+    )
+    parser.add_argument(
+        "--skip-post-reference-check",
+        action="store_true",
+        help="Skip the default post-scan RRAPICOORD freshness check. Use only for explicitly offline/diagnostic captures.",
+    )
     parser.add_argument("--max-abs-coordinate", type=float, default=DEFAULT_MAX_ABS_COORDINATE)
     parser.add_argument("--max-triplets", type=int, default=DEFAULT_MAX_TRIPLETS)
     parser.add_argument("--top-count", type=int, default=25)
@@ -517,8 +591,15 @@ def main() -> int:
             "breakpointsSet": False,
             "debuggerAttached": False,
             "noCheatEngine": True,
+            "githubConnectorWrites": False,
+            "providerWrites": False,
         },
         "scan": {},
+        "referenceStability": {
+            "enabled": not args.skip_post_reference_check,
+            "status": "not-run",
+            "tolerance": args.reference_drift_tolerance,
+        },
         "artifacts": {
             "runDirectory": str(run_dir),
             "summaryJson": str(summary_path),
@@ -584,20 +665,8 @@ def main() -> int:
                     args.process_name,
                     args.reference_timeout_seconds,
                 )
-                summary["commandEnvelopes"] = {
-                    "referenceCapture": {key: value for key, value in command_envelope.items() if key not in {"stdout", "stderr"}}
-                }
-                summary["commandEnvelopes"]["referenceCapture"]["stdoutPreview"] = command_envelope["stdout"][:2000]
-                summary["commandEnvelopes"]["referenceCapture"]["stderrPreview"] = command_envelope["stderr"][:2000]
-                coord = parsed_ref.get("Coordinate") or {}
-                current_reference = {
-                    "label": "fresh-rrapicoord-current",
-                    "sourceFile": str(ref_file),
-                    "x": float(coord["X"]),
-                    "y": float(coord["Y"]),
-                    "z": float(coord["Z"]),
-                    "generatedAtUtc": coord.get("CapturedAtUtc") or parsed_ref.get("GeneratedAtUtc"),
-                }
+                summary["commandEnvelopes"] = {"referenceCapture": compact_command_envelope(command_envelope)}
+                current_reference = normalize_captured_reference("fresh-rrapicoord-current", ref_file, parsed_ref)
 
             references = [current_reference, *observation_bundle["references"]]
             # De-duplicate near-identical references by rounded XYZ and label to keep reports compact.
@@ -697,9 +766,65 @@ def main() -> int:
             residue_near_mod48 = Counter(item["residueMod48Hex"] for item in near_reference_triplets)
             residue_near_mod256 = Counter(item["residueMod256Hex"] for item in near_reference_triplets)
 
+            reference_blockers: list[str] = []
+            post_scan_reference: dict[str, Any] | None = None
+            if args.skip_post_reference_check:
+                summary["referenceStability"] = {
+                    "enabled": False,
+                    "status": "skipped",
+                    "tolerance": args.reference_drift_tolerance,
+                    "reason": "operator-disabled",
+                }
+                summary["warnings"].append("post-scan-reference-check-skipped")
+                reference_blockers.append("post-scan-reference-check-skipped")
+            else:
+                try:
+                    post_ref_dir = run_dir / "post-scan-reference"
+                    post_ref_dir.mkdir(parents=True, exist_ok=True)
+                    parsed_post_ref, post_command_envelope, post_ref_file = capture_reference(
+                        repo_root,
+                        post_ref_dir,
+                        args.pid,
+                        args.hwnd,
+                        args.process_name,
+                        args.reference_timeout_seconds,
+                    )
+                    command_envelopes = summary.setdefault("commandEnvelopes", {})
+                    command_envelopes["postScanReferenceCapture"] = compact_command_envelope(post_command_envelope)
+                    post_scan_reference = normalize_captured_reference(
+                        "post-scan-rrapicoord-current",
+                        post_ref_file,
+                        parsed_post_ref,
+                    )
+                    summary["postScanReference"] = post_scan_reference
+                    stability = summarize_reference_drift(
+                        current_reference,
+                        post_scan_reference,
+                        tolerance=args.reference_drift_tolerance,
+                    )
+                    summary["referenceStability"] = stability
+                    if not stability["withinTolerance"]:
+                        blocker = (
+                            "reference-drift-during-snapshot:"
+                            f"{stability['maxAbsDelta']:.6g}>{args.reference_drift_tolerance:.6g}"
+                        )
+                        summary["blockers"].append(blocker)
+                        reference_blockers.append(blocker)
+                except Exception as exc:  # noqa: BLE001 - fail closed but preserve snapshot artifacts.
+                    blocker = "post-scan-reference-capture-failed"
+                    summary["referenceStability"] = {
+                        "enabled": True,
+                        "status": "blocked",
+                        "tolerance": args.reference_drift_tolerance,
+                        "error": {"type": type(exc).__name__, "message": str(exc)},
+                    }
+                    summary["blockers"].append(blocker)
+                    reference_blockers.append(blocker)
+
             top_payload = {
                 "schemaVersion": SCHEMA_VERSION,
                 "generatedAtUtc": utc_iso(),
+                "referenceStability": summary["referenceStability"],
                 "topCurrentMatches": [compact_triplet(item) for item in top_current],
                 "topNearestReferenceMatches": [compact_triplet(item) for item in top_nearest],
                 "observedAddressMatches": [compact_triplet(item) for item in observed_address_triplets[: args.top_count]],
@@ -718,6 +843,8 @@ def main() -> int:
                     "targetWindowHandle": args.hwnd,
                     "sourceFamilySnapshot": str(summary_path),
                     "currentReference": current_reference,
+                    "postScanReference": post_scan_reference,
+                    "referenceStability": summary["referenceStability"],
                     "candidateCount": len(import_candidates),
                     "candidates": import_candidates,
                     "truthStatus": {
@@ -727,6 +854,7 @@ def main() -> int:
                             "family-snapshot-candidates-are-read-only-evidence",
                             "same-target-proof-readback-not-yet-run",
                             "no-current-process-proof-anchor",
+                            *reference_blockers,
                         ],
                     },
                 },
@@ -759,11 +887,16 @@ def main() -> int:
                     "broad-family-snapshot-is-read-only-candidate-evidence",
                     "exact-address-stability-not-proven",
                     "no-writer-or-static-pointer-chain-proof",
+                    *reference_blockers,
                 ],
             }
             if triplets:
-                summary["status"] = "captured"
-                return_code = 0
+                if reference_blockers:
+                    summary["status"] = "blocked"
+                    return_code = 2
+                else:
+                    summary["status"] = "captured"
+                    return_code = 0
             else:
                 summary["status"] = "blocked"
                 summary["blockers"].append("no-plausible-coordinate-triplets-in-family-window")
@@ -790,6 +923,8 @@ def main() -> int:
                     f"- Near-reference triplets: `{summary.get('scan', {}).get('nearReferenceTripletCount')}`",
                     f"- Observed-address triplets: `{summary.get('scan', {}).get('observedAddressTripletCount')}`",
                     f"- Best current: `{(summary.get('scan', {}).get('bestCurrentTriplet') or {}).get('addressHex')}`",
+                    f"- Reference stability: `{summary.get('referenceStability', {}).get('status')}`"
+                    f" (maxAbsDelta=`{summary.get('referenceStability', {}).get('maxAbsDelta')}`)",
                     f"- Import candidates: `{summary.get('artifacts', {}).get('candidateJson')}`",
                     f"- Blockers: `{', '.join(summary.get('blockers') or [])}`",
                     "",

@@ -70,6 +70,22 @@ class CurrentTruthValidatorTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertIn("artifact-missing:missing.json", result["errors"])
 
+    def test_no_current_candidate_state_allows_empty_candidate_fields(self) -> None:
+        truth = minimal_truth()
+        truth["status"] = "no_current_candidate_movement_blocked"
+        truth["bestCurrentCandidate"] = {
+            "candidateId": None,
+            "addressHex": None,
+            "candidateFile": None,
+            "readbackSummary": None,
+            "status": "none_current_reacquisition_required",
+        }
+
+        result = validate_truth(truth, repo_root=Path.cwd(), check_artifacts=False)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["errors"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

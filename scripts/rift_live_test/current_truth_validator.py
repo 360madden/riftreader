@@ -26,6 +26,24 @@ REQUIRED_CANDIDATE = ["candidateId", "addressHex", "candidateFile", "readbackSum
 REQUIRED_LIVE_REFERENCE = ["authoritative", "status", "source", "view", "savedVariablesUse"]
 
 
+def candidate_allows_empty_current(document: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    combined_status = " ".join(
+        str(value or "").lower()
+        for value in (
+            document.get("status"),
+            candidate.get("status"),
+        )
+    )
+    return any(
+        marker in combined_status
+        for marker in (
+            "no_current_candidate",
+            "none_current",
+            "reacquisition_required",
+        )
+    )
+
+
 def repo_root_from_module() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -120,10 +138,11 @@ def validate_truth(document: dict[str, Any], *, repo_root: Path, check_artifacts
         errors.append("movement-allowed-requires-proofArtifact")
 
     candidate = require_mapping(document, "bestCurrentCandidate", errors)
+    allow_empty_current_candidate = candidate_allows_empty_current(document, candidate)
     for key in REQUIRED_CANDIDATE:
-        if candidate.get(key) in (None, ""):
+        if candidate.get(key) in (None, "") and not allow_empty_current_candidate:
             errors.append(f"missing-best-candidate:{key}")
-    if gate.get("allowed") is False and "candidate" not in str(candidate.get("status", "")).lower():
+    if gate.get("allowed") is False and "candidate" not in str(candidate.get("status", "")).lower() and not allow_empty_current_candidate:
         warnings.append("movement-blocked-but-candidate-status-does-not-say-candidate")
 
     require_list(document, "staleOrInvalid", errors)

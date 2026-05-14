@@ -156,6 +156,8 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
     ]
     warnings = data.get("warnings") if isinstance(data.get("warnings"), list) else []
     diagnostics = data.get("diagnostics") if isinstance(data.get("diagnostics"), list) else []
+    reference_stability = data.get("referenceStability") if isinstance(data.get("referenceStability"), dict) else None
+    truth_status = data.get("truthStatus") if isinstance(data.get("truthStatus"), dict) else None
 
     item.update(
         {
@@ -177,10 +179,21 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
             "candidates": candidates,
             "warnings": [str(value) for value in warnings],
             "diagnostics": [str(value) for value in diagnostics],
+            "sourceFamilySnapshot": data.get("sourceFamilySnapshot"),
+            "referenceStability": reference_stability,
+            "truthStatus": truth_status,
         }
     )
     if not supported_candidates:
         item["issues"].append("no_supported_candidate_schema")
+    if supported_candidates and reference_stability:
+        stability_status = str(reference_stability.get("status") or "").lower()
+        within_tolerance = reference_stability.get("withinTolerance")
+        if stability_status != "stable" or within_tolerance is False:
+            item["status"] = "blocked-stale-reference"
+            item["issues"].append(
+                f"candidate_reference_stability_not_current:{stability_status or 'unknown'}"
+            )
     return item
 
 
@@ -532,6 +545,7 @@ def choose_candidate(
     latest_riftreader_readback_proofs: list[dict[str, Any]],
     target_has_mismatch: bool,
 ) -> dict[str, Any]:
+    rejected_riftreader_candidates: list[dict[str, Any]] = []
     source = pointer_summary.get("candidateSource")
     pointer_candidate_id = source.get("candidateId") if isinstance(source, dict) else None
     pointer_match_ok = bool(
@@ -574,15 +588,55 @@ def choose_candidate(
             if isinstance(candidate, dict) and candidate.get("schemaSupported")
         ]
         if candidates:
-            proof = next(
-                (
-                    item
-                    for item in latest_riftreader_readback_proofs
-                    if item.get("status") == "reference-match"
-                    and same_path(item.get("sourceCandidateFile"), match.get("path"))
-                    and item.get("bestReferenceMatch", {}).get("candidateId")
-                ),
-                None,
+            is_family_import = (
+                str(match.get("mode") or "") == "riftreader-current-pid-coordinate-family-import-candidates"
+                or str(match.get("path") or "").endswith("family-import-candidates.json")
+            )
+            if match.get("status") != "ok":
+                rejected_riftreader_candidates.append(
+                    {
+                        "candidateFile": match.get("path"),
+                        "source": (
+                            "latest-riftreader-family-import-candidate-file"
+                            if is_family_import
+                            else "latest-riftreader-same-target-candidate-file"
+                        ),
+                        "status": match.get("status"),
+                        "issues": match.get("issues", []),
+                        "reason": "candidate-file-failed-currentness-gates",
+                    }
+                )
+                continue
+
+            proofs_for_match = [
+                item
+                for item in latest_riftreader_readback_proofs
+                if same_path(item.get("sourceCandidateFile"), match.get("path"))
+            ]
+            latest_proof = proofs_for_match[0] if proofs_for_match else None
+            if latest_proof and latest_proof.get("status") != "reference-match":
+                rejected_riftreader_candidates.append(
+                    {
+                        "candidateFile": match.get("path"),
+                        "source": (
+                            "latest-riftreader-family-import-candidate-file"
+                            if is_family_import
+                            else "latest-riftreader-same-target-candidate-file"
+                        ),
+                        "status": "latest-readback-no-reference-match",
+                        "proofPath": latest_proof.get("path"),
+                        "issues": latest_proof.get("issues", []),
+                        "reason": "latest-readback-did-not-match-current-reference",
+                    }
+                )
+                continue
+
+            proof = (
+                latest_proof
+                if latest_proof
+                and latest_proof.get("status") == "reference-match"
+                and latest_proof.get("bestReferenceMatch", {}).get("candidateId")
+                else None
             )
             proof_candidate_id = (
                 proof.get("bestReferenceMatch", {}).get("candidateId")
@@ -596,10 +650,6 @@ def choose_candidate(
                     if proof_candidate_id and candidate.get("candidateId") == proof_candidate_id
                 ),
                 candidates[0],
-            )
-            is_family_import = (
-                str(match.get("mode") or "") == "riftreader-current-pid-coordinate-family-import-candidates"
-                or str(match.get("path") or "").endswith("family-import-candidates.json")
             )
             return {
                 "source": (
@@ -633,8 +683,14 @@ def choose_candidate(
         "source": "none",
         "candidateFile": None,
         "candidateId": None,
+        "rejectedCandidateFiles": rejected_riftreader_candidates[:10],
+        "issues": ["riftreader_candidates_rejected_by_freshness_gates"] if rejected_riftreader_candidates else [],
         "recommendedAction": "block-until-riftscan-candidate-exists-or-write-is-authorized",
-        "why": "No existing supported RiftScan coordinate match artifact is available for the requested target. Do not create RiftScan sessions/reports while RiftScan is read-only.",
+        "why": (
+            "Existing RiftReader candidate files were rejected by freshness/readback gates; do not consume stale snapshots."
+            if rejected_riftreader_candidates
+            else "No existing supported RiftScan coordinate match artifact is available for the requested target. Do not create RiftScan sessions/reports while RiftScan is read-only."
+        ),
     }
 
 
@@ -716,6 +772,7 @@ def build_coordination_plan(
         latest_riftreader_readback_proofs=latest_riftreader_readback_proofs,
         target_has_mismatch=target_has_mismatch,
     )
+    issues.extend(str(issue) for issue in selection.get("issues", []) if issue)
     coordination_notes = build_coordination_notes(
         pointer_summary=pointer_summary,
         consumer_summary=consumer_summary,
