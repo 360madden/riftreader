@@ -8,6 +8,7 @@ from rift_live_test.x64dbg_live_access_capture import (
     build_key_lparam,
     clear_all_hardware_breakpoints,
     clear_all_memory_breakpoints,
+    exact_target_snapshot,
     install_minimized_x64dbg_launch,
     minimize_windows_for_process,
     parse_virtual_key,
@@ -142,6 +143,20 @@ class X64DbgLiveAccessCaptureTests(unittest.TestCase):
         self.assertFalse(result["attempted"])
         self.assertTrue(result["skipped"])
         self.assertEqual(result["reason"], "process-id-is-target-debuggee")
+
+    def test_exact_target_snapshot_requires_pid_and_hwnd_match(self) -> None:
+        original = live_access.enumerate_window_targets
+        try:
+            live_access.enumerate_window_targets = lambda *, process_name, title_contains: [  # type: ignore[assignment]
+                {"pid": 100, "hwndHex": "0x1"},
+                {"pid": 200, "hwndHex": "0x2"},
+            ]
+
+            target = exact_target_snapshot(process_name="rift_x64", target_pid=200, target_hwnd="2")
+        finally:
+            live_access.enumerate_window_targets = original  # type: ignore[assignment]
+
+        self.assertEqual(target, {"pid": 200, "hwndHex": "0x2"})
 
     def test_install_minimized_x64dbg_launch_requests_minimized_popen(self) -> None:
         calls: list[dict] = []

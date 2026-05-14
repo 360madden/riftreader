@@ -10,6 +10,7 @@ from pathlib import Path
 from rift_live_test.x64dbg_preflight import (
     choose_target,
     is_debugger_process_name,
+    is_rift_error_handler_process_name,
     main,
     normalize_hwnd,
     start_time_delta_seconds,
@@ -31,6 +32,10 @@ class X64DbgPreflightTests(unittest.TestCase):
         self.assertTrue(is_debugger_process_name("x64dbg"))
         self.assertTrue(is_debugger_process_name("CheatEngine-x86_64-SSE4-AVX2"))
         self.assertFalse(is_debugger_process_name("rift_x64"))
+
+    def test_rift_error_handler_process_name_detection(self) -> None:
+        self.assertTrue(is_rift_error_handler_process_name("RiftErrorHandler"))
+        self.assertFalse(is_rift_error_handler_process_name("rift_x64"))
 
     def test_start_time_delta_parses_z_and_offsets(self) -> None:
         self.assertEqual(

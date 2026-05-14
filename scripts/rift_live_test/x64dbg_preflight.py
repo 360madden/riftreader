@@ -25,6 +25,9 @@ DEFAULT_DEBUGGER_PROCESS_NAMES = (
 DEFAULT_DEBUGGER_PROCESS_PREFIXES = (
     "cheatengine",
 )
+DEFAULT_RIFT_ERROR_HANDLER_PROCESS_NAMES = (
+    "rifterrorhandler",
+)
 WINDOWS_TICK = 10_000_000
 WINDOWS_EPOCH = datetime(1601, 1, 1, tzinfo=UTC)
 
@@ -207,10 +210,33 @@ def is_debugger_process_name(process_name: str | None) -> bool:
     )
 
 
+def is_rift_error_handler_process_name(process_name: str | None) -> bool:
+    normalized = str(process_name or "").lower()
+    return normalized in DEFAULT_RIFT_ERROR_HANDLER_PROCESS_NAMES
+
+
 def enumerate_debugger_processes() -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
     for process in enumerate_processes():
         if not is_debugger_process_name(process.get("processName")):
+            continue
+        details = query_process_details(int(process["pid"]))
+        item = dict(process)
+        item.update(
+            {
+                "imagePath": details.get("imagePath"),
+                "startTimeUtc": details.get("startTimeUtc"),
+                "warnings": details.get("warnings") or [],
+            }
+        )
+        matches.append(item)
+    return sorted(matches, key=lambda item: (str(item.get("processName") or ""), int(item.get("pid") or 0)))
+
+
+def enumerate_rift_error_handler_processes() -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for process in enumerate_processes():
+        if not is_rift_error_handler_process_name(process.get("processName")):
             continue
         details = query_process_details(int(process["pid"]))
         item = dict(process)
@@ -367,6 +393,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
     blockers: list[str] = []
     warnings: list[str] = []
     debugger_processes: list[dict[str, Any]] = []
+    rift_error_handler_processes: list[dict[str, Any]] = []
     if args.self_test:
         candidates = [
             {
@@ -384,6 +411,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
             }
         ]
         debugger_processes = []
+        rift_error_handler_processes = []
         warnings.append("self-test only; no live process inspection, x64dbg attach, memory read, or input")
     else:
         if os.name != "nt":
@@ -392,6 +420,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
         else:
             candidates = enumerate_window_targets(process_name=args.process_name, title_contains=args.title_contains)
             debugger_processes = enumerate_debugger_processes()
+            rift_error_handler_processes = enumerate_rift_error_handler_processes()
 
     if args.require_exact_target:
         if args.target_pid is None:
@@ -405,6 +434,11 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
             blockers.append(f"debugger-process-detected:{debugger_names}")
         else:
             warnings.append(f"debugger-process-detected:{debugger_names}")
+    if rift_error_handler_processes and not args.ignore_rift_error_handler:
+        rift_error_handler_names = ",".join(
+            f"{item.get('processName')}:{item.get('pid')}" for item in rift_error_handler_processes
+        )
+        blockers.append(f"rift-error-handler-process-detected:{rift_error_handler_names}")
 
     selected, choose_blockers, choose_warnings = choose_target(
         candidates,
@@ -454,6 +488,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
             "selfTest": bool(args.self_test),
             "requireExactTarget": bool(args.require_exact_target),
             "requireNoDebuggerProcess": bool(args.require_no_debugger_process),
+            "ignoreRiftErrorHandler": bool(args.ignore_rift_error_handler),
             "expectedStartTimeUtc": args.expected_start_time_utc,
             "startTimeToleranceSeconds": args.start_time_tolerance_seconds,
             "expectedModuleBase": normalize_hwnd(args.expected_module_base),
@@ -462,6 +497,8 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
         "targetCount": len(candidates),
         "debuggerProcesses": debugger_processes,
         "debuggerProcessCount": len(debugger_processes),
+        "riftErrorHandlerProcesses": rift_error_handler_processes,
+        "riftErrorHandlerProcessCount": len(rift_error_handler_processes),
         "blockers": blockers,
         "warnings": warnings,
         "safety": make_safety(),
@@ -485,6 +522,7 @@ def build_summary(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> t
 def markdown_summary(summary: dict[str, Any]) -> str:
     selected = summary.get("selectedTarget") or {}
     debugger_processes = summary.get("debuggerProcesses") or []
+    rift_error_handler_processes = summary.get("riftErrorHandlerProcesses") or []
     lines = [
         "# x64dbg target preflight",
         "",
@@ -512,11 +550,19 @@ def markdown_summary(summary: dict[str, Any]) -> str:
             "## Debugger-class process scan",
             "",
             f"- Debugger process count: `{len(debugger_processes)}`",
+            f"- RiftErrorHandler process count: `{len(rift_error_handler_processes)}`",
         ]
     )
     if debugger_processes:
         lines.extend(["", "| Process | PID | Start UTC | Image |", "|---|---:|---|---|"])
         for process in debugger_processes:
+            lines.append(
+                f"| `{process.get('processName')}` | `{process.get('pid')}` | "
+                f"`{process.get('startTimeUtc')}` | `{process.get('imagePath')}` |"
+            )
+    if rift_error_handler_processes:
+        lines.extend(["", "## RiftErrorHandler process scan", "", "| Process | PID | Start UTC | Image |", "|---|---:|---|---|"])
+        for process in rift_error_handler_processes:
             lines.append(
                 f"| `{process.get('processName')}` | `{process.get('pid')}` | "
                 f"`{process.get('startTimeUtc')}` | `{process.get('imagePath')}` |"
@@ -573,6 +619,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Block if x64dbg/Cheat Engine/known debugger-class processes are detected.",
     )
+    parser.add_argument(
+        "--ignore-rift-error-handler",
+        action="store_true",
+        help="Do not block when RiftErrorHandler.exe is running. Use only for non-attach diagnostics.",
+    )
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
@@ -592,6 +643,8 @@ def main(argv: list[str] | None = None) -> int:
         "selectedTarget": summary.get("selectedTarget"),
         "debuggerProcessCount": summary.get("debuggerProcessCount"),
         "debuggerProcesses": summary.get("debuggerProcesses"),
+        "riftErrorHandlerProcessCount": summary.get("riftErrorHandlerProcessCount"),
+        "riftErrorHandlerProcesses": summary.get("riftErrorHandlerProcesses"),
         "blockers": summary.get("blockers", []),
         "warnings": summary.get("warnings", []),
     }

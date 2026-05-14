@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from .reports import write_json, write_text_atomic
+from .x64dbg_preflight import (
+    enumerate_rift_error_handler_processes,
+    enumerate_window_targets,
+    normalize_hwnd,
+)
 from .x64dbg_launcher import launch_kwargs
 from .x64dbg_safety import (
     DEFAULT_MAX_GO_ATTEMPTS,
@@ -47,6 +52,8 @@ VIRTUAL_KEYS = {
     "E": 0x45,
     "SPACE": 0x20,
 }
+
+DEFAULT_POST_DETACH_RECOVERY_WAIT_SECONDS = 2.0
 
 
 def utc_iso() -> str:
@@ -823,6 +830,93 @@ def resume_if_stopped(client: Any, summary: dict[str, Any], *, reason: str) -> b
     return running_after
 
 
+def exact_target_snapshot(*, process_name: str, target_pid: int, target_hwnd: str) -> dict[str, Any] | None:
+    expected_hwnd = normalize_hwnd(target_hwnd)
+    for target in enumerate_window_targets(process_name=process_name, title_contains="RIFT"):
+        if int(target.get("pid") or -1) != int(target_pid):
+            continue
+        if normalize_hwnd(target.get("hwndHex") or target.get("hwnd")) != expected_hwnd:
+            continue
+        return target
+    return None
+
+
+def run_post_detach_recovery(args: argparse.Namespace, repo_root: Path, summary: dict[str, Any]) -> None:
+    recovery = summary.setdefault(
+        "postDetachRecovery",
+        {
+            "enabled": True,
+            "checked": False,
+            "attempted": False,
+            "summaryJson": None,
+            "summaryMarkdown": None,
+            "threadsJson": None,
+            "targetBeforeRecovery": None,
+            "targetAfterRecovery": None,
+            "skippedReason": None,
+            "errors": [],
+        },
+    )
+    recovery["checked"] = True
+    try:
+        before = exact_target_snapshot(
+            process_name=args.process_name,
+            target_pid=int(args.target_pid),
+            target_hwnd=args.target_hwnd,
+        )
+        recovery["targetBeforeRecovery"] = before
+        if before is None:
+            recovery["skippedReason"] = "target-window-not-found-after-detach"
+            return
+        if before.get("responding") is not False:
+            recovery["skippedReason"] = "target-responding-after-detach"
+            return
+
+        from . import x64dbg_target_recovery
+
+        output_root = (
+            repo_root
+            / "scripts"
+            / "captures"
+            / f"x64dbg-post-detach-recovery-currentpid-{int(args.target_pid)}-{utc_stamp()}"
+        )
+        recovery_args = argparse.Namespace(
+            repo_root=repo_root,
+            output_root=output_root,
+            process_name=args.process_name,
+            title_contains="RIFT",
+            target_pid=int(args.target_pid),
+            target_hwnd=args.target_hwnd,
+            expected_start_time_utc=args.process_start_time_utc,
+            start_time_tolerance_seconds=1.0,
+            expected_module_base=args.expected_module_base,
+            inspect_thread_context=True,
+            allow_thread_touch=True,
+            clear_debug_registers=False,
+            allow_clear_debug_registers=False,
+            debug_active_process_stop=False,
+            allow_debug_active_process_stop=False,
+            force_resume_existing_suspended=True,
+            allow_force_resume_existing_suspended=True,
+            post_probe_wait_seconds=args.post_detach_recovery_wait_seconds,
+            json=False,
+        )
+        recovery_summary = x64dbg_target_recovery.run(recovery_args)
+        recovery["attempted"] = True
+        recovery["summaryJson"] = (recovery_summary.get("artifacts") or {}).get("summaryJson")
+        recovery["summaryMarkdown"] = (recovery_summary.get("artifacts") or {}).get("summaryMarkdown")
+        recovery["threadsJson"] = (recovery_summary.get("artifacts") or {}).get("threadsJson")
+        recovery["status"] = recovery_summary.get("status")
+        recovery["warnings"] = recovery_summary.get("warnings") or []
+        recovery["threadSummary"] = recovery_summary.get("threadSummary") or {}
+        recovery["targetAfterRecovery"] = (recovery_summary.get("target") or {}).get("windowAfter")
+        if (recovery.get("targetAfterRecovery") or {}).get("responding") is True:
+            summary["warnings"].append("post-detach-recovery-restored-target-responsiveness")
+    except Exception as exc:  # noqa: BLE001
+        recovery.setdefault("errors", []).append(f"{type(exc).__name__}:{exc}")
+        summary["warnings"].append(f"post-detach-recovery-failed:{type(exc).__name__}:{exc}")
+
+
 def build_markdown(summary: dict[str, Any]) -> str:
     event = summary.get("event") if isinstance(summary.get("event"), dict) else {}
     candidate = summary.get("candidate") if isinstance(summary.get("candidate"), dict) else {}
@@ -841,6 +935,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"- Detach succeeded: `{str(summary.get('detach', {}).get('succeeded')).lower()}`",
         f"- x64dbg terminate attempted: `{str(summary.get('detach', {}).get('terminateSessionAttempted')).lower()}`",
         f"- Elapsed seconds: `{summary.get('timing', {}).get('elapsedSeconds')}`",
+        f"- Post-detach recovery attempted: `{str(summary.get('postDetachRecovery', {}).get('attempted')).lower()}`",
         "",
         "This artifact is candidate-only. It is not movement proof and does not promote a static pointer chain.",
     ]
@@ -885,6 +980,14 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append(f"stimulus-pulse-ms-out-of-range:0..{MAX_STIMULUS_PULSE_MS}")
     if not Path(args.x64dbg_path).is_file():
         blockers.append(f"x64dbg-path-missing:{args.x64dbg_path}")
+    rift_error_handler_processes: list[dict[str, Any]] = []
+    if not args.ignore_rift_error_handler:
+        rift_error_handler_processes = enumerate_rift_error_handler_processes()
+        if rift_error_handler_processes:
+            process_names = ",".join(
+                f"{item.get('processName')}:{item.get('pid')}" for item in rift_error_handler_processes
+            )
+            blockers.append(f"rift-error-handler-process-detected:{process_names}")
 
     summary: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -920,6 +1023,11 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             "originalLaunchFunction": None,
             "result": None,
         },
+        "blockingProcesses": {
+            "riftErrorHandlerProcesses": rift_error_handler_processes,
+            "riftErrorHandlerProcessCount": len(rift_error_handler_processes),
+            "ignoreRiftErrorHandler": bool(args.ignore_rift_error_handler),
+        },
         "contexts": [],
         "event": {
             "status": None,
@@ -936,6 +1044,18 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             "breakpointTimeoutSeconds": args.breakpoint_timeout_seconds,
             "elapsedSeconds": None,
         },
+        "postDetachRecovery": {
+            "enabled": not bool(args.skip_post_detach_recovery),
+            "checked": False,
+            "attempted": False,
+            "summaryJson": None,
+            "summaryMarkdown": None,
+            "threadsJson": None,
+            "targetBeforeRecovery": None,
+            "targetAfterRecovery": None,
+            "skippedReason": None,
+            "errors": [],
+        },
         "safety": {
             "movementSent": False,
             "gameInputSent": False,
@@ -944,6 +1064,7 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
             "memoryBreakpointSet": False,
             "goAttempts": 0,
             "exceptionSwallowRetryLoopAllowed": False,
+            "postDetachRecoveryEnabled": not bool(args.skip_post_detach_recovery),
             "x64dbgWindowMinimizeRequested": not bool(args.no_minimize_x64dbg_windows),
             "candidateOnly": True,
             "promotionEligible": False,
@@ -1179,6 +1300,8 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
                     summary["blockers"].append("x64dbg-detach-failed")
                     if summary["status"] not in {"failed", "blocked"}:
                         summary["status"] = "blocked"
+            if not args.skip_post_detach_recovery and session_started and summary["detach"].get("attempted"):
+                run_post_detach_recovery(args, repo_root, summary)
     write_json(summary_json, summary)
     write_text_atomic(summary_md, build_markdown(summary))
     return summary
@@ -1213,6 +1336,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-live-attach-seconds", type=int, default=DEFAULT_MAX_LIVE_ATTACH_SECONDS)
     parser.add_argument("--unresponsive-abort-seconds", type=int, default=DEFAULT_UNRESPONSIVE_ABORT_SECONDS)
     parser.add_argument("--max-go-attempts", type=int, default=DEFAULT_MAX_GO_ATTEMPTS)
+    parser.add_argument(
+        "--ignore-rift-error-handler",
+        action="store_true",
+        help="Do not block when RiftErrorHandler.exe is running. Use only after manually confirming it is unrelated.",
+    )
+    parser.add_argument(
+        "--skip-post-detach-recovery",
+        action="store_true",
+        help="Skip the post-detach responsiveness check and automatic suspended-thread recovery.",
+    )
+    parser.add_argument(
+        "--post-detach-recovery-wait-seconds",
+        type=float,
+        default=DEFAULT_POST_DETACH_RECOVERY_WAIT_SECONDS,
+    )
     parser.add_argument(
         "--no-minimize-x64dbg-windows",
         action="store_true",

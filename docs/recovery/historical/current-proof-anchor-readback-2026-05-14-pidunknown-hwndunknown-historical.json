@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-proof-anchor-readback-pointer",
+  "status": "blocked-target-closed-game-closed-after-x64dbg-capture",
+  "lastUpdatedUtc": "2026-05-14T20:04:04Z",
+  "target": {
+    "processName": "rift_x64",
+    "processId": null,
+    "targetWindowHandle": null,
+    "live": false,
+    "status": "no-active-rift-process-observed-after-operator-closed-game",
+    "lastClosedTarget": {
+      "processName": "rift_x64",
+      "processId": 16536,
+      "targetWindowHandle": "0x1E0D66"
+    }
+  },
+  "currentTruthClassification": {
+    "classification": "no-active-live-target-proof-anchor-stale-after-game-close",
+    "sourceOfTruth": "none-currently-active",
+    "staleProtection": "Prior PID 16536 pointer is archived as historical; movement must fail closed until a new in-world PID/HWND passes ProofOnly.",
+    "savedVariablesUsedAsLiveTruth": false,
+    "noCheatEngine": true
+  },
+  "priorProofPointer": {
+    "schemaVersion": 1,
+    "mode": "current-proof-anchor-readback-pointer",
+    "status": "current-target-proofonly-passed",
+    "lastUpdatedUtc": "2026-05-14T17:46:22.792929+00:00",
+    "target": {
+      "processName": "rift_x64",
+      "processId": 16536,
+      "targetWindowHandle": "0x1E0D66"
+    },
+    "currentTruthClassification": {
+      "classification": "current-live-target-proof-anchor",
+      "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+      "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
+      "savedVariablesUsedAsLiveTruth": false,
+      "noCheatEngine": true
+    },
+    "riftscanCandidateSource": {
+      "sourceKind": "current-proof-anchor-candidate-file",
+      "compatibilityNote": "Field name is retained for existing pointer consumers; the candidate file may be RiftReader-owned evidence and must still be gated by current proof-anchor/readback.",
+      "riftScanRoot": null,
+      "matchFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022\\delta-analysis\\candidate-vec3.json",
+      "candidateId": "snapshot-delta-21487DF8F64-xyz",
+      "sourceBaseAddressHex": "0x21487DF0000",
+      "sourceOffsetHex": "0x8F64",
+      "sourceAbsoluteAddressHex": "0x21487DF8F64",
+      "axisOrder": "xyz",
+      "supportCount": 2,
+      "proofSupportCount": 5,
+      "bestMaxAbsDistance": 0.058015136718722715,
+      "promotedByProofAnchor": true,
+      "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+      "notes": [
+        "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
+        "Do not treat this pointer as valid after a client restart unless target metadata still matches."
+      ]
+    },
+    "latestValidation": {
+      "status": "valid",
+      "movementAllowed": true,
+      "movementSent": false,
+      "noCheatEngine": true,
+      "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-16536-readback-summary-20260514-134617.json",
+      "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+      "proofAnchorCandidateId": "snapshot-delta-21487DF8F64-xyz",
+      "proofAnchorCandidateAddressHex": "0x21487DF8F64",
+      "currentCoordinate": {
+        "x": 7404.44091796875,
+        "y": 871.7135009765625,
+        "z": 3028.63232421875,
+        "recordedAtUtc": "2026-05-14T17:46:22.1910144Z"
+      },
+      "generatedAtUtc": "2026-05-14T17:46:22.5080453+00:00"
+    },
+    "latestProofOnly": {
+      "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260514-174521\\run-summary.json",
+      "status": "passed-proof-only",
+      "generatedAtUtc": "2026-05-14T17:46:22.783527+00:00",
+      "movementSent": false,
+      "movementAttempted": false,
+      "currentCoordinate": {
+        "x": 7404.44091796875,
+        "y": 871.7135009765625,
+        "z": 3028.63232421875,
+        "recordedAtUtc": "2026-05-14T17:46:22.1910144Z"
+      },
+      "coordinateDelta": null,
+      "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-16536-readback-summary-20260514-134617.json"
+    },
+    "runtimePointers": {
+      "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+      "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+    },
+    "notes": [
+      "Auto-written after ProofOnly passed for the exact current target.",
+      "This file is a current pointer, not an immutable historical record."
+    ]
+  },
+  "historicalArchive": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json",
+  "latestValidation": {
+    "status": "blocked",
+    "movementAllowed": false,
+    "movementSent": false,
+    "noCheatEngine": true,
+    "reason": "Game closed; no active in-world target for current proof-anchor readback.",
+    "previousReadbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-16536-readback-summary-20260514-134617.json",
+    "previousProofAnchorCandidateId": "snapshot-delta-21487DF8F64-xyz",
+    "previousProofAnchorCandidateAddressHex": "0x21487DF8F64"
+  },
+  "x64dbgAccessProof": {
+    "status": "captured-before-close",
+    "rawCaptureSummary": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-hw-read-retry-after-rifterrorhandler/summary.json",
+    "decodedAccessSummaryJson": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.json",
+    "decodedAccessSummaryMarkdown": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.md",
+    "accessInstruction": "rift_x64.exe+0x678A79: movsd qword ptr [rax+0xC4], xmm0",
+    "componentBaseAtHit": "0x21487DF8EA0",
+    "registers": {
+      "base": "rax/rbx",
+      "sourceCandidate": "rdi"
+    },
+    "xyzOffsetsFromComponentBase": {
+      "x": "0xC4",
+      "y": "0xC8",
+      "z": "0xCC"
+    },
+    "sourceContextCandidate": {
+      "register": "rdi",
+      "valueAtHit": "0x214E38B5A00"
+    },
+    "classification": "access-proof-evidence-only-after-game-close; not live movement truth"
+  },
+  "runtimePointers": {
+    "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+  },
+  "blockers": [
+    "game-closed-no-active-rift-process",
+    "prior-pid16536-proof-pointer-stale",
+    "fresh-target-discovery-and-proofonly-required-before-movement"
+  ],
+  "notes": [
+    "Auto-invalidated after operator reported the game was closed following x64dbg access capture.",
+    "This file intentionally blocks consumers from treating PID 16536 / 0x21487DF8F64 as current movement truth."
+  ],
+  "historicalClassification": {
+    "classification": "historical-target-epoch-evidence",
+    "archivedAtUtc": "2026-05-14T20:08:04.886583+00:00",
+    "supersededBy": {
+      "processName": "rift_x64",
+      "processId": 23496,
+      "targetWindowHandle": "0x2C1024"
+    },
+    "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
+  }
+}

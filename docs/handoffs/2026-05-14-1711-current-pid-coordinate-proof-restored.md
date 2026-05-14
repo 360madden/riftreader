@@ -1,10 +1,32 @@
 # RiftReader handoff — current-PID coordinate proof restored
 
 Generated: `2026-05-14T17:11:47Z`
+Updated: `2026-05-14T18:36:23Z`
+
+<!-- PID16536_CLOSED_AFTER_X64DBG_UPDATE -->
+
+## Update — game closed after x64dbg access capture
+
+Updated: `2026-05-14T20:04:04Z`
+
+The operator closed RIFT after the x64dbg access capture/logged-out close-only state. PID `16536` / HWND `0x1E0D66` and proof pointer `0x21487DF8F64` are now **historical/stale for movement and live coordinate truth**. The x64dbg access proof remains valuable recovery evidence only.
+
+| Item | Status |
+|---|---|
+| Active RIFT process | `none observed` |
+| Movement allowed | `false` |
+| Current proof pointer | `blocked-target-closed-game-closed-after-x64dbg-capture` |
+| Historical PID `16536` truth archive | `docs/recovery/historical/current-truth-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.md` |
+| Historical PID `16536` proof archive | `docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json` |
+| Decoded access proof | `scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.json` |
+
+Before any future movement or current-truth use: restart RIFT, get the character in-world, rediscover the exact target, and rerun fresh same-target `ProofOnly`.
 
 ## Verdict
 
-Current restarted RIFT target has a refreshed coordinate proof anchor and a fresh same-target `ProofOnly` pass. Movement is proof-gated again through the current pointer; RiftScan milestone review remains a strategy/read-only gate and does not independently grant movement.
+Current restarted RIFT target has a refreshed coordinate proof anchor and a fresh same-target `ProofOnly` pass. PID `16536` / HWND `0x1E0D66` is the current coordinate proof target. PID `2928` / HWND `0xC0994` is historical/stale only.
+
+Movement is proof-gated through the current pointer; RiftScan milestone review remains a strategy/read-only gate and does not independently grant movement. Before any new movement, re-check exact target and rerun `ProofOnly` if target identity or proof age is not fresh.
 
 ## Current target and proof pointer
 
@@ -13,34 +35,50 @@ Current restarted RIFT target has a refreshed coordinate proof anchor and a fres
 | Status | `current-target-proofonly-passed` |
 | Process | `rift_x64` PID `16536` |
 | HWND | `0x1E0D66` |
+| Process start | `2026-05-14T14:10:35.2003782Z` |
+| Module base | `0x7FF71CD90000` |
 | Candidate | `snapshot-delta-21487DF8F64-xyz` |
 | Address | `0x21487DF8F64` |
-| Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022\delta-analysis\candidate-vec3.json` |
+| Candidate file | `scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/candidate-vec3.json` |
 | Latest validation | `valid` |
 | Movement allowed by proof pointer | `True` |
+| Latest ProofOnly movement sent | `False` |
 | No CE | `True` |
 
 ## Fresh validation
 
 | Check | Result | Artifact |
 |---|---|---|
-| ProofOnly | `passed-proof-only` | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260514-171030\run-summary.json` |
-| Target control | `passed-target-control` | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260514-171030\target-control\target-control-status.json` |
-| Current coordinate | `x=7404.1396484375, y=871.7135009765625, z=3028.680908203125` | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-16536-readback-summary-20260514-131103.json` |
-| RiftScan milestone review | `ready-for-read-only-proof` | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260514-171113.json` |
-| Review decision | `proceed-read-only-proof-first` | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260514-171113.md` |
+| Latest ProofOnly | `passed-proof-only` | `scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json` |
+| Target control | `passed-target-control` / `exact-hwnd-foreground` | `scripts/captures/live-test-ProofOnly-20260514-174521/target-control/target-control-status.json` |
+| Current coordinate | `x=7404.44091796875, y=871.7135009765625, z=3028.63232421875` | `scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json` |
+| Coordinate recorded | `2026-05-14T17:46:22.1910144Z` | `scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json` |
+| RiftScan milestone review | `ready-for-read-only-proof` | `scripts/captures/riftscan-milestone-review-20260514-171113.json` |
+| Review decision | `proceed-read-only-proof-first` | `scripts/captures/riftscan-milestone-review-20260514-171113.md` |
 
-## Code changes in this slice
+## Current-truth surfaces updated
+
+| Surface | Status | Path |
+|---|---|---|
+| Human current truth | Updated to PID `16536` proof pointer | `docs/recovery/current-truth.md` |
+| Machine current truth | Updated to PID `16536` proof pointer | `docs/recovery/current-truth.json` |
+| Current proof pointer | Already promoted/current | `docs/recovery/current-proof-anchor-readback.json` |
+| PID `2928` current-truth archive | Historical/stale | `docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.md` |
+| PID `2928` current-truth JSON archive | Historical/stale | `docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.json` |
+| PID `2928` proof-pointer archive | Historical/stale | `docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json` |
+
+## Code/doc changes in this slice
 
 | Area | Path |
 |---|---|
-| Snapshot-delta two-reference comparison | `scripts/rift_live_test/coordinate_candidate_compare.py` |
-| Candidate readback compatibility fields | `scripts/current_pid_candidate_readback.py` |
-| Promotion wrapper encoded-command splatting | `scripts/promote-current-pid-proof-anchor-from-batch.ps1` |
-| Snapshot-delta regression | `scripts/test_coordinate_candidate_compare.py` |
-| Promotion wrapper regression | `scripts/test_promote_current_pid_proof_anchor_from_batch.py` |
+| Current truth dashboard | `docs/recovery/current-truth.md` |
+| Current truth machine payload | `docs/recovery/current-truth.json` |
 | Current proof pointer | `docs/recovery/current-proof-anchor-readback.json` |
-| Historical stale pointer archive | `docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json` |
+| Historical stale PID `2928` current-truth archive | `docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.md` |
+| Historical stale PID `2928` current-truth JSON archive | `docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.json` |
+| Historical stale PID `2928` proof pointer archive | `docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json` |
+| Current discovery tutorial | `docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.html` / `.md` |
+| Historical discovery timelines | `docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.*` |
 
 ## Artifact anchors
 
@@ -49,17 +87,37 @@ Current restarted RIFT target has a refreshed coordinate proof anchor and a fres
 | Clean coordinate proof route | `scripts/captures/coordinate-proof-route-20260514-163509-016518/coordinate-proof-route.json` |
 | Promotion-ready batch | `scripts/captures/current-pid-coordinate-anchor-batch-16536-live-approved-route-20260514-163620/coordinate-anchor-batch-summary.json` |
 | Prior live movement proof | `scripts/captures/live-test-Forward250-20260514-164220/run-summary.json` |
-| Fresh ProofOnly | `C:\RIFT MODDING\RiftReader\scripts\captures\live-test-ProofOnly-20260514-171030\run-summary.json` |
-| RiftScan milestone review | `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260514-171113.json` |
+| Fresh ProofOnly | `scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json` |
+| Proof readback summary | `scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json` |
+| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260514-171113.json` |
 
-## Validation commands run in this recovery lane
+## Validation commands for this recovery lane
 
-- `python .\scripts\live_test.py --profile ProofOnly --pid 16536 --hwnd 0x1E0D66 --process-name rift_x64 --no-gui` -> `passed-proof-only`.
+- `python .\scripts\live_test.py --profile ProofOnly --pid 16536 --hwnd 0x1E0D66 --process-name rift_x64 --no-gui` -> latest `passed-proof-only` at `scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json`.
 - `python .\scripts\riftscan_milestone_review.py ... --write-summary --write-markdown` -> `ready-for-read-only-proof`.
 - `python -m unittest scripts.test_coordinate_candidate_compare scripts.test_manual_displacement_capture scripts.test_coordinate_proof_route scripts.test_current_proof_pointer scripts.test_promote_current_pid_proof_anchor_from_batch` -> `Ran 31 tests ... OK`.
-- PowerShell parser check for `scripts\\promote-current-pid-proof-anchor-from-batch.ps1` -> `parse-ok`.
-- `git --no-pager diff --check` -> passed with LF/CRLF normalization warnings only.
+- PowerShell parser check for `scripts\promote-current-pid-proof-anchor-from-batch.ps1` -> `parse-ok`.
+- Current documentation update validation: `python -m json.tool docs/recovery/current-truth.json`, `python scripts/rift_live_test/current_truth_validator.py --truth-json docs/recovery/current-truth.json`, HTML parser checks for the discovery pages, and `git --no-pager diff --check`.
 
 ## Resume prompt
 
-Continue in `C:\RIFT MODDING\RiftReader` on `main`. Start by reading this handoff and `docs/recovery/current-proof-anchor-readback.json`. Treat old historical proof pointers as stale-only. Use current PID `16536` / HWND `0x1E0D66` only if the process epoch still matches; otherwise rerun current-PID family recovery. Before movement, rerun `ProofOnly` against the current target. Do not use CE/x64dbg unless explicitly reauthorized.
+Continue in `C:\RIFT MODDING\RiftReader` on `main`. Start by reading this handoff, `docs/recovery/current-truth.md`, `docs/recovery/current-truth.json`, and `docs/recovery/current-proof-anchor-readback.json`. Treat PID `2928` / HWND `0xC0994` and older proof pointers as stale historical evidence only. Use current PID `16536` / HWND `0x1E0D66` only if the process epoch still matches; otherwise rerun current-PID family recovery. Before movement, rerun `ProofOnly` against the current target if target identity or proof age is not fresh. Do not use CE/x64dbg unless explicitly reauthorized.
+
+
+<!-- PID23496_ACTIVE_BLOCKED_UPDATE -->
+
+## Update — active post-close target found, proof still blocked
+
+Updated: `2026-05-14T20:14:36Z`
+
+Target discovery found active `rift_x64` PID `23496` / HWND `0x2C1024` after the close/restart sequence. Exact-HWND target-control passed, but `ProofOnly` blocked with target drift because the PID `16536` proof pointer had already been invalidated as stale. Movement remains blocked.
+
+| Item | Status |
+|---|---|
+| Active target | PID `23496` / HWND `0x2C1024` |
+| Target-control | `passed-target-control` |
+| ProofOnly | `blocked-target-drift` |
+| Movement allowed | `false` |
+| ProofOnly artifact | `scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json` |
+
+Next recovery target is PID `23496` / HWND `0x2C1024` if it remains active. Reacquire/promote a same-target proof anchor, then rerun `ProofOnly` before movement.

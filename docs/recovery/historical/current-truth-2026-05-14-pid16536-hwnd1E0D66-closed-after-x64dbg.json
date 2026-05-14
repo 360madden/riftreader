@@ -1,67 +1,51 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T20:19:12Z",
-  "status": "blocked_active_target_pid23496_proof_anchor_missing",
+  "updatedAtUtc": "2026-05-14T18:36:23Z",
+  "status": "current_coordinate_proof_anchor_promoted_pid16536",
   "target": {
     "processName": "rift_x64",
-    "processId": 23496,
-    "targetWindowHandle": "0x2C1024",
+    "processId": 16536,
+    "targetWindowHandle": "0x1E0D66",
     "windowTitle": "RIFT",
-    "processStartUtc": "2026-05-14T20:02:28.245722Z",
+    "processStartUtc": "2026-05-14T14:10:35.2003782Z",
     "moduleBase": "0x7FF71CD90000",
-    "live": true,
-    "status": "active-target-discovered-proofonly-blocked-target-drift",
-    "lastVerifiedUtc": "2026-05-14T20:14:36Z",
-    "verificationSource": "scripts/captures/post-close-target-discovery-20260514-2004/target-control-status.json + scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json",
-    "lastClosedTargetEpoch": {
-      "processName": "rift_x64",
-      "processId": 16536,
-      "targetWindowHandle": "0x1E0D66",
-      "windowTitle": "RIFT",
-      "processStartUtc": "2026-05-14T14:10:35.2003782Z",
-      "moduleBase": "0x7FF71CD90000",
-      "lastVerifiedUtc": "2026-05-14T18:36:23Z",
-      "verificationSource": "Get-Process PID 16536 plus latest same-target ProofOnly artifacts"
-    }
+    "lastVerifiedUtc": "2026-05-14T18:36:23Z",
+    "verificationSource": "Get-Process PID 16536 plus latest same-target ProofOnly artifacts"
   },
   "liveReferenceSurface": {
-    "authoritative": false,
-    "status": "api-reference-only-proofonly-blocked-target-drift",
-    "source": "ProofOnly capture-reference currentCoordinate only; not promoted proof anchor",
-    "view": "Active PID 23496 target-control passed, but ProofOnly blocked because current proof pointer is intentionally stale/missing after prior close.",
+    "authoritative": true,
+    "status": "current-proof-anchor-readback-valid",
+    "source": "proof-anchor-current-readback",
+    "view": "latest same-target ProofOnly + current proof-anchor readback",
     "savedVariablesUse": "none",
     "currentCoordinate": {
-      "x": 7405.1499,
-      "y": 871.77,
-      "z": 3028.53,
-      "recordedAtUtc": "2026-05-14T20:08:04.6985193Z"
+      "x": 7404.44091796875,
+      "y": 871.7135009765625,
+      "z": 3028.63232421875,
+      "recordedAtUtc": "2026-05-14T17:46:22.1910144Z"
     },
-    "latestReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\post-close-proofonly-current-target-23496-20260514-2007\\live-test-ProofOnly-20260514-200725\\target-drift-reacquire-current-state.json",
-    "latestPreflight": "scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json",
-    "latestProofOnlyStatus": "blocked-target-drift",
-    "latestProofOnlyGeneratedAtUtc": "2026-05-14T20:08:04.934801+00:00",
+    "latestReference": "scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json",
+    "latestPreflight": "scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json",
+    "latestProofOnlyStatus": "passed-proof-only",
+    "latestProofOnlyGeneratedAtUtc": "2026-05-14T17:46:22.783527+00:00",
     "noCheatEngine": true,
-    "movementSentByLatestProofOnly": false,
-    "issues": [
-      "target_drift:current_proof_pointer_pid_mismatch:actual=None;expected=23496",
-      "target_drift:current_proof_pointer_hwnd_missing"
-    ]
+    "movementSentByLatestProofOnly": false
   },
   "movementGate": {
-    "allowed": false,
-    "status": "blocked-target-drift-current-proof-anchor-missing-for-pid23496",
-    "reason": "PID 23496 / HWND 0x2C1024 is an active target candidate, but no same-target proof anchor has been promoted for this process epoch. ProofOnly blocked target drift and sent no movement.",
+    "allowed": true,
+    "status": "coordinate-proof-gate-satisfied",
+    "reason": "PID 16536 / HWND 0x1E0D66 has a promoted proof pointer and latest same-target ProofOnly passed without movement.",
     "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
-    "proofOnlyRunSummary": "scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json",
-    "targetControl": "scripts/captures/post-close-target-discovery-20260514-2004/target-control-status.json",
+    "proofOnlyRunSummary": "scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json",
+    "readbackSummary": "scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json",
     "movementSentByLatestProofOnly": false,
     "requiredBeforeMovement": [
-      "run current-PID family recovery or static-chain validation for PID 23496",
-      "validate API-now vs memory-now across the active target",
-      "promote a same-target current proof anchor for PID 23496",
-      "rerun same-target ProofOnly and require passed-proof-only",
-      "only then consider movement/live coordinate truth eligible"
+      "confirm the active target is still PID 16536 / HWND 0x1E0D66 or rediscover the current PID/HWND",
+      "rerun same-target ProofOnly if proof age or target epoch has drifted",
+      "use exact target-control / visual gate required by the movement profile",
+      "keep SavedVariables out of live coordinate truth",
+      "do not use CE/x64dbg unless explicitly reauthorized for the current conversation"
     ]
   },
   "bestCurrentCandidate": {
@@ -70,7 +54,7 @@
     "candidateFile": "scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/candidate-vec3.json",
     "candidateFileJsonl": "scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/candidate-vec3.jsonl",
     "readbackSummary": "scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json",
-    "status": "historical_stale_candidate_after_game_closed",
+    "status": "current_coordinate_proof_anchor_promoted",
     "axisOrder": "xyz",
     "sourceBaseAddressHex": "0x21487DF0000",
     "sourceOffsetHex": "0x8F64",
@@ -80,93 +64,27 @@
     "bestMaxAbsDistance": 0.058015136718722715,
     "promotedByProofAnchor": true,
     "proofAnchorFile": "scripts/captures/telemetry-proof-coord-anchor.json",
-    "movementGradeOnlyThroughCurrentProof": false,
-    "staleAfterUtc": "2026-05-14T20:04:04Z",
-    "reusePolicy": "recovery seed/access-proof history only; not live movement truth after game close",
-    "validation_status": "stale_candidate_only_after_game_closed"
+    "movementGradeOnlyThroughCurrentProof": true
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "status": "blocked-target-drift-current-target-pid23496-proof-anchor-missing",
-    "lastUpdatedUtc": "2026-05-14T20:19:12Z",
-    "latestValidationStatus": "historical-valid-for-pid16536-before-close-current-target-blocked-for-pid23496",
+    "status": "current-target-proofonly-passed",
+    "lastUpdatedUtc": "2026-05-14T17:46:22.792929+00:00",
+    "latestValidationStatus": "valid",
     "latestValidationGeneratedAtUtc": "2026-05-14T17:46:22.5080453+00:00",
-    "latestProofOnlyStatus": "historical-passed-proof-only-before-close; current-target-proofonly-blocked-target-drift",
+    "latestProofOnlyStatus": "passed-proof-only",
     "latestProofOnlyGeneratedAtUtc": "2026-05-14T17:46:22.783527+00:00",
     "proofAnchorCandidateId": "snapshot-delta-21487DF8F64-xyz",
     "proofAnchorCandidateAddressHex": "0x21487DF8F64",
-    "movementAllowed": false,
+    "movementAllowed": true,
     "movementSent": false,
     "noCheatEngine": true,
     "proofOnlyRunSummary": "scripts/captures/live-test-ProofOnly-20260514-174521/run-summary.json",
     "proofOnlyTargetControl": "scripts/captures/live-test-ProofOnly-20260514-174521/target-control/target-control-status.json",
     "readbackSummary": "scripts/captures/proof-anchor-currentpid-16536-readback-summary-20260514-134617.json",
-    "proofAnchorFile": "scripts/captures/telemetry-proof-coord-anchor.json",
-    "staleAfterUtc": "2026-05-14T20:04:04Z",
-    "historicalProofPointerArchive": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json",
-    "x64dbgAccessProof": {
-      "status": "captured-before-close",
-      "rawCaptureSummary": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-hw-read-retry-after-rifterrorhandler/summary.json",
-      "decodedAccessSummaryJson": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.json",
-      "decodedAccessSummaryMarkdown": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.md",
-      "accessInstruction": "rift_x64.exe+0x678A79: movsd qword ptr [rax+0xC4], xmm0",
-      "componentBaseAtHit": "0x21487DF8EA0",
-      "registers": {
-        "base": "rax/rbx",
-        "sourceCandidate": "rdi"
-      },
-      "xyzOffsetsFromComponentBase": {
-        "x": "0xC4",
-        "y": "0xC8",
-        "z": "0xCC"
-      },
-      "sourceContextCandidate": {
-        "register": "rdi",
-        "valueAtHit": "0x214E38B5A00"
-      },
-      "classification": "access-proof-evidence-only-after-game-close; not live movement truth"
-    },
-    "currentTargetProofOnlyRunSummary": "scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json",
-    "currentTargetProofOnlyStatus": "blocked-target-drift",
-    "currentTargetProofOnlyIssues": [
-      "target_drift:current_proof_pointer_pid_mismatch:actual=None;expected=23496",
-      "target_drift:current_proof_pointer_hwnd_missing"
-    ]
+    "proofAnchorFile": "scripts/captures/telemetry-proof-coord-anchor.json"
   },
   "staleOrInvalid": [
-    {
-      "item": "PID 16536 / HWND 0x1E0D66 coordinate proof pointer",
-      "status": "historical-stale-game-closed-after-x64dbg-access-capture",
-      "reason": "The game was closed after x64dbg access proof capture and logout/close-only screen. Absolute address 0x21487DF8F64 is no longer a live movement truth surface.",
-      "priorBestCandidate": "snapshot-delta-21487DF8F64-xyz at 0x21487DF8F64",
-      "priorTruthStatus": "same-target ProofOnly passed before logout/close; stale after game close",
-      "reusePolicy": "recovery evidence only; do not use for movement or current coordinate truth until a new in-world PID/HWND passes ProofOnly",
-      "archiveMarkdown": "docs/recovery/historical/current-truth-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.md",
-      "archiveJson": "docs/recovery/historical/current-truth-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json",
-      "historicalProofPointerArchive": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json",
-      "x64dbgAccessProof": {
-        "status": "captured-before-close",
-        "rawCaptureSummary": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-hw-read-retry-after-rifterrorhandler/summary.json",
-        "decodedAccessSummaryJson": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.json",
-        "decodedAccessSummaryMarkdown": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.md",
-        "accessInstruction": "rift_x64.exe+0x678A79: movsd qword ptr [rax+0xC4], xmm0",
-        "componentBaseAtHit": "0x21487DF8EA0",
-        "registers": {
-          "base": "rax/rbx",
-          "sourceCandidate": "rdi"
-        },
-        "xyzOffsetsFromComponentBase": {
-          "x": "0xC4",
-          "y": "0xC8",
-          "z": "0xCC"
-        },
-        "sourceContextCandidate": {
-          "register": "rdi",
-          "valueAtHit": "0x214E38B5A00"
-        },
-        "classification": "access-proof-evidence-only-after-game-close; not live movement truth"
-      }
-    },
     {
       "item": "PID 2928 / HWND 0xC0994 current-truth state",
       "status": "historical-stale-target-epoch",
@@ -190,10 +108,9 @@
     }
   ],
   "currentBlockers": [
-    "Active RIFT target is PID 23496 / HWND 0x2C1024, but current proof anchor is missing/stale for this target epoch.",
-    "ProofOnly blocked with target_drift because the stale PID 16536 proof pointer was invalidated after game close.",
-    "Movement remains blocked until current-PID recovery/promotion and fresh same-target ProofOnly pass.",
-    "x64dbg access proof from PID 16536 is recovery evidence only, not current movement truth."
+    "No active coordinate-proof-anchor blocker for PID 16536 as of the latest ProofOnly pass.",
+    "Before any new movement run, re-check exact target and rerun ProofOnly if the proof pointer is stale or the PID/HWND changed.",
+    "This coordinate proof does not promote actor-facing/auto-turn truth."
   ],
   "canonicalArtifacts": {
     "currentTruthMarkdown": "docs/recovery/current-truth.md",
@@ -219,18 +136,9 @@
     "currentDiscoveryMarkdown": "docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.md",
     "historicalTimelineHtml": "docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.html",
     "historicalTimelineMarkdown": "docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.md",
-    "historicalTimelineMachineMarkdown": "docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.machine.md",
-    "historicalPid16536CurrentTruthMarkdown": "docs/recovery/historical/current-truth-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.md",
-    "historicalPid16536CurrentTruthJson": "docs/recovery/historical/current-truth-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json",
-    "historicalPid16536ProofPointer": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid16536-hwnd1E0D66-closed-after-x64dbg.json",
-    "logoutAfterX64dbgMarker": "scripts/captures/logout-after-x64dbg-capture-20260514-1959/logout-after-x64dbg-capture-summary.json",
-    "x64dbgAccessProofDecoded": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-decoded-access-20260514-1956/decoded-access-summary.json",
-    "x64dbgAccessProofRaw": "scripts/captures/owner-access-path-21487DF8F64-currentpid-16536-hw-read-retry-after-rifterrorhandler/summary.json",
-    "postCloseTargetDiscovery": "scripts/captures/post-close-target-discovery-20260514-2004/target-control-status.json",
-    "postCloseCurrentTargetPreflight": "scripts/captures/x64dbg-target-preflight-20260514-200725-524137/summary.json",
-    "postCloseCurrentTargetProofOnlyBlocked": "scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json"
+    "historicalTimelineMachineMarkdown": "docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.machine.md"
   },
-  "nextRecommendedAction": "Use active PID 23496 / HWND 0x2C1024 as the next recovery target, but keep movement blocked until a new same-target proof anchor is promoted and ProofOnly passes.",
+  "nextRecommendedAction": "Use PID 16536 / HWND 0x1E0D66 proof pointer as current coordinate proof; before any new movement, rerun ProofOnly if target identity or proof age is not fresh.",
   "historicalState": {
     "pid2928": {
       "status": "historical_stale",
@@ -287,19 +195,18 @@
     }
   },
   "liveTestingBoundary": {
-    "status": "blocked_current_target_proof_anchor_missing",
-    "updatedAtUtc": "2026-05-14T20:19:12Z",
+    "status": "coordinate_proof_gate_satisfied_target_specific",
+    "updatedAtUtc": "2026-05-14T18:36:23Z",
     "readOnlyLiveTestingAllowed": true,
-    "coordinateProofMovementGateAllowed": false,
+    "coordinateProofMovementGateAllowed": true,
     "latestProofOnlyMovementSent": false,
     "playerControlStillRequiresPerRunSafetyGate": true,
     "noCheatEngine": true,
     "savedVariablesLiveTruthAllowed": false,
     "blockedActionsWithoutFreshExplicitApproval": [
-      "movement or coordinate-driven polling before PID 23496 same-target ProofOnly passes",
-      "using stale PID 16536 or PID 2928 candidates as current proof",
-      "using absolute address 0x21487DF8F64 as current movement truth after process restart",
-      "x64dbg attach unless exact-target preflight passes, RiftErrorHandler is absent, and current live-debugger authorization remains in scope"
+      "ce-or-x64dbg-attach-watchpoints",
+      "using stale PID 2928 candidates as current proof",
+      "auto-turn or actor-facing promotion without current-session actor-facing proof"
     ]
   },
   "nativeScreenshotKeybind": {
@@ -347,17 +254,8 @@
     "status": "sidecar_only_not_coordinate_or_movement_truth",
     "visualEvidenceCanPromoteTruth": false,
     "notes": [
-      "Coordinate proof truth is currently blocked for active PID 23496 until a same-target proof anchor is promoted.",
-      "PID 16536 proof-pointer/readback evidence is historical after game close and cannot be used as movement truth.",
+      "Coordinate truth is PID 16536 proof-pointer/readback based, not screenshot based.",
       "The local screenshot keybind remains visual evidence only."
     ]
-  },
-  "closedEvent": {
-    "status": "game-closed-by-operator-after-x64dbg-access-capture",
-    "reportedAtUtc": "2026-05-14T20:04:04Z",
-    "reportedByOperator": "i closed the game",
-    "processObservedAfterClose": "no rift_x64/RIFT process listed by Get-Process filter",
-    "priorLogoutMarker": "scripts/captures/logout-after-x64dbg-capture-20260514-1959/logout-after-x64dbg-capture-summary.json",
-    "reasonTruthIsStale": "The RIFT process/client epoch is closed. Absolute addresses from PID 16536 are no longer live player actor coordinate truth."
   }
 }
