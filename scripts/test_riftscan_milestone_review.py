@@ -651,6 +651,91 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
             self.assertFalse(review["strategy"]["movementAllowedByReview"])
             self.assertTrue(review["strategy"]["readOnlyProofAllowedByReview"])
 
+    def test_review_rejects_route_candidate_when_route_target_mismatches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = riftscan / "reports" / "generated" / "currentpid-123-demo-addon-coordinate-matches.json"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            proof_route = root / "scripts" / "captures" / "route" / "coordinate-proof-route.json"
+            route_readback = root / "scripts" / "captures" / "route" / "readback-summary.json"
+            route_candidate_file = root / "scripts" / "captures" / "family-scan-currentpid-999" / "api-family-vec3-candidates.jsonl"
+            self._write_match(match)
+            self._write_pointer(pointer, match_file=match)
+            self._write_latest_live_pointer(root)
+            self._write_route_readback_summary(route_readback, candidate_file=route_candidate_file, pid=999, hwnd="0x999")
+            self._write_api_memory_proof_route(
+                proof_route,
+                readback_summary=route_readback,
+                pid=999,
+                hwnd="0x999",
+            )
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                proof_route_summary=proof_route,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["status"], "ready-for-read-only-proof")
+            self.assertFalse(review["selectedCandidatePolicy"]["routeSelectionApplied"])
+            self.assertEqual(review["selectedCandidate"]["source"], "current-proof-pointer")
+            self.assertIn("coordinate_proof_route_pid_mismatch:actual=999;expected=123", review["issues"])
+            self.assertIn("coordinate_proof_route_hwnd_mismatch:actual=0x999;expected=0xABC", review["issues"])
+
+    def test_review_rejects_route_candidate_when_source_candidate_file_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = riftscan / "reports" / "generated" / "currentpid-123-demo-addon-coordinate-matches.json"
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            proof_route = root / "scripts" / "captures" / "route" / "coordinate-proof-route.json"
+            route_readback = root / "scripts" / "captures" / "route" / "readback-summary.json"
+            missing_candidate_file = root / "scripts" / "captures" / "missing" / "api-family-vec3-candidates.jsonl"
+            self._write_match(match)
+            self._write_pointer(pointer, match_file=match)
+            self._write_latest_live_pointer(root)
+            route_readback.parent.mkdir(parents=True, exist_ok=True)
+            route_readback.write_text(
+                json.dumps(
+                    {
+                        "ProcessId": 123,
+                        "TargetWindowHandle": "0xABC",
+                        "ProcessName": "rift_x64",
+                        "SourceCandidateFile": str(missing_candidate_file),
+                        "ReferenceMatchCount": 2,
+                        "StableDecodedCandidateCount": 2,
+                        "MovementAllowed": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self._write_api_memory_proof_route(proof_route, readback_summary=route_readback)
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                proof_route_summary=proof_route,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["status"], "ready-for-read-only-proof")
+            self.assertFalse(review["selectedCandidatePolicy"]["routeSelectionApplied"])
+            self.assertEqual(review["selectedCandidate"]["source"], "current-proof-pointer")
+            self.assertTrue(
+                any(
+                    issue.startswith("coordinate_proof_route_readback_source_candidate_file_missing:")
+                    for issue in review["issues"]
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
