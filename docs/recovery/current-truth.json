@@ -1,111 +1,150 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-14T21:42:09.699992Z",
-  "status": "current_target_pid23496_coordinate_proof_restored",
+  "updatedAtUtc": "2026-05-15T03:20:52.926653Z",
+  "status": "current_target_pid27552_coordinate_proof_restored",
   "target": {
     "processName": "rift_x64",
-    "processId": 23496,
-    "targetWindowHandle": "0x2C1024",
+    "processId": 27552,
+    "targetWindowHandle": "0x3411E2",
     "windowTitle": "RIFT",
-    "processStartUtc": "2026-05-14T20:02:28.245722Z",
+    "processStartUtc": "2026-05-15T01:11:57.750696Z",
     "moduleBase": "0x7FF71CD90000",
     "live": true,
     "status": "current-target-proofonly-passed",
-    "lastVerifiedUtc": "2026-05-14T21:42:09.699992+00:00",
-    "verificationSource": "docs/recovery/current-proof-anchor-readback.json + C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\do-1-8-pid23496-proofonly-20260514-174113\\live-test-ProofOnly-20260514-214114\\run-summary.json",
+    "lastVerifiedUtc": "2026-05-15T02:31:34.363518+00:00",
+    "verificationSource": "docs/recovery/current-proof-anchor-readback.json + scripts\\captures\\proofonly-currentpid-27552-after-promote-20260514-223041\\live-test-ProofOnly-20260515-023041\\run-summary.json",
     "lastClosedTargetEpoch": {
       "processName": "rift_x64",
-      "processId": 16536,
-      "targetWindowHandle": "0x1E0D66",
+      "processId": 23496,
+      "targetWindowHandle": "0x2C1024",
       "windowTitle": "RIFT",
-      "processStartUtc": "2026-05-14T14:10:35.2003782Z",
+      "processStartUtc": "2026-05-14T20:02:28.245722Z",
       "moduleBase": "0x7FF71CD90000",
-      "lastVerifiedUtc": "2026-05-14T18:36:23Z",
-      "verificationSource": "Get-Process PID 16536 plus latest same-target ProofOnly artifacts"
+      "lastVerifiedUtc": "2026-05-14T21:42:09.699992Z",
+      "verificationSource": "Former current proof pointer archived after PID/HWND drift to PID 27552 / HWND 0x3411E2"
     }
   },
   "liveReferenceSurface": {
     "authoritative": true,
     "status": "current-proof-anchor-readback",
-    "source": "same-PID/HWND no-CE multi-pose proof anchor plus same-target ProofOnly",
-    "view": "ProofOnly current proof-anchor readback for exact PID 23496 / HWND 0x2C1024",
+    "source": "same-PID/HWND no-CE current-PID scan-plan candidate plus 4-pose displaced readback batch plus same-target ProofOnly",
+    "view": "ProofOnly current proof-anchor readback for exact PID 27552 / HWND 0x3411E2",
     "savedVariablesUse": "none",
     "currentCoordinate": {
-      "x": 7312.89453125,
-      "y": 875.28466796875,
-      "z": 3050.156005859375,
-      "recordedAtUtc": "2026-05-14T21:42:09.0269307Z"
+      "x": 7325.35888671875,
+      "y": 874.0448608398438,
+      "z": 3053.77490234375,
+      "recordedAtUtc": "2026-05-15T03:19:32.4433262Z"
     },
     "latestProofOnlyStatus": "passed-proof-only",
-    "latestProofOnlyGeneratedAtUtc": "2026-05-14T21:42:09.695159+00:00",
+    "latestProofOnlyGeneratedAtUtc": "2026-05-15T03:17:54.890733+00:00",
     "noCheatEngine": true,
     "movementSentByLatestProofOnly": false,
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\do-1-8-pid23496-proofonly-20260514-174113\\live-test-ProofOnly-20260514-214114\\run-summary.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-23496-readback-summary-20260514-174203.json"
+    "proofOnlyRunSummary": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\run-summary.json",
+    "readbackSummaryFile": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
+    "targetControl": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\target-control\\target-control-status.json",
+    "latestProofGatedMovementSmoke": {
+      "profile": "Forward250",
+      "status": "passed",
+      "runSummary": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json",
+      "summaryFile": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\gated-forward-smoke-currentpid-27552-summary-20260515-031913.json",
+      "movementSent": true,
+      "coordinateDelta": {
+        "deltaX": -1.654296875,
+        "deltaY": 0.18890380859375,
+        "deltaZ": -0.1796875,
+        "planarDistance": 1.6640269674169994,
+        "spatialDistance": 1.6747150196950644
+      },
+      "currentCoordinate": {
+        "x": 7325.35888671875,
+        "y": 874.0448608398438,
+        "z": 3053.77490234375,
+        "recordedAtUtc": "2026-05-15T03:19:32.4433262Z"
+      },
+      "noCheatEngine": true,
+      "savedVariablesUsedAsLiveTruth": false
+    }
   },
   "movementGate": {
     "allowed": true,
     "status": "satisfied-by-current-process-proof-anchor-and-proofonly",
-    "reason": "PID 23496 / HWND 0x2C1024 has a same-PID/HWND no-CE multi-pose proof anchor and same-target ProofOnly passed with movementSent=false.",
+    "reason": "PID 27552 / HWND 0x3411E2 has a same-PID/HWND no-CE proof anchor promoted from 4 pose readbacks and same-target ProofOnly passed with movementSent=false.",
     "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\do-1-8-pid23496-proofonly-20260514-174113\\live-test-ProofOnly-20260514-214114\\run-summary.json",
-    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-23496-readback-summary-20260514-174203.json",
+    "proofOnlyRunSummary": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\run-summary.json",
+    "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
     "movementSentByLatestProofOnly": false,
     "perRunRequirements": [
       "exact PID/HWND target-control",
       "fresh proof-anchor/readback age gate",
       "profile-specific input safety gate before any movement profile"
-    ]
+    ],
+    "latestProofGatedMovementSmoke": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json"
   },
   "bestCurrentCandidate": {
-    "candidateId": "api-family-hit-000005",
-    "addressHex": "0x27236F46750",
-    "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.json",
-    "candidateFileJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.jsonl",
+    "candidateId": "api-family-hit-000001",
+    "addressHex": "0x27B1ED850C0",
+    "candidateFile": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\api-family-vec3-candidates.json",
+    "candidateFileJsonl": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\api-family-vec3-candidates.jsonl",
     "status": "current_proof_anchor_promoted",
     "axisOrder": "xyz",
-    "sourceBaseAddressHex": "0x27236F46710",
+    "sourceBaseAddressHex": "0x27B1ED85080",
     "sourceOffsetHex": "0x40",
-    "sourceAbsoluteAddressHex": "0x27236F46750",
+    "sourceAbsoluteAddressHex": "0x27B1ED850C0",
     "supportCount": 4,
     "proofSupportCount": 4,
-    "bestMaxAbsDistance": 0.007873437499256397,
+    "bestMaxAbsDistance": 0.008462109375159343,
     "promotedByProofAnchor": true,
-    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "proofAnchorFile": "scripts\\captures\\telemetry-proof-coord-anchor.json",
     "movementGradeOnlyThroughCurrentProof": true,
     "validation_status": "same-target-proofonly-passed",
     "displacementProof": {
-      "poseCount": 2,
-      "maxReferencePlanarDisplacement": 4.285970374371978,
-      "maxDeltaError": 0.006023046874815918,
-      "readbackSummaries": [
-        "scripts/captures/fast-proof-lane-pid23496-promote-poses-20260514-1650/riftscan-proof-poseA-displaced1-20260514-205119/riftscan-riftreader-currentpid-23496-readback-wrapper-summary-20260514-165156.json",
-        "scripts/captures/fast-proof-lane-pid23496-promote-poses-20260514-1650/riftscan-proof-poseB-displaced2-20260514-205249/riftscan-riftreader-currentpid-23496-readback-wrapper-summary-20260514-165322.json"
-      ]
+      "poseCount": 4,
+      "movementSentCount": 3,
+      "supportPoseCount": 4,
+      "maxReferenceMaxAbsDelta": 0.004589843750181899,
+      "averageReferencePlanarDistance": 0.0035424785720255003,
+      "poseNames": [
+        "pose-01",
+        "pose-02",
+        "pose-03",
+        "pose-04"
+      ],
+      "promotionBatchSummary": "scripts\\captures\\current-pid-coordinate-anchor-batch-27552-factor-doc-20260514-222116\\coordinate-anchor-batch-summary.json"
     },
-    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-23496-readback-summary-20260514-174203.json"
+    "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json"
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
     "status": "current-target-proofonly-passed",
-    "lastUpdatedUtc": "2026-05-14T21:42:09.699992+00:00",
+    "lastUpdatedUtc": "2026-05-15T03:17:54.897288+00:00",
     "latestValidationStatus": "valid",
-    "latestValidationGeneratedAtUtc": "2026-05-14T21:42:09.4266327+00:00",
     "latestProofOnlyStatus": "passed-proof-only",
-    "latestProofOnlyGeneratedAtUtc": "2026-05-14T21:42:09.695159+00:00",
-    "proofAnchorCandidateId": "api-family-hit-000005",
-    "proofAnchorCandidateAddressHex": "0x27236F46750",
+    "proofOnlyRunSummary": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\run-summary.json",
     "movementAllowed": true,
     "movementSent": false,
     "noCheatEngine": true,
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\do-1-8-pid23496-proofonly-20260514-174113\\live-test-ProofOnly-20260514-214114\\run-summary.json",
-    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-23496-readback-summary-20260514-174203.json",
-    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.json",
-    "candidateFileJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.jsonl"
+    "candidateId": "api-family-hit-000001",
+    "candidateAddressHex": "0x27B1ED850C0",
+    "proofSupportCount": 4,
+    "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
+    "historicalProofPointerArchive": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid23496-hwnd2C1024-historical.json",
+    "latestProofGatedMovementSmoke": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json"
   },
   "staleOrInvalid": [
+    {
+      "item": "PID 23496 / HWND 0x2C1024 coordinate proof pointer",
+      "status": "historical-stale-target-epoch-after-pid27552-recovery",
+      "reason": "Superseded by PID 27552 / HWND 0x3411E2 same-target multi-pose proof pointer and ProofOnly pass on 2026-05-15T02:31:34Z.",
+      "priorBestCandidate": "api-family-hit-000005 at 0x27236F46750",
+      "priorTruthStatus": "same-target proof pointer passed before target drift; stale after PID/HWND changed to 27552 / 0x3411E2",
+      "reusePolicy": "recovery evidence only; do not use for movement or current coordinate truth in PID 27552",
+      "historicalProofPointerArchive": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid23496-hwnd2C1024-historical.json",
+      "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.json",
+      "candidateFileJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.jsonl",
+      "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-23496-readback-summary-20260514-181821.json"
+    },
     {
       "item": "PID 16536 / HWND 0x1E0D66 coordinate proof pointer",
       "status": "historical-stale-game-closed-after-x64dbg-access-capture",
@@ -162,31 +201,33 @@
     }
   ],
   "currentBlockers": [
-    "No active coordinate-proof blocker after PID23496 ProofOnly pass; movement still requires exact per-run target/proof-age/input safety gates.",
-    "Anchor api-family-hit-000005 @ 0x27236F46750 is valid only for current PID 23496 / HWND 0x2C1024 epoch.",
-    "Do not reuse stale PID16536 address 0x21487DF8F64 as live truth.",
-    "Owner/static-chain provenance remains unresolved and is deferred unless the fast proof lane fails."
+    "No active coordinate-proof blocker after PID27552 ProofOnly pass; movement still requires exact per-run target/proof-age/input safety gates.",
+    "Anchor api-family-hit-000001 @ 0x27B1ED850C0 is valid only for current PID 27552 / HWND 0x3411E2 epoch.",
+    "Do not reuse stale PID23496 address 0x27236F46750 or stale PID16536 address 0x21487DF8F64 as live truth.",
+    "Owner/static-chain provenance remains unresolved and is deferred unless the fast proof lane fails.",
+    "RiftScan milestone review is blocked for provider-candidate consumption because this proof used a RiftReader-owned candidate file, not a supported RiftScan provider match; that does not invalidate the same-target ProofOnly result.",
+    "RiftScan coordination validation passed in quick/no-CE/read-only mode; separate milestone review still blocks provider-candidate consumption because this proof used a RiftReader-owned candidate file."
   ],
   "canonicalArtifacts": {
     "currentTruthMarkdown": "docs/recovery/current-truth.md",
     "currentTruthJson": "docs/recovery/current-truth.json",
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "currentHandoff": "docs/handoffs/2026-05-14-1711-current-pid-coordinate-proof-restored.md",
+    "currentHandoff": "docs\\handoffs\\2026-05-14-2236-current-pid-27552-coordinate-proof-restored.md",
     "historicalPid2928CurrentTruthMarkdown": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.md",
     "historicalPid2928CurrentTruthJson": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.json",
     "historicalPid2928ProofPointer": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json",
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\do-1-8-pid23496-proofonly-20260514-174113\\live-test-ProofOnly-20260514-214114\\run-summary.json",
-    "proofOnlyTargetControl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\do-1-8-pid23496-proofonly-20260514-174113\\live-test-ProofOnly-20260514-214114\\target-control\\target-control-status.json",
-    "proofAnchorReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-23496-readback-summary-20260514-174203.json",
-    "proofAnchorCache": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.json",
-    "candidateFileJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\api-family-vec3-candidates.jsonl",
+    "proofOnlyRunSummary": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\run-summary.json",
+    "proofOnlyTargetControl": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\target-control\\target-control-status.json",
+    "proofAnchorReadbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
+    "proofAnchorCache": "scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "candidateFile": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\api-family-vec3-candidates.json",
+    "candidateFileJsonl": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\api-family-vec3-candidates.jsonl",
     "deltaSummary": "scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/delta-analysis/delta-summary.json",
     "familySnapshotSummary": "scripts/captures/family-snapshot-sequence-currentpid-16536-live-approved-threepose-20260514-122550-422022/summary.json",
     "coordinateProofRoute": "scripts/captures/coordinate-proof-route-20260514-163509-016518/coordinate-proof-route.json",
-    "promotionBatchSummary": "scripts/captures/current-pid-coordinate-anchor-batch-16536-live-approved-route-20260514-163620/coordinate-anchor-batch-summary.json",
+    "promotionBatchSummary": "scripts\\captures\\current-pid-coordinate-anchor-batch-27552-factor-doc-20260514-222116\\coordinate-anchor-batch-summary.json",
     "priorForward250Smoke": "scripts/captures/live-test-Forward250-20260514-164220/run-summary.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260514-171113.json",
+    "riftscanMilestoneReview": "scripts\\captures\\riftscan-milestone-review-20260515-023350.json",
     "currentDiscoveryHtml": "docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.html",
     "currentDiscoveryMarkdown": "docs/recovery/current-pid-coordinate-proof-anchor-discovery-2026-05-14.md",
     "historicalTimelineHtml": "docs/recovery/historical-coordinate-proof-anchor-discovery-timelines-2026-05.html",
@@ -201,9 +242,21 @@
     "postCloseTargetDiscovery": "scripts/captures/post-close-target-discovery-20260514-2004/target-control-status.json",
     "postCloseCurrentTargetPreflight": "scripts/captures/x64dbg-target-preflight-20260514-200725-524137/summary.json",
     "postCloseCurrentTargetProofOnlyBlocked": "scripts/captures/post-close-proofonly-current-target-23496-20260514-2007/live-test-ProofOnly-20260514-200725/run-summary.json",
-    "familyScanSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-23496-20260514-204452-232834\\family-scan-summary.json"
+    "familyScanSummary": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\family-scan-summary.json",
+    "targetPreflight": "scripts\\captures\\recovery-pid27552-factor-doc-20260514-221120\\preflight\\summary.json",
+    "targetVisualGate": "scripts\\captures\\recovery-pid27552-factor-doc-20260514-221120\\target-visual-gate\\visual-gate-target-control-status.json",
+    "initialBroadFamilyScan": "scripts\\captures\\family-scan-currentpid-27552-20260515-021223-345938\\family-scan-summary.json",
+    "currentPidMemoryInventory": "scripts\\captures\\memory-region-inventory-currentpid-27552-20260515-021811-284049\\summary.json",
+    "currentPidScanPlanBatch": "scripts\\captures\\coordinate-scan-plan-batch-currentpid-27552-20260515-022007-801670\\summary.json",
+    "promotionResult": "scripts\\captures\\proof-anchor-promote-currentpid-27552-20260514-223017\\promotion-result.json",
+    "promotionReadbackSummary": "scripts\\captures\\proof-anchor-promote-currentpid-27552-20260514-223017\\proof-anchor-currentpid-27552-readback-summary-20260514-223020.json",
+    "riftscanMilestoneReviewMarkdown": "scripts\\captures\\riftscan-milestone-review-20260515-023350.md",
+    "riftscanCoordinationValidation": "scripts\\captures\\riftscan-validation-20260515-023843.json",
+    "riftscanCoordinationValidationMarkdown": "scripts\\captures\\riftscan-validation-20260515-023843.md",
+    "latestForward250Smoke": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json",
+    "latestForward250SmokeSummary": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\gated-forward-smoke-currentpid-27552-summary-20260515-031913.json"
   },
-  "nextRecommendedAction": "Coordinate proof remains restored for PID 23496/HWND 0x2C1024 after fresh target-control and ProofOnly. Before movement, rerun exact target-control/proof-age gates; defer x64dbg/static-chain unless the fast proof lane fails.",
+  "nextRecommendedAction": "Coordinate proof and a short proof-gated Forward250 movement smoke both passed for PID 27552/HWND 0x3411E2. Commit/push the recovery checkpoint; rerun ProofOnly before any future movement if time or target state changes.",
   "historicalState": {
     "pid2928": {
       "status": "historical_stale",
@@ -257,11 +310,25 @@
       "archiveMarkdown": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.md",
       "archiveJson": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.json",
       "historicalProofPointerArchive": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json"
+    },
+    "pid23496": {
+      "status": "historical_stale",
+      "target": {
+        "processName": "rift_x64",
+        "processId": 23496,
+        "targetWindowHandle": "0x2C1024",
+        "processStartUtc": "2026-05-14T20:02:28.245722Z",
+        "moduleBase": "0x7FF71CD90000"
+      },
+      "lastKnownVerdict": "same-target proof pointer passed before target drift; superseded by PID27552 proof pointer",
+      "priorBestCandidate": "api-family-hit-000005 at 0x27236F46750",
+      "reusePolicy": "recovery evidence only; do not use for movement or current coordinate truth in PID 27552",
+      "historicalProofPointerArchive": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid23496-hwnd2C1024-historical.json"
     }
   },
   "liveTestingBoundary": {
-    "status": "coordinate_proof_gate_satisfied_current_pid",
-    "updatedAtUtc": "2026-05-14T21:42:09.699992Z",
+    "status": "current_target_proof_anchor_validated",
+    "updatedAtUtc": "2026-05-15T02:37:34.800792Z",
     "readOnlyLiveTestingAllowed": true,
     "coordinateProofMovementGateAllowed": true,
     "latestProofOnlyMovementSent": false,
@@ -269,9 +336,10 @@
     "noCheatEngine": true,
     "savedVariablesLiveTruthAllowed": false,
     "blockedActionsWithoutFreshExplicitApproval": [
-      "x64dbg attach/static-chain work unless the fast proof lane fails",
-      "using stale PID 16536 or PID 2928 candidates as current proof",
-      "using absolute address 0x21487DF8F64 as current movement truth after process restart"
+      "using stale PID23496 or PID16536 candidates as current proof",
+      "using absolute address 0x27236F46750 or 0x21487DF8F64 as current movement truth after process drift",
+      "x64dbg tracing/single-step/software breakpoints",
+      "RiftScan provider writes without explicit authorization"
     ]
   },
   "nativeScreenshotKeybind": {
@@ -319,9 +387,9 @@
     "status": "sidecar_only_not_coordinate_or_movement_truth",
     "visualEvidenceCanPromoteTruth": false,
     "notes": [
-      "Coordinate proof truth is currently restored for active PID 23496 / HWND 0x2C1024 by same-target proof pointer and ProofOnly.",
-      "PID 16536 proof-pointer/readback evidence is historical after game close and cannot be used as movement truth.",
-      "The local screenshot keybind remains visual evidence only."
+      "Coordinate proof truth is restored for active PID 27552 / HWND 0x3411E2 by same-target proof pointer and ProofOnly.",
+      "PID 23496 and PID 16536 proof-pointer/readback evidence is historical after target drift/client close and cannot be used as movement truth.",
+      "Screenshots and visual gates remain sidecar evidence only; coordinate promotion came from API-now vs memory-now readback and ProofOnly."
     ]
   },
   "closedEvent": {
