@@ -80,6 +80,20 @@ class FastRecoveryDryRunTests(unittest.TestCase):
         self.assertEqual(blockers, [])
         self.assertEqual(warnings, [])
 
+    def test_chromalink_reference_parser_blocks_stale_missing_reference(self) -> None:
+        parsed = {
+            "status": "blocked",
+            "blockers": ["world-state-player-position-stale"],
+            "artifacts": {"referenceJson": None},
+        }
+
+        path, blockers, _warnings = fast.chromalink_reference_from_summary(parsed)
+
+        self.assertIsNone(path)
+        self.assertIn("world-state-player-position-stale", blockers)
+        self.assertIn("chromalink-status-not-passed:blocked", blockers)
+        self.assertIn("chromalink-reference-json-missing", blockers)
+
     def test_scan_parser_finds_candidate_jsonl_from_hit_range(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "candidates.jsonl"

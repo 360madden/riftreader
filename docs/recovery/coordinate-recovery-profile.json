@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-coordinate-recovery-profile",
+  "generatedAtUtc": "2026-05-15T05:54:43.092618Z",
+  "sourceRunDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971",
+  "target": {
+    "pid": 27552,
+    "hwnd": "0x3411E2",
+    "processName": "rift_x64",
+    "titleContains": "RIFT"
+  },
+  "referenceProvider": "rrapicoord-fallback",
+  "referenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\02-reference-rrapicoord-fallback\\reference.json",
+  "scanPlanJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\03-memory-inventory\\memory-region-inventory-currentpid-27552-20260515-055438-908621\\scan-plan.json",
+  "candidateJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-27552-20260515-055439-934855\\api-family-vec3-candidates.jsonl",
+  "bestScanRange": {
+    "rank": 1,
+    "minAddressHex": "0x27B1EC70000",
+    "maxAddressHex": "0x27B1FC80000",
+    "spanMiB": 16.0625,
+    "readableMiB": 16.0625,
+    "regionCount": 1,
+    "plannerScore": 336.5,
+    "exitCode": 0,
+    "timedOut": false,
+    "durationSeconds": 3.322,
+    "status": "passed",
+    "hitCount": 1,
+    "blockers": [],
+    "warnings": [],
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-27552-20260515-055439-934855\\family-scan-summary.json",
+    "candidateJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-27552-20260515-055439-934855\\api-family-vec3-candidates.jsonl",
+    "bestHit": {
+      "address": 2727821725888,
+      "addressHex": "0x27B1ED850C0",
+      "regionBase": 2727820591104,
+      "regionBaseHex": "0x27B1EC70000",
+      "regionOffset": 1134784,
+      "regionOffsetHex": "0x1150C0",
+      "axisOrder": "xyz",
+      "x": 7325.35888671875,
+      "y": 874.0448608398438,
+      "z": 3053.77490234375,
+      "deltaX": -0.001013281250379805,
+      "deltaY": 0.00486083984378638,
+      "deltaZ": -0.005097656250200089,
+      "maxAbsDelta": 0.005097656250200089,
+      "neighborFloats": [
+        {
+          "relativeOffset": -32,
+          "value": 9.183409485952689e-41
+        },
+        {
+          "relativeOffset": -28,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": -24,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": -20,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": -16,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": -12,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": -8,
+          "value": 4.90454462513686e-44
+        },
+        {
+          "relativeOffset": -4,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": 0,
+          "value": 7325.35888671875
+        },
+        {
+          "relativeOffset": 4,
+          "value": 874.0448608398438
+        },
+        {
+          "relativeOffset": 8,
+          "value": 3053.77490234375
+        },
+        {
+          "relativeOffset": 12,
+          "value": 8.898245248462588e-43
+        },
+        {
+          "relativeOffset": 16,
+          "value": 4.484155085839415e-44
+        },
+        {
+          "relativeOffset": 20,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": 24,
+          "value": 1.8357009882655104e-43
+        },
+        {
+          "relativeOffset": 28,
+          "value": 0.0
+        },
+        {
+          "relativeOffset": 32,
+          "value": -3.3324700641787904e+16
+        },
+        {
+          "relativeOffset": 40,
+          "value": 2.1108124118098872e-20
+        }
+      ]
+    }
+  },
+  "promotionBatchSummaryJson": null,
+  "proofOnlySummaryJson": null,
+  "stageTimings": [
+    {
+      "label": "target-control-visual-gate",
+      "phase": "target-gate",
+      "status": "passed",
+      "durationSeconds": 13.509
+    },
+    {
+      "label": "reference-chromalink-fast-path",
+      "phase": "reference",
+      "status": "passed",
+      "durationSeconds": 0.383
+    },
+    {
+      "label": "reference-rrapicoord-fallback",
+      "phase": "reference",
+      "status": "passed",
+      "durationSeconds": 121.481
+    },
+    {
+      "label": "memory-region-inventory",
+      "phase": "inventory",
+      "status": "passed",
+      "durationSeconds": 0.837
+    },
+    {
+      "label": "scan-plan-batch-stop-on-hit",
+      "phase": "scan",
+      "status": "passed",
+      "durationSeconds": 3.545
+    }
+  ],
+  "safety": {
+    "oldAbsoluteAddressesAreHintsOnly": true,
+    "savedVariablesUsedAsLiveTruth": false,
+    "x64dbgMode": "offline-read-only",
+    "cheatEngineAllowed": false
+  }
+}

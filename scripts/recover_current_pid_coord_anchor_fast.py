@@ -867,6 +867,8 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
             stages[-1]["status"] = "passed"
             stages[-1]["details"]["referenceJson"] = str(reference_json)
         else:
+            stages[-1]["status"] = "blocked"
+            stages[-1]["details"]["blockers"] = chromalink_blockers
             summary["warnings"].extend(f"chromalink-blocked:{item}" for item in chromalink_blockers)
             rrapi = run_label("reference-rrapicoord-fallback")
             if stages[-1]["status"] != "passed":
