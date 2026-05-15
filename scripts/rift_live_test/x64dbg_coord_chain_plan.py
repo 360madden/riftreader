@@ -440,6 +440,78 @@ def find_latest_passed_preflight_summary(repo_root: Path) -> tuple[Path | None, 
     return candidates[-1][3], blockers, warnings
 
 
+def preflight_summary_sort_tuple(document: dict[str, Any], path: Path) -> tuple[datetime, float, str]:
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    return (parse_utc_sort_time(document.get("generatedAtUtc"), path), mtime, str(path))
+
+
+def find_newer_non_passed_same_target_preflight_summaries(
+    repo_root: Path,
+    *,
+    selected_preflight_summary: Path,
+    target_pid: int | None,
+    target_hwnd: str | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    warnings: list[str] = []
+    if target_pid is None or not normalize_hwnd(target_hwnd):
+        return [], warnings
+
+    try:
+        selected_document = read_json_file(selected_preflight_summary)
+    except Exception as exc:
+        warnings.append(f"preflight-summary-latest-selected-reread-failed:{selected_preflight_summary}:{type(exc).__name__}")
+        return [], warnings
+    if not isinstance(selected_document, dict):
+        warnings.append(f"preflight-summary-latest-selected-reread-non-object:{selected_preflight_summary}")
+        return [], warnings
+
+    selected_sort = preflight_summary_sort_tuple(selected_document, selected_preflight_summary)
+    target_hwnd_normalized = normalize_hwnd(target_hwnd)
+    capture_root = repo_root / "scripts" / "captures"
+    matches: list[dict[str, Any]] = []
+
+    for path in capture_root.glob("x64dbg-target-preflight-*/summary.json"):
+        if path.resolve() == selected_preflight_summary.resolve():
+            continue
+        try:
+            document = read_json_file(path)
+        except Exception as exc:
+            warnings.append(f"preflight-summary-latest-skip-read-failed:{path}:{type(exc).__name__}")
+            continue
+        if not isinstance(document, dict):
+            warnings.append(f"preflight-summary-latest-skip-non-object:{path}")
+            continue
+        if document.get("kind") != PREFLIGHT_SUMMARY_KIND:
+            warnings.append(f"preflight-summary-latest-skip-kind:{path}")
+            continue
+        if document.get("status") == "passed":
+            continue
+        selected = document.get("selectedTarget")
+        if not isinstance(selected, dict):
+            continue
+        selected_pid = to_int_or_none(selected.get("pid"))
+        selected_hwnd = normalize_hwnd(str(selected.get("hwndHex") or selected.get("hwnd") or ""))
+        if selected_pid != int(target_pid) or selected_hwnd != target_hwnd_normalized:
+            continue
+        summary_sort = preflight_summary_sort_tuple(document, path)
+        if summary_sort <= selected_sort:
+            continue
+        matches.append(
+            {
+                "path": str(path),
+                "status": document.get("status"),
+                "generatedAtUtc": document.get("generatedAtUtc"),
+                "blockers": document.get("blockers") if isinstance(document.get("blockers"), list) else [],
+            }
+        )
+
+    matches.sort(key=lambda item: str(item.get("generatedAtUtc") or ""))
+    return matches, warnings
+
+
 def resolve_preflight_summary_argument(args: argparse.Namespace, repo_root: Path) -> None:
     args.preflight_summary_requested = str(args.preflight_summary) if args.preflight_summary else None
     args.preflight_summary_resolved_from_alias = None
@@ -666,7 +738,7 @@ def resolve_candidate_file_argument(args: argparse.Namespace, repo_root: Path) -
     args.candidate_file = candidate_file
 
 
-def apply_preflight_summary(args: argparse.Namespace) -> None:
+def apply_preflight_summary(args: argparse.Namespace, repo_root: Path) -> None:
     args.preflight_summary_data = None
     args.preflight_summary_blockers = list(getattr(args, "preflight_summary_resolution_blockers", []) or [])
     args.preflight_summary_warnings = list(getattr(args, "preflight_summary_resolution_warnings", []) or [])
@@ -746,6 +818,20 @@ def apply_preflight_summary(args: argparse.Namespace) -> None:
         actual = str(selected_process_name).removesuffix(".exe").lower()
         if actual != expected:
             args.preflight_summary_blockers.append(f"process-name-mismatch-preflight:{actual}!={expected}")
+
+    if is_latest_preflight_alias(Path(str(getattr(args, "preflight_summary_requested", "") or ""))):
+        newer_blocked_summaries, newer_warnings = find_newer_non_passed_same_target_preflight_summaries(
+            repo_root,
+            selected_preflight_summary=Path(args.preflight_summary),
+            target_pid=args.target_pid,
+            target_hwnd=args.target_hwnd,
+        )
+        args.preflight_summary_warnings.extend(newer_warnings)
+        for newer in newer_blocked_summaries:
+            args.preflight_summary_blockers.append(
+                "preflight-summary-newer-same-target-not-passed:"
+                f"status={newer.get('status')};path={newer.get('path')}"
+            )
 
 
 def apply_api_coordinate_file(args: argparse.Namespace) -> None:
@@ -2036,7 +2122,7 @@ def main(argv: list[str] | None = None) -> int:
         apply_self_test_defaults(args)
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_module()
     resolve_preflight_summary_argument(args, repo_root)
-    apply_preflight_summary(args)
+    apply_preflight_summary(args, repo_root)
     resolve_api_coordinate_file_argument(args, repo_root)
     apply_api_coordinate_file(args)
     resolve_candidate_file_argument(args, repo_root)

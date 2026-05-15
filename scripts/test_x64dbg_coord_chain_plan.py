@@ -364,6 +364,60 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertEqual(summary["preflight"]["resolvedFromAlias"], "latest")
             self.assertEqual(summary["preflight"]["summaryPath"], str(latest_preflight))
 
+    def test_latest_preflight_summary_blocks_on_newer_same_target_blocked_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            passed_preflight = temp_path / "scripts" / "captures" / "x64dbg-target-preflight-passed" / "summary.json"
+            blocked_preflight = temp_path / "scripts" / "captures" / "x64dbg-target-preflight-blocked" / "summary.json"
+            self.write_preflight_summary(
+                passed_preflight,
+                pid=33333,
+                hwnd="0x333",
+                generated_at="2026-05-13T02:00:00Z",
+            )
+            self.write_preflight_summary(
+                blocked_preflight,
+                status="blocked",
+                pid=33333,
+                hwnd="0x333",
+                generated_at="2026-05-13T03:00:00Z",
+            )
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--repo-root",
+                        str(temp_path),
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        "latest",
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--api-x",
+                        "7376.87",
+                        "--api-y",
+                        "863.82",
+                        "--api-z",
+                        "2990.35",
+                        "--api-sampled-at-utc",
+                        "2026-05-13T03:30:00Z",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["preflight"]["requestedSummary"], "latest")
+            self.assertEqual(summary["preflight"]["resolvedFromAlias"], "latest")
+            self.assertEqual(summary["preflight"]["summaryPath"], str(passed_preflight))
+            self.assertTrue(
+                any(
+                    blocker.startswith("preflight-summary-newer-same-target-not-passed:status=blocked;path=")
+                    for blocker in summary["blockers"]
+                )
+            )
+
     def test_latest_preflight_summary_blocks_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

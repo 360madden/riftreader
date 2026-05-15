@@ -35,7 +35,11 @@ class X64DbgPreflightTests(unittest.TestCase):
 
     def test_rift_error_handler_process_name_detection(self) -> None:
         self.assertTrue(is_rift_error_handler_process_name("RiftErrorHandler"))
+        self.assertTrue(is_rift_error_handler_process_name("RiftErrorHandler_x64"))
+        self.assertTrue(is_rift_error_handler_process_name("rifterrorhandler_x64.exe"))
+        self.assertTrue(is_rift_error_handler_process_name("RiftErrorHandler-64"))
         self.assertFalse(is_rift_error_handler_process_name("rift_x64"))
+        self.assertFalse(is_rift_error_handler_process_name("not_rifterrorhandler_x64"))
 
     def test_start_time_delta_parses_z_and_offsets(self) -> None:
         self.assertEqual(

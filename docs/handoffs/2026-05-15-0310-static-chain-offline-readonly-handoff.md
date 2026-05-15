@@ -68,6 +68,14 @@ The current coordinate proof anchor remains valid for the current live target, b
 
 Important current-session note: a later process scan saw `rifterrorhandler_x64` running. This handoff remains valid for offline planning, but any future live x64dbg attach/watchpoint lane must first clear/understand that process and rerun same-target no-attach preflight.
 
+Follow-up safety fix: `scripts/rift_live_test/x64dbg_preflight.py` now detects
+`rifterrorhandler_x64.exe` variants as Rift error-handler processes, and
+`scripts/rift_live_test/x64dbg_coord_chain_plan.py` now fails closed when a
+newer same-target preflight is blocked even if an older passed preflight exists.
+With PID `27552` / HWND `0x3411E2`, the current expected strict static-chain
+planner state is blocked until the Rift error-handler process is cleared or
+explicitly handled and a fresh same-target no-attach preflight passes.
+
 ## Blockers
 
 - None.

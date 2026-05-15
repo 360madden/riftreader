@@ -28,6 +28,10 @@ DEFAULT_DEBUGGER_PROCESS_PREFIXES = (
 DEFAULT_RIFT_ERROR_HANDLER_PROCESS_NAMES = (
     "rifterrorhandler",
 )
+DEFAULT_RIFT_ERROR_HANDLER_PROCESS_PREFIXES = (
+    "rifterrorhandler_",
+    "rifterrorhandler-",
+)
 WINDOWS_TICK = 10_000_000
 WINDOWS_EPOCH = datetime(1601, 1, 1, tzinfo=UTC)
 
@@ -212,7 +216,10 @@ def is_debugger_process_name(process_name: str | None) -> bool:
 
 def is_rift_error_handler_process_name(process_name: str | None) -> bool:
     normalized = str(process_name or "").lower()
-    return normalized in DEFAULT_RIFT_ERROR_HANDLER_PROCESS_NAMES
+    normalized = normalized[:-4] if normalized.endswith(".exe") else normalized
+    return normalized in DEFAULT_RIFT_ERROR_HANDLER_PROCESS_NAMES or any(
+        normalized.startswith(prefix) for prefix in DEFAULT_RIFT_ERROR_HANDLER_PROCESS_PREFIXES
+    )
 
 
 def enumerate_debugger_processes() -> list[dict[str, Any]]:
