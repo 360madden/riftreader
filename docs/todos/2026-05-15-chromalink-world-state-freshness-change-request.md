@@ -1,7 +1,7 @@
 # ChromaLink Change Request
 
-Date: 2026-05-15  
-Requested by: RiftReader recovery workflow  
+Date: 2026-05-15
+Requested by: RiftReader recovery workflow
 RiftReader branch/session: `main`, fast coordinate-anchor restart recovery
 
 ## Need
