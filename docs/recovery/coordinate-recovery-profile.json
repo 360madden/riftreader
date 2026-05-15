@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-coordinate-recovery-profile",
-  "generatedAtUtc": "2026-05-15T05:54:43.092618Z",
+  "generatedAtUtc": "2026-05-15T06:01:59.323577Z",
   "sourceRunDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971",
   "target": {
     "pid": 27552,
@@ -121,8 +121,8 @@
       ]
     }
   },
-  "promotionBatchSummaryJson": null,
-  "proofOnlySummaryJson": null,
+  "promotionBatchSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\05-pose-batch\\coordinate-anchor-batch-summary.json",
+  "proofOnlySummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\07-proofonly\\live-test-ProofOnly-20260515-060102\\run-summary.json",
   "stageTimings": [
     {
       "label": "target-control-visual-gate",
@@ -133,7 +133,7 @@
     {
       "label": "reference-chromalink-fast-path",
       "phase": "reference",
-      "status": "passed",
+      "status": "blocked",
       "durationSeconds": 0.383
     },
     {
@@ -153,6 +153,24 @@
       "phase": "scan",
       "status": "passed",
       "durationSeconds": 3.545
+    },
+    {
+      "label": "three-pose-displacement-validation",
+      "phase": "pose-validation",
+      "status": "passed",
+      "durationSeconds": 367.432
+    },
+    {
+      "label": "promote-current-proof-anchor",
+      "phase": "promotion",
+      "status": "passed",
+      "durationSeconds": 11.227
+    },
+    {
+      "label": "proofonly-final-gate",
+      "phase": "proofonly",
+      "status": "passed",
+      "durationSeconds": 57.558
     }
   ],
   "safety": {

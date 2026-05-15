@@ -982,10 +982,18 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
                 summary["blockers"].append("proofonly-final-gate-failed")
                 return 2
             parsed = proofonly.get("parsedJson") if isinstance(proofonly.get("parsedJson"), dict) else {}
+            proof_run_dir = parsed.get("runDirectory") if isinstance(parsed, dict) else None
+            proof_run_summary = None
+            if proof_run_dir:
+                candidate_run_summary = Path(str(proof_run_dir)) / "run-summary.json"
+                if candidate_run_summary.is_file():
+                    proof_run_summary = str(candidate_run_summary.resolve())
             proof_summary = first_present(
+                proof_run_summary,
                 nested_get(parsed, "artifacts", "summaryJson"),
                 parsed.get("summaryJson"),
                 parsed.get("runSummaryJson"),
+                parsed.get("summaryFile"),
             )
             if proof_summary:
                 summary["execution"]["proofOnlySummaryJson"] = str(proof_summary)
@@ -998,6 +1006,18 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
         summary["execution"]["completedAtUtc"] = utc_iso()
         write_json(run_dir / "command-envelopes.json", envelopes)
         summary["artifacts"]["commandEnvelopesJson"] = str(run_dir / "command-envelopes.json")
+        if summary.get("execution", {}).get("candidateJsonl"):
+            restart_profile = build_restart_profile(summary)
+            restart_profile_path = run_dir / "restart-profile.json"
+            write_json(restart_profile_path, restart_profile)
+            summary["artifacts"]["restartProfileJson"] = str(restart_profile_path)
+            if args.write_restart_profile:
+                repo_profile_path = Path(args.restart_profile_path)
+                if not repo_profile_path.is_absolute():
+                    repo_profile_path = repo_root / repo_profile_path
+                repo_profile_path = repo_profile_path.resolve()
+                write_json(repo_profile_path, restart_profile)
+                summary["artifacts"]["repoRestartProfileJson"] = str(repo_profile_path)
 
 
 def render_markdown(summary: dict[str, Any]) -> str:
