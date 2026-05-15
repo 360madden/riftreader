@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
   "status": "current-target-proofonly-passed",
-  "lastUpdatedUtc": "2026-05-15T06:35:19.165545+00:00",
+  "lastUpdatedUtc": "2026-05-15T06:38:56.018307+00:00",
   "target": {
     "processName": "rift_x64",
     "processId": 27552,
@@ -40,7 +40,7 @@
     "movementAllowed": true,
     "movementSent": false,
     "noCheatEngine": true,
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260515-023512.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260515-023849.json",
     "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
     "proofAnchorCandidateId": "api-family-hit-000001",
     "proofAnchorCandidateAddressHex": "0x27B1ED850C0",
@@ -48,24 +48,24 @@
       "x": 7315.40234375,
       "y": 875.080078125,
       "z": 3052.693603515625,
-      "recordedAtUtc": "2026-05-15T06:35:18.5141632Z"
+      "recordedAtUtc": "2026-05-15T06:38:55.3353545Z"
     },
-    "generatedAtUtc": "2026-05-15T06:35:18.8612832+00:00"
+    "generatedAtUtc": "2026-05-15T06:38:55.7196199+00:00"
   },
   "latestProofOnly": {
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proofonly-20260515-do-1-10-repeat\\live-test-ProofOnly-20260515-063419\\run-summary.json",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proofonly-20260515-do-1-10-repeat2\\live-test-ProofOnly-20260515-063801\\run-summary.json",
     "status": "passed-proof-only",
-    "generatedAtUtc": "2026-05-15T06:35:19.157855+00:00",
+    "generatedAtUtc": "2026-05-15T06:38:56.014048+00:00",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
       "x": 7315.40234375,
       "y": 875.080078125,
       "z": 3052.693603515625,
-      "recordedAtUtc": "2026-05-15T06:35:18.5141632Z"
+      "recordedAtUtc": "2026-05-15T06:38:55.3353545Z"
     },
     "coordinateDelta": null,
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260515-023512.json"
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260515-023849.json"
   },
   "runtimePointers": {
     "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
