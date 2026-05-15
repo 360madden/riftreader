@@ -76,6 +76,19 @@ With PID `27552` / HWND `0x3411E2`, the current expected strict static-chain
 planner state is blocked until the Rift error-handler process is cleared or
 explicitly handled and a fresh same-target no-attach preflight passes.
 
+Follow-up handler-clear pass: `rifterrorhandler_x64` PID `50356` was stopped
+after confirming the exact process name/path, and RIFT PID `27552` remained
+alive/responding. A fresh same-target no-attach preflight then passed with
+`riftErrorHandlerProcessCount=0` and `debuggerProcessCount=0`, and strict
+offline static-chain planning returned `planned` with no blockers. Live x64dbg
+attach/watchpoints are still not approved by this handoff.
+
+| Handler-clear artifact | Path |
+|---|---|
+| No-attach preflight | `C:\RIFT MODDING\RiftReader\scripts\captures\x64dbg-target-preflight-handler-cleared-20260515-0723\summary.json` |
+| Fresh API-now reference | `C:\RIFT MODDING\RiftReader\scripts\captures\chromalink-static-chain-handler-cleared-20260515-0723\rift-api-reference-currentpid-27552-20260515-072248-051077.json` |
+| Strict static-chain plan | `C:\RIFT MODDING\RiftReader\scripts\captures\x64dbg-static-chain-plan-handler-cleared-20260515-0723\coord-chain-plan-summary.json` |
+
 ## Blockers
 
 - None.
