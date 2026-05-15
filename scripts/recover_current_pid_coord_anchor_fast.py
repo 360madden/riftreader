@@ -267,6 +267,65 @@ def read_current_proof_snapshot(repo_root: Path, requested_pid: int | None, requ
     return snapshot
 
 
+def resolve_restart_profile_path(repo_root: Path, args: argparse.Namespace) -> Path:
+    profile_path = Path(args.restart_profile_path)
+    if not profile_path.is_absolute():
+        profile_path = repo_root / profile_path
+    return profile_path.resolve()
+
+
+def load_restart_profile(repo_root: Path, args: argparse.Namespace) -> tuple[dict[str, Any] | None, Path, list[str]]:
+    path = resolve_restart_profile_path(repo_root, args)
+    warnings: list[str] = []
+    if not path.is_file():
+        return None, path, [f"restart-profile-not-found:{path}"]
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # keep planning robust even when the profile is malformed.
+        return None, path, [f"restart-profile-read-failed:{type(exc).__name__}:{exc}"]
+    if not isinstance(document, dict):
+        return None, path, [f"restart-profile-not-json-object:{path}"]
+    if document.get("kind") != "riftreader-coordinate-recovery-profile":
+        warnings.append(f"restart-profile-kind-unexpected:{document.get('kind')}")
+    return document, path, warnings
+
+
+def profile_scan_range_from_profile(profile: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+    warnings: list[str] = []
+    best_range = profile.get("bestScanRange") if isinstance(profile.get("bestScanRange"), dict) else None
+    if not best_range:
+        return None, ["restart-profile-best-scan-range-missing"]
+
+    min_address = first_present(best_range.get("minAddressHex"), best_range.get("minAddress"))
+    max_address = first_present(best_range.get("maxAddressHex"), best_range.get("maxAddress"))
+    if not min_address or not max_address:
+        return None, ["restart-profile-best-scan-range-addresses-missing"]
+    try:
+        min_int = int(str(min_address), 0)
+        max_int = int(str(max_address), 0)
+    except ValueError:
+        return None, [f"restart-profile-best-scan-range-addresses-invalid:{min_address}:{max_address}"]
+    if min_int >= max_int:
+        return None, [f"restart-profile-best-scan-range-addresses-not-ascending:{min_address}:{max_address}"]
+
+    return (
+        {
+            "source": "restart-profile-best-scan-range",
+            "rank": best_range.get("rank"),
+            "minAddressHex": f"0x{min_int:X}",
+            "maxAddressHex": f"0x{max_int:X}",
+            "spanMiB": best_range.get("spanMiB"),
+            "readableMiB": best_range.get("readableMiB"),
+            "previousHitCount": best_range.get("hitCount"),
+            "previousCandidateJsonl": profile.get("candidateJsonl") or best_range.get("candidateJsonl"),
+            "previousSummaryJson": best_range.get("summaryJson"),
+            "profileGeneratedAtUtc": profile.get("generatedAtUtc"),
+            "profileSourceRunDirectory": profile.get("sourceRunDirectory"),
+        },
+        warnings,
+    )
+
+
 def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path) -> dict[str, Any]:
     pid_text = str(args.pid) if args.pid is not None else "<PID_FROM_TARGET_DISCOVERY>"
     hwnd_text = normalize_hwnd(args.hwnd) or "<HWND_FROM_TARGET_DISCOVERY>"
@@ -282,6 +341,22 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
     rrapi_output = run_dir / "02-reference-rrapicoord-fallback"
     rrapi_reference_file = rrapi_output / "reference.json"
     inventory_output = run_dir / "03-memory-inventory"
+    profile_priority: dict[str, Any] = {
+        "enabled": bool(args.use_restart_profile),
+        "path": str(resolve_restart_profile_path(repo_root, args)),
+        "loaded": False,
+        "range": None,
+        "warnings": [],
+    }
+    if args.use_restart_profile:
+        profile_doc, profile_path, profile_warnings = load_restart_profile(repo_root, args)
+        profile_priority["path"] = str(profile_path)
+        profile_priority["warnings"].extend(profile_warnings)
+        if profile_doc is not None:
+            profile_priority["loaded"] = True
+            profile_range, range_warnings = profile_scan_range_from_profile(profile_doc)
+            profile_priority["warnings"].extend(range_warnings)
+            profile_priority["range"] = profile_range
     pose_batch_output = run_dir / "05-pose-batch"
     proofonly_output = run_dir / "07-proofonly"
 
@@ -406,6 +481,54 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
         )
     )
     order += 1
+
+    if profile_priority.get("range"):
+        profile_range = profile_priority["range"]
+        steps.append(
+            command_step(
+                order=order,
+                label="profile-priority-family-scan",
+                title="Scan the last successful family range first",
+                why="Uses the restart profile as a current-PID hint so the fastest proven family is checked before rebuilding a full inventory.",
+                command=python_script_command(
+                    repo_root,
+                    "scripts/scan_current_pid_coordinate_family.py",
+                    "--pid",
+                    pid_text,
+                    "--hwnd",
+                    hwnd_text,
+                    "--process-name",
+                    process_name,
+                    "--repo-root",
+                    str(repo_root),
+                    "--reference-file",
+                    REFERENCE_PLACEHOLDER,
+                    "--tolerance",
+                    str(args.scan_tolerance),
+                    "--scan-stride",
+                    str(args.scan_stride),
+                    "--min-address",
+                    str(profile_range["minAddressHex"]),
+                    "--max-address",
+                    str(profile_range["maxAddressHex"]),
+                    "--max-seconds",
+                    str(args.max_seconds_per_scan_range),
+                    "--reference-timeout-seconds",
+                    str(args.scan_reference_timeout_seconds),
+                    "--json",
+                ),
+                cwd=repo_root,
+                execution_phase="profile-scan",
+                condition="after fresh reference selection; fallback to inventory/scan-plan if no current-PID hit",
+                timeout_seconds=max(60, int(args.max_seconds_per_scan_range) + 30),
+                reads_target_memory_if_executed=True,
+                notes=[
+                    "The restart-profile range is a hint only; old absolute candidate addresses remain stale.",
+                    "Promotion still requires displaced-pose support and same-target ProofOnly.",
+                ],
+            )
+        )
+        order += 1
 
     steps.append(
         command_step(
@@ -601,6 +724,7 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
             "x64dbgMode": "offline-read-only",
             "cheatEngineAllowed": False,
         },
+        "profilePriority": profile_priority,
         "steps": steps,
     }
 
@@ -650,15 +774,22 @@ def candidate_file_from_scan_summary(parsed: Any) -> tuple[Path | None, dict[str
     best_result: dict[str, Any] | None = None
     if not isinstance(parsed, dict):
         return None, None, ["scan-output-not-json-object"]
-    total_hits = int(nested_get(parsed, "scan", "totalHits") or 0)
+    range_results = [item for item in parsed.get("rangeResults") or [] if isinstance(item, dict)]
+    total_hits_value = first_present(
+        nested_get(parsed, "scan", "totalHits"),
+        nested_get(parsed, "scan", "hitCount"),
+        parsed.get("totalHits"),
+        parsed.get("hitCount"),
+    )
+    if total_hits_value is None and range_results:
+        total_hits_value = sum(int(item.get("hitCount") or 0) for item in range_results)
+    total_hits = int(total_hits_value or 0)
     if status_value(parsed) != "passed":
         blockers.append(f"scan-status-not-passed:{status_value(parsed)}")
     if total_hits <= 0:
         blockers.append("scan-total-hits-zero")
 
-    for item in parsed.get("rangeResults") or []:
-        if not isinstance(item, dict):
-            continue
+    for item in range_results:
         if int(item.get("hitCount") or 0) <= 0:
             continue
         candidate_jsonl = item.get("candidateJsonl")
@@ -673,7 +804,19 @@ def candidate_file_from_scan_summary(parsed: Any) -> tuple[Path | None, dict[str
     if fallback:
         path = Path(str(fallback)).resolve()
         if path.is_file():
-            return path, None, blockers
+            scan = parsed.get("scan") if isinstance(parsed.get("scan"), dict) else {}
+            best_result = {
+                "source": "single-family-scan",
+                "status": status_value(parsed),
+                "hitCount": total_hits,
+                "minAddressHex": first_present(scan.get("minAddressHex"), scan.get("minAddress")),
+                "maxAddressHex": first_present(scan.get("maxAddressHex"), scan.get("maxAddress")),
+                "durationSeconds": scan.get("durationSeconds"),
+                "summaryJson": nested_get(parsed, "artifacts", "summaryJson"),
+                "candidateJsonl": str(path),
+                "bestHit": scan.get("bestHit"),
+            }
+            return path, best_result, blockers
         blockers.append(f"scan-candidate-jsonl-not-found:{path}")
 
     blockers.append("scan-candidate-jsonl-missing")
@@ -776,6 +919,9 @@ def build_restart_profile(summary: dict[str, Any]) -> dict[str, Any]:
         "scanPlanJson": execution.get("scanPlanJson"),
         "candidateJsonl": execution.get("candidateJsonl"),
         "bestScanRange": execution.get("bestScanRange"),
+        "profileScanUsed": execution.get("profileScanUsed"),
+        "profileScanRange": execution.get("profileScanRange"),
+        "profileScanSummaryJson": execution.get("profileScanSummaryJson"),
         "promotionBatchSummaryJson": execution.get("promotionBatchSummaryJson"),
         "proofOnlySummaryJson": execution.get("proofOnlySummaryJson"),
         "stageTimings": [
@@ -822,6 +968,9 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
         "scanPlanJson": None,
         "candidateJsonl": None,
         "bestScanRange": None,
+        "profileScanUsed": False,
+        "profileScanRange": nested_get(summary, "plan", "profilePriority", "range"),
+        "profileScanSummaryJson": None,
         "promotionBatchSummaryJson": None,
         "proofOnlySummaryJson": None,
         "stages": stages,
@@ -898,31 +1047,56 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
         summary["execution"]["referenceProvider"] = reference_provider
         summary["execution"]["referenceJson"] = str(reference_json)
 
-        inventory = run_label("memory-region-inventory")
-        if stages[-1]["status"] != "passed":
-            summary["status"] = "blocked"
-            summary["blockers"].append("memory-region-inventory-failed")
-            return 2
-        scan_plan_json, inventory_blockers = inventory_scan_plan_from_summary(inventory.get("parsedJson"))
-        if inventory_blockers or scan_plan_json is None:
-            summary["status"] = "blocked"
-            summary["blockers"].extend(inventory_blockers)
-            return 2
-        summary["execution"]["scanPlanJson"] = str(scan_plan_json)
-        stages[-1]["details"]["scanPlanJson"] = str(scan_plan_json)
+        if "profile-priority-family-scan" in steps:
+            profile_step = steps["profile-priority-family-scan"]
+            profile_command = replace_or_append_flag(list(profile_step["command"]), "--reference-file", str(reference_json))
+            profile_scan = run_label("profile-priority-family-scan", command=profile_command, acceptable_exit_codes=(0, 2))
+            profile_candidate, profile_range_result, profile_blockers = candidate_file_from_scan_summary(
+                profile_scan.get("parsedJson")
+            )
+            parsed_profile_scan = profile_scan.get("parsedJson") if isinstance(profile_scan.get("parsedJson"), dict) else {}
+            profile_summary = first_present(nested_get(parsed_profile_scan, "artifacts", "summaryJson"), parsed_profile_scan.get("summaryJson"))
+            if profile_summary:
+                summary["execution"]["profileScanSummaryJson"] = str(profile_summary)
+                stages[-1]["details"]["summaryJson"] = str(profile_summary)
+            if profile_blockers or profile_candidate is None:
+                stages[-1]["status"] = "blocked"
+                stages[-1]["details"]["blockers"] = profile_blockers
+                summary["warnings"].extend(f"profile-priority-scan-blocked:{item}" for item in profile_blockers)
+            else:
+                candidate_jsonl = profile_candidate
+                best_scan_range = profile_range_result
+                summary["execution"]["profileScanUsed"] = True
+                summary["execution"]["candidateJsonl"] = str(candidate_jsonl)
+                summary["execution"]["bestScanRange"] = best_scan_range
+                stages[-1]["details"]["candidateJsonl"] = str(candidate_jsonl)
 
-        scan_step = steps["scan-plan-batch-stop-on-hit"]
-        scan_command = replace_or_append_flag(list(scan_step["command"]), "--reference-file", str(reference_json))
-        scan_command = replace_or_append_flag(scan_command, "--scan-plan", str(scan_plan_json))
-        scan = run_label("scan-plan-batch-stop-on-hit", command=scan_command, acceptable_exit_codes=(0, 2))
-        candidate_jsonl, best_scan_range, scan_blockers = candidate_file_from_scan_summary(scan.get("parsedJson"))
-        if scan_blockers or candidate_jsonl is None:
-            summary["status"] = "blocked"
-            summary["blockers"].extend(scan_blockers)
-            return 2
-        summary["execution"]["candidateJsonl"] = str(candidate_jsonl)
-        summary["execution"]["bestScanRange"] = best_scan_range
-        stages[-1]["details"]["candidateJsonl"] = str(candidate_jsonl)
+        if candidate_jsonl is None:
+            inventory = run_label("memory-region-inventory")
+            if stages[-1]["status"] != "passed":
+                summary["status"] = "blocked"
+                summary["blockers"].append("memory-region-inventory-failed")
+                return 2
+            scan_plan_json, inventory_blockers = inventory_scan_plan_from_summary(inventory.get("parsedJson"))
+            if inventory_blockers or scan_plan_json is None:
+                summary["status"] = "blocked"
+                summary["blockers"].extend(inventory_blockers)
+                return 2
+            summary["execution"]["scanPlanJson"] = str(scan_plan_json)
+            stages[-1]["details"]["scanPlanJson"] = str(scan_plan_json)
+
+            scan_step = steps["scan-plan-batch-stop-on-hit"]
+            scan_command = replace_or_append_flag(list(scan_step["command"]), "--reference-file", str(reference_json))
+            scan_command = replace_or_append_flag(scan_command, "--scan-plan", str(scan_plan_json))
+            scan = run_label("scan-plan-batch-stop-on-hit", command=scan_command, acceptable_exit_codes=(0, 2))
+            candidate_jsonl, best_scan_range, scan_blockers = candidate_file_from_scan_summary(scan.get("parsedJson"))
+            if scan_blockers or candidate_jsonl is None:
+                summary["status"] = "blocked"
+                summary["blockers"].extend(scan_blockers)
+                return 2
+            summary["execution"]["candidateJsonl"] = str(candidate_jsonl)
+            summary["execution"]["bestScanRange"] = best_scan_range
+            stages[-1]["details"]["candidateJsonl"] = str(candidate_jsonl)
 
         restart_profile = build_restart_profile(summary)
         restart_profile_path = run_dir / "restart-profile.json"
@@ -1127,12 +1301,20 @@ def render_markdown(summary: dict[str, Any]) -> str:
 def build_recommended_actions() -> list[dict[str, str]]:
     return [
         {
-            "action": "Run the helper dry-run with exact --pid and --hwnd after each restart.",
-            "why": "Creates a timestamped, target-specific recovery plan before touching live state.",
+            "action": "Use this helper as the default restart recovery entrypoint.",
+            "why": "It keeps target selection, freshness, family scan, movement, promotion, and ProofOnly gates in one auditable workflow.",
         },
         {
-            "action": "Use --execute first without --movement-approved.",
-            "why": "Runs only the target/reference/inventory/scan lane and blocks before movement.",
+            "action": "Run --execute --use-restart-profile first without --movement-approved.",
+            "why": "Checks fresh API truth plus the previous winning family range and blocks before any input.",
+        },
+        {
+            "action": "Keep ChromaLink healthy/fresh before scanning.",
+            "why": "Fresh provider truth can skip the slower RRAPICOORD fallback and speeds restart recovery.",
+        },
+        {
+            "action": "Use the restart profile range as a hint, never as current truth.",
+            "why": "The range can be reused across restarts; the absolute coordinate address cannot.",
         },
         {
             "action": "Use --movement-approved only when displaced-pose validation is intended.",
@@ -1147,20 +1329,12 @@ def build_recommended_actions() -> list[dict[str, str]]:
             "why": "Completes the same-target no-movement proof gate immediately.",
         },
         {
-            "action": "Inspect command-envelopes.json after any execute run.",
-            "why": "It records command args, stdout/stderr files, exit codes, and timings.",
-        },
-        {
-            "action": "Prefer ChromaLink only when freshness passes.",
-            "why": "Avoids treating a reachable but stale provider as API-now truth.",
-        },
-        {
-            "action": "Keep broad scans as escalation only.",
-            "why": "The scan-plan stop-on-hit lane is the faster restart path.",
+            "action": "Use scripts/coordinate_recovery_status.py for compact status checks.",
+            "why": "It avoids rereading full artifacts just to see PID/HWND, proof, range, and stage timings.",
         },
         {
             "action": "Enable --write-restart-profile after a real scan run.",
-            "why": "Persists region/candidate timing hints without promoting old addresses as truth.",
+            "why": "Persists timing and family-range hints without promoting old addresses as truth.",
         },
         {
             "action": "Keep x64dbg offline/read-only in this workflow.",
@@ -1202,6 +1376,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-current-truth-update", action="store_true")
     parser.add_argument("--run-proofonly", action="store_true")
     parser.add_argument("--write-restart-profile", action="store_true")
+    parser.add_argument(
+        "--use-restart-profile",
+        "--profile-first",
+        dest="use_restart_profile",
+        action="store_true",
+        help="Try the best range from the persisted restart profile before rebuilding a full memory inventory.",
+    )
     parser.add_argument(
         "--restart-profile-path",
         default=str(Path("docs") / "recovery" / "coordinate-recovery-profile.json"),
@@ -1254,6 +1435,7 @@ def main(argv: list[str] | None = None) -> int:
             "allowCurrentTruthUpdate": bool(args.allow_current_truth_update),
             "runProofOnly": bool(args.run_proofonly),
             "writeRestartProfile": bool(args.write_restart_profile),
+            "useRestartProfile": bool(args.use_restart_profile),
             "x64dbgMode": "offline-read-only",
             "cheatEngineAllowed": False,
         },
@@ -1286,6 +1468,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         plan = build_recovery_plan(args, repo_root, run_dir)
         summary["plan"] = plan
+        summary["warnings"].extend(plan.get("profilePriority", {}).get("warnings") or [])
         proof_warnings = summary.get("currentProofArtifact", {}).get("warnings") or []
         summary["warnings"].extend(proof_warnings)
         if not args.movement_approved:

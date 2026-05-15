@@ -39,6 +39,7 @@ def default_args(**overrides: object) -> argparse.Namespace:
         "allow_current_truth_update": False,
         "run_proofonly": False,
         "write_restart_profile": False,
+        "use_restart_profile": False,
         "restart_profile_path": "docs/recovery/coordinate-recovery-profile.json",
     }
     values.update(overrides)
@@ -109,6 +110,90 @@ class FastRecoveryDryRunTests(unittest.TestCase):
         self.assertEqual(path, candidate.resolve())
         self.assertEqual(best_range["rank"], 4)
         self.assertEqual(blockers, [])
+
+    def test_scan_parser_accepts_single_family_scan_hit_count(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "candidates.jsonl"
+            candidate.write_text('{"id":"hit"}\n', encoding="utf-8")
+            parsed = {
+                "status": "passed",
+                "scan": {
+                    "hitCount": 1,
+                    "minAddress": "0x1000",
+                    "maxAddress": "0x2000",
+                    "durationSeconds": 1.25,
+                    "bestHit": {"addressHex": "0x1800"},
+                },
+                "artifacts": {"candidateJsonl": str(candidate), "summaryJson": str(Path(temp_dir) / "summary.json")},
+            }
+
+            path, best_range, blockers = fast.candidate_file_from_scan_summary(parsed)
+
+        self.assertEqual(path, candidate.resolve())
+        self.assertEqual(best_range["source"], "single-family-scan")
+        self.assertEqual(best_range["hitCount"], 1)
+        self.assertEqual(best_range["minAddressHex"], "0x1000")
+        self.assertEqual(blockers, [])
+
+    def test_use_restart_profile_adds_profile_scan_before_inventory(self) -> None:
+        repo_root = fast.find_repo_root(Path(__file__).resolve())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            profile = temp / "coordinate-recovery-profile.json"
+            profile.write_text(
+                """{
+                  "kind": "riftreader-coordinate-recovery-profile",
+                  "generatedAtUtc": "2026-05-15T00:00:00Z",
+                  "candidateJsonl": "old-candidate.jsonl",
+                  "bestScanRange": {
+                    "rank": 1,
+                    "minAddressHex": "0x1000",
+                    "maxAddressHex": "0x2000",
+                    "hitCount": 1
+                  }
+                }""",
+                encoding="utf-8",
+            )
+            args = default_args(use_restart_profile=True, restart_profile_path=str(profile))
+            plan = fast.build_recovery_plan(args, repo_root, temp)
+
+        labels = [step["label"] for step in plan["steps"]]
+        self.assertIn("profile-priority-family-scan", labels)
+        self.assertLess(labels.index("reference-rrapicoord-fallback"), labels.index("profile-priority-family-scan"))
+        self.assertLess(labels.index("profile-priority-family-scan"), labels.index("memory-region-inventory"))
+        profile_step = next(step for step in plan["steps"] if step["label"] == "profile-priority-family-scan")
+        self.assertIn("--min-address", profile_step["command"])
+        self.assertIn("0x1000", profile_step["command"])
+
+    def test_restart_profile_records_profile_and_final_proof_fields(self) -> None:
+        summary = {
+            "artifacts": {"runDirectory": "run-dir"},
+            "target": {"pid": 1234, "hwnd": "0xABCDEF"},
+            "operator": {"x64dbgMode": "offline-read-only"},
+            "execution": {
+                "referenceProvider": "chromalink-world-state",
+                "referenceJson": "reference.json",
+                "candidateJsonl": "candidates.jsonl",
+                "bestScanRange": {"source": "single-family-scan", "hitCount": 1},
+                "profileScanUsed": True,
+                "profileScanRange": {"minAddressHex": "0x1000", "maxAddressHex": "0x2000"},
+                "profileScanSummaryJson": "profile-scan-summary.json",
+                "promotionBatchSummaryJson": "promotion-summary.json",
+                "proofOnlySummaryJson": "proofonly-summary.json",
+                "stages": [
+                    {"label": "profile-priority-family-scan", "phase": "profile-scan", "status": "passed", "durationSeconds": 2.0},
+                    {"label": "proofonly-final-gate", "phase": "proofonly", "status": "passed", "durationSeconds": 3.0},
+                ],
+            },
+        }
+
+        profile = fast.build_restart_profile(summary)
+
+        self.assertTrue(profile["profileScanUsed"])
+        self.assertEqual(profile["profileScanSummaryJson"], "profile-scan-summary.json")
+        self.assertEqual(profile["promotionBatchSummaryJson"], "promotion-summary.json")
+        self.assertEqual(profile["proofOnlySummaryJson"], "proofonly-summary.json")
+        self.assertEqual(profile["stageTimings"][-1]["label"], "proofonly-final-gate")
 
     def test_execute_blocks_without_exact_pid_hwnd_before_child_commands(self) -> None:
         repo_root = fast.find_repo_root(Path(__file__).resolve())
