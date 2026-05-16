@@ -68,10 +68,83 @@ class CoordinateRecoveryStatusTests(unittest.TestCase):
             result = status_tool.build_status(root, proof, profile)
 
         self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["liveTarget"]["verdict"], "not-checked")
         self.assertEqual(result["target"]["pid"], 1234)
         self.assertEqual(result["proof"]["anchor"]["addressHex"], "0x1000")
         self.assertTrue(result["recoveryProfile"]["profileScanUsed"])
         self.assertEqual(result["recoveryProfile"]["bestScanRange"]["rank"], 1)
+
+    def test_live_target_check_blocks_when_artifact_pid_is_not_running(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = root / "current-proof-anchor-readback.json"
+            profile = root / "coordinate-recovery-profile.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "status": "current-target-proofonly-passed",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 1234,
+                            "targetWindowHandle": "0xABCDEF",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile.write_text(json.dumps({}), encoding="utf-8")
+
+            result = status_tool.build_status(
+                root,
+                proof,
+                profile,
+                live_target_check=True,
+                live_process_snapshot={
+                    "checkedAtUtc": "2026-05-16T00:00:00Z",
+                    "status": "passed",
+                    "processes": [{"imageName": "rift_x64.exe", "pid": 5678}],
+                },
+            )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["liveTarget"]["verdict"], "artifact-pid-stale")
+        self.assertIn("artifact-target-pid-not-running:artifact=1234;live=5678", result["blockers"])
+
+    def test_live_target_check_blocks_when_no_live_process_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = root / "current-proof-anchor-readback.json"
+            profile = root / "coordinate-recovery-profile.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "status": "current-target-proofonly-passed",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 1234,
+                            "targetWindowHandle": "0xABCDEF",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile.write_text(json.dumps({}), encoding="utf-8")
+
+            result = status_tool.build_status(
+                root,
+                proof,
+                profile,
+                live_target_check=True,
+                live_process_snapshot={
+                    "checkedAtUtc": "2026-05-16T00:00:00Z",
+                    "status": "passed",
+                    "processes": [],
+                },
+            )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["liveTarget"]["verdict"], "no-live-process")
+        self.assertIn("live-target-not-running:rift_x64", result["blockers"])
 
 
 if __name__ == "__main__":

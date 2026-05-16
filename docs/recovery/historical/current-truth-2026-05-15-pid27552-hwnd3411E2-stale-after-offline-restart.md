@@ -1,14 +1,14 @@
 # RiftReader Current Truth
 
-_Last updated: 2026-05-16T16:46:11Z._
+_Last updated: 2026-05-15T03:20:52.926653Z._
 
 ## Verdict
 
-**No current coordinate proof is live.** The prior proof target PID `27552` / HWND `0x3411E2` is historical after the game/Codex session closed, and no live `rift_x64` process was detected during offline recovery on 2026-05-16.
+**Coordinate proof is restored for the current RIFT process.** The active target is PID `27552` / HWND `0x3411E2`, and `ProofOnly` passed after promoting the current-PID proof anchor `api-family-hit-000001 @ 0x27B1ED850C0`.
 
-Movement is blocked until RIFT is loaded into the character/world again, fresh API/runtime coordinate truth is sampled, and the new PID/HWND passes current-PID recovery plus same-target `ProofOnly`.
+Movement is no longer blocked by missing coordinate proof, but every movement run still needs exact target-control, proof-age/readback gates, and the profile-specific input safety gate.
 
-## Historical target and stale proof
+## Current target and proof
 
 | Field | Value |
 |---|---|
@@ -18,13 +18,13 @@ Movement is blocked until RIFT is loaded into the character/world again, fresh A
 | Window title | `RIFT` |
 | Process start | `2026-05-15T01:11:57.750696Z` |
 | Module base | `0x7FF71CD90000` |
-| Target-control | historical `passed-target-control` / `exact-hwnd-foreground` |
-| ProofOnly | historical `passed-proof-only`; current status `blocked-target-drift` |
-| Movement allowed by coord proof | `false` after offline restart / no live target |
+| Target-control | `passed-target-control` / `exact-hwnd-foreground` |
+| ProofOnly | `passed-proof-only` |
+| Movement allowed by coord proof | `true` |
 | Latest coordinate | `x=7325.35888671875, y=874.0448608398438, z=3053.77490234375` |
 | Coordinate recorded | `2026-05-15T03:19:32.4433262Z` |
 
-## Historical proof anchor / reacquisition seed
+## Promoted proof anchor
 
 | Field | Value |
 |---|---|
@@ -41,7 +41,7 @@ Movement is blocked until RIFT is loaded into the character/world again, fresh A
 | ProofOnly run | `scripts\captures\work-1-10-pid27552-refresh-20260514-231658\proofonly\live-test-ProofOnly-20260515-031659\run-summary.json` |
 | Readback summary | `scripts\captures\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json` |
 
-## Historical recovery workflow from PID 27552
+## Recovery workflow just completed
 
 | Step | Result | Artifact |
 |---:|---|---|
@@ -58,7 +58,7 @@ Movement is blocked until RIFT is loaded into the character/world again, fresh A
 | 11 | Ran RiftScan coordination validation; quick no-CE/read-only suite passed. | `scripts\captures\riftscan-validation-20260515-023843.json` |
 
 
-## Historical proof-gated movement smoke
+## Proof-gated movement smoke
 
 | Field | Value |
 |---|---|
@@ -74,25 +74,23 @@ Movement is blocked until RIFT is loaded into the character/world again, fresh A
 
 | Epoch | Candidate/address | Status | Reuse policy |
 |---|---|---|---|
-| PID `27552` / HWND `0x3411E2` | `api-family-hit-000001 @ 0x27B1ED850C0` | Historical/stale after offline restart / no live target on 2026-05-16. | Recovery/static-chain evidence only; never current movement truth. |
 | PID `23496` / HWND `0x2C1024` | `api-family-hit-000005 @ 0x27236F46750` | Historical/stale after PID `27552` recovery. | Recovery evidence only; never current movement truth. |
 | PID `16536` / HWND `0x1E0D66` | `snapshot-delta-21487DF8F64-xyz @ 0x21487DF8F64` | Historical/stale after game close. | Access-path/static-chain research seed only. |
 | PID `2928` / HWND `0xC0994` | `api-family-hit-000001 @ 0x268E2BC09E0` | Historical/stale candidate-only lane. | Audit/history only. |
 
 ## Current caveats
 
-- The PID `27552` proof is now **historical**, not current movement truth.
-- `docs/recovery/current-proof-anchor-readback.json` is now a `blocked-target-drift` blocker until a new same-target `ProofOnly` replaces it.
-- SavedVariables are not live truth and were not used for this offline update.
-- x64dbg/CE were not used for this offline update.
-- Static owner/source-chain provenance is still unresolved and candidate-only.
-- The source/cache static-chain hypothesis remains primary; the simple `owner+0x320` path remains a negative control unless fresh readback proves otherwise.
+- This is **current-PID proof**, not a restart-stable static pointer chain.
+- The proof anchor is valid only while PID `27552` / HWND `0x3411E2` remains the same target epoch.
+- SavedVariables were not used as live truth.
+- x64dbg/CE were not used for this recovery.
+- Static owner/source-chain provenance is still unresolved.
+- `scripts/riftscan_milestone_review.py` blocked RiftScan-provider consumption with `no_supported_candidate_schema`; this is expected for a RiftReader-owned candidate-file recovery and does not contradict the same-target ProofOnly pass.
 
 ## Next required before movement profiles
 
-1. Start/load RIFT into the character/world.
-2. Rediscover exact PID/HWND/process epoch and run target-control/visual gates.
-3. Sample fresh API/runtime coordinate truth; do not use SavedVariables as live truth.
-4. Run current-PID family recovery/ProofOnly only after the coordinate surface is live.
-5. Keep stale PID `27552`, `23496`, `16536`, and `2928` addresses historical-only.
-6. Defer live x64dbg/static-chain work unless explicitly approved; keep offline docs candidate-only.
+1. Reconfirm exact PID/HWND target-control.
+2. Reconfirm proof-anchor age/readback budget or rerun `ProofOnly` if stale.
+3. Use only the current proof pointer for movement polling.
+4. Keep stale PID `23496`, `16536`, and `2928` addresses historical-only.
+5. Defer x64dbg/static-chain work unless the fast proof lane fails or owner provenance is explicitly requested.

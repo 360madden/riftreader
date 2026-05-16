@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-16T16:46:11Z",
-  "status": "no_current_candidate_movement_blocked_reacquisition_required",
+  "updatedAtUtc": "2026-05-15T03:20:52.926653Z",
+  "status": "current_target_pid27552_coordinate_proof_restored",
   "target": {
     "processName": "rift_x64",
     "processId": 27552,
@@ -10,10 +10,10 @@
     "windowTitle": "RIFT",
     "processStartUtc": "2026-05-15T01:11:57.750696Z",
     "moduleBase": "0x7FF71CD90000",
-    "live": false,
-    "status": "stale-offline-target-not-running",
+    "live": true,
+    "status": "current-target-proofonly-passed",
     "lastVerifiedUtc": "2026-05-15T02:31:34.363518+00:00",
-    "verificationSource": "offline restart cleanup; current-proof-anchor-readback.json was replaced with blocked-target-drift because no live rift_x64 process was detected",
+    "verificationSource": "docs/recovery/current-proof-anchor-readback.json + scripts\\captures\\proofonly-currentpid-27552-after-promote-20260514-223041\\live-test-ProofOnly-20260515-023041\\run-summary.json",
     "lastClosedTargetEpoch": {
       "processName": "rift_x64",
       "processId": 23496,
@@ -23,14 +23,13 @@
       "moduleBase": "0x7FF71CD90000",
       "lastVerifiedUtc": "2026-05-14T21:42:09.699992Z",
       "verificationSource": "Former current proof pointer archived after PID/HWND drift to PID 27552 / HWND 0x3411E2"
-    },
-    "staleDetectedAtUtc": "2026-05-16T16:46:11Z"
+    }
   },
   "liveReferenceSurface": {
-    "authoritative": false,
-    "status": "stale-proof-anchor-no-live-target",
-    "source": "historical ProofOnly proof from PID 27552; not live truth after game/Codex close",
-    "view": "No live rift_x64 process detected; prior coordinate is a stale snapshot only",
+    "authoritative": true,
+    "status": "current-proof-anchor-readback",
+    "source": "same-PID/HWND no-CE current-PID scan-plan candidate plus 4-pose displaced readback batch plus same-target ProofOnly",
+    "view": "ProofOnly current proof-anchor readback for exact PID 27552 / HWND 0x3411E2",
     "savedVariablesUse": "none",
     "currentCoordinate": {
       "x": 7325.35888671875,
@@ -66,22 +65,20 @@
       },
       "noCheatEngine": true,
       "savedVariablesUsedAsLiveTruth": false
-    },
-    "staleDetectedAtUtc": "2026-05-16T16:46:11Z"
+    }
   },
   "movementGate": {
-    "allowed": false,
-    "status": "blocked-no-live-target-reacquisition-required",
-    "reason": "No live rift_x64 process is available and the prior PID 27552/HWND 0x3411E2 proof pointer is stale after the game/Codex session closed.",
+    "allowed": true,
+    "status": "satisfied-by-current-process-proof-anchor-and-proofonly",
+    "reason": "PID 27552 / HWND 0x3411E2 has a same-PID/HWND no-CE proof anchor promoted from 4 pose readbacks and same-target ProofOnly passed with movementSent=false.",
     "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
     "proofOnlyRunSummary": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\run-summary.json",
     "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
     "movementSentByLatestProofOnly": false,
     "perRunRequirements": [
-      "load character/world and rediscover exact PID/HWND/process epoch",
-      "sample fresh API/runtime coordinate truth",
-      "run current-PID family recovery or ProofOnly only after the world coordinate surface is live",
-      "require same-target ProofOnly before any movement/input profile"
+      "exact PID/HWND target-control",
+      "fresh proof-anchor/readback age gate",
+      "profile-specific input safety gate before any movement profile"
     ],
     "latestProofGatedMovementSmoke": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json"
   },
@@ -90,7 +87,7 @@
     "addressHex": "0x27B1ED850C0",
     "candidateFile": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\api-family-vec3-candidates.json",
     "candidateFileJsonl": "scripts\\captures\\family-scan-currentpid-27552-20260515-022029-063377\\api-family-vec3-candidates.jsonl",
-    "status": "historical_candidate_reacquisition_required",
+    "status": "current_proof_anchor_promoted",
     "axisOrder": "xyz",
     "sourceBaseAddressHex": "0x27B1ED85080",
     "sourceOffsetHex": "0x40",
@@ -100,8 +97,8 @@
     "bestMaxAbsDistance": 0.008462109375159343,
     "promotedByProofAnchor": true,
     "proofAnchorFile": "scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "movementGradeOnlyThroughCurrentProof": false,
-    "validation_status": "stale-after-offline-restart",
+    "movementGradeOnlyThroughCurrentProof": true,
+    "validation_status": "same-target-proofonly-passed",
     "displacementProof": {
       "poseCount": 4,
       "movementSentCount": 3,
@@ -116,36 +113,26 @@
       ],
       "promotionBatchSummary": "scripts\\captures\\current-pid-coordinate-anchor-batch-27552-factor-doc-20260514-222116\\coordinate-anchor-batch-summary.json"
     },
-    "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
-    "reusePolicy": "historical reacquisition/static-chain hint only; rescore against the next current PID before promotion"
+    "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json"
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "status": "blocked-target-drift",
-    "lastUpdatedUtc": "2026-05-16T16:46:11Z",
-    "latestValidationStatus": "blocked-target-drift",
-    "latestProofOnlyStatus": "blocked-target-drift",
+    "status": "current-target-proofonly-passed",
+    "lastUpdatedUtc": "2026-05-15T03:17:54.897288+00:00",
+    "latestValidationStatus": "valid",
+    "latestProofOnlyStatus": "passed-proof-only",
     "proofOnlyRunSummary": "scripts\\captures\\work-1-10-pid27552-refresh-20260514-231658\\proofonly\\live-test-ProofOnly-20260515-031659\\run-summary.json",
-    "movementAllowed": false,
+    "movementAllowed": true,
     "movementSent": false,
     "noCheatEngine": true,
     "candidateId": "api-family-hit-000001",
     "candidateAddressHex": "0x27B1ED850C0",
     "proofSupportCount": 4,
     "readbackSummary": "scripts\\captures\\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json",
-    "historicalProofPointerArchive": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid27552-hwnd3411E2-historical.json",
+    "historicalProofPointerArchive": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid23496-hwnd2C1024-historical.json",
     "latestProofGatedMovementSmoke": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json"
   },
   "staleOrInvalid": [
-    {
-      "item": "PID 27552 / HWND 0x3411E2 coordinate proof pointer",
-      "status": "historical-stale-after-offline-restart-no-live-target",
-      "reason": "The game/Codex session closed unexpectedly and no live rift_x64 process was detected during offline recovery on 2026-05-16; absolute proof address is no longer current truth.",
-      "priorBestCandidate": "api-family-hit-000001 at 0x27B1ED850C0",
-      "priorTruthStatus": "current-target-proofonly-passed",
-      "reusePolicy": "recovery/static-chain evidence only; do not use for movement or current coordinate truth until a new in-world PID/HWND passes ProofOnly",
-      "historicalProofPointerArchive": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid27552-hwnd3411E2-historical.json"
-    },
     {
       "item": "PID 23496 / HWND 0x2C1024 coordinate proof pointer",
       "status": "historical-stale-target-epoch-after-pid27552-recovery",
@@ -214,16 +201,18 @@
     }
   ],
   "currentBlockers": [
-    "No live rift_x64 process was detected during offline recovery; current coordinate proof is blocked.",
-    "Prior PID 27552 / HWND 0x3411E2 proof pointer is historical only after game/Codex close.",
-    "Load character/world, collect fresh API/runtime truth, and rerun current-PID recovery before any ProofOnly/movement claims.",
-    "Static owner/source-chain provenance remains unresolved and candidate-only."
+    "No active coordinate-proof blocker after PID27552 ProofOnly pass; movement still requires exact per-run target/proof-age/input safety gates.",
+    "Anchor api-family-hit-000001 @ 0x27B1ED850C0 is valid only for current PID 27552 / HWND 0x3411E2 epoch.",
+    "Do not reuse stale PID23496 address 0x27236F46750 or stale PID16536 address 0x21487DF8F64 as live truth.",
+    "Owner/static-chain provenance remains unresolved and is deferred unless the fast proof lane fails.",
+    "RiftScan milestone review is blocked for provider-candidate consumption because this proof used a RiftReader-owned candidate file, not a supported RiftScan provider match; that does not invalidate the same-target ProofOnly result.",
+    "RiftScan coordination validation passed in quick/no-CE/read-only mode; separate milestone review still blocks provider-candidate consumption because this proof used a RiftReader-owned candidate file."
   ],
   "canonicalArtifacts": {
     "currentTruthMarkdown": "docs/recovery/current-truth.md",
     "currentTruthJson": "docs/recovery/current-truth.json",
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "currentHandoff": "docs\\handoffs\\2026-05-16-1246-offline-restart-stale-proof-handoff.md",
+    "currentHandoff": "docs\\handoffs\\2026-05-14-2236-current-pid-27552-coordinate-proof-restored.md",
     "historicalPid2928CurrentTruthMarkdown": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.md",
     "historicalPid2928CurrentTruthJson": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.json",
     "historicalPid2928ProofPointer": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json",
@@ -265,12 +254,9 @@
     "riftscanCoordinationValidation": "scripts\\captures\\riftscan-validation-20260515-023843.json",
     "riftscanCoordinationValidationMarkdown": "scripts\\captures\\riftscan-validation-20260515-023843.md",
     "latestForward250Smoke": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\run-summary.json",
-    "latestForward250SmokeSummary": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\gated-forward-smoke-currentpid-27552-summary-20260515-031913.json",
-    "historicalPid27552ProofPointer": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-15-pid27552-hwnd3411E2-historical.json",
-    "historicalPid27552CurrentTruthJson": "docs\\recovery\\historical\\current-truth-2026-05-15-pid27552-hwnd3411E2-stale-after-offline-restart.json",
-    "historicalPid27552CurrentTruthMarkdown": "docs\\recovery\\historical\\current-truth-2026-05-15-pid27552-hwnd3411E2-stale-after-offline-restart.md"
+    "latestForward250SmokeSummary": "scripts\\captures\\work-1-10-pid27552-forward250-20260514-231815\\live-test-Forward250-20260515-031816\\gated-forward-smoke-currentpid-27552-summary-20260515-031913.json"
   },
-  "nextRecommendedAction": "Start/load RIFT into the character world, then establish fresh API/runtime coordinate truth and run current-PID family recovery/ProofOnly for the new PID/HWND before movement.",
+  "nextRecommendedAction": "Coordinate proof and a short proof-gated Forward250 movement smoke both passed for PID 27552/HWND 0x3411E2. Commit/push the recovery checkpoint; rerun ProofOnly before any future movement if time or target state changes.",
   "historicalState": {
     "pid2928": {
       "status": "historical_stale",
