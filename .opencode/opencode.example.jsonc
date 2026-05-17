@@ -1,0 +1,149 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Optional project-local RiftReader OpenCode template.
+  // Copy this file to .opencode/opencode.local.jsonc or merge the pieces you
+  // want into your user-level OpenCode config. Do not put provider keys,
+  // Context7 keys, GitHub tokens, or other secrets in this tracked template.
+  "instructions": [
+    "./agents.md",
+    "./docs/workflow/non-codex-desktop-chatgpt-workflow.md",
+    "./docs/workflow/opencode-non-codex-bridge.md"
+  ],
+  "default_agent": "riftreader-readonly",
+  "share": "manual",
+  "autoupdate": "notify",
+  "tool_output": {
+    "max_lines": 1200,
+    "max_bytes": 50000
+  },
+  "permission": {
+    "edit": "deny",
+    "bash": {
+      "*": "ask",
+      "git --no-pager status *": "allow",
+      "git --no-pager log *": "allow",
+      "git --no-pager for-each-ref *": "allow",
+      "git --no-pager diff --check *": "allow",
+      "python .\\scripts\\coordinate_recovery_status.py --json": "allow",
+      "python .\\scripts\\validate_current_truth.py --json": "allow",
+      "python .\\tools\\riftreader_workflow\\status_packet.py *": "allow",
+      ".\\scripts\\riftreader-workflow-status.cmd *": "allow",
+      "opencode --version": "allow",
+      "git add *": "deny",
+      "git commit *": "deny",
+      "git push *": "deny",
+      "git reset *": "deny",
+      "git clean *": "deny",
+      "cheatengine*": "deny",
+      "*cheatengine-exec.ps1*": "deny",
+      "*x64dbg*": "ask",
+      "*send-rift-key*": "deny",
+      "*post-rift-key*": "deny"
+    }
+  },
+  "agent": {
+    "riftreader-readonly": {
+      "description": "Read-only RiftReader scout for non-Codex desktop ChatGPT handoffs and status packets.",
+      "mode": "primary",
+      "prompt": "You are the RiftReader read-only OpenCode bridge. Inspect local repo truth, latest handoffs, current-truth files, git status, and safe status helpers only. Do not edit files, stage, commit, push, send live input, run movement, attach CE/x64dbg, or write provider repos.",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "git --no-pager status *": "allow",
+          "git --no-pager log *": "allow",
+          "git --no-pager for-each-ref *": "allow",
+          "python .\\scripts\\coordinate_recovery_status.py --json": "allow",
+          "python .\\tools\\riftreader_workflow\\status_packet.py *": "allow",
+          ".\\scripts\\riftreader-workflow-status.cmd *": "allow",
+          "opencode --version": "allow",
+          "git add *": "deny",
+          "git commit *": "deny",
+          "git push *": "deny",
+          "*send-rift-key*": "deny",
+          "*post-rift-key*": "deny",
+          "*x64dbg*": "deny",
+          "*cheatengine*": "deny"
+        }
+      }
+    },
+    "riftreader-validator": {
+      "description": "Runs bounded local validation without editing or publishing.",
+      "mode": "primary",
+      "prompt": "Run only targeted validation requested by the operator. Summarize exact commands, exit codes, failures, and next safest fix. Do not edit, stage, commit, push, send input, move, or attach debuggers.",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "python -m compileall *": "allow",
+          "python -m unittest *": "allow",
+          "python .\\scripts\\validate_current_truth.py --json": "allow",
+          "python .\\scripts\\coordinate_recovery_status.py --json": "allow",
+          "dotnet build *": "ask",
+          "dotnet test *": "ask",
+          "git --no-pager diff --check *": "allow",
+          "git add *": "deny",
+          "git commit *": "deny",
+          "git push *": "deny"
+        }
+      }
+    },
+    "riftreader-applier": {
+      "description": "Inspects and applies explicitly approved desktop ChatGPT applier packages.",
+      "mode": "primary",
+      "prompt": "Apply only explicitly approved package/applier changes inside C:\\RIFT MODDING\\RiftReader. Verify allowlisted target paths, backups, summaries, and diffs. Do not stage, commit, push, send live input, run movement, attach debuggers, or write provider repos.",
+      "permission": {
+        "edit": "ask",
+        "bash": {
+          "*": "ask",
+          "git --no-pager status *": "allow",
+          "git --no-pager diff *": "allow",
+          "git --no-pager diff --check *": "allow",
+          "python *": "ask",
+          "git add *": "deny",
+          "git commit *": "deny",
+          "git push *": "deny"
+        }
+      }
+    },
+    "riftreader-handoff-scribe": {
+      "description": "Creates explicit, approved handoff/status docs only.",
+      "mode": "primary",
+      "prompt": "Write only explicitly requested handoff/status documentation and keep historical/stale truth separate from current proof. Never edit provider repos, send input, attach debuggers, stage, commit, or push.",
+      "permission": {
+        "edit": "ask",
+        "bash": {
+          "*": "ask",
+          "git --no-pager status *": "allow",
+          "git --no-pager diff *": "allow",
+          "python .\\scripts\\validate_current_truth.py --json": "allow",
+          "git add *": "deny",
+          "git commit *": "deny",
+          "git push *": "deny"
+        }
+      }
+    },
+    "riftreader-live-observer": {
+      "description": "No-input live observer for process/window/status checks after RIFT is loaded.",
+      "mode": "primary",
+      "prompt": "Observe only. Discover/report PID/HWND/status gates that do not send input. Do not move, send keys, click, /reloadui, attach CE/x64dbg, promote stale proof, edit files, stage, commit, or push.",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "python .\\scripts\\coordinate_recovery_status.py --json": "allow",
+          "python .\\tools\\riftreader_workflow\\status_packet.py *": "allow",
+          ".\\scripts\\riftreader-workflow-status.cmd *": "allow",
+          "*send-rift-key*": "deny",
+          "*post-rift-key*": "deny",
+          "*x64dbg*": "deny",
+          "*cheatengine*": "deny",
+          "git add *": "deny",
+          "git commit *": "deny",
+          "git push *": "deny"
+        }
+      }
+    }
+  }
+}

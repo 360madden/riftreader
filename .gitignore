@@ -46,3 +46,8 @@ tools/reverse-engineering/ReClass.NET/
 tools/reverse-engineering/x64dbg/
 
 .riftreader-local/
+
+# OpenCode project-local state. Keep the tracked example config only.
+.opencode/opencode.local.jsonc
+.opencode/secrets*
+.opencode/sessions/

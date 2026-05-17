@@ -25,6 +25,7 @@ This policy exists because direct GitHub connector writes and large pasted shell
 |---|---|
 | GitHub connector | Read-only inspection and post-push verification only. |
 | Desktop ChatGPT | Designs patches, packages, commands, validation logic, and next-step analysis. |
+| Local OpenCode | Optional local status collector, validator, applier runner, and handoff summarizer. |
 | User's local PowerShell 7 terminal | Executes short linear commands and local appliers. |
 | ZIP package | Preferred delivery format for repo edits when the change is more than a trivial command. |
 | Python applier | Preferred mechanism for applying docs/code changes with backups, summaries, and diffs. |
@@ -124,6 +125,44 @@ Write-Host "PUSH_DONE"
 ```
 
 If any validation reports a problem, stop before commit and fix it.
+
+## Optional OpenCode bridge
+
+Local OpenCode may be used as an optional helper when desktop ChatGPT is the
+reasoning surface and Codex is unavailable. OpenCode's default role is local
+truth collection and validation, not autonomous publishing or live-game control.
+
+The recommended first command is:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-workflow-status.cmd --write
+```
+
+For an OpenCode-mediated one-shot SITREP:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-sitrep.cmd
+```
+
+The bridge sequence is:
+
+1. desktop ChatGPT asks for local truth;
+2. the user runs deterministic status or OpenCode SITREP locally;
+3. OpenCode emits a compact local summary;
+4. the user pastes the summary into desktop ChatGPT;
+5. desktop ChatGPT produces a package/applier or next-step analysis;
+6. OpenCode may inspect/apply/validate only after explicit instruction;
+7. commit/push remains explicit-path and user-approved.
+
+OpenCode must not weaken this workflow. It must not stage, commit, push, send
+live input, run movement, attach CE/x64dbg, write provider repos, or promote
+stale proof unless the current turn explicitly authorizes that action and the
+relevant RiftReader safety gates pass.
+
+Durable OpenCode bridge guide:
+`docs/workflow/opencode-non-codex-bridge.md`.
 
 ## Visibility rule
 
