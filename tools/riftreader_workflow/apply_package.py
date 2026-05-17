@@ -17,13 +17,13 @@ try:
     from .common import find_repo_root, run_command_envelope as run_command
     from .common import repo_rel as rel
     from .common import safety_flags, timestamped_output_dir, utc_iso
-    from .package_manifest import MANIFEST_NAME, load_manifest, validate_manifest
+    from .package_manifest import MANIFEST_NAME, load_manifest, sha256_file, validate_manifest
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, run_command_envelope as run_command
     from riftreader_workflow.common import repo_rel as rel
     from riftreader_workflow.common import safety_flags, timestamped_output_dir, utc_iso
-    from riftreader_workflow.package_manifest import MANIFEST_NAME, load_manifest, validate_manifest
+    from riftreader_workflow.package_manifest import MANIFEST_NAME, load_manifest, sha256_file, validate_manifest
 
 
 def prepare_package(package_path: Path, intake_dir: Path) -> Path:
@@ -220,6 +220,65 @@ def build_summary(
     return summary
 
 
+SELF_TEST_TARGET = "docs/workflow/package-intake-selftest-preview.md"
+
+
+def create_self_test_package(package_root: Path) -> dict[str, str]:
+    package_root.mkdir(parents=True, exist_ok=True)
+    source = package_root / "files" / "package-intake-selftest-preview.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "# Package Intake Self-Test Preview\n\n"
+        "This file is generated inside a temporary package to prove dry-run package intake.\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "schemaVersion": 1,
+        "packageName": "riftreader-package-intake-selftest",
+        "manifestVersion": "self-test",
+        "files": [
+            {
+                "source": "files/package-intake-selftest-preview.md",
+                "target": SELF_TEST_TARGET,
+                "sha256": sha256_file(source),
+            }
+        ],
+        "checks": [],
+    }
+    (package_root / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return {"target": SELF_TEST_TARGET, "source": "files/package-intake-selftest-preview.md"}
+
+
+def build_self_test_summary(repo_root: Path, run_root: Path) -> tuple[dict[str, Any], Path]:
+    package_root = run_root / "package"
+    intake_dir = run_root / "intake"
+    package_info = create_self_test_package(package_root)
+    intake_dir.mkdir(parents=True, exist_ok=True)
+    target_path = repo_root / package_info["target"]
+    before = read_bytes_if_exists(target_path)
+    summary = build_summary(
+        repo_root,
+        package_root,
+        intake_dir,
+        apply_requested=False,
+        run_declared_checks=True,
+    )
+    after = read_bytes_if_exists(target_path)
+    no_target_write = before == after
+    summary["selfTest"] = {
+        "enabled": True,
+        "runRoot": rel(repo_root, run_root),
+        "packageRoot": rel(repo_root, package_root),
+        "target": package_info["target"],
+        "targetExistedBefore": before is not None,
+        "noTargetWrite": no_target_write,
+    }
+    if not no_target_write:
+        summary["errors"].append("self-test-target-mutated")
+        summary["status"] = "failed"
+    return summary, intake_dir
+
+
 def next_recommended_action(summary: dict[str, Any]) -> str:
     if summary.get("status") == "failed":
         return "Fix package manifest/path/checksum errors before apply or review."
@@ -253,6 +312,7 @@ def compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "warnings": summary.get("warnings") or [],
         "errors": summary.get("errors") or [],
         "rollback": summary.get("rollback") or {},
+        "selfTest": summary.get("selfTest") or {},
         "artifacts": summary.get("artifacts") or {},
         "safety": summary.get("safety") or {},
         "nextRecommendedAction": next_recommended_action(summary),
@@ -277,6 +337,18 @@ def render_compact_markdown(summary: dict[str, Any]) -> str:
     ]
     for changed in compact.get("changedFiles") or ["none"]:
         lines.append(f"- `{changed}`")
+    self_test = compact.get("selfTest") or {}
+    if self_test:
+        lines.extend(
+            [
+                "",
+                "## Self-test",
+                "",
+                f"- Run root: `{self_test.get('runRoot')}`",
+                f"- Target: `{self_test.get('target')}`",
+                f"- No target write: `{self_test.get('noTargetWrite')}`",
+            ]
+        )
     lines.extend(["", "## Blockers / warnings / errors", ""])
     for label in ("blockers", "warnings", "errors"):
         values = compact.get(label) or ["none"]
@@ -292,7 +364,8 @@ def render_compact_markdown(summary: dict[str, Any]) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate or apply a RiftReader desktop ChatGPT package.")
-    parser.add_argument("--package", required=True, help="Package directory or .zip containing riftreader-package-manifest.json.")
+    parser.add_argument("--package", default=None, help="Package directory or .zip containing riftreader-package-manifest.json.")
+    parser.add_argument("--self-test", action="store_true", help="Create and dry-run a temporary package to smoke-test package intake.")
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root; auto-detected by default.")
     parser.add_argument("--apply", action="store_true", help="Apply files after validation. Default is dry-run/inspect only.")
     parser.add_argument("--no-checks", action="store_true", help="Skip manifest-declared checks after applying.")
@@ -303,30 +376,46 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
-    output_root = Path(args.output_dir) if args.output_dir else repo_root / ".riftreader-local" / "package-intake"
-    if not output_root.is_absolute():
-        output_root = repo_root / output_root
-    intake_dir = timestamped_output_dir(output_root)
-
-    summary = build_summary(
-        repo_root,
-        Path(args.package),
-        intake_dir,
-        apply_requested=args.apply,
-        run_declared_checks=not args.no_checks,
-    )
+def write_summary_outputs(repo_root: Path, intake_dir: Path, summary: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     summary_path = intake_dir / "package-intake-summary.json"
     compact_json_path = intake_dir / "compact-package-intake-summary.json"
     compact_md_path = intake_dir / "COMPACT_PACKAGE_INTAKE.md"
+    summary["artifacts"]["summaryJson"] = rel(repo_root, summary_path)
     summary["artifacts"]["compactJson"] = rel(repo_root, compact_json_path)
     summary["artifacts"]["compactMarkdown"] = rel(repo_root, compact_md_path)
     compact = compact_summary(summary)
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     compact_json_path.write_text(json.dumps(compact, indent=2), encoding="utf-8")
     compact_md_path.write_text(render_compact_markdown(summary) + "\n", encoding="utf-8")
+    return summary, compact
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
+    if not args.self_test and not args.package:
+        print("error: --package is required unless --self-test is used", file=sys.stderr)
+        return 1
+    if args.self_test and args.apply:
+        print("error: --self-test cannot be combined with --apply", file=sys.stderr)
+        return 1
+    default_output = repo_root / ".riftreader-local" / ("package-intake-selftest" if args.self_test else "package-intake")
+    output_root = Path(args.output_dir) if args.output_dir else default_output
+    if not output_root.is_absolute():
+        output_root = repo_root / output_root
+    if args.self_test:
+        run_root = timestamped_output_dir(output_root)
+        summary, intake_dir = build_self_test_summary(repo_root, run_root)
+    else:
+        intake_dir = timestamped_output_dir(output_root)
+        summary = build_summary(
+            repo_root,
+            Path(args.package),
+            intake_dir,
+            apply_requested=args.apply,
+            run_declared_checks=not args.no_checks,
+        )
+    summary, compact = write_summary_outputs(repo_root, intake_dir, summary)
     if args.compact_json:
         print(json.dumps(compact, indent=2))
     elif args.compact:

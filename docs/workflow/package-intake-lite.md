@@ -62,6 +62,13 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-opencode-package-review.cmd "C:\path\to\package-or.zip"
 ```
 
+Smoke-test the package-intake lane without a real package:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-package-intake-selftest.cmd
+```
+
 Apply after review:
 
 ```powershell
@@ -106,6 +113,7 @@ Each run writes:
 .riftreader-local\package-intake\<timestamp>\compact-package-intake-summary.json
 .riftreader-local\package-intake\<timestamp>\COMPACT_PACKAGE_INTAKE.md
 .riftreader-local\package-intake\<timestamp>\package.diff
+.riftreader-local\package-intake-selftest\<timestamp>\...
 ```
 
 The summary includes:

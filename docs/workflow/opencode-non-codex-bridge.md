@@ -197,6 +197,12 @@ Optional OpenCode one-shot package review:
 .\scripts\riftreader-opencode-package-review.cmd "C:\path\to\package-or.zip"
 ```
 
+Package intake smoke-test without a real package:
+
+```powershell
+.\scripts\riftreader-package-intake-selftest.cmd
+```
+
 Dry-run inspection writes a package diff and compact Markdown/JSON under
 `.riftreader-local\package-intake\...` without touching repo target files.
 

@@ -193,6 +193,13 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-opencode-package-review.cmd "C:\path\to\package-or.zip"
 ```
 
+Smoke-test the local package-review lane without a real package:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-package-intake-selftest.cmd
+```
+
 Apply only after review:
 
 ```powershell

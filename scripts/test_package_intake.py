@@ -195,6 +195,54 @@ class PackageIntakeTests(unittest.TestCase):
             self.assertTrue((run_dirs[0] / "COMPACT_PACKAGE_INTAKE.md").is_file())
             self.assertTrue((run_dirs[0] / "package.diff").is_file())
 
+    def test_self_test_summary_does_not_write_repo_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            run_root = root / ".riftreader-local" / "package-intake-selftest" / "test"
+            root.mkdir()
+            make_repo(root)
+
+            summary, intake_dir = apply_package.build_self_test_summary(root, run_root)
+
+            self.assertEqual(summary["status"], "passed")
+            self.assertTrue(summary["dryRun"])
+            self.assertTrue(summary["selfTest"]["noTargetWrite"])
+            self.assertFalse((root / apply_package.SELF_TEST_TARGET).exists())
+            self.assertTrue((run_root / "package" / package_manifest.MANIFEST_NAME).is_file())
+            self.assertTrue((root / summary["artifacts"]["diff"]).is_file())
+            self.assertEqual(intake_dir, run_root / "intake")
+
+    def test_self_test_cli_compact_json_writes_ignored_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            output_root = root / ".riftreader-local" / "package-intake-selftest"
+            root.mkdir()
+            make_repo(root)
+
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                code = apply_package.main(
+                    [
+                        "--repo-root",
+                        str(root),
+                        "--self-test",
+                        "--output-dir",
+                        str(output_root),
+                        "--compact-json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            payload = json.loads(buffer.getvalue())
+            self.assertEqual(payload["kind"], "riftreader-package-intake-compact-summary")
+            self.assertTrue(payload["selfTest"]["noTargetWrite"])
+            self.assertIn("package-intake-selftest", payload["selfTest"]["runRoot"])
+            run_dirs = [item for item in output_root.iterdir() if item.is_dir()]
+            self.assertEqual(len(run_dirs), 1)
+            self.assertTrue((run_dirs[0] / "intake" / "compact-package-intake-summary.json").is_file())
+            self.assertTrue((run_dirs[0] / "intake" / "COMPACT_PACKAGE_INTAKE.md").is_file())
+            self.assertFalse((root / apply_package.SELF_TEST_TARGET).exists())
+
     def test_apply_rolls_back_on_failed_check(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "repo"
