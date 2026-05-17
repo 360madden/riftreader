@@ -407,6 +407,55 @@ def summarize_live_target(coordinate_status: dict[str, Any] | None) -> dict[str,
     }
 
 
+def stale_live_target_reason(live_target: dict[str, Any]) -> str:
+    """Return live-aware movement/blocker text for stale artifact PID cases."""
+
+    return (
+        f"Live rift_x64 PID(s) {live_target.get('livePids') or []} are running, but the current proof "
+        f"artifact points at historical PID {live_target.get('artifactPid')} / HWND "
+        f"{live_target.get('artifactHwnd')}. Movement remains blocked until safe current-target "
+        "reacquisition/status refresh and same-target proof validation pass."
+    )
+
+
+def _is_superseded_no_live_blocker(blocker: str) -> bool:
+    lower = blocker.lower()
+    return "no live rift_x64 process" in lower or lower == "live-target-not-running:rift_x64"
+
+
+def apply_live_target_overlay(
+    *,
+    current_truth_summary: dict[str, Any],
+    blockers: list[str],
+    warnings: list[str],
+    live_target: dict[str, Any],
+) -> list[str]:
+    """Keep status packets accurate when a live process exists but old proof is stale."""
+
+    if not live_target.get("artifactPidStale"):
+        return blockers
+
+    movement_gate = current_truth_summary.get("movementGate")
+    if isinstance(movement_gate, dict) and movement_gate.get("allowed") is False:
+        movement_gate["reason"] = stale_live_target_reason(live_target)
+
+    filtered: list[str] = []
+    for blocker in blockers:
+        text = str(blocker)
+        if _is_superseded_no_live_blocker(text):
+            warnings.append(f"superseded-offline-blocker-live-target-detected:{text}")
+            continue
+        filtered.append(text)
+
+    filtered.append(
+        "live-target-artifact-pid-stale:"
+        f"artifact={live_target.get('artifactPid')};"
+        f"artifactHwnd={live_target.get('artifactHwnd')};"
+        f"live={','.join(str(item) for item in live_target.get('livePids') or [])}"
+    )
+    return filtered
+
+
 def collect_git(repo_root: Path, commit_count: int, ref_count: int, errors: list[str]) -> dict[str, Any]:
     commands: list[dict[str, Any]] = []
     status_env = run_command("git-status", ["git", "--no-pager", "status", "--short", "--branch"], repo_root)
@@ -577,6 +626,12 @@ def build_status_packet(
     live_target = summarize_live_target(coordinate_status)
     next_action = current_truth_summary.get("nextRecommendedAction")
     if live_target.get("artifactPidStale"):
+        blockers = apply_live_target_overlay(
+            current_truth_summary=current_truth_summary,
+            blockers=[str(item) for item in blockers],
+            warnings=warnings,
+            live_target=live_target,
+        )
         next_action = (
             f"Live RIFT is running with PID(s) {live_target.get('livePids')}, but the current proof artifact points "
             f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "

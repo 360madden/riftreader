@@ -217,6 +217,16 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             "current-truth-stale-live-target-detected:artifact=27552;live=22304",
             packet["warnings"],
         )
+        self.assertIn(
+            "superseded-offline-blocker-live-target-detected:No live rift_x64 process was detected during offline recovery.",
+            packet["warnings"],
+        )
+        self.assertNotIn("No live rift_x64 process was detected during offline recovery.", packet["blockers"])
+        self.assertIn("live-target-artifact-pid-stale:artifact=27552;artifactHwnd=0x3411E2;live=22304", packet["blockers"])
+        self.assertIn(
+            "Live rift_x64 PID(s) [22304] are running",
+            packet["currentTruth"]["summary"]["movementGate"]["reason"],
+        )
         self.assertIn("Live RIFT is running with PID(s) [22304]", packet["nextRecommendedAction"])
         self.assertIn("do not reuse stale proof", packet["nextRecommendedAction"])
 
@@ -224,9 +234,11 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
 
         self.assertEqual(compact["kind"], "riftreader-opencode-compact-sitrep")
         self.assertTrue(compact["liveTarget"]["artifactPidStale"])
+        self.assertIn("Live rift_x64 PID(s) [22304] are running", compact["movementGate"]["reason"])
         self.assertTrue(
             any("artifact-target-pid-not-running:artifact=27552;live=22304" in item for item in compact["blockers"])
         )
+        self.assertFalse(any(item == "No live rift_x64 process was detected during offline recovery." for item in compact["blockers"]))
 
     def test_run_command_records_envelope_and_stdout_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
