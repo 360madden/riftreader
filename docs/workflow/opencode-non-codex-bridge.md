@@ -169,6 +169,22 @@ For no-input blocker classification:
 
 See `docs/workflow/live-test-fast-lane-triage.md`.
 
+## Operator Lite
+
+For a small local button launcher around safe workflow helpers:
+
+```powershell
+.\scripts\riftreader-operator-lite.cmd
+```
+
+For headless verification:
+
+```powershell
+.\scripts\riftreader-operator-lite.cmd --self-test --json
+```
+
+See `docs/workflow/operator-lite.md`.
+
 ## Acceptance checklist
 
 | Question | Required answer |

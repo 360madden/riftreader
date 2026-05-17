@@ -206,6 +206,28 @@ send input, run movement, attach CE/x64dbg, stage, commit, or push.
 Durable triage guide:
 `docs/workflow/live-test-fast-lane-triage.md`.
 
+## Operator Lite
+
+After the CLI helpers are available, the optional local Operator Lite launcher
+can provide a small button-based surface around safe commands:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd
+```
+
+Headless self-test:
+
+```powershell
+.\scripts\riftreader-operator-lite.cmd --self-test --json
+```
+
+Operator Lite v0 intentionally disables target-control, visual gate, ProofOnly,
+movement, CE/x64dbg, staging, committing, and pushing.
+
+Durable Operator Lite guide:
+`docs/workflow/operator-lite.md`.
+
 ## Visibility rule
 
 ChatGPT can see results clearly when the user pastes:
