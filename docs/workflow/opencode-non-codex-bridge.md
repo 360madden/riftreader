@@ -35,12 +35,13 @@ Current offline baseline: the latest handoff records current proof as
 remains blocked until a fresh in-world PID/HWND passes current-PID recovery and
 same-target `ProofOnly`.
 
-When RIFT is online again, the status packet should be treated as
-**live-aware but no-input**: it may report a current live `rift_x64` PID while
-still blocking because the proof artifact points at a historical PID/HWND. In
-that case, OpenCode must report the live PID/HWND mismatch clearly, keep stale
-proof blocked, and ask for safe current-target reacquisition/status refresh
-before any ProofOnly or movement lane.
+When a `rift_x64` process is visible again, the status packet should be treated
+as **process-aware but no-input**: it may report a current process PID while
+still blocking because the proof artifact points at a historical PID/HWND. A
+visible process is not by itself game-online/in-world proof. In that case,
+OpenCode must report the PID/HWND mismatch clearly, keep stale proof blocked,
+and ask for safe current-target reacquisition/status refresh before any
+ProofOnly or movement lane.
 
 ## Optional project config
 
@@ -184,8 +185,9 @@ requested OpenCode model/model visibility, liveTarget
 verdict/livePids/artifactPid/artifactHwnd, current proof status, movement
 permission, blockers, warnings, stale proof reuse policy, validation status,
 and next safe action for desktop ChatGPT. If liveTarget is
-artifact-pid-stale, say clearly that a live RIFT process exists but the proof
-artifact is historical and movement remains blocked.
+artifact-pid-stale, say clearly that a `rift_x64` process exists but the proof
+artifact is historical, this is not in-world/current-proof validation, and
+movement remains blocked.
 ```
 
 ### Validation-only run

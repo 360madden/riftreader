@@ -146,10 +146,11 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-workflow-status.cmd --compact
 ```
 
-If RIFT is online, this status packet remains no-input. It can detect that a
-new live `rift_x64` PID exists while the current proof artifact still points to
-an old PID/HWND. Desktop ChatGPT should treat that as an `artifact-pid-stale`
-blocker, not as movement permission.
+If a `rift_x64` process is visible, this status packet remains no-input. It can
+detect that a process PID exists while the current proof artifact still points
+to an old PID/HWND. Desktop ChatGPT should treat that as an
+`artifact-pid-stale` blocker, not as game-online/in-world proof or movement
+permission.
 
 For an OpenCode-mediated one-shot SITREP:
 

@@ -34,7 +34,8 @@ Expected while RIFT is offline:
 | `blockerCategory` | `no-live-process` |
 | Next action | Load RIFT into character/world, rediscover PID/HWND, rerun status triage. |
 
-Expected when RIFT is online but the proof artifact still points at an old PID:
+Expected when a `rift_x64` process is visible but the proof artifact still
+points at an old PID:
 
 | Field | Value |
 |---|---|

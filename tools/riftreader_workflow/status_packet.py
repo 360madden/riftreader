@@ -411,7 +411,7 @@ def stale_live_target_reason(live_target: dict[str, Any]) -> str:
     """Return live-aware movement/blocker text for stale artifact PID cases."""
 
     return (
-        f"Live rift_x64 PID(s) {live_target.get('livePids') or []} are running, but the current proof "
+        f"A rift_x64 process is visible with PID(s) {live_target.get('livePids') or []}, but the current proof "
         f"artifact points at historical PID {live_target.get('artifactPid')} / HWND "
         f"{live_target.get('artifactHwnd')}. Movement remains blocked until safe current-target "
         "reacquisition/status refresh and same-target proof validation pass."
@@ -633,7 +633,7 @@ def build_status_packet(
             live_target=live_target,
         )
         next_action = (
-            f"Live RIFT is running with PID(s) {live_target.get('livePids')}, but the current proof artifact points "
+            f"A rift_x64 process is visible with PID(s) {live_target.get('livePids')}, but the current proof artifact points "
             f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "
             "Keep movement blocked, do not reuse stale proof, and run safe current-target reacquisition/status refresh "
             "before ProofOnly or movement."

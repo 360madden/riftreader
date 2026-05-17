@@ -2,11 +2,11 @@
 
 Created: 2026-05-17 06:22 EDT
 Branch: `main`
-Scope: OpenCode / non-Codex bridge status clarity while RIFT is online but proof is stale.
+Scope: OpenCode / non-Codex bridge status clarity while a `rift_x64` process is visible but proof is stale.
 
 ## TL;DR
 
-Executed the requested 1-10 safe OpenCode/non-Codex actions. OpenCode GPT-5.5 works, live observer works, package review dry-run works, and movement remains blocked. A small status-packet fix now prevents compact SITREPs from saying `No live rift_x64 process is available` when a live PID is detected but the proof artifact belongs to a historical PID/HWND.
+Executed the requested 1-10 safe OpenCode/non-Codex actions. OpenCode GPT-5.5 works, no-input observer works, package review dry-run works, and movement remains blocked. A small status-packet fix now prevents compact SITREPs from saying `No live rift_x64 process is available` when a process PID is detected but the proof artifact belongs to a historical PID/HWND.
 
 ## Current live/proof truth
 

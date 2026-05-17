@@ -41,7 +41,7 @@ def _live_target_next_action(live_verdict: str, live_target: dict[str, Any]) -> 
     artifact_hwnd = live_target.get("artifactHwnd")
     if live_verdict == "artifact-pid-stale":
         return (
-            f"Live RIFT is running with PID(s) {live_pids}, but the current proof artifact points "
+            f"A rift_x64 process is visible with PID(s) {live_pids}, but the current proof artifact points "
             f"at historical PID {artifact_pid} / HWND {artifact_hwnd}. "
             "Keep movement blocked, do not reuse stale proof, and run safe current-target "
             "reacquisition/status refresh before ProofOnly or movement."

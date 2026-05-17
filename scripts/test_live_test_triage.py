@@ -53,7 +53,7 @@ class LiveTestTriageTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["failedStage"], "live-target")
         self.assertEqual(result["blockerCategory"], "artifact-pid-stale")
-        self.assertIn("PID(s) [22304]", result["nextRecommendedAction"])
+        self.assertIn("rift_x64 process is visible with PID(s) [22304]", result["nextRecommendedAction"])
         self.assertIn("historical PID 27552 / HWND 0x3411E2", result["nextRecommendedAction"])
         self.assertIn("do not reuse stale proof", result["nextRecommendedAction"])
         self.assertNotIn("Load RIFT into the character/world", result["nextRecommendedAction"])
