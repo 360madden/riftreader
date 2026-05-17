@@ -197,6 +197,14 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertIn("Live RIFT is running with PID(s) [22304]", packet["nextRecommendedAction"])
         self.assertIn("do not reuse stale proof", packet["nextRecommendedAction"])
 
+        compact = status_packet.compact_summary(packet)
+
+        self.assertEqual(compact["kind"], "riftreader-opencode-compact-sitrep")
+        self.assertTrue(compact["liveTarget"]["artifactPidStale"])
+        self.assertTrue(
+            any("artifact-target-pid-not-running:artifact=27552;live=22304" in item for item in compact["blockers"])
+        )
+
     def test_run_command_records_envelope_and_stdout_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             envelope = status_packet.run_command(
@@ -222,6 +230,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                 "warnings": [],
                 "errors": [],
                 "git": {},
+                "liveTarget": {},
                 "currentProof": {"summary": {}},
                 "currentTruth": {"summary": {}},
                 "latestHandoff": {},
@@ -240,6 +249,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             self.assertTrue(artifacts["summaryJson"].startswith(".riftreader-local\\opencode-status\\"))
             self.assertTrue(summary_json.is_file())
             self.assertTrue(summary_md.is_file())
+            self.assertTrue((root / artifacts["compactJson"]).is_file())
+            self.assertTrue((root / artifacts["compactMarkdown"]).is_file())
 
 
 if __name__ == "__main__":

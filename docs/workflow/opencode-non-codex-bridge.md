@@ -75,6 +75,20 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-workflow-status.cmd --json
 ```
 
+Compact paste-ready SITREP for desktop ChatGPT:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-workflow-status.cmd --compact
+```
+
+Compact machine-readable SITREP:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-workflow-status.cmd --compact-json
+```
+
 Write ignored JSON/Markdown artifacts under `.riftreader-local`:
 
 ```powershell
@@ -96,10 +110,13 @@ cd "C:\RIFT MODDING\RiftReader"
 ```text
 Use the RiftReader read-only non-Codex bridge. Do not edit files, stage,
 commit, push, send live input, run movement, attach CE/x64dbg, or write provider
-repos. Run .\scripts\riftreader-workflow-status.cmd --json --write, then
-summarize current branch, HEAD, latest handoff, current proof status, movement
-permission, blockers, stale proof reuse policy, validation status, and next safe
-action for desktop ChatGPT.
+repos. Run .\scripts\riftreader-workflow-status.cmd --compact-json --write,
+then summarize current branch, HEAD, latest handoff, OpenCode version,
+liveTarget verdict/livePids/artifactPid/artifactHwnd, current proof status,
+movement permission, blockers, warnings, stale proof reuse policy, validation
+status, and next safe action for desktop ChatGPT. If liveTarget is
+artifact-pid-stale, say clearly that a live RIFT process exists but the proof
+artifact is historical and movement remains blocked.
 ```
 
 ### Validation-only run

@@ -40,3 +40,15 @@ packet remains read-only except optional ignored `.riftreader-local` artifacts.
 Next safe OpenCode slice: improve the OpenCode SITREP wrapper/prompt so its
 one-shot summary explicitly calls out live PID versus stale proof artifact when
 RIFT is online.
+
+## Follow-up completed in next slice
+
+The status packet now also supports compact output:
+
+```powershell
+.\scripts\riftreader-workflow-status.cmd --compact
+.\scripts\riftreader-workflow-status.cmd --compact-json
+```
+
+`--write` also emits `COMPACT_SITREP.md` and `compact-sitrep.json` under the
+ignored `.riftreader-local/opencode-status/<timestamp>/` folder.

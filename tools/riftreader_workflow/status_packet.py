@@ -565,6 +565,96 @@ def render_markdown(packet: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
+    git_status = ((packet.get("git") or {}).get("status") or {})
+    head = (packet.get("git") or {}).get("head") or {}
+    proof = ((packet.get("currentProof") or {}).get("summary") or {})
+    truth = ((packet.get("currentTruth") or {}).get("summary") or {})
+    movement_gate = truth.get("movementGate") if isinstance(truth.get("movementGate"), dict) else {}
+    live_target = packet.get("liveTarget") if isinstance(packet.get("liveTarget"), dict) else {}
+    stale_anchor = proof.get("staleAnchor") if isinstance(proof.get("staleAnchor"), dict) else {}
+    opencode = packet.get("opencode") if isinstance(packet.get("opencode"), dict) else {}
+    handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-opencode-compact-sitrep",
+        "generatedAtUtc": packet.get("generatedAtUtc"),
+        "status": packet.get("status"),
+        "git": {
+            "branch": git_status.get("branch"),
+            "isClean": git_status.get("isClean"),
+            "head": {"hash": head.get("hash"), "subject": head.get("subject")},
+        },
+        "latestHandoff": {"path": handoff.get("path"), "title": handoff.get("title")},
+        "currentProof": {
+            "status": proof.get("status"),
+            "targetPid": (proof.get("target") or {}).get("processId") if isinstance(proof.get("target"), dict) else None,
+            "targetHwnd": (proof.get("target") or {}).get("targetWindowHandle")
+            if isinstance(proof.get("target"), dict)
+            else None,
+            "staleCandidateId": stale_anchor.get("candidateId"),
+            "staleAddressHex": stale_anchor.get("addressHex"),
+            "reusePolicy": stale_anchor.get("reusePolicy"),
+        },
+        "liveTarget": {
+            "verdict": live_target.get("verdict"),
+            "livePids": live_target.get("livePids") or [],
+            "artifactPid": live_target.get("artifactPid"),
+            "artifactHwnd": live_target.get("artifactHwnd"),
+            "artifactPidStale": bool(live_target.get("artifactPidStale")),
+        },
+        "movementGate": {
+            "allowed": movement_gate.get("allowed"),
+            "status": movement_gate.get("status"),
+            "reason": movement_gate.get("reason"),
+        },
+        "opencode": {"available": opencode.get("available"), "version": opencode.get("version")},
+        "blockers": packet.get("blockers") or [],
+        "warnings": packet.get("warnings") or [],
+        "errors": packet.get("errors") or [],
+        "nextRecommendedAction": packet.get("nextRecommendedAction"),
+        "safety": packet.get("safety") or {},
+    }
+
+
+def render_compact_markdown(packet: dict[str, Any]) -> str:
+    summary = compact_summary(packet)
+    git = summary.get("git") or {}
+    head = git.get("head") or {}
+    proof = summary.get("currentProof") or {}
+    live_target = summary.get("liveTarget") or {}
+    movement_gate = summary.get("movementGate") or {}
+    opencode = summary.get("opencode") or {}
+    lines = [
+        "# RiftReader OpenCode Compact SITREP",
+        "",
+        f"- Generated UTC: `{summary.get('generatedAtUtc')}`",
+        f"- Status: `{summary.get('status')}`",
+        f"- Branch: `{git.get('branch')}`; clean `{git.get('isClean')}`",
+        f"- HEAD: `{head.get('hash')}` {head.get('subject')}",
+        f"- Proof: `{proof.get('status')}` target PID `{proof.get('targetPid')}` HWND `{proof.get('targetHwnd')}`",
+        f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
+        f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
+        f"- OpenCode: `{opencode.get('available')}` version `{opencode.get('version')}`",
+        f"- Next: {summary.get('nextRecommendedAction')}",
+        "",
+        "## Stale proof boundary",
+        "",
+        f"- Candidate: `{proof.get('staleCandidateId')}`",
+        f"- Address: `{proof.get('staleAddressHex')}`",
+        f"- Reuse policy: `{proof.get('reusePolicy')}`",
+        "",
+        "## Blockers",
+        "",
+    ]
+    for blocker in summary.get("blockers") or ["none"]:
+        lines.append(f"- `{blocker}`")
+    lines.extend(["", "## Warnings", ""])
+    for warning in summary.get("warnings") or ["none"]:
+        lines.append(f"- `{warning}`")
+    return "\n".join(lines)
+
+
 def write_outputs(packet: dict[str, Any], repo_root: Path, output_root: Path | None = None) -> dict[str, str]:
     base = output_root if output_root is not None else repo_root / DEFAULT_OUTPUT_DIR
     if not base.is_absolute():
@@ -572,14 +662,20 @@ def write_outputs(packet: dict[str, Any], repo_root: Path, output_root: Path | N
     output_dir = timestamped_output_dir(base)
     json_path = output_dir / "workflow-status-summary.json"
     md_path = output_dir / "WORKFLOW_STATUS_REPORT.md"
+    compact_json_path = output_dir / "compact-sitrep.json"
+    compact_md_path = output_dir / "COMPACT_SITREP.md"
     artifacts = {
         "outputDir": as_repo_path(repo_root, output_dir) or str(output_dir),
         "summaryJson": as_repo_path(repo_root, json_path) or str(json_path),
         "summaryMarkdown": as_repo_path(repo_root, md_path) or str(md_path),
+        "compactJson": as_repo_path(repo_root, compact_json_path) or str(compact_json_path),
+        "compactMarkdown": as_repo_path(repo_root, compact_md_path) or str(compact_md_path),
     }
     packet["artifacts"] = artifacts
     json_path.write_text(json.dumps(packet, indent=2), encoding="utf-8")
     md_path.write_text(render_markdown(packet) + "\n", encoding="utf-8")
+    compact_json_path.write_text(json.dumps(compact_summary(packet), indent=2), encoding="utf-8")
+    compact_md_path.write_text(render_compact_markdown(packet) + "\n", encoding="utf-8")
     return artifacts
 
 
@@ -587,6 +683,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a safe RiftReader OpenCode/non-Codex status packet.")
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root. Defaults to auto-detect from cwd.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
+    parser.add_argument("--compact-json", action="store_true", help="Print compact machine-readable SITREP JSON.")
+    parser.add_argument("--compact", action="store_true", help="Print compact Markdown SITREP.")
     parser.add_argument("--write", action="store_true", help="Write ignored JSON/Markdown artifacts under .riftreader-local.")
     parser.add_argument("--output-dir", default=None, help="Override output root for --write.")
     parser.add_argument("--commits", type=int, default=100, help="Number of recent commits to include in JSON.")
@@ -615,7 +713,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.write:
         output_root = Path(args.output_dir) if args.output_dir else None
         write_outputs(packet, repo_root, output_root)
-    if args.json:
+    if args.compact_json:
+        print(json.dumps(compact_summary(packet), indent=2))
+    elif args.compact:
+        print(render_compact_markdown(packet))
+    elif args.json:
         print(json.dumps(packet, indent=2))
     else:
         print(render_markdown(packet))
