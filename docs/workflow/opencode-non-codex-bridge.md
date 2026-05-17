@@ -181,6 +181,12 @@ Manifest-based desktop ChatGPT packages can be inspected or applied through:
 .\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --apply --json
 ```
 
+Optional OpenCode one-shot package review:
+
+```powershell
+.\scripts\riftreader-opencode-package-review.cmd "C:\path\to\package-or.zip"
+```
+
 Dry-run inspection writes a package diff and compact Markdown/JSON under
 `.riftreader-local\package-intake\...` without touching repo target files.
 

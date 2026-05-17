@@ -186,6 +186,13 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --compact-json
 ```
 
+Optional OpenCode package review wrapper:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-package-review.cmd "C:\path\to\package-or.zip"
+```
+
 Apply only after review:
 
 ```powershell
