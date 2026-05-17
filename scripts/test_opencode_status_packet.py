@@ -38,6 +38,29 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         else:
             self.assertEqual(command, ["opencode", "--version"])
 
+    def test_opencode_model_helpers_default_to_gpt55_and_parse_models(self) -> None:
+        previous_model = os.environ.pop("RIFTREADER_OPENCODE_MODEL", None)
+        try:
+            self.assertEqual(status_packet.desired_opencode_model(), "openai/gpt-5.5")
+        finally:
+            if previous_model is not None:
+                os.environ["RIFTREADER_OPENCODE_MODEL"] = previous_model
+        self.assertEqual(status_packet.opencode_provider_from_model("openai/gpt-5.5"), "openai")
+        self.assertIsNone(status_packet.opencode_provider_from_model("gpt-5.5"))
+        self.assertEqual(
+            status_packet.parse_opencode_models("\nopenai/gpt-5.4\nopenai/gpt-5.5\n\n"),
+            ["openai/gpt-5.4", "openai/gpt-5.5"],
+        )
+
+    def test_opencode_model_command_uses_windows_shim_safe_form(self) -> None:
+        command = status_packet.opencode_models_command("openai")
+
+        self.assertEqual(command[-3:], ["opencode", "models", "openai"])
+        if sys.platform == "win32":
+            self.assertEqual(command[:3], ["cmd", "/d", "/c"])
+        else:
+            self.assertEqual(command, ["opencode", "models", "openai"])
+
     def test_find_latest_handoff_selects_newest_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -238,7 +261,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                 "currentTruth": {"summary": {}},
                 "latestHandoff": {},
                 "coordinateRecoveryStatus": {},
-                "opencode": {},
+                "opencode": {"desiredModel": "openai/gpt-5.5", "modelProvider": "openai", "modelVisible": True},
                 "safety": {"movementSent": False, "gitMutation": False},
                 "nextRecommendedAction": "none",
                 "artifacts": {},
@@ -251,6 +274,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertTrue(commands["package-intake-selftest"]["exists"])
         self.assertFalse(commands["opencode-live-observer"]["exists"])
         self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
+        self.assertEqual(compact["opencode"]["desiredModel"], "openai/gpt-5.5")
+        self.assertTrue(compact["opencode"]["modelVisible"])
 
     def test_write_outputs_uses_ignored_local_status_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

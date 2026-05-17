@@ -158,6 +158,11 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-opencode-sitrep.cmd
 ```
 
+The OpenCode wrappers request `openai/gpt-5.5` explicitly by default so they do
+not inherit a stale or incompatible user/global default. If needed for a single
+shell, set `RIFTREADER_OPENCODE_MODEL` before running a wrapper. The status
+packet reports whether the requested model is visible to the local CLI.
+
 The bridge sequence is:
 
 1. desktop ChatGPT asks for local truth;

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,6 +51,7 @@ DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-status"
+DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
 
 BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
     (
@@ -109,6 +111,35 @@ def opencode_version_command() -> list[str]:
     if sys.platform == "win32":
         return ["cmd", "/d", "/c", "opencode", "--version"]
     return ["opencode", "--version"]
+
+
+def opencode_models_command(provider: str) -> list[str]:
+    """Return an OpenCode model-list command for the requested provider."""
+
+    if sys.platform == "win32":
+        return ["cmd", "/d", "/c", "opencode", "models", provider]
+    return ["opencode", "models", provider]
+
+
+def desired_opencode_model() -> str:
+    """Return the model the OpenCode wrappers should request by default."""
+
+    return os.environ.get("RIFTREADER_OPENCODE_MODEL", "").strip() or DEFAULT_OPENCODE_MODEL
+
+
+def opencode_provider_from_model(model: str) -> str | None:
+    """Extract the provider prefix from a provider/model OpenCode model ID."""
+
+    if "/" not in model:
+        return None
+    provider = model.split("/", 1)[0].strip()
+    return provider or None
+
+
+def parse_opencode_models(stdout: str) -> list[str]:
+    """Parse `opencode models <provider>` output into model IDs."""
+
+    return [line.strip() for line in stdout.splitlines() if line.strip()]
 
 
 def bridge_command_capabilities(repo_root: Path) -> list[dict[str, Any]]:
@@ -497,14 +528,47 @@ def build_status_packet(
         else:
             warnings.append(f"coordinate-recovery-status-script-missing:{coordinate_script}")
 
-    opencode: dict[str, Any] = {"checked": False, "available": None, "version": None}
+    opencode: dict[str, Any] = {
+        "checked": False,
+        "available": None,
+        "version": None,
+        "desiredModel": desired_opencode_model(),
+        "modelProvider": opencode_provider_from_model(desired_opencode_model()),
+        "modelVisible": None,
+    }
     if check_opencode:
+        requested_model = desired_opencode_model()
+        model_provider = opencode_provider_from_model(requested_model)
         envelope = run_command("opencode-version", opencode_version_command(), repo_root, timeout_seconds=15.0)
+        model_envelope: dict[str, Any] | None = None
+        visible_models: list[str] = []
+        model_visible: bool | None = None
+        if envelope.get("ok") and model_provider:
+            model_envelope = run_command(
+                "opencode-models",
+                opencode_models_command(model_provider),
+                repo_root,
+                timeout_seconds=20.0,
+            )
+            if model_envelope.get("ok"):
+                visible_models = parse_opencode_models(str(model_envelope.get("stdoutPreview") or ""))
+                model_visible = requested_model in visible_models
+                if not model_visible:
+                    warnings.append(f"opencode-model-not-visible:{requested_model}")
+            else:
+                warnings.append(f"opencode-model-list-unavailable:{model_provider}")
+        elif envelope.get("ok"):
+            warnings.append(f"opencode-model-provider-unparseable:{requested_model}")
         opencode = {
             "checked": True,
             "available": bool(envelope.get("ok")),
             "version": str(envelope.get("stdoutPreview") or "").strip() or None,
+            "desiredModel": requested_model,
+            "modelProvider": model_provider,
+            "modelVisible": model_visible,
+            "visibleModelsPreview": visible_models[:20],
             "commandEnvelope": envelope,
+            "modelsCommandEnvelope": model_envelope,
         }
         if not envelope.get("ok"):
             warnings.append("opencode-version-unavailable")
@@ -582,7 +646,8 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Movement allowed: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Target: PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}`, process `{target.get('processName')}`",
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
-        f"- OpenCode: available `{opencode.get('available')}`, version `{opencode.get('version')}`",
+        f"- OpenCode: available `{opencode.get('available')}`, version `{opencode.get('version')}`, "
+        f"model `{opencode.get('desiredModel')}` visible `{opencode.get('modelVisible')}`",
         "",
         "## Stale proof boundary",
         "",
@@ -678,7 +743,13 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "status": movement_gate.get("status"),
             "reason": movement_gate.get("reason"),
         },
-        "opencode": {"available": opencode.get("available"), "version": opencode.get("version")},
+        "opencode": {
+            "available": opencode.get("available"),
+            "version": opencode.get("version"),
+            "desiredModel": opencode.get("desiredModel"),
+            "modelProvider": opencode.get("modelProvider"),
+            "modelVisible": opencode.get("modelVisible"),
+        },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
@@ -707,7 +778,8 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Proof: `{proof.get('status')}` target PID `{proof.get('targetPid')}` HWND `{proof.get('targetHwnd')}`",
         f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
-        f"- OpenCode: `{opencode.get('available')}` version `{opencode.get('version')}`",
+        f"- OpenCode: `{opencode.get('available')}` version `{opencode.get('version')}` "
+        f"model `{opencode.get('desiredModel')}` visible `{opencode.get('modelVisible')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
         "## Stale proof boundary",

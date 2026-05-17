@@ -10,6 +10,11 @@
     "./docs/workflow/non-codex-desktop-chatgpt-workflow.md",
     "./docs/workflow/opencode-non-codex-bridge.md"
   ],
+  // Keep the repo-local template explicit so CLI wrappers do not depend on a
+  // stale or incompatible user/default model. Override locally if this model is
+  // not visible in `opencode models openai`.
+  "model": "openai/gpt-5.5",
+  "small_model": "openai/gpt-5.5-fast",
   "default_agent": "riftreader-readonly",
   "share": "manual",
   "autoupdate": "notify",
@@ -36,7 +41,9 @@
       ".\\scripts\\riftreader-package-intake-selftest.cmd *": "allow",
       ".\\scripts\\riftreader-package-intake.cmd *": "ask",
       "opencode --version": "allow",
+      "opencode models *": "allow",
       "cmd /d /c opencode --version": "allow",
+      "cmd /d /c opencode models *": "allow",
       "git add *": "deny",
       "git commit *": "deny",
       "git push *": "deny",
@@ -71,7 +78,9 @@
           ".\\scripts\\riftreader-package-intake-selftest.cmd *": "allow",
           ".\\scripts\\riftreader-package-intake.cmd *": "ask",
           "opencode --version": "allow",
+          "opencode models *": "allow",
           "cmd /d /c opencode --version": "allow",
+          "cmd /d /c opencode models *": "allow",
           "git add *": "deny",
           "git commit *": "deny",
           "git push *": "deny",

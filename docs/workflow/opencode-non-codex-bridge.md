@@ -117,6 +117,44 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-opencode-sitrep.cmd
 ```
 
+### Model/provider sanity check
+
+The OpenCode wrappers request an explicit model instead of relying on the
+user/global default:
+
+```text
+openai/gpt-5.5
+```
+
+Override it only for the current shell when needed:
+
+```powershell
+set RIFTREADER_OPENCODE_MODEL=openai/gpt-5.4
+.\scripts\riftreader-opencode-sitrep.cmd
+```
+
+Before blaming provider setup, verify the CLI and the model catalog that the
+wrapper actually uses:
+
+```powershell
+opencode --version
+opencode models openai
+opencode run --dir . -m openai/gpt-5.5 "Say only: provider works"
+```
+
+If the desktop app shows `GPT-5.5` but `opencode models openai` does not list
+`openai/gpt-5.5`, the PATH/CLI install is stale or different from the desktop
+app. Update the CLI package, then rerun the checks:
+
+```powershell
+npm view opencode-ai version
+npm install -g opencode-ai@latest
+```
+
+The deterministic status packet reports the OpenCode version plus whether the
+requested wrapper model is visible, so desktop ChatGPT can distinguish a real
+provider/model outage from a stale CLI/default-model mismatch.
+
 ## Ready-to-paste OpenCode prompts
 
 ### Read-only SITREP
@@ -126,9 +164,10 @@ Use the RiftReader read-only non-Codex bridge. Do not edit files, stage,
 commit, push, send live input, run movement, attach CE/x64dbg, or write provider
 repos. Run .\scripts\riftreader-workflow-status.cmd --compact-json --write,
 then summarize current branch, HEAD, latest handoff, OpenCode version,
-liveTarget verdict/livePids/artifactPid/artifactHwnd, current proof status,
-movement permission, blockers, warnings, stale proof reuse policy, validation
-status, and next safe action for desktop ChatGPT. If liveTarget is
+requested OpenCode model/model visibility, liveTarget
+verdict/livePids/artifactPid/artifactHwnd, current proof status, movement
+permission, blockers, warnings, stale proof reuse policy, validation status,
+and next safe action for desktop ChatGPT. If liveTarget is
 artifact-pid-stale, say clearly that a live RIFT process exists but the proof
 artifact is historical and movement remains blocked.
 ```
