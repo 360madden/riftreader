@@ -218,6 +218,40 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertEqual(envelope["stdoutPreview"].strip(), "ok")
         self.assertIn("durationSeconds", envelope)
 
+    def test_compact_summary_reports_bridge_command_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_text(root / "scripts" / "riftreader-workflow-status.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-package-intake-selftest.cmd", "@echo off\n")
+            packet = {
+                "schemaVersion": 1,
+                "kind": "riftreader-opencode-non-codex-status-packet",
+                "generatedAtUtc": "2026-05-17T00:00:00Z",
+                "status": "blocked",
+                "repoRoot": str(root),
+                "blockers": [],
+                "warnings": [],
+                "errors": [],
+                "git": {},
+                "liveTarget": {},
+                "currentProof": {"summary": {}},
+                "currentTruth": {"summary": {}},
+                "latestHandoff": {},
+                "coordinateRecoveryStatus": {},
+                "opencode": {},
+                "safety": {"movementSent": False, "gitMutation": False},
+                "nextRecommendedAction": "none",
+                "artifacts": {},
+            }
+
+            compact = status_packet.compact_summary(packet)
+
+        commands = {item["key"]: item for item in compact["bridgeCommands"]}
+        self.assertTrue(commands["compact-status"]["exists"])
+        self.assertTrue(commands["package-intake-selftest"]["exists"])
+        self.assertFalse(commands["opencode-live-observer"]["exists"])
+        self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
+
     def test_write_outputs_uses_ignored_local_status_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

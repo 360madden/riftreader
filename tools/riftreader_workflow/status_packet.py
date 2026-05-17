@@ -51,6 +51,57 @@ DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-r
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-status"
 
+BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "compact-status",
+        "Compact local truth",
+        "scripts\\riftreader-workflow-status.cmd --compact-json --write",
+        "no input/movement/debugger/Git mutation",
+    ),
+    (
+        "opencode-sitrep",
+        "OpenCode SITREP",
+        "scripts\\riftreader-opencode-sitrep.cmd",
+        "OpenCode wrapper around compact status",
+    ),
+    (
+        "package-intake-selftest",
+        "Package intake self-test",
+        "scripts\\riftreader-package-intake-selftest.cmd",
+        "generated dry-run package; no repo target writes",
+    ),
+    (
+        "package-intake",
+        "Package dry-run",
+        "scripts\\riftreader-package-intake.cmd --package <path> --compact-json",
+        "dry-run by default; apply requires explicit approval",
+    ),
+    (
+        "opencode-package-review",
+        "OpenCode package review",
+        "scripts\\riftreader-opencode-package-review.cmd <package>",
+        "OpenCode wrapper around package dry-run",
+    ),
+    (
+        "live-triage",
+        "No-input live triage",
+        "scripts\\riftreader-live-triage.cmd --json --write",
+        "no live input/movement/debugger",
+    ),
+    (
+        "opencode-live-observer",
+        "OpenCode live observer",
+        "scripts\\riftreader-opencode-live-observer.cmd",
+        "OpenCode wrapper around no-input status helpers",
+    ),
+    (
+        "operator-lite",
+        "Operator Lite",
+        "scripts\\riftreader-operator-lite.cmd",
+        "safe local GUI; live action buttons disabled",
+    ),
+)
+
 
 def opencode_version_command() -> list[str]:
     """Return an OpenCode version command that works with Windows npm shims."""
@@ -58,6 +109,23 @@ def opencode_version_command() -> list[str]:
     if sys.platform == "win32":
         return ["cmd", "/d", "/c", "opencode", "--version"]
     return ["opencode", "--version"]
+
+
+def bridge_command_capabilities(repo_root: Path) -> list[dict[str, Any]]:
+    commands: list[dict[str, Any]] = []
+    for key, label, command, safety in BRIDGE_COMMAND_SPECS:
+        script_part = command.split()[0].replace("\\", "/")
+        script_path = repo_root / script_part
+        commands.append(
+            {
+                "key": key,
+                "label": label,
+                "command": command,
+                "exists": script_path.is_file(),
+                "safety": safety,
+            }
+        )
+    return commands
 
 
 def run_command(
@@ -575,6 +643,8 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     stale_anchor = proof.get("staleAnchor") if isinstance(proof.get("staleAnchor"), dict) else {}
     opencode = packet.get("opencode") if isinstance(packet.get("opencode"), dict) else {}
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
+    repo_root_raw = packet.get("repoRoot")
+    bridge_commands = bridge_command_capabilities(Path(str(repo_root_raw))) if repo_root_raw else []
     return {
         "schemaVersion": 1,
         "kind": "riftreader-opencode-compact-sitrep",
@@ -609,6 +679,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "reason": movement_gate.get("reason"),
         },
         "opencode": {"available": opencode.get("available"), "version": opencode.get("version")},
+        "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
         "errors": packet.get("errors") or [],
@@ -625,6 +696,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     live_target = summary.get("liveTarget") or {}
     movement_gate = summary.get("movementGate") or {}
     opencode = summary.get("opencode") or {}
+    bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader OpenCode Compact SITREP",
         "",
@@ -644,9 +716,18 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Address: `{proof.get('staleAddressHex')}`",
         f"- Reuse policy: `{proof.get('reusePolicy')}`",
         "",
-        "## Blockers",
+        "## Bridge commands",
         "",
     ]
+    for command in bridge_commands:
+        lines.append(
+            f"- `{command.get('key')}` exists `{command.get('exists')}`: `{command.get('command')}`"
+        )
+    lines.extend([
+        "",
+        "## Blockers",
+        "",
+    ])
     for blocker in summary.get("blockers") or ["none"]:
         lines.append(f"- `{blocker}`")
     lines.extend(["", "## Warnings", ""])

@@ -99,6 +99,10 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-workflow-status.cmd --compact-json
 ```
 
+The compact SITREP includes a `bridgeCommands` capability list showing whether
+the local wrapper scripts exist, including package self-test, package review,
+live observer, Operator Lite, and deterministic status commands.
+
 Write ignored JSON/Markdown artifacts under `.riftreader-local`:
 
 ```powershell
