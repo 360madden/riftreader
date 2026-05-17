@@ -35,6 +35,13 @@ Current offline baseline: the latest handoff records current proof as
 remains blocked until a fresh in-world PID/HWND passes current-PID recovery and
 same-target `ProofOnly`.
 
+When RIFT is online again, the status packet should be treated as
+**live-aware but no-input**: it may report a current live `rift_x64` PID while
+still blocking because the proof artifact points at a historical PID/HWND. In
+that case, OpenCode must report the live PID/HWND mismatch clearly, keep stale
+proof blocked, and ask for safe current-target reacquisition/status refresh
+before any ProofOnly or movement lane.
+
 ## Optional project config
 
 A safe tracked template is provided at:
@@ -194,4 +201,5 @@ See `docs/workflow/operator-lite.md`.
 | Did OpenCode attach CE/x64dbg? | No, unless explicitly re-approved for that run. |
 | Did OpenCode stage/commit/push? | No, unless explicitly requested with explicit paths. |
 | Did status output preserve stale-proof boundaries? | Yes; stale PID/HWND/address remains historical only. |
+| Does status output distinguish live target from stale artifact? | Yes; a live `rift_x64` process does not make old proof current. |
 | Are generated status artifacts ignored? | Yes, under `.riftreader-local/`. |

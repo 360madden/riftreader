@@ -29,6 +29,15 @@ def write_text(path: Path, value: str) -> None:
 
 
 class OpenCodeStatusPacketTests(unittest.TestCase):
+    def test_opencode_version_command_uses_windows_shim_safe_form(self) -> None:
+        command = status_packet.opencode_version_command()
+
+        self.assertEqual(command[-2:], ["opencode", "--version"])
+        if sys.platform == "win32":
+            self.assertEqual(command[:3], ["cmd", "/d", "/c"])
+        else:
+            self.assertEqual(command, ["opencode", "--version"])
+
     def test_find_latest_handoff_selects_newest_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -123,6 +132,70 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertIn("movement-not-allowed:blocked-no-live-target-reacquisition-required", packet["blockers"])
         self.assertFalse(packet["safety"]["movementSent"])
         self.assertFalse(packet["safety"]["gitMutation"])
+
+    def test_build_status_packet_explains_live_artifact_pid_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_text(root / "docs" / "handoffs" / "2026-05-17-handoff.md", "# Handoff\n\n## TL;DR\n\nlive stale")
+            write_text(root / "docs" / "recovery" / "current-truth.md", "# Truth\n\n## Verdict\n\nMovement is blocked.")
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "status": "no_current_candidate_movement_blocked_reacquisition_required",
+                    "updatedAtUtc": "2026-05-16T16:46:11Z",
+                    "target": {"processName": "rift_x64", "processId": 27552, "targetWindowHandle": "0x3411E2"},
+                    "movementGate": {"allowed": False, "status": "blocked-no-live-target-reacquisition-required"},
+                    "currentBlockers": ["No live rift_x64 process was detected during offline recovery."],
+                    "nextRecommendedAction": "Start/load RIFT into the character world.",
+                },
+            )
+            write_json(
+                root / "docs" / "recovery" / "current-proof-anchor-readback.json",
+                {
+                    "status": "blocked-target-drift",
+                    "target": {"processName": "rift_x64", "processId": 27552, "targetWindowHandle": "0x3411E2"},
+                    "latestValidation": {"status": "blocked-target-drift", "movementAllowed": False},
+                    "latestProofOnly": {"status": "blocked-target-drift", "movementSent": False},
+                },
+            )
+            coordinate_script = root / "scripts" / "coordinate_recovery_status.py"
+            write_text(
+                coordinate_script,
+                "\n".join(
+                    [
+                        "import json, sys",
+                        "print(json.dumps({",
+                        "  'status': 'blocked',",
+                        "  'blockers': ['artifact-target-pid-not-running:artifact=27552;live=22304'],",
+                        "  'liveTarget': {",
+                        "    'status': 'passed',",
+                        "    'verdict': 'artifact-pid-stale',",
+                        "    'artifactProcessName': 'rift_x64',",
+                        "    'artifactPid': 27552,",
+                        "    'artifactHwnd': '0x3411E2',",
+                        "    'livePids': [22304]",
+                        "  }",
+                        "}))",
+                        "raise SystemExit(2)",
+                    ]
+                ),
+            )
+
+            packet = status_packet.build_status_packet(
+                root,
+                run_coordinate_status=True,
+                check_opencode=False,
+                collect_git_state=False,
+            )
+
+        self.assertTrue(packet["liveTarget"]["artifactPidStale"])
+        self.assertEqual(packet["liveTarget"]["livePids"], [22304])
+        self.assertIn(
+            "current-truth-stale-live-target-detected:artifact=27552;live=22304",
+            packet["warnings"],
+        )
+        self.assertIn("Live RIFT is running with PID(s) [22304]", packet["nextRecommendedAction"])
+        self.assertIn("do not reuse stale proof", packet["nextRecommendedAction"])
 
     def test_run_command_records_envelope_and_stdout_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

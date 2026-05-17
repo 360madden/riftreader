@@ -52,6 +52,14 @@ DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-status"
 
 
+def opencode_version_command() -> list[str]:
+    """Return an OpenCode version command that works with Windows npm shims."""
+
+    if sys.platform == "win32":
+        return ["cmd", "/d", "/c", "opencode", "--version"]
+    return ["opencode", "--version"]
+
+
 def run_command(
     label: str,
     args: list[str],
@@ -282,6 +290,24 @@ def summarize_current_proof(current_proof: dict[str, Any] | None) -> dict[str, A
     }
 
 
+def summarize_live_target(coordinate_status: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(coordinate_status, dict):
+        return {"checked": False, "verdict": None, "artifactPid": None, "artifactHwnd": None, "livePids": []}
+    live_target = coordinate_status.get("liveTarget") if isinstance(coordinate_status.get("liveTarget"), dict) else {}
+    live_pids = live_target.get("livePids") if isinstance(live_target.get("livePids"), list) else []
+    return {
+        "checked": bool(live_target),
+        "status": live_target.get("status"),
+        "checkedAtUtc": live_target.get("checkedAtUtc"),
+        "verdict": live_target.get("verdict"),
+        "artifactProcessName": live_target.get("artifactProcessName"),
+        "artifactPid": live_target.get("artifactPid"),
+        "artifactHwnd": live_target.get("artifactHwnd"),
+        "livePids": live_pids,
+        "artifactPidStale": live_target.get("verdict") == "artifact-pid-stale",
+    }
+
+
 def collect_git(repo_root: Path, commit_count: int, ref_count: int, errors: list[str]) -> dict[str, Any]:
     commands: list[dict[str, Any]] = []
     status_env = run_command("git-status", ["git", "--no-pager", "status", "--short", "--branch"], repo_root)
@@ -393,12 +419,19 @@ def build_status_packet(
             if coordinate_status:
                 for blocker in coordinate_status.get("blockers") or []:
                     blockers.append(f"coordinate-status:{blocker}")
+                live_target_summary = summarize_live_target(coordinate_status)
+                if live_target_summary.get("artifactPidStale"):
+                    warnings.append(
+                        "current-truth-stale-live-target-detected:"
+                        f"artifact={live_target_summary.get('artifactPid')};"
+                        f"live={','.join(str(item) for item in live_target_summary.get('livePids') or [])}"
+                    )
         else:
             warnings.append(f"coordinate-recovery-status-script-missing:{coordinate_script}")
 
     opencode: dict[str, Any] = {"checked": False, "available": None, "version": None}
     if check_opencode:
-        envelope = run_command("opencode-version", ["opencode", "--version"], repo_root, timeout_seconds=15.0)
+        envelope = run_command("opencode-version", opencode_version_command(), repo_root, timeout_seconds=15.0)
         opencode = {
             "checked": True,
             "available": bool(envelope.get("ok")),
@@ -409,7 +442,15 @@ def build_status_packet(
             warnings.append("opencode-version-unavailable")
 
     status = "failed" if errors else ("blocked" if blockers else "passed")
+    live_target = summarize_live_target(coordinate_status)
     next_action = current_truth_summary.get("nextRecommendedAction")
+    if live_target.get("artifactPidStale"):
+        next_action = (
+            f"Live RIFT is running with PID(s) {live_target.get('livePids')}, but the current proof artifact points "
+            f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "
+            "Keep movement blocked, do not reuse stale proof, and run safe current-target reacquisition/status refresh "
+            "before ProofOnly or movement."
+        )
     if not next_action and blockers:
         next_action = "Resolve the listed blocker(s) before attempting live movement or proof promotion."
     if not next_action:
@@ -436,6 +477,7 @@ def build_status_packet(
             "summary": current_proof_summary,
         },
         "git": git_summary,
+        "liveTarget": live_target,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -453,7 +495,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     movement_gate = truth.get("movementGate") or {}
     target = (proof.get("target") or truth.get("target") or {})
     coord = packet.get("coordinateRecoveryStatus") or {}
-    live_target = coord.get("liveTarget") or {}
+    live_target = packet.get("liveTarget") or coord.get("liveTarget") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     handoff = packet.get("latestHandoff") or {}
     opencode = packet.get("opencode") or {}
