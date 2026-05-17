@@ -126,6 +126,16 @@ epoch, current proof status, movement permission, blockers, and whether
 current-PID recovery is still required.
 ```
 
+### Live-test fast-lane triage
+
+```text
+Triage only. Do not edit files, stage, commit, push, send input, run movement,
+attach CE/x64dbg, or write provider repos. Run
+.\scripts\riftreader-live-triage.cmd --json --write and summarize failedStage,
+blockerCategory, evidence artifacts, safety flags, and next safe action for
+desktop ChatGPT.
+```
+
 ## Non-Codex sequence with OpenCode
 
 | Step | Actor | Action |
@@ -148,6 +158,16 @@ Manifest-based desktop ChatGPT packages can be inspected or applied through:
 ```
 
 See `docs/workflow/package-intake-lite.md`.
+
+## Live-Test Fast-Lane Triage
+
+For no-input blocker classification:
+
+```powershell
+.\scripts\riftreader-live-triage.cmd --json --write
+```
+
+See `docs/workflow/live-test-fast-lane-triage.md`.
 
 ## Acceptance checklist
 

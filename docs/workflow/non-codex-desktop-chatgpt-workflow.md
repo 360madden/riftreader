@@ -189,6 +189,23 @@ input, attaches CE/x64dbg, or writes provider repos.
 Durable package-intake guide:
 `docs/workflow/package-intake-lite.md`.
 
+## Live-Test Fast-Lane Triage
+
+When desktop ChatGPT needs to know the current local blocker without live input,
+use:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-live-triage.cmd --json --write
+```
+
+The helper classifies the failed stage from existing artifacts and safe status
+helpers. It is read-only except for `.riftreader-local` reports and does not
+send input, run movement, attach CE/x64dbg, stage, commit, or push.
+
+Durable triage guide:
+`docs/workflow/live-test-fast-lane-triage.md`.
+
 ## Visibility rule
 
 ChatGPT can see results clearly when the user pastes:
