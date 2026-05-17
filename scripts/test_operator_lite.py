@@ -41,7 +41,10 @@ class OperatorLiteTests(unittest.TestCase):
 
         self.assertEqual(plan["status"], "passed")
         keys = {item["key"] for item in plan["commands"]}
-        self.assertEqual(keys, {"workflow-status", "live-triage", "git-status"})
+        self.assertEqual(keys, {"workflow-status", "compact-sitrep", "live-triage", "git-status"})
+        compact = next(item for item in plan["commands"] if item["key"] == "compact-sitrep")
+        self.assertEqual(compact["expectedExitCodes"], [0, 2])
+        self.assertIn("--compact", compact["args"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
 

@@ -10,6 +10,7 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe
 workflow commands:
 
 - Workflow Status;
+- Compact OpenCode SITREP;
 - Live-Test Fast-Lane Triage;
 - Package Intake dry-run;
 - Git Status;
@@ -38,7 +39,8 @@ cd "C:\RIFT MODDING\RiftReader"
 
 | Button | Action | Safety |
 |---|---|---|
-| Refresh Workflow Status | Runs `scripts\riftreader-workflow-status.cmd --write`. | No input/movement/debugger/Git mutation. |
+| Refresh Workflow Status | Runs `scripts\riftreader-workflow-status.cmd --write`. | No input/movement/debugger/Git mutation; exit `2` means a safe blocker. |
+| Compact OpenCode SITREP | Runs `scripts\riftreader-workflow-status.cmd --compact --write`. | Paste-ready for desktop ChatGPT; exit `2` means a safe blocker. |
 | Run Live-Test Triage | Runs `scripts\riftreader-live-triage.cmd --write`. | No input/movement/debugger/Git mutation. |
 | Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`. | No repo target writes. |
 | Git Status | Runs `git --no-pager status --short --branch`. | Read-only Git. |

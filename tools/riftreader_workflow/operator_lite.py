@@ -48,6 +48,7 @@ class CommandSpec:
     args: tuple[str, ...]
     timeout_seconds: float
     description: str
+    expected_exit_codes: tuple[int, ...] = (0,)
 
 def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
     scripts = repo_root / "scripts"
@@ -58,6 +59,15 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             args=(str(scripts / "riftreader-workflow-status.cmd"), "--write"),
             timeout_seconds=90,
             description="Build a deterministic status packet under .riftreader-local.",
+            expected_exit_codes=(0, 2),
+        ),
+        "compact-sitrep": CommandSpec(
+            key="compact-sitrep",
+            label="Compact OpenCode SITREP",
+            args=(str(scripts / "riftreader-workflow-status.cmd"), "--compact", "--write"),
+            timeout_seconds=90,
+            description="Print and write a compact paste-ready OpenCode/non-Codex SITREP.",
+            expected_exit_codes=(0, 2),
         ),
         "live-triage": CommandSpec(
             key="live-triage",
@@ -65,6 +75,7 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             args=(str(scripts / "riftreader-live-triage.cmd"), "--write"),
             timeout_seconds=90,
             description="Classify the current blocker without live input.",
+            expected_exit_codes=(0, 2),
         ),
         "git-status": CommandSpec(
             key="git-status",
@@ -90,7 +101,12 @@ def validate_safe_args(args: tuple[str, ...] | list[str]) -> list[str]:
     return [fragment for fragment in DENIED_FRAGMENTS if fragment in joined]
 
 
-def run_command(args: tuple[str, ...] | list[str], cwd: Path, timeout_seconds: float) -> dict[str, Any]:
+def run_command(
+    args: tuple[str, ...] | list[str],
+    cwd: Path,
+    timeout_seconds: float,
+    expected_exit_codes: tuple[int, ...] = (0,),
+) -> dict[str, Any]:
     started = utc_iso()
     start = time.monotonic()
     result: dict[str, Any] = {
@@ -98,6 +114,7 @@ def run_command(args: tuple[str, ...] | list[str], cwd: Path, timeout_seconds: f
         "cwd": str(cwd),
         "startedAtUtc": started,
         "timeoutSeconds": timeout_seconds,
+        "expectedExitCodes": list(expected_exit_codes),
         "exitCode": None,
         "ok": False,
         "stdout": "",
@@ -118,7 +135,7 @@ def run_command(args: tuple[str, ...] | list[str], cwd: Path, timeout_seconds: f
             timeout=timeout_seconds,
         )
         result["exitCode"] = completed.returncode
-        result["ok"] = completed.returncode == 0
+        result["ok"] = completed.returncode in expected_exit_codes
         result["stdout"] = completed.stdout
         result["stderr"] = completed.stderr
     except subprocess.TimeoutExpired as exc:
@@ -167,6 +184,7 @@ def command_plan(repo_root: Path) -> dict[str, Any]:
                 "label": spec.label,
                 "args": list(spec.args),
                 "timeoutSeconds": spec.timeout_seconds,
+                "expectedExitCodes": list(spec.expected_exit_codes),
                 "description": spec.description,
             }
         )
@@ -210,7 +228,7 @@ def run_gui(repo_root: Path) -> int:
     def run_spec(key: str) -> None:
         spec = specs[key]
         append(f"\n## {spec.label}\n$ {' '.join(spec.args)}")
-        result = run_command(spec.args, repo_root, spec.timeout_seconds)
+        result = run_command(spec.args, repo_root, spec.timeout_seconds, spec.expected_exit_codes)
         append(json.dumps(result, indent=2))
 
     def run_package_dry_run() -> None:
@@ -238,6 +256,7 @@ def run_gui(repo_root: Path) -> int:
     button_frame.pack(fill=tk.X, padx=8, pady=4)
 
     tk.Button(button_frame, text="Refresh Workflow Status", command=lambda: run_spec("workflow-status")).pack(side=tk.LEFT, padx=4)
+    tk.Button(button_frame, text="Compact SITREP", command=lambda: run_spec("compact-sitrep")).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Run Live-Test Triage", command=lambda: run_spec("live-triage")).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Package Intake Dry-Run", command=run_package_dry_run).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Git Status", command=lambda: run_spec("git-status")).pack(side=tk.LEFT, padx=4)
