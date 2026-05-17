@@ -67,6 +67,7 @@ Template agent defaults:
 | `riftreader-readonly` | Compact status/SITREP and read-only local truth. |
 | `riftreader-validator` | Targeted validation; reports exit `2` status helpers as safe blockers. |
 | `riftreader-applier` | Package dry-run review first; `--apply` only after explicit approval. |
+| `riftreader-integration` | Autonomous patch-and-test OpenCode integration only; no live/Git mutation. |
 | `riftreader-handoff-scribe` | Approved handoff/status docs only. |
 | `riftreader-live-observer` | No-input live triage/status summaries; stale proof remains historical. |
 
@@ -101,8 +102,9 @@ cd "C:\RIFT MODDING\RiftReader"
 ```
 
 The compact SITREP includes a `bridgeCommands` capability list showing whether
-the local wrapper scripts exist, including package self-test, package review,
-live observer, Operator Lite, and deterministic status commands.
+the local wrapper scripts exist, including adaptive prompt dry-run, autonomous
+OpenCode integration, package self-test, package review, live observer, Operator
+Lite, and deterministic status commands.
 
 Write ignored JSON/Markdown artifacts under `.riftreader-local`:
 
@@ -117,6 +119,63 @@ Optional OpenCode one-shot SITREP:
 cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-opencode-sitrep.cmd
 ```
+
+Dry-run the adaptive prompt without launching OpenCode:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-prompt.cmd --lane sitrep --json --skip-opencode-check
+```
+
+Self-test every adaptive lane prompt without launching OpenCode or using a model:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-prompt.cmd --self-test
+```
+
+Autonomous OpenCode-integration development lane:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-integration.cmd
+```
+
+This lane is patch-and-test only for OpenCode bridge code, wrappers, tests, and
+workflow docs. It must not send live input, run movement/proof promotion, attach
+CE/x64dbg, stage, commit, push, pull, reset, clean, or write provider repos.
+
+Every generated prompt summary now includes a machine-readable `lanePolicy`
+object. This keeps the safety/edit contract explicit for downstream wrappers and
+review tools:
+
+| Lane | `allowsTrackedEdits` | Meaning |
+|---|---:|---|
+| `sitrep` | `false` | Read-only local truth summary; ignored prompt/status artifacts only. |
+| `live-observer` | `false` | No-input observer; never repairs proof or sends input. |
+| `package-review` | `false` | Dry-run package intake/review; no apply without current-turn approval. |
+| `integration` | `true` | May patch only OpenCode bridge files, wrappers, tests, docs, and example config. |
+
+For `integration`, `lanePolicy.allowedEditPaths` is the authoritative edit
+allowlist. If the next useful change falls outside that list, the OpenCode agent
+must stop and report a hard blocker instead of broadening scope.
+`lanePolicy.groundingFiles` lists the bridge files, wrappers, tests, workflow
+docs, and example config that should be inspected before the first patch in an
+integration run.
+
+The bridge `--self-test` validates these lane-policy invariants in addition to
+prompt command/safety text so wrapper drift fails before a model run.
+
+The OpenCode wrappers now call
+`tools\riftreader_workflow\opencode_bridge.py` first. That helper builds a
+fresh status packet, writes the generated prompt under
+`.riftreader-local\opencode-prompts\...`, then launches `opencode run` with the
+current requested model and reasoning variant. The generated prompt is passed to
+OpenCode through stdin rather than as a giant command-line argument, which avoids
+Windows command-length failures as the adaptive prompt grows. This keeps the
+prompt adaptive to dirty worktrees, stale proof, no-live-process, model
+visibility, package-review mode, and live-observer mode instead of relying on
+one static command-line prompt.
 
 ### Model/provider sanity check
 
@@ -187,7 +246,31 @@ requested reasoning variant, and whether the model is visible, so desktop
 ChatGPT can distinguish a real provider/model outage from a stale
 CLI/default-model mismatch.
 
+## Adaptive OpenCode prompt contract
+
+`tools\riftreader_workflow\opencode_bridge.py` is the canonical prompt builder.
+It embeds a compact preflight snapshot, but tells OpenCode to rerun the required
+status command sequence before final output because repo/process/proof state can
+change while the prompt is in flight. Use `--self-test` after changing the
+prompt builder, wrapper list, lane rules, or status capability output.
+
+The prompt adapts with these rules:
+
+| Condition | Required OpenCode behavior |
+|---|---|
+| Dirty worktree | Summarize local paths; do not overwrite, stage, commit, or push. |
+| `opencode` model not visible | Report provider/model mismatch before optional lane work. |
+| No live `rift_x64` process | Stay offline/status-only; do not run ProofOnly or movement. |
+| `artifact-pid-stale` | Treat process presence as process-only context; keep movement blocked. |
+| Movement gate closed | Do not send input, `/reloadui`, screenshot hotkeys, movement, or proof promotion. |
+| Package review lane | Run dry-run package intake only; `--apply` requires explicit approval. |
+| Integration lane | Continue through small validated OpenCode-integration milestones until a hard stop condition. |
+| State changes during run | Trust newest command output and say which preflight fact was superseded. |
+
 ## Ready-to-paste OpenCode prompts
+
+These are fallback prompts for manual use. Prefer the adaptive wrappers above
+for normal runs.
 
 ### Read-only SITREP
 

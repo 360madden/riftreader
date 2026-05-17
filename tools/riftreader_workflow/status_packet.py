@@ -68,6 +68,24 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "OpenCode wrapper around compact status",
     ),
     (
+        "opencode-adaptive-prompt",
+        "OpenCode adaptive prompt dry-run",
+        "scripts\\riftreader-opencode-prompt.cmd --lane sitrep --json --skip-opencode-check",
+        "generates ignored prompt artifact; no OpenCode run unless --run",
+    ),
+    (
+        "opencode-adaptive-self-test",
+        "OpenCode adaptive bridge self-test",
+        "scripts\\riftreader-opencode-prompt.cmd --self-test",
+        "generates all lane prompts; no OpenCode/model run",
+    ),
+    (
+        "opencode-integration",
+        "OpenCode autonomous integration lane",
+        "scripts\\riftreader-opencode-integration.cmd",
+        "patch+test OpenCode integration only; no live input/debugger/Git mutation",
+    ),
+    (
         "package-intake-selftest",
         "Package intake self-test",
         "scripts\\riftreader-package-intake-selftest.cmd",

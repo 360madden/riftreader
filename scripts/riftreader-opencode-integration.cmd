@@ -1,0 +1,5 @@
+@echo off
+setlocal
+cd /d "%~dp0.."
+python "%~dp0..\tools\riftreader_workflow\opencode_bridge.py" --lane integration --run %*
+exit /b %ERRORLEVEL%

@@ -159,6 +159,48 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-opencode-sitrep.cmd
 ```
 
+The wrapper first generates an adaptive prompt with:
+
+```powershell
+.\scripts\riftreader-opencode-prompt.cmd --lane sitrep --json --skip-opencode-check
+```
+
+The generated prompt is written under `.riftreader-local\opencode-prompts\...`
+and then passed to `opencode run`. It tells OpenCode to rerun the status command
+sequence before final output and adapt to current blockers such as dirty
+worktree, unavailable model/provider, no-live-process, `artifact-pid-stale`,
+closed movement gate, or package-review mode.
+
+To validate adaptive prompt generation without launching OpenCode or using a
+model:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-prompt.cmd --self-test
+```
+
+For autonomous OpenCode-integration development only:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-integration.cmd
+```
+
+That lane may patch and test OpenCode bridge files, wrappers, tests, and workflow
+docs through successive milestones. It still must not send live input, run
+movement/proof promotion, attach CE/x64dbg, stage, commit, push, pull, reset,
+clean, or write provider repos.
+
+Adaptive prompt summaries include `lanePolicy` so desktop ChatGPT, OpenCode, and
+the operator can review the same safety contract. Non-integration lanes report
+`allowsTrackedEdits: false`. The integration lane reports
+`allowsTrackedEdits: true` plus the exact OpenCode-integration edit allowlist and
+hard-stop conditions. If the next needed change is outside that allowlist, stop
+instead of treating the autonomous loop as permission to broaden scope.
+For the integration lane, the same policy also includes `groundingFiles` so the
+agent starts from the current bridge code, wrappers, tests, workflow docs, and
+example config instead of stale handoff assumptions.
+
 The OpenCode wrappers request `openai/gpt-5.5` plus the `xhigh` reasoning
 variant explicitly by default so they do not inherit a stale or incompatible
 user/global default. If needed for a single shell, set

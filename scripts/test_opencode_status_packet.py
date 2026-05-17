@@ -293,6 +293,10 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         commands = {item["key"]: item for item in compact["bridgeCommands"]}
         self.assertTrue(commands["compact-status"]["exists"])
         self.assertTrue(commands["package-intake-selftest"]["exists"])
+        self.assertFalse(commands["opencode-adaptive-self-test"]["exists"])
+        self.assertIn("no OpenCode/model run", commands["opencode-adaptive-self-test"]["safety"])
+        self.assertFalse(commands["opencode-integration"]["exists"])
+        self.assertIn("no live input", commands["opencode-integration"]["safety"])
         self.assertFalse(commands["opencode-live-observer"]["exists"])
         self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
         self.assertEqual(compact["opencode"]["desiredModel"], "openai/gpt-5.5")
