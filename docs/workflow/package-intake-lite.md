@@ -53,6 +53,14 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --json
 ```
 
+Compact inspection for OpenCode/desktop ChatGPT pasteback:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --compact
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --compact-json
+```
+
 Apply after review:
 
 ```powershell
@@ -67,7 +75,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Target paths | Must be relative to the RiftReader repo and explicitly listed in the manifest. |
 | Checksums | Every source file must match its declared SHA-256. |
 | Backups | Existing targets are backed up under `.riftreader-local\package-intake\...`. |
-| Diffs | A unified package diff is written under `.riftreader-local\package-intake\...`. |
+| Diffs | Dry-run and apply both write a unified package diff under `.riftreader-local\package-intake\...`. |
 | Checks | Manifest checks run after apply unless `--no-checks` is passed. |
 | Rollback | Failed checks roll back changed files and return blocked status. |
 | Git | No stage, commit, push, reset, clean, or hidden Git mutation. |
@@ -94,6 +102,8 @@ Each run writes:
 
 ```text
 .riftreader-local\package-intake\<timestamp>\package-intake-summary.json
+.riftreader-local\package-intake\<timestamp>\compact-package-intake-summary.json
+.riftreader-local\package-intake\<timestamp>\COMPACT_PACKAGE_INTAKE.md
 .riftreader-local\package-intake\<timestamp>\package.diff
 ```
 
@@ -107,4 +117,5 @@ The summary includes:
 - `backups`;
 - check command envelopes;
 - rollback result;
-- safety flags.
+- safety flags;
+- compact `nextRecommendedAction` text preserving the apply/review/commit boundary.

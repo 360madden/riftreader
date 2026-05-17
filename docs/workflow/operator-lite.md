@@ -42,7 +42,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Refresh Workflow Status | Runs `scripts\riftreader-workflow-status.cmd --write`. | No input/movement/debugger/Git mutation; exit `2` means a safe blocker. |
 | Compact OpenCode SITREP | Runs `scripts\riftreader-workflow-status.cmd --compact --write`. | Paste-ready for desktop ChatGPT; exit `2` means a safe blocker. |
 | Run Live-Test Triage | Runs `scripts\riftreader-live-triage.cmd --write`. | No input/movement/debugger/Git mutation. |
-| Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`. | No repo target writes. |
+| Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`, printing compact JSON. | No repo target writes; dry-run still writes an ignored package diff. |
 | Git Status | Runs `git --no-pager status --short --branch`. | Read-only Git. |
 | Open Latest Report | Opens latest ignored `.riftreader-local` report. | Local view only. |
 | Target-Control / Visual Gate / ProofOnly / Movement | Disabled in v0. | Prevents live action drift. |

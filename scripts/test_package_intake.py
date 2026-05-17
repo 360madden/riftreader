@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -96,7 +98,40 @@ class PackageIntakeTests(unittest.TestCase):
             self.assertEqual(summary["status"], "passed")
             self.assertTrue(summary["dryRun"])
             self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
+            self.assertIsNotNone(summary["artifacts"]["diff"])
+            diff_text = (root / summary["artifacts"]["diff"]).read_text(encoding="utf-8")
+            self.assertIn("-old", diff_text)
+            self.assertIn("+new", diff_text)
             self.assertFalse(summary["safety"]["gitMutation"])
+
+    def test_compact_summary_preserves_apply_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            package_root = Path(temp_dir) / "package"
+            intake_dir = root / ".riftreader-local" / "package-intake" / "test"
+            root.mkdir()
+            package_root.mkdir()
+            make_repo(root)
+            target = root / "docs" / "test.md"
+            target.parent.mkdir(parents=True)
+            target.write_text("old\n", encoding="utf-8")
+            make_package(package_root, "docs/test.md", "new\n")
+            intake_dir.mkdir(parents=True)
+
+            summary = apply_package.build_summary(
+                root,
+                package_root,
+                intake_dir,
+                apply_requested=False,
+                run_declared_checks=True,
+            )
+            compact = apply_package.compact_summary(summary)
+
+            self.assertEqual(compact["kind"], "riftreader-package-intake-compact-summary")
+            self.assertTrue(compact["dryRun"])
+            self.assertEqual(compact["changedFiles"], ["docs/test.md"])
+            self.assertIn("--apply", compact["nextRecommendedAction"])
+            self.assertFalse(compact["safety"]["gitMutation"])
 
     def test_apply_success_writes_backup_and_diff(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -126,6 +161,39 @@ class PackageIntakeTests(unittest.TestCase):
             self.assertEqual(len(summary["backups"]), 1)
             self.assertTrue((root / summary["artifacts"]["diff"]).is_file())
             self.assertTrue(summary["checks"][0]["ok"])
+
+    def test_compact_cli_writes_compact_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            package_root = Path(temp_dir) / "package"
+            output_root = root / ".riftreader-local" / "package-intake-test"
+            root.mkdir()
+            package_root.mkdir()
+            make_repo(root)
+            make_package(package_root, "docs/test.md", "new\n")
+
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                code = apply_package.main(
+                    [
+                        "--repo-root",
+                        str(root),
+                        "--package",
+                        str(package_root),
+                        "--output-dir",
+                        str(output_root),
+                        "--compact-json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            payload = json.loads(buffer.getvalue())
+            self.assertEqual(payload["kind"], "riftreader-package-intake-compact-summary")
+            run_dirs = [item for item in output_root.iterdir() if item.is_dir()]
+            self.assertEqual(len(run_dirs), 1)
+            self.assertTrue((run_dirs[0] / "compact-package-intake-summary.json").is_file())
+            self.assertTrue((run_dirs[0] / "COMPACT_PACKAGE_INTAKE.md").is_file())
+            self.assertTrue((run_dirs[0] / "package.diff").is_file())
 
     def test_apply_rolls_back_on_failed_check(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

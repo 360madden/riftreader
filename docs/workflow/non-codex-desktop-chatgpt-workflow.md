@@ -183,7 +183,7 @@ Lite helper may inspect or apply it:
 
 ```powershell
 cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --json
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --compact-json
 ```
 
 Apply only after review:
@@ -194,7 +194,8 @@ cd "C:\RIFT MODDING\RiftReader"
 ```
 
 The helper validates the manifest, verifies SHA-256 checksums, backs up existing
-targets under `.riftreader-local`, writes a unified diff, runs declared checks,
+targets under `.riftreader-local`, writes a unified diff even during dry-run,
+writes compact Markdown/JSON for pasteback, runs declared checks after apply,
 and rolls back on failed checks. It never stages, commits, pushes, sends live
 input, attaches CE/x64dbg, or writes provider repos.
 

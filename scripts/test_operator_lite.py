@@ -59,7 +59,7 @@ class OperatorLiteTests(unittest.TestCase):
             make_repo(root)
             args = operator_lite.package_intake_dry_run_args(root, Path("C:/tmp/package.zip"))
 
-        self.assertIn("--json", args)
+        self.assertIn("--compact-json", args)
         self.assertEqual(operator_lite.validate_safe_args(args), [])
 
     def test_latest_report_returns_newest_local_report(self) -> None:

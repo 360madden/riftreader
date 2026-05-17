@@ -98,6 +98,16 @@ def write_diff(repo_root: Path, intake_dir: Path, files: list[dict[str, Any]]) -
     return rel(repo_root, diff_path)
 
 
+def write_preview_diff(repo_root: Path, intake_dir: Path, files: list[dict[str, Any]]) -> str:
+    for item in files:
+        item["beforeBytes"] = read_bytes_if_exists(Path(str(item["targetPath"])))
+    try:
+        return write_diff(repo_root, intake_dir, files)
+    finally:
+        for item in files:
+            item.pop("beforeBytes", None)
+
+
 def apply_files(repo_root: Path, intake_dir: Path, files: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str]:
     backups: list[dict[str, Any]] = []
     backup_root = intake_dir / "backups"
@@ -143,6 +153,7 @@ def build_summary(
     changed_files: list[str] = []
     backups: list[dict[str, Any]] = []
     check_results: list[dict[str, Any]] = []
+    declared_checks: list[dict[str, Any]] = []
     diff_path: str | None = None
     rollback: dict[str, Any] = {"performed": False, "restored": []}
     package_root: Path | None = None
@@ -155,10 +166,12 @@ def build_summary(
         errors.extend(validation["errors"])
         files = validation["files"]
         checks = validation["checks"]
+        declared_checks = checks
         changed_files = [str(item["target"]) for item in files]
         if errors:
             status = "failed"
         elif not apply_requested:
+            diff_path = write_preview_diff(repo_root, intake_dir, files)
             status = "passed"
         else:
             backups, diff_path = apply_files(repo_root, intake_dir, files)
@@ -193,6 +206,7 @@ def build_summary(
         "warnings": warnings,
         "errors": errors,
         "changedFiles": changed_files,
+        "declaredChecks": declared_checks,
         "backups": backups,
         "checks": check_results,
         "rollback": rollback,
@@ -206,6 +220,76 @@ def build_summary(
     return summary
 
 
+def next_recommended_action(summary: dict[str, Any]) -> str:
+    if summary.get("status") == "failed":
+        return "Fix package manifest/path/checksum errors before apply or review."
+    if summary.get("status") == "blocked":
+        return "Do not commit. Inspect blockers, rollback state, checks, and package diff before retrying."
+    if summary.get("dryRun"):
+        return "Review changed files and package diff; apply only after explicit approval with --apply."
+    return "Review applied diff and validation output; stage/commit/push only through explicit user-approved Git commands."
+
+
+def compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    checks = summary.get("checks") or []
+    declared_checks = summary.get("declaredChecks") or []
+    failed_checks = [item for item in checks if not item.get("ok")]
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-package-intake-compact-summary",
+        "generatedAtUtc": summary.get("generatedAtUtc"),
+        "status": summary.get("status"),
+        "dryRun": summary.get("dryRun"),
+        "packagePath": summary.get("packagePath"),
+        "packageRoot": summary.get("packageRoot"),
+        "changedFiles": summary.get("changedFiles") or [],
+        "changedFileCount": len(summary.get("changedFiles") or []),
+        "checks": {
+            "declaredCount": len(declared_checks),
+            "runCount": len(checks),
+            "failedCount": len(failed_checks),
+        },
+        "blockers": summary.get("blockers") or [],
+        "warnings": summary.get("warnings") or [],
+        "errors": summary.get("errors") or [],
+        "rollback": summary.get("rollback") or {},
+        "artifacts": summary.get("artifacts") or {},
+        "safety": summary.get("safety") or {},
+        "nextRecommendedAction": next_recommended_action(summary),
+    }
+
+
+def render_compact_markdown(summary: dict[str, Any]) -> str:
+    compact = compact_summary(summary)
+    lines = [
+        "# RiftReader Package Intake Compact Summary",
+        "",
+        f"- Generated UTC: `{compact.get('generatedAtUtc')}`",
+        f"- Status: `{compact.get('status')}`",
+        f"- Dry run: `{compact.get('dryRun')}`",
+        f"- Package: `{compact.get('packagePath')}`",
+        f"- Changed file count: `{compact.get('changedFileCount')}`",
+        f"- Diff: `{(compact.get('artifacts') or {}).get('diff')}`",
+        f"- Next: {compact.get('nextRecommendedAction')}",
+        "",
+        "## Changed files",
+        "",
+    ]
+    for changed in compact.get("changedFiles") or ["none"]:
+        lines.append(f"- `{changed}`")
+    lines.extend(["", "## Blockers / warnings / errors", ""])
+    for label in ("blockers", "warnings", "errors"):
+        values = compact.get(label) or ["none"]
+        lines.append(f"### {label}")
+        for value in values:
+            lines.append(f"- `{value}`")
+        lines.append("")
+    lines.extend(["## Safety", "", "| Flag | Value |", "|---|---:|"])
+    for key, value in (compact.get("safety") or {}).items():
+        lines.append(f"| `{key}` | `{value}` |")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate or apply a RiftReader desktop ChatGPT package.")
     parser.add_argument("--package", required=True, help="Package directory or .zip containing riftreader-package-manifest.json.")
@@ -213,6 +297,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true", help="Apply files after validation. Default is dry-run/inspect only.")
     parser.add_argument("--no-checks", action="store_true", help="Skip manifest-declared checks after applying.")
     parser.add_argument("--json", action="store_true", help="Print JSON summary only.")
+    parser.add_argument("--compact-json", action="store_true", help="Print compact JSON summary for desktop ChatGPT/OpenCode.")
+    parser.add_argument("--compact", action="store_true", help="Print compact Markdown summary for desktop ChatGPT/OpenCode.")
     parser.add_argument("--output-dir", default=None, help="Override ignored intake output root.")
     return parser
 
@@ -233,13 +319,25 @@ def main(argv: list[str] | None = None) -> int:
         run_declared_checks=not args.no_checks,
     )
     summary_path = intake_dir / "package-intake-summary.json"
+    compact_json_path = intake_dir / "compact-package-intake-summary.json"
+    compact_md_path = intake_dir / "COMPACT_PACKAGE_INTAKE.md"
+    summary["artifacts"]["compactJson"] = rel(repo_root, compact_json_path)
+    summary["artifacts"]["compactMarkdown"] = rel(repo_root, compact_md_path)
+    compact = compact_summary(summary)
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    if args.json:
+    compact_json_path.write_text(json.dumps(compact, indent=2), encoding="utf-8")
+    compact_md_path.write_text(render_compact_markdown(summary) + "\n", encoding="utf-8")
+    if args.compact_json:
+        print(json.dumps(compact, indent=2))
+    elif args.compact:
+        print(render_compact_markdown(summary))
+    elif args.json:
         print(json.dumps(summary, indent=2))
     else:
         print(f"Status: {summary['status']}")
         print(f"Dry run: {summary['dryRun']}")
         print(f"Summary: {summary['artifacts']['summaryJson']}")
+        print(f"Compact: {summary['artifacts']['compactMarkdown']}")
         print(f"Diff: {summary['artifacts']['diff']}")
         if summary["blockers"]:
             print("Blockers:")

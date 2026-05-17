@@ -132,7 +132,7 @@ failing output, likely root cause, and the next safest fix. Stop before fixing.
 
 ```text
 Inspect this desktop ChatGPT package/applier before applying it. Prefer
-.\scripts\riftreader-package-intake.cmd --package <path> --json for
+.\scripts\riftreader-package-intake.cmd --package <path> --compact-json for
 manifest-based packages. Confirm every target path is inside
 C:\RIFT MODDING\RiftReader and on the explicit allowlist. Do not stage, commit,
 push, send live input, run movement, attach CE/x64dbg, or write provider repos.
@@ -177,9 +177,12 @@ desktop ChatGPT.
 Manifest-based desktop ChatGPT packages can be inspected or applied through:
 
 ```powershell
-.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --json
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --compact-json
 .\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --apply --json
 ```
+
+Dry-run inspection writes a package diff and compact Markdown/JSON under
+`.riftreader-local\package-intake\...` without touching repo target files.
 
 See `docs/workflow/package-intake-lite.md`.
 

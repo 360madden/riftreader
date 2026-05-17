@@ -92,7 +92,7 @@ def package_intake_dry_run_args(repo_root: Path, package_path: Path) -> tuple[st
         str(repo_root / "scripts" / "riftreader-package-intake.cmd"),
         "--package",
         str(package_path),
-        "--json",
+        "--compact-json",
     )
 
 
