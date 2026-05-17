@@ -164,6 +164,31 @@ relevant RiftReader safety gates pass.
 Durable OpenCode bridge guide:
 `docs/workflow/opencode-non-codex-bridge.md`.
 
+## Package Intake Lite
+
+When desktop ChatGPT provides a manifest-based package, the local Package Intake
+Lite helper may inspect or apply it:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --json
+```
+
+Apply only after review:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --apply --json
+```
+
+The helper validates the manifest, verifies SHA-256 checksums, backs up existing
+targets under `.riftreader-local`, writes a unified diff, runs declared checks,
+and rolls back on failed checks. It never stages, commits, pushes, sends live
+input, attaches CE/x64dbg, or writes provider repos.
+
+Durable package-intake guide:
+`docs/workflow/package-intake-lite.md`.
+
 ## Visibility rule
 
 ChatGPT can see results clearly when the user pastes:

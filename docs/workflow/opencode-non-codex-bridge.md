@@ -107,11 +107,13 @@ failing output, likely root cause, and the next safest fix. Stop before fixing.
 ### Applier/package inspection
 
 ```text
-Inspect this desktop ChatGPT package/applier before applying it. Confirm every
-target path is inside C:\RIFT MODDING\RiftReader and on the explicit allowlist.
-Do not stage, commit, push, send live input, run movement, attach CE/x64dbg, or
-write provider repos. If approved by the operator, apply it, preserve backups,
-run targeted validation, and summarize changed files plus git diff status.
+Inspect this desktop ChatGPT package/applier before applying it. Prefer
+.\scripts\riftreader-package-intake.cmd --package <path> --json for
+manifest-based packages. Confirm every target path is inside
+C:\RIFT MODDING\RiftReader and on the explicit allowlist. Do not stage, commit,
+push, send live input, run movement, attach CE/x64dbg, or write provider repos.
+If approved by the operator, apply it with --apply, preserve backups, run
+targeted validation, and summarize changed files plus git diff status.
 ```
 
 ### No-input live observer
@@ -135,6 +137,17 @@ current-PID recovery is still required.
 | 5 | Desktop ChatGPT | Reviews and produces next package/applier or instructions. |
 | 6 | OpenCode | May inspect/apply/validate only after explicit instruction. |
 | 7 | User | Reviews diff and explicitly approves any commit/push. |
+
+## Package Intake Lite
+
+Manifest-based desktop ChatGPT packages can be inspected or applied through:
+
+```powershell
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --json
+.\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --apply --json
+```
+
+See `docs/workflow/package-intake-lite.md`.
 
 ## Acceptance checklist
 
