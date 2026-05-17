@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -67,8 +68,8 @@ class OperatorLiteTests(unittest.TestCase):
             newer.parent.mkdir(parents=True)
             older.write_text("old", encoding="utf-8")
             newer.write_text("{}", encoding="utf-8")
-            older.touch()
-            newer.touch()
+            os.utime(older, (1_700_000_000, 1_700_000_000))
+            os.utime(newer, (1_800_000_000, 1_800_000_000))
 
             report = operator_lite.latest_report(root)
 

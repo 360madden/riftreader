@@ -6,33 +6,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 try:
+    from .common import repo_rel as rel
+    from .common import safety_flags, timestamped_output_dir, utc_iso
     from .status_packet import build_status_packet, find_repo_root, render_markdown as render_status_markdown
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.common import repo_rel as rel
+    from riftreader_workflow.common import safety_flags, timestamped_output_dir, utc_iso
     from riftreader_workflow.status_packet import build_status_packet, find_repo_root, render_markdown as render_status_markdown
 
 
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "live-test-triage"
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
-
-
-def rel(repo_root: Path, path: Path) -> str:
-    try:
-        return str(path.resolve().relative_to(repo_root.resolve())).replace("/", "\\")
-    except ValueError:
-        return str(path)
 
 
 def _first_blocked_stage(stage_timings: Any) -> dict[str, Any] | None:
@@ -170,16 +158,7 @@ def build_triage(repo_root: Path, *, write_status_packet: bool = False) -> dict[
         "nextRecommendedAction": classification["nextRecommendedAction"],
         "statusPacket": packet if write_status_packet else None,
         "artifacts": {},
-        "safety": {
-            "movementSent": False,
-            "inputSent": False,
-            "reloaduiSent": False,
-            "screenshotKeySent": False,
-            "noCheatEngine": True,
-            "x64dbgAttach": False,
-            "providerWrites": False,
-            "gitMutation": False,
-        },
+        "safety": safety_flags(),
     }
     return result
 
@@ -226,12 +205,7 @@ def write_outputs(repo_root: Path, triage: dict[str, Any], output_root: Path | N
     base = output_root if output_root else repo_root / DEFAULT_OUTPUT_DIR
     if not base.is_absolute():
         base = repo_root / base
-    output_dir = base / utc_stamp()
-    suffix = 2
-    while output_dir.exists():
-        output_dir = base / f"{utc_stamp()}-{suffix}"
-        suffix += 1
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = timestamped_output_dir(base)
     json_path = output_dir / "live-test-triage-summary.json"
     md_path = output_dir / "LIVE_TEST_TRIAGE.md"
     status_md_path = output_dir / "STATUS_PACKET.md"

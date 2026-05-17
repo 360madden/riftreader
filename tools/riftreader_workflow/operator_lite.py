@@ -15,15 +15,14 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 try:
-    from .status_packet import find_repo_root
+    from .common import find_repo_root, safety_flags, utc_iso
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.status_packet import find_repo_root
+    from riftreader_workflow.common import find_repo_root, safety_flags, utc_iso
 
 
 DENIED_FRAGMENTS = (
@@ -49,11 +48,6 @@ class CommandSpec:
     args: tuple[str, ...]
     timeout_seconds: float
     description: str
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
 
 def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
     scripts = repo_root / "scripts"
@@ -138,20 +132,6 @@ def run_command(args: tuple[str, ...] | list[str], cwd: Path, timeout_seconds: f
         result["durationSeconds"] = round(time.monotonic() - start, 3)
         result["safety"] = safety_flags()
     return result
-
-
-def safety_flags() -> dict[str, bool]:
-    return {
-        "movementSent": False,
-        "inputSent": False,
-        "reloaduiSent": False,
-        "screenshotKeySent": False,
-        "noCheatEngine": True,
-        "x64dbgAttach": False,
-        "providerWrites": False,
-        "gitMutation": False,
-    }
-
 
 def latest_report(repo_root: Path) -> Path | None:
     roots = [

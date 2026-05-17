@@ -22,59 +22,34 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from .common import (
+        find_repo_root,
+        preview_text,
+        repo_rel as as_repo_path,
+        safety_flags,
+        timestamped_output_dir,
+        unique,
+        utc_iso,
+    )
+except ImportError:  # pragma: no cover - supports direct script execution.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.common import (
+        find_repo_root,
+        preview_text,
+        repo_rel as as_repo_path,
+        safety_flags,
+        timestamped_output_dir,
+        unique,
+        utc_iso,
+    )
+
 
 DEFAULT_CURRENT_TRUTH_MD = Path("docs") / "recovery" / "current-truth.md"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-status"
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
-
-
-def find_repo_root(start: Path) -> Path:
-    current = start.resolve()
-    for candidate in [current, *current.parents]:
-        if (candidate / ".git").exists() and (candidate / "agents.md").is_file():
-            return candidate
-    raise RuntimeError(f"Could not find RiftReader repo root from {start}")
-
-
-def as_repo_path(repo_root: Path, path: Path | None) -> str | None:
-    if path is None:
-        return None
-    try:
-        return str(path.resolve().relative_to(repo_root.resolve())).replace("/", "\\")
-    except ValueError:
-        return str(path)
-
-
-def unique(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        if value not in seen:
-            seen.add(value)
-            result.append(value)
-    return result
-
-
-def preview_text(text: str | None, *, max_lines: int = 80, max_chars: int = 8000) -> str:
-    if not text:
-        return ""
-    lines = text.splitlines()
-    preview = "\n".join(lines[:max_lines])
-    if len(lines) > max_lines:
-        preview += f"\n... truncated {len(lines) - max_lines} line(s)"
-    if len(preview) > max_chars:
-        preview = preview[:max_chars] + f"\n... truncated to {max_chars} char(s)"
-    return preview
 
 
 def run_command(
@@ -500,17 +475,7 @@ def build_status_packet(
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
-        "safety": {
-            "movementSent": False,
-            "inputSent": False,
-            "reloaduiSent": False,
-            "screenshotKeySent": False,
-            "noCheatEngine": True,
-            "x64dbgAttach": False,
-            "providerWrites": False,
-            "gitMutation": False,
-            "savedVariablesUsedAsLiveTruth": False,
-        },
+        "safety": safety_flags(),
         "artifacts": {},
         "nextRecommendedAction": next_action,
     }
@@ -598,14 +563,7 @@ def write_outputs(packet: dict[str, Any], repo_root: Path, output_root: Path | N
     base = output_root if output_root is not None else repo_root / DEFAULT_OUTPUT_DIR
     if not base.is_absolute():
         base = repo_root / base
-    output_dir = base / utc_stamp()
-    if output_dir.exists():
-        stem = output_dir.name
-        suffix = 2
-        while (base / f"{stem}-{suffix}").exists():
-            suffix += 1
-        output_dir = base / f"{stem}-{suffix}"
-    output_dir.mkdir(parents=True, exist_ok=False)
+    output_dir = timestamped_output_dir(base)
     json_path = output_dir / "workflow-status-summary.json"
     md_path = output_dir / "WORKFLOW_STATUS_REPORT.md"
     artifacts = {

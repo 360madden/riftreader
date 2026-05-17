@@ -172,11 +172,19 @@ scripts/riftreader-operator-lite.cmd
 
 After useful patterns stabilize, merge shared helper logic into a small internal workflow package.
 
+### Current status
+
+Started with the smallest safe consolidation slice:
+
+- `tools/riftreader_workflow/common.py` now owns shared UTC timestamps, repo-relative path rendering, duplicate filtering, bounded text previews, repo-root discovery, timestamped output directory creation, and fail-closed safety flags.
+- `status_packet.py`, `apply_package.py`, `live_test_triage.py`, and `operator_lite.py` consume those shared primitives instead of carrying local copies.
+- Entry points remain separate and modular; this did not create a new operator mega-script.
+
 ### Proposed structure
 
 ```text
 tools/riftreader_workflow/
-  common.py
+  common.py        # implemented
   git.py
   artifacts.py
   status_packet.py
@@ -252,10 +260,12 @@ The helper must:
 
 ## Current Roadmap Priority
 
-1. Workflow Status Packet.
-2. Package Intake Lite.
-3. Live-Test Fast Lane.
-4. Operator Lite.
-5. Consolidation.
+| # | Item | Status |
+|---:|---|---|
+| 1 | Workflow Status Packet | Implemented and pushed. |
+| 2 | Package Intake Lite | Implemented and pushed. |
+| 3 | Live-Test Fast Lane | Implemented and pushed. |
+| 4 | Operator Lite | Implemented and pushed. |
+| 5 | Consolidation | In progress; common utility slice implemented. |
 
 Do not expand preflight further unless a specific workflow failure requires it.

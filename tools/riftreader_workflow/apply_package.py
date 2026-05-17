@@ -9,34 +9,21 @@ import json
 import shutil
 import sys
 import tempfile
-import time
 import zipfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 try:
+    from .common import repo_rel as rel
+    from .common import safety_flags, timestamped_output_dir, utc_iso
     from .package_manifest import MANIFEST_NAME, load_manifest, validate_manifest
     from .status_packet import find_repo_root, run_command
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.common import repo_rel as rel
+    from riftreader_workflow.common import safety_flags, timestamped_output_dir, utc_iso
     from riftreader_workflow.package_manifest import MANIFEST_NAME, load_manifest, validate_manifest
     from riftreader_workflow.status_packet import find_repo_root, run_command
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
-
-
-def rel(repo_root: Path, path: Path) -> str:
-    try:
-        return str(path.resolve().relative_to(repo_root.resolve())).replace("/", "\\")
-    except ValueError:
-        return str(path)
 
 
 def prepare_package(package_path: Path, intake_dir: Path) -> Path:
@@ -214,16 +201,7 @@ def build_summary(
             "summaryJson": rel(repo_root, intake_dir / "package-intake-summary.json"),
             "diff": diff_path,
         },
-        "safety": {
-            "movementSent": False,
-            "inputSent": False,
-            "reloaduiSent": False,
-            "screenshotKeySent": False,
-            "noCheatEngine": True,
-            "x64dbgAttach": False,
-            "providerWrites": False,
-            "gitMutation": False,
-        },
+        "safety": safety_flags(),
     }
     return summary
 
@@ -245,10 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     output_root = Path(args.output_dir) if args.output_dir else repo_root / ".riftreader-local" / "package-intake"
     if not output_root.is_absolute():
         output_root = repo_root / output_root
-    intake_dir = output_root / utc_stamp()
-    if intake_dir.exists():
-        intake_dir = output_root / f"{utc_stamp()}-{int(time.time() * 1000) % 1000:03d}"
-    intake_dir.mkdir(parents=True, exist_ok=True)
+    intake_dir = timestamped_output_dir(output_root)
 
     summary = build_summary(
         repo_root,
