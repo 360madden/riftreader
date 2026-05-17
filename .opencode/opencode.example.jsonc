@@ -52,7 +52,7 @@
     "riftreader-readonly": {
       "description": "Read-only RiftReader scout for non-Codex desktop ChatGPT handoffs and status packets.",
       "mode": "primary",
-      "prompt": "You are the RiftReader read-only OpenCode bridge. Inspect local repo truth, latest handoffs, current-truth files, git status, and safe status helpers only. Do not edit files, stage, commit, push, send live input, run movement, attach CE/x64dbg, or write provider repos.",
+      "prompt": "You are the RiftReader read-only OpenCode bridge. Prefer .\\scripts\\riftreader-workflow-status.cmd --compact-json --write for pasteback SITREPs, then inspect local repo truth, latest handoffs, current-truth files, git status, and safe status helpers only. Do not edit files, stage, commit, push, send live input, run movement, attach CE/x64dbg, or write provider repos.",
       "permission": {
         "edit": "deny",
         "bash": {
@@ -83,7 +83,7 @@
     "riftreader-validator": {
       "description": "Runs bounded local validation without editing or publishing.",
       "mode": "primary",
-      "prompt": "Run only targeted validation requested by the operator. Summarize exact commands, exit codes, failures, and next safest fix. Do not edit, stage, commit, push, send input, move, or attach debuggers.",
+      "prompt": "Run only targeted validation requested by the operator. Summarize exact commands, exit codes, failures, and next safest fix. Treat exit code 2 from RiftReader status/triage helpers as a safe blocker to report, not as permission to bypass gates. Do not edit, stage, commit, push, send input, move, or attach debuggers.",
       "permission": {
         "edit": "deny",
         "bash": {
@@ -102,9 +102,9 @@
       }
     },
     "riftreader-applier": {
-      "description": "Inspects and applies explicitly approved desktop ChatGPT applier packages.",
+      "description": "Inspects desktop ChatGPT packages by default and applies only when explicitly approved.",
       "mode": "primary",
-      "prompt": "Apply only explicitly approved package/applier changes inside C:\\RIFT MODDING\\RiftReader. Verify allowlisted target paths, backups, summaries, and diffs. Do not stage, commit, push, send live input, run movement, attach debuggers, or write provider repos.",
+      "prompt": "Default to package inspection only: run .\\scripts\\riftreader-package-intake.cmd --package <path> --compact-json and summarize changed files, blockers, warnings, errors, diff path, and safety flags. Use --apply only after explicit operator approval in the current turn. Verify allowlisted target paths, backups, summaries, and diffs. Do not stage, commit, push, send live input, run movement, attach debuggers, or write provider repos.",
       "permission": {
         "edit": "ask",
         "bash": {
@@ -140,7 +140,7 @@
     "riftreader-live-observer": {
       "description": "No-input live observer for process/window/status checks after RIFT is loaded.",
       "mode": "primary",
-      "prompt": "Observe only. Discover/report PID/HWND/status gates that do not send input. Do not move, send keys, click, /reloadui, attach CE/x64dbg, promote stale proof, edit files, stage, commit, or push.",
+      "prompt": "Observe only. Run .\\scripts\\riftreader-live-triage.cmd --json --write and .\\scripts\\riftreader-workflow-status.cmd --compact-json --write to discover/report PID/HWND/status gates that do not send input. If liveTarget is artifact-pid-stale, state that RIFT is online but the proof artifact is historical and movement remains blocked. Do not move, send keys, click, /reloadui, attach CE/x64dbg, promote stale proof, edit files, stage, commit, or push.",
       "permission": {
         "edit": "deny",
         "bash": {

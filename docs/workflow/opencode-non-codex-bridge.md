@@ -59,6 +59,16 @@ tracked file. If local overrides are needed, use ignored files such as:
 .opencode/sessions/
 ```
 
+Template agent defaults:
+
+| Agent | Default lane |
+|---|---|
+| `riftreader-readonly` | Compact status/SITREP and read-only local truth. |
+| `riftreader-validator` | Targeted validation; reports exit `2` status helpers as safe blockers. |
+| `riftreader-applier` | Package dry-run review first; `--apply` only after explicit approval. |
+| `riftreader-handoff-scribe` | Approved handoff/status docs only. |
+| `riftreader-live-observer` | No-input live triage/status summaries; stale proof remains historical. |
+
 ## Recommended commands
 
 Deterministic status packet without OpenCode:
