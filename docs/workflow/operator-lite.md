@@ -13,6 +13,7 @@ workflow commands:
 - Compact OpenCode SITREP;
 - Live-Test Fast-Lane Triage;
 - Package Intake dry-run;
+- Package Intake self-test;
 - Git Status;
 - Open Latest Report.
 
@@ -43,6 +44,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Compact OpenCode SITREP | Runs `scripts\riftreader-workflow-status.cmd --compact --write`. | Paste-ready for desktop ChatGPT; exit `2` means a safe blocker. |
 | Run Live-Test Triage | Runs `scripts\riftreader-live-triage.cmd --write`. | No input/movement/debugger/Git mutation. |
 | Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`, printing compact JSON. | No repo target writes; dry-run still writes an ignored package diff. |
+| Package Intake Self-Test | Runs `scripts\riftreader-package-intake-selftest.cmd`. | Generates an ignored package and proves dry-run package intake without repo target writes. |
 | Git Status | Runs `git --no-pager status --short --branch`. | Read-only Git. |
 | Open Latest Report | Opens latest ignored `.riftreader-local` report. | Local view only. |
 | Target-Control / Visual Gate / ProofOnly / Movement | Disabled in v0. | Prevents live action drift. |
@@ -54,6 +56,7 @@ Operator Lite v0 writes only through the underlying helpers:
 - `.riftreader-local\opencode-status\...`
 - `.riftreader-local\live-test-triage\...`
 - `.riftreader-local\package-intake\...`
+- `.riftreader-local\package-intake-selftest\...`
 
 It does not stage, commit, push, reset, clean, send game input, run movement,
 attach CE/x64dbg, or write provider repos. Current stale proof remains

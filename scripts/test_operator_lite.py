@@ -27,6 +27,7 @@ def make_repo(root: Path) -> None:
         "riftreader-workflow-status.cmd",
         "riftreader-live-triage.cmd",
         "riftreader-package-intake.cmd",
+        "riftreader-package-intake-selftest.cmd",
     ]:
         (scripts / name).write_text("@echo off\n", encoding="utf-8")
 
@@ -41,10 +42,12 @@ class OperatorLiteTests(unittest.TestCase):
 
         self.assertEqual(plan["status"], "passed")
         keys = {item["key"] for item in plan["commands"]}
-        self.assertEqual(keys, {"workflow-status", "compact-sitrep", "live-triage", "git-status"})
+        self.assertEqual(keys, {"workflow-status", "compact-sitrep", "live-triage", "package-selftest", "git-status"})
         compact = next(item for item in plan["commands"] if item["key"] == "compact-sitrep")
         self.assertEqual(compact["expectedExitCodes"], [0, 2])
         self.assertIn("--compact", compact["args"])
+        package_selftest = next(item for item in plan["commands"] if item["key"] == "package-selftest")
+        self.assertIn("riftreader-package-intake-selftest.cmd", package_selftest["args"][0])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
 
@@ -66,7 +69,7 @@ class OperatorLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             older = root / ".riftreader-local" / "opencode-status" / "old" / "report.md"
-            newer = root / ".riftreader-local" / "live-test-triage" / "new" / "summary.json"
+            newer = root / ".riftreader-local" / "package-intake-selftest" / "new" / "summary.json"
             older.parent.mkdir(parents=True)
             newer.parent.mkdir(parents=True)
             older.write_text("old", encoding="utf-8")

@@ -77,6 +77,13 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             description="Classify the current blocker without live input.",
             expected_exit_codes=(0, 2),
         ),
+        "package-selftest": CommandSpec(
+            key="package-selftest",
+            label="Package Intake Self-Test",
+            args=(str(scripts / "riftreader-package-intake-selftest.cmd"),),
+            timeout_seconds=120,
+            description="Smoke-test package intake with a generated dry-run package.",
+        ),
         "git-status": CommandSpec(
             key="git-status",
             label="Git Status",
@@ -155,6 +162,7 @@ def latest_report(repo_root: Path) -> Path | None:
         repo_root / ".riftreader-local" / "opencode-status",
         repo_root / ".riftreader-local" / "live-test-triage",
         repo_root / ".riftreader-local" / "package-intake",
+        repo_root / ".riftreader-local" / "package-intake-selftest",
     ]
     candidates: list[Path] = []
     for root in roots:
@@ -259,6 +267,7 @@ def run_gui(repo_root: Path) -> int:
     tk.Button(button_frame, text="Compact SITREP", command=lambda: run_spec("compact-sitrep")).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Run Live-Test Triage", command=lambda: run_spec("live-triage")).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Package Intake Dry-Run", command=run_package_dry_run).pack(side=tk.LEFT, padx=4)
+    tk.Button(button_frame, text="Package Self-Test", command=lambda: run_spec("package-selftest")).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Git Status", command=lambda: run_spec("git-status")).pack(side=tk.LEFT, padx=4)
     tk.Button(button_frame, text="Open Latest Report", command=open_latest).pack(side=tk.LEFT, padx=4)
 
