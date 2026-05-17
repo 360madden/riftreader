@@ -1,5 +1,11 @@
 # OpenCode Bridge for the Non-Codex Desktop ChatGPT Workflow
 
+<!-- RIFTREADER-OPENCODE-DEMOTION-BEGIN -->
+## Current status: OpenCode optional only
+
+OpenCode is no longer the default RiftReader executor. Use it only when explicitly authorized for a scoped task. Normal workflow uses local Python helpers plus local `git`/`gh`.
+<!-- RIFTREADER-OPENCODE-DEMOTION-END -->
+
 Created: 2026-05-16
 Scope: Optional local OpenCode use for RiftReader when Codex is unavailable,
 quota-blocked, or not being used.

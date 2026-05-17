@@ -1,5 +1,11 @@
 # RiftReader Drive Outbox Export and Intake Report
 
+<!-- RIFTREADER-DRIVE-DEMOTION-BEGIN -->
+## Current status: Drive optional archive only
+
+Google Drive is no longer the primary workflow control plane. Use it only for large ignored artifacts, screenshots, logs, captures, and archive material.
+<!-- RIFTREADER-DRIVE-DEMOTION-END -->
+
 ## Purpose
 
 This document describes the second-stage Drive workflow helpers added after the v0.1 Drive baseline was verified.

@@ -1,5 +1,17 @@
 # Non-Codex Desktop ChatGPT Workflow Policy
 
+<!-- RIFTREADER-PRIMARY-WORKFLOW-POLICY-BEGIN -->
+## Current primary workflow policy
+
+Primary workflow is now **local Python helpers + local git/gh CLI + GitHub read-only inspection**.
+
+- Google Drive is optional archive/fallback only.
+- OpenCode is optional scoped assistant only and is not default because it uses agentic/Codex quota.
+- GitHub connector is read-only for ChatGPT inspection.
+- Repo writes should happen locally through `git`/`gh`.
+- PowerShell/CMD should remain thin launchers only.
+<!-- RIFTREADER-PRIMARY-WORKFLOW-POLICY-END -->
+
 Created: 2026-05-10 10:45 EDT / 2026-05-10 14:45 UTC
 Scope: RiftReader development, documentation, recovery, and live-test workflow when Codex is unavailable, quota-blocked, or not being used.
 
