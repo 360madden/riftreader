@@ -9,9 +9,11 @@ debuggers, mutate Git state, or write provider repositories.
 
 from __future__ import annotations
 
+import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, TypeVar
+from typing import Any, Iterable, TypeVar
 
 
 T = TypeVar("T")
@@ -74,6 +76,67 @@ def preview_text(text: str | None, *, max_lines: int = 80, max_chars: int = 8000
     if len(preview) > max_chars:
         preview = preview[:max_chars] + f"\n... truncated to {max_chars} char(s)"
     return preview
+
+
+def run_command_envelope(
+    label: str,
+    args: list[str],
+    cwd: Path,
+    *,
+    timeout_seconds: float = 30.0,
+    expected_exit_codes: set[int] | None = None,
+    capture_full_output: bool = False,
+) -> dict[str, Any]:
+    """Run a local command and return a bounded diagnostic envelope.
+
+    This helper does not add any mutation authority. Callers must still choose
+    safe command arguments and expected exit codes.
+    """
+
+    expected = expected_exit_codes if expected_exit_codes is not None else {0}
+    started = utc_iso()
+    start_monotonic = time.monotonic()
+    envelope: dict[str, Any] = {
+        "label": label,
+        "args": args,
+        "cwd": str(cwd),
+        "startedAtUtc": started,
+        "timeoutSeconds": timeout_seconds,
+        "exitCode": None,
+        "ok": False,
+        "timedOut": False,
+        "stdoutPreview": "",
+        "stderrPreview": "",
+    }
+    try:
+        completed = subprocess.run(
+            args,
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        envelope["exitCode"] = completed.returncode
+        envelope["ok"] = completed.returncode in expected
+        envelope["stdoutPreview"] = preview_text(completed.stdout)
+        envelope["stderrPreview"] = preview_text(completed.stderr)
+        if capture_full_output:
+            envelope["stdout"] = completed.stdout
+            envelope["stderr"] = completed.stderr
+    except subprocess.TimeoutExpired as exc:
+        envelope["timedOut"] = True
+        envelope["error"] = f"TimeoutExpired:{exc}"
+        envelope["stdoutPreview"] = preview_text(exc.stdout if isinstance(exc.stdout, str) else "")
+        envelope["stderrPreview"] = preview_text(exc.stderr if isinstance(exc.stderr, str) else "")
+    except FileNotFoundError as exc:
+        envelope["error"] = f"FileNotFoundError:{exc}"
+    except Exception as exc:  # noqa: BLE001 - command envelope must capture unexpected local failures.
+        envelope["error"] = f"{type(exc).__name__}:{exc}"
+    finally:
+        envelope["endedAtUtc"] = utc_iso()
+        envelope["durationSeconds"] = round(time.monotonic() - start_monotonic, 3)
+    return envelope
 
 
 def safety_flags() -> dict[str, bool]:

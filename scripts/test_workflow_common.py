@@ -55,6 +55,19 @@ class WorkflowCommonTests(unittest.TestCase):
         self.assertFalse(flags["savedVariablesUsedAsLiveTruth"])
         self.assertTrue(flags["noCheatEngine"])
 
+    def test_run_command_envelope_records_stdout_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            envelope = common.run_command_envelope(
+                "python-echo",
+                [sys.executable, "-c", "print('ok')"],
+                Path(temp_dir),
+            )
+
+        self.assertTrue(envelope["ok"])
+        self.assertEqual(envelope["exitCode"], 0)
+        self.assertEqual(envelope["stdoutPreview"].strip(), "ok")
+        self.assertIn("durationSeconds", envelope)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -176,7 +176,7 @@ After useful patterns stabilize, merge shared helper logic into a small internal
 
 Started with the smallest safe consolidation slice:
 
-- `tools/riftreader_workflow/common.py` now owns shared UTC timestamps, repo-relative path rendering, duplicate filtering, bounded text previews, repo-root discovery, timestamped output directory creation, and fail-closed safety flags.
+- `tools/riftreader_workflow/common.py` now owns shared UTC timestamps, repo-relative path rendering, duplicate filtering, bounded command envelopes/text previews, repo-root discovery, timestamped output directory creation, and fail-closed safety flags.
 - `status_packet.py`, `apply_package.py`, `live_test_triage.py`, and `operator_lite.py` consume those shared primitives instead of carrying local copies.
 - Entry points remain separate and modular; this did not create a new operator mega-script.
 

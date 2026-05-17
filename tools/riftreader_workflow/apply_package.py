@@ -14,16 +14,16 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .common import find_repo_root, run_command_envelope as run_command
     from .common import repo_rel as rel
     from .common import safety_flags, timestamped_output_dir, utc_iso
     from .package_manifest import MANIFEST_NAME, load_manifest, validate_manifest
-    from .status_packet import find_repo_root, run_command
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.common import find_repo_root, run_command_envelope as run_command
     from riftreader_workflow.common import repo_rel as rel
     from riftreader_workflow.common import safety_flags, timestamped_output_dir, utc_iso
     from riftreader_workflow.package_manifest import MANIFEST_NAME, load_manifest, validate_manifest
-    from riftreader_workflow.status_packet import find_repo_root, run_command
 
 
 def prepare_package(package_path: Path, intake_dir: Path) -> Path:

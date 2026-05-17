@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,6 +25,7 @@ try:
         find_repo_root,
         preview_text,
         repo_rel as as_repo_path,
+        run_command_envelope,
         safety_flags,
         timestamped_output_dir,
         unique,
@@ -38,6 +37,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
         find_repo_root,
         preview_text,
         repo_rel as as_repo_path,
+        run_command_envelope,
         safety_flags,
         timestamped_output_dir,
         unique,
@@ -61,50 +61,14 @@ def run_command(
     expected_exit_codes: set[int] | None = None,
     capture_full_output: bool = False,
 ) -> dict[str, Any]:
-    expected = expected_exit_codes if expected_exit_codes is not None else {0}
-    started = utc_iso()
-    start_monotonic = time.monotonic()
-    envelope: dict[str, Any] = {
-        "label": label,
-        "args": args,
-        "cwd": str(cwd),
-        "startedAtUtc": started,
-        "timeoutSeconds": timeout_seconds,
-        "exitCode": None,
-        "ok": False,
-        "timedOut": False,
-        "stdoutPreview": "",
-        "stderrPreview": "",
-    }
-    try:
-        completed = subprocess.run(
-            args,
-            cwd=cwd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-        )
-        envelope["exitCode"] = completed.returncode
-        envelope["ok"] = completed.returncode in expected
-        envelope["stdoutPreview"] = preview_text(completed.stdout)
-        envelope["stderrPreview"] = preview_text(completed.stderr)
-        if capture_full_output:
-            envelope["stdout"] = completed.stdout
-            envelope["stderr"] = completed.stderr
-    except subprocess.TimeoutExpired as exc:
-        envelope["timedOut"] = True
-        envelope["error"] = f"TimeoutExpired:{exc}"
-        envelope["stdoutPreview"] = preview_text(exc.stdout if isinstance(exc.stdout, str) else "")
-        envelope["stderrPreview"] = preview_text(exc.stderr if isinstance(exc.stderr, str) else "")
-    except FileNotFoundError as exc:
-        envelope["error"] = f"FileNotFoundError:{exc}"
-    except Exception as exc:  # noqa: BLE001 - command envelope must capture unexpected local failures.
-        envelope["error"] = f"{type(exc).__name__}:{exc}"
-    finally:
-        envelope["endedAtUtc"] = utc_iso()
-        envelope["durationSeconds"] = round(time.monotonic() - start_monotonic, 3)
-    return envelope
+    return run_command_envelope(
+        label,
+        args,
+        cwd,
+        timeout_seconds=timeout_seconds,
+        expected_exit_codes=expected_exit_codes,
+        capture_full_output=capture_full_output,
+    )
 
 
 def read_text(path: Path, errors: list[str], warnings: list[str], label: str) -> str | None:

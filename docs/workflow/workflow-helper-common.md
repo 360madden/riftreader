@@ -16,6 +16,7 @@ consistent without merging the workflow into one large operator app.
 | `repo_rel()` | Render repo-relative Windows-style paths for summaries. |
 | `unique()` | Preserve first-seen order while removing duplicates. |
 | `preview_text()` | Bound command stdout/stderr previews. |
+| `run_command_envelope()` | Run bounded subprocess checks with expected exit codes and stdout/stderr previews. |
 | `safety_flags()` | Standard fail-closed no-movement/no-input/no-Git/no-debugger flags. |
 | `timestamped_output_dir()` | Create collision-safe ignored artifact directories. |
 
@@ -35,8 +36,8 @@ The common module must remain deterministic and offline-safe:
 
 | File | Shared behavior consumed |
 |---|---|
-| `tools/riftreader_workflow/status_packet.py` | Repo root, timestamps, output dirs, path rendering, previews, safety flags. |
-| `tools/riftreader_workflow/apply_package.py` | Timestamps, output dirs, path rendering, safety flags. |
+| `tools/riftreader_workflow/status_packet.py` | Repo root, timestamps, output dirs, path rendering, command envelopes, previews, safety flags. |
+| `tools/riftreader_workflow/apply_package.py` | Repo root, command envelopes, timestamps, output dirs, path rendering, safety flags. |
 | `tools/riftreader_workflow/live_test_triage.py` | Timestamps, output dirs, path rendering, safety flags. |
 | `tools/riftreader_workflow/operator_lite.py` | Repo root, timestamps, safety flags. |
 
