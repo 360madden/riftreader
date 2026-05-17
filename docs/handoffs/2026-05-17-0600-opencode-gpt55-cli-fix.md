@@ -10,6 +10,8 @@ The local OpenCode mismatch was a stale CLI install, not a missing GPT-5.5 provi
 
 Repo wrappers now request an explicit model through `RIFTREADER_OPENCODE_MODEL`, defaulting to `openai/gpt-5.5`, so they no longer inherit a broken user/global default. The deterministic status packet reports OpenCode version, requested model, provider, and model visibility.
 
+Follow-up local default fix: bare `opencode run --dir . "Say only: default works"` also succeeds after adding top-level `model` / `small_model` keys to the user-level OpenCode config with a timestamped local backup. Do not paste or publish the full user config because it may contain MCP headers or provider secrets.
+
 ## Root cause
 
 | Finding | Evidence |
@@ -19,6 +21,7 @@ Repo wrappers now request an explicit model through `RIFTREADER_OPENCODE_MODEL`,
 | Current CLI package exists | `npm view opencode-ai version` returned `1.15.3`. |
 | After upgrade, model is visible | `opencode --version` returns `1.15.3`; `opencode models openai` lists `openai/gpt-5.5`, `openai/gpt-5.5-fast`, and `openai/gpt-5.5-pro`. |
 | Provider works with explicit model | `opencode run --dir . -m openai/gpt-5.5 "Say only: provider works"` prints `provider works`. |
+| Bare default now works | `opencode run --dir . "Say only: default works"` prints `default works`. |
 
 ## Repo changes in this milestone
 
@@ -41,6 +44,7 @@ Repo wrappers now request an explicit model through `RIFTREADER_OPENCODE_MODEL`,
 | `opencode --version` | `1.15.3`. |
 | `opencode models openai` | Lists `openai/gpt-5.5`, `openai/gpt-5.5-fast`, `openai/gpt-5.5-pro`. |
 | `opencode run --dir . -m openai/gpt-5.5 "Say only: provider works"` | Passed; prints `provider works`. |
+| `opencode run --dir . "Say only: default works"` | Passed after user-level config default model was set. |
 | `scripts\riftreader-opencode-sitrep.cmd` | Passed; uses `openai/gpt-5.5`, runs the status helper, summarizes model visibility and stale-proof blocker. |
 | `python -m compileall tools\riftreader_workflow scripts\test_opencode_status_packet.py` | Passed. |
 | `python -m unittest scripts.test_opencode_status_packet` | Passed; 10 tests. |

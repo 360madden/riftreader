@@ -151,6 +151,22 @@ npm view opencode-ai version
 npm install -g opencode-ai@latest
 ```
 
+If `opencode run --dir . -m openai/gpt-5.5 "Say only: provider works"`
+succeeds but bare `opencode run --dir . "Say only: default works"` fails, the
+provider is working and the remaining issue is the user/global default model.
+Add a top-level `model` to the user-level `opencode.json` or continue using the
+RiftReader wrappers, which always pass `-m`:
+
+```json
+{
+  "model": "openai/gpt-5.5",
+  "small_model": "openai/gpt-5.5-fast"
+}
+```
+
+Do not paste or publish the full user config if it contains MCP headers,
+provider tokens, or other secrets.
+
 The deterministic status packet reports the OpenCode version plus whether the
 requested wrapper model is visible, so desktop ChatGPT can distinguish a real
 provider/model outage from a stale CLI/default-model mismatch.
