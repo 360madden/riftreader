@@ -40,11 +40,15 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
 
     def test_opencode_model_helpers_default_to_gpt55_and_parse_models(self) -> None:
         previous_model = os.environ.pop("RIFTREADER_OPENCODE_MODEL", None)
+        previous_variant = os.environ.pop("RIFTREADER_OPENCODE_VARIANT", None)
         try:
             self.assertEqual(status_packet.desired_opencode_model(), "openai/gpt-5.5")
+            self.assertEqual(status_packet.desired_opencode_variant(), "xhigh")
         finally:
             if previous_model is not None:
                 os.environ["RIFTREADER_OPENCODE_MODEL"] = previous_model
+            if previous_variant is not None:
+                os.environ["RIFTREADER_OPENCODE_VARIANT"] = previous_variant
         self.assertEqual(status_packet.opencode_provider_from_model("openai/gpt-5.5"), "openai")
         self.assertIsNone(status_packet.opencode_provider_from_model("gpt-5.5"))
         self.assertEqual(
@@ -273,7 +277,12 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                 "currentTruth": {"summary": {}},
                 "latestHandoff": {},
                 "coordinateRecoveryStatus": {},
-                "opencode": {"desiredModel": "openai/gpt-5.5", "modelProvider": "openai", "modelVisible": True},
+                "opencode": {
+                    "desiredModel": "openai/gpt-5.5",
+                    "desiredVariant": "xhigh",
+                    "modelProvider": "openai",
+                    "modelVisible": True,
+                },
                 "safety": {"movementSent": False, "gitMutation": False},
                 "nextRecommendedAction": "none",
                 "artifacts": {},
@@ -287,6 +296,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertFalse(commands["opencode-live-observer"]["exists"])
         self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
         self.assertEqual(compact["opencode"]["desiredModel"], "openai/gpt-5.5")
+        self.assertEqual(compact["opencode"]["desiredVariant"], "xhigh")
         self.assertTrue(compact["opencode"]["modelVisible"])
 
     def test_write_outputs_uses_ignored_local_status_directory(self) -> None:

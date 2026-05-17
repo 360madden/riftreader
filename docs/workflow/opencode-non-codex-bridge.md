@@ -120,17 +120,19 @@ cd "C:\RIFT MODDING\RiftReader"
 
 ### Model/provider sanity check
 
-The OpenCode wrappers request an explicit model instead of relying on the
-user/global default:
+The OpenCode wrappers request an explicit model and reasoning variant instead
+of relying on the user/global default:
 
 ```text
 openai/gpt-5.5
+xhigh
 ```
 
 Override it only for the current shell when needed:
 
 ```powershell
 set RIFTREADER_OPENCODE_MODEL=openai/gpt-5.4
+set RIFTREADER_OPENCODE_VARIANT=high
 .\scripts\riftreader-opencode-sitrep.cmd
 ```
 
@@ -140,7 +142,7 @@ wrapper actually uses:
 ```powershell
 opencode --version
 opencode models openai
-opencode run --dir . -m openai/gpt-5.5 "Say only: provider works"
+opencode run --dir . -m openai/gpt-5.5 --variant xhigh "Say only: provider works"
 ```
 
 If the desktop app shows `GPT-5.5` but `opencode models openai` does not list
@@ -152,25 +154,38 @@ npm view opencode-ai version
 npm install -g opencode-ai@latest
 ```
 
-If `opencode run --dir . -m openai/gpt-5.5 "Say only: provider works"`
+If `opencode run --dir . -m openai/gpt-5.5 --variant xhigh "Say only: provider works"`
 succeeds but bare `opencode run --dir . "Say only: default works"` fails, the
 provider is working and the remaining issue is the user/global default model.
 Add a top-level `model` to the user-level `opencode.json` or continue using the
-RiftReader wrappers, which always pass `-m`:
+RiftReader wrappers, which always pass `-m` and `--variant`:
 
 ```json
 {
   "model": "openai/gpt-5.5",
-  "small_model": "openai/gpt-5.5-fast"
+  "small_model": "openai/gpt-5.5-fast",
+  "provider": {
+    "openai": {
+      "models": {
+        "gpt-5.5": {
+          "options": {
+            "reasoningEffort": "xhigh",
+            "reasoningSummary": "auto"
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
 Do not paste or publish the full user config if it contains MCP headers,
 provider tokens, or other secrets.
 
-The deterministic status packet reports the OpenCode version plus whether the
-requested wrapper model is visible, so desktop ChatGPT can distinguish a real
-provider/model outage from a stale CLI/default-model mismatch.
+The deterministic status packet reports the OpenCode version, requested model,
+requested reasoning variant, and whether the model is visible, so desktop
+ChatGPT can distinguish a real provider/model outage from a stale
+CLI/default-model mismatch.
 
 ## Ready-to-paste OpenCode prompts
 
@@ -181,7 +196,7 @@ Use the RiftReader read-only non-Codex bridge. Do not edit files, stage,
 commit, push, send live input, run movement, attach CE/x64dbg, or write provider
 repos. Run .\scripts\riftreader-workflow-status.cmd --compact-json --write,
 then summarize current branch, HEAD, latest handoff, OpenCode version,
-requested OpenCode model/model visibility, liveTarget
+requested OpenCode model/model visibility/reasoning variant, liveTarget
 verdict/livePids/artifactPid/artifactHwnd, current proof status, movement
 permission, blockers, warnings, stale proof reuse policy, validation status,
 and next safe action for desktop ChatGPT. If liveTarget is

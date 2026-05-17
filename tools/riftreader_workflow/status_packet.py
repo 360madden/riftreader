@@ -52,6 +52,7 @@ DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-r
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-status"
 DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
+DEFAULT_OPENCODE_VARIANT = "xhigh"
 
 BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
     (
@@ -125,6 +126,12 @@ def desired_opencode_model() -> str:
     """Return the model the OpenCode wrappers should request by default."""
 
     return os.environ.get("RIFTREADER_OPENCODE_MODEL", "").strip() or DEFAULT_OPENCODE_MODEL
+
+
+def desired_opencode_variant() -> str:
+    """Return the reasoning variant the OpenCode wrappers should request."""
+
+    return os.environ.get("RIFTREADER_OPENCODE_VARIANT", "").strip() or DEFAULT_OPENCODE_VARIANT
 
 
 def opencode_provider_from_model(model: str) -> str | None:
@@ -582,6 +589,7 @@ def build_status_packet(
         "available": None,
         "version": None,
         "desiredModel": desired_opencode_model(),
+        "desiredVariant": desired_opencode_variant(),
         "modelProvider": opencode_provider_from_model(desired_opencode_model()),
         "modelVisible": None,
     }
@@ -613,6 +621,7 @@ def build_status_packet(
             "available": bool(envelope.get("ok")),
             "version": str(envelope.get("stdoutPreview") or "").strip() or None,
             "desiredModel": requested_model,
+            "desiredVariant": desired_opencode_variant(),
             "modelProvider": model_provider,
             "modelVisible": model_visible,
             "visibleModelsPreview": visible_models[:20],
@@ -702,7 +711,8 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Target: PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}`, process `{target.get('processName')}`",
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
         f"- OpenCode: available `{opencode.get('available')}`, version `{opencode.get('version')}`, "
-        f"model `{opencode.get('desiredModel')}` visible `{opencode.get('modelVisible')}`",
+        f"model `{opencode.get('desiredModel')}` variant `{opencode.get('desiredVariant')}` "
+        f"visible `{opencode.get('modelVisible')}`",
         "",
         "## Stale proof boundary",
         "",
@@ -802,6 +812,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "available": opencode.get("available"),
             "version": opencode.get("version"),
             "desiredModel": opencode.get("desiredModel"),
+            "desiredVariant": opencode.get("desiredVariant"),
             "modelProvider": opencode.get("modelProvider"),
             "modelVisible": opencode.get("modelVisible"),
         },
@@ -834,7 +845,8 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- OpenCode: `{opencode.get('available')}` version `{opencode.get('version')}` "
-        f"model `{opencode.get('desiredModel')}` visible `{opencode.get('modelVisible')}`",
+        f"model `{opencode.get('desiredModel')}` variant `{opencode.get('desiredVariant')}` "
+        f"visible `{opencode.get('modelVisible')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
         "## Stale proof boundary",
