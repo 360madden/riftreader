@@ -35,6 +35,29 @@ def _first_blocked_stage(stage_timings: Any) -> dict[str, Any] | None:
     return None
 
 
+def _live_target_next_action(live_verdict: str, live_target: dict[str, Any]) -> str:
+    live_pids = live_target.get("livePids")
+    artifact_pid = live_target.get("artifactPid")
+    artifact_hwnd = live_target.get("artifactHwnd")
+    if live_verdict == "artifact-pid-stale":
+        return (
+            f"Live RIFT is running with PID(s) {live_pids}, but the current proof artifact points "
+            f"at historical PID {artifact_pid} / HWND {artifact_hwnd}. "
+            "Keep movement blocked, do not reuse stale proof, and run safe current-target "
+            "reacquisition/status refresh before ProofOnly or movement."
+        )
+    if live_verdict == "artifact-pid-missing":
+        return (
+            f"Live RIFT target status is visible with PID(s) {live_pids}, but the proof artifact has no "
+            "target PID. Keep movement blocked and run safe current-target status/reacquisition before "
+            "ProofOnly or movement."
+        )
+    return (
+        "No live rift_x64 process is currently visible. Keep movement blocked, load RIFT into the "
+        "character/world when available, then rerun no-input status triage."
+    )
+
+
 def classify_packet(packet: dict[str, Any]) -> dict[str, Any]:
     blockers = [str(item) for item in packet.get("blockers") or []]
     errors = [str(item) for item in packet.get("errors") or []]
@@ -66,7 +89,7 @@ def classify_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "blockerCategory": live_verdict,
             "reason": "; ".join(item for item in blockers if "live-target" in item or "artifact-target" in item)
             or f"Live target verdict is {live_verdict}.",
-            "nextRecommendedAction": "Load RIFT into the character/world, rediscover PID/HWND/process epoch, then rerun status triage.",
+            "nextRecommendedAction": _live_target_next_action(live_verdict, live_target),
         }
     if proof_status.startswith("blocked-target-drift"):
         return {

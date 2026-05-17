@@ -27,6 +27,15 @@ Expected while RIFT is offline:
 | `blockerCategory` | `no-live-process` |
 | Next action | Load RIFT into character/world, rediscover PID/HWND, rerun status triage. |
 
+Expected when RIFT is online but the proof artifact still points at an old PID:
+
+| Field | Value |
+|---|---|
+| `status` | `blocked` |
+| `failedStage` | `live-target` |
+| `blockerCategory` | `artifact-pid-stale` |
+| Next action | Keep movement blocked, do not reuse the stale proof, and run safe current-target reacquisition/status refresh before ProofOnly or movement. |
+
 ## Output
 
 The helper writes ignored artifacts under:

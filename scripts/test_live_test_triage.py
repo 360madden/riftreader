@@ -32,6 +32,32 @@ class LiveTestTriageTests(unittest.TestCase):
         self.assertEqual(result["failedStage"], "live-target")
         self.assertEqual(result["blockerCategory"], "no-live-process")
 
+    def test_artifact_pid_stale_guidance_uses_current_live_pid(self) -> None:
+        packet = {
+            "blockers": ["coordinate-status:artifact-target-pid-not-running:artifact=27552;live=22304"],
+            "errors": [],
+            "currentProof": {"summary": {"status": "blocked-target-drift"}},
+            "currentTruth": {"summary": {"movementGate": {"allowed": False, "status": "blocked"}}},
+            "coordinateRecoveryStatus": {
+                "liveTarget": {
+                    "verdict": "artifact-pid-stale",
+                    "livePids": [22304],
+                    "artifactPid": 27552,
+                    "artifactHwnd": "0x3411E2",
+                }
+            },
+        }
+
+        result = live_test_triage.classify_packet(packet)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["failedStage"], "live-target")
+        self.assertEqual(result["blockerCategory"], "artifact-pid-stale")
+        self.assertIn("PID(s) [22304]", result["nextRecommendedAction"])
+        self.assertIn("historical PID 27552 / HWND 0x3411E2", result["nextRecommendedAction"])
+        self.assertIn("do not reuse stale proof", result["nextRecommendedAction"])
+        self.assertNotIn("Load RIFT into the character/world", result["nextRecommendedAction"])
+
     def test_classifies_target_drift_when_live_target_not_blocking(self) -> None:
         packet = {
             "blockers": ["current-proof-status:blocked-target-drift"],
