@@ -18,6 +18,13 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-live-triage.cmd --json --write
 ```
 
+Optional OpenCode no-input observer wrapper:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-live-observer.cmd
+```
+
 Expected while RIFT is offline:
 
 | Field | Value |

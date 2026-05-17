@@ -219,6 +219,13 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-live-triage.cmd --json --write
 ```
 
+Optional OpenCode no-input observer wrapper:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-opencode-live-observer.cmd
+```
+
 The helper classifies the failed stage from existing artifacts and safe status
 helpers. It is read-only except for `.riftreader-local` reports and does not
 send input, run movement, attach CE/x64dbg, stage, commit, or push.

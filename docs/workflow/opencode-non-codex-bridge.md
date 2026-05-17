@@ -198,6 +198,7 @@ For no-input blocker classification:
 
 ```powershell
 .\scripts\riftreader-live-triage.cmd --json --write
+.\scripts\riftreader-opencode-live-observer.cmd
 ```
 
 See `docs/workflow/live-test-fast-lane-triage.md`.
