@@ -38,6 +38,7 @@
     "edit": "deny",
     "bash": {
       "*": "ask",
+      "git status --short --branch": "allow",
       "git --no-pager status *": "allow",
       "git --no-pager log *": "allow",
       "git --no-pager for-each-ref *": "allow",
@@ -80,6 +81,7 @@
         "edit": "deny",
         "bash": {
           "*": "ask",
+          "git status --short --branch": "allow",
           "git --no-pager status *": "allow",
           "git --no-pager log *": "allow",
           "git --no-pager for-each-ref *": "allow",
@@ -138,6 +140,7 @@
         "edit": "ask",
         "bash": {
           "*": "ask",
+          "git status --short --branch": "allow",
           "git --no-pager status *": "allow",
           "git --no-pager diff *": "allow",
           "git --no-pager diff --check *": "allow",
@@ -158,6 +161,7 @@
         "edit": "ask",
         "bash": {
           "*": "ask",
+          "git status --short --branch": "allow",
           "git --no-pager status *": "allow",
           "git --no-pager diff --check *": "allow",
           "python -m compileall tools\\riftreader_workflow *": "allow",

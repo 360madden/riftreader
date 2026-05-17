@@ -840,6 +840,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
         "errors": packet.get("errors") or [],
         "nextRecommendedAction": packet.get("nextRecommendedAction"),
         "safety": packet.get("safety") or {},
+        "artifacts": packet.get("artifacts") or {},
     }
 
 

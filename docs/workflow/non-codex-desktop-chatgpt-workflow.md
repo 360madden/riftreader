@@ -171,6 +171,11 @@ sequence before final output and adapt to current blockers such as dirty
 worktree, unavailable model/provider, no-live-process, `artifact-pid-stale`,
 closed movement gate, or package-review mode.
 
+When `--run` launches OpenCode, stdout and stderr stream live to the terminal and
+the full output is also saved under `.riftreader-local\opencode-runs\...` with a
+`run-envelope.json`. Ctrl+C during the run should produce an interrupted run
+envelope when the bridge can terminate the child process cleanly.
+
 To validate adaptive prompt generation without launching OpenCode or using a
 model:
 
@@ -200,6 +205,8 @@ instead of treating the autonomous loop as permission to broaden scope.
 For the integration lane, the same policy also includes `groundingFiles` so the
 agent starts from the current bridge code, wrappers, tests, workflow docs, and
 example config instead of stale handoff assumptions.
+Each lane policy also advertises a `recommendedAgent` name for optional
+`--agent` use when the example OpenCode config has been installed locally.
 
 The OpenCode wrappers request `openai/gpt-5.5` plus the `xhigh` reasoning
 variant explicitly by default so they do not inherit a stale or incompatible
@@ -207,6 +214,11 @@ user/global default. If needed for a single shell, set
 `RIFTREADER_OPENCODE_MODEL` or `RIFTREADER_OPENCODE_VARIANT` before running a
 wrapper. The status packet reports whether the requested model is visible to
 the local CLI and which reasoning variant the wrappers request.
+
+If the example OpenCode config has been copied locally, a wrapper run can select
+a configured lane agent with `--agent <name>` or the current-shell-only
+`RIFTREADER_OPENCODE_AGENT` environment variable. Keep this opt-in so the safe
+read-only default remains usable when no project OpenCode config is installed.
 
 The bridge sequence is:
 

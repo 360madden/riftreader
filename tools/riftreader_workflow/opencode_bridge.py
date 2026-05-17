@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -45,7 +46,14 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-prompts"
+DEFAULT_RUN_OUTPUT_DIR = Path(".riftreader-local") / "opencode-runs"
 SUPPORTED_LANES = {"sitrep", "live-observer", "package-review", "integration"}
+LANE_RECOMMENDED_AGENTS: dict[str, str] = {
+    "sitrep": "riftreader-readonly",
+    "live-observer": "riftreader-live-observer",
+    "package-review": "riftreader-applier",
+    "integration": "riftreader-integration",
+}
 INTEGRATION_ALLOWED_EDIT_PATHS: tuple[str, ...] = (
     "tools/riftreader_workflow/opencode_bridge.py",
     "tools/riftreader_workflow/status_packet.py",
@@ -114,6 +122,14 @@ def _str(value: Any, default: str = "none") -> str:
     return text if text.strip() else default
 
 
+def selected_opencode_agent(explicit_agent: str | None = None) -> str | None:
+    """Return the configured OpenCode agent override, if any."""
+
+    raw = explicit_agent if explicit_agent is not None else os.environ.get("RIFTREADER_OPENCODE_AGENT", "")
+    agent = raw.strip()
+    return agent or None
+
+
 def _quote_path(path: str) -> str:
     return '"' + path.replace('"', '\\"') + '"'
 
@@ -137,17 +153,18 @@ def lane_policy(lane: str) -> dict[str, Any]:
     return {
         "lane": lane,
         "mode": mode_by_lane[lane],
+        "recommendedAgent": LANE_RECOMMENDED_AGENTS[lane],
         "allowsTrackedEdits": allows_tracked_edits,
         "allowedEditPaths": list(INTEGRATION_ALLOWED_EDIT_PATHS) if allows_tracked_edits else [],
         "groundingFiles": list(INTEGRATION_GROUNDING_FILES) if allows_tracked_edits else [],
-        "ignoredWriteRoots": [r".riftreader-local\opencode-prompts"],
+        "ignoredWriteRoots": [r".riftreader-local\opencode-prompts", r".riftreader-local\opencode-runs"],
         "forbiddenActions": list(COMMON_FORBIDDEN_ACTIONS),
         "hardStopConditions": list(INTEGRATION_HARD_STOP_CONDITIONS if allows_tracked_edits else READ_ONLY_HARD_STOP_CONDITIONS),
         "targetedValidation": list(INTEGRATION_TARGETED_VALIDATION if allows_tracked_edits else ()),
     }
 
 
-def opencode_run_command(repo_root: Path, *, model: str, variant: str) -> list[str]:
+def opencode_run_command(repo_root: Path, *, model: str, variant: str, agent: str | None = None) -> list[str]:
     """Return a Windows npm-shim-safe OpenCode run command."""
 
     command = [
@@ -160,6 +177,9 @@ def opencode_run_command(repo_root: Path, *, model: str, variant: str) -> list[s
         "--variant",
         variant,
     ]
+    selected_agent = selected_opencode_agent(agent)
+    if selected_agent:
+        command.extend(["--agent", selected_agent])
     if sys.platform == "win32":
         return ["cmd", "/d", "/c", *command]
     return command
@@ -220,6 +240,259 @@ def run_command_envelope_with_input(
     finally:
         envelope["endedAtUtc"] = utc_iso()
         envelope["durationSeconds"] = round(time.monotonic() - start_monotonic, 3)
+    return envelope
+
+
+def _append_bounded_preview(chunks: list[str], char_count: list[int], text: str, *, limit: int = 20000) -> None:
+    remaining = limit - char_count[0]
+    if remaining > 0:
+        chunks.append(text[:remaining])
+    char_count[0] += len(text)
+
+
+def _stream_pipe_to_file(
+    pipe: Any,
+    output_path: Path,
+    echo: Any,
+    preview_chunks: list[str],
+    preview_chars: list[int],
+    errors: list[str],
+    stream_name: str,
+) -> None:
+    try:
+        with output_path.open("w", encoding="utf-8", errors="replace") as output:
+            for chunk in iter(pipe.readline, ""):
+                output.write(chunk)
+                output.flush()
+                _append_bounded_preview(preview_chunks, preview_chars, chunk)
+                try:
+                    echo.write(chunk)
+                    echo.flush()
+                except Exception as exc:  # noqa: BLE001 - streaming must not fail the child command.
+                    errors.append(f"{stream_name}-echo-failed:{type(exc).__name__}:{exc}")
+    except Exception as exc:  # noqa: BLE001 - preserve command envelope instead of crashing.
+        errors.append(f"{stream_name}-stream-failed:{type(exc).__name__}:{exc}")
+    finally:
+        try:
+            pipe.close()
+        except Exception:  # noqa: BLE001 - best-effort cleanup only.
+            pass
+
+
+def _write_stdin(pipe: Any, stdin_text: str, errors: list[str]) -> None:
+    try:
+        pipe.write(stdin_text)
+        pipe.flush()
+    except (BrokenPipeError, OSError) as exc:
+        errors.append(f"stdin-write-failed:{type(exc).__name__}:{exc}")
+    except Exception as exc:  # noqa: BLE001 - preserve command envelope instead of crashing.
+        errors.append(f"stdin-write-failed:{type(exc).__name__}:{exc}")
+    finally:
+        try:
+            pipe.close()
+        except Exception:  # noqa: BLE001 - best-effort cleanup only.
+            pass
+
+
+def _terminate_process(process: subprocess.Popen[Any], *, grace_seconds: float = 5.0) -> list[str]:
+    notes: list[str] = []
+    if process.poll() is not None:
+        return notes
+    if sys.platform == "win32":
+        notes.extend(_taskkill_process_tree(process, grace_seconds=grace_seconds))
+        if process.poll() is not None:
+            return notes
+    try:
+        process.terminate()
+        process.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        notes.append("terminate-timeout")
+        try:
+            process.kill()
+            process.wait(timeout=grace_seconds)
+        except Exception as exc:  # noqa: BLE001 - best-effort cleanup only.
+            notes.append(f"kill-failed:{type(exc).__name__}:{exc}")
+    except Exception as exc:  # noqa: BLE001 - best-effort cleanup only.
+        notes.append(f"terminate-failed:{type(exc).__name__}:{exc}")
+        try:
+            process.kill()
+        except Exception as kill_exc:  # noqa: BLE001
+            notes.append(f"kill-failed:{type(kill_exc).__name__}:{kill_exc}")
+    return notes
+
+
+def _popen_platform_options() -> dict[str, Any]:
+    if sys.platform == "win32" and hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {}
+
+
+def _safe_join_thread(thread: threading.Thread, errors: list[str], label: str) -> None:
+    try:
+        thread.join(timeout=2.0)
+        if thread.is_alive():
+            errors.append(f"{label}-thread-still-running")
+    except Exception as exc:  # noqa: BLE001 - best-effort cleanup only.
+        errors.append(f"{label}-thread-join-failed:{type(exc).__name__}:{exc}")
+
+
+def _taskkill_process_tree(process: subprocess.Popen[Any], *, grace_seconds: float = 5.0) -> list[str]:
+    notes: list[str] = []
+    if sys.platform != "win32" or process.poll() is not None:
+        return notes
+    try:
+        completed = subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=grace_seconds,
+        )
+        if completed.returncode != 0:
+            detail = preview_text((completed.stderr or completed.stdout or "").strip(), max_lines=3, max_chars=500)
+            notes.append(f"taskkill-exit:{completed.returncode}:{detail}")
+    except Exception as exc:  # noqa: BLE001 - best-effort cleanup only.
+        notes.append(f"taskkill-failed:{type(exc).__name__}:{exc}")
+    try:
+        process.wait(timeout=grace_seconds)
+    except Exception as exc:  # noqa: BLE001 - best-effort cleanup only.
+        notes.append(f"taskkill-wait-failed:{type(exc).__name__}:{exc}")
+    return notes
+
+
+def run_streaming_command_with_input(
+    label: str,
+    args: list[str],
+    cwd: Path,
+    *,
+    stdin_text: str,
+    timeout_seconds: float,
+    expected_exit_codes: set[int] | None = None,
+    output_root: Path | None = None,
+) -> dict[str, Any]:
+    """Run a command with stdin while teeing stdout/stderr live and to disk."""
+
+    expected = expected_exit_codes if expected_exit_codes is not None else {0}
+    start_monotonic = time.monotonic()
+    base = output_root if output_root is not None else cwd / DEFAULT_RUN_OUTPUT_DIR
+    if not base.is_absolute():
+        base = cwd / base
+    output_dir = timestamped_output_dir(base)
+    stdout_path = output_dir / "stdout.txt"
+    stderr_path = output_dir / "stderr.txt"
+    envelope_path = output_dir / "run-envelope.json"
+    stdout_path.write_text("", encoding="utf-8")
+    stderr_path.write_text("", encoding="utf-8")
+    envelope: dict[str, Any] = {
+        "label": label,
+        "args": args,
+        "cwd": str(cwd),
+        "startedAtUtc": utc_iso(),
+        "timeoutSeconds": timeout_seconds,
+        "exitCode": None,
+        "ok": False,
+        "timedOut": False,
+        "interrupted": False,
+        "stdoutPreview": "",
+        "stderrPreview": "",
+        "stdinBytes": len(stdin_text.encode("utf-8")),
+        "stdinMode": "prompt-via-stdin",
+        "streaming": True,
+        "artifacts": {
+            "outputDir": repo_rel(cwd, output_dir),
+            "stdout": repo_rel(cwd, stdout_path),
+            "stderr": repo_rel(cwd, stderr_path),
+            "runEnvelopeJson": repo_rel(cwd, envelope_path),
+        },
+    }
+    process: subprocess.Popen[Any] | None = None
+    threads: list[threading.Thread] = []
+    stdin_thread: threading.Thread | None = None
+    reader_errors: list[str] = []
+    stdout_preview: list[str] = []
+    stderr_preview: list[str] = []
+    stdout_preview_chars = [0]
+    stderr_preview_chars = [0]
+    try:
+        process = subprocess.Popen(
+            args,
+            cwd=cwd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            **_popen_platform_options(),
+        )
+        envelope["pid"] = process.pid
+        assert process.stdin is not None
+        assert process.stdout is not None
+        assert process.stderr is not None
+        threads = [
+            threading.Thread(
+                target=_stream_pipe_to_file,
+                args=(process.stdout, stdout_path, sys.stdout, stdout_preview, stdout_preview_chars, reader_errors, "stdout"),
+                daemon=True,
+            ),
+            threading.Thread(
+                target=_stream_pipe_to_file,
+                args=(process.stderr, stderr_path, sys.stderr, stderr_preview, stderr_preview_chars, reader_errors, "stderr"),
+                daemon=True,
+            ),
+        ]
+        for thread in threads:
+            thread.start()
+        stdin_thread = threading.Thread(
+            target=_write_stdin,
+            args=(process.stdin, stdin_text, reader_errors),
+            daemon=True,
+        )
+        stdin_thread.start()
+        deadline = start_monotonic + timeout_seconds
+        while True:
+            exit_code = process.poll()
+            if exit_code is not None:
+                envelope["exitCode"] = exit_code
+                break
+            if time.monotonic() >= deadline:
+                envelope["timedOut"] = True
+                envelope["error"] = f"TimeoutExpired:command exceeded {timeout_seconds} second(s)"
+                reader_errors.extend(_terminate_process(process))
+                envelope["exitCode"] = process.returncode
+                break
+            time.sleep(0.1)
+        envelope["ok"] = envelope.get("exitCode") in expected and not envelope.get("timedOut")
+    except FileNotFoundError as exc:
+        envelope["error"] = f"FileNotFoundError:{exc}"
+    except KeyboardInterrupt:
+        envelope["interrupted"] = True
+        envelope["error"] = "KeyboardInterrupt"
+        if process is not None:
+            reader_errors.extend(_terminate_process(process))
+            envelope["exitCode"] = process.returncode
+    except Exception as exc:  # noqa: BLE001 - command envelope must capture unexpected local failures.
+        envelope["error"] = f"{type(exc).__name__}:{exc}"
+        if process is not None:
+            reader_errors.extend(_terminate_process(process))
+            envelope["exitCode"] = process.returncode
+    finally:
+        if stdin_thread is not None:
+            _safe_join_thread(stdin_thread, reader_errors, "stdin")
+        for thread in threads:
+            _safe_join_thread(thread, reader_errors, "stream")
+        if reader_errors:
+            envelope["readerErrors"] = reader_errors
+        envelope["stdoutPreview"] = preview_text("".join(stdout_preview))
+        envelope["stderrPreview"] = preview_text("".join(stderr_preview))
+        envelope["stdoutBytes"] = stdout_path.stat().st_size if stdout_path.exists() else 0
+        envelope["stderrBytes"] = stderr_path.stat().st_size if stderr_path.exists() else 0
+        envelope["endedAtUtc"] = utc_iso()
+        envelope["durationSeconds"] = round(time.monotonic() - start_monotonic, 3)
+        envelope_path.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
     return envelope
 
 
@@ -434,6 +707,7 @@ def build_bridge_summary(
     package_path: str | None = None,
     output_root: Path | None = None,
     check_opencode: bool = True,
+    agent: str | None = None,
 ) -> dict[str, Any]:
     packet = build_status_packet(
         repo_root,
@@ -458,6 +732,7 @@ def build_bridge_summary(
         "generatedAtUtc": utc_iso(),
         "lane": lane,
         "packagePath": package_path,
+        "opencodeAgent": selected_opencode_agent(agent),
         "repoRoot": str(repo_root),
         "promptPath": repo_rel(repo_root, prompt_path),
         "summaryPath": repo_rel(repo_root, summary_path),
@@ -562,10 +837,8 @@ def build_self_test(repo_root: Path, *, output_root: Path | None = None) -> dict
     }
 
 
-def run_opencode(summary: dict[str, Any], *, timeout_seconds: float) -> dict[str, Any]:
+def run_opencode(summary: dict[str, Any], *, timeout_seconds: float, agent: str | None = None) -> dict[str, Any]:
     repo_root = Path(str(summary["repoRoot"]))
-    prompt_path = repo_root / str(summary["promptPath"]).replace("\\", "/")
-    prompt = prompt_path.read_text(encoding="utf-8")
     compact = summary.get("compactStatus") if isinstance(summary.get("compactStatus"), dict) else {}
     opencode = compact.get("opencode") if isinstance(compact.get("opencode"), dict) else {}
     if opencode.get("available") is False:
@@ -577,10 +850,23 @@ def run_opencode(summary: dict[str, Any], *, timeout_seconds: float) -> dict[str
             "stdoutPreview": "",
             "stderrPreview": "OpenCode was not available during preflight.",
         }
+    if opencode.get("modelVisible") is False:
+        requested_model = str(opencode.get("desiredModel") or desired_opencode_model())
+        return {
+            "label": "opencode-run",
+            "ok": False,
+            "exitCode": None,
+            "error": f"opencode-model-not-visible-preflight:{requested_model}",
+            "stdoutPreview": "",
+            "stderrPreview": f"Requested OpenCode model {requested_model} was not visible during preflight.",
+        }
+    prompt_path = repo_root / str(summary["promptPath"]).replace("\\", "/")
+    prompt = prompt_path.read_text(encoding="utf-8")
     model = os.environ.get("RIFTREADER_OPENCODE_MODEL", "").strip() or desired_opencode_model()
     variant = os.environ.get("RIFTREADER_OPENCODE_VARIANT", "").strip() or desired_opencode_variant()
-    command = opencode_run_command(repo_root, model=model, variant=variant)
-    return run_command_envelope_with_input(
+    summary_agent = summary.get("opencodeAgent") if isinstance(summary.get("opencodeAgent"), str) else None
+    command = opencode_run_command(repo_root, model=model, variant=variant, agent=selected_opencode_agent(agent or summary_agent))
+    return run_streaming_command_with_input(
         "opencode-run",
         command,
         repo_root,
@@ -599,6 +885,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run", action="store_true", help="Run OpenCode with the generated prompt.")
     parser.add_argument("--json", action="store_true", help="Print JSON summary instead of prompt text.")
     parser.add_argument("--self-test", action="store_true", help="Generate all adaptive lane prompts without running OpenCode.")
+    parser.add_argument("--agent", default=None, help="Configured OpenCode agent to pass to `opencode run`; also supports RIFTREADER_OPENCODE_AGENT.")
     parser.add_argument("--timeout-seconds", type=float, default=900.0, help="OpenCode run timeout when --run is used.")
     parser.add_argument("--skip-opencode-check", action="store_true", help="Build prompt without checking OpenCode availability/model catalog.")
     return parser
@@ -627,17 +914,25 @@ def main(argv: list[str] | None = None) -> int:
         package_path=args.package_path,
         output_root=Path(args.output_dir) if args.output_dir else None,
         check_opencode=not args.skip_opencode_check,
+        agent=args.agent,
     )
     exit_code = 0
     if args.run:
-        run_envelope = run_opencode(summary, timeout_seconds=args.timeout_seconds)
+        run_envelope = run_opencode(summary, timeout_seconds=args.timeout_seconds, agent=args.agent)
         summary["opencodeRun"] = run_envelope
         summary_path = repo_root / str(summary["summaryPath"]).replace("\\", "/")
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-        print(str(run_envelope.get("stdoutPreview") or ""))
-        stderr = str(run_envelope.get("stderrPreview") or "")
-        if stderr:
-            print(stderr, file=sys.stderr)
+        if run_envelope.get("streaming"):
+            artifacts = run_envelope.get("artifacts") if isinstance(run_envelope.get("artifacts"), dict) else {}
+            run_summary = artifacts.get("runEnvelopeJson") or summary.get("summaryPath")
+            print(f"\nOpenCode run envelope: {run_summary}", file=sys.stderr)
+        else:
+            stdout = str(run_envelope.get("stdoutPreview") or "")
+            if stdout:
+                print(stdout)
+            stderr = str(run_envelope.get("stderrPreview") or "")
+            if stderr:
+                print(stderr, file=sys.stderr)
         exit_code = int(run_envelope.get("exitCode") or 1) if not run_envelope.get("ok") else 0
     elif args.json:
         print(json.dumps(summary, indent=2))

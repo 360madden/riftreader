@@ -330,12 +330,16 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
 
             summary_json = root / artifacts["summaryJson"]
             summary_md = root / artifacts["summaryMarkdown"]
+            compact_json = root / artifacts["compactJson"]
 
             self.assertTrue(artifacts["summaryJson"].startswith(".riftreader-local\\opencode-status\\"))
             self.assertTrue(summary_json.is_file())
             self.assertTrue(summary_md.is_file())
-            self.assertTrue((root / artifacts["compactJson"]).is_file())
+            self.assertTrue(compact_json.is_file())
             self.assertTrue((root / artifacts["compactMarkdown"]).is_file())
+            compact = json.loads(compact_json.read_text(encoding="utf-8"))
+            self.assertEqual(compact["artifacts"]["summaryJson"], artifacts["summaryJson"])
+            self.assertEqual(compact["artifacts"]["compactJson"], artifacts["compactJson"])
 
 
 if __name__ == "__main__":

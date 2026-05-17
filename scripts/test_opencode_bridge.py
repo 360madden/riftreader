@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
@@ -69,6 +70,7 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         policy = opencode_bridge.lane_policy("integration")
 
         self.assertEqual(policy["mode"], "opencode-integration-patch-and-test")
+        self.assertEqual(policy["recommendedAgent"], "riftreader-integration")
         self.assertTrue(policy["allowsTrackedEdits"])
         self.assertIn("tools/riftreader_workflow/opencode_bridge.py", policy["allowedEditPaths"])
         self.assertIn("scripts/riftreader-opencode-*.cmd", policy["allowedEditPaths"])
@@ -76,6 +78,7 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn("docs/workflow/opencode-non-codex-bridge.md", policy["groundingFiles"])
         self.assertIn("git-mutation", policy["forbiddenActions"])
         self.assertIn("live-input", policy["forbiddenActions"])
+        self.assertIn(r".riftreader-local\opencode-runs", policy["ignoredWriteRoots"])
         self.assertIn("no-further-useful-opencode-integration-improvements", policy["hardStopConditions"])
         self.assertIn("git --no-pager diff --check", policy["targetedValidation"])
 
@@ -84,6 +87,7 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
             with self.subTest(lane=lane):
                 policy = opencode_bridge.lane_policy(lane)
                 self.assertFalse(policy["allowsTrackedEdits"])
+                self.assertTrue(str(policy["recommendedAgent"]).startswith("riftreader-"))
                 self.assertEqual(policy["allowedEditPaths"], [])
                 self.assertEqual(policy["groundingFiles"], [])
                 self.assertIn("tracked-edit-needed", policy["hardStopConditions"])
@@ -151,7 +155,36 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn("openai/gpt-5.5", command)
         self.assertIn("--variant", command)
         self.assertIn("xhigh", command)
+        self.assertNotIn("--agent", command)
         self.assertNotIn("hello", command)
+
+    def test_opencode_run_command_can_select_configured_agent(self) -> None:
+        command = opencode_bridge.opencode_run_command(
+            Path("C:/repo"),
+            model="openai/gpt-5.5",
+            variant="xhigh",
+            agent="riftreader-integration",
+        )
+
+        self.assertIn("--agent", command)
+        self.assertIn("riftreader-integration", command)
+
+    def test_selected_opencode_agent_prefers_explicit_value_then_environment(self) -> None:
+        previous = os.environ.get("RIFTREADER_OPENCODE_AGENT")
+        try:
+            os.environ["RIFTREADER_OPENCODE_AGENT"] = "riftreader-live-observer"
+
+            self.assertEqual(opencode_bridge.selected_opencode_agent(), "riftreader-live-observer")
+            self.assertEqual(
+                opencode_bridge.selected_opencode_agent("riftreader-integration"),
+                "riftreader-integration",
+            )
+            self.assertIsNone(opencode_bridge.selected_opencode_agent("   "))
+        finally:
+            if previous is None:
+                os.environ.pop("RIFTREADER_OPENCODE_AGENT", None)
+            else:
+                os.environ["RIFTREADER_OPENCODE_AGENT"] = previous
 
     def test_stdin_command_envelope_handles_unicode_prompt_text(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -168,6 +201,125 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn("OpenCode prompt", envelope["stdoutPreview"])
         self.assertIn("stdinBytes", envelope)
         self.assertEqual(envelope["stdinMode"], "prompt-via-stdin")
+
+    def test_run_opencode_blocks_when_model_not_visible_in_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "prompt.txt").write_text("prompt", encoding="utf-8")
+            summary = {
+                "repoRoot": str(root),
+                "promptPath": "prompt.txt",
+                "compactStatus": {
+                    "opencode": {
+                        "available": True,
+                        "desiredModel": "openai/not-visible",
+                        "modelVisible": False,
+                    }
+                },
+            }
+
+            envelope = opencode_bridge.run_opencode(summary, timeout_seconds=1.0)
+
+        self.assertFalse(envelope["ok"])
+        self.assertIsNone(envelope["exitCode"])
+        self.assertEqual(envelope["error"], "opencode-model-not-visible-preflight:openai/not-visible")
+        self.assertIn("not visible during preflight", envelope["stderrPreview"])
+
+    def test_run_opencode_streams_full_output_under_ignored_run_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "prompt.txt").write_text("stream prompt", encoding="utf-8")
+            summary = {
+                "repoRoot": str(root),
+                "promptPath": "prompt.txt",
+                "compactStatus": {
+                    "opencode": {
+                        "available": True,
+                        "desiredModel": "openai/gpt-5.5",
+                        "modelVisible": True,
+                    }
+                },
+            }
+            original_command = opencode_bridge.opencode_run_command
+            captured_agent: dict[str, str | None] = {}
+
+            def fake_command(repo_root: Path, model: str, variant: str, agent: str | None = None) -> list[str]:
+                captured_agent["agent"] = agent
+                return [
+                    sys.executable,
+                    "-c",
+                    "import sys; prompt=sys.stdin.read(); print('stream-out:' + prompt.strip()); print('stream-err', file=sys.stderr)",
+                ]
+
+            try:
+                opencode_bridge.opencode_run_command = fake_command
+                envelope = opencode_bridge.run_opencode(summary, timeout_seconds=10.0, agent="riftreader-integration")
+            finally:
+                opencode_bridge.opencode_run_command = original_command
+
+            artifacts = envelope["artifacts"]
+            stdout_path = root / artifacts["stdout"]
+            stderr_path = root / artifacts["stderr"]
+            run_envelope_path = root / artifacts["runEnvelopeJson"]
+
+            self.assertTrue(envelope["ok"])
+            self.assertTrue(envelope["streaming"])
+            self.assertFalse(envelope["timedOut"])
+            self.assertEqual(envelope["stdinMode"], "prompt-via-stdin")
+            self.assertEqual(captured_agent["agent"], "riftreader-integration")
+            self.assertTrue(artifacts["outputDir"].startswith(".riftreader-local\\opencode-runs\\"))
+            self.assertTrue(stdout_path.is_file())
+            self.assertTrue(stderr_path.is_file())
+            self.assertTrue(run_envelope_path.is_file())
+            self.assertIn("stream-out:stream prompt", stdout_path.read_text(encoding="utf-8"))
+            self.assertIn("stream-err", stderr_path.read_text(encoding="utf-8"))
+            self.assertIn("stream-out:stream prompt", envelope["stdoutPreview"])
+            self.assertIn("stream-err", envelope["stderrPreview"])
+
+    def test_streaming_command_keyboard_interrupt_returns_clean_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_sleep = opencode_bridge.time.sleep
+            try:
+                opencode_bridge.time.sleep = lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt())
+                envelope = opencode_bridge.run_streaming_command_with_input(
+                    "interrupt-test",
+                    [sys.executable, "-c", "import time; time.sleep(30)"],
+                    root,
+                    stdin_text="",
+                    timeout_seconds=30.0,
+                )
+            finally:
+                opencode_bridge.time.sleep = original_sleep
+
+            artifacts = envelope["artifacts"]
+
+            self.assertFalse(envelope["ok"])
+            self.assertTrue(envelope["interrupted"])
+            self.assertEqual(envelope["error"], "KeyboardInterrupt")
+            self.assertTrue((root / artifacts["stdout"]).is_file())
+            self.assertTrue((root / artifacts["stderr"]).is_file())
+            self.assertTrue((root / artifacts["runEnvelopeJson"]).is_file())
+
+    def test_streaming_command_timeout_is_not_blocked_by_large_stdin(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            envelope = opencode_bridge.run_streaming_command_with_input(
+                "large-stdin-timeout-test",
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                root,
+                stdin_text="x" * 2_000_000,
+                timeout_seconds=0.2,
+            )
+
+            artifacts = envelope["artifacts"]
+
+            self.assertFalse(envelope["ok"])
+            self.assertTrue(envelope["timedOut"])
+            self.assertTrue((root / artifacts["stdout"]).is_file())
+            self.assertTrue((root / artifacts["stderr"]).is_file())
+            self.assertTrue((root / artifacts["runEnvelopeJson"]).is_file())
 
     def test_build_bridge_summary_writes_prompt_under_ignored_tree(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -192,6 +344,7 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
             self.assertTrue(str(summary["promptPath"]).startswith(".riftreader-local\\opencode-prompts\\"))
             self.assertTrue((root / str(summary["promptPath"]).replace("\\", "/")).is_file())
             self.assertEqual(summary["lane"], "sitrep")
+            self.assertIsNone(summary["opencodeAgent"])
             self.assertFalse(summary["lanePolicy"]["allowsTrackedEdits"])
             self.assertEqual(summary["lanePolicy"]["allowedEditPaths"], [])
             self.assertEqual(summary["lanePolicy"]["groundingFiles"], [])
@@ -233,6 +386,7 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn('"riftreader-integration"', config_text)
         self.assertIn("generated lanePolicy as authoritative", config_text)
         self.assertIn('".\\\\scripts\\\\riftreader-workflow-status.cmd --compact-json *": "allow"', config_text)
+        self.assertIn('"git status --short --branch": "allow"', config_text)
         self.assertIn(
             '"python -m unittest scripts.test_opencode_bridge scripts.test_opencode_status_packet *": "allow"',
             config_text,

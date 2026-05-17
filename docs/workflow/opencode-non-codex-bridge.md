@@ -147,7 +147,8 @@ CE/x64dbg, stage, commit, push, pull, reset, clean, or write provider repos.
 
 Every generated prompt summary now includes a machine-readable `lanePolicy`
 object. This keeps the safety/edit contract explicit for downstream wrappers and
-review tools:
+review tools, including the optional configured-agent name to use with `--agent`
+when the example OpenCode config has been copied locally:
 
 | Lane | `allowsTrackedEdits` | Meaning |
 |---|---:|---|
@@ -162,6 +163,8 @@ must stop and report a hard blocker instead of broadening scope.
 `lanePolicy.groundingFiles` lists the bridge files, wrappers, tests, workflow
 docs, and example config that should be inspected before the first patch in an
 integration run.
+`lanePolicy.recommendedAgent` is advisory only; the bridge does not require it
+unless the operator passes `--agent` or sets `RIFTREADER_OPENCODE_AGENT`.
 
 The bridge `--self-test` validates these lane-policy invariants in addition to
 prompt command/safety text so wrapper drift fails before a model run.
@@ -177,6 +180,14 @@ prompt adaptive to dirty worktrees, stale proof, no-live-process, model
 visibility, package-review mode, and live-observer mode instead of relying on
 one static command-line prompt.
 
+For `--run`, the bridge uses a streaming `subprocess.Popen` path. OpenCode
+stdout and stderr are tee'd live to the terminal while the full streams are
+written under `.riftreader-local\opencode-runs\...` as `stdout.txt` and
+`stderr.txt`, with a `run-envelope.json` recording exit code, timeout/interrupted
+state, previews, byte counts, and artifact paths. If the operator presses
+Ctrl+C during the run, the helper attempts to terminate the child process and
+returns a clean interrupted envelope instead of a Python traceback.
+
 ### Model/provider sanity check
 
 The OpenCode wrappers request an explicit model and reasoning variant instead
@@ -187,11 +198,24 @@ openai/gpt-5.5
 xhigh
 ```
 
+If you copied `.opencode/opencode.example.jsonc` and want a wrapper run to use a
+specific configured agent, pass it through the bridge or set it for the current
+shell only:
+
+```powershell
+.\scripts\riftreader-opencode-integration.cmd --agent riftreader-integration
+$env:RIFTREADER_OPENCODE_AGENT = "riftreader-live-observer"
+.\scripts\riftreader-opencode-live-observer.cmd
+```
+
+Do not set a project-wide default to the integration agent unless that is the
+intended safe default for every local OpenCode run.
+
 Override it only for the current shell when needed:
 
 ```powershell
-set RIFTREADER_OPENCODE_MODEL=openai/gpt-5.4
-set RIFTREADER_OPENCODE_VARIANT=high
+$env:RIFTREADER_OPENCODE_MODEL = "openai/gpt-5.4"
+$env:RIFTREADER_OPENCODE_VARIANT = "high"
 .\scripts\riftreader-opencode-sitrep.cmd
 ```
 
