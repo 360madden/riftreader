@@ -228,7 +228,10 @@ class OperatorLiteTests(unittest.TestCase):
 
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
+        self.assertEqual(payload["commandAliases"]["session-start"], "bridge-session-start")
+        self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("--run bridge-session-start", encoded)
+        self.assertIn("--run-all bridge-startup-checks", encoded)
         self.assertIn("/help", encoded)
 
     def test_run_command_key_executes_only_known_safe_command(self) -> None:
@@ -245,6 +248,17 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["exitCode"], 0)
         self.assertFalse(payload["safety"]["inputSent"])
 
+    def test_run_command_key_accepts_safe_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "session-start")
+
+        self.assertEqual(payload["commandKey"], "bridge-session-start")
+        self.assertEqual(payload["requestedCommandKey"], "session-start")
+        self.assertEqual(payload["status"], "passed")
+
     def test_run_command_key_unknown_command_blocks_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -256,6 +270,30 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["code"], "COMMAND_KEY_UNKNOWN")
         self.assertEqual(payload["exitCode"], 2)
         self.assertIn("bridge-session-start", payload["availableCommands"])
+
+    def test_run_command_group_executes_bridge_startup_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_group(root, "bridge-startup-checks")
+
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
+        self.assertEqual([item["commandKey"] for item in payload["results"]], [
+            "bridge-selftest",
+            "bridge-preflight",
+            "bridge-session-start",
+        ])
+
+    def test_run_command_group_unknown_group_blocks(self) -> None:
+        payload = operator_lite.run_command_group(REPO_ROOT, "serve-everything")
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["code"], "COMMAND_GROUP_UNKNOWN")
+        self.assertEqual(payload["exitCode"], 2)
+        self.assertIn("bridge-startup-checks", payload["availableGroups"])
 
     def test_cli_list_commands_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -270,6 +308,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
+        self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
 
     def test_cli_run_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -286,6 +325,49 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandKey"], "bridge-session-start")
         self.assertTrue(payload["ok"])
 
+    def test_cli_session_start_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--session-start", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "bridge-session-start")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_run_alias_json_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--run", "session-start", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "bridge-session-start")
+        self.assertEqual(payload["requestedCommandKey"], "session-start")
+
+    def test_cli_run_all_bridge_startup_checks_json_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--run-all", "bridge-startup-checks", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
+        self.assertEqual(payload["groupKey"], "bridge-startup-checks")
+        self.assertEqual(len(payload["results"]), 3)
+
     def test_cli_run_unknown_key_returns_exit_2(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -299,6 +381,22 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertEqual(payload["code"], "COMMAND_KEY_UNKNOWN")
 
+    def test_cli_run_unknown_group_returns_exit_2(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = operator_lite.main(["--run-all", "serve-everything", "--json"])
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["code"], "COMMAND_GROUP_UNKNOWN")
+
+    def test_cli_blocks_conflicting_command_shortcuts(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            operator_lite.main(["--session-start", "--bridge-preflight"])
+
+        self.assertEqual(raised.exception.code, 2)
+
     def test_slash_help_alias_prints_argparse_help(self) -> None:
         stdout = io.StringIO()
 
@@ -308,6 +406,8 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
         help_text = stdout.getvalue()
         self.assertIn("--run", help_text)
+        self.assertIn("--run-all", help_text)
+        self.assertIn("--session-start", help_text)
         self.assertIn("--list-commands", help_text)
 
 

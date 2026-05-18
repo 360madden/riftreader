@@ -44,6 +44,19 @@ DENIED_FRAGMENTS = (
 )
 
 HELP_ALIASES = {"/help", "/?", "help"}
+COMMAND_ALIASES = {
+    "session-start": "bridge-session-start",
+    "bridge-start": "bridge-session-start",
+    "preflight": "bridge-preflight",
+    "bridge-preflight-check": "bridge-preflight",
+    "latest-inbox": "bridge-inbox-latest",
+    "inbox-latest": "bridge-inbox-latest",
+}
+GROUP_ALIASES = {
+    "startup": "bridge-startup-checks",
+    "bridge-checks": "bridge-startup-checks",
+    "chatgpt-startup": "bridge-startup-checks",
+}
 
 GUI_PALETTE = {
     "background": "#0f172a",
@@ -86,6 +99,15 @@ class CommandSpec:
     timeout_seconds: float
     description: str
     expected_exit_codes: tuple[int, ...] = (0,)
+
+
+@dataclass(frozen=True)
+class CommandGroupSpec:
+    key: str
+    label: str
+    command_keys: tuple[str, ...]
+    description: str
+
 
 def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
     scripts = repo_root / "scripts"
@@ -228,6 +250,17 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
     }
 
 
+def build_command_groups() -> dict[str, CommandGroupSpec]:
+    return {
+        "bridge-startup-checks": CommandGroupSpec(
+            key="bridge-startup-checks",
+            label="Bridge Startup Checks",
+            command_keys=("bridge-selftest", "bridge-preflight", "bridge-session-start"),
+            description="Run bridge self-test, preflight, and Desktop ChatGPT session-start without serving or tunneling.",
+        )
+    }
+
+
 def package_intake_dry_run_args(repo_root: Path, package_path: Path) -> tuple[str, ...]:
     return (
         str(repo_root / "scripts" / "riftreader-package-intake.cmd"),
@@ -360,6 +393,7 @@ def normalize_cli_argv(argv: list[str] | None) -> list[str] | None:
 
 def command_list_payload(repo_root: Path) -> dict[str, Any]:
     plan = command_plan(repo_root)
+    groups = build_command_groups()
     return {
         "schemaVersion": 1,
         "kind": "riftreader-operator-lite-command-list",
@@ -376,14 +410,38 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             }
             for item in plan["commands"]
         ],
+        "commandAliases": dict(sorted(COMMAND_ALIASES.items())),
+        "groups": [
+            {
+                "key": group.key,
+                "label": group.label,
+                "description": group.description,
+                "commandKeys": list(group.command_keys),
+            }
+            for group in groups.values()
+        ],
+        "groupAliases": dict(sorted(GROUP_ALIASES.items())),
         "examples": [
             ".\\scripts\\riftreader-operator-lite.cmd --list-commands --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run bridge-session-start --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --run session-start --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --session-start --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd /help",
         ],
         "disabledLiveActions": plan["disabledLiveActions"],
         "safety": plan["safety"],
     }
+
+
+def resolve_command_key(command_key: str) -> str:
+    normalized = command_key.strip().lower()
+    return COMMAND_ALIASES.get(normalized, normalized)
+
+
+def resolve_group_key(group_key: str) -> str:
+    normalized = group_key.strip().lower()
+    return GROUP_ALIASES.get(normalized, normalized)
 
 
 def missing_command_result(repo_root: Path, command_key: str) -> dict[str, Any]:
@@ -397,6 +455,7 @@ def missing_command_result(repo_root: Path, command_key: str) -> dict[str, Any]:
         "code": "COMMAND_KEY_UNKNOWN",
         "commandKey": command_key,
         "availableCommands": available,
+        "commandAliases": dict(sorted(COMMAND_ALIASES.items())),
         "exitCode": 2,
         "stdout": "",
         "stderr": f"Unknown safe command key: {command_key}",
@@ -438,10 +497,12 @@ def command_run_status(exit_code: int | None, ok: bool) -> str:
 
 
 def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
+    requested_command_key = command_key
+    command_key = resolve_command_key(command_key)
     specs = build_command_specs(repo_root)
     spec = specs.get(command_key)
     if not spec:
-        return missing_command_result(repo_root, command_key)
+        return missing_command_result(repo_root, requested_command_key)
     denied = validate_safe_args(spec.args)
     if denied:
         return blocked_command_result(
@@ -461,6 +522,7 @@ def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
         "status": command_run_status(result.get("exitCode"), bool(result.get("ok"))),
         "ok": bool(result.get("ok")),
         "commandKey": command_key,
+        "requestedCommandKey": requested_command_key,
         "label": spec.label,
         "description": spec.description,
         "args": list(spec.args),
@@ -473,6 +535,62 @@ def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
         "endedAtUtc": result.get("endedAtUtc"),
         "durationSeconds": result.get("durationSeconds"),
         "safety": result.get("safety", safety_flags()),
+    }
+
+
+def command_group_status(results: list[dict[str, Any]]) -> str:
+    statuses = {str(item.get("status")) for item in results}
+    if "failed" in statuses:
+        return "failed"
+    if "blocked" in statuses:
+        return "blocked"
+    if all(item.get("ok") for item in results):
+        return "passed"
+    return "failed"
+
+
+def missing_group_result(group_key: str) -> dict[str, Any]:
+    groups = build_command_groups()
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-operator-lite-command-group-run",
+        "generatedAtUtc": utc_iso(),
+        "status": "blocked",
+        "ok": False,
+        "code": "COMMAND_GROUP_UNKNOWN",
+        "groupKey": group_key,
+        "availableGroups": sorted(groups),
+        "groupAliases": dict(sorted(GROUP_ALIASES.items())),
+        "exitCode": 2,
+        "results": [],
+        "safety": safety_flags(),
+    }
+
+
+def run_command_group(repo_root: Path, group_key: str) -> dict[str, Any]:
+    requested_group_key = group_key
+    group_key = resolve_group_key(group_key)
+    groups = build_command_groups()
+    group = groups.get(group_key)
+    if not group:
+        return missing_group_result(requested_group_key)
+    results = [run_command_key(repo_root, command_key) for command_key in group.command_keys]
+    status = command_group_status(results)
+    exit_code = 0 if status == "passed" else 2 if status == "blocked" else 1
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-operator-lite-command-group-run",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "passed",
+        "groupKey": group.key,
+        "requestedGroupKey": requested_group_key,
+        "label": group.label,
+        "description": group.description,
+        "commandKeys": list(group.command_keys),
+        "exitCode": exit_code,
+        "results": results,
+        "safety": safety_flags(),
     }
 
 
@@ -928,7 +1046,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Offline-safe RiftReader Operator Lite.",
         epilog=(
             "Examples: riftreader-operator-lite.cmd --list-commands --json | "
-            "riftreader-operator-lite.cmd --run bridge-session-start --json | "
+            "riftreader-operator-lite.cmd --session-start --json | "
+            "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
             "riftreader-operator-lite.cmd /help"
         ),
     )
@@ -937,16 +1056,46 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--command-plan", action="store_true", help="Print the full safe command plan and exit.")
     parser.add_argument("--list-commands", action="store_true", help="List safe command keys available to --run.")
     parser.add_argument("--run", metavar="COMMAND_KEY", help="Run one known safe command key from the command plan.")
-    parser.add_argument("--json", action="store_true", help="Emit JSON for self-test, command-plan, list-commands, or run.")
+    parser.add_argument("--run-all", metavar="GROUP_KEY", help="Run one known safe command group, such as bridge-startup-checks.")
+    parser.add_argument("--session-start", action="store_true", help="Shortcut for --run bridge-session-start.")
+    parser.add_argument("--bridge-preflight", action="store_true", help="Shortcut for --run bridge-preflight.")
+    parser.add_argument("--latest-inbox", action="store_true", help="Shortcut for --run bridge-inbox-latest.")
+    parser.add_argument("--bridge-startup-checks", action="store_true", help="Shortcut for --run-all bridge-startup-checks.")
+    parser.add_argument("--json", action="store_true", help="Emit JSON for self-test, command-plan, list-commands, run, or run-all.")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(normalize_cli_argv(argv))
+    parser = build_parser()
+    args = parser.parse_args(normalize_cli_argv(argv))
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     plan = command_plan(repo_root)
-    if args.run:
-        payload = run_command_key(repo_root, args.run)
+    shortcut_command = None
+    if args.session_start:
+        shortcut_command = "bridge-session-start"
+    if args.bridge_preflight:
+        shortcut_command = "bridge-preflight"
+    if args.latest_inbox:
+        shortcut_command = "bridge-inbox-latest"
+    shortcut_count = sum(1 for selected in (args.session_start, args.bridge_preflight, args.latest_inbox) if selected)
+    if shortcut_count > 1:
+        parser.error("select only one command shortcut")
+    if args.run and shortcut_command:
+        parser.error("do not combine --run with a command shortcut")
+    if args.run_all and args.bridge_startup_checks:
+        parser.error("do not combine --run-all with --bridge-startup-checks")
+    command_to_run = args.run or shortcut_command
+    group_to_run = args.run_all or ("bridge-startup-checks" if args.bridge_startup_checks else None)
+    selected_modes = [
+        bool(command_to_run),
+        bool(group_to_run),
+        bool(args.list_commands),
+        bool(args.self_test or args.command_plan),
+    ]
+    if sum(1 for selected in selected_modes if selected) > 1:
+        parser.error("select only one action mode: --run/shortcut, --run-all/group shortcut, --list-commands, or --self-test/--command-plan")
+    if command_to_run:
+        payload = run_command_key(repo_root, command_to_run)
         if args.json:
             print(json.dumps(payload, indent=2))
         else:
@@ -961,6 +1110,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(str(payload["stderr"]).rstrip(), file=sys.stderr)
         exit_code = payload.get("exitCode")
         return int(exit_code) if isinstance(exit_code, int) else 1
+    if group_to_run:
+        payload = run_command_group(repo_root, group_to_run)
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"Status: {payload['status']}")
+            print(f"Group: {payload.get('groupKey')}")
+            print(f"Exit code: {payload.get('exitCode')}")
+            for result in payload.get("results", []):
+                print(f"- {result.get('commandKey')}: {result.get('status')} exit={result.get('exitCode')}")
+        exit_code = payload.get("exitCode")
+        return int(exit_code) if isinstance(exit_code, int) else 1
     if args.list_commands:
         payload = command_list_payload(repo_root)
         if args.json:
@@ -969,6 +1130,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Status: {payload['status']}")
             for command in payload["commands"]:
                 print(f"- {command['key']}: {command['label']} - {command['description']}")
+            for group in payload["groups"]:
+                print(f"- group {group['key']}: {group['label']} - {group['description']}")
             for error in payload["errors"]:
                 print(f"ERROR: {error}")
         return 1 if payload["status"] != "passed" else 0

@@ -57,6 +57,24 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --run bridge-session-start --json
 ```
 
+Common aliases are accepted:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd --session-start --json
+.\scripts\riftreader-operator-lite.cmd --run session-start --json
+.\scripts\riftreader-operator-lite.cmd --bridge-preflight --json
+.\scripts\riftreader-operator-lite.cmd --latest-inbox --json
+```
+
+Run the safe bridge startup check group:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json
+.\scripts\riftreader-operator-lite.cmd --bridge-startup-checks --json
+```
+
 Help:
 
 ```powershell
@@ -72,11 +90,32 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--repo-root <path>` | Uses a specific repo root. | Resolves locally; does not mutate Git. |
 | `--self-test` | Validates Operator Lite command wiring. | Does not launch the GUI. |
 | `--command-plan` | Prints the full safe command plan. | Read-only plan output. |
-| `--list-commands` | Lists keys allowed by `--run`. | Does not execute commands. |
+| `--list-commands` | Lists keys, aliases, and groups allowed by `--run` / `--run-all`. | Does not execute commands. |
 | `--run <command-key>` | Runs one known safe command spec, such as `bridge-session-start`. | Still enforces denylist, script existence checks, timeouts, and expected exit codes. |
-| `--json` | Emits machine-readable JSON for command-plan/list/run modes. | No extra behavior by itself. |
+| `--run-all <group-key>` | Runs one known safe group, currently `bridge-startup-checks`. | Sequential safe commands only; no serving or tunneling. |
+| `--session-start` | Shortcut for `--run bridge-session-start`. | Same denylist and timeout checks as `--run`. |
+| `--bridge-preflight` | Shortcut for `--run bridge-preflight`. | Does not start a server or tunnel. |
+| `--latest-inbox` | Shortcut for `--run bridge-inbox-latest`. | Reads local inbox only; no apply/execute. |
+| `--bridge-startup-checks` | Shortcut for `--run-all bridge-startup-checks`. | Runs self-test, preflight, and session-start without persistent serving. |
+| `--json` | Emits machine-readable JSON for command-plan/list/run/run-all modes. | No extra behavior by itself. |
 
-`--run` is intentionally not an arbitrary shell runner. It accepts only keys already present in Operator Lite's safe command registry. Unknown keys return exit code `2`; denied fragments such as `--serve`, `cloudflared`, Git mutation, ProofOnly, target-control, CE, and x64dbg remain blocked.
+`--run` and `--run-all` are intentionally not arbitrary shell runners. They accept only keys already present in Operator Lite's safe command/group registry. Unknown keys return exit code `2`; denied fragments such as `--serve`, `cloudflared`, Git mutation, ProofOnly, target-control, CE, and x64dbg remain blocked.
+
+Current command aliases:
+
+| Alias | Resolves to |
+|---|---|
+| `session-start` | `bridge-session-start` |
+| `bridge-start` | `bridge-session-start` |
+| `preflight` | `bridge-preflight` |
+| `latest-inbox` | `bridge-inbox-latest` |
+| `inbox-latest` | `bridge-inbox-latest` |
+
+Current group:
+
+| Group | Commands |
+|---|---|
+| `bridge-startup-checks` | `bridge-selftest`, `bridge-preflight`, `bridge-session-start` |
 
 ## Buttons
 
