@@ -2,9 +2,9 @@
   "artifacts": {},
   "blockerCount": 0,
   "blockers": [],
-  "checkedFiles": 30,
+  "checkedFiles": 2,
   "command": "validate-repo",
-  "createdUtc": "2026-05-18T10:04:06.115805Z",
+  "createdUtc": "2026-05-18T10:06:19.270141Z",
   "ok": true,
   "rules": {
     "forbiddenPaths": "enforced",
