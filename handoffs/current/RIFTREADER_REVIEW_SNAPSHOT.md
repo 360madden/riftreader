@@ -1,9 +1,9 @@
 # RiftReader Review Snapshot
 
-Created UTC: 2026-05-18T00:24:37.043200Z
-Tool: riftreader-github-review-publish-v0.1.0
-Current branch: main
-HEAD: e603683738effa122c746ed521ac121dd5bc2081
+Created UTC: 2026-05-18T00:45:17.351477Z
+Tool: riftreader-github-review-publish-v0.1.1
+Current branch: chatgpt/review-20260518-002437Z
+HEAD: 86e64190cdaab38e2f3211e4c5f3971740da141b
 
 ## Validation profiles
 - local-artifact-bridge: ok=True
@@ -12,25 +12,11 @@ HEAD: e603683738effa122c746ed521ac121dd5bc2081
 - github-review-publish: ok=True
 
 ## Allowed dirty paths
-- `docs/workflow/chatgpt-development-standards.md`
 - `docs/workflow/github-review-publish.md`
-- `docs/workflow/local-artifact-bridge.md`
-- `docs/workflow/package-flow.md`
-- `docs/workflow/transport-probe.md`
 - `handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json`
 - `handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md`
-- `scripts/riftreader-github-review-publish.cmd`
-- `scripts/riftreader-local-artifact-bridge.cmd`
-- `scripts/riftreader-package-flow.cmd`
-- `scripts/riftreader-transport-probe.cmd`
 - `scripts/test_github_review_publish.py`
-- `scripts/test_local_artifact_bridge.py`
-- `scripts/test_package_flow.py`
-- `scripts/test_transport_probe.py`
 - `tools/riftreader_workflow/github_review_publish.py`
-- `tools/riftreader_workflow/local_artifact_bridge.py`
-- `tools/riftreader_workflow/package_flow.py`
-- `tools/riftreader_workflow/transport_probe.py`
 
 ## Ignored/generated dirty paths
 - `artifacts/chatgpt-payloads`

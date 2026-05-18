@@ -1,10 +1,11 @@
-# Version: riftreader-github-review-publish-tests-v0.1.0
-# Total-Character-Count: 3376
+# Version: riftreader-github-review-publish-tests-v0.1.1
+# Total-Character-Count: 5691
 # Purpose: Unit tests for the Python-owned RiftReader GitHub review publish helper.
 
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -70,6 +71,48 @@ class GitHubReviewPublishTests(unittest.TestCase):
             root = Path(name)
             with self.assertRaises(grp.ReviewPublishError):
                 grp.existing_allowed_paths(root, ["artifacts/chatgpt-payloads/file.json"])
+
+
+    def test_publish_branch_can_return_to_start_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            remote = root / "remote.git"
+            repo = root / "work"
+
+            subprocess.run(["git", "init", "--bare", str(remote)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            subprocess.run(["git", "config", "user.email", "riftreader-tests@example.invalid"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.name", "RiftReader Tests"], cwd=repo, check=True)
+            subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True)
+            (repo / "README.md").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-m", "base"], cwd=repo, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            rel = "docs/workflow/github-review-publish.md"
+            target = repo / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("review docs\n", encoding="utf-8")
+
+            result = grp.stage_commit_push_branch(
+                repo,
+                "chatgpt/review-return-test",
+                "test review branch",
+                [rel],
+                30,
+                return_to_start_branch=True,
+            )
+
+            self.assertEqual(result["startingBranch"], "main")
+            self.assertTrue(result["returnedToStartBranch"])
+            self.assertEqual(result["finalBranch"], "main")
+            self.assertEqual(result["remoteSha"], result["commit"])
+            current = subprocess.run(["git", "branch", "--show-current"], cwd=repo, check=True, stdout=subprocess.PIPE, text=True).stdout.strip()
+            self.assertEqual(current, "main")
+
+    def test_publish_parser_accepts_return_to_start_branch(self) -> None:
+        parser = grp.build_parser()
+        args = parser.parse_args(["publish-branch", "--yes-push", "--return-to-start-branch"])
+        self.assertTrue(args.return_to_start_branch)
 
     def test_self_test_ok(self) -> None:
         report = grp.command_self_test(type("Args", (), {})())

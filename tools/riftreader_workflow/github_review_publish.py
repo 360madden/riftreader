@@ -1,5 +1,5 @@
-# Version: riftreader-github-review-publish-v0.1.0
-# Total-Character-Count: 22484
+# Version: riftreader-github-review-publish-v0.1.1
+# Total-Character-Count: 24108
 # Purpose: Python-owned safe review snapshot, explicit staging, review-branch commit, push, and remote-SHA verification for RiftReader ChatGPT workflows.
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import sys
 import tempfile
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-TOOL_VERSION = "riftreader-github-review-publish-v0.1.0"
+TOOL_VERSION = "riftreader-github-review-publish-v0.1.1"
 SNAPSHOT_MD = "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md"
 SNAPSHOT_JSON = "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json"
 DEFAULT_PROFILES = [
@@ -374,28 +374,55 @@ def stage_commit_push_branch(
     commit_message: str,
     paths_to_stage: Sequence[str],
     timeout_seconds: int,
+    return_to_start_branch: bool = False,
 ) -> Dict[str, Any]:
     branch = validate_branch_name(branch_name)
+    starting_branch = current_branch(repo_root, timeout_seconds)
+    if return_to_start_branch and not starting_branch:
+        raise ReviewPublishError("--return-to-start-branch requires a named starting branch")
     if not paths_to_stage:
         raise ReviewPublishError("no allowlisted paths to stage")
-    git(repo_root, ["switch", "-c", branch], timeout_seconds)
-    git(repo_root, ["add", "--", *paths_to_stage], timeout_seconds)
-    cached_paths = verify_cached_paths(repo_root, timeout_seconds)
-    git(repo_root, ["commit", "-m", commit_message], timeout_seconds)
-    local_head = current_head(repo_root, timeout_seconds)
-    git(repo_root, ["push", "-u", "origin", branch], timeout_seconds)
-    remote_report = git(repo_root, ["ls-remote", "origin", "refs/heads/" + branch], timeout_seconds)
-    remote_lines = [line for line in str(remote_report["stdout"]).splitlines() if line.strip()]
-    if not remote_lines:
-        raise ReviewPublishError("remote branch SHA not found after push")
-    remote_sha = remote_lines[0].split()[0]
-    if remote_sha != local_head:
-        raise ReviewPublishError(f"remote SHA mismatch: remote={remote_sha} local={local_head}")
+
+    switched_to_review_branch = False
+    try:
+        git(repo_root, ["switch", "-c", branch], timeout_seconds)
+        switched_to_review_branch = True
+        git(repo_root, ["add", "--", *paths_to_stage], timeout_seconds)
+        cached_paths = verify_cached_paths(repo_root, timeout_seconds)
+        git(repo_root, ["commit", "-m", commit_message], timeout_seconds)
+        local_head = current_head(repo_root, timeout_seconds)
+        git(repo_root, ["push", "-u", "origin", branch], timeout_seconds)
+        remote_report = git(repo_root, ["ls-remote", "origin", "refs/heads/" + branch], timeout_seconds)
+        remote_lines = [line for line in str(remote_report["stdout"]).splitlines() if line.strip()]
+        if not remote_lines:
+            raise ReviewPublishError("remote branch SHA not found after push")
+        remote_sha = remote_lines[0].split()[0]
+        if remote_sha != local_head:
+            raise ReviewPublishError(f"remote SHA mismatch: remote={remote_sha} local={local_head}")
+    except Exception as exc:
+        if return_to_start_branch and starting_branch and switched_to_review_branch:
+            try:
+                git(repo_root, ["switch", starting_branch], timeout_seconds)
+            except Exception as return_exc:
+                raise ReviewPublishError(
+                    "publish failed and return-to-start-branch also failed: "
+                    f"publish_error={exc}; return_error={return_exc}"
+                ) from return_exc
+        raise
+
+    returned_to_start_branch = False
+    if return_to_start_branch:
+        git(repo_root, ["switch", starting_branch], timeout_seconds)
+        returned_to_start_branch = True
+
     return {
         "branch": branch,
         "commit": local_head,
         "remoteSha": remote_sha,
         "stagedPaths": cached_paths,
+        "startingBranch": starting_branch,
+        "returnedToStartBranch": returned_to_start_branch,
+        "finalBranch": current_branch(repo_root, timeout_seconds),
     }
 
 
@@ -433,6 +460,7 @@ def command_publish_branch(args: argparse.Namespace) -> Dict[str, Any]:
         "message": message,
         "pathsToStage": stage_paths,
         "ignoredDirtyPaths": dirty["ignored"],
+        "returnToStartBranch": bool(args.return_to_start_branch),
     }
     if not args.yes_push:
         return {
@@ -445,7 +473,14 @@ def command_publish_branch(args: argparse.Namespace) -> Dict[str, Any]:
             "snapshot": snapshot,
             "note": "Pass --yes-push to create branch, commit, push, and verify remote SHA.",
         }
-    publish = stage_commit_push_branch(repo_root, branch, message, stage_paths, args.timeout_seconds)
+    publish = stage_commit_push_branch(
+        repo_root,
+        branch,
+        message,
+        stage_paths,
+        args.timeout_seconds,
+        return_to_start_branch=bool(args.return_to_start_branch),
+    )
     return {
         "schemaVersion": 1,
         "tool": TOOL_VERSION,
@@ -525,6 +560,11 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--branch", default=None, help="Review branch name. Defaults to chatgpt/review-<UTC>.")
     publish.add_argument("--message", default=None, help="Commit message.")
     publish.add_argument("--yes-push", action="store_true", help="Actually create branch, commit, push, and verify remote SHA.")
+    publish.add_argument(
+        "--return-to-start-branch",
+        action="store_true",
+        help="After a successful publish, switch back to the branch that was active before publish-branch ran.",
+    )
 
     sub.add_parser("self-test", help="Run internal synthetic checks without network or repo mutation.")
     return parser
