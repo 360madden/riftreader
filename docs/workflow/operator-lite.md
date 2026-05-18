@@ -49,8 +49,10 @@ cd "C:\RIFT MODDING\RiftReader"
 | Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`, printing compact JSON. | No repo target writes; dry-run still writes an ignored package diff. |
 | Package Intake Self-Test | Runs `scripts\riftreader-package-intake-selftest.cmd`. | Generates an ignored package and proves dry-run package intake without repo target writes. |
 | Bridge Self-Test | Runs `scripts\riftreader-local-artifact-bridge.cmd --self-test --json`. | Exercises the read-only bridge with a temp payload and ephemeral loopback server; no persistent server or tunnel. |
+| Bridge Preflight | Runs `scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json`. | Checks payload readiness and redacted URL hints without starting a persistent server or tunnel; exit `2` means a safe blocker. |
 | Bridge Payload Index | Runs `scripts\riftreader-local-artifact-bridge.cmd --index --payload-root artifacts\chatgpt-payloads --json`. | Reads the curated payload index only; no HTTP serving or tunnel management. |
 | Open Bridge Docs | Opens `docs\workflow\local-artifact-bridge.md`. | Local view only. |
+| Copy Bridge Start Command | Copies the manual `--serve --token auto` command. | Does not run the command; the operator remains in control of local serving. |
 | Copy Redacted Bridge Instructions | Copies placeholder `<token>` bridge/tunnel instructions. | Does not copy a real token; tunnel startup remains manual. |
 | Copy ChatGPT Bridge Prompt | Copies a placeholder prompt that tells Desktop ChatGPT to start at `/<token>/`, `/health`, `/payloads/latest/readme.md`, and `/payloads/latest/chunks.json`. | Does not copy a real token; only lists safe read-only bridge endpoints. |
 | Git Status | Runs `git --no-pager status --short --branch`. | Read-only Git. |
@@ -67,8 +69,8 @@ Operator Lite v0 writes only through the underlying helpers:
 - `.riftreader-local\package-intake-selftest\...`
 
 The bridge self-test uses a temporary payload and ephemeral loopback server; it
-does not start the persistent `--serve` mode. The bridge index action reads only
-registered payload metadata from `artifacts\chatgpt-payloads`.
+does not start the persistent `--serve` mode. The bridge preflight/index actions
+read only registered payload metadata from `artifacts\chatgpt-payloads`.
 
 Operator Lite does not stage, commit, push, reset, clean, send game input, run
 movement, attach CE/x64dbg, start bridge `--serve`, start `cloudflared`, or
@@ -98,7 +100,7 @@ Tunnel management also remains manual:
 cloudflared tunnel --url http://127.0.0.1:8765
 ```
 
-Operator Lite copies only redacted placeholder instructions and prompts such as
+Operator Lite copies only redacted placeholder instructions, start commands, and prompts such as
 `http://127.0.0.1:8765/<token>/` and
 `http://127.0.0.1:8765/<token>/health`; it does not copy or mint a real bridge
 token. The ChatGPT prompt points at the bridge landing page, health endpoint,

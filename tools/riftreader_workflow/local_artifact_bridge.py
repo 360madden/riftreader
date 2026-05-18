@@ -630,6 +630,164 @@ def status_payload(config: BridgeConfig) -> Dict[str, Any]:
     }
 
 
+def preflight_redacted_urls(config: BridgeConfig) -> Dict[str, str]:
+    base = f"http://{config.bind_host}:{config.port}/<token>"
+    return {
+        "landing": f"{base}/",
+        "health": f"{base}/health",
+        "readme": f"{base}/payloads/latest/readme.md",
+        "chunks": f"{base}/payloads/latest/chunks.json",
+        "chunkPattern": f"{base}/payloads/latest/chunks/<chunk_id>",
+    }
+
+
+def preflight_check(name: str, passed: bool, message: str, code: str = "") -> Dict[str, Any]:
+    return {
+        "name": name,
+        "passed": passed,
+        "code": "" if passed else code,
+        "message": message,
+    }
+
+
+def preflight_next_actions(status: str) -> List[str]:
+    if status == "passed":
+        return [
+            "Run the printed manual start command only when you are ready to serve locally.",
+            "Give ChatGPT the redacted URL pattern with the real token from bridge startup output.",
+            "Keep tunnel management manual and stop the bridge/tunnel when finished.",
+        ]
+    return [
+        "Create or refresh a curated payload under artifacts/chatgpt-payloads.",
+        "Run the preflight again before starting --serve.",
+        "Use --index --json to inspect payload discovery warnings.",
+    ]
+
+
+def preflight_payload(config: BridgeConfig) -> Dict[str, Any]:
+    checks: List[Dict[str, Any]] = []
+    blockers: List[str] = []
+    warnings: List[str] = []
+    index: Dict[str, Any] = {
+        "payloadCount": 0,
+        "latestPayloadId": None,
+        "latestPayloadPath": None,
+        "payloads": [],
+        "warnings": [],
+    }
+    latest: Dict[str, Any] | None = None
+
+    root = config.payload_root
+    root_exists = root.exists()
+    root_is_dir = root.is_dir()
+    checks.append(preflight_check("payload-root-exists", root_exists, "Payload root exists.", "PAYLOAD_ROOT_MISSING"))
+    checks.append(
+        preflight_check("payload-root-is-directory", root_is_dir, "Payload root is a directory.", "PAYLOAD_ROOT_NOT_DIRECTORY")
+    )
+
+    if not root_exists:
+        blockers.append("payload_root_missing")
+    elif not root_is_dir:
+        blockers.append("payload_root_not_directory")
+    else:
+        try:
+            index = discover_payloads(config)
+            warnings.extend(str(item) for item in index.get("warnings", []))
+        except BridgeError as exc:
+            blockers.append(f"payload_discovery_failed:{exc.code}")
+            warnings.append(exc.message)
+        payload_count = int(index.get("payloadCount") or 0)
+        checks.append(preflight_check("valid-payload-count", payload_count > 0, "At least one valid payload is discoverable.", "NO_VALID_PAYLOADS"))
+        if payload_count <= 0:
+            blockers.append("no_valid_payloads")
+        else:
+            raw_payloads = index.get("payloads") or []
+            latest = raw_payloads[-1] if isinstance(raw_payloads, list) and raw_payloads else None
+            latest_summary_candidates = latest.get("summaryCandidates", []) if isinstance(latest, dict) else []
+            latest_chunks = latest.get("chunks", []) if isinstance(latest, dict) else []
+            serve_eligible_chunks = [
+                chunk for chunk in latest_chunks if isinstance(chunk, dict) and chunk.get("serveEligible")
+            ]
+            checks.append(
+                preflight_check(
+                    "latest-summary-available",
+                    bool(latest_summary_candidates),
+                    "Latest payload has README.md or reports/reducer-summary.md.",
+                    "LATEST_SUMMARY_MISSING",
+                )
+            )
+            checks.append(
+                preflight_check(
+                    "latest-has-serveable-chunks",
+                    bool(serve_eligible_chunks),
+                    "Latest payload has at least one serve-eligible registered text chunk.",
+                    "NO_SERVEABLE_CHUNKS",
+                )
+            )
+            if not latest_summary_candidates:
+                blockers.append("latest_summary_missing")
+            if not serve_eligible_chunks:
+                blockers.append("no_serveable_chunks")
+            if isinstance(latest, dict) and latest.get("sha256Mismatches"):
+                warnings.append(f"latest_sha256_mismatches:{','.join(str(item) for item in latest['sha256Mismatches'])}")
+            if isinstance(latest, dict) and latest.get("sizeMismatches"):
+                warnings.append(f"latest_size_mismatches:{','.join(str(item) for item in latest['sizeMismatches'])}")
+
+    checks.extend(
+        [
+            preflight_check("bind-host-loopback", config.bind_host == "127.0.0.1", "Bridge bind host is loopback only.", "UNSAFE_BIND_HOST"),
+            preflight_check("token-redacted", True, "Preflight output redacts token URLs.", ""),
+            preflight_check("no-server-started", True, "Preflight did not start an HTTP server or tunnel.", ""),
+            preflight_check("manual-tunnel-only", True, "Tunnel management remains manual.", ""),
+        ]
+    )
+
+    if any(not item["passed"] and item["code"] == "UNSAFE_BIND_HOST" for item in checks):
+        blockers.append("unsafe_bind_host")
+    status = "passed" if not blockers else "blocked"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "tool": VERSION,
+        "kind": "riftreader-local-artifact-bridge-preflight",
+        "status": status,
+        "ok": status == "passed",
+        "timestampUtc": utc_now_iso(),
+        "mode": "read_only_preflight",
+        "payloadRoot": repo_display_path(config.payload_root, config.repo_root),
+        "payloadRootExists": root_exists,
+        "payloadRootIsDirectory": root_is_dir,
+        "payloadCount": index.get("payloadCount", 0),
+        "latestPayloadId": index.get("latestPayloadId"),
+        "latestPayloadPath": index.get("latestPayloadPath"),
+        "latestSummaryCandidates": latest.get("summaryCandidates", []) if isinstance(latest, dict) else [],
+        "redactedUrls": preflight_redacted_urls(config),
+        "manualStartCommand": (
+            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve "
+            "--payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25"
+        ),
+        "endpoints": ENDPOINTS_V1,
+        "recommendedReadOrder": recommended_read_order(),
+        "chatgptInstructions": chatgpt_instructions(),
+        "checks": checks,
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "safety": {
+            "getHeadOnly": True,
+            "noServerStarted": True,
+            "noTunnelStarted": True,
+            "manualTunnelOnly": True,
+            "tokenRedacted": True,
+            "noCommandExecutionEndpoint": True,
+            "noArbitraryFileRead": True,
+            "noRepoWrites": True,
+            "noLiveRiftInput": True,
+            "noCheatEngine": True,
+            "noX64dbg": True,
+        },
+        "next": preflight_next_actions(status),
+    }
+
+
 class BridgeHTTPServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
@@ -995,6 +1153,15 @@ def print_index(config: BridgeConfig, json_mode: bool) -> int:
     return 0
 
 
+def run_preflight(config: BridgeConfig, json_mode: bool) -> int:
+    payload = preflight_payload(config)
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload["status"] == "passed" else 2
+
+
 def serve(config: BridgeConfig, json_mode: bool) -> int:
     server = create_http_server(config)
     host, port = server.server_address
@@ -1033,6 +1200,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     mode_group = parser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument("--serve", action="store_true", help="Start the tokenized read-only HTTP server.")
     mode_group.add_argument("--index", action="store_true", help="Print payload index JSON.")
+    mode_group.add_argument("--preflight", action="store_true", help="Check payload readiness without starting a server.")
     mode_group.add_argument("--self-test", action="store_true", help="Run local fake-payload self-test.")
     parser.add_argument("--payload-root", default=str(DEFAULT_PAYLOAD_ROOT), help="Repo-relative payload root.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Local bind port.")
@@ -1060,6 +1228,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         if args.index:
             return print_index(config, json_mode=args.json)
+        if args.preflight:
+            return run_preflight(config, json_mode=args.json)
         if args.serve:
             return serve(config, json_mode=args.json)
         raise BridgeError(400, "NO_MODE", "No mode selected.")

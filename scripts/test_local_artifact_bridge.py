@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import contextlib
+import io
 import json
 import pathlib
 import shutil
@@ -240,6 +242,111 @@ class BridgeServerCase(unittest.TestCase):
         mismatched = [chunk for chunk in latest["chunks"] if chunk["chunkId"] == "sha-mismatch"]
         self.assertEqual(len(mismatched), 1)
         self.assertEqual(mismatched[0]["sha256Status"], "mismatch")
+
+    def test_preflight_valid_payload_passes_and_redacts_token(self) -> None:
+        payload = bridge.preflight_payload(self.config)
+
+        self.assertEqual(payload["kind"], "riftreader-local-artifact-bridge-preflight")
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["payloadCount"], 2)
+        self.assertEqual(payload["latestPayloadId"], "pointer-chain-pack-20260517-002")
+        self.assertIn("<token>", payload["redactedUrls"]["health"])
+        self.assertNotIn(self.token, json.dumps(payload["redactedUrls"]))
+        self.assertIn("--serve", payload["manualStartCommand"])
+        self.assertIn("--token auto", payload["manualStartCommand"])
+        self.assertTrue(payload["safety"]["noServerStarted"])
+        self.assertTrue(payload["safety"]["tokenRedacted"])
+
+    def test_preflight_missing_payload_root_blocks_without_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = bridge.make_config(
+                repo_root=root,
+                payload_root=pathlib.Path("artifacts") / "chatgpt-payloads",
+                token="missing-token",
+                port=0,
+                log_requests=False,
+            )
+
+            payload = bridge.preflight_payload(config)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertFalse(payload["ok"])
+        self.assertIn("payload_root_missing", payload["blockers"])
+        self.assertEqual(payload["payloadCount"], 0)
+        self.assertTrue(payload["safety"]["noServerStarted"])
+
+    def test_preflight_invalid_payload_contract_blocks_with_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            payload_root = root / "artifacts" / "chatgpt-payloads"
+            bad_payload = payload_root / "bad-payload"
+            bad_payload.mkdir(parents=True)
+            bridge.write_json(bad_payload / "manifest.json", {"payloadId": "bad-payload"})
+            config = bridge.make_config(
+                repo_root=root,
+                payload_root=pathlib.Path("artifacts") / "chatgpt-payloads",
+                token="invalid-token",
+                port=0,
+                log_requests=False,
+            )
+
+            payload = bridge.preflight_payload(config)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("no_valid_payloads", payload["blockers"])
+        self.assertIn("skipped_missing_contract:bad-payload", payload["warnings"])
+
+    def test_preflight_cli_json_uses_exit_2_for_blocked_first_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = bridge.main(
+                    [
+                        "--repo-root",
+                        str(root),
+                        "--payload-root",
+                        "artifacts/chatgpt-payloads",
+                        "--token",
+                        "blocked-token",
+                        "--port",
+                        "0",
+                        "--preflight",
+                        "--json",
+                    ]
+                )
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("payload_root_missing", payload["blockers"])
+
+    def test_preflight_cli_json_passes_for_valid_payload(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--preflight",
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["latestPayloadId"], "pointer-chain-pack-20260517-002")
 
 
 if __name__ == "__main__":

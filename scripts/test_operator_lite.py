@@ -51,6 +51,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "live-triage",
                 "package-selftest",
                 "bridge-selftest",
+                "bridge-preflight",
                 "bridge-index",
                 "git-status",
             },
@@ -63,6 +64,9 @@ class OperatorLiteTests(unittest.TestCase):
         bridge_selftest = next(item for item in plan["commands"] if item["key"] == "bridge-selftest")
         self.assertIn("riftreader-local-artifact-bridge.cmd", bridge_selftest["args"][0])
         self.assertIn("--self-test", bridge_selftest["args"])
+        bridge_preflight = next(item for item in plan["commands"] if item["key"] == "bridge-preflight")
+        self.assertIn("--preflight", bridge_preflight["args"])
+        self.assertEqual(bridge_preflight["expectedExitCodes"], [0, 2])
         bridge_index = next(item for item in plan["commands"] if item["key"] == "bridge-index")
         self.assertIn("--index", bridge_index["args"])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
@@ -127,6 +131,16 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertNotIn("token=", instructions.lower())
         self.assertNotIn("sk-", instructions.lower())
 
+    def test_redacted_bridge_start_command_keeps_manual_serve_explicit(self) -> None:
+        command = operator_lite.redacted_bridge_start_command(REPO_ROOT)
+
+        self.assertIn("--serve", command)
+        self.assertIn("--token auto", command)
+        self.assertIn("127.0.0.1", command)
+        self.assertIn("Start any tunnel manually", command)
+        self.assertNotIn("cloudflared", command.lower())
+        self.assertNotIn("sk-", command.lower())
+
     def test_redacted_bridge_chatgpt_prompt_points_to_safe_aliases(self) -> None:
         prompt = operator_lite.redacted_bridge_chatgpt_prompt(REPO_ROOT)
 
@@ -145,6 +159,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("Local Artifact Bridge", summary["sections"])
         self.assertIn("bridge", summary["buttonVariants"])
         self.assertIn("warning", summary["buttonVariants"])
+        self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])
         self.assertIn("muted locked-control badges", summary["visualRules"])
         self.assertTrue(summary["palette"]["primary"].startswith("#"))

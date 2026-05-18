@@ -60,6 +60,13 @@ From the repo root:
 
 ```powershell
 Set-Location -LiteralPath "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json
+```
+
+Only start serving after preflight reports `status: "passed"`:
+
+```powershell
+Set-Location -LiteralPath "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\chatgpt-payloads --port 8765 --token auto --max-response-mb 25
 ```
 
@@ -94,8 +101,10 @@ buttons:
 
 ```text
 Bridge Self-Test
+Bridge Preflight
 Bridge Payload Index
 Open Bridge Docs
+Copy Bridge Start Command
 Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
@@ -104,6 +113,30 @@ Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real
 token, expose write endpoints, or manage public tunnels. It copies only
 redacted placeholder instructions/prompts. Persistent serving and tunneling
 remain explicit operator actions.
+
+## Real payload smoke checklist
+
+Use this checklist before giving Desktop ChatGPT a real bridge URL:
+
+1. Confirm the curated payload root exists:
+   `artifacts\chatgpt-payloads`.
+2. Run preflight:
+   `.\scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json`.
+3. Confirm preflight reports:
+   - `status` is `passed`;
+   - `payloadCount` is at least `1`;
+   - `latestPayloadId` is not null;
+   - `latestSummaryCandidates` is not empty;
+   - `safety.noServerStarted` is `true`;
+   - `safety.tokenRedacted` is `true`.
+4. Start `--serve` manually only after preflight passes.
+5. Open the tokenized landing page locally:
+   `http://127.0.0.1:8765/<token>/`.
+6. Open `/<token>/health`, `/<token>/payloads/latest/readme.md`, and
+   `/<token>/payloads/latest/chunks.json`.
+7. Fetch one registered chunk from `chunks.json`.
+8. If using a tunnel, start it manually and stop both bridge and tunnel when
+   finished.
 
 ## Endpoints
 
@@ -387,6 +420,7 @@ Run from the repo root:
 ```powershell
 python -m py_compile tools\riftreader_workflow\local_artifact_bridge.py scripts\test_local_artifact_bridge.py
 python -m unittest scripts.test_local_artifact_bridge
+.\scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json
 .\scripts\riftreader-local-artifact-bridge.cmd --self-test
 git --no-pager diff --check
 ```
@@ -396,6 +430,7 @@ Expected result:
 ```text
 py_compile passes
 unit tests pass
+preflight returns passed when at least one valid payload exists, or blocked for an empty first-run payload root
 self-test passes
 diff whitespace check passes
 ```

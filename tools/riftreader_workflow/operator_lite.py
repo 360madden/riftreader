@@ -126,6 +126,20 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=120,
             description="Run the Local Artifact Bridge safety self-test without starting a persistent server.",
         ),
+        "bridge-preflight": CommandSpec(
+            key="bridge-preflight",
+            label="Bridge Preflight",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--preflight",
+                "--payload-root",
+                "artifacts\\chatgpt-payloads",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Check bridge payload readiness without starting a persistent server or tunnel.",
+            expected_exit_codes=(0, 2),
+        ),
         "bridge-index": CommandSpec(
             key="bridge-index",
             label="Bridge Payload Index",
@@ -345,6 +359,20 @@ def redacted_bridge_instructions(repo_root: Path) -> str:
     )
 
 
+def redacted_bridge_start_command(repo_root: Path) -> str:
+    return "\n".join(
+        [
+            "RiftReader Local Artifact Bridge v0.1 — manual start command",
+            "",
+            f'cd "{repo_root}"',
+            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25",
+            "",
+            "This starts only the loopback bridge on 127.0.0.1 and prints the real token locally.",
+            "Do not paste the real token into public logs. Start any tunnel manually only when needed.",
+        ]
+    )
+
+
 def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
     docs = bridge_docs_path(repo_root)
     return "\n".join(
@@ -382,6 +410,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "dark grouped panels",
             "high contrast action buttons",
             "distinct bridge color",
+            "manual bridge start command copy",
             "redacted ChatGPT bridge prompt copy",
             "muted locked-control badges",
             "persistent safe-mode status bar",
@@ -562,6 +591,12 @@ def run_gui(repo_root: Path) -> int:
         root.clipboard_append(instructions)
         append("Copied redacted bridge instructions to clipboard.")
 
+    def copy_bridge_start_command() -> None:
+        command = redacted_bridge_start_command(repo_root)
+        root.clipboard_clear()
+        root.clipboard_append(command)
+        append("Copied manual bridge start command to clipboard.")
+
     def copy_bridge_chatgpt_prompt() -> None:
         prompt = redacted_bridge_chatgpt_prompt(repo_root)
         root.clipboard_clear()
@@ -578,8 +613,10 @@ def run_gui(repo_root: Path) -> int:
     action_button(package_frame, "Open Latest Report", open_latest, "neutral", width=18)
 
     action_button(bridge_frame, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
+    action_button(bridge_frame, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
     action_button(bridge_frame, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
     action_button(bridge_frame, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
+    action_button(bridge_frame, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
     action_button(bridge_frame, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
     action_button(bridge_frame, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
 
