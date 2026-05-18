@@ -438,6 +438,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "dark grouped panels",
             "high contrast action buttons",
             "distinct bridge color",
+            "bridge buttons split into action and copy rows",
             "manual bridge start command copy",
             "guarded inbox index button",
             "redacted ChatGPT bridge prompt copy",
@@ -537,6 +538,11 @@ def run_gui(repo_root: Path) -> int:
         )
         button.pack(side=tk.LEFT, padx=6, pady=5)
         return button
+
+    def button_row(parent: tk.Misc) -> tk.Frame:
+        row = tk.Frame(parent, bg=palette["panel"])
+        row.pack(fill=tk.X, pady=(0, 2))
+        return row
 
     def locked_badge(parent: tk.Misc, text: str) -> tk.Label:
         badge = tk.Label(
@@ -641,14 +647,17 @@ def run_gui(repo_root: Path) -> int:
     action_button(package_frame, "Git Status", lambda: run_spec("git-status"), "neutral", width=14)
     action_button(package_frame, "Open Latest Report", open_latest, "neutral", width=18)
 
-    action_button(bridge_frame, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
-    action_button(bridge_frame, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
-    action_button(bridge_frame, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
-    action_button(bridge_frame, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
-    action_button(bridge_frame, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
-    action_button(bridge_frame, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
-    action_button(bridge_frame, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
-    action_button(bridge_frame, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
+    bridge_action_row = button_row(bridge_frame)
+    action_button(bridge_action_row, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
+    action_button(bridge_action_row, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
+    action_button(bridge_action_row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
+    action_button(bridge_action_row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
+
+    bridge_copy_row = button_row(bridge_frame)
+    action_button(bridge_copy_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
+    action_button(bridge_copy_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
+    action_button(bridge_copy_row, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
+    action_button(bridge_copy_row, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
 
     for label in [
         "Target-Control",

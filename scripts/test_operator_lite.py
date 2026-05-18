@@ -172,6 +172,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("Local Artifact Bridge", summary["sections"])
         self.assertIn("bridge", summary["buttonVariants"])
         self.assertIn("warning", summary["buttonVariants"])
+        self.assertIn("bridge buttons split into action and copy rows", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])

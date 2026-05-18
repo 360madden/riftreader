@@ -105,7 +105,7 @@ Operator Lite groups actions into high-contrast panels so buttons do not blend t
 |---|---|---|
 | Workflow Status & Triage | Blue primary buttons plus amber triage button. | Separates ordinary status refresh from blocker classification. |
 | Packages, Reports & Git | Green package buttons and neutral report/Git buttons. | Makes dry-run package actions distinct from read-only views. |
-| Local Artifact Bridge | Purple bridge buttons and a blue status strip. | Keeps bridge helpers, payload index, inbox index, and prompt-copy actions visually separate from workflow actions. |
+| Local Artifact Bridge | Purple bridge command row, neutral docs/copy row, and a blue status strip. | Prevents bridge button overflow while keeping checks, indexes, docs, and prompt-copy actions visually separate. |
 | Locked Live Controls | Red locked badges instead of normal action buttons. | Shows unsafe live actions are intentionally unavailable. |
 
 The window also includes a persistent safe-mode status bar and a dark output log for better contrast while preserving the same no-input/no-debugger/no-Git-mutation safety model.
