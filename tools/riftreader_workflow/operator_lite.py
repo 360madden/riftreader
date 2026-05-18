@@ -153,6 +153,19 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=60,
             description="Print the redacted Desktop ChatGPT handoff packet with read order, inbox schema, and safety rules.",
         ),
+        "bridge-bootstrap-payload": CommandSpec(
+            key="bridge-bootstrap-payload",
+            label="Bridge Bootstrap Payload",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--bootstrap-payload",
+                "--payload-root",
+                "artifacts\\chatgpt-payloads",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Create a safe Desktop ChatGPT starter payload from fixed repo-owned docs.",
+        ),
         "bridge-index": CommandSpec(
             key="bridge-index",
             label="Bridge Payload Index",
@@ -176,6 +189,18 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             ),
             timeout_seconds=60,
             description="Read guarded Local Inbox v0 proposals stored under .riftreader-local without applying them.",
+        ),
+        "bridge-inbox-latest": CommandSpec(
+            key="bridge-inbox-latest",
+            label="Bridge Latest Inbox",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--inbox-read-latest",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Read the latest guarded Local Inbox v0 proposal without applying it.",
+            expected_exit_codes=(0, 2),
         ),
         "git-status": CommandSpec(
             key="git-status",
@@ -701,10 +726,12 @@ def run_gui(repo_root: Path) -> int:
     action_button(bridge_action_row, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
     action_button(bridge_action_row, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
     action_button(bridge_action_row, "Bridge Handoff Packet", lambda: run_spec("bridge-handoff"), "bridge", width=21)
+    action_button(bridge_action_row, "Bootstrap Payload", lambda: run_spec("bridge-bootstrap-payload"), "warning", width=18)
 
     bridge_index_row = button_row(bridge_frame)
     action_button(bridge_index_row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
     action_button(bridge_index_row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
+    action_button(bridge_index_row, "Bridge Latest Inbox", lambda: run_spec("bridge-inbox-latest"), "bridge", width=19)
     action_button(bridge_index_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
     action_button(bridge_index_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
 

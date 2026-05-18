@@ -53,8 +53,10 @@ class OperatorLiteTests(unittest.TestCase):
                 "bridge-selftest",
                 "bridge-preflight",
                 "bridge-handoff",
+                "bridge-bootstrap-payload",
                 "bridge-index",
                 "bridge-inbox-index",
+                "bridge-inbox-latest",
                 "git-status",
             },
         )
@@ -71,10 +73,15 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(bridge_preflight["expectedExitCodes"], [0, 2])
         bridge_handoff = next(item for item in plan["commands"] if item["key"] == "bridge-handoff")
         self.assertIn("--chatgpt-handoff", bridge_handoff["args"])
+        bridge_bootstrap = next(item for item in plan["commands"] if item["key"] == "bridge-bootstrap-payload")
+        self.assertIn("--bootstrap-payload", bridge_bootstrap["args"])
         bridge_index = next(item for item in plan["commands"] if item["key"] == "bridge-index")
         self.assertIn("--index", bridge_index["args"])
         bridge_inbox_index = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-index")
         self.assertIn("--inbox-index", bridge_inbox_index["args"])
+        bridge_inbox_latest = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-latest")
+        self.assertIn("--inbox-read-latest", bridge_inbox_latest["args"])
+        self.assertEqual(bridge_inbox_latest["expectedExitCodes"], [0, 2])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])

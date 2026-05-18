@@ -56,6 +56,7 @@ ENDPOINTS_V1 = [
     "/<token>/chatgpt-handoff.json",
     "/<token>/health",
     "/<token>/inbox/schema.json",
+    "/<token>/inbox/messages/<inbox_id>",
     "/<token>/status.json",
     "/<token>/payloads/index.json",
     "/<token>/payloads/latest/manifest.json",
@@ -87,6 +88,39 @@ INBOX_ALLOWED_FIELDS = {
     "source",
     "metadata",
 }
+
+BOOTSTRAP_SOURCE_FILES = [
+    {
+        "chunkId": "repo-readme",
+        "path": "README.md",
+        "kind": "markdown",
+        "description": "Repository README snapshot for Desktop ChatGPT orientation.",
+    },
+    {
+        "chunkId": "agent-policy",
+        "path": "AGENTS.md",
+        "kind": "markdown",
+        "description": "RiftReader agent policy and safety boundaries.",
+    },
+    {
+        "chunkId": "desktop-chatgpt-workflow",
+        "path": "docs/workflow/non-codex-desktop-chatgpt-workflow.md",
+        "kind": "markdown",
+        "description": "Non-Codex/Desktop ChatGPT workflow policy.",
+    },
+    {
+        "chunkId": "local-artifact-bridge-docs",
+        "path": "docs/workflow/local-artifact-bridge.md",
+        "kind": "markdown",
+        "description": "Local Artifact Bridge operator documentation.",
+    },
+    {
+        "chunkId": "operator-lite-docs",
+        "path": "docs/workflow/operator-lite.md",
+        "kind": "markdown",
+        "description": "Operator Lite GUI documentation.",
+    },
+]
 
 RECOMMENDED_READ_ORDER_V1 = [
     {
@@ -178,6 +212,18 @@ ERROR_NEXT_HINTS_V1 = {
     "INBOX_UNKNOWN_FIELD": [
         "Remove fields not listed in the Local Inbox v0 schema.",
         "Allowed fields are schemaVersion, kind, title, body, payload, source, and metadata.",
+    ],
+    "INBOX_ID_INVALID": [
+        "Use an inboxId returned by POST /<token>/inbox/messages or --inbox-index --json.",
+        "Inbox IDs are not file paths.",
+    ],
+    "INBOX_MESSAGE_NOT_FOUND": [
+        "Run --inbox-index --json to list available inbox IDs.",
+        "Use an exact inboxId; do not guess path segments.",
+    ],
+    "INBOX_EMPTY": [
+        "No inbox proposals are stored yet.",
+        "POST an operator-approved JSON proposal to /<token>/inbox/messages first.",
     ],
     "RESPONSE_TOO_LARGE": [
         "Open /<token>/payloads/latest/chunks.json and choose smaller registered chunks.",
@@ -396,6 +442,12 @@ def find_inbox_duplicate(config: BridgeConfig, sha256: str) -> Optional[Dict[str
     return None
 
 
+def validate_inbox_id(inbox_id: str) -> str:
+    if not isinstance(inbox_id, str) or not INBOX_ID_PATTERN.match(inbox_id):
+        raise BridgeError(400, "INBOX_ID_INVALID", "Inbox ID is invalid.")
+    return inbox_id
+
+
 def inbox_item_dir(config: BridgeConfig, received_at: str, sha256: str) -> Tuple[str, pathlib.Path]:
     timestamp = received_at.replace("-", "").replace(":", "")
     inbox_id = f"{timestamp}-{sha256[:12]}"
@@ -408,6 +460,14 @@ def inbox_item_dir(config: BridgeConfig, received_at: str, sha256: str) -> Tuple
             return candidate_id, candidate
         counter += 1
     return inbox_id, target
+
+
+def existing_inbox_item_dir(config: BridgeConfig, inbox_id: str) -> pathlib.Path:
+    safe_id = validate_inbox_id(inbox_id)
+    item_dir = (config.inbox_root / safe_id).resolve()
+    if not is_relative_to(item_dir, config.inbox_root.resolve()):
+        raise BridgeError(400, "INBOX_ID_INVALID", "Inbox ID resolved outside the inbox root.")
+    return item_dir
 
 
 def write_inbox_json(path: pathlib.Path, payload: Any) -> None:
@@ -537,6 +597,60 @@ def inbox_index(config: BridgeConfig) -> Dict[str, Any]:
     }
 
 
+def read_inbox_item(config: BridgeConfig, inbox_id: str) -> Dict[str, Any]:
+    item_dir = existing_inbox_item_dir(config, inbox_id)
+    metadata_path = item_dir / "metadata.json"
+    message_path = item_dir / "message.json"
+    if not metadata_path.is_file() or not message_path.is_file():
+        raise BridgeError(404, "INBOX_MESSAGE_NOT_FOUND", "Inbox item was not found.")
+    metadata = safe_read_json(metadata_path, max_bytes=min(config.max_response_bytes, 2 * 1024 * 1024))
+    message = safe_read_json(message_path, max_bytes=min(config.max_response_bytes, 2 * 1024 * 1024))
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "ok": True,
+        "kind": "riftreader-local-artifact-bridge-inbox-read",
+        "generatedAtUtc": utc_now_iso(),
+        "inboxId": inbox_id,
+        "metadata": metadata,
+        "message": message,
+        "safety": inbox_storage_safety(config),
+        "next": [
+            "Review this proposal locally before creating any explicit patch/package.",
+            "Local Inbox v0 does not apply, execute, stage, commit, push, or send RIFT input.",
+        ],
+    }
+
+
+def latest_inbox_id(config: BridgeConfig) -> Optional[str]:
+    index = inbox_index(config)
+    items = index.get("items", [])
+    if not isinstance(items, list) or not items:
+        return None
+    latest = items[-1]
+    if not isinstance(latest, dict):
+        return None
+    inbox_id = latest.get("inboxId")
+    return str(inbox_id) if isinstance(inbox_id, str) else None
+
+
+def read_latest_inbox_item(config: BridgeConfig) -> Dict[str, Any]:
+    inbox_id = latest_inbox_id(config)
+    if not inbox_id:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "ok": False,
+            "status": "blocked",
+            "code": "INBOX_EMPTY",
+            "kind": "riftreader-local-artifact-bridge-inbox-read",
+            "generatedAtUtc": utc_now_iso(),
+            "message": "No inbox proposals are stored yet.",
+            "inboxRoot": repo_display_path(config.inbox_root, config.repo_root),
+            "safety": inbox_storage_safety(config),
+            "next": error_next_hints("INBOX_EMPTY"),
+        }
+    return read_inbox_item(config, inbox_id)
+
+
 def inbox_message_template() -> Dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -611,6 +725,7 @@ def chatgpt_handoff_payload(config: BridgeConfig) -> Dict[str, Any]:
         "payloadCount": payload_count,
         "operatorSetup": {
             "manualPreflightCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\\chatgpt-payloads --json",
+            "bootstrapPayloadCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --bootstrap-payload --payload-root artifacts\\chatgpt-payloads --json",
             "manualStartCommand": (
                 ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve "
                 "--payload-root artifacts\\chatgpt-payloads --port 8765 --token auto "
@@ -618,6 +733,7 @@ def chatgpt_handoff_payload(config: BridgeConfig) -> Dict[str, Any]:
             ),
             "optionalManualTunnelCommand": "cloudflared tunnel --url http://127.0.0.1:8765",
             "inboxIndexCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-index --json",
+            "inboxReadLatestCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json",
         },
         "urlPatterns": {
             "landing": "/<token>/",
@@ -646,6 +762,165 @@ def chatgpt_handoff_payload(config: BridgeConfig) -> Dict[str, Any]:
             "If status is blocked, ask the operator to create or refresh a curated payload.",
             "If status is ready, read latest readme and chunks before requesting individual chunks.",
             "Use the Local Inbox only for operator-approved JSON proposals.",
+        ],
+    }
+
+
+def bootstrap_payload_id() -> str:
+    stamp = utc_now_iso().replace("-", "").replace(":", "").replace("Z", "Z")
+    return f"desktop-chatgpt-bootstrap-{stamp}"
+
+
+def bootstrap_summary_markdown(payload_id: str, config: BridgeConfig, source_chunks: List[Dict[str, Any]]) -> str:
+    lines = [
+        f"# Desktop ChatGPT Bootstrap Payload: {payload_id}",
+        "",
+        "This payload was generated by the RiftReader Local Artifact Bridge bootstrap command.",
+        "",
+        "## Purpose",
+        "",
+        "Give Desktop ChatGPT a safe starter context packet without manual file selection.",
+        "",
+        "## Safety",
+        "",
+        "- Contains copied text snapshots from fixed repo-owned docs only.",
+        "- Does not include raw memory dumps, binary files, secrets, live RIFT input, CE, x64dbg, or command execution.",
+        "- Does not stage, commit, push, apply inbox content, or mutate source files.",
+        "",
+        "## Recommended read order",
+        "",
+        "1. Read this README.",
+        "2. Open `chunks.json`.",
+        "3. Read `desktop-chatgpt-workflow` and `local-artifact-bridge-docs`.",
+        "4. Read other chunks only if needed for the task.",
+        "",
+        "## Registered chunks",
+        "",
+    ]
+    for chunk in source_chunks:
+        lines.append(f"- `{chunk['chunkId']}` - {chunk['description']}")
+    lines.extend(
+        [
+            "- `repo-status` - Safe read-only Git status and bootstrap metadata.",
+            "",
+            "## Local bridge URLs",
+            "",
+            "Use `/chatgpt-handoff.json`, `/health`, `/payloads/latest/readme.md`, and `/payloads/latest/chunks.json` first.",
+            "Use `/inbox/schema.json` before sending any operator-approved JSON proposal to `/inbox/messages`.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_bootstrap_payload(config: BridgeConfig, payload_id: Optional[str] = None) -> Dict[str, Any]:
+    payload_id = payload_id or bootstrap_payload_id()
+    safe_payload_id = re.sub(r"[^A-Za-z0-9._-]+", "-", payload_id).strip("-")
+    if not safe_payload_id:
+        raise BridgeError(400, "BOOTSTRAP_PAYLOAD_ID_INVALID", "Bootstrap payload ID is invalid.")
+    payload_dir = (config.payload_root / safe_payload_id).resolve()
+    if not is_relative_to(payload_dir, config.payload_root.resolve()):
+        raise BridgeError(400, "BOOTSTRAP_PAYLOAD_ID_INVALID", "Bootstrap payload path escaped payload root.")
+    if payload_dir.exists():
+        raise BridgeError(409, "BOOTSTRAP_PAYLOAD_EXISTS", "Bootstrap payload folder already exists.")
+
+    created_utc = utc_now_iso()
+    repo_status_before_write = safe_repo_status(config)
+    chunks: List[Dict[str, Any]] = []
+    copied_sources: List[Dict[str, Any]] = []
+    skipped_sources: List[Dict[str, Any]] = []
+    payload_dir.mkdir(parents=True, exist_ok=False)
+    chunks_dir = payload_dir / "chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+
+    for source in BOOTSTRAP_SOURCE_FILES:
+        source_path = (config.repo_root / str(source["path"])).resolve()
+        if not is_relative_to(source_path, config.repo_root.resolve()) or not source_path.is_file():
+            skipped_sources.append({"path": source["path"], "reason": "missing_or_outside_repo"})
+            continue
+        text = source_path.read_text(encoding="utf-8", errors="replace")
+        chunk_rel = pathlib.PurePosixPath("chunks") / f"{source['chunkId']}.md"
+        chunk_path = payload_dir / pathlib.Path(*chunk_rel.parts)
+        chunk_path.write_text(text, encoding="utf-8")
+        chunk = {
+            "chunkId": source["chunkId"],
+            "path": chunk_rel.as_posix(),
+            "kind": source["kind"],
+            "sizeBytes": chunk_path.stat().st_size,
+            "sha256": sha256_file(chunk_path),
+            "description": source["description"],
+            "sourcePath": repo_display_path(source_path, config.repo_root),
+        }
+        chunks.append(chunk)
+        copied_sources.append({"path": source["path"], "chunkId": source["chunkId"]})
+
+    status_rel = pathlib.PurePosixPath("chunks") / "repo-status.json"
+    status_path = payload_dir / pathlib.Path(*status_rel.parts)
+    status_payload = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-desktop-chatgpt-bootstrap-status",
+        "createdUtc": created_utc,
+        "payloadId": safe_payload_id,
+        "repo": repo_status_before_write,
+        "sourceFiles": copied_sources,
+        "skippedSources": skipped_sources,
+        "safety": {
+            "noCommandExecutionEndpoint": True,
+            "noArbitraryFileReadEndpoint": True,
+            "noRepoSourceMutation": True,
+            "noGitMutation": True,
+            "noLiveRiftInput": True,
+            "noCheatEngine": True,
+            "noX64dbg": True,
+        },
+    }
+    write_json(status_path, status_payload)
+    chunks.append(
+        {
+            "chunkId": "repo-status",
+            "path": status_rel.as_posix(),
+            "kind": "json",
+            "sizeBytes": status_path.stat().st_size,
+            "sha256": sha256_file(status_path),
+            "description": "Safe read-only Git status and bootstrap metadata.",
+        }
+    )
+
+    readme_text = bootstrap_summary_markdown(safe_payload_id, config, chunks)
+    readme_path = payload_dir / "README.md"
+    readme_path.write_text(readme_text, encoding="utf-8")
+    manifest = {
+        "schemaVersion": SCHEMA_VERSION,
+        "payloadId": safe_payload_id,
+        "createdUtc": created_utc,
+        "description": "Safe Desktop ChatGPT bootstrap payload generated from fixed repo-owned docs.",
+        "source": "local_artifact_bridge --bootstrap-payload",
+        "copiedSources": copied_sources,
+        "skippedSources": skipped_sources,
+        "safety": status_payload["safety"],
+    }
+    write_json(payload_dir / "manifest.json", manifest)
+    write_json(payload_dir / "chunk-index.json", {"schemaVersion": SCHEMA_VERSION, "payloadId": safe_payload_id, "chunks": chunks})
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "ok": True,
+        "kind": "riftreader-local-artifact-bridge-bootstrap-payload",
+        "status": "created",
+        "createdUtc": created_utc,
+        "payloadId": safe_payload_id,
+        "payloadPath": repo_display_path(payload_dir, config.repo_root),
+        "chunkCount": len(chunks),
+        "copiedSources": copied_sources,
+        "skippedSources": skipped_sources,
+        "files": {
+            "readme": repo_display_path(readme_path, config.repo_root),
+            "manifest": repo_display_path(payload_dir / "manifest.json", config.repo_root),
+            "chunkIndex": repo_display_path(payload_dir / "chunk-index.json", config.repo_root),
+        },
+        "next": [
+            "Run --preflight --payload-root artifacts\\chatgpt-payloads --json.",
+            "Start --serve manually only after preflight passes.",
+            "Give Desktop ChatGPT the tokenized /chatgpt-handoff.json URL.",
         ],
     }
 
@@ -1055,6 +1330,7 @@ def health_payload(config: BridgeConfig) -> Dict[str, Any]:
             "enabled": True,
             "endpoint": "/<token>/inbox/messages",
             "schemaEndpoint": "/<token>/inbox/schema.json",
+            "readEndpointPattern": "/<token>/inbox/messages/<inbox_id>",
             "acceptedKinds": sorted(ALLOWED_INBOX_KINDS),
             "allowedFields": sorted(INBOX_ALLOWED_FIELDS),
             "storageRoot": repo_display_path(config.inbox_root, config.repo_root),
@@ -1124,7 +1400,7 @@ def preflight_next_actions(status: str) -> List[str]:
             "Keep tunnel management manual and stop the bridge/tunnel when finished.",
         ]
     return [
-        "Create or refresh a curated payload under artifacts/chatgpt-payloads.",
+        "Create or refresh a curated payload under artifacts/chatgpt-payloads, or run --bootstrap-payload.",
         "Run the preflight again before starting --serve.",
         "Use --index --json to inspect payload discovery warnings.",
         "Use --inbox-index --json to inspect guarded local inbox proposals.",
@@ -1235,6 +1511,7 @@ def preflight_payload(config: BridgeConfig) -> Dict[str, Any]:
             "enabled": True,
             "endpoint": "/<token>/inbox/messages",
             "schemaEndpoint": "/<token>/inbox/schema.json",
+            "readEndpointPattern": "/<token>/inbox/messages/<inbox_id>",
             "acceptedKinds": sorted(ALLOWED_INBOX_KINDS),
             "storageRoot": repo_display_path(config.inbox_root, config.repo_root),
             "applyExecuteInV0": False,
@@ -1403,6 +1680,10 @@ def make_handler(config: BridgeConfig) -> type:
                 return self._send_json(200, health_payload(self.config), send_body)
             if endpoint_parts == ["inbox", "schema.json"]:
                 return self._send_json(200, inbox_schema_payload(self.config), send_body)
+            if len(endpoint_parts) >= 3 and endpoint_parts[:2] == ["inbox", "messages"]:
+                if len(endpoint_parts) != 3:
+                    raise BridgeError(400, "INBOX_ID_INVALID", "Inbox read endpoint accepts exactly one inbox ID segment.")
+                return self._send_json(200, read_inbox_item(self.config, endpoint_parts[2]), send_body)
             if endpoint_parts == ["status.json"]:
                 return self._send_json(200, status_payload(self.config), send_body)
             if endpoint_parts == ["payloads", "index.json"]:
@@ -1812,6 +2093,24 @@ def print_inbox_index(config: BridgeConfig, json_mode: bool) -> int:
     return 0
 
 
+def print_inbox_read(config: BridgeConfig, inbox_id: str, json_mode: bool) -> int:
+    payload = read_inbox_item(config, inbox_id)
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def print_inbox_read_latest(config: BridgeConfig, json_mode: bool) -> int:
+    payload = read_latest_inbox_item(config)
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload.get("ok") else 2
+
+
 def print_chatgpt_handoff(config: BridgeConfig, json_mode: bool) -> int:
     payload = chatgpt_handoff_payload(config)
     if json_mode:
@@ -1878,7 +2177,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     mode_group.add_argument("--serve", action="store_true", help="Start the tokenized HTTP server.")
     mode_group.add_argument("--index", action="store_true", help="Print payload index JSON.")
     mode_group.add_argument("--inbox-index", action="store_true", help="Print guarded Local Inbox v0 index JSON.")
+    mode_group.add_argument("--inbox-read", metavar="INBOX_ID", help="Print one guarded Local Inbox v0 message by inboxId.")
+    mode_group.add_argument("--inbox-read-latest", action="store_true", help="Print the latest guarded Local Inbox v0 message.")
     mode_group.add_argument("--chatgpt-handoff", action="store_true", help="Print redacted Desktop ChatGPT handoff JSON.")
+    mode_group.add_argument("--bootstrap-payload", action="store_true", help="Create a safe starter payload from fixed repo-owned docs.")
     mode_group.add_argument("--preflight", action="store_true", help="Check payload readiness without starting a server.")
     mode_group.add_argument("--self-test", action="store_true", help="Run local fake-payload self-test.")
     parser.add_argument("--payload-root", default=str(DEFAULT_PAYLOAD_ROOT), help="Repo-relative payload root.")
@@ -1887,6 +2189,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--token", default="auto", help="URL path token or 'auto'.")
     parser.add_argument("--max-response-mb", type=int, default=25, help="Maximum response size in MiB.")
     parser.add_argument("--max-inbox-mb", type=int, default=1, help="Maximum inbox POST body size in MiB.")
+    parser.add_argument("--payload-id", default=None, help="Optional payload ID for --bootstrap-payload.")
     parser.add_argument("--json", action="store_true", help="Print clean JSON on stdout for supported modes.")
     parser.add_argument("--repo-root", default=".", help="Repo root. Defaults to current working directory.")
     return parser.parse_args(argv)
@@ -1911,8 +2214,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             return print_index(config, json_mode=args.json)
         if args.inbox_index:
             return print_inbox_index(config, json_mode=args.json)
+        if args.inbox_read:
+            return print_inbox_read(config, args.inbox_read, json_mode=args.json)
+        if args.inbox_read_latest:
+            return print_inbox_read_latest(config, json_mode=args.json)
         if args.chatgpt_handoff:
             return print_chatgpt_handoff(config, json_mode=args.json)
+        if args.bootstrap_payload:
+            payload = write_bootstrap_payload(config, payload_id=args.payload_id)
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
         if args.preflight:
             return run_preflight(config, json_mode=args.json)
         if args.serve:

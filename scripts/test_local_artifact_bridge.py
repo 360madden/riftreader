@@ -268,6 +268,78 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(first["inboxId"], second["inboxId"])
         self.assertEqual(bridge.inbox_index(self.config)["count"], 1)
 
+    def test_inbox_read_endpoint_and_latest_cli_return_stored_message(self) -> None:
+        message = bridge.json_bytes(
+            {
+                "schemaVersion": 1,
+                "kind": "chatgpt-message",
+                "title": "Readable proposal",
+                "body": "Read me back without applying.",
+            }
+        )
+        post_status, _headers, post_body = self.request(
+            "POST",
+            f"/{self.token}/inbox/messages",
+            body=message,
+            headers={"Content-Type": "application/json"},
+        )
+        posted = json.loads(post_body.decode("utf-8"))
+        inbox_id = posted["inboxId"]
+
+        read_status, read_headers, read_body = self.request("GET", f"/{self.token}/inbox/messages/{inbox_id}")
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            latest_exit = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-read-latest",
+                    "--json",
+                ]
+            )
+        latest = json.loads(stdout.getvalue())
+
+        self.assertEqual(post_status, 201)
+        self.assertEqual(read_status, 200)
+        self.assertIn("application/json", read_headers["content-type"])
+        read_payload = json.loads(read_body.decode("utf-8"))
+        self.assertEqual(read_payload["kind"], "riftreader-local-artifact-bridge-inbox-read")
+        self.assertEqual(read_payload["inboxId"], inbox_id)
+        self.assertEqual(read_payload["message"]["message"]["title"], "Readable proposal")
+        self.assertEqual(latest_exit, 0)
+        self.assertEqual(latest["inboxId"], inbox_id)
+        self.assertTrue(latest["safety"]["noApplyExecute"])
+
+    def test_inbox_read_latest_cli_blocks_when_empty(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-read-latest",
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["code"], "INBOX_EMPTY")
+
     def test_inbox_rejects_malformed_json(self) -> None:
         status, _headers, body = self.request(
             "POST",
@@ -379,6 +451,13 @@ class BridgeServerCase(unittest.TestCase):
         payload = json.loads(body.decode("utf-8"))
         self.assertEqual(payload["code"], "INBOX_METHOD_NOT_ALLOWED")
         self.assertTrue(any("application/json" in item for item in payload["next"]))
+
+    def test_invalid_inbox_read_id_is_rejected(self) -> None:
+        status, _headers, body = self.request("GET", f"/{self.token}/inbox/messages/..%2Fsecret")
+
+        self.assertEqual(status, 400)
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload["code"], "INBOX_ID_INVALID")
 
     def test_inbox_schema_endpoint_returns_template_and_safety(self) -> None:
         status, headers, body = self.request("GET", f"/{self.token}/inbox/schema.json")
@@ -640,6 +719,55 @@ class BridgeServerCase(unittest.TestCase):
         self.assertNotIn(self.token, json.dumps(payload["urlPatterns"]))
         self.assertEqual(payload["inboxSchema"]["template"]["schemaVersion"], 1)
         self.assertTrue(payload["safety"]["noCommandExecutionEndpoint"])
+
+    def test_bootstrap_payload_cli_creates_valid_payload_and_clears_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            for rel in [
+                "README.md",
+                "AGENTS.md",
+                "docs/workflow/non-codex-desktop-chatgpt-workflow.md",
+                "docs/workflow/local-artifact-bridge.md",
+                "docs/workflow/operator-lite.md",
+            ]:
+                target = root / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(f"# {rel}\n\nBootstrap fixture.\n", encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = bridge.main(
+                    [
+                        "--repo-root",
+                        str(root),
+                        "--payload-root",
+                        "artifacts/chatgpt-payloads",
+                        "--token",
+                        "bootstrap-token",
+                        "--port",
+                        "0",
+                        "--bootstrap-payload",
+                        "--payload-id",
+                        "desktop-chatgpt-bootstrap-test",
+                        "--json",
+                    ]
+                )
+            payload = json.loads(stdout.getvalue())
+            config = bridge.make_config(
+                repo_root=root,
+                payload_root=pathlib.Path("artifacts/chatgpt-payloads"),
+                token="bootstrap-token",
+                port=0,
+                log_requests=False,
+            )
+            preflight = bridge.preflight_payload(config)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["status"], "created")
+        self.assertEqual(payload["payloadId"], "desktop-chatgpt-bootstrap-test")
+        self.assertEqual(payload["chunkCount"], 6)
+        self.assertEqual(preflight["status"], "passed")
+        self.assertEqual(preflight["latestPayloadId"], "desktop-chatgpt-bootstrap-test")
 
 
 if __name__ == "__main__":
