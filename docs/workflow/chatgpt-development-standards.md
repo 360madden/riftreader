@@ -1,7 +1,7 @@
 # ChatGPT Development Standards for RiftReader
 
-Version: riftreader-chatgpt-development-standards-v0.1.0  
-Total-Character-Count: 2128  
+Version: riftreader-chatgpt-development-standards-v0.1.0
+Total-Character-Count: 2124
 Purpose: Document the ChatGPT-owned coding and validation standards for RiftReader workflow helpers.
 
 ## Operating rule

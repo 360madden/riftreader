@@ -1,8 +1,8 @@
 # RiftReader Package Flow
 
-Version: riftreader-package-flow-docs-v0.1.2  
-Total-Character-Count: 2827  
-Purpose: Document the reusable Python-first package apply/validate helper for RiftReader.  
+Version: riftreader-package-flow-docs-v0.1.2
+Total-Character-Count: 2821
+Purpose: Document the reusable Python-first package apply/validate helper for RiftReader.
 
 ## Purpose
 

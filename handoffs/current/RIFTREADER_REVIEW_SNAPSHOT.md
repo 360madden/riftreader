@@ -1,9 +1,9 @@
 # RiftReader Review Snapshot
 
-Created UTC: 2026-05-18T06:50:00.705935Z
+Created UTC: 2026-05-18T07:16:47.951436Z
 Tool: riftreader-github-review-publish-v0.1.1
-Current branch: chatgpt/review-20260518-004517Z
-HEAD: 612af79032773afe67b174a693f1515d4a385054
+Current branch: chatgpt/review-20260518-065000Z
+HEAD: 341b4498fcc97ef3c9364e80218546a227a06afe
 
 ## Validation profiles
 - local-artifact-bridge: ok=True
@@ -12,9 +12,8 @@ HEAD: 612af79032773afe67b174a693f1515d4a385054
 - github-review-publish: ok=True
 
 ## Allowed dirty paths
-- `docs/workflow/github-review-publish.md`
-- `handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json`
-- `handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md`
+- `docs/workflow/chatgpt-development-standards.md`
+- `docs/workflow/package-flow.md`
 
 ## Ignored/generated dirty paths
 - `artifacts/chatgpt-payloads`
