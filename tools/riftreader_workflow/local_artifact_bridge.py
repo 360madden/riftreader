@@ -1,5 +1,5 @@
 # Version: riftreader-local-artifact-bridge-v0.3.1
-# Total-Character-Count: 115301
+# Total-Character-Count: 116611
 # Purpose: Tokenized local bridge for curated read-only RiftReader ChatGPT payloads plus a guarded local inbox for JSON proposals.
 from __future__ import annotations
 
@@ -937,6 +937,41 @@ def inbox_message_template() -> Dict[str, Any]:
     }
 
 
+def package_proposal_template() -> Dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "package-proposal",
+        "title": "Short operator-readable package title",
+        "body": "Optional summary of why these files should be reviewed as a package draft.",
+        "payload": {
+            "packageName": "Desktop ChatGPT proposed patch",
+            "files": [
+                {
+                    "target": "docs/example.md",
+                    "content": "# Example\n\nReplace this with the proposed UTF-8 text file content.\n",
+                    "encoding": "utf-8",
+                }
+            ],
+            "checks": [
+                {
+                    "name": "compile-bridge",
+                    "args": ["python", "-m", "py_compile", "tools/riftreader_workflow/local_artifact_bridge.py"],
+                    "expectedExitCodes": [0],
+                    "timeoutSeconds": 120,
+                }
+            ],
+        },
+        "source": {
+            "tool": "Desktop ChatGPT",
+            "context": "operator-approved package proposal for local draft export",
+        },
+        "metadata": {
+            "requiresHumanReview": True,
+            "draftOnly": True,
+        },
+    }
+
+
 def inbox_schema_payload(config: BridgeConfig) -> Dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -954,6 +989,7 @@ def inbox_schema_payload(config: BridgeConfig) -> Dict[str, Any]:
         "storageRoot": repo_display_path(config.inbox_root, config.repo_root),
         "applyExecuteInV0": False,
         "template": inbox_message_template(),
+        "packageProposalTemplate": package_proposal_template(),
         "validationRules": [
             "schemaVersion must be 1.",
             "kind must be one of acceptedKinds.",

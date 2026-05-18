@@ -1,5 +1,5 @@
 # Version: riftreader-local-artifact-bridge-tests-v0.1.0
-# Total-Character-Count: 45687
+# Total-Character-Count: 46064
 # Purpose: Unit tests for the RiftReader read-only local artifact bridge v0.1 endpoint, indexing, and blocking behavior.
 from __future__ import annotations
 
@@ -470,6 +470,9 @@ class BridgeServerCase(unittest.TestCase):
         self.assertIn("chatgpt-message", payload["acceptedKinds"])
         self.assertEqual(payload["template"]["schemaVersion"], 1)
         self.assertEqual(payload["template"]["kind"], "chatgpt-message")
+        self.assertEqual(payload["packageProposalTemplate"]["kind"], "package-proposal")
+        self.assertEqual(payload["packageProposalTemplate"]["payload"]["files"][0]["encoding"], "utf-8")
+        self.assertIn("checks", payload["packageProposalTemplate"]["payload"])
         self.assertFalse(payload["applyExecuteInV0"])
         self.assertTrue(payload["safety"]["noApplyExecute"])
 
@@ -485,6 +488,7 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["latestPayloadId"], "pointer-chain-pack-20260517-002")
         self.assertEqual(payload["urlPatterns"]["inboxSchema"], "/<token>/inbox/schema.json")
         self.assertEqual(payload["inboxSchema"]["template"]["kind"], "chatgpt-message")
+        self.assertEqual(payload["inboxSchema"]["packageProposalTemplate"]["kind"], "package-proposal")
         self.assertIn("RiftReader Local Artifact Bridge", payload["desktopChatgptPrompt"])
         self.assertTrue(payload["safety"]["noApplyExecute"])
 

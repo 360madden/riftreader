@@ -189,6 +189,18 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertTrue(payload["metadata"]["requiresHumanReview"])
         self.assertNotIn("sk-", template.lower())
 
+    def test_redacted_bridge_package_proposal_template_is_safe_json(self) -> None:
+        template = operator_lite.redacted_bridge_package_proposal_template()
+        payload = json.loads(template)
+
+        self.assertEqual(payload["schemaVersion"], 1)
+        self.assertEqual(payload["kind"], "package-proposal")
+        self.assertEqual(payload["payload"]["files"][0]["encoding"], "utf-8")
+        self.assertEqual(payload["payload"]["checks"][0]["expectedExitCodes"], [0])
+        self.assertTrue(payload["metadata"]["requiresHumanReview"])
+        self.assertTrue(payload["metadata"]["draftOnly"])
+        self.assertNotIn("sk-", template.lower())
+
     def test_redacted_bridge_chatgpt_prompt_points_to_safe_aliases(self) -> None:
         prompt = operator_lite.redacted_bridge_chatgpt_prompt(REPO_ROOT)
 
@@ -215,6 +227,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("Desktop ChatGPT handoff packet", summary["visualRules"])
         self.assertIn("Desktop ChatGPT session-start packet", summary["visualRules"])
         self.assertIn("guarded inbox JSON template copy", summary["visualRules"])
+        self.assertIn("guarded package proposal template copy", summary["visualRules"])
         self.assertIn("guarded package draft export button", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])

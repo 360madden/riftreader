@@ -123,11 +123,12 @@ Bridge Package Draft
 Open Bridge Docs
 Copy Bridge Start Command
 Copy Inbox JSON Template
+Copy Package Proposal Template
 Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
 
-Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. It copies only redacted placeholder instructions/prompts. Persistent serving and tunneling remain explicit operator actions.
+Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. It copies only redacted placeholder instructions/prompts/templates. Persistent serving and tunneling remain explicit operator actions.
 
 ## Real payload smoke checklist
 
@@ -265,7 +266,7 @@ the file is not oversized
 
 ### `/inbox/schema.json`
 
-Returns the Local Inbox v0 JSON schema, accepted `kind` values, validation rules, max request size, safety flags, and a ready-to-copy message template.
+Returns the Local Inbox v0 JSON schema, accepted `kind` values, validation rules, max request size, safety flags, a ready-to-copy message template, and a ready-to-copy `package-proposal` template.
 
 ### `POST /<token>/inbox/messages`
 
@@ -382,6 +383,8 @@ Accepted `package-proposal` payload shape:
   }
 }
 ```
+
+The same shape is exposed as `packageProposalTemplate` from `/inbox/schema.json` so Desktop ChatGPT can copy the correct structure before POSTing a proposal.
 
 Guardrails:
 

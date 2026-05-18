@@ -748,6 +748,45 @@ def redacted_bridge_inbox_template() -> str:
     )
 
 
+def redacted_bridge_package_proposal_template() -> str:
+    return json.dumps(
+        {
+            "schemaVersion": 1,
+            "kind": "package-proposal",
+            "title": "Short operator-readable package title",
+            "body": "Optional summary of why these files should be reviewed as a package draft.",
+            "payload": {
+                "packageName": "Desktop ChatGPT proposed patch",
+                "files": [
+                    {
+                        "target": "docs/example.md",
+                        "content": "# Example\n\nReplace this with the proposed UTF-8 text file content.\n",
+                        "encoding": "utf-8",
+                    }
+                ],
+                "checks": [
+                    {
+                        "name": "compile-bridge",
+                        "args": ["python", "-m", "py_compile", "tools/riftreader_workflow/local_artifact_bridge.py"],
+                        "expectedExitCodes": [0],
+                        "timeoutSeconds": 120,
+                    }
+                ],
+            },
+            "source": {
+                "tool": "Desktop ChatGPT",
+                "context": "operator-approved package proposal for local draft export",
+            },
+            "metadata": {
+                "requiresHumanReview": True,
+                "draftOnly": True,
+            },
+        },
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
     docs = bridge_docs_path(repo_root)
     return "\n".join(
@@ -793,6 +832,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "Desktop ChatGPT handoff packet",
             "Desktop ChatGPT session-start packet",
             "guarded inbox JSON template copy",
+            "guarded package proposal template copy",
             "guarded package draft export button",
             "manual bridge start command copy",
             "guarded inbox index button",
@@ -993,6 +1033,12 @@ def run_gui(repo_root: Path) -> int:
         root.clipboard_append(template)
         append("Copied guarded inbox JSON template to clipboard.")
 
+    def copy_bridge_package_proposal_template() -> None:
+        template = redacted_bridge_package_proposal_template()
+        root.clipboard_clear()
+        root.clipboard_append(template)
+        append("Copied guarded package-proposal JSON template to clipboard.")
+
     def copy_bridge_chatgpt_prompt() -> None:
         prompt = redacted_bridge_chatgpt_prompt(repo_root)
         root.clipboard_clear()
@@ -1025,8 +1071,11 @@ def run_gui(repo_root: Path) -> int:
     action_button(bridge_utility_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
     action_button(bridge_utility_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
 
+    bridge_template_row = button_row(bridge_frame)
+    action_button(bridge_template_row, "Copy Inbox JSON Template", copy_bridge_inbox_template, "neutral", width=26)
+    action_button(bridge_template_row, "Copy Package Proposal Template", copy_bridge_package_proposal_template, "neutral", width=32)
+
     bridge_copy_row = button_row(bridge_frame)
-    action_button(bridge_copy_row, "Copy Inbox JSON Template", copy_bridge_inbox_template, "neutral", width=26)
     action_button(bridge_copy_row, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
     action_button(bridge_copy_row, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
 
