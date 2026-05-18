@@ -140,6 +140,19 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             description="Check bridge payload readiness without starting a persistent server or tunnel.",
             expected_exit_codes=(0, 2),
         ),
+        "bridge-handoff": CommandSpec(
+            key="bridge-handoff",
+            label="Bridge ChatGPT Handoff",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--chatgpt-handoff",
+                "--payload-root",
+                "artifacts\\chatgpt-payloads",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Print the redacted Desktop ChatGPT handoff packet with read order, inbox schema, and safety rules.",
+        ),
         "bridge-index": CommandSpec(
             key="bridge-index",
             label="Bridge Payload Index",
@@ -370,10 +383,13 @@ def redacted_bridge_instructions(repo_root: Path) -> str:
             ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25 --max-inbox-mb 1",
             "",
             "Give ChatGPT only a tokenized health URL, redacted in logs like:",
+            "http://127.0.0.1:8765/<token>/chatgpt-handoff.json",
             "http://127.0.0.1:8765/<token>/health",
+            "https://example.trycloudflare.com/<token>/chatgpt-handoff.json",
             "https://example.trycloudflare.com/<token>/health",
             "",
             "Optional guarded inbox endpoint for operator-approved JSON proposals only:",
+            "GET https://example.trycloudflare.com/<token>/inbox/schema.json",
             "POST https://example.trycloudflare.com/<token>/inbox/messages",
             "",
             "Keep tunnel management manual:",
@@ -399,6 +415,30 @@ def redacted_bridge_start_command(repo_root: Path) -> str:
     )
 
 
+def redacted_bridge_inbox_template() -> str:
+    return json.dumps(
+        {
+            "schemaVersion": 1,
+            "kind": "chatgpt-message",
+            "title": "Short operator-readable title",
+            "body": "Write the instruction, note, or data summary here. This is stored as an inert proposal only.",
+            "payload": {
+                "optionalStructuredData": True,
+                "example": "Replace or remove this payload object when it is not needed.",
+            },
+            "source": {
+                "tool": "Desktop ChatGPT",
+                "context": "operator-approved local inbox proposal",
+            },
+            "metadata": {
+                "requiresHumanReview": True,
+            },
+        },
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
     docs = bridge_docs_path(repo_root)
     return "\n".join(
@@ -407,16 +447,18 @@ def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
             "",
             "The operator will provide a tokenized bridge URL. Treat these as placeholders until then:",
             "https://example.trycloudflare.com/<token>/",
+            "https://example.trycloudflare.com/<token>/chatgpt-handoff.json",
             "https://example.trycloudflare.com/<token>/health",
             "https://example.trycloudflare.com/<token>/payloads/latest/readme.md",
             "https://example.trycloudflare.com/<token>/payloads/latest/chunks.json",
             "https://example.trycloudflare.com/<token>/payloads/latest/chunks/<chunk_id>",
+            "https://example.trycloudflare.com/<token>/inbox/schema.json",
             "",
-            "Start with the landing page or health endpoint, then follow recommendedReadOrder.",
+            "Start with the handoff JSON, landing page, or health endpoint, then follow recommendedReadOrder.",
             "Only fetch listed endpoints and registered chunk IDs from chunks.json.",
             "Do not request arbitrary local filesystem paths or command endpoints.",
             "Use GET/HEAD only for artifact reads.",
-            "If I explicitly ask you to send repo instructions/data back, POST JSON only to /<token>/inbox/messages.",
+            "If I explicitly ask you to send repo instructions/data back, fetch /<token>/inbox/schema.json first, then POST JSON only to /<token>/inbox/messages.",
             "Inbox messages are proposals only: no apply, execute, stage, commit, push, live RIFT input, CE/x64dbg, or tunnel management from ChatGPT.",
             "",
             f"Repo docs: {docs}",
@@ -439,6 +481,8 @@ def gui_theme_summary() -> dict[str, Any]:
             "high contrast action buttons",
             "distinct bridge color",
             "bridge buttons split into action and copy rows",
+            "Desktop ChatGPT handoff packet",
+            "guarded inbox JSON template copy",
             "manual bridge start command copy",
             "guarded inbox index button",
             "redacted ChatGPT bridge prompt copy",
@@ -632,6 +676,12 @@ def run_gui(repo_root: Path) -> int:
         root.clipboard_append(command)
         append("Copied manual bridge start command to clipboard.")
 
+    def copy_bridge_inbox_template() -> None:
+        template = redacted_bridge_inbox_template()
+        root.clipboard_clear()
+        root.clipboard_append(template)
+        append("Copied guarded inbox JSON template to clipboard.")
+
     def copy_bridge_chatgpt_prompt() -> None:
         prompt = redacted_bridge_chatgpt_prompt(repo_root)
         root.clipboard_clear()
@@ -650,12 +700,16 @@ def run_gui(repo_root: Path) -> int:
     bridge_action_row = button_row(bridge_frame)
     action_button(bridge_action_row, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
     action_button(bridge_action_row, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
-    action_button(bridge_action_row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
-    action_button(bridge_action_row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
+    action_button(bridge_action_row, "Bridge Handoff Packet", lambda: run_spec("bridge-handoff"), "bridge", width=21)
+
+    bridge_index_row = button_row(bridge_frame)
+    action_button(bridge_index_row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
+    action_button(bridge_index_row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
+    action_button(bridge_index_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
+    action_button(bridge_index_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
 
     bridge_copy_row = button_row(bridge_frame)
-    action_button(bridge_copy_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
-    action_button(bridge_copy_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
+    action_button(bridge_copy_row, "Copy Inbox JSON Template", copy_bridge_inbox_template, "neutral", width=26)
     action_button(bridge_copy_row, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
     action_button(bridge_copy_row, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
 

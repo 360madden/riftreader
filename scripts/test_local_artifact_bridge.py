@@ -47,7 +47,7 @@ class BridgeServerCase(unittest.TestCase):
             payload_root=pathlib.Path("artifacts") / "chatgpt-payloads",
             token=self.token,
             port=0,
-            max_response_bytes=4096,
+            max_response_bytes=8192,
             log_requests=False,
         )
         self.server = bridge.create_http_server(self.config)
@@ -73,7 +73,7 @@ class BridgeServerCase(unittest.TestCase):
         bad_path = candidates / "raw.bin"
         bad_path.write_bytes(b"\x00\x01\x02")
         big_path = reports / "big.txt"
-        big_path.write_text("Z" * 8192, encoding="utf-8")
+        big_path.write_text("Z" * 16384, encoding="utf-8")
         mismatch_path = reports / "mismatch.txt"
         mismatch_path.write_text("actual text\n", encoding="utf-8")
         readme = payload_dir / "README.md"
@@ -153,10 +153,14 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["mode"], "read_only_artifacts_with_guarded_local_inbox")
         self.assertTrue(payload["ok"])
         self.assertIn("/<token>/", payload["endpoints"])
+        self.assertIn("/<token>/chatgpt-handoff.json", payload["endpoints"])
+        self.assertIn("/<token>/inbox/schema.json", payload["endpoints"])
         self.assertIn("/<token>/payloads/latest/readme.md", payload["endpoints"])
         self.assertIn("/<token>/payloads/latest/chunks.json", payload["endpoints"])
         self.assertIn("POST /<token>/inbox/messages", payload["inboxEndpoints"])
         self.assertEqual(payload["localInbox"]["endpoint"], "/<token>/inbox/messages")
+        self.assertEqual(payload["localInbox"]["schemaEndpoint"], "/<token>/inbox/schema.json")
+        self.assertEqual(payload["desktopChatgptHandoff"]["endpoint"], "/<token>/chatgpt-handoff.json")
         self.assertFalse(payload["localInbox"]["applyExecuteInV0"])
         self.assertIn("chatgpt-message", payload["localInbox"]["acceptedKinds"])
         self.assertEqual(payload["recommendedReadOrder"][0]["path"], "/<token>/health")
@@ -170,6 +174,8 @@ class BridgeServerCase(unittest.TestCase):
         self.assertIn("text/markdown", headers["content-type"])
         text = body.decode("utf-8")
         self.assertIn("RiftReader Local Artifact Bridge", text)
+        self.assertIn("./chatgpt-handoff.json", text)
+        self.assertIn("./inbox/schema.json", text)
         self.assertIn("./payloads/latest/readme.md", text)
         self.assertIn("./payloads/latest/chunks.json", text)
         self.assertIn("artifact reads are GET/HEAD only", text)
@@ -188,6 +194,7 @@ class BridgeServerCase(unittest.TestCase):
         payload = json.loads(body.decode("utf-8"))
         self.assertEqual(payload["code"], "ENDPOINT_NOT_FOUND")
         self.assertTrue(any("/<token>/health" in item for item in payload["next"]))
+        self.assertTrue(any("/<token>/chatgpt-handoff.json" in item for item in payload["next"]))
 
     def test_non_get_method_returns_405(self) -> None:
         status, _headers, body = self.request("POST", f"/{self.token}/health")
@@ -373,6 +380,35 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["code"], "INBOX_METHOD_NOT_ALLOWED")
         self.assertTrue(any("application/json" in item for item in payload["next"]))
 
+    def test_inbox_schema_endpoint_returns_template_and_safety(self) -> None:
+        status, headers, body = self.request("GET", f"/{self.token}/inbox/schema.json")
+
+        self.assertEqual(status, 200)
+        self.assertIn("application/json", headers["content-type"])
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload["kind"], "riftreader-local-artifact-bridge-inbox-schema")
+        self.assertEqual(payload["endpoint"], "/<token>/inbox/messages")
+        self.assertIn("chatgpt-message", payload["acceptedKinds"])
+        self.assertEqual(payload["template"]["schemaVersion"], 1)
+        self.assertEqual(payload["template"]["kind"], "chatgpt-message")
+        self.assertFalse(payload["applyExecuteInV0"])
+        self.assertTrue(payload["safety"]["noApplyExecute"])
+
+    def test_chatgpt_handoff_endpoint_returns_read_order_and_inbox_schema(self) -> None:
+        status, headers, body = self.request("GET", f"/{self.token}/chatgpt-handoff.json")
+
+        self.assertEqual(status, 200)
+        self.assertIn("application/json", headers["content-type"])
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload["kind"], "riftreader-desktop-chatgpt-handoff")
+        self.assertEqual(payload["status"], "ready")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["latestPayloadId"], "pointer-chain-pack-20260517-002")
+        self.assertEqual(payload["urlPatterns"]["inboxSchema"], "/<token>/inbox/schema.json")
+        self.assertEqual(payload["inboxSchema"]["template"]["kind"], "chatgpt-message")
+        self.assertIn("RiftReader Local Artifact Bridge", payload["desktopChatgptPrompt"])
+        self.assertTrue(payload["safety"]["noApplyExecute"])
+
     def test_payload_index_generation_finds_valid_payload(self) -> None:
         index = bridge.discover_payloads(self.config)
         self.assertEqual(index["payloadCount"], 2)
@@ -443,9 +479,12 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["payloadCount"], 2)
         self.assertEqual(payload["latestPayloadId"], "pointer-chain-pack-20260517-002")
         self.assertIn("<token>", payload["redactedUrls"]["health"])
+        self.assertIn("<token>", payload["redactedUrls"]["handoff"])
+        self.assertIn("<token>", payload["redactedUrls"]["inboxSchema"])
         self.assertNotIn(self.token, json.dumps(payload["redactedUrls"]))
         self.assertIn("--serve", payload["manualStartCommand"])
         self.assertIn("--token auto", payload["manualStartCommand"])
+        self.assertIn("--max-inbox-mb 1", payload["manualStartCommand"])
         self.assertTrue(payload["safety"]["noServerStarted"])
         self.assertTrue(payload["safety"]["tokenRedacted"])
 
@@ -573,6 +612,34 @@ class BridgeServerCase(unittest.TestCase):
         self.assertFalse(payload["items"][0]["applied"])
         self.assertFalse(payload["items"][0]["executed"])
         self.assertTrue(payload["safety"]["noApplyExecute"])
+
+    def test_chatgpt_handoff_cli_json_is_redacted_and_includes_template(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--chatgpt-handoff",
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-desktop-chatgpt-handoff")
+        self.assertEqual(payload["status"], "ready")
+        self.assertIn("<token>", json.dumps(payload["urlPatterns"]))
+        self.assertNotIn(self.token, json.dumps(payload["urlPatterns"]))
+        self.assertEqual(payload["inboxSchema"]["template"]["schemaVersion"], 1)
+        self.assertTrue(payload["safety"]["noCommandExecutionEndpoint"])
 
 
 if __name__ == "__main__":

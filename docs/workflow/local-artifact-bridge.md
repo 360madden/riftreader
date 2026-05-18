@@ -1,9 +1,9 @@
 <!--
-Version: riftreader-local-artifact-bridge-docs-v0.2.0
-Purpose: Operator documentation for the RiftReader local artifact bridge v0.2 and guarded Local Inbox v0.
+Version: riftreader-local-artifact-bridge-docs-v0.3.0
+Purpose: Operator documentation for the RiftReader local artifact bridge v0.3, Desktop ChatGPT handoff packet, and guarded Local Inbox v0.
 -->
 
-# RiftReader Local Artifact Bridge v0.2
+# RiftReader Local Artifact Bridge v0.3
 
 ## Purpose
 
@@ -82,7 +82,7 @@ Set-Location -LiteralPath "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\chatgpt-payloads --port 8765 --token auto --max-response-mb 25 --max-inbox-mb 1
 ```
 
-The server binds to `127.0.0.1`. v0.2 rejects other bind hosts. The startup output prints a tokenized local health URL and inbox URL. Treat the token as temporary operator-local access material.
+The server binds to `127.0.0.1`. v0.3 rejects other bind hosts. The startup output prints tokenized handoff, health, inbox schema, and inbox URLs. Treat the token as temporary operator-local access material.
 
 ## Optional tunnel with cloudflared
 
@@ -92,7 +92,7 @@ The bridge does not create or manage tunnels. If a tunnel is needed, start it ma
 cloudflared tunnel --url http://127.0.0.1:8765
 ```
 
-Then provide ChatGPT only the public HTTPS tunnel URL plus the tokenized `/health` or landing path. Do not provide arbitrary local paths. Stop the bridge and tunnel when finished.
+Then provide ChatGPT only the public HTTPS tunnel URL plus the tokenized `/chatgpt-handoff.json`, `/health`, or landing path. Do not provide arbitrary local paths. Stop the bridge and tunnel when finished.
 
 ## Operator Lite integration
 
@@ -101,10 +101,12 @@ Then provide ChatGPT only the public HTTPS tunnel URL plus the tokenized `/healt
 ```text
 Bridge Self-Test
 Bridge Preflight
+Bridge ChatGPT Handoff
 Bridge Payload Index
 Bridge Inbox Index
 Open Bridge Docs
 Copy Bridge Start Command
+Copy Inbox JSON Template
 Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
@@ -128,9 +130,9 @@ Use this checklist before giving Desktop ChatGPT a real bridge URL:
    - `safety.inboxJsonPostOnly` is `true`.
 4. Start `--serve` manually only after preflight passes.
 5. Open the tokenized landing page locally: `http://127.0.0.1:8765/<token>/`.
-6. Open `/<token>/health`, `/<token>/payloads/latest/readme.md`, and `/<token>/payloads/latest/chunks.json`.
+6. Open `/<token>/chatgpt-handoff.json`, `/<token>/health`, `/<token>/payloads/latest/readme.md`, and `/<token>/payloads/latest/chunks.json`.
 7. Fetch one registered chunk from `chunks.json`.
-8. If using Local Inbox v0, POST only a small JSON proposal to `/<token>/inbox/messages`.
+8. If using Local Inbox v0, fetch `/<token>/inbox/schema.json`, then POST only a small JSON proposal to `/<token>/inbox/messages`.
 9. Run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json` and confirm the item is listed.
 10. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
 
@@ -140,7 +142,9 @@ All endpoints require the token as the first path segment:
 
 ```text
 /<token>/
+/<token>/chatgpt-handoff.json
 /<token>/health
+/<token>/inbox/schema.json
 /<token>/status.json
 /<token>/payloads/index.json
 /<token>/payloads/latest/manifest.json
@@ -155,6 +159,10 @@ POST /<token>/inbox/messages
 ### `/<token>/`
 
 Returns a compact Markdown landing page with the safest starting links, recommended read order, endpoint list, Local Inbox v0 summary, and bridge safety reminder. This is the best single URL to paste into Desktop ChatGPT after the bridge/tunnel is already running.
+
+### `/chatgpt-handoff.json`
+
+Returns one Desktop ChatGPT handoff packet with redacted URL patterns, operator setup commands, recommended read order, inbox schema, prompt guidance, blockers, and safety rules. This is the easiest endpoint for ChatGPT to read first.
 
 ### `/health`
 
@@ -228,6 +236,10 @@ the registered path stays under the payload folder
 the file extension is allowed
 the file is not oversized
 ```
+
+### `/inbox/schema.json`
+
+Returns the Local Inbox v0 JSON schema, accepted `kind` values, validation rules, max request size, safety flags, and a ready-to-copy message template.
 
 ### `POST /<token>/inbox/messages`
 
@@ -341,7 +353,7 @@ Example chunk index:
 
 ## Security rules
 
-v0.2 enforces these rules:
+v0.3 enforces these rules:
 
 ```text
 bind host: 127.0.0.1 only
@@ -428,6 +440,7 @@ Give ChatGPT the tunnel URL and the tokenized landing page or health path, for e
 
 ```text
 https://example.trycloudflare.com/<token>/
+https://example.trycloudflare.com/<token>/chatgpt-handoff.json
 https://example.trycloudflare.com/<token>/health
 ```
 
@@ -435,6 +448,7 @@ Then ChatGPT should inspect, in order:
 
 ```text
 /<token>/
+/<token>/chatgpt-handoff.json
 /<token>/health
 /<token>/payloads/latest/readme.md
 /<token>/payloads/latest/chunks.json
@@ -453,16 +467,19 @@ Use this after the bridge and any manual tunnel are already running. Replace the
 Use the RiftReader Local Artifact Bridge as a read-only artifact source for this repo task.
 
 Start here:
-https://example.trycloudflare.com/<token>/
+https://example.trycloudflare.com/<token>/chatgpt-handoff.json
 
-Then follow the bridge health `recommendedReadOrder`.
+Then follow the handoff or bridge health `recommendedReadOrder`.
 
 Only fetch listed endpoints and registered chunk IDs from:
 https://example.trycloudflare.com/<token>/payloads/latest/chunks.json
 
 Do not request arbitrary local filesystem paths or command endpoints. Use GET/HEAD only for artifact reads.
 
-If I explicitly ask you to send repo instructions/data back, POST JSON only to:
+If I explicitly ask you to send repo instructions/data back, fetch this schema first:
+https://example.trycloudflare.com/<token>/inbox/schema.json
+
+Then POST JSON only to:
 https://example.trycloudflare.com/<token>/inbox/messages
 
 Inbox messages are proposals only: no apply, execute, stage, commit, push, live RIFT input, CE/x64dbg, or tunnel management from ChatGPT.
@@ -491,6 +508,7 @@ Run from the repo root:
 python -m py_compile tools\riftreader_workflow\local_artifact_bridge.py scripts\test_local_artifact_bridge.py
 python -m unittest scripts.test_local_artifact_bridge
 .\scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json
+.\scripts\riftreader-local-artifact-bridge.cmd --chatgpt-handoff --payload-root artifacts\chatgpt-payloads --json
 .\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json
 .\scripts\riftreader-local-artifact-bridge.cmd --self-test
 git --no-pager diff --check
@@ -502,6 +520,7 @@ Expected result:
 py_compile passes
 unit tests pass
 preflight returns passed when at least one valid payload exists, or blocked for an empty first-run payload root
+chatgpt-handoff returns a redacted Desktop ChatGPT starter packet
 inbox-index returns Local Inbox v0 metadata without applying anything
 self-test passes
 diff whitespace check passes

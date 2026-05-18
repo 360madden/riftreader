@@ -52,6 +52,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "package-selftest",
                 "bridge-selftest",
                 "bridge-preflight",
+                "bridge-handoff",
                 "bridge-index",
                 "bridge-inbox-index",
                 "git-status",
@@ -68,6 +69,8 @@ class OperatorLiteTests(unittest.TestCase):
         bridge_preflight = next(item for item in plan["commands"] if item["key"] == "bridge-preflight")
         self.assertIn("--preflight", bridge_preflight["args"])
         self.assertEqual(bridge_preflight["expectedExitCodes"], [0, 2])
+        bridge_handoff = next(item for item in plan["commands"] if item["key"] == "bridge-handoff")
+        self.assertIn("--chatgpt-handoff", bridge_handoff["args"])
         bridge_index = next(item for item in plan["commands"] if item["key"] == "bridge-index")
         self.assertIn("--index", bridge_index["args"])
         bridge_inbox_index = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-index")
@@ -135,7 +138,9 @@ class OperatorLiteTests(unittest.TestCase):
     def test_redacted_bridge_instructions_do_not_include_real_token(self) -> None:
         instructions = operator_lite.redacted_bridge_instructions(REPO_ROOT)
 
+        self.assertIn("<token>/chatgpt-handoff.json", instructions)
         self.assertIn("<token>/health", instructions)
+        self.assertIn("<token>/inbox/schema.json", instructions)
         self.assertIn("<token>/inbox/messages", instructions)
         self.assertIn("cloudflared tunnel --url http://127.0.0.1:8765", instructions)
         self.assertNotIn("token=", instructions.lower())
@@ -152,12 +157,23 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertNotIn("cloudflared", command.lower())
         self.assertNotIn("sk-", command.lower())
 
+    def test_redacted_bridge_inbox_template_is_safe_json(self) -> None:
+        template = operator_lite.redacted_bridge_inbox_template()
+        payload = json.loads(template)
+
+        self.assertEqual(payload["schemaVersion"], 1)
+        self.assertEqual(payload["kind"], "chatgpt-message")
+        self.assertTrue(payload["metadata"]["requiresHumanReview"])
+        self.assertNotIn("sk-", template.lower())
+
     def test_redacted_bridge_chatgpt_prompt_points_to_safe_aliases(self) -> None:
         prompt = operator_lite.redacted_bridge_chatgpt_prompt(REPO_ROOT)
 
         self.assertIn("<token>/", prompt)
+        self.assertIn("<token>/chatgpt-handoff.json", prompt)
         self.assertIn("<token>/payloads/latest/readme.md", prompt)
         self.assertIn("<token>/payloads/latest/chunks.json", prompt)
+        self.assertIn("/<token>/inbox/schema.json", prompt)
         self.assertIn("GET/HEAD only for artifact reads", prompt)
         self.assertIn("/<token>/inbox/messages", prompt)
         self.assertIn("Inbox messages are proposals only", prompt)
@@ -173,6 +189,8 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("bridge", summary["buttonVariants"])
         self.assertIn("warning", summary["buttonVariants"])
         self.assertIn("bridge buttons split into action and copy rows", summary["visualRules"])
+        self.assertIn("Desktop ChatGPT handoff packet", summary["visualRules"])
+        self.assertIn("guarded inbox JSON template copy", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])

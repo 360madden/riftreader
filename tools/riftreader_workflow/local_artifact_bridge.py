@@ -1,4 +1,4 @@
-# Version: riftreader-local-artifact-bridge-v0.2.0
+# Version: riftreader-local-artifact-bridge-v0.3.0
 # Total-Character-Count: 38519
 # Purpose: Tokenized local bridge for curated read-only RiftReader ChatGPT payloads plus a guarded local inbox for JSON proposals.
 from __future__ import annotations
@@ -24,7 +24,7 @@ import urllib.parse
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
-VERSION = "riftreader-local-artifact-bridge-v0.2.0"
+VERSION = "riftreader-local-artifact-bridge-v0.3.0"
 SCHEMA_VERSION = 1
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -53,7 +53,9 @@ BLOCKED_EXTENSIONS = {
 
 ENDPOINTS_V1 = [
     "/<token>/",
+    "/<token>/chatgpt-handoff.json",
     "/<token>/health",
+    "/<token>/inbox/schema.json",
     "/<token>/status.json",
     "/<token>/payloads/index.json",
     "/<token>/payloads/latest/manifest.json",
@@ -111,7 +113,7 @@ RECOMMENDED_READ_ORDER_V1 = [
 
 CHATGPT_INSTRUCTIONS_V1 = [
     "Use only the tokenized bridge URLs the operator provides.",
-    "Start with /<token>/health, then follow recommendedReadOrder.",
+    "Start with /<token>/chatgpt-handoff.json or /<token>/health, then follow recommendedReadOrder.",
     "Do not request arbitrary local filesystem paths; only listed endpoints and registered chunk IDs are served.",
     "Use GET/HEAD only for artifact reads.",
     "If the operator asks you to send data back, use only JSON POST to /<token>/inbox/messages; it stores a local inbox proposal only.",
@@ -130,6 +132,7 @@ ERROR_NEXT_HINTS_V1 = {
     "ENDPOINT_NOT_FOUND": [
         "Open /<token>/ to see the landing page.",
         "Open /<token>/health to see the supported endpoint list.",
+        "Open /<token>/chatgpt-handoff.json for the Desktop ChatGPT handoff packet.",
     ],
     "CHUNK_NOT_FOUND": [
         "Open /<token>/payloads/latest/chunks.json and use a listed chunkId.",
@@ -226,7 +229,7 @@ def resolve_under_repo(repo_root: pathlib.Path, supplied: pathlib.Path) -> pathl
         candidate = repo_root / candidate
     resolved = candidate.expanduser().resolve()
     if not is_relative_to(resolved, repo_root):
-        raise BridgeError(400, "PAYLOAD_ROOT_OUTSIDE_REPO", "Payload root must be inside the repo root for v0.2.")
+        raise BridgeError(400, "PAYLOAD_ROOT_OUTSIDE_REPO", "Payload root must be inside the repo root for v0.3.")
     return resolved
 
 
@@ -256,7 +259,7 @@ def make_config(
     token_value = generate_token() if token == "auto" else token
     validate_token(token_value)
     if bind_host != "127.0.0.1":
-        raise BridgeError(400, "UNSAFE_BIND_HOST", "v0.2 only permits binding to 127.0.0.1.")
+        raise BridgeError(400, "UNSAFE_BIND_HOST", "v0.3 only permits binding to 127.0.0.1.")
     if port < 0 or port > 65535:
         raise BridgeError(400, "INVALID_PORT", "Port must be in range 0-65535.")
     if max_response_bytes <= 0:
@@ -534,6 +537,119 @@ def inbox_index(config: BridgeConfig) -> Dict[str, Any]:
     }
 
 
+def inbox_message_template() -> Dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "chatgpt-message",
+        "title": "Short operator-readable title",
+        "body": "Write the instruction, note, or data summary here. This is stored as an inert proposal only.",
+        "payload": {
+            "optionalStructuredData": True,
+            "example": "Replace or remove this payload object when it is not needed.",
+        },
+        "source": {
+            "tool": "Desktop ChatGPT",
+            "context": "operator-approved local inbox proposal",
+        },
+        "metadata": {
+            "requiresHumanReview": True,
+        },
+    }
+
+
+def inbox_schema_payload(config: BridgeConfig) -> Dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-local-artifact-bridge-inbox-schema",
+        "generatedAtUtc": utc_now_iso(),
+        "endpoint": "/<token>/inbox/messages",
+        "method": "POST",
+        "contentType": "application/json",
+        "maxInboxBytes": config.max_inbox_bytes,
+        "acceptedKinds": sorted(ALLOWED_INBOX_KINDS),
+        "allowedFields": sorted(INBOX_ALLOWED_FIELDS),
+        "requiredFields": ["schemaVersion", "kind", "title"],
+        "requiresOneOf": ["body", "payload"],
+        "duplicateDetection": "sha256(canonical-json)",
+        "storageRoot": repo_display_path(config.inbox_root, config.repo_root),
+        "applyExecuteInV0": False,
+        "template": inbox_message_template(),
+        "validationRules": [
+            "schemaVersion must be 1.",
+            "kind must be one of acceptedKinds.",
+            "title must be a non-empty string up to 160 characters.",
+            "body is optional when payload is present, but must be a non-empty string when supplied.",
+            "payload, source, and metadata must be JSON objects when supplied.",
+            "unknown fields are rejected.",
+            "the JSON body must not exceed maxInboxBytes.",
+        ],
+        "safety": inbox_storage_safety(config),
+        "next": [
+            "Send only operator-approved JSON proposals to /<token>/inbox/messages.",
+            "Use --inbox-index --json locally to review stored proposals.",
+            "No inbox content is applied or executed by v0.",
+        ],
+    }
+
+
+def chatgpt_handoff_payload(config: BridgeConfig) -> Dict[str, Any]:
+    index = discover_payloads(config)
+    payload_count = int(index.get("payloadCount") or 0)
+    blockers = [] if payload_count > 0 else ["no_valid_payloads"]
+    status = "ready" if not blockers else "blocked"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-desktop-chatgpt-handoff",
+        "status": status,
+        "ok": status == "ready",
+        "generatedAtUtc": utc_now_iso(),
+        "tool": VERSION,
+        "mode": "read_only_artifacts_with_guarded_local_inbox",
+        "blockers": blockers,
+        "warnings": list(index.get("warnings", [])),
+        "latestPayloadId": index.get("latestPayloadId"),
+        "payloadCount": payload_count,
+        "operatorSetup": {
+            "manualPreflightCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\\chatgpt-payloads --json",
+            "manualStartCommand": (
+                ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve "
+                "--payload-root artifacts\\chatgpt-payloads --port 8765 --token auto "
+                "--max-response-mb 25 --max-inbox-mb 1"
+            ),
+            "optionalManualTunnelCommand": "cloudflared tunnel --url http://127.0.0.1:8765",
+            "inboxIndexCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-index --json",
+        },
+        "urlPatterns": {
+            "landing": "/<token>/",
+            "handoff": "/<token>/chatgpt-handoff.json",
+            "health": "/<token>/health",
+            "readme": "/<token>/payloads/latest/readme.md",
+            "chunks": "/<token>/payloads/latest/chunks.json",
+            "chunkPattern": "/<token>/payloads/latest/chunks/<chunk_id>",
+            "inboxSchema": "/<token>/inbox/schema.json",
+            "inboxMessages": "/<token>/inbox/messages",
+        },
+        "desktopChatgptPrompt": "\n".join(
+            [
+                "Use the RiftReader Local Artifact Bridge for this repo task.",
+                "Start at the tokenized /chatgpt-handoff.json URL or /health URL the operator provides.",
+                "Read artifacts with GET/HEAD only and follow recommendedReadOrder.",
+                "If the operator asks you to send instructions/data back, fetch /inbox/schema.json first, then POST only JSON to /inbox/messages.",
+                "Inbox messages are inert proposals only; do not ask for command execution, direct repo writes, live RIFT input, CE, x64dbg, staging, committing, pushing, or tunnel management.",
+            ]
+        ),
+        "recommendedReadOrder": recommended_read_order(),
+        "chatgptInstructions": chatgpt_instructions(),
+        "inboxSchema": inbox_schema_payload(config),
+        "safety": inbox_storage_safety(config),
+        "next": [
+            "If status is blocked, ask the operator to create or refresh a curated payload.",
+            "If status is ready, read latest readme and chunks before requesting individual chunks.",
+            "Use the Local Inbox only for operator-approved JSON proposals.",
+        ],
+    }
+
+
 def safe_read_json(path: pathlib.Path, max_bytes: int = 5 * 1024 * 1024) -> Dict[str, Any]:
     if not path.exists():
         raise BridgeError(404, "MISSING_JSON", f"Required JSON file is missing: {path.name}")
@@ -583,7 +699,7 @@ def validate_payload_relative_path(path_text: Any) -> pathlib.PurePosixPath:
     if any(part in ("", ".", "..") for part in pure.parts):
         raise BridgeError(400, "TRAVERSAL_CHUNK_PATH_REJECTED", "Chunk path traversal is rejected.")
     if not is_allowed_text_extension(raw):
-        raise BridgeError(415, "BLOCKED_EXTENSION", "Chunk extension is not allowed for v0.2.")
+        raise BridgeError(415, "BLOCKED_EXTENSION", "Chunk extension is not allowed for v0.3.")
     return pure
 
 
@@ -882,6 +998,7 @@ def landing_page_markdown(config: BridgeConfig) -> str:
             "",
             "## Start here",
             "",
+            "- `./chatgpt-handoff.json`",
             "- `./health`",
             "- `./payloads/latest/readme.md`",
             "- `./payloads/latest/chunks.json`",
@@ -903,6 +1020,7 @@ def landing_page_markdown(config: BridgeConfig) -> str:
             "",
             "The inbox is optional and guarded. It accepts JSON proposals only; it does not apply or execute them.",
             "",
+            "- `./inbox/schema.json`",
             inbox_endpoint_lines,
             "",
             "Stored under: `.riftreader-local/artifact-bridge-inbox/`",
@@ -936,12 +1054,17 @@ def health_payload(config: BridgeConfig) -> Dict[str, Any]:
         "localInbox": {
             "enabled": True,
             "endpoint": "/<token>/inbox/messages",
+            "schemaEndpoint": "/<token>/inbox/schema.json",
             "acceptedKinds": sorted(ALLOWED_INBOX_KINDS),
             "allowedFields": sorted(INBOX_ALLOWED_FIELDS),
             "storageRoot": repo_display_path(config.inbox_root, config.repo_root),
             "maxBytes": config.max_inbox_bytes,
             "duplicatesDetectedBy": "sha256(canonical-json)",
             "applyExecuteInV0": False,
+        },
+        "desktopChatgptHandoff": {
+            "endpoint": "/<token>/chatgpt-handoff.json",
+            "description": "One JSON packet with read order, redacted URL patterns, inbox schema, and safety rules.",
         },
         "recommendedReadOrder": recommended_read_order(),
         "chatgptInstructions": chatgpt_instructions(),
@@ -974,10 +1097,12 @@ def preflight_redacted_urls(config: BridgeConfig) -> Dict[str, str]:
     base = f"http://{config.bind_host}:{config.port}/<token>"
     return {
         "landing": f"{base}/",
+        "handoff": f"{base}/chatgpt-handoff.json",
         "health": f"{base}/health",
         "readme": f"{base}/payloads/latest/readme.md",
         "chunks": f"{base}/payloads/latest/chunks.json",
         "chunkPattern": f"{base}/payloads/latest/chunks/<chunk_id>",
+        "inboxSchema": f"{base}/inbox/schema.json",
         "inboxMessages": f"{base}/inbox/messages",
     }
 
@@ -1109,6 +1234,7 @@ def preflight_payload(config: BridgeConfig) -> Dict[str, Any]:
         "localInbox": {
             "enabled": True,
             "endpoint": "/<token>/inbox/messages",
+            "schemaEndpoint": "/<token>/inbox/schema.json",
             "acceptedKinds": sorted(ALLOWED_INBOX_KINDS),
             "storageRoot": repo_display_path(config.inbox_root, config.repo_root),
             "applyExecuteInV0": False,
@@ -1271,8 +1397,12 @@ def make_handler(config: BridgeConfig) -> type:
             endpoint_parts = self._tokenized_endpoint_parts()
             if endpoint_parts == [] or endpoint_parts == [""]:
                 return self._send_text(200, landing_page_markdown(self.config), "text/markdown; charset=utf-8", send_body)
+            if endpoint_parts == ["chatgpt-handoff.json"]:
+                return self._send_json(200, chatgpt_handoff_payload(self.config), send_body)
             if endpoint_parts == ["health"]:
                 return self._send_json(200, health_payload(self.config), send_body)
+            if endpoint_parts == ["inbox", "schema.json"]:
+                return self._send_json(200, inbox_schema_payload(self.config), send_body)
             if endpoint_parts == ["status.json"]:
                 return self._send_json(200, status_payload(self.config), send_body)
             if endpoint_parts == ["payloads", "index.json"]:
@@ -1320,6 +1450,12 @@ def make_handler(config: BridgeConfig) -> type:
             content_type = self.headers.get("Content-Type", "")
             media_type = content_type.split(";", 1)[0].strip().lower()
             if media_type != "application/json":
+                raw_length = self.headers.get("Content-Length")
+                if raw_length and raw_length.isdigit():
+                    length = int(raw_length)
+                    drain_limit = min(length, self.config.max_inbox_bytes + 1024 * 1024)
+                    if drain_limit > 0:
+                        self.rfile.read(drain_limit)
                 raise BridgeError(
                     415,
                     "INBOX_CONTENT_TYPE_UNSUPPORTED",
@@ -1335,6 +1471,12 @@ def make_handler(config: BridgeConfig) -> type:
             if length <= 0:
                 raise BridgeError(400, "INVALID_INBOX_JSON", "Inbox JSON body must not be empty.")
             if length > self.config.max_inbox_bytes:
+                # Drain small over-limit bodies so ordinary local HTTP clients receive
+                # the JSON 413 response instead of seeing a reset while still sending.
+                # Very large bodies are still fail-closed without reading them all.
+                drain_limit = min(length, self.config.max_inbox_bytes + 1024 * 1024)
+                if drain_limit > 0:
+                    self.rfile.read(drain_limit)
                 raise BridgeError(
                     413,
                     "INBOX_PAYLOAD_TOO_LARGE",
@@ -1498,7 +1640,7 @@ def build_fake_payload(repo_root: pathlib.Path, payload_root: pathlib.Path, payl
     binary_path.write_bytes(b"\x00\x01\x02")
     big_path = payload_dir / "reports" / "big.txt"
     big_path.parent.mkdir(parents=True, exist_ok=True)
-    big_path.write_text("X" * 5000, encoding="utf-8")
+    big_path.write_text("X" * 10000, encoding="utf-8")
     readme = payload_dir / "README.md"
     readme.write_text("# Fake Payload\n\nSelf-test payload.\n", encoding="utf-8")
     manifest = {
@@ -1548,7 +1690,7 @@ def run_self_test(json_mode: bool = False) -> int:
             payload_root=DEFAULT_PAYLOAD_ROOT,
             token="selftest-token",
             port=0,
-            max_response_bytes=4096,
+            max_response_bytes=8192,
             log_requests=False,
         )
         server = create_http_server(config)
@@ -1559,7 +1701,9 @@ def run_self_test(json_mode: bool = False) -> int:
         try:
             cases = [
                 ("landing", "GET", "/selftest-token/", 200),
+                ("chatgpt_handoff", "GET", "/selftest-token/chatgpt-handoff.json", 200),
                 ("health", "GET", "/selftest-token/health", 200),
+                ("inbox_schema", "GET", "/selftest-token/inbox/schema.json", 200),
                 ("invalid_token", "GET", "/wrong-token/health", 403),
                 ("unknown", "GET", "/selftest-token/not-here", 404),
                 ("method_block", "POST", "/selftest-token/health", 405),
@@ -1668,6 +1812,15 @@ def print_inbox_index(config: BridgeConfig, json_mode: bool) -> int:
     return 0
 
 
+def print_chatgpt_handoff(config: BridgeConfig, json_mode: bool) -> int:
+    payload = chatgpt_handoff_payload(config)
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
 def run_preflight(config: BridgeConfig, json_mode: bool) -> int:
     payload = preflight_payload(config)
     if json_mode:
@@ -1687,7 +1840,9 @@ def serve(config: BridgeConfig, json_mode: bool) -> int:
         "bindHost": host,
         "port": port,
         "baseUrl": f"http://{host}:{port}/<token>",
+        "handoffPath": f"/{config.token}/chatgpt-handoff.json",
         "healthPath": f"/{config.token}/health",
+        "inboxSchemaPath": f"/{config.token}/inbox/schema.json",
         "inboxPath": f"/{config.token}/inbox/messages",
         "payloadRoot": repo_display_path(config.payload_root, config.repo_root),
         "inboxRoot": repo_display_path(config.inbox_root, config.repo_root),
@@ -1698,10 +1853,12 @@ def serve(config: BridgeConfig, json_mode: bool) -> int:
     if json_mode:
         print(json.dumps(startup, indent=2, sort_keys=True), flush=True)
     else:
-        print("RiftReader Local Artifact Bridge v0.2", flush=True)
+        print("RiftReader Local Artifact Bridge v0.3", flush=True)
         print("Mode: read_only_artifacts_with_guarded_local_inbox", flush=True)
         print(f"Bind: http://{host}:{port}", flush=True)
+        print(f"Handoff: http://{host}:{port}/{config.token}/chatgpt-handoff.json", flush=True)
         print(f"Health: http://{host}:{port}/{config.token}/health", flush=True)
+        print(f"Inbox schema: http://{host}:{port}/{config.token}/inbox/schema.json", flush=True)
         print(f"Inbox: http://{host}:{port}/{config.token}/inbox/messages", flush=True)
         print(f"Payload root: {repo_display_path(config.payload_root, config.repo_root)}", flush=True)
         print(f"Inbox root: {repo_display_path(config.inbox_root, config.repo_root)}", flush=True)
@@ -1721,11 +1878,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     mode_group.add_argument("--serve", action="store_true", help="Start the tokenized HTTP server.")
     mode_group.add_argument("--index", action="store_true", help="Print payload index JSON.")
     mode_group.add_argument("--inbox-index", action="store_true", help="Print guarded Local Inbox v0 index JSON.")
+    mode_group.add_argument("--chatgpt-handoff", action="store_true", help="Print redacted Desktop ChatGPT handoff JSON.")
     mode_group.add_argument("--preflight", action="store_true", help="Check payload readiness without starting a server.")
     mode_group.add_argument("--self-test", action="store_true", help="Run local fake-payload self-test.")
     parser.add_argument("--payload-root", default=str(DEFAULT_PAYLOAD_ROOT), help="Repo-relative payload root.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Local bind port.")
-    parser.add_argument("--host", default=DEFAULT_BIND_HOST, help="Bind host. v0.2 permits 127.0.0.1 only.")
+    parser.add_argument("--host", default=DEFAULT_BIND_HOST, help="Bind host. v0.3 permits 127.0.0.1 only.")
     parser.add_argument("--token", default="auto", help="URL path token or 'auto'.")
     parser.add_argument("--max-response-mb", type=int, default=25, help="Maximum response size in MiB.")
     parser.add_argument("--max-inbox-mb", type=int, default=1, help="Maximum inbox POST body size in MiB.")
@@ -1753,6 +1911,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return print_index(config, json_mode=args.json)
         if args.inbox_index:
             return print_inbox_index(config, json_mode=args.json)
+        if args.chatgpt_handoff:
+            return print_chatgpt_handoff(config, json_mode=args.json)
         if args.preflight:
             return run_preflight(config, json_mode=args.json)
         if args.serve:
