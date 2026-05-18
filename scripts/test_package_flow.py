@@ -1,5 +1,5 @@
-# Version: riftreader-package-flow-tests-v0.1.2
-# Total-Character-Count: 6540
+# Version: riftreader-package-flow-tests-v0.1.3
+# Total-Character-Count: 7014
 # Purpose: Unit tests for the Python-owned RiftReader package flow helper.
 
 from __future__ import annotations
@@ -132,6 +132,16 @@ class PackageFlowTests(unittest.TestCase):
     def test_infer_github_review_publish_profile(self) -> None:
         profile = package_flow.resolve_profile("auto", None, {"package": "RiftReader_GitHubReviewPublish_v0.1.0"})
         self.assertEqual(profile, "github-review-publish")
+
+
+    def test_main_merge_profile_exists(self) -> None:
+        self.assertIn("main-merge", package_flow.PROFILE_COMMANDS)
+        expected = package_flow.profile_expected_files("main-merge")
+        self.assertIn("tools/riftreader_workflow/main_merge.py", expected)
+
+    def test_infer_main_merge_profile(self) -> None:
+        profile = package_flow.resolve_profile("auto", None, {"package": "RiftReader_MainMerge_v0.1.0"})
+        self.assertEqual(profile, "main-merge")
 
     def test_self_test_ok(self) -> None:
         report = package_flow.self_test(type("Args", (), {})())

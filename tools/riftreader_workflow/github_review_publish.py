@@ -1,5 +1,5 @@
-# Version: riftreader-github-review-publish-v0.1.1
-# Total-Character-Count: 24108
+# Version: riftreader-github-review-publish-v0.1.2
+# Total-Character-Count: 24265
 # Purpose: Python-owned safe review snapshot, explicit staging, review-branch commit, push, and remote-SHA verification for RiftReader ChatGPT workflows.
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import sys
 import tempfile
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-TOOL_VERSION = "riftreader-github-review-publish-v0.1.1"
+TOOL_VERSION = "riftreader-github-review-publish-v0.1.2"
 SNAPSHOT_MD = "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md"
 SNAPSHOT_JSON = "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json"
 DEFAULT_PROFILES = [
@@ -30,20 +30,24 @@ ALLOWED_STAGE_PATHS = frozenset({
     "docs/workflow/chatgpt-development-standards.md",
     "docs/workflow/github-review-publish.md",
     "docs/workflow/local-artifact-bridge.md",
+    "docs/workflow/main-merge.md",
     "docs/workflow/package-flow.md",
     "docs/workflow/transport-probe.md",
     "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json",
     "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md",
     "scripts/riftreader-github-review-publish.cmd",
     "scripts/riftreader-local-artifact-bridge.cmd",
+    "scripts/riftreader-main-merge.cmd",
     "scripts/riftreader-package-flow.cmd",
     "scripts/riftreader-transport-probe.cmd",
     "scripts/test_github_review_publish.py",
     "scripts/test_local_artifact_bridge.py",
+    "scripts/test_main_merge.py",
     "scripts/test_package_flow.py",
     "scripts/test_transport_probe.py",
     "tools/riftreader_workflow/github_review_publish.py",
     "tools/riftreader_workflow/local_artifact_bridge.py",
+    "tools/riftreader_workflow/main_merge.py",
     "tools/riftreader_workflow/package_flow.py",
     "tools/riftreader_workflow/transport_probe.py",
 })

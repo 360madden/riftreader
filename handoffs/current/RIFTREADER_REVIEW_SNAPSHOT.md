@@ -1,20 +1,27 @@
 # RiftReader Review Snapshot
 
-Created UTC: 2026-05-18T06:50:00.705935Z
-Tool: riftreader-github-review-publish-v0.1.1
-Current branch: chatgpt/review-20260518-004517Z
-HEAD: 612af79032773afe67b174a693f1515d4a385054
+Created UTC: 2026-05-18T07:47:54.130968Z
+Tool: riftreader-github-review-publish-v0.1.2
+Current branch: chatgpt/review-20260518-065000Z
+HEAD: 341b4498fcc97ef3c9364e80218546a227a06afe
 
 ## Validation profiles
 - local-artifact-bridge: ok=True
 - transport-probe: ok=True
 - package-flow: ok=True
 - github-review-publish: ok=True
+- main-merge: ok=True
 
 ## Allowed dirty paths
-- `docs/workflow/github-review-publish.md`
-- `handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json`
-- `handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md`
+- `docs/workflow/main-merge.md`
+- `docs/workflow/package-flow.md`
+- `scripts/riftreader-main-merge.cmd`
+- `scripts/test_github_review_publish.py`
+- `scripts/test_main_merge.py`
+- `scripts/test_package_flow.py`
+- `tools/riftreader_workflow/github_review_publish.py`
+- `tools/riftreader_workflow/main_merge.py`
+- `tools/riftreader_workflow/package_flow.py`
 
 ## Ignored/generated dirty paths
 - `artifacts/chatgpt-payloads`

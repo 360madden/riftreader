@@ -1,5 +1,5 @@
-# Version: riftreader-github-review-publish-tests-v0.1.1
-# Total-Character-Count: 5691
+# Version: riftreader-github-review-publish-tests-v0.1.2
+# Total-Character-Count: 6083
 # Purpose: Unit tests for the Python-owned RiftReader GitHub review publish helper.
 
 from __future__ import annotations
@@ -113,6 +113,13 @@ class GitHubReviewPublishTests(unittest.TestCase):
         parser = grp.build_parser()
         args = parser.parse_args(["publish-branch", "--yes-push", "--return-to-start-branch"])
         self.assertTrue(args.return_to_start_branch)
+
+
+    def test_main_merge_paths_are_allowlisted(self) -> None:
+        self.assertIn("tools/riftreader_workflow/main_merge.py", grp.ALLOWED_STAGE_PATHS)
+        self.assertIn("scripts/riftreader-main-merge.cmd", grp.ALLOWED_STAGE_PATHS)
+        self.assertIn("scripts/test_main_merge.py", grp.ALLOWED_STAGE_PATHS)
+        self.assertIn("docs/workflow/main-merge.md", grp.ALLOWED_STAGE_PATHS)
 
     def test_self_test_ok(self) -> None:
         report = grp.command_self_test(type("Args", (), {})())

@@ -1,8 +1,8 @@
 # RiftReader Package Flow
 
-Version: riftreader-package-flow-docs-v0.1.2  
-Total-Character-Count: 2827  
-Purpose: Document the reusable Python-first package apply/validate helper for RiftReader.  
+Version: riftreader-package-flow-docs-v0.1.3
+Total-Character-Count: 3010
+Purpose: Document the reusable Python-first package apply/validate helper for RiftReader.
 
 ## Purpose
 
@@ -47,6 +47,7 @@ local-artifact-bridge
 transport-probe
 package-flow
 github-review-publish
+main-merge
 ```
 
 ## Commands
@@ -107,3 +108,10 @@ When `--json` is used, stdout is intended to be machine-readable JSON only.
 Adds the `github-review-publish` profile so Package Flow can validate the Python-owned GitHub review publish helper and its documentation/tests.
 
 # END_OF_PACKAGE_FLOW_DOCS_V012
+
+
+## v0.1.3 addition
+
+Adds the `main-merge` profile so Package Flow can validate the Python-owned main merge helper and its documentation/tests.
+
+# END_OF_PACKAGE_FLOW_DOCS_V013

@@ -1,5 +1,5 @@
-# Version: riftreader-package-flow-v0.1.2
-# Total-Character-Count: 22460
+# Version: riftreader-package-flow-v0.1.3
+# Total-Character-Count: 23319
 # Purpose: Python-owned package intake orchestration for repeated RiftReader patch apply/validation flows; PowerShell/CMD wrappers stay thin.
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import zipfile
 
 
-TOOL_VERSION = "riftreader-package-flow-v0.1.2"
+TOOL_VERSION = "riftreader-package-flow-v0.1.3"
 MANIFEST_NAME = "riftreader-package-manifest.json"
 
 PROFILE_COMMANDS: Dict[str, Dict[str, Any]] = {
@@ -62,6 +62,21 @@ PROFILE_COMMANDS: Dict[str, Dict[str, Any]] = {
             ["git", "--no-pager", "diff", "--check"],
         ],
     },
+
+    "main-merge": {
+        "expected_files": [
+            "tools/riftreader_workflow/main_merge.py",
+            "scripts/riftreader-main-merge.cmd",
+            "scripts/test_main_merge.py",
+            "docs/workflow/main-merge.md",
+        ],
+        "commands": [
+            [sys.executable, "-m", "py_compile", "tools/riftreader_workflow/main_merge.py", "scripts/test_main_merge.py"],
+            [sys.executable, "-m", "unittest", "scripts.test_main_merge"],
+            [sys.executable, "tools/riftreader_workflow/main_merge.py", "--json", "self-test"],
+            ["git", "--no-pager", "diff", "--check"],
+        ],
+    },
     "github-review-publish": {
         "expected_files": [
             "tools/riftreader_workflow/github_review_publish.py",
@@ -86,6 +101,9 @@ PROFILE_ALIASES = {
     "transport": "transport-probe",
     "transport-probe": "transport-probe",
     "package-flow": "package-flow",
+    "main-merge": "main-merge",
+    "main_merge": "main-merge",
+    "merge": "main-merge",
     "github-review-publish": "github-review-publish",
     "review-publish": "github-review-publish",
     "github-publish": "github-review-publish",
@@ -191,6 +209,8 @@ def infer_profile(package_path: Optional[Path], manifest: Optional[Dict[str, Any
         return "local-artifact-bridge"
     if "githubreviewpublish" in probe or "github-review-publish" in probe or "review publish" in probe:
         return "github-review-publish"
+    if "mainmerge" in probe or "main-merge" in probe or "main merge" in probe:
+        return "main-merge"
     if "packageflow" in probe or "package-flow" in probe or "package flow" in probe:
         return "package-flow"
     raise PackageFlowError("could not infer profile; pass --profile explicitly")
@@ -465,13 +485,13 @@ def build_parser() -> argparse.ArgumentParser:
     apply_parser = sub.add_parser("apply-validate", help="Validate package, apply through repo intake, and run profile tests.")
     apply_parser.add_argument("--package", required=True, help="Path to package ZIP.")
     apply_parser.add_argument("--expected-sha256", default=None, help="Expected ZIP SHA-256.")
-    apply_parser.add_argument("--profile", default="auto", help="Profile: auto, local-artifact-bridge, transport-probe, package-flow, github-review-publish.")
+    apply_parser.add_argument("--profile", default="auto", help="Profile: auto, local-artifact-bridge, transport-probe, package-flow, main-merge, github-review-publish.")
     apply_parser.add_argument("--repo-root", default=None, help="Repo root. Defaults to current directory.")
     apply_parser.add_argument("--timeout-seconds", type=int, default=180, help="Timeout per native command.")
     apply_parser.add_argument("--inspect-only", action="store_true", help="Validate package and expected files only; do not apply or run commands.")
 
     current_parser = sub.add_parser("validate-current", help="Run expected-file and validation commands for an already-applied profile.")
-    current_parser.add_argument("--profile", required=True, help="Profile: local-artifact-bridge, transport-probe, package-flow, github-review-publish.")
+    current_parser.add_argument("--profile", required=True, help="Profile: local-artifact-bridge, transport-probe, package-flow, main-merge, github-review-publish.")
     current_parser.add_argument("--repo-root", default=None, help="Repo root. Defaults to current directory.")
     current_parser.add_argument("--timeout-seconds", type=int, default=180, help="Timeout per native command.")
 

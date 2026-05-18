@@ -3,20 +3,24 @@
     "docs/workflow/chatgpt-development-standards.md",
     "docs/workflow/github-review-publish.md",
     "docs/workflow/local-artifact-bridge.md",
+    "docs/workflow/main-merge.md",
     "docs/workflow/package-flow.md",
     "docs/workflow/transport-probe.md",
     "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json",
     "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md",
     "scripts/riftreader-github-review-publish.cmd",
     "scripts/riftreader-local-artifact-bridge.cmd",
+    "scripts/riftreader-main-merge.cmd",
     "scripts/riftreader-package-flow.cmd",
     "scripts/riftreader-transport-probe.cmd",
     "scripts/test_github_review_publish.py",
     "scripts/test_local_artifact_bridge.py",
+    "scripts/test_main_merge.py",
     "scripts/test_package_flow.py",
     "scripts/test_transport_probe.py",
     "tools/riftreader_workflow/github_review_publish.py",
     "tools/riftreader_workflow/local_artifact_bridge.py",
+    "tools/riftreader_workflow/main_merge.py",
     "tools/riftreader_workflow/package_flow.py",
     "tools/riftreader_workflow/transport_probe.py"
   ],
@@ -28,20 +32,26 @@
     "Interface/",
     "AddOns/"
   ],
-  "createdUtc": "2026-05-18T06:50:00.705935Z",
-  "currentBranch": "chatgpt/review-20260518-004517Z",
+  "createdUtc": "2026-05-18T07:47:54.130968Z",
+  "currentBranch": "chatgpt/review-20260518-065000Z",
   "dirtyPaths": {
     "allowed": [
-      "docs/workflow/github-review-publish.md",
-      "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json",
-      "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md"
+      "docs/workflow/main-merge.md",
+      "docs/workflow/package-flow.md",
+      "scripts/riftreader-main-merge.cmd",
+      "scripts/test_github_review_publish.py",
+      "scripts/test_main_merge.py",
+      "scripts/test_package_flow.py",
+      "tools/riftreader_workflow/github_review_publish.py",
+      "tools/riftreader_workflow/main_merge.py",
+      "tools/riftreader_workflow/package_flow.py"
     ],
     "ignored": [
       "artifacts/chatgpt-payloads"
     ],
     "unexpected": []
   },
-  "head": "612af79032773afe67b174a693f1515d4a385054",
+  "head": "341b4498fcc97ef3c9364e80218546a227a06afe",
   "ignoredDirtyPrefixes": [
     ".riftreader-local/",
     "artifacts/",
@@ -54,10 +64,11 @@
     "local-artifact-bridge",
     "transport-probe",
     "package-flow",
-    "github-review-publish"
+    "github-review-publish",
+    "main-merge"
   ],
   "schemaVersion": 1,
-  "tool": "riftreader-github-review-publish-v0.1.1",
+  "tool": "riftreader-github-review-publish-v0.1.2",
   "validationProfiles": [
     {
       "ok": true,
@@ -74,6 +85,10 @@
     {
       "ok": true,
       "profile": "github-review-publish"
+    },
+    {
+      "ok": true,
+      "profile": "main-merge"
     }
   ]
 }
