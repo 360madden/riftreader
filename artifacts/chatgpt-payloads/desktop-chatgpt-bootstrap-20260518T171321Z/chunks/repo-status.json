@@ -1,0 +1,45 @@
+{
+  "createdUtc": "2026-05-18T17:13:21Z",
+  "kind": "riftreader-desktop-chatgpt-bootstrap-status",
+  "payloadId": "desktop-chatgpt-bootstrap-20260518T171321Z",
+  "repo": {
+    "available": true,
+    "branch": "main",
+    "dirtyPaths": [],
+    "errors": [],
+    "head": "c062ade707b095af1476900e582853bae7b94545"
+  },
+  "safety": {
+    "noArbitraryFileReadEndpoint": true,
+    "noCheatEngine": true,
+    "noCommandExecutionEndpoint": true,
+    "noGitMutation": true,
+    "noLiveRiftInput": true,
+    "noRepoSourceMutation": true,
+    "noX64dbg": true
+  },
+  "schemaVersion": 1,
+  "skippedSources": [],
+  "sourceFiles": [
+    {
+      "chunkId": "repo-readme",
+      "path": "README.md"
+    },
+    {
+      "chunkId": "agent-policy",
+      "path": "AGENTS.md"
+    },
+    {
+      "chunkId": "desktop-chatgpt-workflow",
+      "path": "docs/workflow/non-codex-desktop-chatgpt-workflow.md"
+    },
+    {
+      "chunkId": "local-artifact-bridge-docs",
+      "path": "docs/workflow/local-artifact-bridge.md"
+    },
+    {
+      "chunkId": "operator-lite-docs",
+      "path": "docs/workflow/operator-lite.md"
+    }
+  ]
+}

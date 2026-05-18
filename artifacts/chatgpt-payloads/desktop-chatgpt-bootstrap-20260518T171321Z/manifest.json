@@ -1,0 +1,39 @@
+{
+  "copiedSources": [
+    {
+      "chunkId": "repo-readme",
+      "path": "README.md"
+    },
+    {
+      "chunkId": "agent-policy",
+      "path": "AGENTS.md"
+    },
+    {
+      "chunkId": "desktop-chatgpt-workflow",
+      "path": "docs/workflow/non-codex-desktop-chatgpt-workflow.md"
+    },
+    {
+      "chunkId": "local-artifact-bridge-docs",
+      "path": "docs/workflow/local-artifact-bridge.md"
+    },
+    {
+      "chunkId": "operator-lite-docs",
+      "path": "docs/workflow/operator-lite.md"
+    }
+  ],
+  "createdUtc": "2026-05-18T17:13:21Z",
+  "description": "Safe Desktop ChatGPT bootstrap payload generated from fixed repo-owned docs.",
+  "payloadId": "desktop-chatgpt-bootstrap-20260518T171321Z",
+  "safety": {
+    "noArbitraryFileReadEndpoint": true,
+    "noCheatEngine": true,
+    "noCommandExecutionEndpoint": true,
+    "noGitMutation": true,
+    "noLiveRiftInput": true,
+    "noRepoSourceMutation": true,
+    "noX64dbg": true
+  },
+  "schemaVersion": 1,
+  "skippedSources": [],
+  "source": "local_artifact_bridge --bootstrap-payload"
+}

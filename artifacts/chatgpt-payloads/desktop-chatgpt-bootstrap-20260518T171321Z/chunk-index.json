@@ -1,0 +1,59 @@
+{
+  "chunks": [
+    {
+      "chunkId": "repo-readme",
+      "description": "Repository README snapshot for Desktop ChatGPT orientation.",
+      "kind": "markdown",
+      "path": "chunks/repo-readme.md",
+      "sha256": "4ef986f645c6c90010da1086bf05edeecfbec42ddb2c0b1fb7ef0cd6a0525ebb",
+      "sizeBytes": 36924,
+      "sourcePath": "README.md"
+    },
+    {
+      "chunkId": "agent-policy",
+      "description": "RiftReader agent policy and safety boundaries.",
+      "kind": "markdown",
+      "path": "chunks/agent-policy.md",
+      "sha256": "633f01a40b5c795eefc643e4528ea6c0f9c21c9bcbf71f1adc06f4003d0977f0",
+      "sizeBytes": 31240,
+      "sourcePath": "agents.md"
+    },
+    {
+      "chunkId": "desktop-chatgpt-workflow",
+      "description": "Non-Codex/Desktop ChatGPT workflow policy.",
+      "kind": "markdown",
+      "path": "chunks/desktop-chatgpt-workflow.md",
+      "sha256": "bbeecefc8bf2abb39e940144b8461bed88ec97b352274b8116949ac2e2c1d65c",
+      "sizeBytes": 11655,
+      "sourcePath": "docs/workflow/non-codex-desktop-chatgpt-workflow.md"
+    },
+    {
+      "chunkId": "local-artifact-bridge-docs",
+      "description": "Local Artifact Bridge operator documentation.",
+      "kind": "markdown",
+      "path": "chunks/local-artifact-bridge-docs.md",
+      "sha256": "e69800aabf44dfd804594f431a4fc8da2e2800e3c8555593c270ecbdb7347293",
+      "sizeBytes": 16956,
+      "sourcePath": "docs/workflow/local-artifact-bridge.md"
+    },
+    {
+      "chunkId": "operator-lite-docs",
+      "description": "Operator Lite GUI documentation.",
+      "kind": "markdown",
+      "path": "chunks/operator-lite-docs.md",
+      "sha256": "e6434712619ba77aadaf0b837e0f8a13d44ded72eae958f96f46cf0ec4e24813",
+      "sizeBytes": 8623,
+      "sourcePath": "docs/workflow/operator-lite.md"
+    },
+    {
+      "chunkId": "repo-status",
+      "description": "Safe read-only Git status and bootstrap metadata.",
+      "kind": "json",
+      "path": "chunks/repo-status.json",
+      "sha256": "1794dc8f914077afd989fa616e836de3e0de1e2d251d666b0d473267e112af04",
+      "sizeBytes": 1153
+    }
+  ],
+  "payloadId": "desktop-chatgpt-bootstrap-20260518T171321Z",
+  "schemaVersion": 1
+}
