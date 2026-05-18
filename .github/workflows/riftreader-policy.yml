@@ -1,0 +1,25 @@
+name: RiftReader Policy
+
+on:
+  push:
+    branches:
+      - main
+      - "chatgpt/review-*"
+  pull_request:
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Python compile
+        run: python -m py_compile tools/riftreader_workflow/*.py scripts/test_*.py
+      - name: Unit tests
+        run: python -m unittest discover -s scripts -p "test_*.py"
+      - name: Policy lint changed scope
+        run: python tools/riftreader_workflow/policy_lint.py --json validate-repo --scope changed --no-write-summary
+      - name: Whitespace check
+        run: git diff --check

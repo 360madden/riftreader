@@ -1,0 +1,24 @@
+{
+  "artifacts": {},
+  "blockerCount": 0,
+  "blockers": [],
+  "checkedFiles": 30,
+  "command": "validate-repo",
+  "createdUtc": "2026-05-18T10:04:06.115805Z",
+  "ok": true,
+  "rules": {
+    "forbiddenPaths": "enforced",
+    "largeHelperTests": "enforced-for-cli-helpers",
+    "noGitAddDot": "enforced",
+    "pythonHelperEntrypoint": "enforced-for-cli-helpers",
+    "pythonHelperErrorHandling": "enforced-for-cli-helpers",
+    "thinCmdWrappers": "enforced",
+    "trailingWhitespace": "enforced"
+  },
+  "schemaVersion": 1,
+  "scope": "changed",
+  "status": "passed",
+  "tool": "riftreader-policy-lint-v0.1.2",
+  "warningCount": 0,
+  "warnings": []
+}
