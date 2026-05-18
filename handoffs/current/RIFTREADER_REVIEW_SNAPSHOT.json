@@ -1,0 +1,95 @@
+{
+  "allowedStagePaths": [
+    "docs/workflow/chatgpt-development-standards.md",
+    "docs/workflow/github-review-publish.md",
+    "docs/workflow/local-artifact-bridge.md",
+    "docs/workflow/package-flow.md",
+    "docs/workflow/transport-probe.md",
+    "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json",
+    "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md",
+    "scripts/riftreader-github-review-publish.cmd",
+    "scripts/riftreader-local-artifact-bridge.cmd",
+    "scripts/riftreader-package-flow.cmd",
+    "scripts/riftreader-transport-probe.cmd",
+    "scripts/test_github_review_publish.py",
+    "scripts/test_local_artifact_bridge.py",
+    "scripts/test_package_flow.py",
+    "scripts/test_transport_probe.py",
+    "tools/riftreader_workflow/github_review_publish.py",
+    "tools/riftreader_workflow/local_artifact_bridge.py",
+    "tools/riftreader_workflow/package_flow.py",
+    "tools/riftreader_workflow/transport_probe.py"
+  ],
+  "blockedStagePrefixes": [
+    ".riftreader-local/",
+    "artifacts/",
+    "scripts/captures/",
+    "scripts/sessions/",
+    "Interface/",
+    "AddOns/"
+  ],
+  "createdUtc": "2026-05-18T00:24:37.043200Z",
+  "currentBranch": "main",
+  "dirtyPaths": {
+    "allowed": [
+      "docs/workflow/chatgpt-development-standards.md",
+      "docs/workflow/github-review-publish.md",
+      "docs/workflow/local-artifact-bridge.md",
+      "docs/workflow/package-flow.md",
+      "docs/workflow/transport-probe.md",
+      "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json",
+      "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md",
+      "scripts/riftreader-github-review-publish.cmd",
+      "scripts/riftreader-local-artifact-bridge.cmd",
+      "scripts/riftreader-package-flow.cmd",
+      "scripts/riftreader-transport-probe.cmd",
+      "scripts/test_github_review_publish.py",
+      "scripts/test_local_artifact_bridge.py",
+      "scripts/test_package_flow.py",
+      "scripts/test_transport_probe.py",
+      "tools/riftreader_workflow/github_review_publish.py",
+      "tools/riftreader_workflow/local_artifact_bridge.py",
+      "tools/riftreader_workflow/package_flow.py",
+      "tools/riftreader_workflow/transport_probe.py"
+    ],
+    "ignored": [
+      "artifacts/chatgpt-payloads"
+    ],
+    "unexpected": []
+  },
+  "head": "e603683738effa122c746ed521ac121dd5bc2081",
+  "ignoredDirtyPrefixes": [
+    ".riftreader-local/",
+    "artifacts/",
+    "scripts/captures/",
+    "scripts/sessions/",
+    "Interface/",
+    "AddOns/"
+  ],
+  "profileSet": [
+    "local-artifact-bridge",
+    "transport-probe",
+    "package-flow",
+    "github-review-publish"
+  ],
+  "schemaVersion": 1,
+  "tool": "riftreader-github-review-publish-v0.1.0",
+  "validationProfiles": [
+    {
+      "ok": true,
+      "profile": "local-artifact-bridge"
+    },
+    {
+      "ok": true,
+      "profile": "transport-probe"
+    },
+    {
+      "ok": true,
+      "profile": "package-flow"
+    },
+    {
+      "ok": true,
+      "profile": "github-review-publish"
+    }
+  ]
+}
