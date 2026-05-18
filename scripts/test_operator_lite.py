@@ -53,6 +53,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "bridge-selftest",
                 "bridge-preflight",
                 "bridge-handoff",
+                "bridge-session-start",
                 "bridge-bootstrap-payload",
                 "bridge-index",
                 "bridge-inbox-index",
@@ -73,6 +74,9 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(bridge_preflight["expectedExitCodes"], [0, 2])
         bridge_handoff = next(item for item in plan["commands"] if item["key"] == "bridge-handoff")
         self.assertIn("--chatgpt-handoff", bridge_handoff["args"])
+        bridge_session_start = next(item for item in plan["commands"] if item["key"] == "bridge-session-start")
+        self.assertIn("--session-start", bridge_session_start["args"])
+        self.assertEqual(bridge_session_start["expectedExitCodes"], [0, 2])
         bridge_bootstrap = next(item for item in plan["commands"] if item["key"] == "bridge-bootstrap-payload")
         self.assertIn("--bootstrap-payload", bridge_bootstrap["args"])
         bridge_index = next(item for item in plan["commands"] if item["key"] == "bridge-index")
@@ -197,6 +201,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("warning", summary["buttonVariants"])
         self.assertIn("bridge buttons split into action and copy rows", summary["visualRules"])
         self.assertIn("Desktop ChatGPT handoff packet", summary["visualRules"])
+        self.assertIn("Desktop ChatGPT session-start packet", summary["visualRules"])
         self.assertIn("guarded inbox JSON template copy", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])

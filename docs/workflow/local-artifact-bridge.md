@@ -1,6 +1,6 @@
 <!--
-Version: riftreader-local-artifact-bridge-docs-v0.3.0
-Purpose: Operator documentation for the RiftReader local artifact bridge v0.3, Desktop ChatGPT handoff packet, and guarded Local Inbox v0.
+Version: riftreader-local-artifact-bridge-docs-v0.3.1
+Purpose: Operator documentation for the RiftReader local artifact bridge v0.3, Desktop ChatGPT session-start packet, Desktop ChatGPT handoff packet, and guarded Local Inbox v0.
 -->
 
 # RiftReader Local Artifact Bridge v0.3
@@ -75,6 +75,13 @@ Set-Location -LiteralPath "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json
 ```
 
+For one copy/review packet that combines preflight, latest payload, latest inbox, redacted URL patterns, manual start command, and Desktop ChatGPT prompt guidance:
+
+```powershell
+Set-Location -LiteralPath "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\chatgpt-payloads --json
+```
+
 Only start serving after preflight reports `status: "passed"`:
 
 ```powershell
@@ -101,6 +108,7 @@ Then provide ChatGPT only the public HTTPS tunnel URL plus the tokenized `/chatg
 ```text
 Bridge Self-Test
 Bridge Preflight
+Bridge Session Start
 Bridge ChatGPT Handoff
 Bridge Bootstrap Payload
 Bridge Payload Index
@@ -113,7 +121,7 @@ Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
 
-Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. It copies only redacted placeholder instructions/prompts. Persistent serving and tunneling remain explicit operator actions.
+Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. It copies only redacted placeholder instructions/prompts. Persistent serving and tunneling remain explicit operator actions.
 
 ## Real payload smoke checklist
 
@@ -132,13 +140,14 @@ Use this checklist before giving Desktop ChatGPT a real bridge URL:
    - `safety.tokenRedacted` is `true`;
    - `safety.artifactReadGetHeadOnly` is `true`;
    - `safety.inboxJsonPostOnly` is `true`.
-5. Start `--serve` manually only after preflight passes.
-6. Open the tokenized landing page locally: `http://127.0.0.1:8765/<token>/`.
-7. Open `/<token>/chatgpt-handoff.json`, `/<token>/health`, `/<token>/payloads/latest/readme.md`, and `/<token>/payloads/latest/chunks.json`.
-8. Fetch one registered chunk from `chunks.json`.
-9. If using Local Inbox v0, fetch `/<token>/inbox/schema.json`, then POST only a small JSON proposal to `/<token>/inbox/messages`.
-10. Run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json` and `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json` and confirm the item is listed/readable.
-11. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
+5. Run `.\scripts\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\chatgpt-payloads --json` for the combined redacted session-start packet.
+6. Start `--serve` manually only after preflight/session-start status is ready.
+7. Open the tokenized landing page locally: `http://127.0.0.1:8765/<token>/`.
+8. Open `/<token>/chatgpt-handoff.json`, `/<token>/health`, `/<token>/payloads/latest/readme.md`, and `/<token>/payloads/latest/chunks.json`.
+9. Fetch one registered chunk from `chunks.json`.
+10. If using Local Inbox v0, fetch `/<token>/inbox/schema.json`, then POST only a small JSON proposal to `/<token>/inbox/messages`.
+11. Run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json` and `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json` and confirm the item is listed/readable.
+12. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
 
 ## Endpoints
 
@@ -518,6 +527,7 @@ python -m py_compile tools\riftreader_workflow\local_artifact_bridge.py scripts\
 python -m unittest scripts.test_local_artifact_bridge
 .\scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json
 .\scripts\riftreader-local-artifact-bridge.cmd --bootstrap-payload --payload-root artifacts\chatgpt-payloads --json
+.\scripts\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\chatgpt-payloads --json
 .\scripts\riftreader-local-artifact-bridge.cmd --chatgpt-handoff --payload-root artifacts\chatgpt-payloads --json
 .\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json
 .\scripts\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json
@@ -532,6 +542,7 @@ py_compile passes
 unit tests pass
 preflight returns passed when at least one valid payload exists, or blocked for an empty first-run payload root
 bootstrap-payload creates a valid starter payload when no curated payload exists
+session-start returns a redacted Desktop ChatGPT setup packet and exits 2 when preflight is blocked
 chatgpt-handoff returns a redacted Desktop ChatGPT starter packet
 inbox-index returns Local Inbox v0 metadata without applying anything
 inbox-read-latest returns the newest inbox proposal or a safe `INBOX_EMPTY` blocker

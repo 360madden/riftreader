@@ -15,6 +15,7 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 - Package Intake self-test;
 - Local Artifact Bridge self-test;
 - Local Artifact Bridge preflight;
+- Local Artifact Bridge Desktop ChatGPT session-start packet;
 - Local Artifact Bridge Desktop ChatGPT handoff packet;
 - Local Artifact Bridge bootstrap payload;
 - Local Artifact Bridge payload index;
@@ -53,6 +54,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Package Intake Self-Test | Runs `scripts\riftreader-package-intake-selftest.cmd`. | Generates an ignored package and proves dry-run package intake without repo target writes. |
 | Bridge Self-Test | Runs `scripts\riftreader-local-artifact-bridge.cmd --self-test --json`. | Exercises bridge reads plus guarded inbox in a temp payload and ephemeral loopback server; no persistent server or tunnel. |
 | Bridge Preflight | Runs `scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json`. | Checks payload readiness, inbox safety flags, and redacted URL hints without starting a persistent server or tunnel; exit `2` means a safe blocker. |
+| Bridge Session Start | Runs `scripts\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\chatgpt-payloads --json`. | Prints one redacted Desktop ChatGPT setup packet with preflight, latest payload, latest inbox, manual commands, and next steps; no serving/tunnel. |
 | Bridge ChatGPT Handoff | Runs `scripts\riftreader-local-artifact-bridge.cmd --chatgpt-handoff --payload-root artifacts\chatgpt-payloads --json`. | Prints the redacted Desktop ChatGPT starter packet with read order, inbox schema, and safety rules. |
 | Bridge Bootstrap Payload | Runs `scripts\riftreader-local-artifact-bridge.cmd --bootstrap-payload --payload-root artifacts\chatgpt-payloads --json`. | Creates a curated starter payload from fixed repo-owned docs; no source edits or Git mutation. |
 | Bridge Payload Index | Runs `scripts\riftreader-local-artifact-bridge.cmd --index --payload-root artifacts\chatgpt-payloads --json`. | Reads the curated payload index only; no HTTP serving or tunnel management. |
@@ -77,7 +79,7 @@ Operator Lite v0 writes only through the underlying safe helpers:
 - `.riftreader-local\package-intake-selftest\...`
 - `.riftreader-local\artifact-bridge-inbox\...` when an external client uses the bridge inbox while the operator is manually serving it.
 
-The bridge self-test uses a temporary payload and ephemeral loopback server; it does not start the persistent `--serve` mode. The bridge preflight/index/handoff actions read only registered payload metadata from `artifacts\chatgpt-payloads` and generate redacted operator/ChatGPT guidance. The bridge bootstrap action creates a curated payload under `artifacts\chatgpt-payloads` from fixed repo-owned docs only. The bridge inbox index/latest actions read ignored Local Inbox v0 metadata/messages only.
+The bridge self-test uses a temporary payload and ephemeral loopback server; it does not start the persistent `--serve` mode. The bridge preflight/index/session-start/handoff actions read only registered payload metadata from `artifacts\chatgpt-payloads` and generate redacted operator/ChatGPT guidance. The bridge bootstrap action creates a curated payload under `artifacts\chatgpt-payloads` from fixed repo-owned docs only. The bridge inbox index/latest actions read ignored Local Inbox v0 metadata/messages only.
 
 Operator Lite does not stage, commit, push, reset, clean, send game input, run movement, attach CE/x64dbg, start bridge `--serve`, start `cloudflared`, apply inbox content, or write provider repos. Current stale proof remains historical-only until fresh current-PID recovery and same-target `ProofOnly` pass.
 
@@ -112,7 +114,7 @@ Operator Lite groups actions into high-contrast panels so buttons do not blend t
 |---|---|---|
 | Workflow Status & Triage | Blue primary buttons plus amber triage button. | Separates ordinary status refresh from blocker classification. |
 | Packages, Reports & Git | Green package buttons and neutral report/Git buttons. | Makes dry-run package actions distinct from read-only views. |
-| Local Artifact Bridge | Purple command/handoff/index/read rows, amber bootstrap button, neutral docs/copy/template row, and a blue status strip. | Prevents bridge button overflow while keeping checks, handoff, payload bootstrap, indexes, inbox review, docs, templates, and prompt-copy actions visually separate. |
+| Local Artifact Bridge | Purple command/session/handoff/index/read rows, amber bootstrap button, neutral docs/copy/template row, and a blue status strip. | Prevents bridge button overflow while keeping checks, session-start, handoff, payload bootstrap, indexes, inbox review, docs, templates, and prompt-copy actions visually separate. |
 | Locked Live Controls | Red locked badges instead of normal action buttons. | Shows unsafe live actions are intentionally unavailable. |
 
 The window also includes a persistent safe-mode status bar and a dark output log for better contrast while preserving the same no-input/no-debugger/no-Git-mutation safety model.

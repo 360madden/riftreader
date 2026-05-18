@@ -1,5 +1,5 @@
 # Version: riftreader-local-artifact-bridge-tests-v0.1.0
-# Total-Character-Count: 8828
+# Total-Character-Count: 36849
 # Purpose: Unit tests for the RiftReader read-only local artifact bridge v0.1 endpoint, indexing, and blocking behavior.
 from __future__ import annotations
 
@@ -719,6 +719,75 @@ class BridgeServerCase(unittest.TestCase):
         self.assertNotIn(self.token, json.dumps(payload["urlPatterns"]))
         self.assertEqual(payload["inboxSchema"]["template"]["schemaVersion"], 1)
         self.assertTrue(payload["safety"]["noCommandExecutionEndpoint"])
+
+    def test_session_start_cli_json_is_ready_redacted_and_summarizes_inbox(self) -> None:
+        message = {
+            "schemaVersion": 1,
+            "kind": "chatgpt-message",
+            "title": "Session proposal",
+            "body": "Stored for latest inbox summary.",
+        }
+        bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--session-start",
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-desktop-chatgpt-session-start")
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["payload"]["latest"]["payloadId"], "pointer-chain-pack-20260517-002")
+        self.assertEqual(payload["localInbox"]["count"], 1)
+        self.assertEqual(payload["localInbox"]["latest"]["title"], "Session proposal")
+        self.assertIn("--serve", payload["operatorCommands"]["manualStart"])
+        self.assertIn("--session-start", payload["operatorCommands"]["sessionStart"])
+        self.assertIn("<token>", json.dumps(payload["redactedUrls"]))
+        self.assertNotIn(self.token, json.dumps(payload["redactedUrls"]))
+        self.assertTrue(payload["safety"]["noServerStarted"])
+        self.assertTrue(payload["safety"]["manualServeOnly"])
+        self.assertIn("/chatgpt-handoff.json", payload["copyableChatgptPrompt"])
+
+    def test_session_start_cli_json_blocks_without_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = bridge.main(
+                    [
+                        "--repo-root",
+                        str(root),
+                        "--payload-root",
+                        "artifacts/chatgpt-payloads",
+                        "--token",
+                        "session-token",
+                        "--port",
+                        "0",
+                        "--session-start",
+                        "--json",
+                    ]
+                )
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("payload_root_missing", payload["blockers"])
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["safety"]["noServerStarted"])
 
     def test_bootstrap_payload_cli_creates_valid_payload_and_clears_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

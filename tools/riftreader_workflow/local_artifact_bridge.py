@@ -1,5 +1,5 @@
-# Version: riftreader-local-artifact-bridge-v0.3.0
-# Total-Character-Count: 38519
+# Version: riftreader-local-artifact-bridge-v0.3.1
+# Total-Character-Count: 103800
 # Purpose: Tokenized local bridge for curated read-only RiftReader ChatGPT payloads plus a guarded local inbox for JSON proposals.
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import urllib.parse
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
-VERSION = "riftreader-local-artifact-bridge-v0.3.0"
+VERSION = "riftreader-local-artifact-bridge-v0.3.1"
 SCHEMA_VERSION = 1
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -725,6 +725,7 @@ def chatgpt_handoff_payload(config: BridgeConfig) -> Dict[str, Any]:
         "payloadCount": payload_count,
         "operatorSetup": {
             "manualPreflightCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\\chatgpt-payloads --json",
+            "sessionStartCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\\chatgpt-payloads --json",
             "bootstrapPayloadCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --bootstrap-payload --payload-root artifacts\\chatgpt-payloads --json",
             "manualStartCommand": (
                 ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve "
@@ -763,6 +764,130 @@ def chatgpt_handoff_payload(config: BridgeConfig) -> Dict[str, Any]:
             "If status is ready, read latest readme and chunks before requesting individual chunks.",
             "Use the Local Inbox only for operator-approved JSON proposals.",
         ],
+    }
+
+
+def latest_payload_brief(index: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    payloads = index.get("payloads", [])
+    if not isinstance(payloads, list) or not payloads:
+        return None
+    latest = payloads[-1]
+    if not isinstance(latest, dict):
+        return None
+    return {
+        "payloadId": latest.get("payloadId"),
+        "path": latest.get("path"),
+        "createdUtc": latest.get("createdUtc"),
+        "chunkCount": latest.get("chunkCount"),
+        "summaryCandidates": latest.get("summaryCandidates", []),
+        "sha256Mismatches": latest.get("sha256Mismatches", []),
+        "sizeMismatches": latest.get("sizeMismatches", []),
+    }
+
+
+def latest_inbox_brief(index: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    items = index.get("items", [])
+    if not isinstance(items, list) or not items:
+        return None
+    latest = items[-1]
+    if not isinstance(latest, dict):
+        return None
+    return {
+        "inboxId": latest.get("inboxId"),
+        "messageKind": latest.get("messageKind"),
+        "title": latest.get("title"),
+        "receivedAtUtc": latest.get("receivedAtUtc"),
+        "storedUnder": latest.get("storedUnder"),
+        "readCommand": f".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-read {latest.get('inboxId')} --json",
+    }
+
+
+def desktop_chatgpt_session_prompt() -> str:
+    return "\n".join(
+        [
+            "Use the RiftReader Local Artifact Bridge for this repo task.",
+            "I will provide the real tokenized /chatgpt-handoff.json URL after I start the bridge manually.",
+            "Start with /chatgpt-handoff.json or /health, follow recommendedReadOrder, and only fetch listed endpoints/registered chunks.",
+            "If I explicitly ask you to send data back, use /inbox/schema.json first and POST only JSON to /inbox/messages.",
+            "Treat inbox messages as inert proposals only: no apply, execute, stage, commit, push, live RIFT input, CE/x64dbg, or tunnel management.",
+        ]
+    )
+
+
+def session_start_payload(config: BridgeConfig) -> Dict[str, Any]:
+    preflight = preflight_payload(config)
+    payload_index = discover_payloads(config)
+    inbox = inbox_index(config)
+    latest_payload = latest_payload_brief(payload_index)
+    status = "ready" if preflight.get("status") == "passed" else "blocked"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-desktop-chatgpt-session-start",
+        "status": status,
+        "ok": status == "ready",
+        "generatedAtUtc": utc_now_iso(),
+        "tool": VERSION,
+        "mode": "manual_desktop_chatgpt_bridge_session_start",
+        "blockers": preflight.get("blockers", []),
+        "warnings": sorted(
+            set(
+                [
+                    *coerce_string_list(preflight.get("warnings")),
+                    *coerce_string_list(payload_index.get("warnings")),
+                    *coerce_string_list(inbox.get("warnings")),
+                ]
+            )
+        ),
+        "payload": {
+            "payloadRoot": preflight.get("payloadRoot"),
+            "payloadCount": payload_index.get("payloadCount", 0),
+            "latest": latest_payload,
+        },
+        "localInbox": {
+            "inboxRoot": inbox.get("inboxRoot"),
+            "count": inbox.get("count", 0),
+            "latest": latest_inbox_brief(inbox),
+            "indexCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-index --json",
+            "readLatestCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json",
+        },
+        "operatorCommands": {
+            "selfTest": ".\\scripts\\riftreader-local-artifact-bridge.cmd --self-test --json",
+            "preflight": ".\\scripts\\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\\chatgpt-payloads --json",
+            "sessionStart": ".\\scripts\\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\\chatgpt-payloads --json",
+            "bootstrapPayload": ".\\scripts\\riftreader-local-artifact-bridge.cmd --bootstrap-payload --payload-root artifacts\\chatgpt-payloads --json",
+            "manualStart": preflight.get("manualStartCommand"),
+            "optionalManualTunnel": "cloudflared tunnel --url http://127.0.0.1:8765",
+        },
+        "redactedUrls": preflight.get("redactedUrls", preflight_redacted_urls(config)),
+        "copyableChatgptPrompt": desktop_chatgpt_session_prompt(),
+        "operatorChecklist": [
+            "Confirm status is ready before starting the persistent bridge.",
+            "Start the manualStart command in a terminal only when you want Desktop ChatGPT access.",
+            "Copy the real tokenized /chatgpt-handoff.json URL from bridge startup output into Desktop ChatGPT.",
+            "Start any public tunnel manually only if needed, and preserve the tokenized path exactly.",
+            "Review Local Inbox proposals locally before any separate patch/package work.",
+        ],
+        "safety": {
+            **inbox_storage_safety(config),
+            "noServerStarted": True,
+            "noTunnelStarted": True,
+            "tokenRedacted": True,
+            "manualServeOnly": True,
+            "manualTunnelOnly": True,
+        },
+        "next": (
+            [
+                "Run the manualStart command only when ready to serve locally.",
+                "Give Desktop ChatGPT the real tokenized /chatgpt-handoff.json URL printed by the bridge.",
+                "Use Bridge Latest Inbox or --inbox-read-latest --json to review any returned proposals.",
+            ]
+            if status == "ready"
+            else [
+                "Run --bootstrap-payload to create a safe starter payload, or refresh artifacts\\chatgpt-payloads.",
+                "Run --preflight again until status is passed.",
+                "Do not start --serve while session-start status is blocked.",
+            ]
+        ),
     }
 
 
@@ -1248,6 +1373,12 @@ def error_next_hints(code: str) -> List[str]:
         "Open /<token>/health to see supported endpoints and recommendedReadOrder.",
     ]
     return list(ERROR_NEXT_HINTS_V1.get(code, fallback))
+
+
+def coerce_string_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None]
 
 
 def landing_page_markdown(config: BridgeConfig) -> str:
@@ -2120,6 +2251,15 @@ def print_chatgpt_handoff(config: BridgeConfig, json_mode: bool) -> int:
     return 0
 
 
+def print_session_start(config: BridgeConfig, json_mode: bool) -> int:
+    payload = session_start_payload(config)
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload.get("ok") else 2
+
+
 def run_preflight(config: BridgeConfig, json_mode: bool) -> int:
     payload = preflight_payload(config)
     if json_mode:
@@ -2180,6 +2320,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     mode_group.add_argument("--inbox-read", metavar="INBOX_ID", help="Print one guarded Local Inbox v0 message by inboxId.")
     mode_group.add_argument("--inbox-read-latest", action="store_true", help="Print the latest guarded Local Inbox v0 message.")
     mode_group.add_argument("--chatgpt-handoff", action="store_true", help="Print redacted Desktop ChatGPT handoff JSON.")
+    mode_group.add_argument("--session-start", action="store_true", help="Print one redacted Desktop ChatGPT session-start packet.")
     mode_group.add_argument("--bootstrap-payload", action="store_true", help="Create a safe starter payload from fixed repo-owned docs.")
     mode_group.add_argument("--preflight", action="store_true", help="Check payload readiness without starting a server.")
     mode_group.add_argument("--self-test", action="store_true", help="Run local fake-payload self-test.")
@@ -2220,6 +2361,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return print_inbox_read_latest(config, json_mode=args.json)
         if args.chatgpt_handoff:
             return print_chatgpt_handoff(config, json_mode=args.json)
+        if args.session_start:
+            return print_session_start(config, json_mode=args.json)
         if args.bootstrap_payload:
             payload = write_bootstrap_payload(config, payload_id=args.payload_id)
             print(json.dumps(payload, indent=2, sort_keys=True))

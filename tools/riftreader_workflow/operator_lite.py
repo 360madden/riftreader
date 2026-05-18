@@ -153,6 +153,20 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=60,
             description="Print the redacted Desktop ChatGPT handoff packet with read order, inbox schema, and safety rules.",
         ),
+        "bridge-session-start": CommandSpec(
+            key="bridge-session-start",
+            label="Bridge Session Start",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--session-start",
+                "--payload-root",
+                "artifacts\\chatgpt-payloads",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Print one redacted Desktop ChatGPT session-start packet with preflight, inbox, commands, and next steps.",
+            expected_exit_codes=(0, 2),
+        ),
         "bridge-bootstrap-payload": CommandSpec(
             key="bridge-bootstrap-payload",
             label="Bridge Bootstrap Payload",
@@ -429,7 +443,7 @@ def redacted_bridge_instructions(repo_root: Path) -> str:
 def redacted_bridge_start_command(repo_root: Path) -> str:
     return "\n".join(
         [
-            "RiftReader Local Artifact Bridge v0.2 — manual start command",
+            "RiftReader Local Artifact Bridge v0.3 — manual start command",
             "",
             f'cd "{repo_root}"',
             ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25 --max-inbox-mb 1",
@@ -507,6 +521,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "distinct bridge color",
             "bridge buttons split into action and copy rows",
             "Desktop ChatGPT handoff packet",
+            "Desktop ChatGPT session-start packet",
             "guarded inbox JSON template copy",
             "manual bridge start command copy",
             "guarded inbox index button",
@@ -630,7 +645,7 @@ def run_gui(repo_root: Path) -> int:
 
     workflow_frame = panel(root, "Workflow Status & Triage", "Primary read-only status commands. Exit code 2 still means a safe blocker.")
     package_frame = panel(root, "Packages, Reports & Git", "Dry-run package tools, local reports, and read-only Git status.")
-    bridge_frame = panel(root, "Local Artifact Bridge", "Bridge helpers are self-test/index/inbox/docs/copy only; persistent serve and tunnels stay manual.")
+    bridge_frame = panel(root, "Local Artifact Bridge", "Bridge helpers are self-test/session/index/inbox/docs/copy only; persistent serve and tunnels stay manual.")
     tk.Label(
         bridge_frame,
         textvariable=bridge_status_var,
@@ -725,6 +740,7 @@ def run_gui(repo_root: Path) -> int:
     bridge_action_row = button_row(bridge_frame)
     action_button(bridge_action_row, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
     action_button(bridge_action_row, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
+    action_button(bridge_action_row, "Bridge Session Start", lambda: run_spec("bridge-session-start"), "bridge", width=21)
     action_button(bridge_action_row, "Bridge Handoff Packet", lambda: run_spec("bridge-handoff"), "bridge", width=21)
     action_button(bridge_action_row, "Bootstrap Payload", lambda: run_spec("bridge-bootstrap-payload"), "warning", width=18)
 
@@ -776,7 +792,7 @@ def run_gui(repo_root: Path) -> int:
 
     append("RiftReader Operator Lite loaded.")
     append("Live input, movement, CE/x64dbg, stage/commit/push, target-control, visual gate, and ProofOnly are disabled in v0.")
-    append("Local Artifact Bridge controls are self-test/index/inbox/docs/copy only; Operator Lite does not start a persistent bridge or tunnel.")
+    append("Local Artifact Bridge controls are self-test/session/index/inbox/docs/copy only; Operator Lite does not start a persistent bridge or tunnel.")
     root.mainloop()
     return 0
 
