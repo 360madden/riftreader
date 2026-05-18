@@ -1,9 +1,9 @@
 # RiftReader Review Snapshot
 
-Created UTC: 2026-05-18T10:06:19.469922Z
+Created UTC: 2026-05-18T10:31:20.566690Z
 Tool: riftreader-github-review-publish-v0.1.3
 Current branch: main
-HEAD: 744e376ac2c726759283a5a311d0b51134470a3a
+HEAD: 3cbd6ad8fbeb6accb98f4fb47aa3a06fea580a74
 
 ## Validation profiles
 - local-artifact-bridge: ok=True
