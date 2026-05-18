@@ -153,6 +153,17 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=60,
             description="Read the curated bridge payload index without serving HTTP or managing tunnels.",
         ),
+        "bridge-inbox-index": CommandSpec(
+            key="bridge-inbox-index",
+            label="Bridge Inbox Index",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--inbox-index",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Read guarded Local Inbox v0 proposals stored under .riftreader-local without applying them.",
+        ),
         "git-status": CommandSpec(
             key="git-status",
             label="Git Status",
@@ -295,8 +306,13 @@ def bridge_payload_root(repo_root: Path) -> Path:
     return repo_root / "artifacts" / "chatgpt-payloads"
 
 
+def bridge_inbox_root(repo_root: Path) -> Path:
+    return repo_root / ".riftreader-local" / "artifact-bridge-inbox"
+
+
 def bridge_status_summary(repo_root: Path) -> dict[str, Any]:
     payload_root = bridge_payload_root(repo_root)
+    inbox_root = bridge_inbox_root(repo_root)
     payloads: list[Path] = []
     if payload_root.is_dir():
         payloads = sorted(
@@ -307,20 +323,27 @@ def bridge_status_summary(repo_root: Path) -> dict[str, Any]:
             ),
             key=lambda path: path.stat().st_mtime,
         )
+    inbox_items: list[Path] = []
+    if inbox_root.is_dir():
+        inbox_items = sorted(path for path in inbox_root.iterdir() if path.is_dir() and (path / "metadata.json").is_file())
     latest = payloads[-1].name if payloads else None
     return {
-        "mode": "read_only_manual_start",
+        "mode": "read_only_artifacts_guarded_inbox_manual_start",
         "serveManagedByOperatorLite": False,
         "tunnelManagedByOperatorLite": False,
         "payloadRoot": str(payload_root),
         "payloadCount": len(payloads),
         "latestPayloadId": latest,
+        "inboxRoot": str(inbox_root),
+        "inboxCount": len(inbox_items),
         "docsPath": str(bridge_docs_path(repo_root)),
         "safety": {
-            "getHeadOnly": True,
-            "noHttpWrites": True,
+            "artifactReadGetHeadOnly": True,
+            "guardedInboxJsonPostOnly": True,
+            "inboxWritesLocalIgnoredOnly": True,
             "noCommandExecution": True,
             "noArbitraryFileRead": True,
+            "noApplyExecute": True,
             "noLiveRiftInput": True,
             "manualTunnelOnly": True,
         },
@@ -331,9 +354,9 @@ def bridge_status_text(repo_root: Path) -> str:
     summary = bridge_status_summary(repo_root)
     latest = summary["latestPayloadId"] or "none"
     return (
-        "Local Artifact Bridge: read-only, manual start/tunnel only; "
-        f"payloads={summary['payloadCount']}; latest={latest}; "
-        "no HTTP writes, commands, RIFT input, CE, or x64dbg."
+        "Local Artifact Bridge: read-only artifacts + guarded local inbox; "
+        f"payloads={summary['payloadCount']}; latest={latest}; inbox={summary['inboxCount']}; "
+        "no apply/execute, commands, RIFT input, CE, or x64dbg."
     )
 
 
@@ -341,19 +364,22 @@ def redacted_bridge_instructions(repo_root: Path) -> str:
     docs = bridge_docs_path(repo_root)
     return "\n".join(
         [
-            "RiftReader Local Artifact Bridge v0.1 — redacted operator instructions",
+            "RiftReader Local Artifact Bridge v0.2 — redacted operator instructions",
             "",
             f'cd "{repo_root}"',
-            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25",
+            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25 --max-inbox-mb 1",
             "",
             "Give ChatGPT only a tokenized health URL, redacted in logs like:",
             "http://127.0.0.1:8765/<token>/health",
             "https://example.trycloudflare.com/<token>/health",
             "",
+            "Optional guarded inbox endpoint for operator-approved JSON proposals only:",
+            "POST https://example.trycloudflare.com/<token>/inbox/messages",
+            "",
             "Keep tunnel management manual:",
             "cloudflared tunnel --url http://127.0.0.1:8765",
             "",
-            "Safety contract: GET/HEAD only; no POST/PUT/PATCH/DELETE; no command execution; no arbitrary file reads; no repo writes; no RIFT input; no CE/x64dbg.",
+            "Safety contract: artifact reads use GET/HEAD only; inbox accepts JSON POST only under .riftreader-local; no apply/execute; no command execution; no arbitrary file reads; no repo target writes; no RIFT input; no CE/x64dbg.",
             f"Docs: {docs}",
         ]
     )
@@ -362,10 +388,10 @@ def redacted_bridge_instructions(repo_root: Path) -> str:
 def redacted_bridge_start_command(repo_root: Path) -> str:
     return "\n".join(
         [
-            "RiftReader Local Artifact Bridge v0.1 — manual start command",
+            "RiftReader Local Artifact Bridge v0.2 — manual start command",
             "",
             f'cd "{repo_root}"',
-            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25",
+            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25 --max-inbox-mb 1",
             "",
             "This starts only the loopback bridge on 127.0.0.1 and prints the real token locally.",
             "Do not paste the real token into public logs. Start any tunnel manually only when needed.",
@@ -377,7 +403,7 @@ def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
     docs = bridge_docs_path(repo_root)
     return "\n".join(
         [
-            "Use the RiftReader Local Artifact Bridge as a read-only source for this repo task.",
+            "Use the RiftReader Local Artifact Bridge as a read-only artifact source for this repo task.",
             "",
             "The operator will provide a tokenized bridge URL. Treat these as placeholders until then:",
             "https://example.trycloudflare.com/<token>/",
@@ -389,7 +415,9 @@ def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
             "Start with the landing page or health endpoint, then follow recommendedReadOrder.",
             "Only fetch listed endpoints and registered chunk IDs from chunks.json.",
             "Do not request arbitrary local filesystem paths or command endpoints.",
-            "Assume GET/HEAD only; no repo writes, no live RIFT input, no CE/x64dbg, and no tunnel management from ChatGPT.",
+            "Use GET/HEAD only for artifact reads.",
+            "If I explicitly ask you to send repo instructions/data back, POST JSON only to /<token>/inbox/messages.",
+            "Inbox messages are proposals only: no apply, execute, stage, commit, push, live RIFT input, CE/x64dbg, or tunnel management from ChatGPT.",
             "",
             f"Repo docs: {docs}",
         ]
@@ -411,6 +439,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "high contrast action buttons",
             "distinct bridge color",
             "manual bridge start command copy",
+            "guarded inbox index button",
             "redacted ChatGPT bridge prompt copy",
             "muted locked-control badges",
             "persistent safe-mode status bar",
@@ -526,7 +555,7 @@ def run_gui(repo_root: Path) -> int:
 
     workflow_frame = panel(root, "Workflow Status & Triage", "Primary read-only status commands. Exit code 2 still means a safe blocker.")
     package_frame = panel(root, "Packages, Reports & Git", "Dry-run package tools, local reports, and read-only Git status.")
-    bridge_frame = panel(root, "Local Artifact Bridge", "Bridge helpers are self-test/index/docs/copy only; persistent serve and tunnels stay manual.")
+    bridge_frame = panel(root, "Local Artifact Bridge", "Bridge helpers are self-test/index/inbox/docs/copy only; persistent serve and tunnels stay manual.")
     tk.Label(
         bridge_frame,
         textvariable=bridge_status_var,
@@ -615,6 +644,7 @@ def run_gui(repo_root: Path) -> int:
     action_button(bridge_frame, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
     action_button(bridge_frame, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
     action_button(bridge_frame, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
+    action_button(bridge_frame, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
     action_button(bridge_frame, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
     action_button(bridge_frame, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
     action_button(bridge_frame, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
@@ -644,7 +674,7 @@ def run_gui(repo_root: Path) -> int:
 
     status_bar = tk.Label(
         root,
-        text="READY · Safe/offline mode · Read-only bridge helpers · No live input · No CE/x64dbg · No Git mutation",
+        text="READY · Safe/offline mode · Read-only artifacts + guarded inbox · No live input · No CE/x64dbg · No Git mutation",
         bg=palette["status_bg"],
         fg=palette["status_fg"],
         font=small_font,
@@ -656,7 +686,7 @@ def run_gui(repo_root: Path) -> int:
 
     append("RiftReader Operator Lite loaded.")
     append("Live input, movement, CE/x64dbg, stage/commit/push, target-control, visual gate, and ProofOnly are disabled in v0.")
-    append("Local Artifact Bridge controls are self-test/index/docs/copy only; Operator Lite does not start a persistent bridge or tunnel.")
+    append("Local Artifact Bridge controls are self-test/index/inbox/docs/copy only; Operator Lite does not start a persistent bridge or tunnel.")
     root.mainloop()
     return 0
 

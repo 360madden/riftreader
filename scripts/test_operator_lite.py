@@ -53,6 +53,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "bridge-selftest",
                 "bridge-preflight",
                 "bridge-index",
+                "bridge-inbox-index",
                 "git-status",
             },
         )
@@ -69,6 +70,8 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(bridge_preflight["expectedExitCodes"], [0, 2])
         bridge_index = next(item for item in plan["commands"] if item["key"] == "bridge-index")
         self.assertIn("--index", bridge_index["args"])
+        bridge_inbox_index = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-index")
+        self.assertIn("--inbox-index", bridge_inbox_index["args"])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
@@ -112,21 +115,28 @@ class OperatorLiteTests(unittest.TestCase):
             payload.mkdir(parents=True)
             (payload / "manifest.json").write_text("{}", encoding="utf-8")
             (payload / "chunk-index.json").write_text("{}", encoding="utf-8")
+            inbox = root / ".riftreader-local" / "artifact-bridge-inbox" / "20260518T120000Z-abcdef123456"
+            inbox.mkdir(parents=True)
+            (inbox / "metadata.json").write_text("{}", encoding="utf-8")
 
             summary = operator_lite.bridge_status_summary(root)
 
-        self.assertEqual(summary["mode"], "read_only_manual_start")
+        self.assertEqual(summary["mode"], "read_only_artifacts_guarded_inbox_manual_start")
         self.assertFalse(summary["serveManagedByOperatorLite"])
         self.assertFalse(summary["tunnelManagedByOperatorLite"])
         self.assertEqual(summary["payloadCount"], 1)
         self.assertEqual(summary["latestPayloadId"], "payload-one")
-        self.assertTrue(summary["safety"]["noHttpWrites"])
+        self.assertEqual(summary["inboxCount"], 1)
+        self.assertTrue(summary["safety"]["guardedInboxJsonPostOnly"])
+        self.assertTrue(summary["safety"]["inboxWritesLocalIgnoredOnly"])
+        self.assertTrue(summary["safety"]["noApplyExecute"])
         self.assertTrue(summary["safety"]["manualTunnelOnly"])
 
     def test_redacted_bridge_instructions_do_not_include_real_token(self) -> None:
         instructions = operator_lite.redacted_bridge_instructions(REPO_ROOT)
 
         self.assertIn("<token>/health", instructions)
+        self.assertIn("<token>/inbox/messages", instructions)
         self.assertIn("cloudflared tunnel --url http://127.0.0.1:8765", instructions)
         self.assertNotIn("token=", instructions.lower())
         self.assertNotIn("sk-", instructions.lower())
@@ -136,6 +146,7 @@ class OperatorLiteTests(unittest.TestCase):
 
         self.assertIn("--serve", command)
         self.assertIn("--token auto", command)
+        self.assertIn("--max-inbox-mb 1", command)
         self.assertIn("127.0.0.1", command)
         self.assertIn("Start any tunnel manually", command)
         self.assertNotIn("cloudflared", command.lower())
@@ -147,7 +158,9 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("<token>/", prompt)
         self.assertIn("<token>/payloads/latest/readme.md", prompt)
         self.assertIn("<token>/payloads/latest/chunks.json", prompt)
-        self.assertIn("GET/HEAD only", prompt)
+        self.assertIn("GET/HEAD only for artifact reads", prompt)
+        self.assertIn("/<token>/inbox/messages", prompt)
+        self.assertIn("Inbox messages are proposals only", prompt)
         self.assertIn("registered chunk IDs", prompt)
         self.assertNotIn("token=", prompt.lower())
         self.assertNotIn("sk-", prompt.lower())
@@ -160,6 +173,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("bridge", summary["buttonVariants"])
         self.assertIn("warning", summary["buttonVariants"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
+        self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])
         self.assertIn("muted locked-control badges", summary["visualRules"])
         self.assertTrue(summary["palette"]["primary"].startswith("#"))
