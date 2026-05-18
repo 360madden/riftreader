@@ -28,22 +28,20 @@
     "Interface/",
     "AddOns/"
   ],
-  "createdUtc": "2026-05-18T00:45:17.351477Z",
-  "currentBranch": "chatgpt/review-20260518-002437Z",
+  "createdUtc": "2026-05-18T06:50:00.705935Z",
+  "currentBranch": "chatgpt/review-20260518-004517Z",
   "dirtyPaths": {
     "allowed": [
       "docs/workflow/github-review-publish.md",
       "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.json",
-      "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md",
-      "scripts/test_github_review_publish.py",
-      "tools/riftreader_workflow/github_review_publish.py"
+      "handoffs/current/RIFTREADER_REVIEW_SNAPSHOT.md"
     ],
     "ignored": [
       "artifacts/chatgpt-payloads"
     ],
     "unexpected": []
   },
-  "head": "86e64190cdaab38e2f3211e4c5f3971740da141b",
+  "head": "612af79032773afe67b174a693f1515d4a385054",
   "ignoredDirtyPrefixes": [
     ".riftreader-local/",
     "artifacts/",

@@ -1,7 +1,7 @@
 # RiftReader GitHub Review Publish
 
-Version: riftreader-github-review-publish-docs-v0.1.2
-Total-Character-Count: 2685
+Version: riftreader-github-review-publish-docs-v0.1.3
+Total-Character-Count: 2864
 Purpose: Document the Python-owned GitHub review publish helper for moving validated RiftReader workflow state to GitHub for ChatGPT read-only review.
 
 ## Purpose
@@ -77,8 +77,7 @@ With `--json`, stdout is clean JSON intended for machine review.
 After a successful review branch publish, operators can ask the helper to switch the local checkout back to the branch that was active before publishing:
 
 ```powershell
-.\scripts
-iftreader-github-review-publish.cmd --json publish-branch --yes-push --return-to-start-branch
+.\scripts\riftreader-github-review-publish.cmd --json publish-branch --yes-push --return-to-start-branch
 ```
 
 This option is intentionally explicit. The default behavior remains conservative and leaves the checkout on the newly created review branch for direct inspection. When enabled, the JSON `publish` object reports:
@@ -92,3 +91,9 @@ finalBranch
 If publishing fails after the helper has switched to the review branch, it attempts to return to the starting branch before surfacing the failure.
 
 # END_OF_GITHUB_REVIEW_PUBLISH_DOCS_V011
+
+## v0.1.3 documentation correction
+
+Corrects the return-to-start branch command example so the wrapper path is not split across lines.
+
+# END_OF_GITHUB_REVIEW_PUBLISH_DOCS_V013
