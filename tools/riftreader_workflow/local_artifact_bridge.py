@@ -1,5 +1,5 @@
 # Version: riftreader-local-artifact-bridge-v0.3.1
-# Total-Character-Count: 103800
+# Total-Character-Count: 115301
 # Purpose: Tokenized local bridge for curated read-only RiftReader ChatGPT payloads plus a guarded local inbox for JSON proposals.
 from __future__ import annotations
 
@@ -23,6 +23,12 @@ import traceback
 import urllib.parse
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+try:
+    from . import package_manifest
+except ImportError:  # pragma: no cover - supports direct script execution.
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+    from riftreader_workflow import package_manifest
+
 
 VERSION = "riftreader-local-artifact-bridge-v0.3.1"
 SCHEMA_VERSION = 1
@@ -30,9 +36,11 @@ DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 DEFAULT_PAYLOAD_ROOT = pathlib.Path("artifacts") / "chatgpt-payloads"
 DEFAULT_INBOX_ROOT = pathlib.Path(".riftreader-local") / "artifact-bridge-inbox"
+DEFAULT_PACKAGE_DRAFT_ROOT = pathlib.Path(".riftreader-local") / "artifact-bridge-package-drafts"
 DEFAULT_MAX_RESPONSE_BYTES = 25 * 1024 * 1024
 DEFAULT_MAX_INBOX_BYTES = 1 * 1024 * 1024
 DEFAULT_SHA_CHECK_LIMIT_BYTES = 1 * 1024 * 1024
+MAX_PACKAGE_DRAFT_FILES = 20
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9._~-]{8,256}$")
 CHUNK_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 INBOX_ID_PATTERN = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}(?:-[0-9]+)?$")
@@ -224,6 +232,30 @@ ERROR_NEXT_HINTS_V1 = {
     "INBOX_EMPTY": [
         "No inbox proposals are stored yet.",
         "POST an operator-approved JSON proposal to /<token>/inbox/messages first.",
+    ],
+    "INBOX_PACKAGE_DRAFT_MESSAGE_INVALID": [
+        "Run --inbox-read <inboxId> --json and inspect the stored message shape.",
+        "Only valid Local Inbox v0 messages can be converted into package drafts.",
+    ],
+    "INBOX_PACKAGE_DRAFT_KIND_INVALID": [
+        "Use a Local Inbox message with kind package-proposal.",
+        "Ordinary chatgpt-message inbox items are review notes only and cannot become package drafts.",
+    ],
+    "INBOX_PACKAGE_DRAFT_PAYLOAD_INVALID": [
+        "Use a package-proposal payload object with files and optional checks.",
+        "Run --inbox-read <inboxId> --json before retrying.",
+    ],
+    "INBOX_PACKAGE_DRAFT_FILES_INVALID": [
+        "Use 1-20 text files with target, content, and optional encoding utf-8.",
+        "Keep total package-proposal text within the configured inbox byte limit.",
+    ],
+    "INBOX_PACKAGE_DRAFT_CHECKS_INVALID": [
+        "Use checks as a list of package-intake check objects.",
+        "Omit checks entirely if no dry-run checks are needed yet.",
+    ],
+    "INBOX_PACKAGE_DRAFT_VALIDATION_FAILED": [
+        "Review the draft package summary.json and manifest validation errors.",
+        "No repo files were modified; fix the proposal and send a corrected inbox item.",
     ],
     "RESPONSE_TOO_LARGE": [
         "Open /<token>/payloads/latest/chunks.json and choose smaller registered chunks.",
@@ -649,6 +681,240 @@ def read_latest_inbox_item(config: BridgeConfig) -> Dict[str, Any]:
             "next": error_next_hints("INBOX_EMPTY"),
         }
     return read_inbox_item(config, inbox_id)
+
+
+def package_draft_root(config: BridgeConfig) -> pathlib.Path:
+    root = (config.repo_root / DEFAULT_PACKAGE_DRAFT_ROOT).resolve()
+    local_root = (config.repo_root / ".riftreader-local").resolve()
+    if not is_relative_to(root, local_root):
+        raise BridgeError(500, "PACKAGE_DRAFT_ROOT_INVALID", "Package draft root must stay under .riftreader-local.")
+    return root
+
+
+def package_draft_safety(config: BridgeConfig, draft_root: Optional[pathlib.Path] = None) -> Dict[str, Any]:
+    root = draft_root or package_draft_root(config)
+    return {
+        "draftRoot": repo_display_path(root, config.repo_root),
+        "draftUnderDotRiftReaderLocal": is_relative_to(root, (config.repo_root / ".riftreader-local").resolve()),
+        "noApplyExecute": True,
+        "noGitMutation": True,
+        "noRepoTargetWrites": True,
+        "noCommandExecutionEndpoint": True,
+        "noLiveRiftInput": True,
+        "noCheatEngine": True,
+        "noX64dbg": True,
+    }
+
+
+def package_draft_blocked_payload(
+    config: BridgeConfig,
+    code: str,
+    message: str,
+    inbox_id: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "ok": False,
+        "status": "blocked",
+        "code": code,
+        "kind": "riftreader-local-artifact-bridge-inbox-package-draft",
+        "generatedAtUtc": utc_now_iso(),
+        "message": message,
+        "inboxId": inbox_id,
+        "safety": package_draft_safety(config),
+        "next": error_next_hints(code),
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def package_draft_item_name(index: int) -> str:
+    return f"file-{index + 1:04d}.txt"
+
+
+def normalize_package_draft_files(config: BridgeConfig, files: Any) -> Tuple[List[Dict[str, str]], List[str]]:
+    blockers: List[str] = []
+    normalized: List[Dict[str, str]] = []
+    total_bytes = 0
+    if not isinstance(files, list) or not files:
+        return [], ["files-missing-or-empty"]
+    if len(files) > MAX_PACKAGE_DRAFT_FILES:
+        return [], [f"files-too-many:{len(files)}>{MAX_PACKAGE_DRAFT_FILES}"]
+    for index, item in enumerate(files):
+        if not isinstance(item, dict):
+            blockers.append(f"file-{index}-not-object")
+            continue
+        target = item.get("target")
+        content = item.get("content")
+        encoding = item.get("encoding", "utf-8")
+        if not isinstance(target, str) or not target.strip():
+            blockers.append(f"file-{index}-target-missing")
+            continue
+        if not isinstance(content, str):
+            blockers.append(f"file-{index}-content-not-string")
+            continue
+        if encoding != "utf-8":
+            blockers.append(f"file-{index}-encoding-unsupported:{encoding}")
+            continue
+        if "\x00" in content:
+            blockers.append(f"file-{index}-content-contains-nul")
+            continue
+        content_bytes = len(content.encode("utf-8"))
+        total_bytes += content_bytes
+        if total_bytes > config.max_inbox_bytes:
+            blockers.append(f"files-total-bytes-exceeds-limit:{total_bytes}>{config.max_inbox_bytes}")
+            continue
+        normalized.append(
+            {
+                "target": target.strip().replace("\\", "/"),
+                "content": content,
+                "source": package_draft_item_name(index),
+            }
+        )
+    if not normalized and not blockers:
+        blockers.append("files-missing-or-empty")
+    return normalized, blockers
+
+
+def unique_package_draft_dir(config: BridgeConfig, inbox_id: str) -> pathlib.Path:
+    root = package_draft_root(config)
+    base = (root / inbox_id).resolve()
+    if not is_relative_to(base, root):
+        raise BridgeError(400, "INBOX_ID_INVALID", "Package draft ID escaped draft root.")
+    candidate = base
+    counter = 2
+    while candidate.exists():
+        candidate = root / f"{inbox_id}-{counter}"
+        counter += 1
+    return candidate
+
+
+def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[str, Any]:
+    inbox_id = latest_inbox_id(config) if inbox_id_arg == "latest" else validate_inbox_id(inbox_id_arg)
+    if not inbox_id:
+        return package_draft_blocked_payload(
+            config,
+            "INBOX_EMPTY",
+            "No inbox proposals are stored yet.",
+            None,
+            {"inboxRoot": repo_display_path(config.inbox_root, config.repo_root)},
+        )
+
+    read_payload = read_inbox_item(config, inbox_id)
+    stored = read_payload.get("message")
+    proposal = stored.get("message") if isinstance(stored, dict) else None
+    if not isinstance(proposal, dict):
+        return package_draft_blocked_payload(
+            config,
+            "INBOX_PACKAGE_DRAFT_MESSAGE_INVALID",
+            "Inbox item does not contain a valid stored message object.",
+            inbox_id,
+        )
+    if proposal.get("kind") != "package-proposal":
+        return package_draft_blocked_payload(
+            config,
+            "INBOX_PACKAGE_DRAFT_KIND_INVALID",
+            "Inbox item kind must be package-proposal before a package draft can be created.",
+            inbox_id,
+            {"messageKind": proposal.get("kind")},
+        )
+
+    payload = proposal.get("payload")
+    if not isinstance(payload, dict):
+        return package_draft_blocked_payload(
+            config,
+            "INBOX_PACKAGE_DRAFT_PAYLOAD_INVALID",
+            "package-proposal payload must be a JSON object.",
+            inbox_id,
+        )
+    files, blockers = normalize_package_draft_files(config, payload.get("files"))
+    if blockers:
+        return package_draft_blocked_payload(
+            config,
+            "INBOX_PACKAGE_DRAFT_FILES_INVALID",
+            "package-proposal files failed draft validation.",
+            inbox_id,
+            {"blockers": blockers},
+        )
+
+    checks = payload.get("checks", [])
+    if checks is None:
+        checks = []
+    if not isinstance(checks, list):
+        return package_draft_blocked_payload(
+            config,
+            "INBOX_PACKAGE_DRAFT_CHECKS_INVALID",
+            "package-proposal checks must be a list when supplied.",
+            inbox_id,
+        )
+
+    package_name = payload.get("packageName") or proposal.get("title") or f"Local Inbox package proposal {inbox_id}"
+    if not isinstance(package_name, str) or not package_name.strip():
+        package_name = f"Local Inbox package proposal {inbox_id}"
+    package_name = package_name.strip()[:160]
+
+    draft_dir = unique_package_draft_dir(config, inbox_id)
+    package_root = draft_dir / "package"
+    files_dir = package_root / "files"
+    files_dir.mkdir(parents=True, exist_ok=False)
+
+    manifest_files: List[Dict[str, str]] = []
+    for item in files:
+        source_rel = pathlib.PurePosixPath("files") / item["source"]
+        source_path = package_root / pathlib.Path(*source_rel.parts)
+        source_path.write_text(item["content"], encoding="utf-8", newline="")
+        manifest_files.append(
+            {
+                "source": source_rel.as_posix(),
+                "target": item["target"],
+                "sha256": sha256_file(source_path),
+            }
+        )
+
+    manifest = {
+        "schemaVersion": SCHEMA_VERSION,
+        "packageName": package_name,
+        "source": "local-artifact-bridge-inbox-package-draft",
+        "inboxId": inbox_id,
+        "createdUtc": utc_now_iso(),
+        "files": manifest_files,
+        "checks": checks,
+    }
+    manifest_path = package_root / package_manifest.MANIFEST_NAME
+    write_json(manifest_path, manifest)
+    validation = package_manifest.validate_manifest(package_root, config.repo_root, manifest)
+    status = "created" if not validation.get("errors") else "blocked"
+    ok = status == "created"
+    summary = {
+        "schemaVersion": SCHEMA_VERSION,
+        "ok": ok,
+        "status": status,
+        "kind": "riftreader-local-artifact-bridge-inbox-package-draft",
+        "generatedAtUtc": utc_now_iso(),
+        "inboxId": inbox_id,
+        "messageTitle": proposal.get("title"),
+        "draftRoot": repo_display_path(draft_dir, config.repo_root),
+        "packageRoot": repo_display_path(package_root, config.repo_root),
+        "manifestPath": repo_display_path(manifest_path, config.repo_root),
+        "fileCount": len(manifest_files),
+        "validation": validation,
+        "safety": package_draft_safety(config, draft_dir),
+        "next": [
+            "Review the draft package manifest and files locally.",
+            "Run package intake dry-run separately before any explicit apply.",
+            "No repo target files were modified, executed, staged, committed, pushed, or sent to RIFT.",
+        ],
+    }
+    if not ok:
+        summary["code"] = "INBOX_PACKAGE_DRAFT_VALIDATION_FAILED"
+        summary["blockers"] = list(validation.get("errors", []))
+        summary["next"] = error_next_hints("INBOX_PACKAGE_DRAFT_VALIDATION_FAILED")
+    summary_path = draft_dir / "summary.json"
+    summary["summaryPath"] = repo_display_path(summary_path, config.repo_root)
+    write_json(summary_path, summary)
+    return summary
 
 
 def inbox_message_template() -> Dict[str, Any]:
@@ -2242,6 +2508,15 @@ def print_inbox_read_latest(config: BridgeConfig, json_mode: bool) -> int:
     return 0 if payload.get("ok") else 2
 
 
+def print_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str, json_mode: bool) -> int:
+    payload = create_inbox_package_draft(config, inbox_id_arg)
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload.get("ok") else 2
+
+
 def print_chatgpt_handoff(config: BridgeConfig, json_mode: bool) -> int:
     payload = chatgpt_handoff_payload(config)
     if json_mode:
@@ -2319,6 +2594,13 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     mode_group.add_argument("--inbox-index", action="store_true", help="Print guarded Local Inbox v0 index JSON.")
     mode_group.add_argument("--inbox-read", metavar="INBOX_ID", help="Print one guarded Local Inbox v0 message by inboxId.")
     mode_group.add_argument("--inbox-read-latest", action="store_true", help="Print the latest guarded Local Inbox v0 message.")
+    mode_group.add_argument(
+        "--inbox-package-draft",
+        nargs="?",
+        const="latest",
+        metavar="INBOX_ID",
+        help="Export a package-proposal inbox item into an inert local package draft.",
+    )
     mode_group.add_argument("--chatgpt-handoff", action="store_true", help="Print redacted Desktop ChatGPT handoff JSON.")
     mode_group.add_argument("--session-start", action="store_true", help="Print one redacted Desktop ChatGPT session-start packet.")
     mode_group.add_argument("--bootstrap-payload", action="store_true", help="Create a safe starter payload from fixed repo-owned docs.")
@@ -2359,6 +2641,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return print_inbox_read(config, args.inbox_read, json_mode=args.json)
         if args.inbox_read_latest:
             return print_inbox_read_latest(config, json_mode=args.json)
+        if args.inbox_package_draft is not None:
+            return print_inbox_package_draft(config, args.inbox_package_draft, json_mode=args.json)
         if args.chatgpt_handoff:
             return print_chatgpt_handoff(config, json_mode=args.json)
         if args.session_start:

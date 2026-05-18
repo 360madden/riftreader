@@ -25,6 +25,11 @@ ChatGPT JSON proposal
 -> tokenized Local Inbox v0 POST endpoint
 -> .riftreader-local\artifact-bridge-inbox
 -> operator reviews locally before any separate explicit action
+
+Operator-approved package-proposal inbox item
+-> --inbox-package-draft
+-> .riftreader-local\artifact-bridge-package-drafts
+-> package intake dry-run/review as a separate explicit step
 ```
 
 It is not a control channel for RIFT, Git, shell commands, memory tools, debugger tools, or repo mutation.
@@ -114,6 +119,7 @@ Bridge Bootstrap Payload
 Bridge Payload Index
 Bridge Inbox Index
 Bridge Latest Inbox
+Bridge Package Draft
 Open Bridge Docs
 Copy Bridge Start Command
 Copy Inbox JSON Template
@@ -121,7 +127,7 @@ Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
 
-Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. It copies only redacted placeholder instructions/prompts. Persistent serving and tunneling remain explicit operator actions.
+Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. It copies only redacted placeholder instructions/prompts. Persistent serving and tunneling remain explicit operator actions.
 
 ## Real payload smoke checklist
 
@@ -147,7 +153,9 @@ Use this checklist before giving Desktop ChatGPT a real bridge URL:
 9. Fetch one registered chunk from `chunks.json`.
 10. If using Local Inbox v0, fetch `/<token>/inbox/schema.json`, then POST only a small JSON proposal to `/<token>/inbox/messages`.
 11. Run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json` and `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json` and confirm the item is listed/readable.
-12. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
+12. If the latest inbox item is an operator-approved `package-proposal`, run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-package-draft --json` to create an ignored local package draft.
+13. Review the package draft, then run package intake dry-run separately before any explicit apply.
+14. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
 
 ## Endpoints
 
@@ -321,6 +329,73 @@ content is stored only under .riftreader-local
 content is never applied or executed by the bridge
 ```
 
+### `--inbox-package-draft`
+
+`--inbox-package-draft` is a local CLI-only bridge helper. It has no HTTP endpoint.
+
+It converts a stored, operator-reviewed Local Inbox message with `kind: "package-proposal"` into an inert package draft under:
+
+```text
+.riftreader-local\artifact-bridge-package-drafts\<inbox-id>\
+  summary.json
+  package\
+    riftreader-package-manifest.json
+    files\file-0001.txt
+```
+
+Default usage converts the latest inbox item:
+
+```powershell
+.\scripts\riftreader-local-artifact-bridge.cmd --inbox-package-draft --json
+```
+
+To convert a specific item:
+
+```powershell
+.\scripts\riftreader-local-artifact-bridge.cmd --inbox-package-draft <inbox-id> --json
+```
+
+Accepted `package-proposal` payload shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "package-proposal",
+  "title": "Short patch title",
+  "payload": {
+    "packageName": "Desktop ChatGPT proposed patch",
+    "files": [
+      {
+        "target": "docs/example.md",
+        "content": "# Example\n",
+        "encoding": "utf-8"
+      }
+    ],
+    "checks": [
+      {
+        "name": "compile-bridge",
+        "args": ["python", "-m", "py_compile", "tools/riftreader_workflow/local_artifact_bridge.py"],
+        "expectedExitCodes": [0],
+        "timeoutSeconds": 120
+      }
+    ]
+  }
+}
+```
+
+Guardrails:
+
+```text
+requires kind package-proposal
+requires 1-20 text files
+requires UTF-8 string content
+uses the package intake manifest validator
+writes only under .riftreader-local\artifact-bridge-package-drafts
+does not apply, execute, stage, commit, push, or write repo target files
+```
+
+Unsafe targets such as `.git/config` are blocked by manifest validation. The command may still leave a blocked `summary.json` under `.riftreader-local` so the operator can inspect the exact validation errors without re-running blindly.
+
 ## Payload folder contract
 
 Default payload root:
@@ -381,6 +456,7 @@ GET and HEAD only for artifact read endpoints
 POST only for /<token>/inbox/messages
 inbox JSON only, default 1 MiB max
 inbox writes only under .riftreader-local\artifact-bridge-inbox
+package drafts write only under .riftreader-local\artifact-bridge-package-drafts
 no apply or execute behavior in Local Inbox v0
 no arbitrary path reads
 no command-execution endpoint
@@ -514,7 +590,7 @@ If ChatGPT cannot reach the tunnel:
    ```
 
 2. Paste only the resulting JSON or a reduced summary into chat.
-3. If ChatGPT needs to send data back, ask it for Local Inbox v0 JSON and POST it locally or paste it into a package proposal.
+3. If ChatGPT needs to send data back, ask it for Local Inbox v0 JSON and POST it locally or paste it into a `package-proposal`.
 4. If needed, upload a package ZIP or curated payload ZIP.
 5. Keep raw memory dumps out of chat unless explicitly reduced into safe text chunks first.
 

@@ -1,5 +1,5 @@
 # Version: riftreader-local-artifact-bridge-tests-v0.1.0
-# Total-Character-Count: 36849
+# Total-Character-Count: 45687
 # Purpose: Unit tests for the RiftReader read-only local artifact bridge v0.1 endpoint, indexing, and blocking behavior.
 from __future__ import annotations
 
@@ -691,6 +691,221 @@ class BridgeServerCase(unittest.TestCase):
         self.assertFalse(payload["items"][0]["applied"])
         self.assertFalse(payload["items"][0]["executed"])
         self.assertTrue(payload["safety"]["noApplyExecute"])
+
+    def test_inbox_package_draft_cli_creates_valid_package_without_target_write(self) -> None:
+        target = self.repo_root / "docs" / "desktop-chatgpt-proposed.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("old content\n", encoding="utf-8")
+        message = {
+            "schemaVersion": 1,
+            "kind": "package-proposal",
+            "title": "Draft package proposal",
+            "payload": {
+                "packageName": "Desktop ChatGPT proposed patch",
+                "files": [
+                    {
+                        "target": "docs/desktop-chatgpt-proposed.md",
+                        "content": "# Proposed\n\nNew content from Desktop ChatGPT.\n",
+                        "encoding": "utf-8",
+                    }
+                ],
+                "checks": [
+                    {
+                        "name": "compile-bridge",
+                        "args": ["python", "-m", "py_compile", "tools/riftreader_workflow/local_artifact_bridge.py"],
+                        "expectedExitCodes": [0],
+                        "timeoutSeconds": 120,
+                    }
+                ],
+            },
+        }
+        stored = bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-package-draft",
+                    stored["inboxId"],
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+        manifest_path = self.repo_root / payload["manifestPath"]
+        summary_path = self.repo_root / payload["summaryPath"]
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "created")
+        self.assertEqual(payload["kind"], "riftreader-local-artifact-bridge-inbox-package-draft")
+        self.assertEqual(payload["inboxId"], stored["inboxId"])
+        self.assertEqual(payload["fileCount"], 1)
+        self.assertEqual(payload["validation"]["errors"], [])
+        self.assertEqual(manifest["files"][0]["target"], "docs/desktop-chatgpt-proposed.md")
+        self.assertTrue(manifest_path.is_file())
+        self.assertTrue(summary_path.is_file())
+        self.assertIn(".riftreader-local/artifact-bridge-package-drafts", payload["draftRoot"])
+        self.assertTrue(payload["safety"]["draftUnderDotRiftReaderLocal"])
+        self.assertTrue(payload["safety"]["noApplyExecute"])
+        self.assertTrue(payload["safety"]["noGitMutation"])
+        self.assertTrue(payload["safety"]["noRepoTargetWrites"])
+        self.assertEqual(target.read_text(encoding="utf-8"), "old content\n")
+
+    def test_inbox_package_draft_cli_without_id_uses_latest_inbox_item(self) -> None:
+        message = {
+            "schemaVersion": 1,
+            "kind": "package-proposal",
+            "title": "Latest package proposal",
+            "payload": {
+                "files": [
+                    {
+                        "target": "docs/latest-proposal.md",
+                        "content": "# Latest proposal\n",
+                    }
+                ]
+            },
+        }
+        stored = bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-package-draft",
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["status"], "created")
+        self.assertEqual(payload["inboxId"], stored["inboxId"])
+        self.assertEqual(payload["validation"]["errors"], [])
+        self.assertFalse((self.repo_root / "docs" / "latest-proposal.md").exists())
+
+    def test_inbox_package_draft_cli_blocks_empty_inbox(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-package-draft",
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["code"], "INBOX_EMPTY")
+        self.assertTrue(payload["safety"]["noApplyExecute"])
+
+    def test_inbox_package_draft_cli_rejects_non_package_proposal(self) -> None:
+        message = {
+            "schemaVersion": 1,
+            "kind": "chatgpt-message",
+            "title": "Review note",
+            "body": "This is not a package proposal.",
+        }
+        stored = bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-package-draft",
+                    stored["inboxId"],
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["code"], "INBOX_PACKAGE_DRAFT_KIND_INVALID")
+        self.assertEqual(payload["messageKind"], "chatgpt-message")
+        self.assertTrue(payload["safety"]["noRepoTargetWrites"])
+
+    def test_inbox_package_draft_cli_blocks_unsafe_target_with_local_summary(self) -> None:
+        message = {
+            "schemaVersion": 1,
+            "kind": "package-proposal",
+            "title": "Unsafe target proposal",
+            "payload": {
+                "files": [
+                    {
+                        "target": ".git/config",
+                        "content": "[core]\nunsafe = true\n",
+                    }
+                ]
+            },
+        }
+        stored = bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.main(
+                [
+                    "--repo-root",
+                    str(self.repo_root),
+                    "--payload-root",
+                    "artifacts/chatgpt-payloads",
+                    "--token",
+                    self.token,
+                    "--port",
+                    "0",
+                    "--inbox-package-draft",
+                    stored["inboxId"],
+                    "--json",
+                ]
+            )
+        payload = json.loads(stdout.getvalue())
+        summary_path = self.repo_root / payload["summaryPath"]
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["code"], "INBOX_PACKAGE_DRAFT_VALIDATION_FAILED")
+        self.assertTrue(any("target-denied-prefix:.git/config" in item for item in payload["blockers"]))
+        self.assertTrue(summary_path.is_file())
+        self.assertEqual(summary["code"], "INBOX_PACKAGE_DRAFT_VALIDATION_FAILED")
+        self.assertTrue(payload["safety"]["draftUnderDotRiftReaderLocal"])
+        self.assertFalse((self.repo_root / ".git" / "config").exists())
 
     def test_chatgpt_handoff_cli_json_is_redacted_and_includes_template(self) -> None:
         stdout = io.StringIO()

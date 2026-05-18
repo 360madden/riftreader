@@ -51,6 +51,9 @@ COMMAND_ALIASES = {
     "bridge-preflight-check": "bridge-preflight",
     "latest-inbox": "bridge-inbox-latest",
     "inbox-latest": "bridge-inbox-latest",
+    "package-draft": "bridge-inbox-package-draft",
+    "inbox-package-draft": "bridge-inbox-package-draft",
+    "draft-package": "bridge-inbox-package-draft",
 }
 GROUP_ALIASES = {
     "startup": "bridge-startup-checks",
@@ -240,6 +243,18 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             description="Read the latest guarded Local Inbox v0 proposal without applying it.",
             expected_exit_codes=(0, 2),
         ),
+        "bridge-inbox-package-draft": CommandSpec(
+            key="bridge-inbox-package-draft",
+            label="Bridge Package Draft",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--inbox-package-draft",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Export the latest package-proposal inbox item into an inert local package draft under .riftreader-local.",
+            expected_exit_codes=(0, 2),
+        ),
         "git-status": CommandSpec(
             key="git-status",
             label="Git Status",
@@ -331,6 +346,7 @@ def latest_report(repo_root: Path) -> Path | None:
         repo_root / ".riftreader-local" / "live-test-triage",
         repo_root / ".riftreader-local" / "package-intake",
         repo_root / ".riftreader-local" / "package-intake-selftest",
+        repo_root / ".riftreader-local" / "artifact-bridge-package-drafts",
     ]
     candidates: list[Path] = []
     for root in roots:
@@ -426,6 +442,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --run bridge-session-start --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run session-start --json",
             ".\\scripts\\riftreader-operator-lite.cmd --session-start --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --package-draft --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd /help",
         ],
@@ -609,6 +626,7 @@ def bridge_inbox_root(repo_root: Path) -> Path:
 def bridge_status_summary(repo_root: Path) -> dict[str, Any]:
     payload_root = bridge_payload_root(repo_root)
     inbox_root = bridge_inbox_root(repo_root)
+    package_draft_root = repo_root / ".riftreader-local" / "artifact-bridge-package-drafts"
     payloads: list[Path] = []
     if payload_root.is_dir():
         payloads = sorted(
@@ -622,6 +640,9 @@ def bridge_status_summary(repo_root: Path) -> dict[str, Any]:
     inbox_items: list[Path] = []
     if inbox_root.is_dir():
         inbox_items = sorted(path for path in inbox_root.iterdir() if path.is_dir() and (path / "metadata.json").is_file())
+    package_drafts: list[Path] = []
+    if package_draft_root.is_dir():
+        package_drafts = sorted(path for path in package_draft_root.iterdir() if path.is_dir() and (path / "summary.json").is_file())
     latest = payloads[-1].name if payloads else None
     return {
         "mode": "read_only_artifacts_guarded_inbox_manual_start",
@@ -632,14 +653,18 @@ def bridge_status_summary(repo_root: Path) -> dict[str, Any]:
         "latestPayloadId": latest,
         "inboxRoot": str(inbox_root),
         "inboxCount": len(inbox_items),
+        "packageDraftRoot": str(package_draft_root),
+        "packageDraftCount": len(package_drafts),
         "docsPath": str(bridge_docs_path(repo_root)),
         "safety": {
             "artifactReadGetHeadOnly": True,
             "guardedInboxJsonPostOnly": True,
             "inboxWritesLocalIgnoredOnly": True,
+            "packageDraftsLocalIgnoredOnly": True,
             "noCommandExecution": True,
             "noArbitraryFileRead": True,
             "noApplyExecute": True,
+            "noRepoTargetWrites": True,
             "noLiveRiftInput": True,
             "manualTunnelOnly": True,
         },
@@ -652,7 +677,8 @@ def bridge_status_text(repo_root: Path) -> str:
     return (
         "Local Artifact Bridge: read-only artifacts + guarded local inbox; "
         f"payloads={summary['payloadCount']}; latest={latest}; inbox={summary['inboxCount']}; "
-        "no apply/execute, commands, RIFT input, CE, or x64dbg."
+        f"packageDrafts={summary['packageDraftCount']}; "
+        "no apply/execute, commands, repo target writes, RIFT input, CE, or x64dbg."
     )
 
 
@@ -767,6 +793,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "Desktop ChatGPT handoff packet",
             "Desktop ChatGPT session-start packet",
             "guarded inbox JSON template copy",
+            "guarded package draft export button",
             "manual bridge start command copy",
             "guarded inbox index button",
             "redacted ChatGPT bridge prompt copy",
@@ -992,8 +1019,11 @@ def run_gui(repo_root: Path) -> int:
     action_button(bridge_index_row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
     action_button(bridge_index_row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
     action_button(bridge_index_row, "Bridge Latest Inbox", lambda: run_spec("bridge-inbox-latest"), "bridge", width=19)
-    action_button(bridge_index_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
-    action_button(bridge_index_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
+    action_button(bridge_index_row, "Bridge Package Draft", lambda: run_spec("bridge-inbox-package-draft"), "bridge", width=21)
+
+    bridge_utility_row = button_row(bridge_frame)
+    action_button(bridge_utility_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
+    action_button(bridge_utility_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
 
     bridge_copy_row = button_row(bridge_frame)
     action_button(bridge_copy_row, "Copy Inbox JSON Template", copy_bridge_inbox_template, "neutral", width=26)
@@ -1047,6 +1077,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples: riftreader-operator-lite.cmd --list-commands --json | "
             "riftreader-operator-lite.cmd --session-start --json | "
+            "riftreader-operator-lite.cmd --package-draft --json | "
             "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
             "riftreader-operator-lite.cmd /help"
         ),
@@ -1060,6 +1091,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session-start", action="store_true", help="Shortcut for --run bridge-session-start.")
     parser.add_argument("--bridge-preflight", action="store_true", help="Shortcut for --run bridge-preflight.")
     parser.add_argument("--latest-inbox", action="store_true", help="Shortcut for --run bridge-inbox-latest.")
+    parser.add_argument("--package-draft", action="store_true", help="Shortcut for --run bridge-inbox-package-draft.")
     parser.add_argument("--bridge-startup-checks", action="store_true", help="Shortcut for --run-all bridge-startup-checks.")
     parser.add_argument("--json", action="store_true", help="Emit JSON for self-test, command-plan, list-commands, run, or run-all.")
     return parser
@@ -1077,7 +1109,11 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "bridge-preflight"
     if args.latest_inbox:
         shortcut_command = "bridge-inbox-latest"
-    shortcut_count = sum(1 for selected in (args.session_start, args.bridge_preflight, args.latest_inbox) if selected)
+    if args.package_draft:
+        shortcut_command = "bridge-inbox-package-draft"
+    shortcut_count = sum(
+        1 for selected in (args.session_start, args.bridge_preflight, args.latest_inbox, args.package_draft) if selected
+    )
     if shortcut_count > 1:
         parser.error("select only one command shortcut")
     if args.run and shortcut_command:

@@ -60,6 +60,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "bridge-index",
                 "bridge-inbox-index",
                 "bridge-inbox-latest",
+                "bridge-inbox-package-draft",
                 "git-status",
             },
         )
@@ -88,6 +89,9 @@ class OperatorLiteTests(unittest.TestCase):
         bridge_inbox_latest = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-latest")
         self.assertIn("--inbox-read-latest", bridge_inbox_latest["args"])
         self.assertEqual(bridge_inbox_latest["expectedExitCodes"], [0, 2])
+        bridge_package_draft = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-package-draft")
+        self.assertIn("--inbox-package-draft", bridge_package_draft["args"])
+        self.assertEqual(bridge_package_draft["expectedExitCodes"], [0, 2])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
@@ -134,6 +138,9 @@ class OperatorLiteTests(unittest.TestCase):
             inbox = root / ".riftreader-local" / "artifact-bridge-inbox" / "20260518T120000Z-abcdef123456"
             inbox.mkdir(parents=True)
             (inbox / "metadata.json").write_text("{}", encoding="utf-8")
+            package_draft = root / ".riftreader-local" / "artifact-bridge-package-drafts" / "20260518T120001Z-fedcba654321"
+            package_draft.mkdir(parents=True)
+            (package_draft / "summary.json").write_text("{}", encoding="utf-8")
 
             summary = operator_lite.bridge_status_summary(root)
 
@@ -143,9 +150,12 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(summary["payloadCount"], 1)
         self.assertEqual(summary["latestPayloadId"], "payload-one")
         self.assertEqual(summary["inboxCount"], 1)
+        self.assertEqual(summary["packageDraftCount"], 1)
         self.assertTrue(summary["safety"]["guardedInboxJsonPostOnly"])
         self.assertTrue(summary["safety"]["inboxWritesLocalIgnoredOnly"])
+        self.assertTrue(summary["safety"]["packageDraftsLocalIgnoredOnly"])
         self.assertTrue(summary["safety"]["noApplyExecute"])
+        self.assertTrue(summary["safety"]["noRepoTargetWrites"])
         self.assertTrue(summary["safety"]["manualTunnelOnly"])
 
     def test_redacted_bridge_instructions_do_not_include_real_token(self) -> None:
@@ -205,6 +215,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("Desktop ChatGPT handoff packet", summary["visualRules"])
         self.assertIn("Desktop ChatGPT session-start packet", summary["visualRules"])
         self.assertIn("guarded inbox JSON template copy", summary["visualRules"])
+        self.assertIn("guarded package draft export button", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])
@@ -229,8 +240,10 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
         self.assertEqual(payload["commandAliases"]["session-start"], "bridge-session-start")
+        self.assertEqual(payload["commandAliases"]["package-draft"], "bridge-inbox-package-draft")
         self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("--run bridge-session-start", encoded)
+        self.assertIn("--package-draft", encoded)
         self.assertIn("--run-all bridge-startup-checks", encoded)
         self.assertIn("/help", encoded)
 
@@ -258,6 +271,18 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandKey"], "bridge-session-start")
         self.assertEqual(payload["requestedCommandKey"], "session-start")
         self.assertEqual(payload["status"], "passed")
+
+    def test_run_command_key_accepts_package_draft_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "package-draft")
+
+        self.assertEqual(payload["commandKey"], "bridge-inbox-package-draft")
+        self.assertEqual(payload["requestedCommandKey"], "package-draft")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
 
     def test_run_command_key_unknown_command_blocks_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -339,6 +364,20 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandKey"], "bridge-session-start")
         self.assertTrue(payload["ok"])
 
+    def test_cli_package_draft_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--package-draft", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "bridge-inbox-package-draft")
+        self.assertTrue(payload["ok"])
+
     def test_cli_run_alias_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -397,6 +436,12 @@ class OperatorLiteTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 2)
 
+    def test_cli_blocks_package_draft_conflicting_shortcuts(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            operator_lite.main(["--package-draft", "--latest-inbox"])
+
+        self.assertEqual(raised.exception.code, 2)
+
     def test_slash_help_alias_prints_argparse_help(self) -> None:
         stdout = io.StringIO()
 
@@ -408,6 +453,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--run", help_text)
         self.assertIn("--run-all", help_text)
         self.assertIn("--session-start", help_text)
+        self.assertIn("--package-draft", help_text)
         self.assertIn("--list-commands", help_text)
 
 
