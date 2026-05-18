@@ -35,10 +35,45 @@ DENIED_FRAGMENTS = (
     "git push",
     "git reset",
     "git clean",
+    "--serve",
+    "cloudflared",
+    "tunnel ",
     "proofonly",
     "target-control",
     "visual-gate",
 )
+
+GUI_PALETTE = {
+    "background": "#0f172a",
+    "panel": "#111827",
+    "panel_alt": "#1f2937",
+    "text": "#f8fafc",
+    "muted": "#cbd5e1",
+    "output_bg": "#020617",
+    "output_fg": "#e5e7eb",
+    "status_bg": "#0b1220",
+    "status_fg": "#93c5fd",
+    "primary": "#2563eb",
+    "primary_active": "#1d4ed8",
+    "success": "#15803d",
+    "success_active": "#166534",
+    "warning": "#b45309",
+    "warning_active": "#92400e",
+    "bridge": "#6d28d9",
+    "bridge_active": "#5b21b6",
+    "neutral": "#475569",
+    "neutral_active": "#334155",
+    "disabled_bg": "#3f1f2f",
+    "disabled_fg": "#fca5a5",
+}
+
+BUTTON_VARIANTS = {
+    "primary": ("primary", "primary_active"),
+    "success": ("success", "success_active"),
+    "warning": ("warning", "warning_active"),
+    "bridge": ("bridge", "bridge_active"),
+    "neutral": ("neutral", "neutral_active"),
+}
 
 
 @dataclass(frozen=True)
@@ -63,10 +98,10 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
         ),
         "compact-sitrep": CommandSpec(
             key="compact-sitrep",
-            label="Compact OpenCode SITREP",
+            label="Compact ChatGPT SITREP",
             args=(str(scripts / "riftreader-workflow-status.cmd"), "--compact", "--write"),
             timeout_seconds=90,
-            description="Print and write a compact paste-ready OpenCode/non-Codex SITREP.",
+            description="Print and write a compact paste-ready local ChatGPT/non-Codex SITREP.",
             expected_exit_codes=(0, 2),
         ),
         "live-triage": CommandSpec(
@@ -83,6 +118,26 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             args=(str(scripts / "riftreader-package-intake-selftest.cmd"),),
             timeout_seconds=120,
             description="Smoke-test package intake with a generated dry-run package.",
+        ),
+        "bridge-selftest": CommandSpec(
+            key="bridge-selftest",
+            label="Bridge Self-Test",
+            args=(str(scripts / "riftreader-local-artifact-bridge.cmd"), "--self-test", "--json"),
+            timeout_seconds=120,
+            description="Run the Local Artifact Bridge safety self-test without starting a persistent server.",
+        ),
+        "bridge-index": CommandSpec(
+            key="bridge-index",
+            label="Bridge Payload Index",
+            args=(
+                str(scripts / "riftreader-local-artifact-bridge.cmd"),
+                "--index",
+                "--payload-root",
+                "artifacts\\chatgpt-payloads",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Read the curated bridge payload index without serving HTTP or managing tunnels.",
         ),
         "git-status": CommandSpec(
             key="git-status",
@@ -159,6 +214,7 @@ def run_command(
 
 def latest_report(repo_root: Path) -> Path | None:
     roots = [
+        repo_root / ".riftreader-local" / "workflow-status",
         repo_root / ".riftreader-local" / "opencode-status",
         repo_root / ".riftreader-local" / "live-test-triage",
         repo_root / ".riftreader-local" / "package-intake",
@@ -211,33 +267,265 @@ def command_plan(repo_root: Path) -> dict[str, Any]:
             "send-input",
             "ce-x64dbg",
             "git-stage-commit-push",
+            "bridge-serve-or-tunnel",
         ],
         "safety": safety_flags(),
     }
 
 
+def bridge_docs_path(repo_root: Path) -> Path:
+    return repo_root / "docs" / "workflow" / "local-artifact-bridge.md"
+
+
+def bridge_payload_root(repo_root: Path) -> Path:
+    return repo_root / "artifacts" / "chatgpt-payloads"
+
+
+def bridge_status_summary(repo_root: Path) -> dict[str, Any]:
+    payload_root = bridge_payload_root(repo_root)
+    payloads: list[Path] = []
+    if payload_root.is_dir():
+        payloads = sorted(
+            (
+                path
+                for path in payload_root.iterdir()
+                if path.is_dir() and (path / "manifest.json").is_file() and (path / "chunk-index.json").is_file()
+            ),
+            key=lambda path: path.stat().st_mtime,
+        )
+    latest = payloads[-1].name if payloads else None
+    return {
+        "mode": "read_only_manual_start",
+        "serveManagedByOperatorLite": False,
+        "tunnelManagedByOperatorLite": False,
+        "payloadRoot": str(payload_root),
+        "payloadCount": len(payloads),
+        "latestPayloadId": latest,
+        "docsPath": str(bridge_docs_path(repo_root)),
+        "safety": {
+            "getHeadOnly": True,
+            "noHttpWrites": True,
+            "noCommandExecution": True,
+            "noArbitraryFileRead": True,
+            "noLiveRiftInput": True,
+            "manualTunnelOnly": True,
+        },
+    }
+
+
+def bridge_status_text(repo_root: Path) -> str:
+    summary = bridge_status_summary(repo_root)
+    latest = summary["latestPayloadId"] or "none"
+    return (
+        "Local Artifact Bridge: read-only, manual start/tunnel only; "
+        f"payloads={summary['payloadCount']}; latest={latest}; "
+        "no HTTP writes, commands, RIFT input, CE, or x64dbg."
+    )
+
+
+def redacted_bridge_instructions(repo_root: Path) -> str:
+    docs = bridge_docs_path(repo_root)
+    return "\n".join(
+        [
+            "RiftReader Local Artifact Bridge v0.1 — redacted operator instructions",
+            "",
+            f'cd "{repo_root}"',
+            ".\\scripts\\riftreader-local-artifact-bridge.cmd --serve --payload-root artifacts\\chatgpt-payloads --port 8765 --token auto --max-response-mb 25",
+            "",
+            "Give ChatGPT only a tokenized health URL, redacted in logs like:",
+            "http://127.0.0.1:8765/<token>/health",
+            "https://example.trycloudflare.com/<token>/health",
+            "",
+            "Keep tunnel management manual:",
+            "cloudflared tunnel --url http://127.0.0.1:8765",
+            "",
+            "Safety contract: GET/HEAD only; no POST/PUT/PATCH/DELETE; no command execution; no arbitrary file reads; no repo writes; no RIFT input; no CE/x64dbg.",
+            f"Docs: {docs}",
+        ]
+    )
+
+
+def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
+    docs = bridge_docs_path(repo_root)
+    return "\n".join(
+        [
+            "Use the RiftReader Local Artifact Bridge as a read-only source for this repo task.",
+            "",
+            "The operator will provide a tokenized bridge URL. Treat these as placeholders until then:",
+            "https://example.trycloudflare.com/<token>/",
+            "https://example.trycloudflare.com/<token>/health",
+            "https://example.trycloudflare.com/<token>/payloads/latest/readme.md",
+            "https://example.trycloudflare.com/<token>/payloads/latest/chunks.json",
+            "https://example.trycloudflare.com/<token>/payloads/latest/chunks/<chunk_id>",
+            "",
+            "Start with the landing page or health endpoint, then follow recommendedReadOrder.",
+            "Only fetch listed endpoints and registered chunk IDs from chunks.json.",
+            "Do not request arbitrary local filesystem paths or command endpoints.",
+            "Assume GET/HEAD only; no repo writes, no live RIFT input, no CE/x64dbg, and no tunnel management from ChatGPT.",
+            "",
+            f"Repo docs: {docs}",
+        ]
+    )
+
+
+def gui_theme_summary() -> dict[str, Any]:
+    return {
+        "palette": GUI_PALETTE,
+        "buttonVariants": sorted(BUTTON_VARIANTS.keys()),
+        "sections": [
+            "Workflow Status & Triage",
+            "Packages, Reports & Git",
+            "Local Artifact Bridge",
+            "Locked Live Controls",
+        ],
+        "visualRules": [
+            "dark grouped panels",
+            "high contrast action buttons",
+            "distinct bridge color",
+            "redacted ChatGPT bridge prompt copy",
+            "muted locked-control badges",
+            "persistent safe-mode status bar",
+        ],
+    }
+
+
 def run_gui(repo_root: Path) -> int:
     import tkinter as tk
-    from tkinter import filedialog, messagebox, scrolledtext
+    from tkinter import filedialog, font as tkfont, messagebox, scrolledtext
 
     specs = build_command_specs(repo_root)
+    palette = GUI_PALETTE
 
     root = tk.Tk()
     root.title("RiftReader Operator Lite")
-    root.geometry("980x680")
+    root.geometry("1220x820")
+    root.minsize(1040, 720)
+    root.configure(bg=palette["background"])
 
-    output = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=30)
-    output.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+    title_font = tkfont.Font(family="Segoe UI", size=16, weight="bold")
+    subtitle_font = tkfont.Font(family="Segoe UI", size=10)
+    panel_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
+    button_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
+    small_font = tkfont.Font(family="Segoe UI", size=9)
+
+    header = tk.Frame(root, bg=palette["background"])
+    header.pack(fill=tk.X, padx=14, pady=(12, 6))
+    tk.Label(
+        header,
+        text="RiftReader Operator Lite",
+        bg=palette["background"],
+        fg=palette["text"],
+        font=title_font,
+        anchor="w",
+    ).pack(fill=tk.X)
+    tk.Label(
+        header,
+        text="Safe local workflow launcher — no movement, debugger attach, bridge serving, tunnel management, or Git mutation.",
+        bg=palette["background"],
+        fg=palette["muted"],
+        font=subtitle_font,
+        anchor="w",
+    ).pack(fill=tk.X, pady=(2, 0))
+
+    bridge_status_var = tk.StringVar(value=bridge_status_text(repo_root))
+
+    def panel(parent: tk.Misc, title: str, subtitle: str | None = None) -> tk.LabelFrame:
+        frame = tk.LabelFrame(
+            parent,
+            text=f" {title} ",
+            bg=palette["panel"],
+            fg=palette["text"],
+            font=panel_font,
+            padx=10,
+            pady=8,
+            bd=2,
+            relief=tk.GROOVE,
+            labelanchor="nw",
+        )
+        frame.pack(fill=tk.X, padx=14, pady=6)
+        if subtitle:
+            tk.Label(
+                frame,
+                text=subtitle,
+                bg=palette["panel"],
+                fg=palette["muted"],
+                font=small_font,
+                anchor="w",
+                justify=tk.LEFT,
+            ).pack(fill=tk.X, pady=(0, 6))
+        return frame
+
+    def action_button(parent: tk.Misc, text: str, command: Any, variant: str, width: int = 24) -> tk.Button:
+        bg_key, active_key = BUTTON_VARIANTS[variant]
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            bg=palette[bg_key],
+            fg=palette["text"],
+            activebackground=palette[active_key],
+            activeforeground=palette["text"],
+            disabledforeground=palette["disabled_fg"],
+            font=button_font,
+            relief=tk.RAISED,
+            bd=2,
+            padx=12,
+            pady=8,
+            width=width,
+            cursor="hand2",
+            highlightbackground=palette["background"],
+            highlightcolor=palette["status_fg"],
+            highlightthickness=1,
+        )
+        button.pack(side=tk.LEFT, padx=6, pady=5)
+        return button
+
+    def locked_badge(parent: tk.Misc, text: str) -> tk.Label:
+        badge = tk.Label(
+            parent,
+            text=f"LOCKED: {text}",
+            bg=palette["disabled_bg"],
+            fg=palette["disabled_fg"],
+            font=button_font,
+            padx=12,
+            pady=8,
+            relief=tk.RIDGE,
+            bd=2,
+        )
+        badge.pack(side=tk.LEFT, padx=6, pady=5)
+        return badge
+
+    workflow_frame = panel(root, "Workflow Status & Triage", "Primary read-only status commands. Exit code 2 still means a safe blocker.")
+    package_frame = panel(root, "Packages, Reports & Git", "Dry-run package tools, local reports, and read-only Git status.")
+    bridge_frame = panel(root, "Local Artifact Bridge", "Bridge helpers are self-test/index/docs/copy only; persistent serve and tunnels stay manual.")
+    tk.Label(
+        bridge_frame,
+        textvariable=bridge_status_var,
+        bg=palette["panel_alt"],
+        fg=palette["status_fg"],
+        font=small_font,
+        anchor="w",
+        justify=tk.LEFT,
+        padx=10,
+        pady=6,
+        relief=tk.SOLID,
+        bd=1,
+    ).pack(fill=tk.X, pady=(0, 6))
+    locked_frame = panel(root, "Locked Live Controls", "Shown explicitly so unsafe actions do not look like missing features.")
 
     def append(text: str) -> None:
         output.insert(tk.END, text.rstrip() + "\n")
         output.see(tk.END)
+
+    def refresh_bridge_status_panel() -> None:
+        bridge_status_var.set(bridge_status_text(repo_root))
 
     def run_spec(key: str) -> None:
         spec = specs[key]
         append(f"\n## {spec.label}\n$ {' '.join(spec.args)}")
         result = run_command(spec.args, repo_root, spec.timeout_seconds, spec.expected_exit_codes)
         append(json.dumps(result, indent=2))
+        refresh_bridge_status_panel()
 
     def run_package_dry_run() -> None:
         selected = filedialog.askopenfilename(title="Select package .zip or manifest package file")
@@ -260,24 +548,78 @@ def run_gui(repo_root: Path) -> int:
         os.startfile(report)  # type: ignore[attr-defined]
         append(f"Opened latest report: {report}")
 
-    button_frame = tk.Frame(root)
-    button_frame.pack(fill=tk.X, padx=8, pady=4)
+    def open_bridge_docs() -> None:
+        docs = bridge_docs_path(repo_root)
+        if not docs.is_file():
+            messagebox.showerror("RiftReader Operator Lite", f"Bridge docs not found:\n{docs}")
+            return
+        os.startfile(docs)  # type: ignore[attr-defined]
+        append(f"Opened bridge docs: {docs}")
 
-    tk.Button(button_frame, text="Refresh Workflow Status", command=lambda: run_spec("workflow-status")).pack(side=tk.LEFT, padx=4)
-    tk.Button(button_frame, text="Compact SITREP", command=lambda: run_spec("compact-sitrep")).pack(side=tk.LEFT, padx=4)
-    tk.Button(button_frame, text="Run Live-Test Triage", command=lambda: run_spec("live-triage")).pack(side=tk.LEFT, padx=4)
-    tk.Button(button_frame, text="Package Intake Dry-Run", command=run_package_dry_run).pack(side=tk.LEFT, padx=4)
-    tk.Button(button_frame, text="Package Self-Test", command=lambda: run_spec("package-selftest")).pack(side=tk.LEFT, padx=4)
-    tk.Button(button_frame, text="Git Status", command=lambda: run_spec("git-status")).pack(side=tk.LEFT, padx=4)
-    tk.Button(button_frame, text="Open Latest Report", command=open_latest).pack(side=tk.LEFT, padx=4)
+    def copy_bridge_instructions() -> None:
+        instructions = redacted_bridge_instructions(repo_root)
+        root.clipboard_clear()
+        root.clipboard_append(instructions)
+        append("Copied redacted bridge instructions to clipboard.")
 
-    disabled_frame = tk.Frame(root)
-    disabled_frame.pack(fill=tk.X, padx=8, pady=4)
-    for label in ["Target-Control (disabled)", "Visual Gate (disabled)", "ProofOnly (disabled)", "Movement (disabled)"]:
-        tk.Button(disabled_frame, text=label, state=tk.DISABLED).pack(side=tk.LEFT, padx=4)
+    def copy_bridge_chatgpt_prompt() -> None:
+        prompt = redacted_bridge_chatgpt_prompt(repo_root)
+        root.clipboard_clear()
+        root.clipboard_append(prompt)
+        append("Copied redacted ChatGPT bridge prompt to clipboard.")
+
+    action_button(workflow_frame, "Refresh Workflow Status", lambda: run_spec("workflow-status"), "primary")
+    action_button(workflow_frame, "Compact ChatGPT SITREP", lambda: run_spec("compact-sitrep"), "primary", width=23)
+    action_button(workflow_frame, "Run Live-Test Triage", lambda: run_spec("live-triage"), "warning")
+
+    action_button(package_frame, "Package Intake Dry-Run", run_package_dry_run, "success")
+    action_button(package_frame, "Package Self-Test", lambda: run_spec("package-selftest"), "success", width=18)
+    action_button(package_frame, "Git Status", lambda: run_spec("git-status"), "neutral", width=14)
+    action_button(package_frame, "Open Latest Report", open_latest, "neutral", width=18)
+
+    action_button(bridge_frame, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
+    action_button(bridge_frame, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
+    action_button(bridge_frame, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
+    action_button(bridge_frame, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
+    action_button(bridge_frame, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
+
+    for label in [
+        "Target-Control",
+        "Visual Gate",
+        "ProofOnly",
+        "Movement",
+        "Bridge Serve/Tunnel",
+    ]:
+        locked_badge(locked_frame, label)
+
+    output = scrolledtext.ScrolledText(
+        root,
+        wrap=tk.WORD,
+        height=18,
+        bg=palette["output_bg"],
+        fg=palette["output_fg"],
+        insertbackground=palette["text"],
+        font=("Consolas", 10),
+        relief=tk.SUNKEN,
+        bd=2,
+    )
+    output.pack(fill=tk.BOTH, expand=True, padx=14, pady=(8, 6))
+
+    status_bar = tk.Label(
+        root,
+        text="READY · Safe/offline mode · Read-only bridge helpers · No live input · No CE/x64dbg · No Git mutation",
+        bg=palette["status_bg"],
+        fg=palette["status_fg"],
+        font=small_font,
+        anchor="w",
+        padx=10,
+        pady=5,
+    )
+    status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
     append("RiftReader Operator Lite loaded.")
     append("Live input, movement, CE/x64dbg, stage/commit/push, target-control, visual gate, and ProofOnly are disabled in v0.")
+    append("Local Artifact Bridge controls are self-test/index/docs/copy only; Operator Lite does not start a persistent bridge or tunnel.")
     root.mainloop()
     return 0
 

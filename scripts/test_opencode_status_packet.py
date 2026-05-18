@@ -273,7 +273,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
 
         compact = status_packet.compact_summary(packet)
 
-        self.assertEqual(compact["kind"], "riftreader-opencode-compact-sitrep")
+        self.assertEqual(compact["kind"], "riftreader-local-compact-sitrep")
+        self.assertEqual(compact["legacyKind"], "riftreader-opencode-compact-sitrep")
         self.assertTrue(compact["liveTarget"]["artifactPidStale"])
         self.assertIn("A rift_x64 process is visible with PID(s) [22304]", compact["movementGate"]["reason"])
         self.assertTrue(
@@ -299,9 +300,11 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             root = Path(temp_dir)
             write_text(root / "scripts" / "riftreader-workflow-status.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-package-intake-selftest.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-local-artifact-bridge.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
-                "kind": "riftreader-opencode-non-codex-status-packet",
+                "kind": "riftreader-local-workflow-status-packet",
+                "legacyKind": "riftreader-opencode-non-codex-status-packet",
                 "generatedAtUtc": "2026-05-17T00:00:00Z",
                 "status": "blocked",
                 "repoRoot": str(root),
@@ -315,6 +318,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                 "latestHandoff": {},
                 "coordinateRecoveryStatus": {},
                 "opencode": {
+                    "retired": True,
+                    "checked": False,
                     "desiredModel": "openai/gpt-5.5",
                     "desiredVariant": "xhigh",
                     "modelProvider": "openai",
@@ -330,12 +335,12 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         commands = {item["key"]: item for item in compact["bridgeCommands"]}
         self.assertTrue(commands["compact-status"]["exists"])
         self.assertTrue(commands["package-intake-selftest"]["exists"])
-        self.assertFalse(commands["opencode-adaptive-self-test"]["exists"])
-        self.assertIn("no OpenCode/model run", commands["opencode-adaptive-self-test"]["safety"])
-        self.assertFalse(commands["opencode-integration"]["exists"])
-        self.assertIn("no live input", commands["opencode-integration"]["safety"])
-        self.assertFalse(commands["opencode-live-observer"]["exists"])
+        self.assertTrue(commands["local-artifact-bridge-selftest"]["exists"])
+        self.assertIn("no persistent server", commands["local-artifact-bridge-selftest"]["safety"])
+        self.assertFalse(commands["transport-probe-local-smoke"]["exists"])
         self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
+        self.assertTrue(compact["opencode"]["retired"])
+        self.assertFalse(compact["opencode"]["checked"])
         self.assertEqual(compact["opencode"]["desiredModel"], "openai/gpt-5.5")
         self.assertEqual(compact["opencode"]["desiredVariant"], "xhigh")
         self.assertTrue(compact["opencode"]["modelVisible"])
@@ -345,7 +350,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             root = Path(temp_dir)
             packet = {
                 "schemaVersion": 1,
-                "kind": "riftreader-opencode-non-codex-status-packet",
+                "kind": "riftreader-local-workflow-status-packet",
+                "legacyKind": "riftreader-opencode-non-codex-status-packet",
                 "generatedAtUtc": "2026-05-16T00:00:00Z",
                 "status": "blocked",
                 "blockers": ["live-target-not-running:rift_x64"],
@@ -369,7 +375,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             summary_md = root / artifacts["summaryMarkdown"]
             compact_json = root / artifacts["compactJson"]
 
-            self.assertTrue(artifacts["summaryJson"].startswith(".riftreader-local\\opencode-status\\"))
+            self.assertTrue(artifacts["summaryJson"].startswith(".riftreader-local\\workflow-status\\"))
             self.assertTrue(summary_json.is_file())
             self.assertTrue(summary_md.is_file())
             self.assertTrue(compact_json.is_file())
@@ -377,6 +383,12 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             compact = json.loads(compact_json.read_text(encoding="utf-8"))
             self.assertEqual(compact["artifacts"]["summaryJson"], artifacts["summaryJson"])
             self.assertEqual(compact["artifacts"]["compactJson"], artifacts["compactJson"])
+
+    def test_parser_keeps_opencode_check_off_by_default(self) -> None:
+        args = status_packet.build_parser().parse_args([])
+
+        self.assertFalse(args.check_opencode)
+        self.assertFalse(args.skip_opencode_check)
 
 
 if __name__ == "__main__":

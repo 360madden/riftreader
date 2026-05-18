@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic non-Codex/OpenCode status packet for RiftReader.
+"""Build a deterministic local ChatGPT/non-Codex status packet for RiftReader.
 
 The status packet is intentionally safe:
 
@@ -50,7 +50,7 @@ DEFAULT_CURRENT_TRUTH_MD = Path("docs") / "recovery" / "current-truth.md"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
-DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "opencode-status"
+DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "workflow-status"
 DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
 DEFAULT_OPENCODE_VARIANT = "xhigh"
 
@@ -60,30 +60,6 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "Compact local truth",
         "scripts\\riftreader-workflow-status.cmd --compact-json --write",
         "no input/movement/debugger/Git mutation",
-    ),
-    (
-        "opencode-sitrep",
-        "OpenCode SITREP",
-        "scripts\\riftreader-opencode-sitrep.cmd",
-        "OpenCode wrapper around compact status",
-    ),
-    (
-        "opencode-adaptive-prompt",
-        "OpenCode adaptive prompt dry-run",
-        "scripts\\riftreader-opencode-prompt.cmd --lane sitrep --json --skip-opencode-check",
-        "generates ignored prompt artifact; no OpenCode run unless --run",
-    ),
-    (
-        "opencode-adaptive-self-test",
-        "OpenCode adaptive bridge self-test",
-        "scripts\\riftreader-opencode-prompt.cmd --self-test",
-        "generates all lane prompts; no OpenCode/model run",
-    ),
-    (
-        "opencode-integration",
-        "OpenCode autonomous integration lane",
-        "scripts\\riftreader-opencode-integration.cmd",
-        "patch+test OpenCode integration only; no live input/debugger/Git mutation",
     ),
     (
         "package-intake-selftest",
@@ -98,28 +74,34 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "dry-run by default; apply requires explicit approval",
     ),
     (
-        "opencode-package-review",
-        "OpenCode package review",
-        "scripts\\riftreader-opencode-package-review.cmd <package>",
-        "OpenCode wrapper around package dry-run",
-    ),
-    (
         "live-triage",
         "No-input live triage",
         "scripts\\riftreader-live-triage.cmd --json --write",
         "no live input/movement/debugger",
     ),
     (
-        "opencode-live-observer",
-        "OpenCode live observer",
-        "scripts\\riftreader-opencode-live-observer.cmd",
-        "OpenCode wrapper around no-input status helpers",
-    ),
-    (
         "operator-lite",
         "Operator Lite",
         "scripts\\riftreader-operator-lite.cmd",
         "safe local GUI; live action buttons disabled",
+    ),
+    (
+        "local-artifact-bridge-selftest",
+        "Local Artifact Bridge self-test",
+        "scripts\\riftreader-local-artifact-bridge.cmd --self-test --json",
+        "ephemeral loopback self-test only; no persistent server or tunnel",
+    ),
+    (
+        "local-artifact-bridge-index",
+        "Local Artifact Bridge payload index",
+        "scripts\\riftreader-local-artifact-bridge.cmd --index --payload-root artifacts\\chatgpt-payloads --json",
+        "read-only payload metadata; no HTTP serving or tunnel management",
+    ),
+    (
+        "transport-probe-local-smoke",
+        "Transport probe local smoke",
+        "scripts\\riftreader-transport-probe.cmd --json local-smoke",
+        "synthetic local bridge smoke; no live RIFT activity",
     ),
 )
 
@@ -550,7 +532,7 @@ def build_status_packet(
     commit_count: int = 100,
     ref_count: int = 30,
     run_coordinate_status: bool = True,
-    check_opencode: bool = True,
+    check_opencode: bool = False,
     collect_git_state: bool = True,
 ) -> dict[str, Any]:
     errors: list[str] = []
@@ -617,6 +599,8 @@ def build_status_packet(
             warnings.append(f"coordinate-recovery-status-script-missing:{coordinate_script}")
 
     opencode: dict[str, Any] = {
+        "retired": True,
+        "retirementReason": "user-declared-not-used-for-this-repo",
         "checked": False,
         "available": None,
         "version": None,
@@ -626,6 +610,7 @@ def build_status_packet(
         "modelVisible": None,
     }
     if check_opencode:
+        warnings.append("opencode-check-explicitly-requested-but-repo-policy-is-retired")
         requested_model = desired_opencode_model()
         model_provider = opencode_provider_from_model(requested_model)
         envelope = run_command("opencode-version", opencode_version_command(), repo_root, timeout_seconds=15.0)
@@ -649,6 +634,8 @@ def build_status_packet(
         elif envelope.get("ok"):
             warnings.append(f"opencode-model-provider-unparseable:{requested_model}")
         opencode = {
+            "retired": True,
+            "retirementReason": "user-declared-not-used-for-this-repo",
             "checked": True,
             "available": bool(envelope.get("ok")),
             "version": str(envelope.get("stdoutPreview") or "").strip() or None,
@@ -686,7 +673,8 @@ def build_status_packet(
 
     return {
         "schemaVersion": 1,
-        "kind": "riftreader-opencode-non-codex-status-packet",
+        "kind": "riftreader-local-workflow-status-packet",
+        "legacyKind": "riftreader-opencode-non-codex-status-packet",
         "generatedAtUtc": utc_iso(),
         "status": status,
         "repoRoot": str(repo_root),
@@ -730,7 +718,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     artifacts = packet.get("artifacts") or {}
 
     lines = [
-        "# RiftReader OpenCode / Non-Codex Status Packet",
+        "# RiftReader Local Workflow Status Packet",
         "",
         f"- Generated UTC: `{packet.get('generatedAtUtc')}`",
         f"- Status: `{packet.get('status')}`",
@@ -742,9 +730,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Movement allowed: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Target: PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}`, process `{target.get('processName')}`",
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
-        f"- OpenCode: available `{opencode.get('available')}`, version `{opencode.get('version')}`, "
-        f"model `{opencode.get('desiredModel')}` variant `{opencode.get('desiredVariant')}` "
-        f"visible `{opencode.get('modelVisible')}`",
+        f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
         "",
@@ -809,7 +795,8 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     bridge_commands = bridge_command_capabilities(Path(str(repo_root_raw))) if repo_root_raw else []
     return {
         "schemaVersion": 1,
-        "kind": "riftreader-opencode-compact-sitrep",
+        "kind": "riftreader-local-compact-sitrep",
+        "legacyKind": "riftreader-opencode-compact-sitrep",
         "generatedAtUtc": packet.get("generatedAtUtc"),
         "status": packet.get("status"),
         "git": {
@@ -841,6 +828,9 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "reason": movement_gate.get("reason"),
         },
         "opencode": {
+            "retired": opencode.get("retired", True),
+            "retirementReason": opencode.get("retirementReason") or "user-declared-not-used-for-this-repo",
+            "checked": opencode.get("checked"),
             "available": opencode.get("available"),
             "version": opencode.get("version"),
             "desiredModel": opencode.get("desiredModel"),
@@ -868,7 +858,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     opencode = summary.get("opencode") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
-        "# RiftReader OpenCode Compact SITREP",
+        "# RiftReader Local Compact SITREP",
         "",
         f"- Generated UTC: `{summary.get('generatedAtUtc')}`",
         f"- Status: `{summary.get('status')}`",
@@ -877,9 +867,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Proof: `{proof.get('status')}` target PID `{proof.get('targetPid')}` HWND `{proof.get('targetHwnd')}`",
         f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
-        f"- OpenCode: `{opencode.get('available')}` version `{opencode.get('version')}` "
-        f"model `{opencode.get('desiredModel')}` variant `{opencode.get('desiredVariant')}` "
-        f"visible `{opencode.get('modelVisible')}`",
+        f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
         "## Stale proof boundary",
@@ -933,7 +921,7 @@ def write_outputs(packet: dict[str, Any], repo_root: Path, output_root: Path | N
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build a safe RiftReader OpenCode/non-Codex status packet.")
+    parser = argparse.ArgumentParser(description="Build a safe RiftReader local ChatGPT/non-Codex status packet.")
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root. Defaults to auto-detect from cwd.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
     parser.add_argument("--compact-json", action="store_true", help="Print compact machine-readable SITREP JSON.")
@@ -947,7 +935,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not run scripts/coordinate_recovery_status.py --json.",
     )
-    parser.add_argument("--skip-opencode-check", action="store_true", help="Do not run opencode --version.")
+    parser.add_argument(
+        "--check-opencode",
+        action="store_true",
+        help="Deprecated compatibility check. OpenCode is retired for this repo and is off by default.",
+    )
+    parser.add_argument(
+        "--skip-opencode-check",
+        action="store_true",
+        help="Deprecated compatibility flag; OpenCode checks are already off by default.",
+    )
     parser.add_argument("--skip-git", action="store_true", help="Do not collect git status/log/ref summaries.")
     return parser
 
@@ -960,7 +957,7 @@ def main(argv: list[str] | None = None) -> int:
         commit_count=args.commits,
         ref_count=args.refs,
         run_coordinate_status=not args.skip_coordinate_status,
-        check_opencode=not args.skip_opencode_check,
+        check_opencode=bool(args.check_opencode and not args.skip_opencode_check),
         collect_git_state=not args.skip_git,
     )
     if args.write:

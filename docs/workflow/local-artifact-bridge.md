@@ -10,7 +10,7 @@ Purpose: Operator documentation for the RiftReader read-only local artifact brid
 
 The Local Artifact Bridge is a repo-owned, read-only HTTP bridge for curated RiftReader analysis payloads.
 
-Its purpose is to let ChatGPT repeatedly inspect local payload manifests, summaries, chunk indexes, and registered text chunks without copy/paste, Google Drive dependency, OpenCode, GitHub connector writes, or unsafe filesystem exposure.
+Its purpose is to let ChatGPT repeatedly inspect local payload manifests, summaries, chunk indexes, and registered text chunks without copy/paste, Google Drive dependency, another local agent dependency, GitHub connector writes, or unsafe filesystem exposure.
 
 The bridge is for this data flow only:
 
@@ -87,23 +87,53 @@ Do not provide arbitrary local paths.
 
 Stop the bridge and tunnel when finished.
 
+## Operator Lite integration
+
+`scripts\riftreader-operator-lite.cmd` exposes only safe bridge-adjacent
+buttons:
+
+```text
+Bridge Self-Test
+Bridge Payload Index
+Open Bridge Docs
+Copy Redacted Bridge Instructions
+Copy ChatGPT Bridge Prompt
+```
+
+Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real
+token, expose write endpoints, or manage public tunnels. It copies only
+redacted placeholder instructions/prompts. Persistent serving and tunneling
+remain explicit operator actions.
+
 ## Endpoints
 
 All endpoints require the token as the first path segment:
 
 ```text
+/<token>/
 /<token>/health
 /<token>/status.json
 /<token>/payloads/index.json
 /<token>/payloads/latest/manifest.json
 /<token>/payloads/latest/summary.md
+/<token>/payloads/latest/readme.md
 /<token>/payloads/latest/chunk-index.json
+/<token>/payloads/latest/chunks.json
 /<token>/payloads/latest/chunks/<chunk_id>
 ```
 
+### `/<token>/`
+
+Returns a compact Markdown landing page with the safest starting links,
+recommended read order, endpoint list, and bridge safety reminder. This is the
+best single URL to paste into Desktop ChatGPT after the bridge/tunnel is already
+running.
+
 ### `/health`
 
-Returns bridge health, version, read-only mode, payload count, latest payload ID, extension policy, and endpoint list.
+Returns bridge health, version, read-only mode, payload count, latest payload
+ID, extension policy, endpoint list, `recommendedReadOrder`, and
+`chatgptInstructions`.
 
 ### `/status.json`
 
@@ -147,9 +177,20 @@ README.md
 reports/reducer-summary.md
 ```
 
+### `/payloads/latest/readme.md`
+
+Alias for the same selected latest summary as `/payloads/latest/summary.md`.
+This gives Desktop ChatGPT an obvious README-shaped URL.
+
 ### `/payloads/latest/chunk-index.json`
 
 Serves the latest payload chunk registry.
+
+### `/payloads/latest/chunks.json`
+
+Alias for the same latest chunk registry as
+`/payloads/latest/chunk-index.json`. This gives Desktop ChatGPT an obvious
+chunk-discovery URL before requesting individual chunk IDs.
 
 ### `/payloads/latest/chunks/<chunk_id>`
 
@@ -282,25 +323,48 @@ OPTIONS
 
 ## How ChatGPT should consume the URL
 
-Give ChatGPT the tunnel URL and the tokenized health path, for example:
+Give ChatGPT the tunnel URL and the tokenized landing page or health path, for
+example:
 
 ```text
+https://example.trycloudflare.com/<token>/
 https://example.trycloudflare.com/<token>/health
 ```
 
 Then ChatGPT should inspect, in order:
 
 ```text
+/<token>/
 /<token>/health
-/<token>/status.json
-/<token>/payloads/index.json
-/<token>/payloads/latest/manifest.json
-/<token>/payloads/latest/summary.md
-/<token>/payloads/latest/chunk-index.json
+/<token>/payloads/latest/readme.md
+/<token>/payloads/latest/chunks.json
 /<token>/payloads/latest/chunks/<needed_chunk_id>
 ```
 
 Do not ask ChatGPT to browse arbitrary local paths. The bridge will not serve them.
+If ChatGPT hits a blocked or missing endpoint, the JSON error response includes
+a `next` list with safe recovery hints.
+
+### Sample Desktop ChatGPT prompt
+
+Use this after the bridge and any manual tunnel are already running. Replace the
+example URL with the real tokenized URL printed by the bridge startup output:
+
+```text
+Use the RiftReader Local Artifact Bridge as a read-only source for this repo task.
+
+Start here:
+https://example.trycloudflare.com/<token>/
+
+Then follow the bridge health `recommendedReadOrder`.
+
+Only fetch listed endpoints and registered chunk IDs from:
+https://example.trycloudflare.com/<token>/payloads/latest/chunks.json
+
+Do not request arbitrary local filesystem paths or command endpoints. Assume
+GET/HEAD only; no repo writes, no live RIFT input, no CE/x64dbg, and no tunnel
+management from ChatGPT.
+```
 
 ## Fallback if tunnel is inaccessible
 

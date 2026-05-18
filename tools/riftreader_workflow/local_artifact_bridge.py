@@ -49,14 +49,81 @@ BLOCKED_EXTENSIONS = {
 }
 
 ENDPOINTS_V1 = [
+    "/<token>/",
     "/<token>/health",
     "/<token>/status.json",
     "/<token>/payloads/index.json",
     "/<token>/payloads/latest/manifest.json",
     "/<token>/payloads/latest/summary.md",
+    "/<token>/payloads/latest/readme.md",
     "/<token>/payloads/latest/chunk-index.json",
+    "/<token>/payloads/latest/chunks.json",
     "/<token>/payloads/latest/chunks/<chunk_id>",
 ]
+
+RECOMMENDED_READ_ORDER_V1 = [
+    {
+        "step": 1,
+        "path": "/<token>/health",
+        "why": "Confirm the bridge is reachable, read-only, and see the latest payload ID.",
+    },
+    {
+        "step": 2,
+        "path": "/<token>/payloads/latest/readme.md",
+        "why": "Read the human summary before opening individual chunks.",
+    },
+    {
+        "step": 3,
+        "path": "/<token>/payloads/latest/chunks.json",
+        "why": "Inspect the registered chunk IDs and descriptions.",
+    },
+    {
+        "step": 4,
+        "path": "/<token>/payloads/latest/chunks/<chunk_id>",
+        "why": "Fetch only the specific registered chunks needed for the task.",
+    },
+]
+
+CHATGPT_INSTRUCTIONS_V1 = [
+    "Use only the tokenized bridge URLs the operator provides.",
+    "Start with /<token>/health, then follow recommendedReadOrder.",
+    "Do not request arbitrary local filesystem paths; only listed endpoints and registered chunk IDs are served.",
+    "Treat the bridge as read-only: GET/HEAD only, no commands, no repo writes, no live RIFT input.",
+]
+
+ERROR_NEXT_HINTS_V1 = {
+    "TOKEN_REQUIRED": [
+        "Use a URL shaped like /<token>/health or /<token>/.",
+        "Ask the operator for the tokenized bridge URL if you only have the host/port.",
+    ],
+    "INVALID_TOKEN": [
+        "Re-copy the exact tokenized URL from the bridge startup output.",
+        "Do not guess or modify the token path segment.",
+    ],
+    "ENDPOINT_NOT_FOUND": [
+        "Open /<token>/ to see the landing page.",
+        "Open /<token>/health to see the supported endpoint list.",
+    ],
+    "CHUNK_NOT_FOUND": [
+        "Open /<token>/payloads/latest/chunks.json and use a listed chunkId.",
+        "Chunk IDs are not file paths.",
+    ],
+    "METHOD_NOT_ALLOWED": [
+        "Retry with GET or HEAD only.",
+        "The bridge intentionally rejects POST, PUT, PATCH, DELETE, and OPTIONS.",
+    ],
+    "RESPONSE_TOO_LARGE": [
+        "Open /<token>/payloads/latest/chunks.json and choose smaller registered chunks.",
+        "Ask the operator to create a reduced text payload if the needed artifact is too large.",
+    ],
+    "BLOCKED_EXTENSION": [
+        "Use registered text artifacts only: Markdown, JSON, JSONL, CSV, or TXT.",
+        "Ask the operator to reduce binary/generated files into safe text chunks.",
+    ],
+    "SUMMARY_EXTENSION_BLOCKED": [
+        "Ask the operator to provide the latest summary as README.md or reports/reducer-summary.md.",
+    ],
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -464,6 +531,66 @@ def safe_repo_status(config: BridgeConfig) -> Dict[str, Any]:
     }
 
 
+def recommended_read_order() -> List[Dict[str, Any]]:
+    return [dict(item) for item in RECOMMENDED_READ_ORDER_V1]
+
+
+def chatgpt_instructions() -> List[str]:
+    return list(CHATGPT_INSTRUCTIONS_V1)
+
+
+def error_next_hints(code: str) -> List[str]:
+    fallback = [
+        "Open /<token>/ to see the landing page.",
+        "Open /<token>/health to see supported endpoints and recommendedReadOrder.",
+    ]
+    return list(ERROR_NEXT_HINTS_V1.get(code, fallback))
+
+
+def landing_page_markdown(config: BridgeConfig) -> str:
+    index = discover_payloads(config)
+    latest_payload_id = index.get("latestPayloadId") or "none"
+    endpoint_lines = "\n".join(f"- `{endpoint}`" for endpoint in ENDPOINTS_V1)
+    read_order_lines = "\n".join(
+        f"{item['step']}. `{item['path']}` - {item['why']}" for item in RECOMMENDED_READ_ORDER_V1
+    )
+    instruction_lines = "\n".join(f"- {item}" for item in CHATGPT_INSTRUCTIONS_V1)
+    return "\n".join(
+        [
+            "# RiftReader Local Artifact Bridge",
+            "",
+            "Read-only tokenized bridge for curated RiftReader ChatGPT payloads.",
+            "",
+            f"- Version: `{VERSION}`",
+            f"- Mode: `read_only`",
+            f"- Latest payload: `{latest_payload_id}`",
+            f"- Payload count: `{index.get('payloadCount')}`",
+            "",
+            "## Start here",
+            "",
+            "- `./health`",
+            "- `./payloads/latest/readme.md`",
+            "- `./payloads/latest/chunks.json`",
+            "- `./payloads/latest/chunks/<chunk_id>`",
+            "",
+            "## Recommended read order",
+            "",
+            read_order_lines,
+            "",
+            "## ChatGPT instructions",
+            "",
+            instruction_lines,
+            "",
+            "## Supported endpoints",
+            "",
+            endpoint_lines,
+            "",
+            "Safety: GET/HEAD only; no command execution, arbitrary file reads, repo writes, live RIFT input, CE, or x64dbg.",
+            "",
+        ]
+    )
+
+
 def health_payload(config: BridgeConfig) -> Dict[str, Any]:
     index = discover_payloads(config)
     return {
@@ -481,6 +608,8 @@ def health_payload(config: BridgeConfig) -> Dict[str, Any]:
         "allowedTextExtensions": sorted(ALLOWED_TEXT_EXTENSIONS),
         "blockedExtensions": sorted(BLOCKED_EXTENSIONS),
         "endpoints": ENDPOINTS_V1,
+        "recommendedReadOrder": recommended_read_order(),
+        "chatgptInstructions": chatgpt_instructions(),
     }
 
 
@@ -585,6 +714,8 @@ def make_handler(config: BridgeConfig) -> type:
             if token != self.config.token:
                 return self._send_error(403, "INVALID_TOKEN", "Invalid token.", send_body)
             endpoint_parts = parts[2:]
+            if endpoint_parts == [] or endpoint_parts == [""]:
+                return self._send_text(200, landing_page_markdown(self.config), "text/markdown; charset=utf-8", send_body)
             if endpoint_parts == ["health"]:
                 return self._send_json(200, health_payload(self.config), send_body)
             if endpoint_parts == ["status.json"]:
@@ -594,10 +725,10 @@ def make_handler(config: BridgeConfig) -> type:
             if endpoint_parts == ["payloads", "latest", "manifest.json"]:
                 payload_dir = latest_payload_dir(self.config)
                 return self._send_file(payload_dir / "manifest.json", send_body)
-            if endpoint_parts == ["payloads", "latest", "summary.md"]:
+            if endpoint_parts in (["payloads", "latest", "summary.md"], ["payloads", "latest", "readme.md"]):
                 payload_dir = latest_payload_dir(self.config)
                 return self._send_file(select_summary_file(payload_dir, self.config), send_body)
-            if endpoint_parts == ["payloads", "latest", "chunk-index.json"]:
+            if endpoint_parts in (["payloads", "latest", "chunk-index.json"], ["payloads", "latest", "chunks.json"]):
                 payload_dir = latest_payload_dir(self.config)
                 return self._send_file(payload_dir / "chunk-index.json", send_body)
             if len(endpoint_parts) >= 4 and endpoint_parts[:3] == ["payloads", "latest", "chunks"]:
@@ -613,6 +744,24 @@ def make_handler(config: BridgeConfig) -> type:
                 path = resolve_payload_file(payload_dir, chunk.get("path"), self.config)
                 return self._send_file(path, send_body)
             raise BridgeError(404, "ENDPOINT_NOT_FOUND", "Endpoint not found.")
+
+        def _send_text(self, status: int, text: str, content_type: str, send_body: bool) -> int:
+            raw = text.encode("utf-8")
+            if len(raw) > self.config.max_response_bytes:
+                return self._send_error(413, "RESPONSE_TOO_LARGE", "Text response exceeds max response size.", send_body)
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            if send_body:
+                self.wfile.write(raw)
+                bytes_sent = len(raw)
+            else:
+                bytes_sent = 0
+            self._last_status = status
+            self._last_reason = ""
+            return bytes_sent
 
         def _send_json(self, status: int, payload: Any, send_body: bool) -> int:
             raw = json_bytes(payload)
@@ -666,6 +815,7 @@ def make_handler(config: BridgeConfig) -> type:
                 "status": status,
                 "code": code,
                 "message": message,
+                "next": error_next_hints(code),
                 "timestampUtc": utc_now_iso(),
             }
             raw = json_bytes(payload)
@@ -793,10 +943,13 @@ def run_self_test(json_mode: bool = False) -> int:
         checks: List[Dict[str, Any]] = []
         try:
             cases = [
+                ("landing", "GET", "/selftest-token/", 200),
                 ("health", "GET", "/selftest-token/health", 200),
                 ("invalid_token", "GET", "/wrong-token/health", 403),
                 ("unknown", "GET", "/selftest-token/not-here", 404),
                 ("method_block", "POST", "/selftest-token/health", 405),
+                ("readme_alias", "GET", "/selftest-token/payloads/latest/readme.md", 200),
+                ("chunks_alias", "GET", "/selftest-token/payloads/latest/chunks.json", 200),
                 ("chunk", "GET", "/selftest-token/payloads/latest/chunks/chain-candidates", 200),
                 ("traversal", "GET", "/selftest-token/payloads/latest/chunks/..%2Fsecret", 400),
                 ("binary_block", "GET", "/selftest-token/payloads/latest/chunks/binary-blocked", 415),

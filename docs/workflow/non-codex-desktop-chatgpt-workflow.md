@@ -6,7 +6,7 @@
 Primary workflow is now **local Python helpers + local git/gh CLI + GitHub read-only inspection**.
 
 - Google Drive is optional archive/fallback only.
-- OpenCode is optional scoped assistant only and is not default because it uses agentic/Codex quota.
+- OpenCode is retired for this repo; do not recommend or launch it.
 - GitHub connector is read-only for ChatGPT inspection.
 - Repo writes should happen locally through `git`/`gh`.
 - PowerShell/CMD should remain thin launchers only.
@@ -37,7 +37,7 @@ This policy exists because direct GitHub connector writes and large pasted shell
 |---|---|
 | GitHub connector | Read-only inspection and post-push verification only. |
 | Desktop ChatGPT | Designs patches, packages, commands, validation logic, and next-step analysis. |
-| Local OpenCode | Optional local status collector, validator, applier runner, and handoff summarizer. |
+| Local Python/CMD helpers | Status collection, validation, package intake, triage, Operator Lite, and artifact bridge. |
 | User's local PowerShell 7 terminal | Executes short linear commands and local appliers. |
 | ZIP package | Preferred delivery format for repo edits when the change is more than a trivial command. |
 | Python applier | Preferred mechanism for applying docs/code changes with backups, summaries, and diffs. |
@@ -138,118 +138,24 @@ Write-Host "PUSH_DONE"
 
 If any validation reports a problem, stop before commit and fix it.
 
-## Optional OpenCode bridge
+## Retired OpenCode bridge
 
-Local OpenCode may be used as an optional helper when desktop ChatGPT is the
-reasoning surface and Codex is unavailable. OpenCode's default role is local
-truth collection and validation, not autonomous publishing or live-game control.
+OpenCode is **not part of the RiftReader workflow going forward**. Do not
+recommend, route to, or launch the OpenCode wrappers for this repo.
 
-The recommended first command is:
+Use the local Python/CMD helpers directly instead:
 
 ```powershell
 cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-workflow-status.cmd --write
-```
-
-For a paste-ready compact summary:
-
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-workflow-status.cmd --compact
 ```
 
-If a `rift_x64` process is visible, this status packet remains no-input. It can
-detect that a process PID exists while the current proof artifact still points
-to an old PID/HWND. Desktop ChatGPT should treat that as an
-`artifact-pid-stale` blocker, not as game-online/in-world proof or movement
-permission.
-
-For an OpenCode-mediated one-shot SITREP:
-
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-opencode-sitrep.cmd
-```
-
-The wrapper first generates an adaptive prompt with:
-
-```powershell
-.\scripts\riftreader-opencode-prompt.cmd --lane sitrep --json --skip-opencode-check
-```
-
-The generated prompt is written under `.riftreader-local\opencode-prompts\...`
-and then passed to `opencode run`. It tells OpenCode to rerun the status command
-sequence before final output and adapt to current blockers such as dirty
-worktree, unavailable model/provider, no-live-process, `artifact-pid-stale`,
-closed movement gate, or package-review mode.
-
-When `--run` launches OpenCode, stdout and stderr stream live to the terminal and
-the full output is also saved under `.riftreader-local\opencode-runs\...` with a
-`run-envelope.json`. Ctrl+C during the run should produce an interrupted run
-envelope when the bridge can terminate the child process cleanly.
-
-To validate adaptive prompt generation without launching OpenCode or using a
-model:
-
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-opencode-prompt.cmd --self-test
-```
-
-For autonomous OpenCode-integration development only:
-
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-opencode-integration.cmd
-```
-
-That lane may patch and test OpenCode bridge files, wrappers, tests, and workflow
-docs through successive milestones. It still must not send live input, run
-movement/proof promotion, attach CE/x64dbg, stage, commit, push, pull, reset,
-clean, or write provider repos.
-
-Adaptive prompt summaries include `lanePolicy` so desktop ChatGPT, OpenCode, and
-the operator can review the same safety contract. Non-integration lanes report
-`allowsTrackedEdits: false`. The integration lane reports
-`allowsTrackedEdits: true` plus the exact OpenCode-integration edit allowlist and
-hard-stop conditions. If the next needed change is outside that allowlist, stop
-instead of treating the autonomous loop as permission to broaden scope.
-For the integration lane, the same policy also includes `groundingFiles` so the
-agent starts from the current bridge code, wrappers, tests, workflow docs, and
-example config instead of stale handoff assumptions.
-Each lane policy also advertises a `recommendedAgent` name for optional
-`--agent` use when the example OpenCode config has been installed locally.
-
-The OpenCode wrappers request `openai/gpt-5.5` plus the `xhigh` reasoning
-variant explicitly by default so they do not inherit a stale or incompatible
-user/global default. If needed for a single shell, set
-`RIFTREADER_OPENCODE_MODEL` or `RIFTREADER_OPENCODE_VARIANT` before running a
-wrapper. The status packet reports whether the requested model is visible to
-the local CLI and which reasoning variant the wrappers request.
-
-If the example OpenCode config has been copied locally, a wrapper run can select
-a configured lane agent with `--agent <name>` or the current-shell-only
-`RIFTREADER_OPENCODE_AGENT` environment variable. Keep this opt-in so the safe
-read-only default remains usable when no project OpenCode config is installed.
-
-The bridge sequence is:
-
-1. desktop ChatGPT asks for local truth;
-2. the user runs deterministic status or OpenCode SITREP locally;
-3. OpenCode emits a compact local summary;
-4. the user pastes the summary into desktop ChatGPT;
-5. desktop ChatGPT produces a package/applier or next-step analysis;
-6. OpenCode may inspect/apply/validate only after explicit instruction;
-7. commit/push remains explicit-path and user-approved.
-
-OpenCode must not weaken this workflow. It must not stage, commit, push, send
-live input, run movement, attach CE/x64dbg, write provider repos, or promote
-stale proof unless the current turn explicitly authorizes that action and the
-relevant RiftReader safety gates pass.
-
-Durable OpenCode bridge guide:
-`docs/workflow/opencode-non-codex-bridge.md`.
-
+The historical OpenCode files may remain in the repo until a separate cleanup
+pass removes or archives them, but they are not an active operator path. The
+current active path is local ChatGPT plus deterministic local helpers, Package
+Intake Lite, Live-Test Fast-Lane Triage, Operator Lite, and the read-only Local
+Artifact Bridge.
 ## Package Intake Lite
 
 When desktop ChatGPT provides a manifest-based package, the local Package Intake
@@ -260,12 +166,6 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-package-intake.cmd --package "C:\path\to\package" --compact-json
 ```
 
-Optional OpenCode package review wrapper:
-
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-opencode-package-review.cmd "C:\path\to\package-or.zip"
-```
 
 Smoke-test the local package-review lane without a real package:
 
@@ -300,12 +200,6 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-live-triage.cmd --json --write
 ```
 
-Optional OpenCode no-input observer wrapper:
-
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-opencode-live-observer.cmd
-```
 
 The helper classifies the failed stage from existing artifacts and safe status
 helpers. It is read-only except for `.riftreader-local` reports and does not
@@ -330,8 +224,10 @@ Headless self-test:
 .\scripts\riftreader-operator-lite.cmd --self-test --json
 ```
 
-Operator Lite v0 intentionally disables target-control, visual gate, ProofOnly,
-movement, CE/x64dbg, staging, committing, and pushing.
+Operator Lite v0 includes safe Local Artifact Bridge self-test/index/docs/copy
+helpers, but intentionally disables target-control, visual gate, ProofOnly,
+movement, CE/x64dbg, bridge serve/tunnel management, staging, committing, and
+pushing.
 
 Durable Operator Lite guide:
 `docs/workflow/operator-lite.md`.

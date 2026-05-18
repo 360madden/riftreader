@@ -142,29 +142,38 @@ Reference capture can fail on malformed `RRAPICOORD1` memory-scan markers. This 
 
 Create a small GUI after CLI workflow stabilizes.
 
-### Proposed files
+### Implemented files
 
 ```text
-tools/riftreader_operator_lite.py
+tools/riftreader_workflow/operator_lite.py
 scripts/riftreader-operator-lite.cmd
+scripts/test_operator_lite.py
+docs/workflow/operator-lite.md
 ```
 
-### Initial buttons
+### Implemented safe buttons
 
 - Refresh Workflow Status
-- Run Target-Control
-- Run Visual Gate Wrapper
-- Run ProofOnly
 - Run Live-Test Triage
+- Compact ChatGPT SITREP
+- Package Intake Dry-Run
+- Package Intake Self-Test
+- Local Artifact Bridge Self-Test
+- Local Artifact Bridge Payload Index
+- Open Local Artifact Bridge Docs
+- Copy Redacted Bridge Instructions
 - Open Latest Report
 - Git Status
 
-### Not included initially
+### Disabled in Operator Lite
 
 - No movement buttons.
 - No yaw buttons.
 - No auto-turn.
-- No package-intake GUI until the CLI intake is stable.
+- No target-control, visual-gate, or ProofOnly buttons.
+- No CE/x64dbg buttons.
+- No Git stage/commit/push/reset/clean buttons.
+- No Local Artifact Bridge `--serve` or tunnel-management buttons.
 
 ## Phase E — Consolidation
 

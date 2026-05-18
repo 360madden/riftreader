@@ -45,7 +45,7 @@ class BridgeServerCase(unittest.TestCase):
             payload_root=pathlib.Path("artifacts") / "chatgpt-payloads",
             token=self.token,
             port=0,
-            max_response_bytes=1024,
+            max_response_bytes=4096,
             log_requests=False,
         )
         self.server = bridge.create_http_server(self.config)
@@ -71,7 +71,7 @@ class BridgeServerCase(unittest.TestCase):
         bad_path = candidates / "raw.bin"
         bad_path.write_bytes(b"\x00\x01\x02")
         big_path = reports / "big.txt"
-        big_path.write_text("Z" * 2048, encoding="utf-8")
+        big_path.write_text("Z" * 8192, encoding="utf-8")
         mismatch_path = reports / "mismatch.txt"
         mismatch_path.write_text("actual text\n", encoding="utf-8")
         readme = payload_dir / "README.md"
@@ -144,18 +144,41 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["service"], "riftreader-local-artifact-bridge")
         self.assertEqual(payload["mode"], "read_only")
         self.assertTrue(payload["ok"])
+        self.assertIn("/<token>/", payload["endpoints"])
+        self.assertIn("/<token>/payloads/latest/readme.md", payload["endpoints"])
+        self.assertIn("/<token>/payloads/latest/chunks.json", payload["endpoints"])
+        self.assertEqual(payload["recommendedReadOrder"][0]["path"], "/<token>/health")
+        self.assertTrue(any("GET/HEAD only" in item for item in payload["chatgptInstructions"]))
+
+    def test_landing_page_is_markdown_and_lists_bridge_start_paths(self) -> None:
+        status, headers, body = self.request("GET", f"/{self.token}/")
+        self.assertEqual(status, 200)
+        self.assertIn("text/markdown", headers["content-type"])
+        text = body.decode("utf-8")
+        self.assertIn("RiftReader Local Artifact Bridge", text)
+        self.assertIn("./payloads/latest/readme.md", text)
+        self.assertIn("./payloads/latest/chunks.json", text)
+        self.assertIn("GET/HEAD only", text)
+        self.assertIn(" - Confirm the bridge is reachable", text)
+        self.assertNotIn("\u2014", text)
 
     def test_invalid_token_returns_403(self) -> None:
         status, _headers, _body = self.request("GET", "/wrong-token/health")
         self.assertEqual(status, 403)
 
     def test_unknown_endpoint_returns_404(self) -> None:
-        status, _headers, _body = self.request("GET", f"/{self.token}/missing")
+        status, _headers, body = self.request("GET", f"/{self.token}/missing")
         self.assertEqual(status, 404)
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload["code"], "ENDPOINT_NOT_FOUND")
+        self.assertTrue(any("/<token>/health" in item for item in payload["next"]))
 
     def test_non_get_method_returns_405(self) -> None:
-        status, _headers, _body = self.request("POST", f"/{self.token}/health")
+        status, _headers, body = self.request("POST", f"/{self.token}/health")
         self.assertEqual(status, 405)
+        payload = json.loads(body.decode("utf-8"))
+        self.assertIn("GET", " ".join(payload["next"]))
+        self.assertIn("HEAD", " ".join(payload["next"]))
 
     def test_payload_index_generation_finds_valid_payload(self) -> None:
         index = bridge.discover_payloads(self.config)
@@ -173,6 +196,23 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("text/csv", headers["content-type"])
         self.assertIn(b"0x2000", body)
+
+    def test_latest_readme_alias_serves_same_summary_as_summary_endpoint(self) -> None:
+        status_summary, _headers_summary, body_summary = self.request("GET", f"/{self.token}/payloads/latest/summary.md")
+        status_readme, headers_readme, body_readme = self.request("GET", f"/{self.token}/payloads/latest/readme.md")
+        self.assertEqual(status_summary, 200)
+        self.assertEqual(status_readme, 200)
+        self.assertIn("text/markdown", headers_readme["content-type"])
+        self.assertEqual(body_summary, body_readme)
+        self.assertIn(b"pointer-chain-pack-20260517-002", body_readme)
+
+    def test_latest_chunks_alias_serves_same_index_as_chunk_index_endpoint(self) -> None:
+        status_index, _headers_index, body_index = self.request("GET", f"/{self.token}/payloads/latest/chunk-index.json")
+        status_alias, headers_alias, body_alias = self.request("GET", f"/{self.token}/payloads/latest/chunks.json")
+        self.assertEqual(status_index, 200)
+        self.assertEqual(status_alias, 200)
+        self.assertIn("application/json", headers_alias["content-type"])
+        self.assertEqual(json.loads(body_index.decode("utf-8")), json.loads(body_alias.decode("utf-8")))
 
     def test_missing_chunk_returns_404(self) -> None:
         status, _headers, _body = self.request("GET", f"/{self.token}/payloads/latest/chunks/no-such-chunk")
