@@ -43,6 +43,41 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --self-test --json
 ```
 
+List safe command keys:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd --list-commands --json
+```
+
+Run one safe GUI command from the CLI:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd --run bridge-session-start --json
+```
+
+Help:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd /help
+```
+
+## Command switches
+
+| Switch | Action | Safety |
+|---|---|---|
+| `/help` | Prints the same help as `--help`. | No command is run. |
+| `--repo-root <path>` | Uses a specific repo root. | Resolves locally; does not mutate Git. |
+| `--self-test` | Validates Operator Lite command wiring. | Does not launch the GUI. |
+| `--command-plan` | Prints the full safe command plan. | Read-only plan output. |
+| `--list-commands` | Lists keys allowed by `--run`. | Does not execute commands. |
+| `--run <command-key>` | Runs one known safe command spec, such as `bridge-session-start`. | Still enforces denylist, script existence checks, timeouts, and expected exit codes. |
+| `--json` | Emits machine-readable JSON for command-plan/list/run modes. | No extra behavior by itself. |
+
+`--run` is intentionally not an arbitrary shell runner. It accepts only keys already present in Operator Lite's safe command registry. Unknown keys return exit code `2`; denied fragments such as `--serve`, `cloudflared`, Git mutation, ProofOnly, target-control, CE, and x64dbg remain blocked.
+
 ## Buttons
 
 | Button | Action | Safety |

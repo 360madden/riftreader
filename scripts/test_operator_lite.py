@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import sys
@@ -215,6 +217,98 @@ class OperatorLiteTests(unittest.TestCase):
         encoded = json.dumps(plan)
 
         self.assertIn("riftreader-operator-lite-command-plan", encoded)
+
+    def test_list_commands_payload_is_json_serializable_and_has_examples(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.command_list_payload(root)
+            encoded = json.dumps(payload)
+
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
+        self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
+        self.assertIn("--run bridge-session-start", encoded)
+        self.assertIn("/help", encoded)
+
+    def test_run_command_key_executes_only_known_safe_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "bridge-session-start")
+
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-run")
+        self.assertEqual(payload["commandKey"], "bridge-session-start")
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["exitCode"], 0)
+        self.assertFalse(payload["safety"]["inputSent"])
+
+    def test_run_command_key_unknown_command_blocks_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "bridge-serve")
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["code"], "COMMAND_KEY_UNKNOWN")
+        self.assertEqual(payload["exitCode"], 2)
+        self.assertIn("bridge-session-start", payload["availableCommands"])
+
+    def test_cli_list_commands_json_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--list-commands", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
+        self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
+
+    def test_cli_run_json_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--run", "bridge-session-start", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-run")
+        self.assertEqual(payload["commandKey"], "bridge-session-start")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_run_unknown_key_returns_exit_2(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--run", "bridge-serve", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["code"], "COMMAND_KEY_UNKNOWN")
+
+    def test_slash_help_alias_prints_argparse_help(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout), self.assertRaises(SystemExit) as raised:
+            operator_lite.main(["/help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        help_text = stdout.getvalue()
+        self.assertIn("--run", help_text)
+        self.assertIn("--list-commands", help_text)
 
 
 if __name__ == "__main__":

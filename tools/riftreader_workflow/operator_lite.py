@@ -43,6 +43,8 @@ DENIED_FRAGMENTS = (
     "visual-gate",
 )
 
+HELP_ALIASES = {"/help", "/?", "help"}
+
 GUI_PALETTE = {
     "background": "#0f172a",
     "panel": "#111827",
@@ -347,6 +349,130 @@ def command_plan(repo_root: Path) -> dict[str, Any]:
             "bridge-serve-or-tunnel",
         ],
         "safety": safety_flags(),
+    }
+
+
+def normalize_cli_argv(argv: list[str] | None) -> list[str] | None:
+    if argv is None:
+        argv = sys.argv[1:]
+    return ["--help" if arg.strip().lower() in HELP_ALIASES else arg for arg in argv]
+
+
+def command_list_payload(repo_root: Path) -> dict[str, Any]:
+    plan = command_plan(repo_root)
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-operator-lite-command-list",
+        "generatedAtUtc": utc_iso(),
+        "status": plan["status"],
+        "errors": plan["errors"],
+        "commands": [
+            {
+                "key": item["key"],
+                "label": item["label"],
+                "description": item["description"],
+                "expectedExitCodes": item["expectedExitCodes"],
+                "timeoutSeconds": item["timeoutSeconds"],
+            }
+            for item in plan["commands"]
+        ],
+        "examples": [
+            ".\\scripts\\riftreader-operator-lite.cmd --list-commands --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --run bridge-session-start --json",
+            ".\\scripts\\riftreader-operator-lite.cmd /help",
+        ],
+        "disabledLiveActions": plan["disabledLiveActions"],
+        "safety": plan["safety"],
+    }
+
+
+def missing_command_result(repo_root: Path, command_key: str) -> dict[str, Any]:
+    available = sorted(build_command_specs(repo_root))
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-operator-lite-command-run",
+        "generatedAtUtc": utc_iso(),
+        "status": "blocked",
+        "ok": False,
+        "code": "COMMAND_KEY_UNKNOWN",
+        "commandKey": command_key,
+        "availableCommands": available,
+        "exitCode": 2,
+        "stdout": "",
+        "stderr": f"Unknown safe command key: {command_key}",
+        "safety": safety_flags(),
+    }
+
+
+def blocked_command_result(command_key: str, spec: CommandSpec, code: str, message: str) -> dict[str, Any]:
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-operator-lite-command-run",
+        "generatedAtUtc": utc_iso(),
+        "status": "blocked",
+        "ok": False,
+        "code": code,
+        "commandKey": command_key,
+        "label": spec.label,
+        "description": spec.description,
+        "args": list(spec.args),
+        "expectedExitCodes": list(spec.expected_exit_codes),
+        "timeoutSeconds": spec.timeout_seconds,
+        "exitCode": 2,
+        "stdout": "",
+        "stderr": message,
+        "safety": safety_flags(),
+    }
+
+
+def command_run_status(exit_code: int | None, ok: bool) -> str:
+    if ok and exit_code == 0:
+        return "passed"
+    if ok and exit_code == 2:
+        return "blocked"
+    if ok:
+        return "completed"
+    if exit_code == 2:
+        return "blocked"
+    return "failed"
+
+
+def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
+    specs = build_command_specs(repo_root)
+    spec = specs.get(command_key)
+    if not spec:
+        return missing_command_result(repo_root, command_key)
+    denied = validate_safe_args(spec.args)
+    if denied:
+        return blocked_command_result(
+            command_key,
+            spec,
+            "COMMAND_DENIED",
+            f"operator-lite-denied-command-fragment:{','.join(denied)}",
+        )
+    first = Path(spec.args[0])
+    if (str(first).lower().endswith(".cmd") or str(first).lower().endswith(".ps1")) and not first.exists():
+        return blocked_command_result(command_key, spec, "COMMAND_SCRIPT_MISSING", f"Command script is missing: {first}")
+    result = run_command(spec.args, repo_root, spec.timeout_seconds, spec.expected_exit_codes)
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-operator-lite-command-run",
+        "generatedAtUtc": utc_iso(),
+        "status": command_run_status(result.get("exitCode"), bool(result.get("ok"))),
+        "ok": bool(result.get("ok")),
+        "commandKey": command_key,
+        "label": spec.label,
+        "description": spec.description,
+        "args": list(spec.args),
+        "expectedExitCodes": list(spec.expected_exit_codes),
+        "timeoutSeconds": spec.timeout_seconds,
+        "exitCode": result.get("exitCode"),
+        "stdout": result.get("stdout", ""),
+        "stderr": result.get("stderr", ""),
+        "startedAtUtc": result.get("startedAtUtc"),
+        "endedAtUtc": result.get("endedAtUtc"),
+        "durationSeconds": result.get("durationSeconds"),
+        "safety": result.get("safety", safety_flags()),
     }
 
 
@@ -798,18 +924,54 @@ def run_gui(repo_root: Path) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Offline-safe RiftReader Operator Lite.")
-    parser.add_argument("--repo-root", default=None)
-    parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--command-plan", action="store_true")
-    parser.add_argument("--json", action="store_true")
+    parser = argparse.ArgumentParser(
+        description="Offline-safe RiftReader Operator Lite.",
+        epilog=(
+            "Examples: riftreader-operator-lite.cmd --list-commands --json | "
+            "riftreader-operator-lite.cmd --run bridge-session-start --json | "
+            "riftreader-operator-lite.cmd /help"
+        ),
+    )
+    parser.add_argument("--repo-root", default=None, help="Repo root. Defaults to the current RiftReader checkout.")
+    parser.add_argument("--self-test", action="store_true", help="Validate Operator Lite safe command wiring and exit.")
+    parser.add_argument("--command-plan", action="store_true", help="Print the full safe command plan and exit.")
+    parser.add_argument("--list-commands", action="store_true", help="List safe command keys available to --run.")
+    parser.add_argument("--run", metavar="COMMAND_KEY", help="Run one known safe command key from the command plan.")
+    parser.add_argument("--json", action="store_true", help="Emit JSON for self-test, command-plan, list-commands, or run.")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    args = build_parser().parse_args(normalize_cli_argv(argv))
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     plan = command_plan(repo_root)
+    if args.run:
+        payload = run_command_key(repo_root, args.run)
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"Status: {payload['status']}")
+            print(f"Command: {payload.get('commandKey')}")
+            print(f"Exit code: {payload.get('exitCode')}")
+            if payload.get("stdout"):
+                print("")
+                print(str(payload["stdout"]).rstrip())
+            if payload.get("stderr"):
+                print("", file=sys.stderr)
+                print(str(payload["stderr"]).rstrip(), file=sys.stderr)
+        exit_code = payload.get("exitCode")
+        return int(exit_code) if isinstance(exit_code, int) else 1
+    if args.list_commands:
+        payload = command_list_payload(repo_root)
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"Status: {payload['status']}")
+            for command in payload["commands"]:
+                print(f"- {command['key']}: {command['label']} - {command['description']}")
+            for error in payload["errors"]:
+                print(f"ERROR: {error}")
+        return 1 if payload["status"] != "passed" else 0
     if args.self_test or args.command_plan:
         if args.json:
             print(json.dumps(plan, indent=2))
