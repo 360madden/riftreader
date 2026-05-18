@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -82,6 +83,42 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertEqual(latest, newer)
         self.assertEqual(summary["title"], "New handoff")
         self.assertEqual(summary["tldr"], "new")
+
+    def test_collect_git_head_uses_checked_out_head_not_newer_side_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["git", "config", "user.email", "riftreader-tests@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "RiftReader Tests"], cwd=root, check=True)
+            write_text(root / "README.md", "main\n")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "main current head"],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            subprocess.run(["git", "switch", "-c", "review/newer"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            write_text(root / "side.txt", "side\n")
+            subprocess.run(["git", "add", "side.txt"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "newer side branch"],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(["git", "switch", "main"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            errors: list[str] = []
+            git_state = status_packet.collect_git(root, commit_count=5, ref_count=5, errors=errors)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(git_state["head"]["subject"], "main current head")
+        self.assertEqual(git_state["recentCommits"][0]["subject"], "main current head")
+        self.assertNotIn("newer side branch", [commit["subject"] for commit in git_state["recentCommits"]])
 
     def test_summarize_blocked_proof_preserves_stale_anchor_boundary(self) -> None:
         proof = {

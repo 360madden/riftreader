@@ -485,13 +485,26 @@ def collect_git(repo_root: Path, commit_count: int, ref_count: int, errors: list
     commands: list[dict[str, Any]] = []
     status_env = run_command("git-status", ["git", "--no-pager", "status", "--short", "--branch"], repo_root)
     commands.append(status_env)
+    head_env = run_command(
+        "git-head",
+        [
+            "git",
+            "--no-pager",
+            "log",
+            "--max-count=1",
+            "--date=short",
+            "--pretty=format:%h%x09%ad%x09%d%x09%s",
+            "HEAD",
+        ],
+        repo_root,
+    )
+    commands.append(head_env)
     log_env = run_command(
         "git-log",
         [
             "git",
             "--no-pager",
             "log",
-            "--all",
             f"--max-count={commit_count}",
             "--date=short",
             "--pretty=format:%h%x09%ad%x09%d%x09%s",
@@ -519,11 +532,12 @@ def collect_git(repo_root: Path, commit_count: int, ref_count: int, errors: list
             errors.append(f"{envelope.get('label')}-failed:{envelope.get('exitCode')}:{envelope.get('error', '')}")
 
     status_summary = parse_git_status(str(status_env.get("stdoutPreview") or "")) if status_env.get("ok") else {}
+    head_commits = parse_git_log(str(head_env.get("stdoutPreview") or "")) if head_env.get("ok") else []
     commits = parse_git_log(str(log_env.get("stdoutPreview") or "")) if log_env.get("ok") else []
     remote_refs = parse_refs(str(refs_env.get("stdoutPreview") or "")) if refs_env.get("ok") else []
     return {
         "status": status_summary,
-        "head": commits[0] if commits else None,
+        "head": head_commits[0] if head_commits else None,
         "recentCommits": commits,
         "remoteRefs": remote_refs,
         "commandEnvelopes": commands,
