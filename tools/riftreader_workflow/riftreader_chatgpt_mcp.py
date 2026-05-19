@@ -15,9 +15,14 @@ import hashlib
 import importlib.util
 import json
 import os
+import queue
+import re
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -43,8 +48,14 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 DEFAULT_DRY_RUN_TIMEOUT_SECONDS = 180.0
 DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS = 30.0
+DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS = 120.0
 MAX_HANDOFF_BYTES = 512 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
+CLOUDFLARED_DEFAULT_PATHS = (
+    Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
+    Path(r"C:\Program Files\cloudflared\cloudflared.exe"),
+)
+CLOUDFLARE_QUICK_TUNNEL_PATTERN = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
 
 EXPECTED_TOOL_ORDER = (
     "health",
@@ -948,7 +959,67 @@ def choose_loopback_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def validate_sdk_registration(config: AdapterConfig, *, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> dict[str, Any]:
+def validate_public_host_value(value: str, *, field_name: str = "allowed host") -> str:
+    candidate = value.strip()
+    if not candidate:
+        raise AdapterError("PUBLIC_HOST_INVALID", f"{field_name} must not be empty.", status="failed")
+    if "://" in candidate or "/" in candidate or "\\" in candidate:
+        raise AdapterError(
+            "PUBLIC_HOST_INVALID",
+            f"{field_name} must be a bare host or host:port value, not a URL/path.",
+            status="failed",
+            extra={"value": value},
+        )
+    if candidate == "*":
+        raise AdapterError("PUBLIC_HOST_INVALID", f"{field_name} wildcard '*' is not allowed.", status="failed")
+    return candidate
+
+
+def normalize_allowed_hosts(values: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    for value in values or []:
+        candidate = validate_public_host_value(value)
+        if candidate not in normalized:
+            normalized.append(candidate)
+    return normalized
+
+
+def normalize_allowed_origins(values: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    for value in values or []:
+        candidate = value.strip()
+        if not candidate:
+            raise AdapterError("PUBLIC_ORIGIN_INVALID", "allowed origin must not be empty.", status="failed")
+        if "://" not in candidate:
+            raise AdapterError(
+                "PUBLIC_ORIGIN_INVALID",
+                "allowed origin must include scheme, e.g. https://chatgpt.com.",
+                status="failed",
+                extra={"value": value},
+            )
+        if candidate.endswith("/"):
+            candidate = candidate.rstrip("/")
+        if candidate not in normalized:
+            normalized.append(candidate)
+    return normalized
+
+
+def default_transport_allowed_hosts() -> list[str]:
+    return ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+
+
+def default_transport_allowed_origins() -> list[str]:
+    return ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"]
+
+
+def validate_sdk_registration(
+    config: AdapterConfig,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+    allowed_hosts: list[str] | None = None,
+    allowed_origins: list[str] | None = None,
+) -> dict[str, Any]:
     if host != DEFAULT_HOST:
         raise AdapterError(
             "UNSAFE_BIND_HOST",
@@ -959,7 +1030,13 @@ def validate_sdk_registration(config: AdapterConfig, *, host: str = DEFAULT_HOST
     if port < 0 or port > 65535:
         raise AdapterError("INVALID_PORT", "Port must be in range 0-65535.", status="failed", extra={"port": port})
     adapter = RiftReaderChatGptMcpAdapter(config)
-    server = create_fastmcp_server(adapter, host=host, port=port)
+    server = create_fastmcp_server(
+        adapter,
+        host=host,
+        port=port,
+        allowed_hosts=normalize_allowed_hosts(allowed_hosts),
+        allowed_origins=normalize_allowed_origins(allowed_origins),
+    )
     registered_tools = verify_registered_sdk_tools(server)
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -973,6 +1050,8 @@ def validate_sdk_registration(config: AdapterConfig, *, host: str = DEFAULT_HOST
         "toolCount": len(EXPECTED_TOOL_ORDER),
         "tools": tool_manifest()["tools"],
         "registeredTools": registered_tools,
+        "allowedHosts": normalize_allowed_hosts(allowed_hosts),
+        "allowedOrigins": normalize_allowed_origins(allowed_origins),
         "blockers": [],
         "warnings": [
             "SDK validation constructs the FastMCP server object only; it does not call run(), bind a port, or start a tunnel.",
@@ -1198,9 +1277,539 @@ def run_transport_smoke_test(
     return payload
 
 
-def create_fastmcp_server(adapter: RiftReaderChatGptMcpAdapter, *, host: str, port: int):
+def smoke_artifact_root(config: AdapterConfig) -> Path:
+    return (config.repo_root / ".riftreader-local" / "riftreader-chatgpt-mcp" / "transport-smoke").resolve()
+
+
+def write_smoke_artifact(config: AdapterConfig, payload: dict[str, Any], *, prefix: str) -> str:
+    root = smoke_artifact_root(config)
+    if not is_relative_to(root, config.repo_root / ".riftreader-local"):
+        raise AdapterError(
+            "SMOKE_ARTIFACT_ROOT_NOT_LOCAL",
+            "Transport smoke artifacts must stay under .riftreader-local.",
+            status="failed",
+            extra={"artifactRoot": str(root)},
+        )
+    root.mkdir(parents=True, exist_ok=True)
+    stamp = utc_iso().replace(":", "").replace("-", "")
+    path = root / f"{stamp}-{prefix}.json"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return rel(config.repo_root, path)
+
+
+def resolve_cloudflared_executable(value: str | None = None) -> Path:
+    candidates: list[Path] = []
+    if value:
+        candidates.append(Path(value).expanduser())
+    for found in (shutil.which("cloudflared.exe"), shutil.which("cloudflared")):
+        if found:
+            candidates.append(Path(found))
+    candidates.extend(CLOUDFLARED_DEFAULT_PATHS)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise AdapterError(
+        "CLOUDFLARED_NOT_FOUND",
+        "cloudflared executable was not found. Install cloudflared or pass --cloudflared-path.",
+        status="failed",
+        extra={"checked": [str(path) for path in candidates]},
+    )
+
+
+def resolve_curl_executable() -> str:
+    for name in ("curl.exe", "curl"):
+        found = shutil.which(name)
+        if found:
+            return found
+    raise AdapterError("CURL_NOT_FOUND", "curl was not found on PATH; cannot run HTTPS tunnel smoke.", status="failed")
+
+
+def parse_cloudflare_quick_tunnel_url(text: str) -> str | None:
+    match = CLOUDFLARE_QUICK_TUNNEL_PATTERN.search(text)
+    return match.group(0) if match else None
+
+
+def host_from_https_url(url: str) -> str:
+    match = re.fullmatch(r"https://([^/?#]+)(?:[/?#].*)?", url.strip())
+    if not match:
+        raise AdapterError("PUBLIC_TUNNEL_URL_INVALID", "Expected an https:// public tunnel URL.", status="failed", extra={"url": url})
+    return match.group(1)
+
+
+def start_process_stream_readers(process: subprocess.Popen[str]) -> tuple[queue.Queue[tuple[str, str]], list[str], list[str]]:
+    output_queue: queue.Queue[tuple[str, str]] = queue.Queue()
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+
+    def reader(stream: Any, stream_name: str, sink: list[str]) -> None:
+        try:
+            if stream is None:
+                return
+            for line in stream:
+                sink.append(line)
+                output_queue.put((stream_name, line))
+        except Exception as exc:  # pragma: no cover - diagnostic helper only.
+            output_queue.put((stream_name, f"[stream-reader-error] {type(exc).__name__}: {exc}\n"))
+
+    threading.Thread(target=reader, args=(process.stdout, "stdout", stdout_lines), daemon=True).start()
+    threading.Thread(target=reader, args=(process.stderr, "stderr", stderr_lines), daemon=True).start()
+    return output_queue, stdout_lines, stderr_lines
+
+
+def stop_process(process: subprocess.Popen[str] | None, *, graceful_timeout_seconds: float = 5.0) -> bool:
+    if process is None:
+        return False
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=graceful_timeout_seconds)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=graceful_timeout_seconds)
+    return process.poll() is not None
+
+
+def wait_for_cloudflare_quick_tunnel_url(
+    process: subprocess.Popen[str],
+    output_queue: queue.Queue[tuple[str, str]],
+    *,
+    timeout_seconds: float,
+    stdout_lines: list[str],
+    stderr_lines: list[str],
+) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            combined = "".join(stdout_lines + stderr_lines)
+            url = parse_cloudflare_quick_tunnel_url(combined)
+            if url:
+                return url
+            raise AdapterError(
+                "CLOUDFLARED_EXITED_BEFORE_URL",
+                "cloudflared exited before printing a trycloudflare URL.",
+                status="failed",
+                extra={
+                    "exitCode": process.returncode,
+                    "stdoutTail": text_tail("".join(stdout_lines), 4000),
+                    "stderrTail": text_tail("".join(stderr_lines), 4000),
+                },
+            )
+        try:
+            _stream_name, line = output_queue.get(timeout=0.25)
+        except queue.Empty:
+            continue
+        url = parse_cloudflare_quick_tunnel_url(line)
+        if url:
+            return url
+    raise AdapterError(
+        "CLOUDFLARED_URL_TIMEOUT",
+        "Timed out waiting for cloudflared to print a trycloudflare URL.",
+        status="failed",
+        extra={
+            "timeoutSeconds": timeout_seconds,
+            "stdoutTail": text_tail("".join(stdout_lines), 4000),
+            "stderrTail": text_tail("".join(stderr_lines), 4000),
+        },
+    )
+
+
+def http_status_from_headers(headers: str) -> int | None:
+    status: int | None = None
+    for line in headers.splitlines():
+        match = re.match(r"^HTTP/\S+\s+(\d{3})\b", line.strip())
+        if match:
+            status = int(match.group(1))
+    return status
+
+
+def curl_json_rpc_request(
+    *,
+    curl_executable: str,
+    url: str,
+    request: dict[str, Any],
+    timeout_seconds: float,
+    temp_dir: Path,
+) -> dict[str, Any]:
+    request_id = request.get("id", "notification")
+    safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(request_id))
+    headers_path = temp_dir / f"headers-{safe_id}.txt"
+    body_path = temp_dir / f"body-{safe_id}.json"
+    command = [
+        curl_executable,
+        "-sS",
+        "--show-error",
+        "--max-time",
+        str(timeout_seconds),
+        "-D",
+        str(headers_path),
+        "-o",
+        str(body_path),
+        "-X",
+        "POST",
+        url,
+        "-H",
+        "Content-Type: application/json",
+        "-H",
+        "Accept: application/json, text/event-stream",
+        "--data-binary",
+        json.dumps(request, separators=(",", ":")),
+    ]
+    started = time.monotonic()
+    completed = subprocess.run(
+        command,
+        cwd=str(temp_dir),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout_seconds + 5,
+        check=False,
+    )
+    duration = time.monotonic() - started
+    headers = headers_path.read_text(encoding="utf-8", errors="replace") if headers_path.is_file() else ""
+    body = body_path.read_text(encoding="utf-8", errors="replace") if body_path.is_file() else ""
+    parsed: Any = None
+    parse_error: str | None = None
+    if body.strip():
+        try:
+            parsed = json.loads(body)
+        except json.JSONDecodeError as exc:
+            parse_error = f"{type(exc).__name__}: {exc}"
+    else:
+        parse_error = "empty response body"
+    return {
+        "request": {"id": request.get("id"), "method": request.get("method")},
+        "command": {
+            "args": [command[0], *command[1:11], "...request-body-redacted"],
+            "cwd": str(temp_dir),
+        },
+        "exitCode": completed.returncode,
+        "durationSeconds": round(duration, 3),
+        "httpStatus": http_status_from_headers(headers),
+        "stdoutTail": text_tail(completed.stdout, 1000),
+        "stderrTail": text_tail(completed.stderr, 4000),
+        "headersTail": text_tail(headers, 4000),
+        "bodyTail": text_tail(body, 4000),
+        "json": parsed,
+        "jsonParseError": parse_error,
+    }
+
+
+def result_json(result: dict[str, Any]) -> dict[str, Any] | None:
+    value = result.get("json")
+    return value if isinstance(value, dict) else None
+
+
+def cloudflare_smoke_client_result(
+    *,
+    curl_executable: str,
+    url: str,
+    timeout_seconds: float,
+    temp_dir: Path,
+) -> dict[str, Any]:
+    requests = [
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "riftreader-chatgpt-mcp-cloudflare-smoke", "version": VERSION},
+            },
+        },
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "health", "arguments": {}}},
+    ]
+    responses = [
+        curl_json_rpc_request(
+            curl_executable=curl_executable,
+            url=url,
+            request=request,
+            timeout_seconds=timeout_seconds,
+            temp_dir=temp_dir,
+        )
+        for request in requests
+    ]
+    tools_payload = result_json(responses[1])
+    tools = []
+    if tools_payload:
+        tools_result = tools_payload.get("result")
+        if isinstance(tools_result, dict):
+            tools = [tool for tool in tools_result.get("tools", []) if isinstance(tool, dict)]
+    registered = [
+        {
+            "name": tool.get("name"),
+            "descriptionStartsUseThisWhen": str(tool.get("description") or "").startswith("Use this when"),
+            "annotations": tool.get("annotations") if isinstance(tool.get("annotations"), dict) else {},
+        }
+        for tool in tools
+    ]
+
+    health_payload = result_json(responses[2])
+    health_structured: Any = None
+    health_is_error = None
+    if health_payload:
+        call_result = health_payload.get("result")
+        if isinstance(call_result, dict):
+            health_is_error = bool(call_result.get("isError", False))
+            health_structured = call_result.get("structuredContent")
+
+    return {
+        "responses": responses,
+        "toolCount": len(tools),
+        "toolNames": [tool.get("name") for tool in tools],
+        "registeredTools": registered,
+        "healthIsError": health_is_error,
+        "healthStructuredContent": health_structured,
+    }
+
+
+def verify_cloudflare_smoke_client_result(client_result: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    for response in client_result.get("responses") or []:
+        request = response.get("request") if isinstance(response, dict) else {}
+        label = request.get("method") if isinstance(request, dict) else "unknown"
+        if response.get("exitCode") != 0:
+            blockers.append(f"curl-exit:{label}:{response.get('exitCode')}")
+        if response.get("httpStatus") != 200:
+            blockers.append(f"http-status:{label}:{response.get('httpStatus')}")
+        if response.get("jsonParseError"):
+            blockers.append(f"json-parse:{label}:{response.get('jsonParseError')}")
+        payload = result_json(response)
+        if isinstance(payload, dict) and payload.get("error"):
+            blockers.append(f"json-rpc-error:{label}:{payload.get('error')!r}")
+    blockers.extend(verify_transport_smoke_result(client_result))
+    return blockers
+
+
+def run_cloudflare_tunnel_smoke_test(
+    config: AdapterConfig,
+    *,
+    host: str = DEFAULT_HOST,
+    timeout_seconds: float = DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS,
+    cloudflared_path: str | None = None,
+) -> dict[str, Any]:
+    if host != DEFAULT_HOST:
+        raise AdapterError(
+            "UNSAFE_BIND_HOST",
+            "Cloudflare tunnel smoke keeps the MCP origin bound to 127.0.0.1 only.",
+            status="failed",
+            extra={"host": host},
+        )
+    if timeout_seconds <= 0 or timeout_seconds > 300:
+        raise AdapterError(
+            "CLOUDFLARE_SMOKE_TIMEOUT_INVALID",
+            "Cloudflare tunnel smoke timeout must be > 0 and <= 300 seconds.",
+            status="failed",
+            extra={"timeoutSeconds": timeout_seconds},
+        )
+
+    sdk_path_additions = ensure_mcp_sdk_available(config.repo_root)
+    cloudflared_executable = resolve_cloudflared_executable(cloudflared_path)
+    curl_executable = resolve_curl_executable()
+    port = choose_loopback_port()
+    local_origin = f"http://{host}:{port}"
+    tunnel_command = [
+        str(cloudflared_executable),
+        "tunnel",
+        "--url",
+        local_origin,
+        "--no-autoupdate",
+        "--protocol",
+        "quic",
+        "--ha-connections",
+        "1",
+    ]
+    tunnel_process: subprocess.Popen[str] | None = None
+    server_process: subprocess.Popen[str] | None = None
+    tunnel_stdout: list[str] = []
+    tunnel_stderr: list[str] = []
+    server_stdout = ""
+    server_stderr = ""
+    public_url: str | None = None
+    public_host: str | None = None
+    client_result: dict[str, Any] = {"responses": []}
+    blockers: list[str] = []
+    status = "failed"
+    ok = False
+    server_stopped = False
+    tunnel_stopped = False
+
+    tmp_parent = smoke_artifact_root(config)
+    tmp_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="cloudflare-smoke-", dir=str(tmp_parent)) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        try:
+            tunnel_process = subprocess.Popen(
+                tunnel_command,
+                cwd=str(config.repo_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            tunnel_queue, tunnel_stdout, tunnel_stderr = start_process_stream_readers(tunnel_process)
+            public_url = wait_for_cloudflare_quick_tunnel_url(
+                tunnel_process,
+                tunnel_queue,
+                timeout_seconds=min(timeout_seconds, 45.0),
+                stdout_lines=tunnel_stdout,
+                stderr_lines=tunnel_stderr,
+            )
+            public_host = host_from_https_url(public_url)
+            script_path = Path(__file__).resolve()
+            server_command = [
+                sys.executable,
+                str(script_path),
+                "--serve",
+                "--host",
+                host,
+                "--port",
+                str(port),
+                "--transport",
+                "streamable-http",
+                "--repo-root",
+                str(config.repo_root),
+                "--payload-root",
+                str(config.payload_root),
+                "--audit-root",
+                str(config.audit_root),
+                "--allowed-host",
+                public_host,
+            ]
+            env = os.environ.copy()
+            env["PYTHONPATH"] = build_child_pythonpath(config, env)
+            server_process = subprocess.Popen(
+                server_command,
+                cwd=str(config.repo_root),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            deadline = time.monotonic() + timeout_seconds
+            last_blockers: list[str] = []
+            while time.monotonic() < deadline:
+                if tunnel_process.poll() is not None:
+                    raise AdapterError("CLOUDFLARED_EXITED_EARLY", "cloudflared exited during smoke test.", status="failed")
+                if server_process.poll() is not None:
+                    raise AdapterError(
+                        "MCP_TRANSPORT_SERVER_EXITED_EARLY",
+                        "MCP server exited during Cloudflare tunnel smoke.",
+                        status="failed",
+                        extra={"serverExitCode": server_process.returncode},
+                    )
+                client_result = cloudflare_smoke_client_result(
+                    curl_executable=curl_executable,
+                    url=f"{public_url}/mcp",
+                    timeout_seconds=min(10.0, max(2.0, timeout_seconds / 6)),
+                    temp_dir=temp_dir,
+                )
+                last_blockers = verify_cloudflare_smoke_client_result(client_result)
+                if not last_blockers:
+                    blockers = []
+                    status = "passed"
+                    ok = True
+                    break
+                blockers = last_blockers
+                time.sleep(2.0)
+            else:
+                blockers = last_blockers or ["cloudflare-smoke-timeout"]
+        except AdapterError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - fail closed with evidence.
+            raise AdapterError(
+                "CLOUDFLARE_SMOKE_FAILED",
+                f"{type(exc).__name__}: {exc}",
+                status="failed",
+            ) from exc
+        finally:
+            server_stopped = stop_process(server_process)
+            tunnel_stopped = stop_process(tunnel_process)
+            if server_process is not None:
+                try:
+                    server_stdout, server_stderr = server_process.communicate(timeout=2)
+                except subprocess.TimeoutExpired:
+                    server_process.kill()
+                    server_stdout, server_stderr = server_process.communicate(timeout=2)
+                    server_stopped = server_process.poll() is not None
+
+    if not tunnel_stopped:
+        blockers.append("cloudflared-not-stopped")
+    if not server_stopped:
+        blockers.append("temporary-server-not-stopped")
+    if blockers:
+        status = "failed"
+        ok = False
+
+    payload: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-cloudflare-tunnel-smoke",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": ok,
+        "service": SERVER_NAME,
+        "version": VERSION,
+        "publicUrl": public_url,
+        "publicMcpUrl": f"{public_url}/mcp" if public_url else None,
+        "publicHost": public_host,
+        "localOrigin": local_origin,
+        "host": host,
+        "port": port,
+        "timeoutSeconds": timeout_seconds,
+        "client": client_result,
+        "commands": {
+            "cloudflared": {"args": tunnel_command, "cwd": str(config.repo_root)},
+        },
+        "processes": {
+            "cloudflared": {
+                "exitCodeAfterStop": tunnel_process.returncode if tunnel_process is not None else None,
+                "stopped": tunnel_stopped,
+                "stdoutTail": text_tail("".join(tunnel_stdout), 4000),
+                "stderrTail": text_tail("".join(tunnel_stderr), 4000),
+            },
+            "server": {
+                "exitCodeAfterStop": server_process.returncode if server_process is not None else None,
+                "stopped": server_stopped,
+                "stdoutTail": text_tail(server_stdout, 4000),
+                "stderrTail": text_tail(server_stderr, 4000),
+            },
+        },
+        "blockers": blockers,
+        "warnings": [
+            "This explicit smoke starts a temporary public Cloudflare quick tunnel and temporary loopback MCP server, then stops both.",
+            "It does not register the app in ChatGPT and does not expose broad filesystem, shell, Git, RIFT, CE, or x64dbg tools.",
+            "Use the printed public /mcp URL only while the temporary tunnel is running; quick-tunnel URLs are ephemeral.",
+        ],
+        "safety": {
+            **base_safety(),
+            "temporaryLoopbackServerStarted": server_process is not None,
+            "serverStopped": server_stopped,
+            "temporaryPublicTunnelStarted": tunnel_process is not None,
+            "publicTunnelStopped": tunnel_stopped,
+            "chatGptRegistrationPerformed": False,
+            "sdkPathAdditions": sdk_path_additions,
+            "transport": "streamable-http",
+            "allowedHostExact": public_host,
+            "originBoundToLoopbackOnly": host == DEFAULT_HOST,
+        },
+    }
+    artifact = write_smoke_artifact(config, payload, prefix="cloudflare-tunnel-smoke")
+    payload["artifactPaths"] = {"summaryJson": artifact}
+    Path(config.repo_root / artifact).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return payload
+
+
+def create_fastmcp_server(
+    adapter: RiftReaderChatGptMcpAdapter,
+    *,
+    host: str,
+    port: int,
+    allowed_hosts: list[str] | None = None,
+    allowed_origins: list[str] | None = None,
+):
     try:
         from mcp.server.fastmcp import FastMCP
+        from mcp.server.transport_security import TransportSecuritySettings
         from mcp.types import ToolAnnotations
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on optional SDK install.
         raise AdapterError(
@@ -1216,6 +1825,16 @@ def create_fastmcp_server(adapter: RiftReaderChatGptMcpAdapter, *, host: str, po
             openWorldHint=spec.open_world,
         )
 
+    public_allowed_hosts = normalize_allowed_hosts(allowed_hosts)
+    public_allowed_origins = normalize_allowed_origins(allowed_origins)
+    transport_security = None
+    if public_allowed_hosts or public_allowed_origins:
+        transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=default_transport_allowed_hosts() + public_allowed_hosts,
+            allowed_origins=default_transport_allowed_origins() + public_allowed_origins,
+        )
+
     mcp = FastMCP(
         SERVER_NAME,
         instructions=(
@@ -1227,6 +1846,7 @@ def create_fastmcp_server(adapter: RiftReaderChatGptMcpAdapter, *, host: str, po
         port=port,
         stateless_http=True,
         json_response=True,
+        transport_security=transport_security,
     )
 
     def register(name: str, fn: Callable[..., dict[str, Any]]) -> None:
@@ -1359,6 +1979,11 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--self-test", action="store_true", help="Run local handler self-test without ChatGPT or tunnel.")
     mode.add_argument("--validate-sdk", action="store_true", help="Validate FastMCP SDK import/tool registration without serving.")
     mode.add_argument("--transport-smoke", action="store_true", help="Start a temporary loopback MCP server, smoke test it, then stop it.")
+    mode.add_argument(
+        "--cloudflare-tunnel-smoke",
+        action="store_true",
+        help="Explicitly start a temporary Cloudflare quick tunnel, smoke test the public /mcp URL, then stop it.",
+    )
     mode.add_argument("--call", choices=EXPECTED_TOOL_ORDER, help="Call one local tool handler without starting a server.")
     mode.add_argument("--serve", action="store_true", help="Start the MCP server. Does not start a tunnel.")
     parser.add_argument("--arguments-json", default=None, help="JSON object or path for --call arguments.")
@@ -1368,6 +1993,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default=DEFAULT_HOST, help="Serve host for --serve. Only 127.0.0.1 is allowed.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Serve port for --serve.")
     parser.add_argument(
+        "--allowed-host",
+        action="append",
+        default=[],
+        help="Extra exact Host header value allowed by MCP DNS rebinding protection for an explicit HTTPS tunnel.",
+    )
+    parser.add_argument(
+        "--allowed-origin",
+        action="append",
+        default=[],
+        help="Extra exact Origin allowed by MCP DNS rebinding protection, e.g. https://chatgpt.com.",
+    )
+    parser.add_argument(
         "--transport",
         choices=("streamable-http", "sse"),
         default="streamable-http",
@@ -1375,6 +2012,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--dry-run-timeout-seconds", type=float, default=DEFAULT_DRY_RUN_TIMEOUT_SECONDS)
     parser.add_argument("--transport-smoke-timeout-seconds", type=float, default=DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS)
+    parser.add_argument("--cloudflare-smoke-timeout-seconds", type=float, default=DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS)
+    parser.add_argument("--cloudflared-path", default=None, help="Optional explicit path to cloudflared for --cloudflare-tunnel-smoke.")
     parser.add_argument("--max-inbox-mb", type=float, default=1.0)
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
     return parser
@@ -1400,11 +2039,26 @@ def main(argv: list[str] | None = None) -> int:
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
         if args.validate_sdk:
-            payload = validate_sdk_registration(config, host=args.host, port=args.port)
+            payload = validate_sdk_registration(
+                config,
+                host=args.host,
+                port=args.port,
+                allowed_hosts=args.allowed_host,
+                allowed_origins=args.allowed_origin,
+            )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
         if args.transport_smoke:
             payload = run_transport_smoke_test(config, host=args.host, timeout_seconds=args.transport_smoke_timeout_seconds)
+            print_payload(payload, json_mode=args.json)
+            return 0 if payload.get("ok") else 1
+        if args.cloudflare_tunnel_smoke:
+            payload = run_cloudflare_tunnel_smoke_test(
+                config,
+                host=args.host,
+                timeout_seconds=args.cloudflare_smoke_timeout_seconds,
+                cloudflared_path=args.cloudflared_path,
+            )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
         if args.call:
@@ -1424,7 +2078,13 @@ def main(argv: list[str] | None = None) -> int:
                 print_payload(payload, json_mode=True)
                 return 1
             adapter = RiftReaderChatGptMcpAdapter(config)
-            mcp = create_fastmcp_server(adapter, host=args.host, port=args.port)
+            mcp = create_fastmcp_server(
+                adapter,
+                host=args.host,
+                port=args.port,
+                allowed_hosts=args.allowed_host,
+                allowed_origins=args.allowed_origin,
+            )
             mcp.run(transport=args.transport)
             return 0
     except AdapterError as exc:

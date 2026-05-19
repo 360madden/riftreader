@@ -21,6 +21,19 @@ if str(TOOLS_ROOT) not in sys.path:
 from riftreader_workflow import riftreader_chatgpt_mcp as chatgpt_mcp  # noqa: E402
 
 
+class FakeTransportSecuritySettings:
+    def __init__(
+        self,
+        *,
+        enable_dns_rebinding_protection: bool,
+        allowed_hosts: list[str],
+        allowed_origins: list[str],
+    ) -> None:
+        self.enable_dns_rebinding_protection = enable_dns_rebinding_protection
+        self.allowed_hosts = allowed_hosts
+        self.allowed_origins = allowed_origins
+
+
 def make_repo(root: Path) -> None:
     (root / ".git").mkdir()
     (root / "agents.md").write_text("# policy\n", encoding="utf-8")
@@ -364,8 +377,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         mcp_module = types.ModuleType("mcp")
         server_module = types.ModuleType("mcp.server")
         fastmcp_module = types.ModuleType("mcp.server.fastmcp")
+        transport_security_module = types.ModuleType("mcp.server.transport_security")
         types_module = types.ModuleType("mcp.types")
         fastmcp_module.FastMCP = FakeFastMCP
+        transport_security_module.TransportSecuritySettings = FakeTransportSecuritySettings
         types_module.ToolAnnotations = FakeAnnotations
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -378,6 +393,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                     "mcp": mcp_module,
                     "mcp.server": server_module,
                     "mcp.server.fastmcp": fastmcp_module,
+                    "mcp.server.transport_security": transport_security_module,
                     "mcp.types": types_module,
                 },
             ):
@@ -385,6 +401,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertEqual(server.args[0], chatgpt_mcp.SERVER_NAME)
         self.assertTrue(server.kwargs["stateless_http"])
+        self.assertIsNone(server.kwargs["transport_security"])
         self.assertEqual(len(server.registrations), len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
         by_name = {registration["name"]: registration for registration in server.registrations}
         self.assertTrue(by_name["health"]["annotations"].readOnlyHint)
@@ -393,6 +410,103 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             self.assertIn("Use this when", registration["description"])
             self.assertFalse(registration["annotations"].destructiveHint)
             self.assertFalse(registration["annotations"].openWorldHint)
+
+    def test_create_fastmcp_server_configures_exact_public_allowed_host(self) -> None:
+        class FakeAnnotations:
+            def __init__(self, *, readOnlyHint: bool, destructiveHint: bool, openWorldHint: bool) -> None:  # noqa: N803
+                self.readOnlyHint = readOnlyHint
+                self.destructiveHint = destructiveHint
+                self.openWorldHint = openWorldHint
+
+        class FakeFastMCP:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                self.args = args
+                self.kwargs = kwargs
+                self.registrations: list[dict[str, object]] = []
+
+            def tool(self, **kwargs: object):
+                self.registrations.append(kwargs)
+
+                def decorate(fn):
+                    return fn
+
+                return decorate
+
+        mcp_module = types.ModuleType("mcp")
+        server_module = types.ModuleType("mcp.server")
+        fastmcp_module = types.ModuleType("mcp.server.fastmcp")
+        transport_security_module = types.ModuleType("mcp.server.transport_security")
+        types_module = types.ModuleType("mcp.types")
+        fastmcp_module.FastMCP = FakeFastMCP
+        transport_security_module.TransportSecuritySettings = FakeTransportSecuritySettings
+        types_module.ToolAnnotations = FakeAnnotations
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.dict(
+                sys.modules,
+                {
+                    "mcp": mcp_module,
+                    "mcp.server": server_module,
+                    "mcp.server.fastmcp": fastmcp_module,
+                    "mcp.server.transport_security": transport_security_module,
+                    "mcp.types": types_module,
+                },
+            ):
+                server = chatgpt_mcp.create_fastmcp_server(
+                    adapter,
+                    host="127.0.0.1",
+                    port=8770,
+                    allowed_hosts=["example.trycloudflare.com", "example.trycloudflare.com"],
+                    allowed_origins=["https://chatgpt.com/"],
+                )
+
+        security = server.kwargs["transport_security"]
+        self.assertTrue(security.enable_dns_rebinding_protection)
+        self.assertIn("127.0.0.1:*", security.allowed_hosts)
+        self.assertIn("example.trycloudflare.com", security.allowed_hosts)
+        self.assertEqual(security.allowed_hosts.count("example.trycloudflare.com"), 1)
+        self.assertIn("https://chatgpt.com", security.allowed_origins)
+
+    def test_allowed_host_normalization_rejects_urls_paths_and_wildcards(self) -> None:
+        with self.assertRaises(chatgpt_mcp.AdapterError) as url_error:
+            chatgpt_mcp.normalize_allowed_hosts(["https://example.trycloudflare.com"])
+        with self.assertRaises(chatgpt_mcp.AdapterError) as path_error:
+            chatgpt_mcp.normalize_allowed_hosts(["example.trycloudflare.com/mcp"])
+        with self.assertRaises(chatgpt_mcp.AdapterError) as wildcard_error:
+            chatgpt_mcp.normalize_allowed_hosts(["*"])
+
+        self.assertEqual(url_error.exception.code, "PUBLIC_HOST_INVALID")
+        self.assertEqual(path_error.exception.code, "PUBLIC_HOST_INVALID")
+        self.assertEqual(wildcard_error.exception.code, "PUBLIC_HOST_INVALID")
+
+    def test_cloudflare_smoke_parses_tunnel_url_and_verifies_client_result(self) -> None:
+        text = "INF +--------------------------------------------------------------------------------------------+\nINF |  https://alpha-beta.trycloudflare.com  |"
+        self.assertEqual(chatgpt_mcp.parse_cloudflare_quick_tunnel_url(text), "https://alpha-beta.trycloudflare.com")
+        self.assertEqual(chatgpt_mcp.host_from_https_url("https://alpha-beta.trycloudflare.com/mcp"), "alpha-beta.trycloudflare.com")
+
+        client_result = {
+            "responses": [
+                {"request": {"method": "initialize"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
+                {"request": {"method": "tools/list"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
+                {"request": {"method": "tools/call"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
+            ],
+            "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "registeredTools": [
+                {
+                    "name": name,
+                    "descriptionStartsUseThisWhen": True,
+                    "annotations": chatgpt_mcp.TOOL_SPECS[name].annotation_payload(),
+                }
+                for name in chatgpt_mcp.EXPECTED_TOOL_ORDER
+            ],
+            "healthIsError": False,
+            "healthStructuredContent": {"service": chatgpt_mcp.SERVER_NAME, "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER)},
+        }
+
+        self.assertEqual(chatgpt_mcp.verify_cloudflare_smoke_client_result(client_result), [])
 
     def test_create_fastmcp_server_fails_closed_without_annotation_support(self) -> None:
         class FakeAnnotations:
@@ -413,8 +527,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         mcp_module = types.ModuleType("mcp")
         server_module = types.ModuleType("mcp.server")
         fastmcp_module = types.ModuleType("mcp.server.fastmcp")
+        transport_security_module = types.ModuleType("mcp.server.transport_security")
         types_module = types.ModuleType("mcp.types")
         fastmcp_module.FastMCP = RejectingFastMCP
+        transport_security_module.TransportSecuritySettings = FakeTransportSecuritySettings
         types_module.ToolAnnotations = FakeAnnotations
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -427,6 +543,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                     "mcp": mcp_module,
                     "mcp.server": server_module,
                     "mcp.server.fastmcp": fastmcp_module,
+                    "mcp.server.transport_security": transport_security_module,
                     "mcp.types": types_module,
                 },
             ):
@@ -470,8 +587,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         mcp_module = types.ModuleType("mcp")
         server_module = types.ModuleType("mcp.server")
         fastmcp_module = types.ModuleType("mcp.server.fastmcp")
+        transport_security_module = types.ModuleType("mcp.server.transport_security")
         types_module = types.ModuleType("mcp.types")
         fastmcp_module.FastMCP = FakeFastMCP
+        transport_security_module.TransportSecuritySettings = FakeTransportSecuritySettings
         types_module.ToolAnnotations = FakeAnnotations
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -484,6 +603,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                     "mcp": mcp_module,
                     "mcp.server": server_module,
                     "mcp.server.fastmcp": fastmcp_module,
+                    "mcp.server.transport_security": transport_security_module,
                     "mcp.types": types_module,
                 },
             ):
@@ -544,8 +664,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         mcp_module = types.ModuleType("mcp")
         server_module = types.ModuleType("mcp.server")
         fastmcp_module = types.ModuleType("mcp.server.fastmcp")
+        transport_security_module = types.ModuleType("mcp.server.transport_security")
         types_module = types.ModuleType("mcp.types")
         fastmcp_module.FastMCP = FakeFastMCP
+        transport_security_module.TransportSecuritySettings = FakeTransportSecuritySettings
         types_module.ToolAnnotations = FakeAnnotations
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -558,6 +680,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                     "mcp": mcp_module,
                     "mcp.server": server_module,
                     "mcp.server.fastmcp": fastmcp_module,
+                    "mcp.server.transport_security": transport_security_module,
                     "mcp.types": types_module,
                 },
             ):

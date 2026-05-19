@@ -80,6 +80,21 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --transport-smoke --json
 ```
 
+Optional explicit public-tunnel smoke:
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --cloudflare-tunnel-smoke --json
+```
+
+This starts a temporary Cloudflare quick tunnel and a temporary loopback MCP
+server, calls `initialize`, `tools/list`, and `tools/call` for `health` through
+the public HTTPS `/mcp` URL, writes a local summary under
+`.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`, then stops both
+processes. It is opt-in only and does not register the app in ChatGPT.
+
 ## Running the MCP server locally
 
 The server path uses the official Python MCP SDK when `--serve` is requested.
@@ -127,12 +142,31 @@ tunnel automatically from the MCP adapter. When you intentionally test, expose
 the local server with a manually started tunnel such as Cloudflare Tunnel or
 ngrok.
 
-Example with Cloudflare Tunnel:
+For Cloudflare quick tunnels, the public hostname is random and must be
+allowlisted on the MCP server. Start the tunnel first, copy the bare hostname
+from the generated URL, then start the server with `--allowed-host`.
+
+Terminal 1:
 
 RUN THIS:
 
 ```powershell
-cloudflared tunnel --url http://127.0.0.1:8770
+cloudflared tunnel --url http://127.0.0.1:8770 --no-autoupdate
+```
+
+If Cloudflare prints:
+
+```text
+https://example.trycloudflare.com
+```
+
+Terminal 2:
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --serve --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host example.trycloudflare.com --allowed-origin https://chatgpt.com
 ```
 
 Use the generated HTTPS URL plus `/mcp` as the ChatGPT connector URL, for
@@ -141,6 +175,11 @@ example:
 ```text
 https://example.trycloudflare.com/mcp
 ```
+
+Do not pass a full URL to `--allowed-host`; pass only the exact Host header
+value, such as `example.trycloudflare.com`. If this is omitted for a public
+tunnel, the Python MCP SDK's DNS-rebinding protection can reject the request
+with HTTP `421 Misdirected Request`.
 
 ## Registering in ChatGPT Developer Mode
 
@@ -174,6 +213,7 @@ in this turn.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `MCP_PYTHON_SDK_MISSING` | Python `mcp` package is not installed. | Install `mcp[cli]` before `--serve`. |
+| HTTP `421 Misdirected Request` through a tunnel | The tunnel Host header is not allowlisted. | Restart `--serve` with `--allowed-host <bare-public-host>` and, for ChatGPT, `--allowed-origin https://chatgpt.com`. |
 | ChatGPT cannot connect | Tunnel URL is missing `/mcp`, expired, or not HTTPS. | Restart local server/tunnel and re-register/refresh tools. |
 | Write tool prompts for confirmation | Expected for action tools. | Review JSON payload before approving. |
 | `PACKAGE_DRAFT_OPERATOR_EMPTY` | Only self-test drafts exist or no operator draft exists. | Submit/review a real operator-approved proposal first. |
