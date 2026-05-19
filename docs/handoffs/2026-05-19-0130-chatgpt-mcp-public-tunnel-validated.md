@@ -111,6 +111,7 @@ thin `.cmd` wrappers:
 | ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` / `--record --input proof.json --json` | Records operator-supplied actual ChatGPT proof packets under ignored `.riftreader-local` and fails closed on proof-quality gaps. |
 | Safe Commit Packager | `scripts\riftreader-safe-commit-packager.cmd --plan --json` | Plan-only explicit-path staging checklist and commit-message draft; no staging, commit, or push. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Recommends the next safest MCP lane command from local artifacts and Git state. |
+| Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Reports whether repo-side MCP proof and actual ChatGPT client proof satisfy Phase 1 completion. |
 
 Operator Lite now exposes safe buttons/shortcuts for those helpers, but still has
 no button that starts a public tunnel. The bounded real trial remains the direct

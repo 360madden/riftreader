@@ -51,7 +51,7 @@ def safe_commit_plan(repo_root: Path) -> dict[str, Any]:
     git_add_commands = [["git", "add", "--", str(entry["path"])] for entry in stageable]
     paste_commands = ["git add -- " + quote_path(str(entry["path"])) for entry in stageable]
     validation_commands = [
-        "python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_operator_lite scripts.test_package_draft_review scripts.test_mcp_workflow_state scripts.test_mcp_artifact_browser scripts.test_workflow_router scripts.test_mcp_mission_control scripts.test_chatgpt_trial_recorder scripts.test_safe_commit_packager",
+        "python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_operator_lite scripts.test_package_draft_review scripts.test_mcp_workflow_state scripts.test_mcp_artifact_browser scripts.test_workflow_router scripts.test_mcp_mission_control scripts.test_chatgpt_trial_recorder scripts.test_safe_commit_packager scripts.test_mcp_phase1_completion",
         "git --no-pager diff --check",
     ]
     state = build_mcp_workflow_state(repo_root)
