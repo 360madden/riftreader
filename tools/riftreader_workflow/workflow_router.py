@@ -42,7 +42,9 @@ def ranked_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
     if latest.get("draft") and not passed(latest.get("dry-run")):
         add("draft-dry-run", "P1", "Draft exists but no passing dry-run artifact is discovered.", "dryRunLatestDraft")
     if passed(latest.get("actual-client-proof")):
-        add("mcp-phase2-status", "P1", "Phase 1 proof exists; run the read-only Phase 2 gate for CI, replay, and freshness status.", "mcpPhase2Status")
+        if not has_stageable_dirty(git_state):
+            add("mcp-final-status", "P1", "Actual-client proof exists and working tree is clean; run the final readiness gate.", "mcpFinalStatus")
+        add("mcp-phase2-status", "P1", "Actual-client proof exists; run the read-only Phase 2 gate for CI, replay, and freshness status.", "mcpPhase2Status")
     add("latest-artifacts", "P2", "Open latest artifact browser when evidence paths are unclear.", "mcpArtifactsLatest")
     add("mission-control", "P2", "Open consolidated MCP dashboard.", "mcpMissionControl")
     if passed(latest.get("actual-client-proof")) and not git_state.get("dirty"):
@@ -81,7 +83,7 @@ def route_mcp(repo_root: Path) -> dict[str, Any]:
 
 def self_test() -> dict[str, Any]:
     state = {
-        "commands": {"mcpTrialReadiness": ["readiness"], "mcpPhase2Status": ["phase2"]},
+        "commands": {"mcpTrialReadiness": ["readiness"], "mcpPhase2Status": ["phase2"], "mcpFinalStatus": ["final"]},
         "latestArtifacts": {},
         "gitDirtyState": {"dirty": False, "entries": []},
     }

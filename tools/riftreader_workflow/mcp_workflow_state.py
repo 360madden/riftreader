@@ -425,6 +425,8 @@ def standard_commands() -> dict[str, list[str]]:
         "mcpPhase1Status": ["scripts\\riftreader-mcp-phase1.cmd", "--status", "--json"],
         "mcpPhase2Status": ["scripts\\riftreader-mcp-phase2.cmd", "--status", "--json"],
         "mcpPhase2CompactStatus": ["scripts\\riftreader-mcp-phase2.cmd", "--status", "--compact-json"],
+        "mcpFinalStatus": ["scripts\\riftreader-mcp-final.cmd", "--status", "--json"],
+        "mcpFinalCompactStatus": ["scripts\\riftreader-mcp-final.cmd", "--status", "--compact-json"],
         "mcpArtifactsLatest": ["scripts\\riftreader-mcp-artifacts.cmd", "--latest", "--json"],
         "mcpTrialReadiness": ["scripts\\riftreader-operator-lite.cmd", "--mcp-trial-readiness", "--json"],
         "proposalTransportSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--proposal-transport-smoke", "--json"],
@@ -517,6 +519,8 @@ def self_test() -> dict[str, Any]:
         {"name": "non-ephemeral-local-url-ignored", "pass": not public_url_is_ephemeral("http://127.0.0.1:3000/mcp")},
         {"name": "standard-commands-include-phase2", "pass": "mcpPhase2Status" in standard_commands()},
         {"name": "standard-commands-include-compact-phase2", "pass": "mcpPhase2CompactStatus" in standard_commands()},
+        {"name": "standard-commands-include-final", "pass": "mcpFinalStatus" in standard_commands()},
+        {"name": "standard-commands-include-compact-final", "pass": "mcpFinalCompactStatus" in standard_commands()},
     ]
     ok = all(check["pass"] for check in checks)
     return {

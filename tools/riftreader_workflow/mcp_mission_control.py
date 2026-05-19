@@ -12,12 +12,14 @@ from typing import Any
 try:
     from .common import find_repo_root, run_command_envelope, safety_flags, utc_iso
     from .mcp_ci_status import current_head_ci_status
+    from .mcp_final_readiness import compact_final_readiness, final_readiness
     from .mcp_workflow_state import build_mcp_workflow_state, standard_commands
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, utc_iso
     from riftreader_workflow.mcp_ci_status import current_head_ci_status
+    from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
     from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, standard_commands
     from riftreader_workflow.workflow_router import ranked_actions
 
@@ -25,10 +27,12 @@ except ImportError:  # pragma: no cover
 def mission_control(repo_root: Path) -> dict[str, Any]:
     state = build_mcp_workflow_state(repo_root)
     ci_status = current_head_ci_status(repo_root)
+    final_status = final_readiness(repo_root, state_payload=state)
     commands = standard_commands()
     warnings = [
         *(state.get("warnings") if isinstance(state.get("warnings"), list) else []),
         *(ci_status.get("warnings") if isinstance(ci_status.get("warnings"), list) else []),
+        *(final_status.get("warnings") if isinstance(final_status.get("warnings"), list) else []),
     ]
     return {
         "schemaVersion": 1,
@@ -39,6 +43,7 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
         "blockers": state.get("blockers"),
         "warnings": warnings,
         "ciStatus": ci_status,
+        "finalStatus": compact_final_readiness(final_status),
         "latestArtifacts": state.get("latestArtifacts"),
         "counts": state.get("counts"),
         "gitDirtyState": state.get("gitDirtyState"),
@@ -51,6 +56,8 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
             "trialSession": commands["chatGptTrialSession"],
             "phase2Status": commands["mcpPhase2Status"],
             "phase2CompactStatus": commands["mcpPhase2CompactStatus"],
+            "finalStatus": commands["mcpFinalStatus"],
+            "finalCompactStatus": commands["mcpFinalCompactStatus"],
             "inboxReview": commands["inboxLatest"],
             "draftExport": commands["inboxPackageDraft"],
             "draftDryRun": commands["dryRunLatestDraft"],
@@ -109,6 +116,21 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
                 "",
                 f"- Status: `{ci.get('status')}`",
                 f"- Current HEAD: `{ci.get('currentHead')}`",
+            ]
+        )
+    final_status = payload.get("finalStatus") if isinstance(payload.get("finalStatus"), dict) else {}
+    if final_status:
+        final_action = final_status.get("recommendedNextAction") if isinstance(final_status.get("recommendedNextAction"), dict) else {}
+        lines.extend(
+            [
+                "",
+                "## Final readiness",
+                "",
+                f"- Status: `{final_status.get('status')}`",
+                f"- Tool surface: `{final_status.get('toolSurfaceStatus')}`",
+                f"- Dependencies: `{final_status.get('dependencyStatus')}`",
+                f"- Public session: `{final_status.get('publicSessionStatus')}`",
+                f"- Next: `{final_action.get('key')}`",
             ]
         )
     lines.extend(
