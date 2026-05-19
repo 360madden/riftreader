@@ -678,6 +678,7 @@ class RiftReaderChatGptMcpAdapter:
 
     def review_latest_package_draft(self, *, operator_only: bool = True) -> dict[str, Any]:
         payload = package_draft_review.latest_package_draft(self.config.repo_root, operator_only=operator_only)
+        draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-review-latest-package-draft",
@@ -685,6 +686,7 @@ class RiftReaderChatGptMcpAdapter:
             "status": payload.get("status"),
             "ok": bool(payload.get("ok")),
             "operatorOnly": operator_only,
+            "draftId": draft.get("draftId"),
             "draftReview": payload,
             "blockers": list(payload.get("blockers") or ([payload.get("code")] if payload.get("code") else [])),
             "warnings": list(payload.get("warnings") or []),
@@ -697,11 +699,13 @@ class RiftReaderChatGptMcpAdapter:
 
     def dry_run_latest_package_draft(self, *, operator_only: bool = True, timeout_seconds: float | None = None) -> dict[str, Any]:
         timeout = timeout_seconds if timeout_seconds is not None else self.config.dry_run_timeout_seconds
-        payload = package_draft_review.dry_run_latest_package_draft(
-            self.config.repo_root,
-            timeout_seconds=timeout,
-            operator_only=operator_only,
-        )
+        payload = cached_dry_run_payload_for_latest_draft(self.config.repo_root, operator_only=operator_only, timeout=timeout)
+        if payload is None:
+            payload = package_draft_review.dry_run_latest_package_draft(
+                self.config.repo_root,
+                timeout_seconds=timeout,
+                operator_only=operator_only,
+            )
         args = []
         command = payload.get("command") if isinstance(payload.get("command"), dict) else {}
         if isinstance(command.get("args"), list):
@@ -713,6 +717,7 @@ class RiftReaderChatGptMcpAdapter:
                 kind="riftreader-chatgpt-mcp-dry-run-latest-package-draft",
                 extra={"command": command},
             )
+        compact_payload = compact_dry_run_payload(payload)
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-dry-run-latest-package-draft",
@@ -721,7 +726,9 @@ class RiftReaderChatGptMcpAdapter:
             "ok": bool(payload.get("ok")),
             "operatorOnly": operator_only,
             "timeoutSeconds": timeout,
-            "dryRun": payload,
+            "draftId": compact_payload.get("draft", {}).get("draftId"),
+            "dryRunSucceeded": bool(payload.get("ok")),
+            "dryRun": compact_payload,
             "blockers": list(payload.get("blockers") or ([payload.get("code")] if payload.get("code") else [])),
             "warnings": list(payload.get("warnings") or []),
             "safety": {
@@ -731,6 +738,176 @@ class RiftReaderChatGptMcpAdapter:
                 "repoSourceMutationExpected": False,
             },
         }
+
+
+def cached_dry_run_payload_for_latest_draft(
+    repo_root: Path,
+    *,
+    operator_only: bool,
+    timeout: float,
+) -> dict[str, Any] | None:
+    """Return a prior passing dry-run for the same latest draft, if one exists.
+
+    ChatGPT's MCP client can time out on local package-intake subprocess calls
+    through a temporary tunnel. Reusing a fresh repo-local dry-run artifact keeps
+    the actual ChatGPT proof path small while still requiring a real prior
+    package-intake dry-run for the same inert package draft.
+    """
+    latest_payload = package_draft_review.latest_package_draft(repo_root, operator_only=operator_only)
+    if not latest_payload.get("ok"):
+        return None
+    draft = latest_payload.get("draft") if isinstance(latest_payload.get("draft"), dict) else {}
+    package_root_value = draft.get("packageRoot")
+    if not package_root_value:
+        return None
+    package_root = (repo_root / str(package_root_value)).resolve()
+    try:
+        package_latest_mtime = max(path.stat().st_mtime for path in package_root.rglob("*") if path.is_file())
+    except (OSError, ValueError):
+        package_latest_mtime = package_root.stat().st_mtime if package_root.exists() else 0.0
+    intake_root = repo_root / ".riftreader-local" / "package-intake"
+    if not intake_root.is_dir():
+        return None
+    candidates = sorted(
+        intake_root.glob("*/compact-package-intake-summary.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for candidate in candidates:
+        try:
+            summary = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        summary_package_root = summary.get("packageRoot") or summary.get("packagePath")
+        if not summary_package_root:
+            continue
+        try:
+            summary_root_path = Path(str(summary_package_root))
+            summary_root = (
+                summary_root_path.resolve()
+                if summary_root_path.is_absolute()
+                else (repo_root / summary_root_path).resolve()
+            )
+        except OSError:
+            continue
+        if summary_root != package_root:
+            continue
+        try:
+            if candidate.stat().st_mtime < package_latest_mtime:
+                continue
+        except OSError:
+            continue
+        if summary.get("status") != "passed" or summary.get("dryRun") is not True:
+            continue
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-package-draft-review-dry-run-cached",
+            "generatedAtUtc": utc_iso(),
+            "status": "passed",
+            "ok": True,
+            "exitCode": 0,
+            "draft": draft,
+            "command": {
+                "args": [
+                    "cached-dry-run-artifact",
+                    rel(repo_root, candidate),
+                ],
+                "timeoutSeconds": timeout,
+                "applyFlagSent": False,
+                "dryRunOnly": True,
+                "operatorOnly": operator_only,
+                "cached": True,
+            },
+            "commandEnvelope": {
+                "label": "cached-latest-package-draft-intake-dry-run",
+                "exitCode": 0,
+                "ok": True,
+                "timedOut": False,
+                "durationSeconds": 0.0,
+                "cached": True,
+            },
+            "intakeCompactSummary": summary,
+            "blockers": [],
+            "warnings": ["cached-dry-run-artifact-reused"],
+            "errors": [],
+            "safety": {
+                **latest_payload["safety"],
+                "packageIntakeInvoked": False,
+                "cachedDryRunArtifact": True,
+                "applyFlagSent": False,
+                "dryRunOnly": True,
+            },
+            "next": [
+                "Review the cached package intake compact summary and diff artifact.",
+                "Do not apply, stage, commit, or push unless explicitly approved in a separate step.",
+            ],
+        }
+    return None
+
+
+def compact_dry_run_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a ChatGPT-safe dry-run summary without large command stdout blobs."""
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
+    intake = payload.get("intakeCompactSummary") if isinstance(payload.get("intakeCompactSummary"), dict) else {}
+    command = payload.get("command") if isinstance(payload.get("command"), dict) else {}
+    command_envelope = payload.get("commandEnvelope") if isinstance(payload.get("commandEnvelope"), dict) else {}
+    compact_envelope = {
+        key: command_envelope.get(key)
+        for key in ("label", "exitCode", "ok", "timedOut", "durationSeconds", "startedAtUtc", "endedAtUtc")
+        if key in command_envelope
+    }
+    return {
+        "schemaVersion": payload.get("schemaVersion"),
+        "kind": payload.get("kind"),
+        "generatedAtUtc": payload.get("generatedAtUtc"),
+        "status": payload.get("status"),
+        "ok": bool(payload.get("ok")),
+        "exitCode": payload.get("exitCode"),
+        "command": command,
+        "commandEnvelope": compact_envelope,
+        "draft": {
+            key: draft.get(key)
+            for key in (
+                "draftId",
+                "inboxId",
+                "status",
+                "ok",
+                "origin",
+                "selfTest",
+                "messageTitle",
+                "packageName",
+                "fileCount",
+                "summaryPath",
+                "manifestPath",
+                "packageRoot",
+                "reviewReady",
+            )
+            if key in draft
+        },
+        "intakeCompactSummary": {
+            key: intake.get(key)
+            for key in (
+                "schemaVersion",
+                "kind",
+                "generatedAtUtc",
+                "status",
+                "dryRun",
+                "changedFiles",
+                "changedFileCount",
+                "checks",
+                "blockers",
+                "warnings",
+                "errors",
+                "artifacts",
+                "safety",
+            )
+            if key in intake
+        },
+        "blockers": list(payload.get("blockers") or []),
+        "warnings": list(payload.get("warnings") or []),
+        "errors": list(payload.get("errors") or []),
+        "safety": payload.get("safety") if isinstance(payload.get("safety"), dict) else {},
+    }
 
 
 def tool_manifest() -> dict[str, Any]:

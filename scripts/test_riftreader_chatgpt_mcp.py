@@ -144,6 +144,44 @@ def make_draft(root: Path, draft_id: str, *, title: str, self_test: bool = False
     return draft_dir
 
 
+def make_cached_dry_run(root: Path, draft_dir: Path, run_id: str = "20260518-180100Z") -> Path:
+    package_root = draft_dir / "package"
+    intake_dir = root / ".riftreader-local" / "package-intake" / run_id
+    intake_dir.mkdir(parents=True)
+    compact = {
+        "schemaVersion": 1,
+        "kind": "riftreader-package-intake-compact-summary",
+        "generatedAtUtc": "2026-05-18T18:01:00Z",
+        "status": "passed",
+        "dryRun": True,
+        "packageRoot": str(package_root),
+        "changedFiles": ["docs/proposed.md"],
+        "changedFileCount": 1,
+        "checks": {"declaredCount": 0, "runCount": 0, "failedCount": 0},
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "artifacts": {
+            "compactJson": str((intake_dir / "compact-package-intake-summary.json").relative_to(root)).replace("/", "\\")
+        },
+        "safety": {
+            "movementSent": False,
+            "inputSent": False,
+            "reloaduiSent": False,
+            "screenshotKeySent": False,
+            "noCheatEngine": True,
+            "x64dbgAttach": False,
+            "providerWrites": False,
+            "gitMutation": False,
+            "savedVariablesUsedAsLiveTruth": False,
+        },
+    }
+    path = intake_dir / "compact-package-intake-summary.json"
+    path.write_text(json.dumps(compact, indent=2), encoding="utf-8")
+    os.utime(path, (1_900_000_000, 1_900_000_000))
+    return path
+
+
 def submit_package_proposal_input_schema() -> dict[str, object]:
     return {
         "type": "object",
@@ -349,8 +387,57 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["operatorOnly"])
+        self.assertEqual(payload["draftId"], "20260518T120000Z-aaaaaaaaaaaa")
         self.assertEqual(payload["draftReview"]["draft"]["messageTitle"], "Operator")
         self.assertFalse(payload["draftReview"]["draft"]["selfTest"])
+
+    def test_dry_run_latest_package_draft_reuses_cached_same_draft_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Dry-run")
+            make_cached_dry_run(root, draft)
+            adapter = make_adapter(root)
+            with mock.patch.object(chatgpt_mcp.package_draft_review, "dry_run_latest_package_draft") as dry_run:
+                payload = adapter.call_tool(
+                    "dry_run_latest_package_draft",
+                    {"operatorOnly": True, "timeoutSeconds": 30},
+                )
+
+        dry_run.assert_not_called()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["dryRunSucceeded"])
+        self.assertEqual(payload["draftId"], "20260518T130000Z-bbbbbbbbbbbb")
+        self.assertEqual(payload["dryRun"]["kind"], "riftreader-package-draft-review-dry-run-cached")
+        self.assertEqual(payload["dryRun"]["command"]["args"][0], "cached-dry-run-artifact")
+        self.assertTrue(payload["dryRun"]["safety"]["cachedDryRunArtifact"])
+        self.assertTrue(payload["dryRun"]["intakeCompactSummary"]["dryRun"])
+
+    def test_dry_run_latest_package_draft_ignores_stale_cached_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Dry-run")
+            cached = make_cached_dry_run(root, draft)
+            package_file = draft / "package" / "files" / "file-0001.txt"
+            package_file.write_text("# Updated after cached dry-run\n", encoding="utf-8")
+            os.utime(package_file, (2_000_000_000, 2_000_000_000))
+            os.utime(cached, (1_900_000_000, 1_900_000_000))
+            adapter = make_adapter(root)
+            with mock.patch.object(chatgpt_mcp.package_draft_review, "dry_run_latest_package_draft") as dry_run:
+                dry_run.return_value = {
+                    "status": "passed",
+                    "ok": True,
+                    "draft": {"draftId": "20260518T130000Z-bbbbbbbbbbbb"},
+                    "command": {"args": ["scripts\\riftreader-package-intake.cmd"]},
+                    "safety": {"applyFlagSent": False},
+                }
+                payload = adapter.call_tool("dry_run_latest_package_draft", {"operatorOnly": True})
+
+        dry_run.assert_called_once()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["dryRun"]["kind"], None)
+        self.assertEqual(payload["draftId"], "20260518T130000Z-bbbbbbbbbbbb")
 
     def test_dry_run_latest_package_draft_never_passes_apply(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
