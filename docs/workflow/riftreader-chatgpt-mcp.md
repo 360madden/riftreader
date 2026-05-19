@@ -204,6 +204,37 @@ helper starts a public tunnel by default. The Phase 1 gate intentionally reports
 `blocked` until an actual ChatGPT Developer Mode proof packet is recorded with a
 passing `actual-client-proof` artifact.
 
+## Final-product Mission Control flow
+
+Phase 5 makes Mission Control the default operator entrypoint for the MCP final
+product lane. Use it before public exposure:
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-mcp-mission-control.cmd --summary-md
+.\scripts\riftreader-mcp-mission-control.cmd --checklist-md
+.\scripts\riftreader-mcp-final.cmd --status --compact-json
+```
+
+Mission Control now emits:
+
+| Field / mode | Purpose |
+|---|---|
+| `finalStatus` | Compact final gate result with CI, proof, dependency, environment, tool-surface, and public-session status. |
+| `finalProductProgress` | Phase 1-8 progress table with completed phases, next phase, and explicit public-trial boundary state. |
+| `operatorNextAction` | One dashboard-selected next operator action. |
+| `--summary-md` | Human-readable progress and latest-artifact summary suitable for handoff context. |
+| `--checklist-md` | Paste-safe proof checklist covering final gate, optional local refreshes, explicit public trial, package review, proof recording, and final gate rerun. |
+| `--trial-command --json` | Prints the bounded public-trial command without running it. |
+
+Mission Control remains safe by default: it does not start a public tunnel,
+register ChatGPT, mutate Git, apply packages, send RIFT input, attach CE/x64dbg,
+or write provider repos. Only `--run-readiness` and `--run-proposal-smoke`
+execute local-only validation helpers; the public trial command is display-only
+unless the operator explicitly runs the printed command.
+
 ## Running the MCP server locally
 
 The server path uses the official Python MCP SDK when `--serve` is requested.

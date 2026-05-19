@@ -55,6 +55,11 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("safeCommitPlan", payload["pasteSafeCommands"])
         self.assertIn("ciStatus", payload)
         self.assertIn("finalStatus", payload)
+        self.assertIn("finalProductProgress", payload)
+        self.assertIn("operatorNextAction", payload)
+        self.assertEqual(payload["finalProductProgress"]["kind"], "riftreader-mcp-final-product-progress")
+        self.assertEqual(payload["finalProductProgress"]["phases"][4]["phase"], 5)
+        self.assertEqual(payload["finalProductProgress"]["phases"][4]["status"], "completed")
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
@@ -107,10 +112,15 @@ class McpMissionControlTests(unittest.TestCase):
             checklist = mission.render_proof_checklist(payload)
 
         self.assertIn("RiftReader MCP Mission Control Summary", summary)
+        self.assertIn("Final product progress", summary)
         self.assertIn("Current-head CI", summary)
         self.assertIn("Final readiness", summary)
         self.assertIn("Latest artifacts", summary)
         self.assertIn("RiftReader MCP Proof Checklist", checklist)
+        self.assertIn("Local final gate", checklist)
+        self.assertIn("Explicit public ChatGPT trial", checklist)
+        self.assertIn("riftreader-mcp-final.cmd --status --compact-json", checklist)
+        self.assertIn("riftreader-mcp-mission-control.cmd --trial-command --json", checklist)
         self.assertIn("scripts\\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json", checklist)
 
 
