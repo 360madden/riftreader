@@ -2,7 +2,7 @@
 
 Updated: 2026-05-19T20:59Z
 Repo: `C:\RIFT MODDING\RiftReader`
-Branch/HEAD: `main` @ `6da92b730dae93d0973daa8d72592dc568b6d75e` (`6da92b7 Complete MCP final progress dashboard`)
+Baseline: code/dashboard completion at `6da92b730dae93d0973daa8d72592dc568b6d75e` (`6da92b7 Complete MCP final progress dashboard`); this handoff is maintained on `main` and should be paired with current `git status` plus final-gate output.
 Remote: `origin/main` synced
 
 ## TL;DR
@@ -19,7 +19,7 @@ No local MCP final-product blockers remain. The only operational caveat is the c
 | Phase 2 gate | Passed | `scripts\riftreader-mcp-phase2.cmd --status --compact-json` at `2026-05-19T20:58:54Z` |
 | Final gate | Passed | `scripts\riftreader-mcp-final.cmd --status --compact-json` at `2026-05-19T20:58:44Z` |
 | Mission Control | Completed | `completedPhaseCount: 8`, `nextPhase: null`, maintenance loop recommended |
-| Current-head CI | Passed | `.NET build and test` + `RiftReader Policy` both success for `6da92b7` |
+| Current-head CI | Passed | `.NET build and test` + `RiftReader Policy` both success for the validated handoff-update HEAD; rerun final gate for the current HEAD |
 | Tool surface | Passed | 8 allowlisted MCP tools; no shell/Git/RIFT/CE/x64dbg/provider-write endpoints |
 | Public sessions | Passed with expected-expired warnings | quick-tunnel URLs are stopped/ephemeral |
 | RiftScan movement/proof lane | Blocked, separate | no supported RiftScan candidate/match evidence |
@@ -150,4 +150,4 @@ scripts\riftreader-mcp-final.cmd --status --compact-json
 | 7 | Re-run Phase 2 and final gates after any proof refresh | Locks in CI/proof/freshness status |
 | 8 | Keep old trycloudflare URLs treated as expired | Quick-tunnel URLs are not durable endpoints |
 | 9 | Keep RiftScan/movement lanes blocked | Current provider candidate evidence is missing |
-| 10 | Use this handoff as the release-maintenance baseline | It reflects HEAD `6da92b7`, 8/8 completion, proof paths, commands, limits, and refresh cadence |
+| 10 | Use this handoff as the release-maintenance baseline | It reflects 8/8 completion, proof paths, commands, limits, and refresh cadence; pair it with current final-gate output |
