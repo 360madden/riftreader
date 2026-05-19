@@ -6,7 +6,7 @@ _Last updated: 2026-05-16T16:46:11Z._
 
 **No current coordinate proof is live.** The prior proof target PID `27552` / HWND `0x3411E2` is historical after the game/Codex session closed, and no live `rift_x64` process was detected during offline recovery on 2026-05-16.
 
-Movement is blocked until RIFT is loaded into the character/world again, fresh API/runtime coordinate truth is sampled, and the new PID/HWND passes current-PID recovery plus same-target `ProofOnly`.
+Movement is blocked until RIFT is loaded into the character/world again, fresh API/runtime coordinate truth is sampled, and the new PID/HWND passes current-PID recovery plus same-target `ProofOnly`. PID/HWND identity is a targeting preflight only; it is not freshness proof. Current coordinate proof requires API-now vs memory-now evidence from the same process epoch.
 
 ## Historical target and stale proof
 
@@ -21,7 +21,7 @@ Movement is blocked until RIFT is loaded into the character/world again, fresh A
 | Target-control | historical `passed-target-control` / `exact-hwnd-foreground` |
 | ProofOnly | historical `passed-proof-only`; current status `blocked-target-drift` |
 | Movement allowed by coord proof | `false` after offline restart / no live target |
-| Latest coordinate | `x=7325.35888671875, y=874.0448608398438, z=3053.77490234375` |
+| Latest recorded coordinate snapshot | `x=7325.35888671875, y=874.0448608398438, z=3053.77490234375`; do not present this value as current-now |
 | Coordinate recorded | `2026-05-15T03:19:32.4433262Z` |
 
 ## Historical proof anchor / reacquisition seed

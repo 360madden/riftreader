@@ -362,6 +362,11 @@ def _taskkill_process_tree(process: subprocess.Popen[Any], *, grace_seconds: flo
     return notes
 
 
+def _sleep(seconds: float) -> None:
+    """Small indirection for polling sleeps so tests do not patch global time.sleep."""
+    time.sleep(seconds)
+
+
 def run_streaming_command_with_input(
     label: str,
     args: list[str],
@@ -464,7 +469,7 @@ def run_streaming_command_with_input(
                 reader_errors.extend(_terminate_process(process))
                 envelope["exitCode"] = process.returncode
                 break
-            time.sleep(0.1)
+            _sleep(0.1)
         envelope["ok"] = envelope.get("exitCode") in expected and not envelope.get("timedOut")
     except FileNotFoundError as exc:
         envelope["error"] = f"FileNotFoundError:{exc}"

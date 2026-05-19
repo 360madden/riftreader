@@ -279,9 +279,9 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
     def test_streaming_command_keyboard_interrupt_returns_clean_envelope(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            original_sleep = opencode_bridge.time.sleep
+            original_sleep = opencode_bridge._sleep
             try:
-                opencode_bridge.time.sleep = lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt())
+                opencode_bridge._sleep = lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt())
                 envelope = opencode_bridge.run_streaming_command_with_input(
                     "interrupt-test",
                     [sys.executable, "-c", "import time; time.sleep(30)"],
@@ -290,7 +290,7 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
                     timeout_seconds=30.0,
                 )
             finally:
-                opencode_bridge.time.sleep = original_sleep
+                opencode_bridge._sleep = original_sleep
 
             artifacts = envelope["artifacts"]
 
