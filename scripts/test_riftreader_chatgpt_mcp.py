@@ -34,6 +34,34 @@ class FakeTransportSecuritySettings:
         self.allowed_origins = allowed_origins
 
 
+class FakeProcess:
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.args = args
+        self.kwargs = kwargs
+        self.returncode: int | None = None
+        self.stdout: list[str] = []
+        self.stderr: list[str] = []
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def terminate(self) -> None:
+        self.returncode = 0
+
+    def wait(self, timeout: float | None = None) -> int:
+        if self.returncode is None:
+            self.returncode = 0
+        return self.returncode
+
+    def kill(self) -> None:
+        self.returncode = -9
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        if self.returncode is None:
+            self.returncode = 0
+        return ("", "")
+
+
 def make_repo(root: Path) -> None:
     (root / ".git").mkdir()
     (root / "agents.md").write_text("# policy\n", encoding="utf-8")
@@ -116,6 +144,62 @@ def make_draft(root: Path, draft_id: str, *, title: str, self_test: bool = False
     return draft_dir
 
 
+def submit_package_proposal_input_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "properties": {"proposal": {"$ref": "#/$defs/PackageProposal"}},
+        "required": ["proposal"],
+        "$defs": {
+            "PackageProposal": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "schemaVersion": {"const": 1},
+                    "kind": {"const": "package-proposal"},
+                    "title": {"type": "string"},
+                    "payload": {"$ref": "#/$defs/PackageProposalPayload"},
+                },
+                "required": ["schemaVersion", "kind", "title", "payload"],
+            },
+            "PackageProposalPayload": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "packageName": {"type": "string"},
+                    "files": {"type": "array", "items": {"$ref": "#/$defs/PackageProposalFile"}},
+                },
+                "required": ["packageName", "files"],
+            },
+            "PackageProposalFile": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "target": {"type": "string"},
+                    "content": {"type": "string"},
+                    "encoding": {"const": "utf-8"},
+                },
+                "required": ["target", "content"],
+            },
+            "PackageProposalCheck": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"args": {"type": "array", "items": {"type": "string"}}},
+            },
+        },
+    }
+
+
+def registered_tool_summary(name: str) -> dict[str, object]:
+    summary: dict[str, object] = {
+        "name": name,
+        "descriptionStartsUseThisWhen": True,
+        "annotations": chatgpt_mcp.TOOL_SPECS[name].annotation_payload(),
+    }
+    if name == "submit_package_proposal":
+        summary["inputSchema"] = submit_package_proposal_input_schema()
+    return summary
+
+
 class RiftReaderChatGptMcpTests(unittest.TestCase):
     def test_manifest_exposes_exact_safe_tool_set_with_annotations(self) -> None:
         manifest = chatgpt_mcp.tool_manifest()
@@ -139,10 +223,14 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             payload = adapter.call_tool("health", {})
 
         self.assertTrue(payload["ok"])
+        self.assertEqual(payload["repoRoot"], ".")
+        self.assertEqual(payload["repoName"], root.name)
+        self.assertNotIn(str(root), json.dumps(payload))
         self.assertTrue(payload["safety"]["noRiftGameMcpProxy"])
         self.assertTrue(payload["safety"]["noWindowsMcpProxy"])
         self.assertTrue(payload["safety"]["noShellExecutionEndpoint"])
         self.assertTrue(payload["safety"]["auditUnderDotRiftReaderLocal"])
+        self.assertFalse(payload["safety"]["absoluteRepoRootExposed"])
 
     def test_latest_handoff_reads_only_allowlisted_handoff_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -512,19 +600,109 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 {"request": {"method": "tools/call"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
             ],
             "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
-            "registeredTools": [
-                {
-                    "name": name,
-                    "descriptionStartsUseThisWhen": True,
-                    "annotations": chatgpt_mcp.TOOL_SPECS[name].annotation_payload(),
-                }
-                for name in chatgpt_mcp.EXPECTED_TOOL_ORDER
-            ],
+            "registeredTools": [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER],
             "healthIsError": False,
-            "healthStructuredContent": {"service": chatgpt_mcp.SERVER_NAME, "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER)},
+            "healthStructuredContent": {
+                "service": chatgpt_mcp.SERVER_NAME,
+                "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "repoRoot": ".",
+                "safety": {"absoluteRepoRootExposed": False},
+            },
         }
 
         self.assertEqual(chatgpt_mcp.verify_cloudflare_smoke_client_result(client_result), [])
+
+    def test_transport_smoke_result_verifier_blocks_unredacted_health_repo_root(self) -> None:
+        registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]
+        client_result = {
+            "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "healthIsError": False,
+            "healthStructuredContent": {
+                "service": chatgpt_mcp.SERVER_NAME,
+                "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+                "safety": {"absoluteRepoRootExposed": True},
+            },
+            "registeredTools": registered,
+        }
+
+        blockers = chatgpt_mcp.verify_transport_smoke_result(client_result)
+
+        self.assertIn("health-repo-root-not-redacted:'C:\\\\RIFT MODDING\\\\RiftReader'", blockers)
+        self.assertIn("health-absolute-repo-root-exposure-flag-not-false:True", blockers)
+
+    def test_transport_smoke_result_verifier_blocks_broad_submit_schema(self) -> None:
+        registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]
+        for tool in registered:
+            if tool["name"] == "submit_package_proposal":
+                tool["inputSchema"] = {
+                    "type": "object",
+                    "properties": {"proposal": {"type": "object", "additionalProperties": True}},
+                    "required": ["proposal"],
+                }
+        client_result = {
+            "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "healthIsError": False,
+            "healthStructuredContent": {
+                "service": chatgpt_mcp.SERVER_NAME,
+                "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "repoRoot": ".",
+                "safety": {"absoluteRepoRootExposed": False},
+            },
+            "registeredTools": registered,
+        }
+
+        blockers = chatgpt_mcp.verify_transport_smoke_result(client_result)
+
+        self.assertIn("submit-package-proposal-top-level-extra-not-forbidden", blockers)
+        self.assertIn("submit-package-proposal-schema-version-not-const-1", blockers)
+
+    def test_proposal_transport_smoke_writes_artifact_and_covers_submit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            client_result = {
+                "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "registeredTools": [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER],
+                "healthIsError": False,
+                "healthStructuredContent": {
+                    "service": chatgpt_mcp.SERVER_NAME,
+                    "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                    "repoRoot": ".",
+                    "safety": {"absoluteRepoRootExposed": False},
+                },
+                "submitPackageProposalIsError": False,
+                "submitPackageProposalStructuredContent": {
+                    "ok": True,
+                    "inboxId": "20260519T000000Z-test",
+                    "safety": {"noRepoTargetWrites": True},
+                },
+                "listInboxAfterSubmitIsError": False,
+                "listInboxAfterSubmitStructuredContent": {"ok": True},
+            }
+
+            async def fake_transport_client_with_retry(*args: object, **kwargs: object) -> dict[str, object]:
+                return client_result
+
+            fake_process = FakeProcess()
+            with (
+                mock.patch.object(chatgpt_mcp, "ensure_mcp_sdk_available", return_value=[]),
+                mock.patch.object(chatgpt_mcp, "choose_loopback_port", return_value=9770),
+                mock.patch.object(chatgpt_mcp.subprocess, "Popen", return_value=fake_process),
+                mock.patch.object(chatgpt_mcp, "run_transport_client_with_retry", new=fake_transport_client_with_retry),
+            ):
+                payload = chatgpt_mcp.run_transport_smoke_test(config, include_proposal_submit=True)
+                summary_path = root / payload["artifactPaths"]["summaryJson"]
+                summary_exists = summary_path.is_file()
+                summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["kind"], "riftreader-chatgpt-mcp-proposal-transport-smoke")
+        self.assertTrue(payload["safety"]["proposalSubmitTransportCovered"])
+        self.assertTrue(payload["safety"]["proposalSubmitWritesLocalInboxOnly"])
+        self.assertTrue(summary_exists)
+        self.assertEqual(summary_payload["artifactPaths"], payload["artifactPaths"])
 
     def test_create_fastmcp_server_fails_closed_without_annotation_support(self) -> None:
         class FakeAnnotations:
@@ -730,13 +908,17 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             annotations = chatgpt_mcp.TOOL_SPECS[name].annotation_payload()
             if name == "dry_run_latest_package_draft":
                 annotations = {**annotations, "readOnlyHint": True}
-            registered.append({"name": name, "descriptionStartsUseThisWhen": True, "annotations": annotations})
+            summary = registered_tool_summary(name)
+            summary["annotations"] = annotations
+            registered.append(summary)
         client_result = {
             "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
             "healthIsError": False,
             "healthStructuredContent": {
                 "service": chatgpt_mcp.SERVER_NAME,
                 "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "repoRoot": ".",
+                "safety": {"absoluteRepoRootExposed": False},
             },
             "registeredTools": registered,
         }
@@ -744,6 +926,176 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         blockers = chatgpt_mcp.verify_transport_smoke_result(client_result)
 
         self.assertTrue(any("dry_run_latest_package_draft" in blocker for blocker in blockers))
+
+    def test_trial_readiness_compacts_core_checks_and_writes_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            with (
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "run_self_test",
+                    return_value={
+                        "kind": "self-test",
+                        "status": "passed",
+                        "ok": True,
+                        "warnings": ["self-test-local-only"],
+                        "stages": {"large": {"not": "included"}},
+                        "artifacts": {"auditRoot": ".riftreader-local/audit"},
+                    },
+                ),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "validate_sdk_registration",
+                    return_value={
+                        "kind": "sdk-validation",
+                        "status": "passed",
+                        "ok": True,
+                        "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                        "registeredTools": [{"name": name} for name in chatgpt_mcp.EXPECTED_TOOL_ORDER],
+                    },
+                ),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "run_transport_smoke_test",
+                    return_value={
+                        "kind": "transport-smoke",
+                        "status": "passed",
+                        "ok": True,
+                        "client": {
+                            "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                            "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                            "healthIsError": False,
+                            "submitPackageProposalIsError": False,
+                            "submitPackageProposalStructuredContent": {
+                                "ok": True,
+                                "inboxId": "20260519T000000Z-test",
+                                "safety": {"noRepoTargetWrites": True},
+                            },
+                            "listInboxAfterSubmitIsError": False,
+                            "listInboxAfterSubmitStructuredContent": {"ok": True, "count": 1},
+                        },
+                        "safety": {
+                            "proposalSubmitTransportCovered": True,
+                            "proposalSubmitWritesLocalInboxOnly": True,
+                        },
+                    },
+                ) as transport_mock,
+                mock.patch.object(chatgpt_mcp, "resolve_cloudflared_executable", return_value=root / "cloudflared.exe"),
+                mock.patch.object(chatgpt_mcp, "resolve_curl_executable", return_value=root / "curl.exe"),
+            ):
+                payload = chatgpt_mcp.run_trial_readiness(config)
+                summary_exists = (root / payload["artifactPaths"]["summaryJson"]).is_file()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["stages"]["self_test"]["artifacts"]["auditRoot"], ".riftreader-local/audit")
+        self.assertNotIn("stages", payload["stages"]["self_test"])
+        self.assertEqual(payload["stages"]["validate_sdk"]["registeredToolNames"], list(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertEqual(payload["stages"]["transport_smoke"]["client"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertFalse(payload["stages"]["transport_smoke"]["client"]["submitPackageProposalIsError"])
+        self.assertTrue(payload["stages"]["transport_smoke"]["client"]["submitPackageProposal"]["noRepoTargetWrites"])
+        self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["proposalSubmitTransportCovered"])
+        self.assertTrue(payload["safety"]["trialReadinessLocalOnly"])
+        self.assertFalse(payload["safety"]["publicTunnelStarted"])
+        self.assertTrue(summary_exists)
+        self.assertTrue(transport_mock.call_args.kwargs["include_proposal_submit"])
+
+    def test_trial_readiness_blocks_on_core_stage_failure_without_blocking_optional_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            with (
+                mock.patch.object(chatgpt_mcp, "run_self_test", return_value={"status": "passed", "ok": True}),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "validate_sdk_registration",
+                    return_value={
+                        "status": "failed",
+                        "ok": False,
+                        "code": "MCP_PYTHON_SDK_MISSING",
+                        "blockers": ["MCP_PYTHON_SDK_MISSING"],
+                    },
+                ),
+                mock.patch.object(chatgpt_mcp, "run_transport_smoke_test", return_value={"status": "passed", "ok": True}),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "resolve_cloudflared_executable",
+                    side_effect=chatgpt_mcp.AdapterError("CLOUDFLARED_NOT_FOUND", "missing", status="failed"),
+                ),
+                mock.patch.object(chatgpt_mcp, "resolve_curl_executable", return_value=root / "curl.exe"),
+            ):
+                payload = chatgpt_mcp.run_trial_readiness(config)
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("validate_sdk:MCP_PYTHON_SDK_MISSING", payload["blockers"])
+        self.assertIn("cloudflared:CLOUDFLARED_NOT_FOUND", payload["warnings"])
+        self.assertFalse(payload["optionalDependencies"]["cloudflared"]["ok"])
+
+    def test_chatgpt_trial_session_writes_ready_and_final_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            fake_client = {
+                "responses": [
+                    {"request": {"method": "initialize"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
+                    {"request": {"method": "tools/list"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
+                    {"request": {"method": "tools/call"}, "exitCode": 0, "httpStatus": 200, "jsonParseError": None, "json": {"result": {}}},
+                ],
+                "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "registeredTools": [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER],
+                "healthIsError": False,
+                "healthStructuredContent": {
+                    "service": chatgpt_mcp.SERVER_NAME,
+                    "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                    "repoRoot": ".",
+                    "safety": {"absoluteRepoRootExposed": False},
+                },
+            }
+            fake_processes = [FakeProcess(), FakeProcess()]
+            with (
+                mock.patch.object(chatgpt_mcp, "ensure_mcp_sdk_available", return_value=[]),
+                mock.patch.object(chatgpt_mcp, "resolve_cloudflared_executable", return_value=root / "cloudflared.exe"),
+                mock.patch.object(chatgpt_mcp, "resolve_curl_executable", return_value="curl.exe"),
+                mock.patch.object(chatgpt_mcp, "choose_loopback_port", return_value=9777),
+                mock.patch.object(chatgpt_mcp.subprocess, "Popen", side_effect=fake_processes),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "wait_for_cloudflare_quick_tunnel_url",
+                    return_value="https://example.trycloudflare.com",
+                ),
+                mock.patch.object(chatgpt_mcp, "resolve_ipv4_for_curl", return_value="104.16.1.1"),
+                mock.patch.object(chatgpt_mcp, "cloudflare_smoke_client_result", return_value=fake_client),
+            ):
+                payload = chatgpt_mcp.run_chatgpt_trial_session(config, session_seconds=0)
+                ready_exists = (root / payload["artifactPaths"]["readyJson"]).is_file()
+                summary_exists = (root / payload["artifactPaths"]["summaryJson"]).is_file()
+
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["ready"])
+        self.assertEqual(payload["publicMcpUrl"], "https://example.trycloudflare.com/mcp")
+        self.assertEqual(payload["registration"]["authentication"], "No Authentication")
+        self.assertEqual(payload["registration"]["firstToolToCall"], "health")
+        self.assertTrue(payload["safety"]["serverStopped"])
+        self.assertTrue(payload["safety"]["publicTunnelStopped"])
+        self.assertTrue(ready_exists)
+        self.assertTrue(summary_exists)
+
+    def test_parser_exposes_trial_modes(self) -> None:
+        help_text = chatgpt_mcp.build_parser().format_help()
+        args = chatgpt_mcp.build_parser().parse_args(
+            ["--chatgpt-trial-session", "--chatgpt-session-seconds", "1"]
+        )
+
+        self.assertIn("--trial-readiness", help_text)
+        self.assertIn("--proposal-transport-smoke", help_text)
+        self.assertIn("--chatgpt-trial-session", help_text)
+        self.assertTrue(args.chatgpt_trial_session)
+        self.assertEqual(args.chatgpt_session_seconds, 1)
 
 
 if __name__ == "__main__":

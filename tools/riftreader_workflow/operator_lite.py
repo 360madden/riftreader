@@ -73,6 +73,19 @@ COMMAND_ALIASES = {
     "package-draft-self-test": "package-draft-loop-selftest",
     "draft-loop-selftest": "package-draft-loop-selftest",
     "proposal-loop-selftest": "package-draft-loop-selftest",
+    "mcp-trial": "mcp-trial-readiness",
+    "mcp-trial-readiness": "mcp-trial-readiness",
+    "chatgpt-mcp-trial": "mcp-trial-readiness",
+    "chatgpt-mcp-trial-readiness": "mcp-trial-readiness",
+    "mcp-mission": "mcp-mission-control",
+    "mcp-mission-control": "mcp-mission-control",
+    "mcp-artifacts": "mcp-artifacts-latest",
+    "latest-mcp-artifacts": "mcp-artifacts-latest",
+    "chatgpt-trial-proof": "chatgpt-trial-proof-template",
+    "chatgpt-trial-proof-template": "chatgpt-trial-proof-template",
+    "safe-commit-plan": "safe-commit-plan",
+    "workflow-router": "workflow-router-mcp",
+    "mcp-router": "workflow-router-mcp",
 }
 GROUP_ALIASES = {
     "startup": "bridge-startup-checks",
@@ -353,6 +366,56 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=180,
             description="Run package-proposal -> inbox -> inert draft -> dry-run self-test with ignored local artifacts only.",
         ),
+        "mcp-trial-readiness": CommandSpec(
+            key="mcp-trial-readiness",
+            label="MCP Trial Readiness",
+            args=(
+                str(scripts / "riftreader-chatgpt-mcp.cmd"),
+                "--trial-readiness",
+                "--json",
+            ),
+            timeout_seconds=120,
+            description=(
+                "Run compact local ChatGPT MCP trial-readiness checks without public tunnel, ChatGPT registration, "
+                "persistent serving, package apply, Git mutation, live RIFT input, CE, or x64dbg."
+            ),
+            expected_exit_codes=(0, 2),
+        ),
+        "mcp-mission-control": CommandSpec(
+            key="mcp-mission-control",
+            label="MCP Mission Control",
+            args=(str(scripts / "riftreader-mcp-mission-control.cmd"), "--json"),
+            timeout_seconds=60,
+            description="Show MCP readiness, artifacts, dirty state, and next action without starting tunnels or mutating Git.",
+        ),
+        "mcp-artifacts-latest": CommandSpec(
+            key="mcp-artifacts-latest",
+            label="Latest MCP Artifacts",
+            args=(str(scripts / "riftreader-mcp-artifacts.cmd"), "--latest", "--json"),
+            timeout_seconds=60,
+            description="Show latest MCP readiness/smoke/trial/inbox/draft/dry-run artifacts without modifying state.",
+        ),
+        "chatgpt-trial-proof-template": CommandSpec(
+            key="chatgpt-trial-proof-template",
+            label="ChatGPT Trial Proof Template",
+            args=(str(scripts / "riftreader-chatgpt-trial-recorder.cmd"), "--template", "--json"),
+            timeout_seconds=60,
+            description="Print the actual ChatGPT client proof template; does not call ChatGPT or start a tunnel.",
+        ),
+        "safe-commit-plan": CommandSpec(
+            key="safe-commit-plan",
+            label="Safe Commit Plan",
+            args=(str(scripts / "riftreader-safe-commit-packager.cmd"), "--plan", "--json"),
+            timeout_seconds=60,
+            description="Generate explicit-path staging checklist and commit message draft without staging, committing, or pushing.",
+        ),
+        "workflow-router-mcp": CommandSpec(
+            key="workflow-router-mcp",
+            label="Workflow Router",
+            args=(str(scripts / "riftreader-workflow-router.cmd"), "--mcp", "--json"),
+            timeout_seconds=60,
+            description="Recommend the next safest MCP workflow action from current local artifacts and Git state.",
+        ),
         "git-status": CommandSpec(
             key="git-status",
             label="Git Status",
@@ -466,6 +529,7 @@ def latest_report(repo_root: Path) -> Path | None:
         repo_root / ".riftreader-local" / "workflow-status",
         repo_root / ".riftreader-local" / "opencode-status",
         repo_root / ".riftreader-local" / "live-test-triage",
+        repo_root / ".riftreader-local" / "riftreader-chatgpt-mcp",
         repo_root / ".riftreader-local" / "package-intake",
         repo_root / ".riftreader-local" / "package-intake-selftest",
         repo_root / ".riftreader-local" / "artifact-bridge-package-drafts",
@@ -571,6 +635,12 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --package-draft-dry-run --json",
             ".\\scripts\\riftreader-operator-lite.cmd --operator-draft-dry-run --json",
             ".\\scripts\\riftreader-operator-lite.cmd --package-draft-selftest --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --mcp-trial-readiness --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --mcp-mission-control --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --mcp-artifacts --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --safe-commit-plan --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --workflow-router --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --proposal-loop-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
@@ -579,6 +649,33 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
         "disabledLiveActions": plan["disabledLiveActions"],
         "safety": plan["safety"],
     }
+
+
+def command_reference_markdown(repo_root: Path) -> str:
+    payload = command_list_payload(repo_root)
+    lines = [
+        "# RiftReader Operator Lite Command Reference",
+        "",
+        f"- Generated UTC: `{payload.get('generatedAtUtc')}`",
+        f"- Status: `{payload.get('status')}`",
+        "",
+        "## Commands",
+        "",
+        "| Key | Label | Description |",
+        "|---|---|---|",
+    ]
+    for command in payload["commands"]:
+        description = str(command["description"]).replace("|", "\\|")
+        lines.append(f"| `{command['key']}` | {command['label']} | {description} |")
+    lines.extend(["", "## Groups", "", "| Key | Commands | Description |", "|---|---|---|"])
+    for group in payload["groups"]:
+        command_keys = ", ".join(f"`{key}`" for key in group["commandKeys"])
+        description = str(group["description"]).replace("|", "\\|")
+        lines.append(f"| `{group['key']}` | {command_keys} | {description} |")
+    lines.extend(["", "## Disabled live actions", ""])
+    for action_name in payload["disabledLiveActions"]:
+        lines.append(f"- `{action_name}`")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def resolve_command_key(command_key: str) -> str:
@@ -972,6 +1069,12 @@ def gui_theme_summary() -> dict[str, Any]:
             "package proposal loop self-test button",
             "proposal loop checks group button",
             "Desktop ChatGPT trial readiness gate button",
+            "ChatGPT MCP trial readiness button",
+            "MCP mission control button",
+            "latest MCP artifacts button",
+            "ChatGPT trial proof template button",
+            "safe commit plan button",
+            "workflow router button",
             "manual bridge start command copy",
             "guarded inbox index button",
             "redacted ChatGPT bridge prompt copy",
@@ -1232,6 +1335,22 @@ def run_gui(repo_root: Path) -> int:
     action_button(bridge_loop_row, "Draft Loop Self-Test", lambda: run_spec("package-draft-loop-selftest"), "warning", width=22)
     action_button(bridge_loop_row, "Proposal Loop Checks", lambda: run_group_spec("bridge-proposal-loop-checks"), "warning", width=23)
     action_button(bridge_loop_row, "Trial Readiness Gate", lambda: run_group_spec("bridge-trial-readiness"), "warning", width=23)
+    action_button(bridge_loop_row, "MCP Trial Readiness", lambda: run_spec("mcp-trial-readiness"), "warning", width=22)
+
+    mcp_helper_row = button_row(bridge_frame)
+    action_button(mcp_helper_row, "MCP Mission Control", lambda: run_spec("mcp-mission-control"), "primary", width=22)
+    action_button(mcp_helper_row, "Latest MCP Artifacts", lambda: run_spec("mcp-artifacts-latest"), "bridge", width=23)
+    action_button(mcp_helper_row, "Workflow Router", lambda: run_spec("workflow-router-mcp"), "primary", width=18)
+
+    mcp_local_row = button_row(bridge_frame)
+    action_button(
+        mcp_local_row,
+        "ChatGPT Trial Proof Template",
+        lambda: run_spec("chatgpt-trial-proof-template"),
+        "neutral",
+        width=29,
+    )
+    action_button(mcp_local_row, "Safe Commit Plan", lambda: run_spec("safe-commit-plan"), "neutral", width=19)
 
     bridge_utility_row = button_row(bridge_frame)
     action_button(bridge_utility_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
@@ -1299,6 +1418,12 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --package-draft-dry-run --json | "
             "riftreader-operator-lite.cmd --operator-draft-dry-run --json | "
             "riftreader-operator-lite.cmd --package-draft-selftest --json | "
+            "riftreader-operator-lite.cmd --mcp-trial-readiness --json | "
+            "riftreader-operator-lite.cmd --mcp-mission-control --json | "
+            "riftreader-operator-lite.cmd --mcp-artifacts --json | "
+            "riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json | "
+            "riftreader-operator-lite.cmd --safe-commit-plan --json | "
+            "riftreader-operator-lite.cmd --workflow-router --json | "
             "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
             "riftreader-operator-lite.cmd --proposal-loop-checks --json | "
             "riftreader-operator-lite.cmd --trial-readiness --json | "
@@ -1309,6 +1434,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--self-test", action="store_true", help="Validate Operator Lite safe command wiring and exit.")
     parser.add_argument("--command-plan", action="store_true", help="Print the full safe command plan and exit.")
     parser.add_argument("--list-commands", action="store_true", help="List safe command keys available to --run.")
+    parser.add_argument("--command-reference-md", action="store_true", help="Print generated Markdown command reference and exit.")
     parser.add_argument("--run", metavar="COMMAND_KEY", help="Run one known safe command key from the command plan.")
     parser.add_argument("--run-all", metavar="GROUP_KEY", help="Run one known safe command group, such as bridge-startup-checks.")
     parser.add_argument("--session-start", action="store_true", help="Shortcut for --run bridge-session-start.")
@@ -1336,6 +1462,36 @@ def build_parser() -> argparse.ArgumentParser:
         "--package-draft-selftest",
         action="store_true",
         help="Shortcut for --run package-draft-loop-selftest.",
+    )
+    parser.add_argument(
+        "--mcp-trial-readiness",
+        action="store_true",
+        help="Shortcut for --run mcp-trial-readiness.",
+    )
+    parser.add_argument(
+        "--mcp-mission-control",
+        action="store_true",
+        help="Shortcut for --run mcp-mission-control.",
+    )
+    parser.add_argument(
+        "--mcp-artifacts",
+        action="store_true",
+        help="Shortcut for --run mcp-artifacts-latest.",
+    )
+    parser.add_argument(
+        "--chatgpt-trial-proof-template",
+        action="store_true",
+        help="Shortcut for --run chatgpt-trial-proof-template.",
+    )
+    parser.add_argument(
+        "--safe-commit-plan",
+        action="store_true",
+        help="Shortcut for --run safe-commit-plan. Plan-only; never stages or commits.",
+    )
+    parser.add_argument(
+        "--workflow-router",
+        action="store_true",
+        help="Shortcut for --run workflow-router-mcp.",
     )
     parser.add_argument("--bridge-startup-checks", action="store_true", help="Shortcut for --run-all bridge-startup-checks.")
     parser.add_argument(
@@ -1378,6 +1534,18 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "package-draft-dry-run-latest-operator"
     if args.package_draft_selftest:
         shortcut_command = "package-draft-loop-selftest"
+    if args.mcp_trial_readiness:
+        shortcut_command = "mcp-trial-readiness"
+    if args.mcp_mission_control:
+        shortcut_command = "mcp-mission-control"
+    if args.mcp_artifacts:
+        shortcut_command = "mcp-artifacts-latest"
+    if args.chatgpt_trial_proof_template:
+        shortcut_command = "chatgpt-trial-proof-template"
+    if args.safe_commit_plan:
+        shortcut_command = "safe-commit-plan"
+    if args.workflow_router:
+        shortcut_command = "workflow-router-mcp"
     shortcut_count = sum(
         1
         for selected in (
@@ -1391,6 +1559,12 @@ def main(argv: list[str] | None = None) -> int:
             args.package_draft_dry_run,
             args.operator_draft_dry_run,
             args.package_draft_selftest,
+            args.mcp_trial_readiness,
+            args.mcp_mission_control,
+            args.mcp_artifacts,
+            args.chatgpt_trial_proof_template,
+            args.safe_commit_plan,
+            args.workflow_router,
         )
         if selected
     )
@@ -1419,6 +1593,7 @@ def main(argv: list[str] | None = None) -> int:
         bool(command_to_run),
         bool(group_to_run),
         bool(args.list_commands),
+        bool(args.command_reference_md),
         bool(args.self_test or args.command_plan),
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
@@ -1464,6 +1639,9 @@ def main(argv: list[str] | None = None) -> int:
             for error in payload["errors"]:
                 print(f"ERROR: {error}")
         return 1 if payload["status"] != "passed" else 0
+    if args.command_reference_md:
+        print(command_reference_markdown(repo_root))
+        return 0 if plan["status"] == "passed" else 1
     if args.self_test or args.command_plan:
         if args.json:
             print(json.dumps(plan, indent=2))

@@ -26,7 +26,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
@@ -50,6 +50,7 @@ DEFAULT_PORT = 8770
 DEFAULT_DRY_RUN_TIMEOUT_SECONDS = 180.0
 DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS = 30.0
 DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS = 120.0
+DEFAULT_CHATGPT_SESSION_SECONDS = 900.0
 DEFAULT_CHATGPT_ORIGIN = "https://chatgpt.com"
 MAX_HANDOFF_BYTES = 512 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
@@ -304,6 +305,19 @@ def ensure_mapping(value: Any, field_name: str) -> dict[str, Any]:
     return value
 
 
+def model_to_plain_json(value: Any) -> Any:
+    """Convert SDK/Pydantic model arguments into ordinary JSON containers."""
+    if hasattr(value, "model_dump") and callable(value.model_dump):
+        return value.model_dump(mode="json", exclude_none=True)
+    if hasattr(value, "dict") and callable(value.dict):
+        return value.dict(exclude_none=True)
+    if isinstance(value, dict):
+        return {key: model_to_plain_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [model_to_plain_json(item) for item in value]
+    return value
+
+
 def bounded_timeout(value: Any, default: float) -> float:
     if value is None:
         return default
@@ -464,7 +478,8 @@ class RiftReaderChatGptMcpAdapter:
             "generatedAtUtc": utc_iso(),
             "status": "passed",
             "ok": True,
-            "repoRoot": str(self.config.repo_root),
+            "repoRoot": rel(self.config.repo_root, self.config.repo_root),
+            "repoName": self.config.repo_root.name,
             "repoRootRelative": rel(self.config.repo_root, self.config.repo_root),
             "payloadRoot": rel(self.config.repo_root, self.config.payload_root),
             "auditRoot": rel(self.config.repo_root, self.config.audit_root),
@@ -473,6 +488,7 @@ class RiftReaderChatGptMcpAdapter:
             "safety": {
                 **base_safety(),
                 "auditUnderDotRiftReaderLocal": is_relative_to(self.config.audit_root, self.config.repo_root / ".riftreader-local"),
+                "absoluteRepoRootExposed": False,
             },
             "warnings": [
                 "ChatGPT Developer Mode requires an HTTPS-reachable /mcp endpoint; use a tunnel manually only when testing.",
@@ -853,6 +869,60 @@ def actual_tool_annotation_payload(tool: Any) -> dict[str, bool | None]:
     }
 
 
+def actual_tool_input_schema_payload(tool: Any) -> dict[str, Any] | None:
+    schema = getattr(tool, "inputSchema", None)
+    return schema if isinstance(schema, dict) else None
+
+
+def verify_submit_package_proposal_input_schema(schema: Any) -> list[str]:
+    if not isinstance(schema, dict):
+        return ["submit-package-proposal-input-schema-missing"]
+    blockers: list[str] = []
+    properties = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+    required = schema.get("required") if isinstance(schema.get("required"), list) else []
+    if "proposal" not in properties:
+        blockers.append("submit-package-proposal-missing-proposal-property")
+    if "proposal" not in required:
+        blockers.append("submit-package-proposal-proposal-not-required")
+    defs = schema.get("$defs") if isinstance(schema.get("$defs"), dict) else {}
+    proposal = defs.get("PackageProposal") if isinstance(defs.get("PackageProposal"), dict) else {}
+    payload = defs.get("PackageProposalPayload") if isinstance(defs.get("PackageProposalPayload"), dict) else {}
+    file_item = defs.get("PackageProposalFile") if isinstance(defs.get("PackageProposalFile"), dict) else {}
+    check_item = defs.get("PackageProposalCheck") if isinstance(defs.get("PackageProposalCheck"), dict) else {}
+    if proposal.get("additionalProperties") is not False:
+        blockers.append("submit-package-proposal-top-level-extra-not-forbidden")
+    if payload.get("additionalProperties") is not False:
+        blockers.append("submit-package-payload-extra-not-forbidden")
+    if file_item.get("additionalProperties") is not False:
+        blockers.append("submit-package-file-extra-not-forbidden")
+    if check_item.get("additionalProperties") is not False:
+        blockers.append("submit-package-check-extra-not-forbidden")
+    proposal_required = proposal.get("required") if isinstance(proposal.get("required"), list) else []
+    for field in ("schemaVersion", "kind", "title", "payload"):
+        if field not in proposal_required:
+            blockers.append(f"submit-package-proposal-required-field-missing:{field}")
+    proposal_properties = proposal.get("properties") if isinstance(proposal.get("properties"), dict) else {}
+    if proposal_properties.get("schemaVersion", {}).get("const") != 1:
+        blockers.append("submit-package-proposal-schema-version-not-const-1")
+    if proposal_properties.get("kind", {}).get("const") != "package-proposal":
+        blockers.append("submit-package-proposal-kind-not-const")
+    payload_required = payload.get("required") if isinstance(payload.get("required"), list) else []
+    for field in ("packageName", "files"):
+        if field not in payload_required:
+            blockers.append(f"submit-package-payload-required-field-missing:{field}")
+    file_properties = file_item.get("properties") if isinstance(file_item.get("properties"), dict) else {}
+    file_required = file_item.get("required") if isinstance(file_item.get("required"), list) else []
+    for field in ("target", "content"):
+        if field not in file_required:
+            blockers.append(f"submit-package-file-required-field-missing:{field}")
+    if file_properties.get("encoding", {}).get("const") != "utf-8":
+        blockers.append("submit-package-file-encoding-not-const-utf8")
+    check_properties = check_item.get("properties") if isinstance(check_item.get("properties"), dict) else {}
+    if "args" not in check_properties:
+        blockers.append("submit-package-check-args-schema-missing")
+    return blockers
+
+
 def list_registered_sdk_tools(server: Any) -> list[Any]:
     list_tools = getattr(server, "list_tools", None)
     if not callable(list_tools):
@@ -901,11 +971,15 @@ def verify_registered_sdk_tools(server: Any) -> list[dict[str, Any]]:
         description = getattr(tool, "description", "") or ""
         if not str(description).startswith("Use this when"):
             blockers.append(f"description-prefix-missing:{expected_name}")
+        input_schema = actual_tool_input_schema_payload(tool)
+        if expected_name == "submit_package_proposal" and input_schema is not None:
+            blockers.extend(verify_submit_package_proposal_input_schema(input_schema))
         summaries.append(
             {
                 "name": expected_name,
                 "descriptionStartsUseThisWhen": str(description).startswith("Use this when"),
                 "annotations": annotation_payload,
+                "inputSchema": input_schema,
             }
         )
 
@@ -925,13 +999,22 @@ def local_mcp_sdk_validation_root(repo_root: Path) -> Path:
 
 def ensure_mcp_sdk_available(repo_root: Path) -> list[str]:
     added: list[str] = []
-    if importlib.util.find_spec("mcp") is not None:
-        return added
+    try:
+        if importlib.util.find_spec("mcp") is not None:
+            return added
+    except ValueError:
+        if "mcp" in sys.modules:
+            return added
+        raise
     local_sdk = local_mcp_sdk_validation_root(repo_root)
     if (local_sdk / "mcp" / "__init__.py").is_file():
         sys.path.insert(0, str(local_sdk))
         added.append(str(local_sdk))
-    if importlib.util.find_spec("mcp") is None:
+    try:
+        sdk_missing = importlib.util.find_spec("mcp") is None
+    except ValueError:
+        sdk_missing = "mcp" not in sys.modules
+    if sdk_missing:
         raise AdapterError(
             "MCP_PYTHON_SDK_MISSING",
             'Python package "mcp" is not installed. Install it before SDK or transport validation, '
@@ -1041,6 +1124,7 @@ def validate_sdk_registration(
         )
     if port < 0 or port > 65535:
         raise AdapterError("INVALID_PORT", "Port must be in range 0-65535.", status="failed", extra={"port": port})
+    sdk_path_additions = ensure_mcp_sdk_available(config.repo_root)
     adapter = RiftReaderChatGptMcpAdapter(config)
     server = create_fastmcp_server(
         adapter,
@@ -1074,13 +1158,14 @@ def validate_sdk_registration(
             "toolAnnotationsRequired": True,
             "registeredToolMetadataVerified": True,
             "serverConstructed": True,
+            "sdkPathAdditions": sdk_path_additions,
             "serverStarted": False,
             "tunnelStarted": False,
         },
     }
 
 
-async def run_transport_client_once(url: str) -> dict[str, Any]:
+async def run_transport_client_once(url: str, package_proposal: dict[str, Any] | None = None) -> dict[str, Any]:
     from mcp.client.session import ClientSession
     from mcp.client.streamable_http import streamablehttp_client
 
@@ -1089,6 +1174,11 @@ async def run_transport_client_once(url: str) -> dict[str, Any]:
             await session.initialize()
             tools_result = await session.list_tools()
             health_result = await session.call_tool("health", {})
+            submit_result = None
+            inbox_result = None
+            if package_proposal is not None:
+                submit_result = await session.call_tool("submit_package_proposal", {"proposal": package_proposal})
+                inbox_result = await session.call_tool("list_inbox", {})
     tools = list(getattr(tools_result, "tools", []) or [])
     tool_names = [getattr(tool, "name", None) for tool in tools]
     registered_summaries = []
@@ -1098,6 +1188,7 @@ async def run_transport_client_once(url: str) -> dict[str, Any]:
                 "name": getattr(tool, "name", None),
                 "descriptionStartsUseThisWhen": str(getattr(tool, "description", "") or "").startswith("Use this when"),
                 "annotations": actual_tool_annotation_payload(tool),
+                "inputSchema": actual_tool_input_schema_payload(tool),
             }
         )
     return {
@@ -1107,10 +1198,19 @@ async def run_transport_client_once(url: str) -> dict[str, Any]:
         "healthIsError": bool(getattr(health_result, "isError", False)),
         "healthStructuredContent": getattr(health_result, "structuredContent", None),
         "healthContentTypes": [type(item).__name__ for item in getattr(health_result, "content", []) or []],
+        "submitPackageProposalIsError": bool(getattr(submit_result, "isError", False)) if submit_result is not None else None,
+        "submitPackageProposalStructuredContent": getattr(submit_result, "structuredContent", None) if submit_result is not None else None,
+        "listInboxAfterSubmitIsError": bool(getattr(inbox_result, "isError", False)) if inbox_result is not None else None,
+        "listInboxAfterSubmitStructuredContent": getattr(inbox_result, "structuredContent", None) if inbox_result is not None else None,
     }
 
 
-async def run_transport_client_with_retry(url: str, server_process: subprocess.Popen[str], timeout_seconds: float) -> dict[str, Any]:
+async def run_transport_client_with_retry(
+    url: str,
+    server_process: subprocess.Popen[str],
+    timeout_seconds: float,
+    package_proposal: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
     last_error: str | None = None
     while time.monotonic() < deadline:
@@ -1122,7 +1222,7 @@ async def run_transport_client_with_retry(url: str, server_process: subprocess.P
                 extra={"serverExitCode": server_process.returncode, "lastClientError": last_error},
             )
         try:
-            return await run_transport_client_once(url)
+            return await run_transport_client_once(url, package_proposal=package_proposal)
         except Exception as exc:  # noqa: BLE001 - retry until bounded timeout expires.
             last_error = f"{type(exc).__name__}: {exc}"
             await asyncio.sleep(0.5)
@@ -1149,6 +1249,14 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
             blockers.append(f"health-service-mismatch:{health.get('service')!r}")
         if health.get("toolCount") != len(EXPECTED_TOOL_ORDER):
             blockers.append(f"health-tool-count-mismatch:{health.get('toolCount')!r}")
+        if health.get("repoRoot") != ".":
+            blockers.append(f"health-repo-root-not-redacted:{health.get('repoRoot')!r}")
+        safety = health.get("safety") if isinstance(health.get("safety"), dict) else {}
+        if safety.get("absoluteRepoRootExposed") is not False:
+            blockers.append(
+                "health-absolute-repo-root-exposure-flag-not-false:"
+                f"{safety.get('absoluteRepoRootExposed')!r}"
+            )
     for tool in client_result.get("registeredTools") or []:
         name = tool.get("name")
         if not isinstance(name, str) or name not in TOOL_SPECS:
@@ -1161,6 +1269,29 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
                 blockers.append(f"transport-annotation-mismatch:{name}:{field}:actual={annotations.get(field)!r}:expected={expected_value!r}")
         if tool.get("descriptionStartsUseThisWhen") is not True:
             blockers.append(f"transport-description-prefix-missing:{name}")
+        if name == "submit_package_proposal":
+            blockers.extend(verify_submit_package_proposal_input_schema(tool.get("inputSchema")))
+    if client_result.get("submitPackageProposalIsError") is not None:
+        if client_result.get("submitPackageProposalIsError") is True:
+            blockers.append("submit-package-proposal-returned-error")
+        submit_result = client_result.get("submitPackageProposalStructuredContent")
+        if not isinstance(submit_result, dict):
+            blockers.append("submit-package-proposal-structured-content-missing")
+        else:
+            if submit_result.get("ok") is not True:
+                blockers.append(f"submit-package-proposal-not-ok:{submit_result.get('code') or submit_result.get('status')}")
+            if not isinstance(submit_result.get("inboxId"), str) or not submit_result.get("inboxId"):
+                blockers.append("submit-package-proposal-inbox-id-missing")
+            safety = submit_result.get("safety") if isinstance(submit_result.get("safety"), dict) else {}
+            if safety.get("noRepoTargetWrites") is not True:
+                blockers.append("submit-package-proposal-no-repo-target-writes-flag-missing")
+        if client_result.get("listInboxAfterSubmitIsError") is True:
+            blockers.append("list-inbox-after-submit-returned-error")
+        inbox_result = client_result.get("listInboxAfterSubmitStructuredContent")
+        if not isinstance(inbox_result, dict):
+            blockers.append("list-inbox-after-submit-structured-content-missing")
+        elif inbox_result.get("ok") is not True:
+            blockers.append(f"list-inbox-after-submit-not-ok:{inbox_result.get('code') or inbox_result.get('status')}")
     return blockers
 
 
@@ -1168,7 +1299,9 @@ def run_transport_smoke_test(
     config: AdapterConfig,
     *,
     host: str = DEFAULT_HOST,
+    transport: str = "streamable-http",
     timeout_seconds: float = DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS,
+    include_proposal_submit: bool = False,
 ) -> dict[str, Any]:
     if host != DEFAULT_HOST:
         raise AdapterError(
@@ -1176,6 +1309,13 @@ def run_transport_smoke_test(
             "The transport smoke test only binds to 127.0.0.1.",
             status="failed",
             extra={"host": host},
+        )
+    if transport != "streamable-http":
+        raise AdapterError(
+            "TRANSPORT_SMOKE_TRANSPORT_UNSUPPORTED",
+            "Transport smoke currently validates streamable-http only.",
+            status="failed",
+            extra={"transport": transport},
         )
     if timeout_seconds <= 0 or timeout_seconds > 120:
         raise AdapterError(
@@ -1198,7 +1338,7 @@ def run_transport_smoke_test(
         "--port",
         str(port),
         "--transport",
-        "streamable-http",
+        transport,
         "--repo-root",
         str(config.repo_root),
         "--payload-root",
@@ -1222,7 +1362,14 @@ def run_transport_smoke_test(
             stderr=subprocess.PIPE,
             text=True,
         )
-        client_result = asyncio.run(run_transport_client_with_retry(url, process, timeout_seconds))
+        client_result = asyncio.run(
+            run_transport_client_with_retry(
+                url,
+                process,
+                timeout_seconds,
+                package_proposal=self_test_package_proposal() if include_proposal_submit else None,
+            )
+        )
         blockers = verify_transport_smoke_result(client_result)
         status = "passed" if not blockers else "failed"
         ok = not blockers
@@ -1246,7 +1393,9 @@ def run_transport_smoke_test(
     server_exit_code = process.returncode if process is not None else None
     payload = {
         "schemaVersion": SCHEMA_VERSION,
-        "kind": "riftreader-chatgpt-mcp-transport-smoke",
+        "kind": "riftreader-chatgpt-mcp-proposal-transport-smoke"
+        if include_proposal_submit
+        else "riftreader-chatgpt-mcp-transport-smoke",
         "generatedAtUtc": utc_iso(),
         "status": status,
         "ok": ok,
@@ -1264,6 +1413,9 @@ def run_transport_smoke_test(
         "blockers": blockers,
         "warnings": [
             "Transport smoke starts a temporary loopback-only server, calls list_tools and health, then terminates it.",
+            "Proposal transport smoke also calls submit_package_proposal with a synthetic self-test package and list_inbox; it writes ignored .riftreader-local inbox/audit artifacts only."
+            if include_proposal_submit
+            else "No proposal submit is performed by this smoke.",
             "No HTTPS tunnel, ChatGPT registration, Git mutation, RIFT input, CE, or x64dbg action is performed.",
         ],
         "serverProcess": {
@@ -1277,7 +1429,9 @@ def run_transport_smoke_test(
             "temporaryLoopbackServerStarted": True,
             "serverStopped": server_stopped,
             "sdkPathAdditions": sdk_path_additions,
-            "transport": "streamable-http",
+            "transport": transport,
+            "proposalSubmitTransportCovered": include_proposal_submit,
+            "proposalSubmitWritesLocalInboxOnly": include_proposal_submit,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
         },
@@ -1286,6 +1440,13 @@ def run_transport_smoke_test(
         payload["status"] = "failed"
         payload["ok"] = False
         payload["blockers"] = list(payload["blockers"]) + ["temporary-server-not-stopped"]
+    artifact = write_smoke_artifact(
+        config,
+        payload,
+        prefix="proposal-transport-smoke" if include_proposal_submit else "transport-smoke",
+    )
+    payload["artifactPaths"] = {"summaryJson": artifact}
+    Path(config.repo_root / artifact).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return payload
 
 
@@ -1307,6 +1468,261 @@ def write_smoke_artifact(config: AdapterConfig, payload: dict[str, Any], *, pref
     path = root / f"{stamp}-{prefix}.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return rel(config.repo_root, path)
+
+
+def compact_stage_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {
+            "status": "failed",
+            "ok": False,
+            "code": "INVALID_STAGE_PAYLOAD",
+            "message": f"Stage returned {type(payload).__name__}, not a JSON object.",
+        }
+    compact: dict[str, Any] = {}
+    for key in (
+        "schemaVersion",
+        "kind",
+        "service",
+        "version",
+        "status",
+        "ok",
+        "code",
+        "message",
+        "toolCount",
+        "host",
+        "port",
+        "url",
+        "timeoutSeconds",
+        "exitCode",
+    ):
+        if key in payload:
+            compact[key] = payload[key]
+    for key in ("blockers", "warnings", "errors"):
+        values = payload.get(key)
+        if isinstance(values, list):
+            compact[key] = values[:10]
+            if len(values) > 10:
+                compact[f"{key}Truncated"] = len(values) - 10
+    artifacts = payload.get("artifactPaths") or payload.get("artifacts")
+    if isinstance(artifacts, dict):
+        compact["artifacts"] = artifacts
+    safety = payload.get("safety")
+    if isinstance(safety, dict):
+        compact["safety"] = {
+            key: safety.get(key)
+            for key in (
+                "temporaryLoopbackServerStarted",
+                "serverStopped",
+                "proposalSubmitTransportCovered",
+                "proposalSubmitWritesLocalInboxOnly",
+                "publicTunnelStarted",
+                "chatGptRegistrationPerformed",
+                "applyFlagSent",
+            )
+            if key in safety
+        }
+    client = payload.get("client")
+    if isinstance(client, dict):
+        client_compact = {
+            "toolCount": client.get("toolCount"),
+            "toolNames": client.get("toolNames"),
+            "healthIsError": client.get("healthIsError"),
+        }
+        for key in (
+            "submitPackageProposalIsError",
+            "listInboxAfterSubmitIsError",
+        ):
+            if key in client:
+                client_compact[key] = client.get(key)
+        submit_result = client.get("submitPackageProposalStructuredContent")
+        if isinstance(submit_result, dict):
+            client_compact["submitPackageProposal"] = {
+                "ok": submit_result.get("ok"),
+                "status": submit_result.get("status"),
+                "code": submit_result.get("code"),
+                "inboxId": submit_result.get("inboxId"),
+                "noRepoTargetWrites": (submit_result.get("safety") or {}).get("noRepoTargetWrites")
+                if isinstance(submit_result.get("safety"), dict)
+                else None,
+            }
+        inbox_result = client.get("listInboxAfterSubmitStructuredContent")
+        if isinstance(inbox_result, dict):
+            client_compact["listInboxAfterSubmit"] = {
+                "ok": inbox_result.get("ok"),
+                "status": inbox_result.get("status"),
+                "code": inbox_result.get("code"),
+                "count": inbox_result.get("count"),
+            }
+        compact["client"] = client_compact
+    registered = payload.get("registeredTools")
+    if isinstance(registered, list):
+        compact["registeredToolNames"] = [item.get("name") for item in registered if isinstance(item, dict)]
+    return compact
+
+
+def stage_blockers(stage_name: str, payload: Any) -> list[str]:
+    if not isinstance(payload, dict):
+        return [f"{stage_name}:invalid-stage-payload"]
+    if payload.get("ok"):
+        return []
+    raw_blockers = payload.get("blockers")
+    if isinstance(raw_blockers, list) and raw_blockers:
+        return [f"{stage_name}:{blocker}" for blocker in raw_blockers[:10]]
+    return [f"{stage_name}:{payload.get('code') or payload.get('status') or 'not-ok'}"]
+
+
+def run_readiness_stage(stage_name: str, fn: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    try:
+        return fn()
+    except AdapterError as exc:
+        return blocked_payload(
+            exc.code,
+            exc.message,
+            kind=f"riftreader-chatgpt-mcp-trial-readiness-{stage_name}",
+            status=exc.status,
+            extra=exc.extra,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail closed with compact evidence.
+        return blocked_payload(
+            "TRIAL_READINESS_STAGE_FAILED",
+            f"{stage_name}: {type(exc).__name__}: {exc}",
+            kind=f"riftreader-chatgpt-mcp-trial-readiness-{stage_name}",
+            status="failed",
+        )
+
+
+def optional_executable_readiness(
+    name: str,
+    resolver: Callable[[], Path],
+    *,
+    required_for: str,
+) -> dict[str, Any]:
+    try:
+        path = resolver()
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-optional-executable-readiness",
+            "name": name,
+            "requiredFor": required_for,
+            "status": "passed",
+            "ok": True,
+            "path": str(path),
+            "blockers": [],
+            "warnings": [],
+        }
+    except AdapterError as exc:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-optional-executable-readiness",
+            "name": name,
+            "requiredFor": required_for,
+            "status": "blocked",
+            "ok": False,
+            "code": exc.code,
+            "message": exc.message,
+            "blockers": [],
+            "warnings": [exc.code],
+            **exc.extra,
+        }
+
+
+def run_trial_readiness(
+    config: AdapterConfig,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+    allowed_hosts: list[str] | None = None,
+    allowed_origins: list[str] | None = None,
+    transport: str = "streamable-http",
+    transport_timeout_seconds: float = DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS,
+    cloudflared_path: str | None = None,
+) -> dict[str, Any]:
+    stages: dict[str, Any] = {}
+    blockers: list[str] = []
+    warnings: list[str] = []
+
+    stage_fns: tuple[tuple[str, Callable[[], dict[str, Any]]], ...] = (
+        ("tool_manifest", tool_manifest),
+        ("self_test", lambda: run_self_test(config)),
+        (
+            "validate_sdk",
+            lambda: validate_sdk_registration(
+                config,
+                host=host,
+                port=port,
+                allowed_hosts=allowed_hosts,
+                allowed_origins=allowed_origins,
+            ),
+        ),
+        (
+            "transport_smoke",
+            lambda: run_transport_smoke_test(
+                config,
+                host=host,
+                timeout_seconds=transport_timeout_seconds,
+                transport=transport,
+                include_proposal_submit=True,
+            ),
+        ),
+    )
+    for stage_name, fn in stage_fns:
+        stage_payload = run_readiness_stage(stage_name, fn)
+        stages[stage_name] = compact_stage_payload(stage_payload)
+        blockers.extend(stage_blockers(stage_name, stage_payload))
+
+    optional_dependencies = {
+        "cloudflared": optional_executable_readiness(
+            "cloudflared",
+            lambda: resolve_cloudflared_executable(cloudflared_path),
+            required_for="optional Cloudflare quick-tunnel smoke and manual HTTPS exposure",
+        ),
+        "curl": optional_executable_readiness(
+            "curl",
+            resolve_curl_executable,
+            required_for="optional public tunnel smoke verification",
+        ),
+    }
+    for name, dependency in optional_dependencies.items():
+        if not dependency.get("ok"):
+            warnings.append(f"{name}:{dependency.get('code') or dependency.get('status')}")
+
+    status = "passed" if not blockers else "blocked"
+    payload = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-trial-readiness",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "passed",
+        "service": SERVER_NAME,
+        "version": VERSION,
+        "repoRoot": str(config.repo_root),
+        "stages": stages,
+        "optionalDependencies": optional_dependencies,
+        "blockers": blockers,
+        "warnings": warnings
+        + [
+            "Trial readiness starts only local/self-test and temporary loopback checks, including a synthetic submit_package_proposal transport call.",
+            "It does not start a public tunnel, register ChatGPT, serve persistently, apply packages, mutate Git, send RIFT input, or attach CE/x64dbg.",
+        ],
+        "safety": {
+            **base_safety(),
+            "trialReadinessLocalOnly": True,
+            "temporaryLoopbackServerMayStart": True,
+            "persistentServerStarted": False,
+            "publicTunnelStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "applyFlagSent": False,
+        },
+        "next": [
+            "If status is passed, the narrow MCP adapter is locally ready for an explicit manual HTTPS/ChatGPT Developer Mode trial.",
+            "Run --cloudflare-tunnel-smoke only as a separate explicit public-tunnel test, or start --serve and a manual tunnel for ChatGPT registration.",
+            "If status is blocked, fix the listed stage blockers before any public tunnel or ChatGPT registration attempt.",
+        ],
+    }
+    artifact = write_smoke_artifact(config, payload, prefix="trial-readiness")
+    payload["artifactPaths"] = {"summaryJson": artifact}
+    Path(config.repo_root / artifact).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return payload
 
 
 def resolve_cloudflared_executable(value: str | None = None) -> Path:
@@ -1611,6 +2027,7 @@ def cloudflare_smoke_client_result(
             "name": tool.get("name"),
             "descriptionStartsUseThisWhen": str(tool.get("description") or "").startswith("Use this when"),
             "annotations": tool.get("annotations") if isinstance(tool.get("annotations"), dict) else {},
+            "inputSchema": tool.get("inputSchema") if isinstance(tool.get("inputSchema"), dict) else None,
         }
         for tool in tools
     ]
@@ -1695,6 +2112,7 @@ def run_cloudflare_tunnel_smoke_test(
     ]
     tunnel_process: subprocess.Popen[str] | None = None
     server_process: subprocess.Popen[str] | None = None
+    server_command: list[str] | None = None
     tunnel_stdout: list[str] = []
     tunnel_stderr: list[str] = []
     server_stdout = ""
@@ -1884,6 +2302,332 @@ def run_cloudflare_tunnel_smoke_test(
     return payload
 
 
+def run_chatgpt_trial_session(
+    config: AdapterConfig,
+    *,
+    host: str = DEFAULT_HOST,
+    session_seconds: float = DEFAULT_CHATGPT_SESSION_SECONDS,
+    verify_timeout_seconds: float = DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS,
+    cloudflared_path: str | None = None,
+    origin: str = DEFAULT_CHATGPT_ORIGIN,
+) -> dict[str, Any]:
+    if host != DEFAULT_HOST:
+        raise AdapterError(
+            "UNSAFE_BIND_HOST",
+            "ChatGPT trial session keeps the MCP origin bound to 127.0.0.1 only.",
+            status="failed",
+            extra={"host": host},
+        )
+    if session_seconds < 0 or session_seconds > 3600:
+        raise AdapterError(
+            "CHATGPT_SESSION_SECONDS_INVALID",
+            "ChatGPT trial session duration must be between 0 and 3600 seconds.",
+            status="failed",
+            extra={"sessionSeconds": session_seconds},
+        )
+    if verify_timeout_seconds <= 0 or verify_timeout_seconds > 300:
+        raise AdapterError(
+            "CHATGPT_SESSION_VERIFY_TIMEOUT_INVALID",
+            "ChatGPT trial session verify timeout must be > 0 and <= 300 seconds.",
+            status="failed",
+            extra={"verifyTimeoutSeconds": verify_timeout_seconds},
+        )
+
+    sdk_path_additions = ensure_mcp_sdk_available(config.repo_root)
+    normalized_origins = normalize_allowed_origins([origin])
+    public_origin = normalized_origins[0]
+    cloudflared_executable = resolve_cloudflared_executable(cloudflared_path)
+    curl_executable = resolve_curl_executable()
+    port = choose_loopback_port()
+    local_origin = f"http://{host}:{port}"
+    tunnel_command = [
+        str(cloudflared_executable),
+        "tunnel",
+        "--url",
+        local_origin,
+        "--no-autoupdate",
+        "--protocol",
+        "quic",
+        "--ha-connections",
+        "1",
+    ]
+    tunnel_process: subprocess.Popen[str] | None = None
+    server_process: subprocess.Popen[str] | None = None
+    server_command: list[str] | None = None
+    tunnel_stdout: list[str] = []
+    tunnel_stderr: list[str] = []
+    server_stdout = ""
+    server_stderr = ""
+    public_url: str | None = None
+    public_host: str | None = None
+    curl_resolve_ip: str | None = None
+    client_result: dict[str, Any] = {"responses": []}
+    blockers: list[str] = []
+    ready = False
+    ready_artifact: str | None = None
+    ready_at_utc: str | None = None
+    held_seconds = 0.0
+    server_stopped = False
+    tunnel_stopped = False
+    status = "failed"
+    ok = False
+
+    tmp_parent = smoke_artifact_root(config)
+    tmp_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="chatgpt-trial-session-", dir=str(tmp_parent)) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        try:
+            tunnel_process = subprocess.Popen(
+                tunnel_command,
+                cwd=str(config.repo_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            tunnel_queue, tunnel_stdout, tunnel_stderr = start_process_stream_readers(tunnel_process)
+            public_url = wait_for_cloudflare_quick_tunnel_url(
+                tunnel_process,
+                tunnel_queue,
+                timeout_seconds=min(verify_timeout_seconds, 45.0),
+                stdout_lines=tunnel_stdout,
+                stderr_lines=tunnel_stderr,
+            )
+            public_host = host_from_https_url(public_url)
+            curl_resolve_ip = resolve_ipv4_for_curl(public_host)
+            script_path = Path(__file__).resolve()
+            server_command = [
+                sys.executable,
+                str(script_path),
+                "--serve",
+                "--host",
+                host,
+                "--port",
+                str(port),
+                "--transport",
+                "streamable-http",
+                "--repo-root",
+                str(config.repo_root),
+                "--payload-root",
+                str(config.payload_root),
+                "--audit-root",
+                str(config.audit_root),
+                "--allowed-host",
+                public_host,
+                "--allowed-origin",
+                public_origin,
+            ]
+            env = os.environ.copy()
+            env["PYTHONPATH"] = build_child_pythonpath(config, env)
+            server_process = subprocess.Popen(
+                server_command,
+                cwd=str(config.repo_root),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            deadline = time.monotonic() + verify_timeout_seconds
+            last_blockers: list[str] = []
+            while time.monotonic() < deadline:
+                if tunnel_process.poll() is not None:
+                    raise AdapterError("CLOUDFLARED_EXITED_EARLY", "cloudflared exited during ChatGPT trial session setup.", status="failed")
+                if server_process.poll() is not None:
+                    raise AdapterError(
+                        "MCP_TRANSPORT_SERVER_EXITED_EARLY",
+                        "MCP server exited during ChatGPT trial session setup.",
+                        status="failed",
+                        extra={"serverExitCode": server_process.returncode},
+                    )
+                if curl_resolve_ip is None:
+                    curl_resolve_ip = resolve_ipv4_for_curl(public_host)
+                client_result = cloudflare_smoke_client_result(
+                    curl_executable=curl_executable,
+                    url=f"{public_url}/mcp",
+                    timeout_seconds=min(10.0, max(2.0, verify_timeout_seconds / 6)),
+                    temp_dir=temp_dir,
+                    origin=public_origin,
+                    resolve_host=public_host,
+                    resolve_ip=curl_resolve_ip,
+                )
+                last_blockers = verify_cloudflare_smoke_client_result(client_result)
+                if not last_blockers:
+                    ready = True
+                    ready_at_utc = utc_iso()
+                    break
+                last_blockers = last_blockers or ["chatgpt-session-public-verify-not-ready"]
+                time.sleep(2.0)
+            if not ready:
+                blockers = last_blockers or ["chatgpt-session-public-verify-timeout"]
+            else:
+                ready_payload = {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "kind": "riftreader-chatgpt-mcp-chatgpt-trial-session-ready",
+                    "generatedAtUtc": ready_at_utc,
+                    "status": "ready",
+                    "ok": True,
+                    "service": SERVER_NAME,
+                    "version": VERSION,
+                    "publicUrl": public_url,
+                    "publicMcpUrl": f"{public_url}/mcp",
+                    "publicHost": public_host,
+                    "originHeader": public_origin,
+                    "localOrigin": local_origin,
+                    "host": host,
+                    "port": port,
+                    "sessionSeconds": session_seconds,
+                    "registration": {
+                        "chatGptDeveloperMode": True,
+                        "mcpUrl": f"{public_url}/mcp",
+                        "protocol": "streamable-http",
+                        "authentication": "No Authentication",
+                        "firstToolToCall": "health",
+                    },
+                    "client": compact_stage_payload({"client": client_result}).get("client", {}),
+                    "safety": {
+                        **base_safety(),
+                        "temporaryLoopbackServerStarted": True,
+                        "temporaryPublicTunnelStarted": True,
+                        "chatGptRegistrationPerformed": False,
+                        "providerWrites": False,
+                        "gitMutation": False,
+                        "movementSent": False,
+                        "inputSent": False,
+                        "noCheatEngine": True,
+                        "x64dbgAttach": False,
+                        "sdkPathAdditions": sdk_path_additions,
+                        "transport": "streamable-http",
+                        "allowedHostExact": public_host,
+                        "allowedOriginExact": public_origin,
+                    },
+                    "next": [
+                        "In ChatGPT web, enable Developer mode under Settings -> Apps -> Advanced settings.",
+                        "Create an app from this remote MCP URL while this session is still running.",
+                        "Use No Authentication and streamable HTTP if prompted.",
+                        "In a Developer Mode conversation, first call health and confirm the 8-tool surface.",
+                    ],
+                }
+                ready_artifact = write_smoke_artifact(config, ready_payload, prefix="chatgpt-trial-session-ready")
+                ready_payload["artifactPaths"] = {"summaryJson": ready_artifact}
+                Path(config.repo_root / ready_artifact).write_text(json.dumps(ready_payload, indent=2, sort_keys=True), encoding="utf-8")
+
+                hold_started = time.monotonic()
+                hold_deadline = hold_started + session_seconds
+                while time.monotonic() < hold_deadline:
+                    if tunnel_process.poll() is not None:
+                        blockers.append("cloudflared-exited-during-chatgpt-session")
+                        break
+                    if server_process.poll() is not None:
+                        blockers.append("mcp-server-exited-during-chatgpt-session")
+                        break
+                    time.sleep(min(0.5, max(0.0, hold_deadline - time.monotonic())))
+                held_seconds = time.monotonic() - hold_started
+        except AdapterError:
+            raise
+        except KeyboardInterrupt:
+            blockers.append("chatgpt-session-interrupted")
+        except Exception as exc:  # noqa: BLE001 - fail closed with evidence.
+            raise AdapterError(
+                "CHATGPT_TRIAL_SESSION_FAILED",
+                f"{type(exc).__name__}: {exc}",
+                status="failed",
+            ) from exc
+        finally:
+            server_stopped = stop_process(server_process)
+            tunnel_stopped = stop_process(tunnel_process)
+            if server_process is not None:
+                try:
+                    server_stdout, server_stderr = server_process.communicate(timeout=2)
+                except subprocess.TimeoutExpired:
+                    server_process.kill()
+                    server_stdout, server_stderr = server_process.communicate(timeout=2)
+                    server_stopped = server_process.poll() is not None
+
+    if not tunnel_stopped:
+        blockers.append("cloudflared-not-stopped")
+    if not server_stopped:
+        blockers.append("temporary-server-not-stopped")
+    if ready and not blockers:
+        status = "passed"
+        ok = True
+
+    payload: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-chatgpt-trial-session",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": ok,
+        "ready": ready,
+        "readyAtUtc": ready_at_utc,
+        "service": SERVER_NAME,
+        "version": VERSION,
+        "publicUrl": public_url,
+        "publicMcpUrl": f"{public_url}/mcp" if public_url else None,
+        "publicHost": public_host,
+        "originHeader": public_origin,
+        "curlResolveIp": curl_resolve_ip,
+        "localOrigin": local_origin,
+        "host": host,
+        "port": port,
+        "sessionSeconds": session_seconds,
+        "heldSeconds": round(held_seconds, 3),
+        "verifyTimeoutSeconds": verify_timeout_seconds,
+        "client": client_result,
+        "commands": {
+            "cloudflared": {"args": tunnel_command, "cwd": str(config.repo_root)},
+            "server": {"args": server_command, "cwd": str(config.repo_root)},
+        },
+        "processes": {
+            "cloudflared": {
+                "exitCodeAfterStop": tunnel_process.returncode if tunnel_process is not None else None,
+                "stopped": tunnel_stopped,
+                "stdoutTail": text_tail("".join(tunnel_stdout), 4000),
+                "stderrTail": text_tail("".join(tunnel_stderr), 4000),
+            },
+            "server": {
+                "exitCodeAfterStop": server_process.returncode if server_process is not None else None,
+                "stopped": server_stopped,
+                "stdoutTail": text_tail(server_stdout, 4000),
+                "stderrTail": text_tail(server_stderr, 4000),
+            },
+        },
+        "registration": {
+            "chatGptDeveloperMode": True,
+            "mcpUrl": f"{public_url}/mcp" if public_url else None,
+            "protocol": "streamable-http",
+            "authentication": "No Authentication",
+            "firstToolToCall": "health",
+            "remainingManualStep": "Create the app in ChatGPT Developer Mode while this session is running.",
+        },
+        "blockers": blockers,
+        "warnings": [
+            "This starts a temporary public Cloudflare quick tunnel and temporary loopback MCP server for a bounded ChatGPT registration window.",
+            "It does not register the app in ChatGPT automatically.",
+            "It does not expose broad filesystem, shell, Git, RIFT, CE, or x64dbg tools.",
+            "The public quick-tunnel URL is ephemeral and stops when this command exits.",
+        ],
+        "safety": {
+            **base_safety(),
+            "temporaryLoopbackServerStarted": server_process is not None,
+            "serverStopped": server_stopped,
+            "temporaryPublicTunnelStarted": tunnel_process is not None,
+            "publicTunnelStopped": tunnel_stopped,
+            "chatGptRegistrationPerformed": False,
+            "sdkPathAdditions": sdk_path_additions,
+            "transport": "streamable-http",
+            "allowedHostExact": public_host,
+            "allowedOriginExact": public_origin,
+            "originBoundToLoopbackOnly": host == DEFAULT_HOST,
+        },
+        "artifactPaths": {
+            "readyJson": ready_artifact,
+        },
+    }
+    artifact = write_smoke_artifact(config, payload, prefix="chatgpt-trial-session")
+    payload["artifactPaths"]["summaryJson"] = artifact
+    Path(config.repo_root / artifact).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return payload
+
+
 def create_fastmcp_server(
     adapter: RiftReaderChatGptMcpAdapter,
     *,
@@ -1896,12 +2640,71 @@ def create_fastmcp_server(
         from mcp.server.fastmcp import FastMCP
         from mcp.server.transport_security import TransportSecuritySettings
         from mcp.types import ToolAnnotations
+        from pydantic import BaseModel, ConfigDict, Field
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on optional SDK install.
         raise AdapterError(
             "MCP_PYTHON_SDK_MISSING",
-            'Python package "mcp" is not installed. Install it before --serve, e.g. pip install "mcp[cli]".',
+            'Python package "mcp" with pydantic support is not installed. Install it before --serve, e.g. pip install "mcp[cli]".',
             status="failed",
         ) from exc
+
+    class PackageProposalFile(BaseModel):
+        """One UTF-8 text file proposed for later local package-draft review."""
+
+        model_config = ConfigDict(extra="forbid")
+        target: str = Field(
+            ...,
+            description="Repo-relative target path for a text file. Use forward slashes; allowed extensions are .md, .json, .jsonl, .csv, or .txt.",
+        )
+        content: str = Field(..., description="Full UTF-8 text content for the proposed file.")
+        encoding: Literal["utf-8"] = Field("utf-8", description="Only utf-8 is accepted.")
+
+    class PackageProposalCheck(BaseModel):
+        """Optional package-intake dry-run check command descriptor."""
+
+        model_config = ConfigDict(extra="forbid")
+        name: str = Field(..., description="Short check name.")
+        args: list[str] = Field(
+            ...,
+            description="Command arguments for a later local package-intake dry-run. This is not executed by submit_package_proposal.",
+        )
+        expectedExitCodes: list[int] = Field(default_factory=lambda: [0], description="Acceptable exit codes for the later dry-run check.")
+        timeoutSeconds: float = Field(120, description="Per-check timeout in seconds for a later dry-run.")
+
+    class PackageProposalPayload(BaseModel):
+        """Inert package payload stored under the local inbox for later review."""
+
+        model_config = ConfigDict(extra="forbid")
+        packageName: str = Field(..., description="Operator-readable package name.")
+        files: list[PackageProposalFile] = Field(
+            ...,
+            description="One to twenty UTF-8 text files proposed for later review; submit only stores them as an inbox proposal.",
+        )
+        checks: list[PackageProposalCheck] = Field(
+            default_factory=list,
+            description="Optional dry-run checks for later package intake. These are never executed by submit_package_proposal.",
+        )
+
+    class PackageProposal(BaseModel):
+        """Exact package-proposal object accepted by submit_package_proposal."""
+
+        model_config = ConfigDict(extra="forbid")
+        schemaVersion: Literal[1] = Field(..., description="Must be 1.")
+        kind: Literal["package-proposal"] = Field(..., description="Must be package-proposal.")
+        title: str = Field(..., description="Short operator-readable proposal title.")
+        body: str | None = Field(None, description="Optional human-readable proposal summary.")
+        payload: PackageProposalPayload = Field(..., description="Inert package payload to store under .riftreader-local.")
+        source: dict[str, Any] = Field(
+            default_factory=lambda: {
+                "tool": "Desktop ChatGPT",
+                "context": "operator-approved package proposal for local draft export",
+            },
+            description="Optional source metadata. Must not contain credentials or secrets.",
+        )
+        metadata: dict[str, Any] = Field(
+            default_factory=lambda: {"requiresHumanReview": True, "draftOnly": True},
+            description="Optional metadata. Proposals remain inert and require local review.",
+        )
 
     def annotations_for(spec: ToolSpec) -> Any:
         return ToolAnnotations(
@@ -1992,10 +2795,15 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_package_proposal_template", {})
 
-    def submit_package_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
+    def submit_package_proposal(proposal: PackageProposal) -> dict[str, Any]:
         """Use this when the operator explicitly approves storing a package-proposal under .riftreader-local."""
 
-        return adapter.call_tool("submit_package_proposal", {"proposal": proposal})
+        return adapter.call_tool("submit_package_proposal", {"proposal": model_to_plain_json(proposal)})
+
+    # This module uses ``from __future__ import annotations``. FastMCP evaluates
+    # function annotations with inspect.signature(eval_str=True), so nested
+    # Pydantic model classes must be attached as concrete annotations.
+    submit_package_proposal.__annotations__["proposal"] = PackageProposal
 
     def list_inbox() -> dict[str, Any]:
         """Use this when you need Local Artifact Bridge inbox metadata only."""
@@ -2065,9 +2873,24 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--validate-sdk", action="store_true", help="Validate FastMCP SDK import/tool registration without serving.")
     mode.add_argument("--transport-smoke", action="store_true", help="Start a temporary loopback MCP server, smoke test it, then stop it.")
     mode.add_argument(
+        "--proposal-transport-smoke",
+        action="store_true",
+        help="Start a temporary loopback MCP server, call submit_package_proposal with a synthetic local-only proposal, then stop it.",
+    )
+    mode.add_argument(
+        "--trial-readiness",
+        action="store_true",
+        help="Run compact local MCP trial-readiness checks without starting a public tunnel or ChatGPT registration.",
+    )
+    mode.add_argument(
         "--cloudflare-tunnel-smoke",
         action="store_true",
         help="Explicitly start a temporary Cloudflare quick tunnel, smoke test the public /mcp URL, then stop it.",
+    )
+    mode.add_argument(
+        "--chatgpt-trial-session",
+        action="store_true",
+        help="Start a bounded public MCP session for manual ChatGPT Developer Mode registration, then stop it.",
     )
     mode.add_argument("--call", choices=EXPECTED_TOOL_ORDER, help="Call one local tool handler without starting a server.")
     mode.add_argument("--serve", action="store_true", help="Start the MCP server. Does not start a tunnel.")
@@ -2098,10 +2921,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run-timeout-seconds", type=float, default=DEFAULT_DRY_RUN_TIMEOUT_SECONDS)
     parser.add_argument("--transport-smoke-timeout-seconds", type=float, default=DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS)
     parser.add_argument("--cloudflare-smoke-timeout-seconds", type=float, default=DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS)
+    parser.add_argument("--chatgpt-session-seconds", type=float, default=DEFAULT_CHATGPT_SESSION_SECONDS)
     parser.add_argument(
         "--cloudflare-smoke-origin",
         default=DEFAULT_CHATGPT_ORIGIN,
-        help="Origin header to validate during --cloudflare-tunnel-smoke; defaults to ChatGPT web origin.",
+        help="Origin header to validate during --cloudflare-tunnel-smoke or --chatgpt-trial-session; defaults to ChatGPT web origin.",
     )
     parser.add_argument("--cloudflared-path", default=None, help="Optional explicit path to cloudflared for --cloudflare-tunnel-smoke.")
     parser.add_argument("--max-inbox-mb", type=float, default=1.0)
@@ -2139,14 +2963,53 @@ def main(argv: list[str] | None = None) -> int:
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
         if args.transport_smoke:
-            payload = run_transport_smoke_test(config, host=args.host, timeout_seconds=args.transport_smoke_timeout_seconds)
+            payload = run_transport_smoke_test(
+                config,
+                host=args.host,
+                transport=args.transport,
+                timeout_seconds=args.transport_smoke_timeout_seconds,
+            )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
+        if args.proposal_transport_smoke:
+            payload = run_transport_smoke_test(
+                config,
+                host=args.host,
+                transport=args.transport,
+                timeout_seconds=args.transport_smoke_timeout_seconds,
+                include_proposal_submit=True,
+            )
+            print_payload(payload, json_mode=args.json)
+            return 0 if payload.get("ok") else 1
+        if args.trial_readiness:
+            payload = run_trial_readiness(
+                config,
+                host=args.host,
+                port=args.port,
+                allowed_hosts=args.allowed_host,
+                allowed_origins=args.allowed_origin,
+                transport=args.transport,
+                transport_timeout_seconds=args.transport_smoke_timeout_seconds,
+                cloudflared_path=args.cloudflared_path,
+            )
+            print_payload(payload, json_mode=args.json)
+            return 0 if payload.get("ok") else 2
         if args.cloudflare_tunnel_smoke:
             payload = run_cloudflare_tunnel_smoke_test(
                 config,
                 host=args.host,
                 timeout_seconds=args.cloudflare_smoke_timeout_seconds,
+                cloudflared_path=args.cloudflared_path,
+                origin=args.cloudflare_smoke_origin,
+            )
+            print_payload(payload, json_mode=args.json)
+            return 0 if payload.get("ok") else 1
+        if args.chatgpt_trial_session:
+            payload = run_chatgpt_trial_session(
+                config,
+                host=args.host,
+                session_seconds=args.chatgpt_session_seconds,
+                verify_timeout_seconds=args.cloudflare_smoke_timeout_seconds,
                 cloudflared_path=args.cloudflared_path,
                 origin=args.cloudflare_smoke_origin,
             )

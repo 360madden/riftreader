@@ -1,0 +1,512 @@
+#!/usr/bin/env python3
+"""Shared MCP workflow artifact and state discovery for RiftReader helpers.
+
+This module is intentionally local/offline and does not start servers, tunnels,
+Git mutations, RIFT input, CE, or x64dbg. It reads repo-owned artifacts and
+runs read-only Git inspection commands only.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable
+
+try:
+    from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+except ImportError:  # pragma: no cover - supports direct script execution.
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+
+
+SCHEMA_VERSION = 1
+TRANSPORT_SMOKE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "transport-smoke"
+ACTUAL_CLIENT_PROOF_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "actual-client-proof"
+INBOX_ROOT = Path(".riftreader-local") / "artifact-bridge-inbox"
+DRAFT_ROOT = Path(".riftreader-local") / "artifact-bridge-package-drafts"
+PACKAGE_INTAKE_ROOT = Path(".riftreader-local") / "package-intake"
+FRESHNESS_BUDGET_SECONDS = {
+    "readiness": 6 * 60 * 60,
+    "proposal-smoke": 6 * 60 * 60,
+    "cloudflare-smoke": 24 * 60 * 60,
+    "trial-session": 24 * 60 * 60,
+    "actual-client-proof": 24 * 60 * 60,
+}
+
+ARTIFACT_KINDS = (
+    "readiness",
+    "proposal-smoke",
+    "cloudflare-smoke",
+    "transport-smoke",
+    "trial-session",
+    "trial-session-ready",
+    "trial-session-final",
+    "actual-client-proof",
+    "inbox",
+    "draft",
+    "dry-run",
+)
+
+DEFAULT_TIMELINE_KINDS = (
+    "readiness",
+    "proposal-smoke",
+    "cloudflare-smoke",
+    "transport-smoke",
+    "trial-session",
+    "actual-client-proof",
+    "inbox",
+    "draft",
+    "dry-run",
+)
+
+
+def mtime_utc(path: Path) -> str:
+    return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def artifact_age_seconds(path: Path) -> int:
+    return max(0, int((datetime.now(timezone.utc) - datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)).total_seconds()))
+
+
+def public_url_is_ephemeral(public_url: object) -> bool:
+    value = str(public_url or "").lower()
+    return ".trycloudflare.com" in value or ".ngrok-free.app" in value or ".ngrok.app" in value
+
+
+def safe_load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - artifact browser must preserve malformed evidence.
+        return None, f"json-invalid:{path}:{type(exc).__name__}:{exc}"
+    if not isinstance(value, dict):
+        return None, f"json-not-object:{path}"
+    return value, None
+
+
+def first_existing_json(paths: Iterable[Path]) -> Path | None:
+    for path in paths:
+        if path.is_file():
+            return path
+    return None
+
+
+def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], artifact_kind: str) -> dict[str, Any]:
+    safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+    processes = payload.get("processes") if isinstance(payload.get("processes"), dict) else {}
+    server_process = payload.get("serverProcess") if isinstance(payload.get("serverProcess"), dict) else {}
+    server_process = server_process or (processes.get("server") if isinstance(processes.get("server"), dict) else {})
+    tunnel_process = processes.get("cloudflared") if isinstance(processes.get("cloudflared"), dict) else {}
+    artifact_paths = payload.get("artifactPaths") if isinstance(payload.get("artifactPaths"), dict) else payload.get("artifacts")
+    client = payload.get("client") if isinstance(payload.get("client"), dict) else {}
+    submit = client.get("submitPackageProposalStructuredContent") if isinstance(client.get("submitPackageProposalStructuredContent"), dict) else {}
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
+    proof = payload.get("proof") if isinstance(payload.get("proof"), dict) else {}
+    message_metadata = payload.get("messageMetadata") if isinstance(payload.get("messageMetadata"), dict) else {}
+    message_source = payload.get("messageSource") if isinstance(payload.get("messageSource"), dict) else {}
+    title = str(payload.get("messageTitle") or payload.get("title") or payload.get("packageName") or "")
+    source_tool = str(message_source.get("tool") or "")
+    self_test = bool(message_metadata.get("selfTest")) or "self-test" in title.lower() or "self-test" in source_tool.lower()
+    status = payload.get("status")
+    if status is None and artifact_kind == "inbox":
+        status = "stored"
+    ok = bool(payload.get("ok")) if "ok" in payload else status in {"passed", "created", "ready", "stored"}
+    public_mcp_url = payload.get("publicMcpUrl") or proof.get("publicMcpUrl")
+    public_tunnel_stopped = safety.get("publicTunnelStopped") if "publicTunnelStopped" in safety else tunnel_process.get("stopped")
+    ephemeral_public_url = public_url_is_ephemeral(public_mcp_url)
+    item = {
+        "artifactKind": artifact_kind,
+        "path": rel(repo_root, path),
+        "fileName": path.name,
+        "mtimeUtc": mtime_utc(path),
+        "artifactAgeSeconds": artifact_age_seconds(path),
+        "kind": payload.get("kind"),
+        "status": status,
+        "ok": ok,
+        "generatedAtUtc": payload.get("generatedAtUtc"),
+        "blockers": payload.get("blockers") if isinstance(payload.get("blockers"), list) else [],
+        "warnings": payload.get("warnings") if isinstance(payload.get("warnings"), list) else [],
+        "publicMcpUrl": public_mcp_url,
+        "publicUrlEphemeral": ephemeral_public_url,
+        "publicUrlExpectedExpired": bool(ephemeral_public_url and public_tunnel_stopped),
+        "toolCount": payload.get("toolCount") or proof.get("toolCount"),
+        "inboxId": payload.get("inboxId") or submit.get("inboxId") or draft.get("inboxId") or proof.get("inboxId"),
+        "draftId": payload.get("draftId") or draft.get("draftId") or proof.get("draftId"),
+        "packageName": payload.get("packageName") or draft.get("packageName"),
+        "messageTitle": payload.get("messageTitle") or payload.get("title"),
+        "messageKind": payload.get("messageKind"),
+        "selfTest": self_test,
+        "origin": "self-test" if self_test else "operator-or-live",
+        "dryRun": payload.get("dryRun"),
+        "changedFileCount": payload.get("changedFileCount"),
+        "serverStopped": safety.get("serverStopped") if "serverStopped" in safety else server_process.get("stopped"),
+        "publicTunnelStopped": public_tunnel_stopped,
+        "chatGptRegistrationPerformed": safety.get("chatGptRegistrationPerformed"),
+        "proposalSubmitTransportCovered": safety.get("proposalSubmitTransportCovered"),
+        "proposalSubmitWritesLocalInboxOnly": safety.get("proposalSubmitWritesLocalInboxOnly"),
+        "artifactPaths": artifact_paths if isinstance(artifact_paths, dict) else {},
+    }
+    if artifact_kind == "inbox" and not item["inboxId"]:
+        item["inboxId"] = path.parent.name if path.name.endswith(".json") else path.name
+    if artifact_kind == "draft" and not item["draftId"]:
+        item["draftId"] = path.parent.name
+    return item
+
+
+def state_artifact_warnings(latest_artifacts: dict[str, dict[str, Any] | None]) -> list[str]:
+    warnings: list[str] = []
+    for kind, budget_seconds in FRESHNESS_BUDGET_SECONDS.items():
+        item = latest_artifacts.get(kind)
+        if not item:
+            continue
+        age_seconds = item.get("artifactAgeSeconds")
+        if isinstance(age_seconds, int) and age_seconds > budget_seconds:
+            warnings.append(f"artifact-age-exceeds-budget:{kind}:{age_seconds}s>{budget_seconds}s:{item.get('path')}")
+    for kind in ("cloudflare-smoke", "trial-session", "actual-client-proof"):
+        item = latest_artifacts.get(kind)
+        if item and item.get("publicUrlExpectedExpired"):
+            warnings.append(f"ephemeral-public-url-expected-expired:{kind}:{item.get('path')}")
+    for kind in ("inbox", "draft"):
+        item = latest_artifacts.get(kind)
+        if item and item.get("selfTest"):
+            warnings.append(f"latest-{kind}-is-self-test:{item.get('path')}")
+    return warnings
+
+
+def collect_json_file_artifacts(repo_root: Path, root_rel: Path, pattern: str, artifact_kind: str) -> tuple[list[dict[str, Any]], list[str]]:
+    root = repo_root / root_rel
+    items: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    if not root.exists():
+        return items, warnings
+    if not root.is_dir():
+        return items, [f"artifact-root-not-directory:{root_rel}"]
+    for path in root.glob(pattern):
+        if not path.is_file():
+            continue
+        payload, warning = safe_load_json(path)
+        if warning:
+            warnings.append(warning)
+            items.append({
+                "artifactKind": artifact_kind,
+                "path": rel(repo_root, path),
+                "fileName": path.name,
+                "mtimeUtc": mtime_utc(path),
+                "status": "failed",
+                "ok": False,
+                "blockers": [warning],
+                "warnings": [],
+            })
+            continue
+        assert payload is not None
+        items.append(summarize_payload(repo_root, path, payload, artifact_kind))
+    items.sort(key=lambda item: (str(item.get("mtimeUtc")), str(item.get("path"))))
+    return items, warnings
+
+
+def collect_directory_artifacts(
+    repo_root: Path,
+    root_rel: Path,
+    artifact_kind: str,
+    candidate_names: tuple[str, ...],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    root = repo_root / root_rel
+    items: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    if not root.exists():
+        return items, warnings
+    if not root.is_dir():
+        return items, [f"artifact-root-not-directory:{root_rel}"]
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        json_path = first_existing_json(child / name for name in candidate_names)
+        if json_path is None:
+            warnings.append(f"{artifact_kind}-summary-missing:{child.name}")
+            continue
+        payload, warning = safe_load_json(json_path)
+        if warning:
+            warnings.append(warning)
+            items.append({
+                "artifactKind": artifact_kind,
+                "path": rel(repo_root, json_path),
+                "fileName": json_path.name,
+                "mtimeUtc": mtime_utc(json_path),
+                "status": "failed",
+                "ok": False,
+                "blockers": [warning],
+                "warnings": [],
+            })
+            continue
+        assert payload is not None
+        items.append(summarize_payload(repo_root, json_path, payload, artifact_kind))
+    items.sort(key=lambda item: (str(item.get("mtimeUtc")), str(item.get("path"))))
+    return items, warnings
+
+
+def latest(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return items[-1] if items else None
+
+
+def git_dirty_state(repo_root: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "status": "unknown",
+        "ok": False,
+        "branchLine": None,
+        "dirty": False,
+        "dirtyCount": 0,
+        "entries": [],
+        "diffStat": "",
+        "warnings": [],
+    }
+    try:
+        status = subprocess.run(
+            ["git", "--no-pager", "status", "--short", "--branch", "--untracked-files=all"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except Exception as exc:  # noqa: BLE001
+        result["warnings"].append(f"git-status-failed:{type(exc).__name__}:{exc}")
+        return result
+    if status.returncode != 0:
+        result["warnings"].append(f"git-status-exit:{status.returncode}:{status.stderr.strip()}")
+        return result
+    lines = [line.rstrip() for line in status.stdout.splitlines() if line.rstrip()]
+    result["status"] = "passed"
+    result["ok"] = True
+    result["branchLine"] = lines[0] if lines else None
+    entries: list[dict[str, Any]] = []
+    for line in lines[1:]:
+        status_code = line[:2]
+        path = line[3:] if len(line) > 3 else ""
+        entries.append({"status": status_code, "path": path, "slice": classify_dirty_path(path)})
+    result["entries"] = entries
+    result["dirtyCount"] = len(entries)
+    result["dirty"] = bool(entries)
+    try:
+        diff = subprocess.run(
+            ["git", "--no-pager", "diff", "--stat"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if diff.returncode == 0:
+            result["diffStat"] = diff.stdout.strip()
+    except Exception as exc:  # noqa: BLE001
+        result["warnings"].append(f"git-diff-stat-failed:{type(exc).__name__}:{exc}")
+    return result
+
+
+def classify_dirty_path(path: str) -> str:
+    normalized = path.replace("/", "\\")
+    lower = normalized.lower()
+    if lower.startswith(".riftreader-local\\"):
+        return "generated-ignored"
+    if lower.startswith("docs\\handoffs\\"):
+        return "handoff"
+    if lower.startswith("docs\\workflow\\"):
+        return "docs"
+    if lower.startswith("scripts\\test_") or lower.startswith("scripts\\test-"):
+        return "tests"
+    if lower.startswith("scripts\\riftreader-") and lower.endswith(".cmd"):
+        return "wrappers"
+    if lower.startswith("tools\\riftreader_workflow\\"):
+        if lower.endswith("operator_lite.py"):
+            return "operator-lite"
+        if "mcp" in lower or "chatgpt" in lower or "workflow_router" in lower or "commit_packager" in lower:
+            return "mcp-code"
+        return "workflow-code"
+    return "unrelated"
+
+
+def has_stageable_dirty(git_state: dict[str, Any]) -> bool:
+    entries = git_state.get("entries") if isinstance(git_state.get("entries"), list) else []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        path = str(entry.get("path") or "")
+        slice_name = str(entry.get("slice") or classify_dirty_path(path))
+        if path and slice_name not in {"generated-ignored", "unrelated"}:
+            return True
+    return False
+
+
+def discover_actual_client_proofs(repo_root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    return collect_directory_artifacts(repo_root, ACTUAL_CLIENT_PROOF_ROOT, "actual-client-proof", ("proof.json",))
+
+
+def discover_mcp_artifacts(repo_root: Path) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    warnings: list[str] = []
+    by_kind: dict[str, list[dict[str, Any]]] = {kind: [] for kind in ARTIFACT_KINDS}
+    patterns = {
+        "readiness": "*-trial-readiness.json",
+        "proposal-smoke": "*-proposal-transport-smoke.json",
+        "cloudflare-smoke": "*-cloudflare-tunnel-smoke.json",
+        "transport-smoke": "*-transport-smoke.json",
+        "trial-session-ready": "*-chatgpt-trial-session-ready.json",
+        "trial-session-final": "*-chatgpt-trial-session.json",
+    }
+    for kind, pattern in patterns.items():
+        items, item_warnings = collect_json_file_artifacts(repo_root, TRANSPORT_SMOKE_ROOT, pattern, kind)
+        if kind == "transport-smoke":
+            items = [item for item in items if "-proposal-transport-smoke.json" not in str(item.get("path", ""))]
+        by_kind[kind] = items
+        warnings.extend(item_warnings)
+    trial_items = [*by_kind["trial-session-ready"], *by_kind["trial-session-final"]]
+    trial_items.sort(key=lambda item: (str(item.get("mtimeUtc")), str(item.get("path"))))
+    by_kind["trial-session"] = trial_items
+    proof_items, proof_warnings = discover_actual_client_proofs(repo_root)
+    by_kind["actual-client-proof"] = proof_items
+    warnings.extend(proof_warnings)
+    inbox_items, inbox_warnings = collect_directory_artifacts(repo_root, INBOX_ROOT, "inbox", ("metadata.json", "message.json"))
+    by_kind["inbox"] = inbox_items
+    warnings.extend(inbox_warnings)
+    draft_items, draft_warnings = collect_directory_artifacts(repo_root, DRAFT_ROOT, "draft", ("summary.json",))
+    by_kind["draft"] = draft_items
+    warnings.extend(draft_warnings)
+    dry_items, dry_warnings = collect_directory_artifacts(
+        repo_root,
+        PACKAGE_INTAKE_ROOT,
+        "dry-run",
+        ("compact-package-intake-summary.json", "package-intake-summary.json"),
+    )
+    by_kind["dry-run"] = dry_items
+    warnings.extend(dry_warnings)
+    return by_kind, warnings
+
+
+def latest_by_kind(by_kind: dict[str, list[dict[str, Any]]]) -> dict[str, dict[str, Any] | None]:
+    return {kind: latest(items) for kind, items in by_kind.items()}
+
+
+def passed(item: dict[str, Any] | None) -> bool:
+    if not item:
+        return False
+    return bool(item.get("ok")) and item.get("status") in {"passed", "created", "ready"}
+
+
+def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
+    latest_artifacts = state.get("latestArtifacts") if isinstance(state.get("latestArtifacts"), dict) else {}
+    git_state = state.get("gitDirtyState") if isinstance(state.get("gitDirtyState"), dict) else {}
+    commands = standard_commands()
+    if has_stageable_dirty(git_state) and passed(latest_artifacts.get("readiness")) and passed(latest_artifacts.get("proposal-smoke")):
+        return action("safe-commit-plan", "Review explicit-path commit plan for the validated dirty MCP slice.", commands["safeCommitPlan"])
+    if not passed(latest_artifacts.get("readiness")):
+        return action("mcp-trial-readiness", "Run local MCP readiness before public or ChatGPT client work.", commands["mcpTrialReadiness"])
+    if not passed(latest_artifacts.get("proposal-smoke")):
+        return action("proposal-transport-smoke", "Prove guarded submit_package_proposal through local MCP transport.", commands["proposalTransportSmoke"])
+    if not passed(latest_artifacts.get("cloudflare-smoke")):
+        return action("cloudflare-tunnel-smoke", "Prove the HTTPS /mcp endpoint before ChatGPT registration.", commands["cloudflareSmoke"])
+    if not passed(latest_artifacts.get("actual-client-proof")):
+        return action("chatgpt-trial-session", "Start a bounded public URL for actual ChatGPT Developer Mode proof.", commands["chatGptTrialSession"])
+    if latest_artifacts.get("inbox") and not latest_artifacts.get("draft"):
+        return action("inbox-to-draft", "Export the latest package-proposal inbox item into an inert draft.", commands["inboxPackageDraft"])
+    if latest_artifacts.get("draft") and not passed(latest_artifacts.get("dry-run")):
+        return action("draft-dry-run", "Dry-run the latest inert package draft without apply.", commands["dryRunLatestDraft"])
+    return action("docs-or-commit", "Update handoff/docs or commit the validated actual-client proof slice.", commands["safeCommitPlan"])
+
+
+def action(key: str, reason: str, command: list[str]) -> dict[str, Any]:
+    return {"key": key, "reason": reason, "command": command}
+
+
+def standard_commands() -> dict[str, list[str]]:
+    return {
+        "mcpMissionControl": ["scripts\\riftreader-mcp-mission-control.cmd", "--json"],
+        "mcpArtifactsLatest": ["scripts\\riftreader-mcp-artifacts.cmd", "--latest", "--json"],
+        "mcpTrialReadiness": ["scripts\\riftreader-operator-lite.cmd", "--mcp-trial-readiness", "--json"],
+        "proposalTransportSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--proposal-transport-smoke", "--json"],
+        "cloudflareSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--cloudflare-tunnel-smoke", "--json"],
+        "chatGptTrialSession": ["scripts\\riftreader-chatgpt-mcp.cmd", "--chatgpt-trial-session", "--chatgpt-session-seconds", "900", "--json"],
+        "inboxLatest": ["scripts\\riftreader-local-artifact-bridge.cmd", "--inbox-read-latest", "--json"],
+        "inboxPackageDraft": ["scripts\\riftreader-local-artifact-bridge.cmd", "--inbox-package-draft", "--json"],
+        "latestDraft": ["scripts\\riftreader-package-draft-review.cmd", "--latest", "--json"],
+        "dryRunLatestDraft": ["scripts\\riftreader-package-draft-review.cmd", "--dry-run-latest", "--json"],
+        "trialProofTemplate": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--template", "--json"],
+        "safeCommitPlan": ["scripts\\riftreader-safe-commit-packager.cmd", "--plan", "--json"],
+        "workflowRouter": ["scripts\\riftreader-workflow-router.cmd", "--mcp", "--json"],
+    }
+
+
+def build_mcp_workflow_state(repo_root: Path) -> dict[str, Any]:
+    by_kind, warnings = discover_mcp_artifacts(repo_root)
+    latest_artifacts = latest_by_kind(by_kind)
+    git_state = git_dirty_state(repo_root)
+    warnings.extend(git_state.get("warnings") or [])
+    warnings.extend(state_artifact_warnings(latest_artifacts))
+    counts = {kind: len(items) for kind, items in by_kind.items()}
+    blockers: list[str] = []
+    if not passed(latest_artifacts.get("readiness")):
+        blockers.append("latest-readiness-not-passed")
+    if not passed(latest_artifacts.get("proposal-smoke")):
+        blockers.append("latest-proposal-smoke-not-passed")
+    status = "ready" if not blockers else "blocked"
+    state: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-mcp-workflow-state",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "ready",
+        "repoRoot": str(repo_root),
+        "blockers": blockers,
+        "warnings": warnings,
+        "latestArtifacts": latest_artifacts,
+        "counts": counts,
+        "gitDirtyState": git_state,
+        "commands": standard_commands(),
+        "safety": {
+            **safety_flags(),
+            "readOnlyArtifactDiscovery": True,
+            "publicTunnelStarted": False,
+            "persistentServerStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "applyFlagSent": False,
+        },
+    }
+    state["recommendedNextAction"] = build_recommended_next_action(state)
+    return state
+
+
+def artifact_timeline(repo_root: Path, *, kind: str | None = None, limit: int | None = None) -> dict[str, Any]:
+    by_kind, warnings = discover_mcp_artifacts(repo_root)
+    if kind:
+        kinds = [kind]
+    else:
+        kinds = list(DEFAULT_TIMELINE_KINDS)
+    unknown = [item for item in kinds if item not in by_kind]
+    items: list[dict[str, Any]] = []
+    for item_kind in kinds:
+        items.extend(by_kind.get(item_kind, []))
+    items.sort(key=lambda item: (str(item.get("mtimeUtc")), str(item.get("path"))), reverse=True)
+    if limit is not None:
+        items = items[:limit]
+    status = "blocked" if unknown else "ready"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-mcp-artifact-timeline",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": not unknown,
+        "artifactKindFilter": kind,
+        "unknownKinds": unknown,
+        "count": len(items),
+        "items": items,
+        "warnings": warnings,
+        "safety": {
+            **safety_flags(),
+            "readOnlyArtifactDiscovery": True,
+        },
+    }
+
+
+if __name__ == "__main__":  # pragma: no cover - developer convenience.
+    repo = find_repo_root(Path.cwd())
+    print(json.dumps(build_mcp_workflow_state(repo), indent=2, sort_keys=True))

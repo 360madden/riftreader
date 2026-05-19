@@ -21,7 +21,7 @@ The adapter is designed for this safe loop:
 
 | Tool | Access | Behavior |
 |---|---|---|
-| `health` | Read-only | Returns server status, repo root, version, tool manifest, and safety flags. |
+| `health` | Read-only | Returns server status, redacted repo identity, version, tool manifest, and safety flags. |
 | `get_repo_status` | Read-only | Returns compact repo/workflow truth using existing status helper logic. |
 | `get_latest_handoff` | Read-only | Reads only the newest Markdown file under `docs/handoffs`. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
@@ -42,6 +42,8 @@ The adapter is designed for this safe loop:
 - All ChatGPT-originated writes stay under `.riftreader-local`.
 - Server audit events are sanitized and written under
   `.riftreader-local\riftreader-chatgpt-mcp\audit`.
+- Public-facing health output reports the repo as `.` plus a repo name; it does
+  not expose the absolute local repository path.
 
 ## Local checks
 
@@ -70,8 +72,9 @@ cd "C:\RIFT MODDING\RiftReader"
 
 After SDK validation passes, run a bounded loopback transport smoke test. This
 starts a temporary `127.0.0.1` server on an ephemeral port, calls `list_tools`
-and `health` through the MCP streamable HTTP client, then stops the server. It
-does **not** start a tunnel or register anything in ChatGPT.
+and `health` through the MCP streamable HTTP client, writes a local summary
+under `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`, then stops
+the server. It does **not** start a tunnel or register anything in ChatGPT.
 
 RUN THIS:
 
@@ -79,6 +82,46 @@ RUN THIS:
 cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --transport-smoke --json
 ```
+
+To prove the guarded write-shaped MCP tool over the same real SDK/client
+transport before using ChatGPT, run the proposal transport smoke. It submits a
+synthetic `package-proposal` through `submit_package_proposal`, confirms
+`list_inbox` can see the result, writes only ignored `.riftreader-local`
+inbox/audit/smoke artifacts, and stops the temporary loopback server.
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --proposal-transport-smoke --json
+```
+
+For a single compact local go/no-go gate before any public tunnel or ChatGPT
+registration, run trial readiness. This runs the handler self-test, SDK
+metadata validation, loopback transport smoke including a synthetic
+`submit_package_proposal` call, and optional `cloudflared`/`curl` availability
+checks. It writes a compact summary under
+`.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`.
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --trial-readiness --json
+```
+
+The same gate is exposed through Operator Lite:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json
+```
+
+This may create ignored `.riftreader-local` self-test/audit/smoke/inbox
+artifacts and may start a temporary loopback-only server for transport
+validation, including one synthetic package proposal. It does not start a
+public tunnel, register ChatGPT, serve persistently, apply package content,
+mutate Git, send RIFT input, or attach CE/x64dbg.
 
 Optional explicit public-tunnel smoke:
 
@@ -97,6 +140,61 @@ processes. It is opt-in only and does not register the app in ChatGPT. To test
 a different ChatGPT web origin, pass `--cloudflare-smoke-origin <exact-origin>`.
 The smoke helper records any curl DNS override IP it had to use under
 `curlResolveIp` because quick-tunnel DNS can take a few seconds to propagate.
+The transport/public smoke verifier also fails closed if `health` no longer
+redacts the repo root as `.` or if `absoluteRepoRootExposed` is not `false`.
+
+Optional bounded ChatGPT registration session:
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json
+```
+
+This starts a temporary Cloudflare quick tunnel and a temporary loopback MCP
+server, verifies the public HTTPS `/mcp` endpoint, writes a ready packet under
+`.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`, keeps the endpoint
+alive for the requested bounded duration, then stops both processes. Use the
+printed `publicMcpUrl` in ChatGPT Developer Mode while the command is still
+running. Pass `--chatgpt-session-seconds 0` to verify setup and stop
+immediately. The helper does **not** register the app in ChatGPT and does not
+expose shell, Git mutation, RIFT input, CE, x64dbg, or arbitrary filesystem
+tools.
+
+
+## MCP Workflow Suite helpers
+
+The local helper suite gives one place to find the latest MCP proof artifacts,
+choose the next safe action, record actual ChatGPT-side proof facts, and prepare
+an explicit-path commit checklist. Defaults are local-first and read-only except
+for ignored `.riftreader-local` proof records created by the trial recorder.
+
+RUN THIS:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-mcp-mission-control.cmd --json
+.\scripts\riftreader-mcp-artifacts.cmd --latest --json
+.\scripts\riftreader-workflow-router.cmd --mcp --json
+.\scripts\riftreader-chatgpt-trial-recorder.cmd --template --json
+.\scripts\riftreader-safe-commit-packager.cmd --plan --json
+```
+
+| Helper | Command | Default behavior |
+|---|---|---|
+| MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, and `--checklist-md`. |
+| Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
+| Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
+| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; fails closed on tool count, repo-root redaction, inbox, draft, or dry-run proof gaps. |
+| Safe Commit Packager | `scripts\riftreader-safe-commit-packager.cmd --plan --json` | Generates explicit `git add -- <path>` checklist and commit-message draft only; `--markdown` prints a review packet; it never stages, commits, or pushes. |
+
+The shared state layer marks self-test inbox/draft artifacts, adds artifact age
+fields, warns on stale proof budgets, and labels stopped ephemeral public URLs
+as expected-expired. `MCP Mission Control --trial-command` prints the bounded
+public trial command without running it. Only `--run-readiness` and
+`--run-proposal-smoke` execute local-only validation. No helper starts a public
+tunnel by default.
 
 ## Running the MCP server locally
 
@@ -110,15 +208,14 @@ python -m pip install "mcp[cli]"
 ```
 
 For an isolated repo-local validation install that does not modify the global
-Python environment, use an ignored target directory and prepend it to
-`PYTHONPATH` only for validation commands:
+Python environment, use an ignored target directory. The MCP validation helpers
+auto-detect `.riftreader-local\mcp-sdk-validation` when present:
 
 RUN THIS:
 
 ```powershell
 cd "C:\RIFT MODDING\RiftReader"
 python -m pip install --target .riftreader-local\mcp-sdk-validation "mcp[cli]"
-$env:PYTHONPATH = (Resolve-Path .riftreader-local\mcp-sdk-validation).Path + [System.IO.Path]::PathSeparator + (Resolve-Path tools).Path
 .\scripts\riftreader-chatgpt-mcp.cmd --validate-sdk --json
 .\scripts\riftreader-chatgpt-mcp.cmd --transport-smoke --json
 ```
@@ -140,10 +237,10 @@ http://127.0.0.1:8770/mcp
 
 ## Manual HTTPS exposure for ChatGPT Developer Mode
 
-ChatGPT Developer Mode requires an HTTPS-reachable MCP endpoint. Do not start a
-tunnel automatically from the MCP adapter. When you intentionally test, expose
-the local server with a manually started tunnel such as Cloudflare Tunnel or
-ngrok.
+ChatGPT Developer Mode requires an HTTPS-reachable MCP endpoint. The adapter
+does not start a public tunnel by default; use the bounded
+`--chatgpt-trial-session` helper above or expose the local server with a
+manually started tunnel such as Cloudflare Tunnel or ngrok.
 
 For Cloudflare quick tunnels, the public hostname is random and must be
 allowlisted on the MCP server. Start the tunnel first, copy the bare hostname
@@ -207,8 +304,13 @@ in this turn.
 
 ## Notes from current OpenAI/MCP docs
 
+- ChatGPT Developer Mode creates apps from remote MCP servers and supports SSE
+  and streaming HTTP.
+- ChatGPT Developer Mode supports OAuth, No Authentication, and Mixed
+  Authentication. The current RiftReader trial session uses No Authentication.
 - ChatGPT Developer Mode supports MCP tools, including read and write tools, but
-  write actions require careful review.
+  write actions require careful review; read-only detection respects
+  `readOnlyHint`.
 - ChatGPT local development needs an HTTPS-reachable MCP endpoint, commonly via
   ngrok or Cloudflare Tunnel.
 - Current Python MCP SDK examples use `from mcp.server.fastmcp import FastMCP`

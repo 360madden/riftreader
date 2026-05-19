@@ -32,6 +32,12 @@ def make_repo(root: Path) -> None:
         "riftreader-package-intake-selftest.cmd",
         "riftreader-local-artifact-bridge.cmd",
         "riftreader-package-draft-review.cmd",
+        "riftreader-chatgpt-mcp.cmd",
+        "riftreader-mcp-mission-control.cmd",
+        "riftreader-mcp-artifacts.cmd",
+        "riftreader-chatgpt-trial-recorder.cmd",
+        "riftreader-safe-commit-packager.cmd",
+        "riftreader-workflow-router.cmd",
     ]:
         (scripts / name).write_text("@echo off\n", encoding="utf-8")
 
@@ -68,6 +74,12 @@ class OperatorLiteTests(unittest.TestCase):
                 "package-draft-dry-run-latest",
                 "package-draft-dry-run-latest-operator",
                 "package-draft-loop-selftest",
+                "mcp-trial-readiness",
+                "mcp-mission-control",
+                "mcp-artifacts-latest",
+                "chatgpt-trial-proof-template",
+                "safe-commit-plan",
+                "workflow-router-mcp",
                 "git-status",
             },
         )
@@ -117,6 +129,25 @@ class OperatorLiteTests(unittest.TestCase):
         draft_loop_selftest = next(item for item in plan["commands"] if item["key"] == "package-draft-loop-selftest")
         self.assertIn("--self-test", draft_loop_selftest["args"])
         self.assertEqual(draft_loop_selftest["expectedExitCodes"], [0])
+        mcp_trial = next(item for item in plan["commands"] if item["key"] == "mcp-trial-readiness")
+        self.assertIn("riftreader-chatgpt-mcp.cmd", mcp_trial["args"][0])
+        self.assertIn("--trial-readiness", mcp_trial["args"])
+        self.assertEqual(mcp_trial["expectedExitCodes"], [0, 2])
+        mcp_mission = next(item for item in plan["commands"] if item["key"] == "mcp-mission-control")
+        self.assertIn("riftreader-mcp-mission-control.cmd", mcp_mission["args"][0])
+        self.assertIn("--json", mcp_mission["args"])
+        mcp_artifacts = next(item for item in plan["commands"] if item["key"] == "mcp-artifacts-latest")
+        self.assertIn("riftreader-mcp-artifacts.cmd", mcp_artifacts["args"][0])
+        self.assertIn("--latest", mcp_artifacts["args"])
+        proof_template = next(item for item in plan["commands"] if item["key"] == "chatgpt-trial-proof-template")
+        self.assertIn("riftreader-chatgpt-trial-recorder.cmd", proof_template["args"][0])
+        self.assertIn("--template", proof_template["args"])
+        commit_plan = next(item for item in plan["commands"] if item["key"] == "safe-commit-plan")
+        self.assertIn("riftreader-safe-commit-packager.cmd", commit_plan["args"][0])
+        self.assertIn("--plan", commit_plan["args"])
+        router = next(item for item in plan["commands"] if item["key"] == "workflow-router-mcp")
+        self.assertIn("riftreader-workflow-router.cmd", router["args"][0])
+        self.assertIn("--mcp", router["args"])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
@@ -262,6 +293,12 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("package proposal loop self-test button", summary["visualRules"])
         self.assertIn("proposal loop checks group button", summary["visualRules"])
         self.assertIn("Desktop ChatGPT trial readiness gate button", summary["visualRules"])
+        self.assertIn("ChatGPT MCP trial readiness button", summary["visualRules"])
+        self.assertIn("MCP mission control button", summary["visualRules"])
+        self.assertIn("latest MCP artifacts button", summary["visualRules"])
+        self.assertIn("ChatGPT trial proof template button", summary["visualRules"])
+        self.assertIn("safe commit plan button", summary["visualRules"])
+        self.assertIn("workflow router button", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])
@@ -293,6 +330,12 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandAliases"]["package-draft-dry-run"], "package-draft-dry-run-latest")
         self.assertEqual(payload["commandAliases"]["operator-draft-dry-run"], "package-draft-dry-run-latest-operator")
         self.assertEqual(payload["commandAliases"]["package-draft-selftest"], "package-draft-loop-selftest")
+        self.assertEqual(payload["commandAliases"]["mcp-trial"], "mcp-trial-readiness")
+        self.assertEqual(payload["commandAliases"]["mcp-mission"], "mcp-mission-control")
+        self.assertEqual(payload["commandAliases"]["mcp-artifacts"], "mcp-artifacts-latest")
+        self.assertEqual(payload["commandAliases"]["chatgpt-trial-proof"], "chatgpt-trial-proof-template")
+        self.assertEqual(payload["commandAliases"]["safe-commit-plan"], "safe-commit-plan")
+        self.assertEqual(payload["commandAliases"]["workflow-router"], "workflow-router-mcp")
         self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("bridge-proposal-loop-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("bridge-trial-readiness", {item["key"] for item in payload["groups"]})
@@ -306,10 +349,29 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--package-draft-dry-run", encoded)
         self.assertIn("--operator-draft-dry-run", encoded)
         self.assertIn("--package-draft-selftest", encoded)
+        self.assertIn("--mcp-trial-readiness", encoded)
+        self.assertIn("--mcp-mission-control", encoded)
+        self.assertIn("--mcp-artifacts", encoded)
+        self.assertIn("--chatgpt-trial-proof-template", encoded)
+        self.assertIn("--safe-commit-plan", encoded)
+        self.assertIn("--workflow-router", encoded)
         self.assertIn("--run-all bridge-startup-checks", encoded)
         self.assertIn("--proposal-loop-checks", encoded)
         self.assertIn("--trial-readiness", encoded)
         self.assertIn("/help", encoded)
+
+    def test_generated_command_reference_markdown_lists_safe_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            markdown = operator_lite.command_reference_markdown(root)
+
+        self.assertIn("RiftReader Operator Lite Command Reference", markdown)
+        self.assertIn("`mcp-mission-control`", markdown)
+        self.assertIn("`safe-commit-plan`", markdown)
+        self.assertIn("Disabled live actions", markdown)
+        self.assertIn("`bridge-serve-or-tunnel`", markdown)
 
     def test_run_command_key_executes_only_known_safe_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -371,6 +433,36 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["requestedCommandKey"], "package-draft-selftest")
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["exitCode"], 0)
+
+    def test_run_command_key_accepts_mcp_trial_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "mcp-trial")
+
+        self.assertEqual(payload["commandKey"], "mcp-trial-readiness")
+        self.assertEqual(payload["requestedCommandKey"], "mcp-trial")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
+
+    def test_run_command_key_accepts_mcp_helper_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            mission = operator_lite.run_command_key(root, "mcp-mission")
+            artifacts = operator_lite.run_command_key(root, "mcp-artifacts")
+            proof = operator_lite.run_command_key(root, "chatgpt-trial-proof")
+            commit_plan = operator_lite.run_command_key(root, "safe-commit-plan")
+            router = operator_lite.run_command_key(root, "workflow-router")
+
+        self.assertEqual(mission["commandKey"], "mcp-mission-control")
+        self.assertEqual(artifacts["commandKey"], "mcp-artifacts-latest")
+        self.assertEqual(proof["commandKey"], "chatgpt-trial-proof-template")
+        self.assertEqual(commit_plan["commandKey"], "safe-commit-plan")
+        self.assertEqual(router["commandKey"], "workflow-router-mcp")
+        self.assertEqual(router["exitCode"], 0)
 
     def test_run_command_key_unknown_command_blocks_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -593,6 +685,40 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandKey"], "package-draft-loop-selftest")
         self.assertTrue(payload["ok"])
 
+    def test_cli_mcp_trial_readiness_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--mcp-trial-readiness", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "mcp-trial-readiness")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_mcp_helper_shortcut_switches(self) -> None:
+        shortcuts = {
+            "--mcp-mission-control": "mcp-mission-control",
+            "--mcp-artifacts": "mcp-artifacts-latest",
+            "--chatgpt-trial-proof-template": "chatgpt-trial-proof-template",
+            "--safe-commit-plan": "safe-commit-plan",
+            "--workflow-router": "workflow-router-mcp",
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            for shortcut, command_key in shortcuts.items():
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    exit_code = operator_lite.main(["--repo-root", str(root), shortcut, "--json"])
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(payload["commandKey"], command_key)
+                self.assertTrue(payload["ok"])
+
     def test_cli_run_alias_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -692,6 +818,12 @@ class OperatorLiteTests(unittest.TestCase):
                     "--latest-operator-draft",
                     "--operator-draft-dry-run",
                     "--package-draft-selftest",
+                    "--mcp-trial-readiness",
+                    "--mcp-mission-control",
+                    "--mcp-artifacts",
+                    "--chatgpt-trial-proof-template",
+                    "--safe-commit-plan",
+                    "--workflow-router",
                 ]
             )
 
@@ -715,6 +847,13 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--package-draft-dry-run", help_text)
         self.assertIn("--operator-draft-dry-run", help_text)
         self.assertIn("--package-draft-selftest", help_text)
+        self.assertIn("--mcp-trial-readiness", help_text)
+        self.assertIn("--mcp-mission-control", help_text)
+        self.assertIn("--mcp-artifacts", help_text)
+        self.assertIn("--chatgpt-trial-proof-template", help_text)
+        self.assertIn("--safe-commit-plan", help_text)
+        self.assertIn("--workflow-router", help_text)
+        self.assertIn("--command-reference-md", help_text)
         self.assertIn("--proposal-loop-checks", help_text)
         self.assertIn("--trial-readiness", help_text)
         self.assertIn("--list-commands", help_text)

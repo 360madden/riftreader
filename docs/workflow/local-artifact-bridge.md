@@ -129,6 +129,12 @@ Dry-Run Operator Draft
 Draft Loop Self-Test
 Proposal Loop Checks
 Trial Readiness Gate
+MCP Trial Readiness
+MCP Mission Control
+Latest MCP Artifacts
+ChatGPT Trial Proof Template
+Safe Commit Plan
+Workflow Router
 Open Bridge Docs
 Copy Bridge Start Command
 Copy Inbox JSON Template
@@ -137,7 +143,7 @@ Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
 
-Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. The Draft Index button lists ignored package drafts without dry-running them. The Latest Draft Summary button prints the newest ignored draft summary. The Latest Operator Draft button ignores self-test drafts and selects only real operator-proposal drafts. The Dry-Run Latest Draft and Dry-Run Operator Draft buttons invoke package intake without `--apply` only after the operator explicitly clicks/runs them. The Draft Loop Self-Test button writes a synthetic ignored inbox proposal/draft and package-intake dry-run summary to prove the loop locally. The Proposal Loop Checks button runs both bridge HTTP proposal-to-draft and local draft-to-dry-run self-tests. The Trial Readiness Gate runs self-test, preflight, session-start, inbox index, draft index, and the operator-draft availability check without exporting drafts or dry-running intake. It copies only redacted placeholder instructions/prompts/templates. Persistent serving and tunneling remain explicit operator actions.
+Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. The Draft Index button lists ignored package drafts without dry-running them. The Latest Draft Summary button prints the newest ignored draft summary. The Latest Operator Draft button ignores self-test drafts and selects only real operator-proposal drafts. The Dry-Run Latest Draft and Dry-Run Operator Draft buttons invoke package intake without `--apply` only after the operator explicitly clicks/runs them. The Draft Loop Self-Test button writes a synthetic ignored inbox proposal/draft and package-intake dry-run summary to prove the loop locally. The Proposal Loop Checks button runs both bridge HTTP proposal-to-draft and local draft-to-dry-run self-tests. The Trial Readiness Gate runs self-test, preflight, session-start, inbox index, draft index, and the operator-draft availability check without exporting drafts or dry-running intake. The MCP Trial Readiness button runs the narrow ChatGPT MCP adapter's local self-test, SDK validation, and temporary loopback transport smoke, including one synthetic package proposal through the guarded MCP submit path; it does not start a public tunnel, register ChatGPT, serve persistently, apply, mutate Git, send live input, or attach CE/x64dbg. The MCP Mission Control, Latest MCP Artifacts, ChatGPT Trial Proof Template, Safe Commit Plan, and Workflow Router buttons are read-only/local-only helper-suite entries for finding proof, selecting the next command, and preparing explicit-path commit review; none starts a public tunnel or mutates Git. For a real MCP Developer Mode registration window, use the direct bounded `.\scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session` helper, not Operator Lite. It copies only redacted placeholder instructions/prompts/templates. Persistent serving and tunneling remain explicit operator actions.
 
 ## Real payload smoke checklist
 
@@ -170,7 +176,13 @@ Use this checklist before giving Desktop ChatGPT a real bridge URL:
 16. To prove the local proposal loop without Desktop ChatGPT, run `.\scripts\riftreader-package-draft-review.cmd --self-test --json`.
 17. To prove both HTTP proposal-to-draft and local draft-to-dry-run paths, run `.\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json`.
 18. To check bridge trial readiness without exporting drafts or dry-running intake, run `.\scripts\riftreader-operator-lite.cmd --trial-readiness --json`. Exit `2` is a safe blocker when no real operator draft exists yet.
-19. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
+19. To check the narrow ChatGPT MCP adapter before a Developer Mode trial, run `.\scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json`; this includes a synthetic package-proposal submit through the MCP transport.
+20. To see latest MCP readiness/smoke/trial/inbox/draft/dry-run proof and the next safest command, run `.\scripts\riftreader-mcp-mission-control.cmd --json` or `.\scripts\riftreader-workflow-router.cmd --mcp --json`.
+21. To isolate just the MCP guarded write-shaped tool path, run `.\scripts\riftreader-chatgpt-mcp.cmd --proposal-transport-smoke --json`.
+22. For a real MCP Developer Mode registration window, run the direct bounded helper:
+    `.\scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json`.
+23. After manual ChatGPT client proof, record operator-supplied facts with `.\scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json`.
+24. If using a bridge tunnel manually, start it manually and stop both bridge and tunnel when finished.
 
 ## Endpoints
 

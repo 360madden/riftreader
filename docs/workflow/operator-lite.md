@@ -1,7 +1,7 @@
 # Operator Lite
 
 Created: 2026-05-17
-Updated: 2026-05-18
+Updated: 2026-05-19
 Scope: Offline-safe local launcher for the local ChatGPT/non-Codex RiftReader workflow-control-plane helpers.
 
 ## Verdict
@@ -26,6 +26,12 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 - explicit newest package draft intake dry-run;
 - Local Artifact Bridge package-proposal loop self-test;
 - Local Artifact Bridge Desktop ChatGPT trial-readiness gate;
+- ChatGPT MCP trial-readiness gate;
+- MCP Mission Control;
+- Latest MCP Artifacts;
+- ChatGPT Trial Proof Template;
+- Safe Commit Plan;
+- Workflow Router;
 - Local Artifact Bridge docs/instruction helpers;
 - Git Status;
 - Open Latest Report.
@@ -77,6 +83,12 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --package-draft-dry-run --json
 .\scripts\riftreader-operator-lite.cmd --operator-draft-dry-run --json
 .\scripts\riftreader-operator-lite.cmd --package-draft-selftest --json
+.\scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json
+.\scripts\riftreader-operator-lite.cmd --mcp-mission-control --json
+.\scripts\riftreader-operator-lite.cmd --mcp-artifacts --json
+.\scripts\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json
+.\scripts\riftreader-operator-lite.cmd --safe-commit-plan --json
+.\scripts\riftreader-operator-lite.cmd --workflow-router --json
 .\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json
 .\scripts\riftreader-operator-lite.cmd --trial-readiness --json
 ```
@@ -109,6 +121,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--self-test` | Validates Operator Lite command wiring. | Does not launch the GUI. |
 | `--command-plan` | Prints the full safe command plan. | Read-only plan output. |
 | `--list-commands` | Lists keys, aliases, and groups allowed by `--run` / `--run-all`. | Does not execute commands. |
+| `--command-reference-md` | Prints generated Markdown command reference from the safe command registry. | Docs-only output; no command execution. |
 | `--run <command-key>` | Runs one known safe command spec, such as `bridge-session-start`. | Still enforces denylist, script existence checks, timeouts, and expected exit codes. |
 | `--run-all <group-key>` | Runs one known safe group, such as `bridge-startup-checks` or `bridge-proposal-loop-checks`. | Sequential safe commands only; no serving or tunneling. |
 | `--session-start` | Shortcut for `--run bridge-session-start`. | Same denylist and timeout checks as `--run`. |
@@ -121,6 +134,12 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--package-draft-dry-run` | Shortcut for `--run package-draft-dry-run-latest`. | Explicitly runs package intake dry-run for the newest package draft; never passes `--apply`. |
 | `--operator-draft-dry-run` | Shortcut for `--run package-draft-dry-run-latest-operator`. | Explicitly runs package intake dry-run for the newest operator draft; never passes `--apply` and ignores self-test drafts. |
 | `--package-draft-selftest` | Shortcut for `--run package-draft-loop-selftest`. | Runs synthetic `package-proposal` to inbox to inert draft to dry-run loop with ignored local artifacts only. |
+| `--mcp-trial-readiness` | Shortcut for `--run mcp-trial-readiness`. | Runs compact local ChatGPT MCP trial-readiness checks, including a synthetic package proposal through the MCP transport; may start a temporary loopback-only server, but no public tunnel, ChatGPT registration, persistent serving, apply, Git mutation, live RIFT input, CE, or x64dbg. |
+| `--mcp-mission-control` | Shortcut for `--run mcp-mission-control`. | Read-only dashboard; does not start a tunnel or mutate Git. |
+| `--mcp-artifacts` | Shortcut for `--run mcp-artifacts-latest`. | Read-only latest artifact lookup. |
+| `--chatgpt-trial-proof-template` | Shortcut for `--run chatgpt-trial-proof-template`. | Prints a proof JSON template only; does not call ChatGPT. |
+| `--safe-commit-plan` | Shortcut for `--run safe-commit-plan`. | Plan-only explicit-path staging checklist; no stage/commit/push. |
+| `--workflow-router` | Shortcut for `--run workflow-router-mcp`. | Read-only next-action selector for the MCP lane. |
 | `--bridge-startup-checks` | Shortcut for `--run-all bridge-startup-checks`. | Runs self-test, preflight, and session-start without persistent serving. |
 | `--proposal-loop-checks` | Shortcut for `--run-all bridge-proposal-loop-checks`. | Runs HTTP proposal-to-draft self-test plus local draft-to-intake dry-run self-test; no persistent serving, tunnel, apply, or Git mutation. |
 | `--trial-readiness` | Shortcut for `--run-all bridge-trial-readiness`. | Runs self-test, preflight, session-start, inbox index, draft index, and operator-draft availability gate; no serving, tunnel, draft export, dry-run, apply, or Git mutation. |
@@ -159,6 +178,18 @@ Current command aliases:
 | `package-draft-self-test` | `package-draft-loop-selftest` |
 | `draft-loop-selftest` | `package-draft-loop-selftest` |
 | `proposal-loop-selftest` | `package-draft-loop-selftest` |
+| `mcp-trial` | `mcp-trial-readiness` |
+| `chatgpt-mcp-trial` | `mcp-trial-readiness` |
+| `chatgpt-mcp-trial-readiness` | `mcp-trial-readiness` |
+| `mcp-mission` | `mcp-mission-control` |
+| `mcp-mission-control` | `mcp-mission-control` |
+| `mcp-artifacts` | `mcp-artifacts-latest` |
+| `latest-mcp-artifacts` | `mcp-artifacts-latest` |
+| `chatgpt-trial-proof` | `chatgpt-trial-proof-template` |
+| `chatgpt-trial-proof-template` | `chatgpt-trial-proof-template` |
+| `safe-commit-plan` | `safe-commit-plan` |
+| `workflow-router` | `workflow-router-mcp` |
+| `mcp-router` | `workflow-router-mcp` |
 
 Current group aliases:
 
@@ -210,6 +241,12 @@ Current groups:
 | Draft Loop Self-Test | Runs `scripts\riftreader-package-draft-review.cmd --self-test --json`. | Stores a synthetic inbox proposal, exports an inert package draft, and dry-runs intake; writes ignored `.riftreader-local` artifacts only. |
 | Proposal Loop Checks | Runs `scripts\riftreader-operator-lite.cmd --run-all bridge-proposal-loop-checks --json` internally. | Proves HTTP proposal-to-draft plus local draft-to-dry-run paths; no persistent serving, tunnel, apply, or Git mutation. |
 | Trial Readiness Gate | Runs `scripts\riftreader-operator-lite.cmd --run-all bridge-trial-readiness --json` internally. | Proves bridge startup readiness and checks for a real operator draft without exporting drafts, dry-running intake, serving, tunneling, applying, or mutating Git; exit `2` means a safe missing-operator-draft/preflight blocker. |
+| MCP Trial Readiness | Runs `scripts\riftreader-chatgpt-mcp.cmd --trial-readiness --json`. | Proves the narrow ChatGPT MCP adapter locally: self-test, SDK metadata validation, loopback transport smoke with synthetic `submit_package_proposal`, and optional tunnel-tool availability checks; no public tunnel, ChatGPT registration, persistent serve, apply, Git mutation, live input, CE, or x64dbg. |
+| MCP Mission Control | Runs `scripts\riftreader-mcp-mission-control.cmd --json`. | Consolidated MCP status, latest proof artifacts, dirty state, ranked next actions, paste-safe commands, and optional Markdown summary/checklist modes; no tunnel or Git mutation. |
+| Latest MCP Artifacts | Runs `scripts\riftreader-mcp-artifacts.cmd --latest --json`. | Read-only latest readiness/smoke/trial/inbox/draft/dry-run/proof lookup with timeline/kind/open-latest CLI support. |
+| ChatGPT Trial Proof Template | Runs `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json`. | Prints the operator-fillable actual-client proof template only. |
+| Safe Commit Plan | Runs `scripts\riftreader-safe-commit-packager.cmd --plan --json`. | Builds an explicit-path staging/commit checklist only; Markdown export is available; never stages, commits, or pushes. |
+| Workflow Router | Runs `scripts\riftreader-workflow-router.cmd --mcp --json`. | Recommends the next safest MCP lane action from local state only. |
 | Open Bridge Docs | Opens `docs\workflow\local-artifact-bridge.md`. | Local view only. |
 | Copy Bridge Start Command | Copies the manual `--serve --token auto --max-inbox-mb 1` command. | Does not run the command; the operator remains in control of local serving. |
 | Copy Inbox JSON Template | Copies a ready-to-fill Local Inbox v0 JSON message template. | Template is inert; it does not post, apply, execute, or mutate the repo. |
@@ -232,7 +269,7 @@ Operator Lite v0 writes only through the underlying safe helpers:
 - `.riftreader-local\artifact-bridge-package-drafts\...` when the operator exports an approved package-proposal into an inert local draft.
 - `.riftreader-local\package-intake\...` when the operator explicitly dry-runs the newest package draft.
 
-The bridge self-test uses a temporary payload and ephemeral loopback server; it does not start the persistent `--serve` mode. It now also POSTs a synthetic HTTP `package-proposal` and exports that proposal into an inert draft without invoking package intake. The proposal-loop checks group runs that bridge self-test plus the local draft-loop self-test. The trial-readiness gate runs self-test, preflight, session-start, inbox index, package-draft index, and an operator-draft availability check; it does not export drafts or dry-run intake, and it safely blocks when no real operator-proposal draft exists. The bridge preflight/index/session-start/handoff actions read only registered payload metadata from `artifacts\chatgpt-payloads` and generate redacted operator/ChatGPT guidance. The bridge bootstrap action creates a curated payload under `artifacts\chatgpt-payloads` from fixed repo-owned docs only. The bridge inbox index/latest actions read ignored Local Inbox v0 metadata/messages only. The inbox/package-proposal template copy actions write only to the clipboard. The bridge package-draft action writes an ignored package draft only. The draft-index and latest-draft summary actions read those ignored drafts only, separate operator proposals from self-test drafts, and block if package or manifest pointers escape `.riftreader-local\artifact-bridge-package-drafts`. The operator-only summary/dry-run actions ignore self-test drafts and block if no operator-proposal draft exists. The latest-draft dry-run action invokes package intake without `--apply`. The draft-loop self-test writes a synthetic ignored inbox proposal/draft and package-intake dry-run summary; applying, executing apply checks, staging, committing, and pushing remain separate explicit actions.
+The bridge self-test uses a temporary payload and ephemeral loopback server; it does not start the persistent `--serve` mode. It now also POSTs a synthetic HTTP `package-proposal` and exports that proposal into an inert draft without invoking package intake. The proposal-loop checks group runs that bridge self-test plus the local draft-loop self-test. The trial-readiness gate runs self-test, preflight, session-start, inbox index, package-draft index, and an operator-draft availability check; it does not export drafts or dry-run intake, and it safely blocks when no real operator-proposal draft exists. The MCP trial-readiness command checks the narrow ChatGPT MCP adapter with self-test, SDK metadata validation, and temporary loopback transport smoke including one synthetic `submit_package_proposal`; it writes ignored `.riftreader-local` summaries/inbox entries and does not start a public tunnel or register ChatGPT. The MCP helper-suite buttons are local dashboards, artifact lookup, proof-template, commit-plan, and next-action selectors; only the trial recorder's record mode writes ignored actual-client proof packets, and Operator Lite exposes template mode only. The bounded real ChatGPT MCP registration window is intentionally a direct `riftreader-chatgpt-mcp.cmd --chatgpt-trial-session` action rather than an Operator Lite button, because it starts `cloudflared` and a public tunnel. The bridge preflight/index/session-start/handoff actions read only registered payload metadata from `artifacts\chatgpt-payloads` and generate redacted operator/ChatGPT guidance. The bridge bootstrap action creates a curated payload under `artifacts\chatgpt-payloads` from fixed repo-owned docs only. The bridge inbox index/latest actions read ignored Local Inbox v0 metadata/messages only. The inbox/package-proposal template copy actions write only to the clipboard. The bridge package-draft action writes an ignored package draft only. The draft-index and latest-draft summary actions read those ignored drafts only, separate operator proposals from self-test drafts, and block if package or manifest pointers escape `.riftreader-local\artifact-bridge-package-drafts`. The operator-only summary/dry-run actions ignore self-test drafts and block if no operator-proposal draft exists. The latest-draft dry-run action invokes package intake without `--apply`. The draft-loop self-test writes a synthetic ignored inbox proposal/draft and package-intake dry-run summary; applying, executing apply checks, staging, committing, and pushing remain separate explicit actions.
 
 Operator Lite does not stage, commit, push, reset, clean, send game input, run movement, attach CE/x64dbg, start bridge `--serve`, start `cloudflared`, apply inbox content, or write provider repos. Current stale proof remains historical-only until fresh current-PID recovery and same-target `ProofOnly` pass.
 
