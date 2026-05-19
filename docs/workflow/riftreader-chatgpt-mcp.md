@@ -2,6 +2,8 @@
 
 Status: MVP, narrow tool-only adapter.
 
+Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
+
 ## Purpose
 
 `riftreader_chatgpt_mcp` is a narrow MCP server for Desktop ChatGPT Developer
