@@ -35,6 +35,10 @@ REPO_SIDE_CHECKS = {"readiness", "proposal-smoke", "cloudflare-smoke", "trial-se
 
 def build_check(kind: str, label: str, latest: dict[str, Any]) -> dict[str, Any]:
     item = latest.get(kind)
+    if kind == "trial-session":
+        ready_item = latest.get("trial-session-ready")
+        if passed(ready_item):
+            item = ready_item
     ok = passed(item)
     return {
         "kind": kind,

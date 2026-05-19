@@ -133,6 +133,43 @@ class McpPhase1CompletionTests(unittest.TestCase):
         self.assertTrue(payload["phase1Complete"])
         self.assertEqual(payload["recommendedNextAction"]["key"], "phase1-complete-handoff")
 
+    def test_trial_session_teardown_final_does_not_invalidate_ready_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_repo_side_artifacts(root)
+            write_json(
+                root / state.TRANSPORT_SMOKE_ROOT / "20260519T010350Z-chatgpt-trial-session-ready.json",
+                {
+                    "kind": "riftreader-chatgpt-mcp-chatgpt-trial-session-ready",
+                    "status": "ready",
+                    "ok": True,
+                    "publicMcpUrl": "https://trial-ready.trycloudflare.com/mcp",
+                },
+                1_800_000_035,
+            )
+            write_json(
+                root / state.TRANSPORT_SMOKE_ROOT / "20260519T010500Z-chatgpt-trial-session.json",
+                {
+                    "kind": "riftreader-chatgpt-mcp-chatgpt-trial-session",
+                    "status": "failed",
+                    "ok": False,
+                    "ready": True,
+                    "blockers": ["chatgpt-session-interrupted"],
+                    "publicMcpUrl": "https://trial-ready.trycloudflare.com/mcp",
+                    "safety": {"publicTunnelStopped": True, "serverStopped": True},
+                },
+                1_800_000_050,
+            )
+            write_actual_client_proof(root)
+
+            payload = phase1.phase1_status(root)
+
+        self.assertEqual(payload["status"], "passed")
+        trial_check = next(check for check in payload["checks"] if check["kind"] == "trial-session")
+        self.assertTrue(trial_check["ok"])
+        self.assertTrue(str(trial_check["path"]).endswith("chatgpt-trial-session-ready.json"))
+
     def test_markdown_and_handoff_render_blocked_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
