@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import unittest
 from datetime import datetime
@@ -20,6 +21,9 @@ EXE = (
 )
 CAPTURES = REPO_ROOT / "scripts" / "captures"
 PY_CONTROLLER = REPO_ROOT / "scripts" / "capture_rift_window.py"
+BUILD_TIMEOUT_SECONDS = int(
+    os.environ.get("RIFT_WINDOW_CAPTURE_BUILD_TIMEOUT_SECONDS", "180")
+)
 
 
 def run(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -91,7 +95,10 @@ def write_raw_fixture(root: Path, name: str, *, changed: bool = False) -> tuple[
 class RiftWindowCaptureCliTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        build = run(["dotnet", "build", str(PROJECT), "--nologo"], timeout=60)
+        build = run(
+            ["dotnet", "build", str(PROJECT), "--nologo"],
+            timeout=BUILD_TIMEOUT_SECONDS,
+        )
         if build.returncode != 0:
             raise AssertionError(
                 "dotnet build failed\nSTDOUT:\n"
