@@ -151,6 +151,20 @@ class WorkflowRouterTests(unittest.TestCase):
         self.assertEqual(inbox_payload["recommendedNextAction"]["key"], "inbox-to-draft")
         self.assertEqual(draft_payload["recommendedNextAction"]["key"], "draft-dry-run")
 
+    def test_recommends_phase2_status_after_actual_client_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_passed_readiness(root)
+            write_passed_proposal(root)
+            write_passed_cloudflare(root)
+            write_actual_proof(root)
+
+            payload = workflow_router.route_mcp(root)
+
+        self.assertEqual(payload["recommendedNextAction"]["key"], "mcp-phase2-status")
+        self.assertIn("riftreader-mcp-phase2.cmd", payload["recommendedNextAction"]["command"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

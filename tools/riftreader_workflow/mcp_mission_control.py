@@ -11,18 +11,25 @@ from typing import Any
 
 try:
     from .common import find_repo_root, run_command_envelope, safety_flags, utc_iso
+    from .mcp_ci_status import current_head_ci_status
     from .mcp_workflow_state import build_mcp_workflow_state, standard_commands
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, utc_iso
+    from riftreader_workflow.mcp_ci_status import current_head_ci_status
     from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, standard_commands
     from riftreader_workflow.workflow_router import ranked_actions
 
 
 def mission_control(repo_root: Path) -> dict[str, Any]:
     state = build_mcp_workflow_state(repo_root)
+    ci_status = current_head_ci_status(repo_root)
     commands = standard_commands()
+    warnings = [
+        *(state.get("warnings") if isinstance(state.get("warnings"), list) else []),
+        *(ci_status.get("warnings") if isinstance(ci_status.get("warnings"), list) else []),
+    ]
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-mission-control",
@@ -30,7 +37,8 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
         "status": state.get("status"),
         "ok": state.get("ok"),
         "blockers": state.get("blockers"),
-        "warnings": state.get("warnings"),
+        "warnings": warnings,
+        "ciStatus": ci_status,
         "latestArtifacts": state.get("latestArtifacts"),
         "counts": state.get("counts"),
         "gitDirtyState": state.get("gitDirtyState"),
@@ -41,6 +49,8 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
             "proposalSmoke": commands["proposalTransportSmoke"],
             "publicSmoke": commands["cloudflareSmoke"],
             "trialSession": commands["chatGptTrialSession"],
+            "phase2Status": commands["mcpPhase2Status"],
+            "phase2CompactStatus": commands["mcpPhase2CompactStatus"],
             "inboxReview": commands["inboxLatest"],
             "draftExport": commands["inboxPackageDraft"],
             "draftDryRun": commands["dryRunLatestDraft"],
@@ -89,12 +99,27 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
         f"- Status: `{payload.get('status')}`",
         f"- Recommended action: `{action.get('key')}`",
         f"- Recommended command: `{' '.join(action.get('command') or [])}`",
-        "",
-        "## Latest artifacts",
-        "",
-        "| Kind | Status | Path | Notes |",
-        "|---|---|---|---|",
     ]
+    ci = payload.get("ciStatus") if isinstance(payload.get("ciStatus"), dict) else {}
+    if ci:
+        lines.extend(
+            [
+                "",
+                "## Current-head CI",
+                "",
+                f"- Status: `{ci.get('status')}`",
+                f"- Current HEAD: `{ci.get('currentHead')}`",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Latest artifacts",
+            "",
+            "| Kind | Status | Path | Notes |",
+            "|---|---|---|---|",
+        ]
+    )
     latest = payload.get("latestArtifacts") if isinstance(payload.get("latestArtifacts"), dict) else {}
     for kind, item in latest.items():
         if not item:

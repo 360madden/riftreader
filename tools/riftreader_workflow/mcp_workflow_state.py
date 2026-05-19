@@ -8,6 +8,7 @@ runs read-only Git inspection commands only.
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from datetime import datetime, timezone
@@ -421,6 +422,9 @@ def action(key: str, reason: str, command: list[str]) -> dict[str, Any]:
 def standard_commands() -> dict[str, list[str]]:
     return {
         "mcpMissionControl": ["scripts\\riftreader-mcp-mission-control.cmd", "--json"],
+        "mcpPhase1Status": ["scripts\\riftreader-mcp-phase1.cmd", "--status", "--json"],
+        "mcpPhase2Status": ["scripts\\riftreader-mcp-phase2.cmd", "--status", "--json"],
+        "mcpPhase2CompactStatus": ["scripts\\riftreader-mcp-phase2.cmd", "--status", "--compact-json"],
         "mcpArtifactsLatest": ["scripts\\riftreader-mcp-artifacts.cmd", "--latest", "--json"],
         "mcpTrialReadiness": ["scripts\\riftreader-operator-lite.cmd", "--mcp-trial-readiness", "--json"],
         "proposalTransportSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--proposal-transport-smoke", "--json"],
@@ -507,6 +511,69 @@ def artifact_timeline(repo_root: Path, *, kind: str | None = None, limit: int | 
     }
 
 
-if __name__ == "__main__":  # pragma: no cover - developer convenience.
-    repo = find_repo_root(Path.cwd())
-    print(json.dumps(build_mcp_workflow_state(repo), indent=2, sort_keys=True))
+def self_test() -> dict[str, Any]:
+    checks = [
+        {"name": "ephemeral-cloudflare-url-detected", "pass": public_url_is_ephemeral("https://x.trycloudflare.com/mcp")},
+        {"name": "non-ephemeral-local-url-ignored", "pass": not public_url_is_ephemeral("http://127.0.0.1:3000/mcp")},
+        {"name": "standard-commands-include-phase2", "pass": "mcpPhase2Status" in standard_commands()},
+        {"name": "standard-commands-include-compact-phase2", "pass": "mcpPhase2CompactStatus" in standard_commands()},
+    ]
+    ok = all(check["pass"] for check in checks)
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-mcp-workflow-state-self-test",
+        "generatedAtUtc": utc_iso(),
+        "status": "passed" if ok else "failed",
+        "ok": ok,
+        "checks": checks,
+        "safety": {
+            **safety_flags(),
+            "readOnlyArtifactDiscovery": True,
+            "gitMutation": False,
+        },
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Inspect RiftReader MCP workflow state.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--state", action="store_true", help="Print current MCP workflow state.")
+    mode.add_argument("--timeline", action="store_true", help="Print artifact timeline.")
+    mode.add_argument("--self-test", action="store_true", help="Run deterministic workflow-state self-test.")
+    parser.add_argument("--kind", default=None)
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--repo-root", default=None)
+    parser.add_argument("--json", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
+        if args.self_test:
+            payload = self_test()
+        elif args.timeline:
+            payload = artifact_timeline(repo_root, kind=args.kind, limit=args.limit)
+        else:
+            payload = build_mcp_workflow_state(repo_root)
+    except Exception as exc:  # noqa: BLE001 - CLI must fail closed with structured error.
+        payload = {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-mcp-workflow-state",
+            "generatedAtUtc": utc_iso(),
+            "status": "failed",
+            "ok": False,
+            "blockers": [f"workflow-state-exception:{type(exc).__name__}:{exc}"],
+            "warnings": [],
+            "safety": safety_flags(),
+        }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload.get("ok") else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

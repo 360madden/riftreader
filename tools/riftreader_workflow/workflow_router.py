@@ -41,6 +41,8 @@ def ranked_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
         add("inbox-to-draft", "P1", "Inbox proposal exists but no inert draft is discovered.", "inboxPackageDraft")
     if latest.get("draft") and not passed(latest.get("dry-run")):
         add("draft-dry-run", "P1", "Draft exists but no passing dry-run artifact is discovered.", "dryRunLatestDraft")
+    if passed(latest.get("actual-client-proof")):
+        add("mcp-phase2-status", "P1", "Phase 1 proof exists; run the read-only Phase 2 gate for CI, replay, and freshness status.", "mcpPhase2Status")
     add("latest-artifacts", "P2", "Open latest artifact browser when evidence paths are unclear.", "mcpArtifactsLatest")
     add("mission-control", "P2", "Open consolidated MCP dashboard.", "mcpMissionControl")
     if passed(latest.get("actual-client-proof")) and not git_state.get("dirty"):
@@ -77,9 +79,34 @@ def route_mcp(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def self_test() -> dict[str, Any]:
+    state = {
+        "commands": {"mcpTrialReadiness": ["readiness"], "mcpPhase2Status": ["phase2"]},
+        "latestArtifacts": {},
+        "gitDirtyState": {"dirty": False, "entries": []},
+    }
+    actions = ranked_actions(state)
+    checks = [{"name": "missing-readiness-routes-first", "pass": bool(actions) and actions[0].get("key") == "mcp-trial-readiness"}]
+    ok = all(check["pass"] for check in checks)
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-workflow-router-self-test",
+        "generatedAtUtc": utc_iso(),
+        "status": "passed" if ok else "failed",
+        "ok": ok,
+        "checks": checks,
+        "safety": {
+            **safety_flags(),
+            "readOnlyRouting": True,
+            "gitMutation": False,
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Route to the next safest RiftReader workflow action.")
     parser.add_argument("--mcp", action="store_true", help="Route the ChatGPT MCP/local artifact bridge lane.")
+    parser.add_argument("--self-test", action="store_true", help="Run deterministic router self-test.")
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -87,6 +114,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.self_test:
+        payload = self_test()
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print(f"Status: {payload.get('status')}")
+        return 0 if payload.get("ok") else 1
     if not args.mcp:
         print("error: --mcp is required for this MVP router", file=sys.stderr)
         return 2

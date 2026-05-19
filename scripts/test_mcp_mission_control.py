@@ -47,8 +47,11 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("readiness", payload["pasteSafeCommands"])
         self.assertIn("proposalSmoke", payload["pasteSafeCommands"])
         self.assertIn("trialSession", payload["pasteSafeCommands"])
+        self.assertIn("phase2Status", payload["pasteSafeCommands"])
+        self.assertIn("phase2CompactStatus", payload["pasteSafeCommands"])
         self.assertIn("artifactBrowser", payload["pasteSafeCommands"])
         self.assertIn("safeCommitPlan", payload["pasteSafeCommands"])
+        self.assertIn("ciStatus", payload)
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
@@ -101,6 +104,7 @@ class McpMissionControlTests(unittest.TestCase):
             checklist = mission.render_proof_checklist(payload)
 
         self.assertIn("RiftReader MCP Mission Control Summary", summary)
+        self.assertIn("Current-head CI", summary)
         self.assertIn("Latest artifacts", summary)
         self.assertIn("RiftReader MCP Proof Checklist", checklist)
         self.assertIn("scripts\\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json", checklist)
