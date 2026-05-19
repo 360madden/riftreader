@@ -1,25 +1,25 @@
-# RiftReader MCP final readiness release handoff — local gate green, Phase 7 external proof ready
+# RiftReader MCP final readiness release handoff — final gate green, all 8 phases complete
 
-Generated: 2026-05-19T20:45Z
+Updated: 2026-05-19T20:59Z
 Repo: `C:\RIFT MODDING\RiftReader`
-Branch/HEAD: `main` @ `9938bcf5b03111d68f5a4316cc2ffffd88904e0b` (`9938bcf Fix RiftReader MCP stdio status`)
+Branch/HEAD: `main` @ `6da92b730dae93d0973daa8d72592dc568b6d75e` (`6da92b7 Complete MCP final progress dashboard`)
 Remote: `origin/main` synced
 
 ## TL;DR
 
-The RiftReader MCP final local product gate is **green** at current HEAD. The dirty/ahead/current-head-CI blockers were cleared by committing and pushing `9938bcf`, then waiting for both required GitHub Actions workflows to pass.
+The RiftReader MCP final local product gate is **green** at current HEAD. The dashboard/progress blocker was cleared by committing and pushing `6da92b7`, then waiting for both required GitHub Actions workflows to pass. Mission Control now reports **8/8 final-product phases complete** using the repo-owned actual-client proof plus this release handoff.
 
-The only remaining product-expansion blocker is the **fresh external ChatGPT client proof** path: this environment currently has no Browser/Chrome automation tool and no Chrome DevTools endpoint, so ChatGPT Developer Mode registration still requires an authenticated operator browser/Desktop session. Existing actual-client proof is present and still inside the 24-hour final-gate freshness budget at the time this handoff was written.
+No local MCP final-product blockers remain. The only operational caveat is the current Codex thread's already-open `mcp__riftreader__` tool handle: it remains bound to a closed stdio transport until the Codex tool host is reloaded or a fresh conversation starts. Direct stdio MCP validation passes against the durable config.
 
 ## Current readiness verdict
 
 | Gate | Status | Evidence |
 |---|---:|---|
 | Worktree / upstream | Passed | `git status --short --branch` => `## main...origin/main` |
-| Phase 2 gate | Passed | `scripts\riftreader-mcp-phase2.cmd --status --compact-json` at `2026-05-19T20:32:20Z` |
-| Final gate | Passed | `scripts\riftreader-mcp-final.cmd --status --compact-json` at `2026-05-19T20:45:19Z` |
-| Mission Control | Ready | completed through Phase 6; Phase 7 ready |
-| Current-head CI | Passed | `.NET build and test` + `RiftReader Policy` both success for `9938bcf` |
+| Phase 2 gate | Passed | `scripts\riftreader-mcp-phase2.cmd --status --compact-json` at `2026-05-19T20:58:54Z` |
+| Final gate | Passed | `scripts\riftreader-mcp-final.cmd --status --compact-json` at `2026-05-19T20:58:44Z` |
+| Mission Control | Completed | `completedPhaseCount: 8`, `nextPhase: null`, maintenance loop recommended |
+| Current-head CI | Passed | `.NET build and test` + `RiftReader Policy` both success for `6da92b7` |
 | Tool surface | Passed | 8 allowlisted MCP tools; no shell/Git/RIFT/CE/x64dbg/provider-write endpoints |
 | Public sessions | Passed with expected-expired warnings | quick-tunnel URLs are stopped/ephemeral |
 | RiftScan movement/proof lane | Blocked, separate | no supported RiftScan candidate/match evidence |
@@ -28,8 +28,8 @@ The only remaining product-expansion blocker is the **fresh external ChatGPT cli
 
 | Workflow | Result | URL |
 |---|---:|---|
-| `.NET build and test` | Passed | https://github.com/360madden/riftreader/actions/runs/26123412193 |
-| `RiftReader Policy` | Passed | https://github.com/360madden/riftreader/actions/runs/26123412154 |
+| `.NET build and test` | Passed | https://github.com/360madden/riftreader/actions/runs/26124829413 |
+| `RiftReader Policy` | Passed | https://github.com/360madden/riftreader/actions/runs/26124829207 |
 
 ## Key proof and readiness artifacts
 
@@ -61,10 +61,10 @@ Important current-session note: this Codex thread's `mcp__riftreader__` tool han
 
 ```cmd
 codex mcp get riftreader --json
-scriptsiftreader-mcp-phase2.cmd --status --compact-json
-scriptsiftreader-mcp-final.cmd --status --compact-json
-scriptsiftreader-mcp-mission-control.cmd --json
-scriptsiftreader-mcp-artifacts.cmd --latest --json
+scripts\riftreader-mcp-phase2.cmd --status --compact-json
+scripts\riftreader-mcp-final.cmd --status --compact-json
+scripts\riftreader-mcp-mission-control.cmd --json
+scripts\riftreader-mcp-artifacts.cmd --latest --json
 git status --short --branch
 gh run list --limit 5 --json workflowName,headSha,status,conclusion,url,updatedAt
 ```
@@ -76,7 +76,7 @@ Expected final local result: `status: passed`, `ok: true`, `blockers: []` from `
 Use this only when an authenticated ChatGPT Desktop/Web session is ready to register the app immediately:
 
 ```cmd
-scriptsiftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json
+scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json
 ```
 
 While the command is running:
@@ -91,9 +91,9 @@ While the command is running:
 ## Actual-client proof recorder commands
 
 ```cmd
-scriptsiftreader-chatgpt-trial-recorder.cmd --template --json
-scriptsiftreader-chatgpt-trial-recorder.cmd --record --input <proof-input>.json --json
-scriptsiftreader-mcp-final.cmd --status --compact-json
+scripts\riftreader-chatgpt-trial-recorder.cmd --template --json
+scripts\riftreader-chatgpt-trial-recorder.cmd --record --input <proof-input>.json --json
+scripts\riftreader-mcp-final.cmd --status --compact-json
 ```
 
 ## Refresh cadence and stale recovery
@@ -124,7 +124,7 @@ scriptsiftreader-mcp-final.cmd --status --compact-json
 
 | Limit | Impact | Current handling |
 |---|---|---|
-| ChatGPT Developer Mode/app registration cannot be automated from this session | Fresh external proof still needs authenticated UI | Use operator-ready trial command and recorder |
+| ChatGPT Developer Mode/app registration cannot be automated from this session | New proof refresh still needs authenticated UI | Use operator-ready trial command and recorder |
 | Existing old ChatGPT app connector endpoints are stale | `_health` returns `UNAVAILABLE / Connection failed` | Recreate/refresh app against a fresh trial URL |
 | Current Codex thread's `mcp__riftreader__` transport is closed | In-thread tool call may fail until reload | Direct stdio proof passes; configured `riftreader` should work in a fresh session |
 | RiftScan candidate evidence missing | Blocks movement/proof expansion only | Keep live movement and RiftScan consumption blocked |
@@ -150,4 +150,4 @@ scriptsiftreader-mcp-final.cmd --status --compact-json
 | 7 | Re-run Phase 2 and final gates after any proof refresh | Locks in CI/proof/freshness status |
 | 8 | Keep old trycloudflare URLs treated as expired | Quick-tunnel URLs are not durable endpoints |
 | 9 | Keep RiftScan/movement lanes blocked | Current provider candidate evidence is missing |
-| 10 | Use this handoff as the release-maintenance baseline | It contains proof paths, commands, limits, and refresh cadence |
+| 10 | Use this handoff as the release-maintenance baseline | It reflects HEAD `6da92b7`, 8/8 completion, proof paths, commands, limits, and refresh cadence |
