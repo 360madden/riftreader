@@ -51,6 +51,10 @@ TRUE_HEALTH_SAFETY_KEYS = (
     "noArbitraryFilesystemRead",
     "noArbitraryFilesystemWrite",
     "noRiftLiveInputEndpoint",
+    "noTargetControlEndpoint",
+    "noPersistentServerStartedByTool",
+    "noTunnelStartedByTool",
+    "chatGptOriginatedWritesLocalOnly",
     "noExistingMcpProxy",
     "noWindowsMcpProxy",
     "noRiftGameMcpProxy",
@@ -147,9 +151,11 @@ def tool_surface_status(repo_root: Path, state_payload: dict[str, Any]) -> dict[
     root_safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
     for key in FALSE_SAFETY_KEYS:
         value = root_safety.get(key)
-        if value is True:
+        if value is None:
+            blockers.append(f"safety:unsafe-action-unknown:{key}")
+        elif value is not False:
             blockers.append(f"safety:unsafe-action:{key}")
-    if root_safety.get("noCheatEngine") is False:
+    if root_safety.get("noCheatEngine") is not True:
         blockers.append("safety:unsafe-action:noCheatEngine")
 
     blockers = unique(blockers)

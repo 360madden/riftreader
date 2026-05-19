@@ -2,7 +2,9 @@
 
 Status: Implemented contract. Phase 3 added the final gate; Phase 4 added
 environment preflight fields for loopback port allocation and local artifact
-root safety.
+root safety; Phase 6 tightened offline safety fixtures for MCP proposal targets,
+proposal checks, tool-boundary flags, root-safety flags, and unsafe-action
+detection.
 
 ## Purpose
 
@@ -81,6 +83,7 @@ The Phase 3 final gate should emit JSON with at least these top-level fields:
 | Repo-root redaction | Public health/proof reports `repoRoot="."` and `absoluteRepoRootExposed=false`. | `safety:absolute-repo-root-exposed` |
 | Local-only writes | ChatGPT-originated writes are limited to `.riftreader-local` inbox/draft/audit artifacts. | `safety:write-boundary-broken` |
 | Unsafe actions | No shell, Git mutation, package apply, provider write, RIFT input, CE, x64dbg, target-control, reloadui, or screenshot action occurred. | `safety:unsafe-action` |
+| Unsafe-action unknowns | Required safety flags in proof/smoke artifacts must be present, not omitted. | `safety:unsafe-action-unknown:<flag>` |
 
 ## Approved MCP tool surface
 
@@ -159,10 +162,34 @@ noGitMutationEndpoint: true
 noArbitraryFilesystemRead: true
 noArbitraryFilesystemWrite: true
 noRiftLiveInputEndpoint: true
+noTargetControlEndpoint: true
+noPersistentServerStartedByTool: true
+noTunnelStartedByTool: true
+chatGptOriginatedWritesLocalOnly: true
 noExistingMcpProxy: true
 noWindowsMcpProxy: true
 noRiftGameMcpProxy: true
 ```
+
+## Phase 6 safety fixture acceptance criteria
+
+Phase 6 may be considered complete when:
+
+1. `submit_package_proposal` rejects unsafe package targets before any inbox
+   write, including parent traversal, absolute/drive-qualified paths, `.git`,
+   `.riftreader-local`, and generated capture/session roots.
+2. `submit_package_proposal` rejects unsafe package checks before any inbox
+   write, including Git mutation, RIFT input helpers, Cheat Engine, and x64dbg
+   command fragments.
+3. The final gate blocks when tool-surface health exposes an absolute repo root,
+   omits or falsifies required endpoint-boundary flags, or reports unapproved
+   tools.
+4. The final gate blocks when root proof/smoke safety flags are missing,
+   unknown, or report Git mutation, provider writes, RIFT input, x64dbg attach,
+   SavedVariables-as-live-truth, package apply, or CE usage.
+5. A refreshed guarded proposal transport smoke still passes locally with no
+   public tunnel, ChatGPT registration, Git mutation, RIFT input, CE, x64dbg,
+   package apply, or provider write.
 
 ## Public session states
 

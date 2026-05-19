@@ -31,11 +31,13 @@ from urllib.parse import urlsplit
 
 try:
     from . import local_artifact_bridge as bridge
+    from . import package_manifest
     from . import package_draft_review, status_packet
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import local_artifact_bridge as bridge
+    from riftreader_workflow import package_manifest
     from riftreader_workflow import package_draft_review, status_packet
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
 
@@ -614,6 +616,13 @@ class RiftReaderChatGptMcpAdapter:
         if not isinstance(payload, dict):
             raise AdapterError("PACKAGE_PROPOSAL_PAYLOAD_REQUIRED", "package-proposal payload must be an object.")
         _files, file_blockers = bridge.normalize_package_draft_files(self.config.bridge_config, payload.get("files"))
+        target_blockers: list[str] = []
+        for index, item in enumerate(_files):
+            try:
+                package_manifest.validate_target_path(item.get("target"), f"file-{index}-target")
+            except Exception as exc:  # noqa: BLE001 - convert target policy failures into MCP blockers.
+                target_blockers.append(str(exc))
+        file_blockers.extend(target_blockers)
         if file_blockers:
             raise AdapterError(
                 "PACKAGE_PROPOSAL_FILES_INVALID",
@@ -625,6 +634,18 @@ class RiftReaderChatGptMcpAdapter:
             checks = []
         if not isinstance(checks, list):
             raise AdapterError("PACKAGE_PROPOSAL_CHECKS_INVALID", "package-proposal checks must be a list when supplied.")
+        check_blockers: list[str] = []
+        for index, check in enumerate(checks):
+            try:
+                package_manifest.validate_check_definition(check, index)
+            except Exception as exc:  # noqa: BLE001 - convert check policy failures into MCP blockers.
+                check_blockers.append(str(exc))
+        if check_blockers:
+            raise AdapterError(
+                "PACKAGE_PROPOSAL_CHECKS_INVALID",
+                "package-proposal checks failed safety validation.",
+                extra={"blockers": check_blockers},
+            )
         return normalized
 
     def submit_package_proposal(self, proposal: Any) -> dict[str, Any]:

@@ -86,6 +86,42 @@ def final_status(*, phase2: dict[str, object] | None = None, state: dict[str, ob
     )
 
 
+def write_tool_surface_fixture(
+    root: Path,
+    *,
+    tool_names: list[str] | None = None,
+    repo_root_value: str = ".",
+    health_safety_overrides: dict[str, object] | None = None,
+    root_safety_overrides: dict[str, object] | None = None,
+) -> dict[str, object]:
+    artifact = root / ".riftreader-local" / "proposal.json"
+    health_safety = {key: True for key in final.TRUE_HEALTH_SAFETY_KEYS}
+    health_safety.update(final.safety_flags())
+    health_safety["absoluteRepoRootExposed"] = False
+    if health_safety_overrides:
+        health_safety.update(health_safety_overrides)
+    root_safety = final.safety_flags()
+    if root_safety_overrides:
+        root_safety.update(root_safety_overrides)
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "client": {
+                    "toolNames": tool_names or list(final.APPROVED_TOOL_NAMES),
+                    "healthStructuredContent": {
+                        "repoRoot": repo_root_value,
+                        "safety": health_safety,
+                    },
+                },
+                "safety": root_safety,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return {"latestArtifacts": {"proposal-smoke": {"path": os.path.relpath(artifact, root)}}}
+
+
 class McpFinalReadinessTests(unittest.TestCase):
     def test_all_pass_fixture_passes(self) -> None:
         payload = final_status()
@@ -206,31 +242,66 @@ class McpFinalReadinessTests(unittest.TestCase):
     def test_tool_surface_parser_blocks_unapproved_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            artifact = root / ".riftreader-local" / "proposal.json"
-            health_safety = {key: True for key in final.TRUE_HEALTH_SAFETY_KEYS}
-            health_safety["absoluteRepoRootExposed"] = False
-            artifact.parent.mkdir(parents=True)
-            artifact.write_text(
-                json.dumps(
-                    {
-                        "client": {
-                            "toolNames": [*final.APPROVED_TOOL_NAMES, "unsafe_extra_tool"],
-                            "healthStructuredContent": {
-                                "repoRoot": ".",
-                                "safety": health_safety,
-                            },
-                        },
-                        "safety": final.safety_flags(),
-                    }
-                ),
-                encoding="utf-8",
-            )
-            state = {"latestArtifacts": {"proposal-smoke": {"path": os.path.relpath(artifact, root)}}}
+            state = write_tool_surface_fixture(root, tool_names=[*final.APPROVED_TOOL_NAMES, "unsafe_extra_tool"])
 
             payload = final.tool_surface_status(root, state)
 
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("safety:unexpected-tool-surface", payload["blockers"])
+
+    def test_tool_surface_parser_blocks_absolute_repo_root_exposure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state = write_tool_surface_fixture(
+                root,
+                repo_root_value="C:\\RIFT MODDING\\RiftReader",
+                health_safety_overrides={"absoluteRepoRootExposed": True},
+            )
+
+            payload = final.tool_surface_status(root, state)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("safety:absolute-repo-root-exposed", payload["blockers"])
+
+    def test_tool_surface_parser_blocks_missing_health_boundary_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state = write_tool_surface_fixture(root, health_safety_overrides={"noShellExecutionEndpoint": False})
+
+            payload = final.tool_surface_status(root, state)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("safety:unsafe-tool-boundary:noShellExecutionEndpoint", payload["blockers"])
+
+    def test_tool_surface_parser_blocks_unknown_root_safety_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state = write_tool_surface_fixture(root, root_safety_overrides={"applyFlagSent": None})
+
+            payload = final.tool_surface_status(root, state)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("safety:unsafe-action-unknown:applyFlagSent", payload["blockers"])
+
+    def test_tool_surface_parser_blocks_unsafe_root_actions(self) -> None:
+        unsafe_flags = {
+            "gitMutation": True,
+            "providerWrites": True,
+            "inputSent": True,
+            "x64dbgAttach": True,
+            "savedVariablesUsedAsLiveTruth": True,
+            "noCheatEngine": False,
+        }
+        for key, value in unsafe_flags.items():
+            with self.subTest(key=key):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    state = write_tool_surface_fixture(root, root_safety_overrides={key: value})
+
+                    payload = final.tool_surface_status(root, state)
+
+                self.assertEqual(payload["status"], "blocked")
+                self.assertIn(f"safety:unsafe-action:{key}", payload["blockers"])
 
     def test_compact_status_keeps_operator_fields(self) -> None:
         payload = final_status()

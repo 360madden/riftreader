@@ -78,6 +78,20 @@ def _validate_target_policy(relative: str) -> None:
             raise ValueError(f"target-denied-prefix:{relative}")
 
 
+def validate_target_path(value: Any, label: str = "target") -> str:
+    """Normalize and validate a repo-relative package target path."""
+
+    relative = _normalize_rel_path(value, label)
+    _validate_target_policy(relative)
+    return relative
+
+
+def validate_check_definition(check: Any, index: int = 0) -> dict[str, Any]:
+    """Validate an inert package check definition without executing it."""
+
+    return _validate_check(check, index)
+
+
 def _validate_check(check: Any, index: int) -> dict[str, Any]:
     if not isinstance(check, dict):
         raise ValueError(f"check-{index}-not-object")
@@ -124,8 +138,7 @@ def validate_manifest(package_root: Path, repo_root: Path, manifest: dict[str, A
             if not isinstance(item, dict):
                 raise ValueError(f"file-{index}-not-object")
             source_rel = _normalize_rel_path(item.get("source"), f"file-{index}-source")
-            target_rel = _normalize_rel_path(item.get("target"), f"file-{index}-target")
-            _validate_target_policy(target_rel)
+            target_rel = validate_target_path(item.get("target"), f"file-{index}-target")
             if target_rel in seen_targets:
                 raise ValueError(f"file-{index}-duplicate-target:{target_rel}")
             seen_targets.add(target_rel)

@@ -82,8 +82,8 @@ def build_final_product_progress(repo_root: Path, final_status: dict[str, Any], 
         phase_row(
             6,
             "Safety/security hardening",
-            "ready" if final_ok and tool_surface_passed else "pending",
-            "Run/extend offline unsafe-surface fixtures before the fresh public trial if new risks are found.",
+            "completed" if final_ok and tool_surface_passed else "blocked",
+            "Offline unsafe-surface fixtures and final-gate safety invariants are present and passing.",
         ),
         phase_row(
             7,

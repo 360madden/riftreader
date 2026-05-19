@@ -151,6 +151,7 @@ def safety_flags() -> dict[str, bool]:
         "x64dbgAttach": False,
         "providerWrites": False,
         "gitMutation": False,
+        "applyFlagSent": False,
         "savedVariablesUsedAsLiveTruth": False,
     }
 

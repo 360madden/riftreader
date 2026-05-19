@@ -323,6 +323,58 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             self.assertTrue(payload["safety"]["localInboxOnly"])
             self.assertTrue(payload["safety"]["noPackageDraftCreatedBySubmit"])
 
+    def test_submit_rejects_unsafe_package_targets_before_inbox_write(self) -> None:
+        unsafe_targets = [
+            "../outside.md",
+            "C:\\RIFT MODDING\\RiftReader\\docs\\pwned.md",
+            ".git/config",
+            ".riftreader-local/pwned.md",
+            "scripts/captures/pwned.md",
+        ]
+        for target in unsafe_targets:
+            with self.subTest(target=target):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    make_repo(root)
+                    adapter = make_adapter(root)
+
+                    payload = adapter.call_tool("submit_package_proposal", {"proposal": package_proposal(target=target)})
+
+                    self.assertFalse(payload["ok"])
+                    self.assertEqual(payload["code"], "PACKAGE_PROPOSAL_FILES_INVALID")
+                    self.assertTrue(payload["blockers"])
+                    self.assertFalse((root / ".riftreader-local" / "artifact-bridge-inbox").exists())
+
+    def test_submit_rejects_unsafe_package_checks_before_inbox_write(self) -> None:
+        unsafe_checks = [
+            ["git", "add", "."],
+            ["scripts\\send-rift-key.ps1", "W"],
+            ["cheatengine-exec.ps1"],
+            ["C:\\RIFT MODDING\\Tools\\x64dbg\\x64dbg.exe"],
+        ]
+        for args in unsafe_checks:
+            with self.subTest(args=args):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    make_repo(root)
+                    adapter = make_adapter(root)
+                    proposal = package_proposal()
+                    proposal["payload"]["checks"] = [  # type: ignore[index]
+                        {
+                            "name": "unsafe",
+                            "args": args,
+                            "expectedExitCodes": [0],
+                            "timeoutSeconds": 120,
+                        }
+                    ]
+
+                    payload = adapter.call_tool("submit_package_proposal", {"proposal": proposal})
+
+                    self.assertFalse(payload["ok"])
+                    self.assertEqual(payload["code"], "PACKAGE_PROPOSAL_CHECKS_INVALID")
+                    self.assertTrue(payload["blockers"])
+                    self.assertFalse((root / ".riftreader-local" / "artifact-bridge-inbox").exists())
+
     def test_submit_rejects_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
