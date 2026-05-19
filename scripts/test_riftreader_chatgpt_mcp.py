@@ -1229,12 +1229,44 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         args = chatgpt_mcp.build_parser().parse_args(
             ["--chatgpt-trial-session", "--chatgpt-session-seconds", "1"]
         )
+        serve_args = chatgpt_mcp.build_parser().parse_args(["--serve", "--transport", "stdio"])
 
         self.assertIn("--trial-readiness", help_text)
         self.assertIn("--proposal-transport-smoke", help_text)
         self.assertIn("--chatgpt-trial-session", help_text)
         self.assertTrue(args.chatgpt_trial_session)
         self.assertEqual(args.chatgpt_session_seconds, 1)
+        self.assertEqual(serve_args.transport, "stdio")
+
+    def test_serve_adds_local_sdk_path_before_starting_stdio_server(self) -> None:
+        class FakeServer:
+            def __init__(self) -> None:
+                self.transport: str | None = None
+
+            def run(self, *, transport: str) -> None:
+                self.transport = transport
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            fake_server = FakeServer()
+            with (
+                mock.patch.object(chatgpt_mcp, "ensure_mcp_sdk_available", return_value=[str(root / ".riftreader-local" / "mcp-sdk-validation")]) as ensure,
+                mock.patch.object(chatgpt_mcp, "create_fastmcp_server", return_value=fake_server),
+            ):
+                exit_code = chatgpt_mcp.main(
+                    [
+                        "--serve",
+                        "--transport",
+                        "stdio",
+                        "--repo-root",
+                        str(root),
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        ensure.assert_called_once_with(root.resolve())
+        self.assertEqual(fake_server.transport, "stdio")
 
 
 if __name__ == "__main__":

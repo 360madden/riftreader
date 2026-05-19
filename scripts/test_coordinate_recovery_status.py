@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 import coordinate_recovery_status as status_tool
 
@@ -145,6 +152,20 @@ class CoordinateRecoveryStatusTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["liveTarget"]["verdict"], "no-live-process")
         self.assertIn("live-target-not-running:rift_x64", result["blockers"])
+
+    def test_probe_live_processes_disconnects_tasklist_stdin(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["tasklist"],
+            0,
+            stdout='"rift_x64.exe","1234","Console","1","10,000 K"\n',
+            stderr="",
+        )
+        with mock.patch.object(status_tool.subprocess, "run", return_value=completed) as run:
+            result = status_tool.probe_live_processes("rift_x64")
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["processes"][0]["pid"], 1234)
+        self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

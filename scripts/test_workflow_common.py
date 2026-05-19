@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -67,6 +69,15 @@ class WorkflowCommonTests(unittest.TestCase):
         self.assertEqual(envelope["exitCode"], 0)
         self.assertEqual(envelope["stdoutPreview"].strip(), "ok")
         self.assertIn("durationSeconds", envelope)
+
+    def test_run_command_envelope_disconnects_child_stdin(self) -> None:
+        completed = subprocess.CompletedProcess(["tool"], 0, stdout="ok\n", stderr="")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with mock.patch.object(common.subprocess, "run", return_value=completed) as run:
+                envelope = common.run_command_envelope("safe-stdio-child", ["tool"], Path(temp_dir))
+
+        self.assertTrue(envelope["ok"])
+        self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

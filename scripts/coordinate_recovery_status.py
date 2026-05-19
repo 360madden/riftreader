@@ -100,6 +100,7 @@ def probe_live_processes(process_name: Any) -> dict[str, Any]:
             ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/FO", "CSV", "/NH"],
             check=False,
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             text=True,
             timeout=10,
         )

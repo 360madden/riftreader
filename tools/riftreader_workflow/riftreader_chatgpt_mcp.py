@@ -3112,7 +3112,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--transport",
-        choices=("streamable-http", "sse"),
+        choices=("stdio", "streamable-http", "sse"),
         default="streamable-http",
         help="MCP transport for --serve.",
     )
@@ -3219,6 +3219,7 @@ def main(argv: list[str] | None = None) -> int:
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else (1 if payload.get("status") == "failed" else 2)
         if args.serve:
+            ensure_mcp_sdk_available(config.repo_root)
             if args.host != DEFAULT_HOST:
                 payload = blocked_payload(
                     "UNSAFE_BIND_HOST",

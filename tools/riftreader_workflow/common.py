@@ -114,6 +114,7 @@ def run_command_envelope(
             cwd=cwd,
             check=False,
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             text=True,
             timeout=timeout_seconds,
         )
