@@ -132,6 +132,39 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
+    def test_passed_gate_without_release_handoff_recommends_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = final.final_readiness(
+                Path(temp_dir),
+                phase2_payload=base_phase2(),
+                state_payload=base_state(),
+                **ok_gate_overrides(),
+            )
+
+        self.assertEqual(payload["status"], "passed")
+        self.assertIsNone(payload["artifacts"]["releaseHandoffPath"])  # type: ignore[index]
+        self.assertEqual(payload["recommendedNextAction"]["key"], "ready-for-release-handoff")  # type: ignore[index]
+
+    def test_passed_gate_with_release_handoff_recommends_maintenance_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            handoff = root / "docs" / "handoffs" / "20260519-1645-mcp-final-readiness-release-handoff.md"
+            handoff.parent.mkdir(parents=True)
+            handoff.write_text("# release handoff\n", encoding="utf-8")
+
+            payload = final.final_readiness(
+                root,
+                phase2_payload=base_phase2(),
+                state_payload=base_state(),
+                **ok_gate_overrides(),
+            )
+            compact = final.compact_final_readiness(payload)
+
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["artifacts"]["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")  # type: ignore[index]
+        self.assertEqual(payload["recommendedNextAction"]["key"], "maintenance-loop")  # type: ignore[index]
+        self.assertEqual(compact["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")
+
     def test_dirty_tree_blocks_final_readiness(self) -> None:
         payload = final_status(state=base_state(dirty=True))
 

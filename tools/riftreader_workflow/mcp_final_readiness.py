@@ -446,7 +446,20 @@ def _unsafe_safety_blockers(safety: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def _next_action(blockers: list[str]) -> dict[str, Any]:
+def _latest_release_handoff_path(repo_root: Path) -> str | None:
+    """Return the newest repo-relative final MCP release handoff path."""
+
+    handoff_root = repo_root / "docs" / "handoffs"
+    if not handoff_root.is_dir():
+        return None
+    matches = [path for path in handoff_root.glob("*mcp-final-readiness-release-handoff*.md") if path.is_file()]
+    if not matches:
+        return None
+    newest = max(matches, key=lambda path: (path.stat().st_mtime_ns, path.name))
+    return str(newest.relative_to(repo_root))
+
+
+def _next_action(blockers: list[str], *, release_handoff_path: str | None = None) -> dict[str, Any]:
     commands = standard_commands()
     for blocker in blockers:
         if blocker.startswith("git:dirty-worktree"):
@@ -473,6 +486,12 @@ def _next_action(blockers: list[str]) -> dict[str, Any]:
             return {"key": "inspect-mcp-safety", "reason": blocker, "command": commands["mcpTrialReadiness"]}
         if blocker.startswith("public-session:"):
             return {"key": "inspect-public-session-state", "reason": blocker, "command": commands["mcpMissionControl"]}
+    if release_handoff_path:
+        return {
+            "key": "maintenance-loop",
+            "reason": "Final readiness checks passed and a release handoff exists; keep proof fresh and rerun the final gate before releases.",
+            "command": commands["mcpFinalCompactStatus"],
+        }
     return {"key": "ready-for-release-handoff", "reason": "Final readiness checks passed; write or update the final release handoff.", "command": commands["mcpMissionControl"]}
 
 
@@ -547,6 +566,7 @@ def final_readiness(
     )
     blockers = unique(blockers)
     status = "passed" if not blockers else "blocked"
+    release_handoff_path = _latest_release_handoff_path(repo_root)
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-final-readiness",
@@ -562,12 +582,13 @@ def final_readiness(
         "artifacts": {
             "freshness": artifact_freshness,
             "latest": state_payload.get("latestArtifacts"),
+            "releaseHandoffPath": release_handoff_path,
             "toolSurface": tool_surface_payload,
         },
         "dependencies": dependency_payload,
         "environment": environment_payload,
         "publicSession": public_session_payload,
-        "recommendedNextAction": _next_action(blockers),
+        "recommendedNextAction": _next_action(blockers, release_handoff_path=release_handoff_path),
         "safety": {
             **safety_flags(),
             "finalGateReadOnly": True,
@@ -587,6 +608,7 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
     environment = payload.get("environment") if isinstance(payload.get("environment"), dict) else {}
     dep_map = deps.get("dependencies") if isinstance(deps.get("dependencies"), dict) else {}
     tool_surface = ((payload.get("artifacts") or {}).get("toolSurface") if isinstance(payload.get("artifacts"), dict) else {}) or {}
+    release_handoff_path = ((payload.get("artifacts") or {}).get("releaseHandoffPath") if isinstance(payload.get("artifacts"), dict) else None)
     public_session = payload.get("publicSession") if isinstance(payload.get("publicSession"), dict) else {}
     return {
         "schemaVersion": 1,
@@ -615,6 +637,7 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
         "requiredDependencies": {name: item.get("status") for name, item in dep_map.items() if isinstance(item, dict) and item.get("required")},
         "publicSessionStatus": public_session.get("status"),
         "publicSessionStates": public_session.get("states"),
+        "releaseHandoffPath": release_handoff_path,
         "recommendedNextAction": payload.get("recommendedNextAction"),
         "blockers": payload.get("blockers") or [],
         "warningCount": len(payload.get("warnings") or []),
