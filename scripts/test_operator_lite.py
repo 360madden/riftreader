@@ -31,6 +31,7 @@ def make_repo(root: Path) -> None:
         "riftreader-package-intake.cmd",
         "riftreader-package-intake-selftest.cmd",
         "riftreader-local-artifact-bridge.cmd",
+        "riftreader-package-draft-review.cmd",
     ]:
         (scripts / name).write_text("@echo off\n", encoding="utf-8")
 
@@ -61,6 +62,12 @@ class OperatorLiteTests(unittest.TestCase):
                 "bridge-inbox-index",
                 "bridge-inbox-latest",
                 "bridge-inbox-package-draft",
+                "package-draft-index",
+                "package-draft-latest",
+                "package-draft-latest-operator",
+                "package-draft-dry-run-latest",
+                "package-draft-dry-run-latest-operator",
+                "package-draft-loop-selftest",
                 "git-status",
             },
         )
@@ -92,6 +99,24 @@ class OperatorLiteTests(unittest.TestCase):
         bridge_package_draft = next(item for item in plan["commands"] if item["key"] == "bridge-inbox-package-draft")
         self.assertIn("--inbox-package-draft", bridge_package_draft["args"])
         self.assertEqual(bridge_package_draft["expectedExitCodes"], [0, 2])
+        package_draft_index = next(item for item in plan["commands"] if item["key"] == "package-draft-index")
+        self.assertIn("--index", package_draft_index["args"])
+        self.assertEqual(package_draft_index["expectedExitCodes"], [0, 2])
+        latest_package_draft = next(item for item in plan["commands"] if item["key"] == "package-draft-latest")
+        self.assertIn("--latest", latest_package_draft["args"])
+        self.assertEqual(latest_package_draft["expectedExitCodes"], [0, 2])
+        latest_operator_draft = next(item for item in plan["commands"] if item["key"] == "package-draft-latest-operator")
+        self.assertIn("--latest-operator", latest_operator_draft["args"])
+        self.assertEqual(latest_operator_draft["expectedExitCodes"], [0, 2])
+        draft_dry_run = next(item for item in plan["commands"] if item["key"] == "package-draft-dry-run-latest")
+        self.assertIn("--dry-run-latest", draft_dry_run["args"])
+        self.assertEqual(draft_dry_run["expectedExitCodes"], [0, 2])
+        operator_draft_dry_run = next(item for item in plan["commands"] if item["key"] == "package-draft-dry-run-latest-operator")
+        self.assertIn("--dry-run-latest-operator", operator_draft_dry_run["args"])
+        self.assertEqual(operator_draft_dry_run["expectedExitCodes"], [0, 2])
+        draft_loop_selftest = next(item for item in plan["commands"] if item["key"] == "package-draft-loop-selftest")
+        self.assertIn("--self-test", draft_loop_selftest["args"])
+        self.assertEqual(draft_loop_selftest["expectedExitCodes"], [0])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
@@ -229,6 +254,14 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("guarded inbox JSON template copy", summary["visualRules"])
         self.assertIn("guarded package proposal template copy", summary["visualRules"])
         self.assertIn("guarded package draft export button", summary["visualRules"])
+        self.assertIn("package draft index button", summary["visualRules"])
+        self.assertIn("newest package draft summary button", summary["visualRules"])
+        self.assertIn("latest operator package draft button", summary["visualRules"])
+        self.assertIn("explicit latest package draft dry-run button", summary["visualRules"])
+        self.assertIn("explicit latest operator draft dry-run button", summary["visualRules"])
+        self.assertIn("package proposal loop self-test button", summary["visualRules"])
+        self.assertIn("proposal loop checks group button", summary["visualRules"])
+        self.assertIn("Desktop ChatGPT trial readiness gate button", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])
@@ -254,10 +287,28 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
         self.assertEqual(payload["commandAliases"]["session-start"], "bridge-session-start")
         self.assertEqual(payload["commandAliases"]["package-draft"], "bridge-inbox-package-draft")
+        self.assertEqual(payload["commandAliases"]["package-draft-index"], "package-draft-index")
+        self.assertEqual(payload["commandAliases"]["latest-package-draft"], "package-draft-latest")
+        self.assertEqual(payload["commandAliases"]["latest-operator-draft"], "package-draft-latest-operator")
+        self.assertEqual(payload["commandAliases"]["package-draft-dry-run"], "package-draft-dry-run-latest")
+        self.assertEqual(payload["commandAliases"]["operator-draft-dry-run"], "package-draft-dry-run-latest-operator")
+        self.assertEqual(payload["commandAliases"]["package-draft-selftest"], "package-draft-loop-selftest")
         self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
+        self.assertIn("bridge-proposal-loop-checks", {item["key"] for item in payload["groups"]})
+        self.assertIn("bridge-trial-readiness", {item["key"] for item in payload["groups"]})
+        self.assertEqual(payload["groupAliases"]["proposal-loop"], "bridge-proposal-loop-checks")
+        self.assertEqual(payload["groupAliases"]["trial-readiness"], "bridge-trial-readiness")
         self.assertIn("--run bridge-session-start", encoded)
         self.assertIn("--package-draft", encoded)
+        self.assertIn("--package-draft-index", encoded)
+        self.assertIn("--latest-package-draft", encoded)
+        self.assertIn("--latest-operator-draft", encoded)
+        self.assertIn("--package-draft-dry-run", encoded)
+        self.assertIn("--operator-draft-dry-run", encoded)
+        self.assertIn("--package-draft-selftest", encoded)
         self.assertIn("--run-all bridge-startup-checks", encoded)
+        self.assertIn("--proposal-loop-checks", encoded)
+        self.assertIn("--trial-readiness", encoded)
         self.assertIn("/help", encoded)
 
     def test_run_command_key_executes_only_known_safe_command(self) -> None:
@@ -297,6 +348,30 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["exitCode"], 0)
 
+    def test_run_command_key_accepts_latest_package_draft_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "latest-package-draft")
+
+        self.assertEqual(payload["commandKey"], "package-draft-latest")
+        self.assertEqual(payload["requestedCommandKey"], "latest-package-draft")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
+
+    def test_run_command_key_accepts_package_draft_selftest_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_key(root, "package-draft-selftest")
+
+        self.assertEqual(payload["commandKey"], "package-draft-loop-selftest")
+        self.assertEqual(payload["requestedCommandKey"], "package-draft-selftest")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
+
     def test_run_command_key_unknown_command_blocks_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -325,6 +400,47 @@ class OperatorLiteTests(unittest.TestCase):
             "bridge-session-start",
         ])
 
+    def test_run_command_group_executes_bridge_proposal_loop_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_group(root, "proposal-loop")
+
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
+        self.assertEqual(payload["groupKey"], "bridge-proposal-loop-checks")
+        self.assertEqual(payload["requestedGroupKey"], "proposal-loop")
+        self.assertEqual([item["commandKey"] for item in payload["results"]], [
+            "bridge-selftest",
+            "package-draft-loop-selftest",
+        ])
+
+    def test_run_command_group_executes_bridge_trial_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = operator_lite.run_command_group(root, "trial-readiness")
+
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["exitCode"], 0)
+        self.assertEqual(payload["groupKey"], "bridge-trial-readiness")
+        self.assertEqual(payload["requestedGroupKey"], "trial-readiness")
+        self.assertEqual(
+            [item["commandKey"] for item in payload["results"]],
+            [
+                "bridge-selftest",
+                "bridge-preflight",
+                "bridge-session-start",
+                "bridge-inbox-index",
+                "package-draft-index",
+                "package-draft-latest-operator",
+            ],
+        )
+
     def test_run_command_group_unknown_group_blocks(self) -> None:
         payload = operator_lite.run_command_group(REPO_ROOT, "serve-everything")
 
@@ -347,6 +463,8 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
         self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
+        self.assertIn("bridge-proposal-loop-checks", {item["key"] for item in payload["groups"]})
+        self.assertIn("bridge-trial-readiness", {item["key"] for item in payload["groups"]})
 
     def test_cli_run_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -391,6 +509,90 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandKey"], "bridge-inbox-package-draft")
         self.assertTrue(payload["ok"])
 
+    def test_cli_latest_package_draft_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--latest-package-draft", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "package-draft-latest")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_package_draft_index_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--package-draft-index", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "package-draft-index")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_latest_operator_draft_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--latest-operator-draft", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "package-draft-latest-operator")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_package_draft_dry_run_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--package-draft-dry-run", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "package-draft-dry-run-latest")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_operator_draft_dry_run_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--operator-draft-dry-run", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "package-draft-dry-run-latest-operator")
+        self.assertTrue(payload["ok"])
+
+    def test_cli_package_draft_selftest_shortcut_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--package-draft-selftest", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "package-draft-loop-selftest")
+        self.assertTrue(payload["ok"])
+
     def test_cli_run_alias_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -419,6 +621,36 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
         self.assertEqual(payload["groupKey"], "bridge-startup-checks")
         self.assertEqual(len(payload["results"]), 3)
+
+    def test_cli_proposal_loop_checks_shortcut_json_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--proposal-loop-checks", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
+        self.assertEqual(payload["groupKey"], "bridge-proposal-loop-checks")
+        self.assertEqual(len(payload["results"]), 2)
+
+    def test_cli_trial_readiness_shortcut_json_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--trial-readiness", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-operator-lite-command-group-run")
+        self.assertEqual(payload["groupKey"], "bridge-trial-readiness")
+        self.assertEqual(len(payload["results"]), 6)
 
     def test_cli_run_unknown_key_returns_exit_2(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -451,7 +683,17 @@ class OperatorLiteTests(unittest.TestCase):
 
     def test_cli_blocks_package_draft_conflicting_shortcuts(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
-            operator_lite.main(["--package-draft", "--latest-inbox"])
+            operator_lite.main(
+                [
+                    "--package-draft",
+                    "--latest-inbox",
+                    "--package-draft-index",
+                    "--latest-package-draft",
+                    "--latest-operator-draft",
+                    "--operator-draft-dry-run",
+                    "--package-draft-selftest",
+                ]
+            )
 
         self.assertEqual(raised.exception.code, 2)
 
@@ -467,6 +709,14 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--run-all", help_text)
         self.assertIn("--session-start", help_text)
         self.assertIn("--package-draft", help_text)
+        self.assertIn("--package-draft-index", help_text)
+        self.assertIn("--latest-package-draft", help_text)
+        self.assertIn("--latest-operator-draft", help_text)
+        self.assertIn("--package-draft-dry-run", help_text)
+        self.assertIn("--operator-draft-dry-run", help_text)
+        self.assertIn("--package-draft-selftest", help_text)
+        self.assertIn("--proposal-loop-checks", help_text)
+        self.assertIn("--trial-readiness", help_text)
         self.assertIn("--list-commands", help_text)
 
 

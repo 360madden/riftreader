@@ -54,11 +54,38 @@ COMMAND_ALIASES = {
     "package-draft": "bridge-inbox-package-draft",
     "inbox-package-draft": "bridge-inbox-package-draft",
     "draft-package": "bridge-inbox-package-draft",
+    "package-draft-index": "package-draft-index",
+    "draft-index": "package-draft-index",
+    "package-drafts": "package-draft-index",
+    "latest-package-draft": "package-draft-latest",
+    "package-draft-latest": "package-draft-latest",
+    "review-package-draft": "package-draft-latest",
+    "latest-operator-draft": "package-draft-latest-operator",
+    "latest-operator-package-draft": "package-draft-latest-operator",
+    "operator-package-draft": "package-draft-latest-operator",
+    "package-draft-dry-run": "package-draft-dry-run-latest",
+    "dry-run-package-draft": "package-draft-dry-run-latest",
+    "dry-run-latest-draft": "package-draft-dry-run-latest",
+    "operator-draft-dry-run": "package-draft-dry-run-latest-operator",
+    "dry-run-operator-draft": "package-draft-dry-run-latest-operator",
+    "dry-run-latest-operator-draft": "package-draft-dry-run-latest-operator",
+    "package-draft-selftest": "package-draft-loop-selftest",
+    "package-draft-self-test": "package-draft-loop-selftest",
+    "draft-loop-selftest": "package-draft-loop-selftest",
+    "proposal-loop-selftest": "package-draft-loop-selftest",
 }
 GROUP_ALIASES = {
     "startup": "bridge-startup-checks",
     "bridge-checks": "bridge-startup-checks",
     "chatgpt-startup": "bridge-startup-checks",
+    "proposal-loop": "bridge-proposal-loop-checks",
+    "bridge-proposal-loop": "bridge-proposal-loop-checks",
+    "package-proposal-loop": "bridge-proposal-loop-checks",
+    "chatgpt-proposal-loop": "bridge-proposal-loop-checks",
+    "trial-readiness": "bridge-trial-readiness",
+    "bridge-trial": "bridge-trial-readiness",
+    "desktop-chatgpt-trial": "bridge-trial-readiness",
+    "chatgpt-trial-readiness": "bridge-trial-readiness",
 }
 
 GUI_PALETTE = {
@@ -151,7 +178,7 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             label="Bridge Self-Test",
             args=(str(scripts / "riftreader-local-artifact-bridge.cmd"), "--self-test", "--json"),
             timeout_seconds=120,
-            description="Run the Local Artifact Bridge safety self-test without starting a persistent server.",
+            description="Run bridge read/inbox/package-proposal loop self-test without starting a persistent server.",
         ),
         "bridge-preflight": CommandSpec(
             key="bridge-preflight",
@@ -255,6 +282,77 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             description="Export the latest package-proposal inbox item into an inert local package draft under .riftreader-local.",
             expected_exit_codes=(0, 2),
         ),
+        "package-draft-latest": CommandSpec(
+            key="package-draft-latest",
+            label="Latest Package Draft",
+            args=(
+                str(scripts / "riftreader-package-draft-review.cmd"),
+                "--latest",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Print the newest inert Local Artifact Bridge package draft summary without applying it.",
+            expected_exit_codes=(0, 2),
+        ),
+        "package-draft-index": CommandSpec(
+            key="package-draft-index",
+            label="Package Draft Index",
+            args=(
+                str(scripts / "riftreader-package-draft-review.cmd"),
+                "--index",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="List inert Local Artifact Bridge package drafts without applying or dry-running them.",
+            expected_exit_codes=(0, 2),
+        ),
+        "package-draft-latest-operator": CommandSpec(
+            key="package-draft-latest-operator",
+            label="Latest Operator Draft",
+            args=(
+                str(scripts / "riftreader-package-draft-review.cmd"),
+                "--latest-operator",
+                "--json",
+            ),
+            timeout_seconds=60,
+            description="Print the newest non-self-test operator package draft summary without applying it.",
+            expected_exit_codes=(0, 2),
+        ),
+        "package-draft-dry-run-latest": CommandSpec(
+            key="package-draft-dry-run-latest",
+            label="Dry-Run Latest Draft",
+            args=(
+                str(scripts / "riftreader-package-draft-review.cmd"),
+                "--dry-run-latest",
+                "--json",
+            ),
+            timeout_seconds=180,
+            description="Explicitly run package intake dry-run for the newest package draft; never passes --apply.",
+            expected_exit_codes=(0, 2),
+        ),
+        "package-draft-dry-run-latest-operator": CommandSpec(
+            key="package-draft-dry-run-latest-operator",
+            label="Dry-Run Operator Draft",
+            args=(
+                str(scripts / "riftreader-package-draft-review.cmd"),
+                "--dry-run-latest-operator",
+                "--json",
+            ),
+            timeout_seconds=180,
+            description="Explicitly run package intake dry-run for the newest operator draft; never passes --apply.",
+            expected_exit_codes=(0, 2),
+        ),
+        "package-draft-loop-selftest": CommandSpec(
+            key="package-draft-loop-selftest",
+            label="Draft Loop Self-Test",
+            args=(
+                str(scripts / "riftreader-package-draft-review.cmd"),
+                "--self-test",
+                "--json",
+            ),
+            timeout_seconds=180,
+            description="Run package-proposal -> inbox -> inert draft -> dry-run self-test with ignored local artifacts only.",
+        ),
         "git-status": CommandSpec(
             key="git-status",
             label="Git Status",
@@ -272,7 +370,31 @@ def build_command_groups() -> dict[str, CommandGroupSpec]:
             label="Bridge Startup Checks",
             command_keys=("bridge-selftest", "bridge-preflight", "bridge-session-start"),
             description="Run bridge self-test, preflight, and Desktop ChatGPT session-start without serving or tunneling.",
-        )
+        ),
+        "bridge-proposal-loop-checks": CommandGroupSpec(
+            key="bridge-proposal-loop-checks",
+            label="Bridge Proposal Loop Checks",
+            command_keys=("bridge-selftest", "package-draft-loop-selftest"),
+            description=(
+                "Run HTTP package-proposal to draft self-test plus local draft to package-intake dry-run self-test."
+            ),
+        ),
+        "bridge-trial-readiness": CommandGroupSpec(
+            key="bridge-trial-readiness",
+            label="Desktop ChatGPT Trial Readiness",
+            command_keys=(
+                "bridge-selftest",
+                "bridge-preflight",
+                "bridge-session-start",
+                "bridge-inbox-index",
+                "package-draft-index",
+                "package-draft-latest-operator",
+            ),
+            description=(
+                "Run the safe bridge trial gate without serving, tunneling, exporting drafts, dry-running intake, "
+                "applying packages, or mutating Git."
+            ),
+        ),
     }
 
 
@@ -443,7 +565,15 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --run session-start --json",
             ".\\scripts\\riftreader-operator-lite.cmd --session-start --json",
             ".\\scripts\\riftreader-operator-lite.cmd --package-draft --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --package-draft-index --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --latest-package-draft --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --latest-operator-draft --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --package-draft-dry-run --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --operator-draft-dry-run --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --package-draft-selftest --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --proposal-loop-checks --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
             ".\\scripts\\riftreader-operator-lite.cmd /help",
         ],
         "disabledLiveActions": plan["disabledLiveActions"],
@@ -834,6 +964,14 @@ def gui_theme_summary() -> dict[str, Any]:
             "guarded inbox JSON template copy",
             "guarded package proposal template copy",
             "guarded package draft export button",
+            "package draft index button",
+            "newest package draft summary button",
+            "latest operator package draft button",
+            "explicit latest package draft dry-run button",
+            "explicit latest operator draft dry-run button",
+            "package proposal loop self-test button",
+            "proposal loop checks group button",
+            "Desktop ChatGPT trial readiness gate button",
             "manual bridge start command copy",
             "guarded inbox index button",
             "redacted ChatGPT bridge prompt copy",
@@ -848,6 +986,7 @@ def run_gui(repo_root: Path) -> int:
     from tkinter import filedialog, font as tkfont, messagebox, scrolledtext
 
     specs = build_command_specs(repo_root)
+    groups = build_command_groups()
     palette = GUI_PALETTE
 
     root = tk.Tk()
@@ -986,6 +1125,13 @@ def run_gui(repo_root: Path) -> int:
         append(json.dumps(result, indent=2))
         refresh_bridge_status_panel()
 
+    def run_group_spec(key: str) -> None:
+        group = groups[key]
+        append(f"\n## {group.label}\n$ .\\scripts\\riftreader-operator-lite.cmd --run-all {key} --json")
+        result = run_command_group(repo_root, key)
+        append(json.dumps(result, indent=2))
+        refresh_bridge_status_panel()
+
     def run_package_dry_run() -> None:
         selected = filedialog.askopenfilename(title="Select package .zip or manifest package file")
         if not selected:
@@ -1067,6 +1213,26 @@ def run_gui(repo_root: Path) -> int:
     action_button(bridge_index_row, "Bridge Latest Inbox", lambda: run_spec("bridge-inbox-latest"), "bridge", width=19)
     action_button(bridge_index_row, "Bridge Package Draft", lambda: run_spec("bridge-inbox-package-draft"), "bridge", width=21)
 
+    bridge_draft_row = button_row(bridge_frame)
+    action_button(bridge_draft_row, "Draft Index", lambda: run_spec("package-draft-index"), "bridge", width=15)
+    action_button(bridge_draft_row, "Latest Draft Summary", lambda: run_spec("package-draft-latest"), "bridge", width=21)
+    action_button(bridge_draft_row, "Latest Operator Draft", lambda: run_spec("package-draft-latest-operator"), "bridge", width=23)
+
+    bridge_dry_run_row = button_row(bridge_frame)
+    action_button(bridge_dry_run_row, "Dry-Run Latest Draft", lambda: run_spec("package-draft-dry-run-latest"), "success", width=22)
+    action_button(
+        bridge_dry_run_row,
+        "Dry-Run Operator Draft",
+        lambda: run_spec("package-draft-dry-run-latest-operator"),
+        "success",
+        width=23,
+    )
+
+    bridge_loop_row = button_row(bridge_frame)
+    action_button(bridge_loop_row, "Draft Loop Self-Test", lambda: run_spec("package-draft-loop-selftest"), "warning", width=22)
+    action_button(bridge_loop_row, "Proposal Loop Checks", lambda: run_group_spec("bridge-proposal-loop-checks"), "warning", width=23)
+    action_button(bridge_loop_row, "Trial Readiness Gate", lambda: run_group_spec("bridge-trial-readiness"), "warning", width=23)
+
     bridge_utility_row = button_row(bridge_frame)
     action_button(bridge_utility_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
     action_button(bridge_utility_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
@@ -1127,7 +1293,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Examples: riftreader-operator-lite.cmd --list-commands --json | "
             "riftreader-operator-lite.cmd --session-start --json | "
             "riftreader-operator-lite.cmd --package-draft --json | "
+            "riftreader-operator-lite.cmd --package-draft-index --json | "
+            "riftreader-operator-lite.cmd --latest-package-draft --json | "
+            "riftreader-operator-lite.cmd --latest-operator-draft --json | "
+            "riftreader-operator-lite.cmd --package-draft-dry-run --json | "
+            "riftreader-operator-lite.cmd --operator-draft-dry-run --json | "
+            "riftreader-operator-lite.cmd --package-draft-selftest --json | "
             "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
+            "riftreader-operator-lite.cmd --proposal-loop-checks --json | "
+            "riftreader-operator-lite.cmd --trial-readiness --json | "
             "riftreader-operator-lite.cmd /help"
         ),
     )
@@ -1141,7 +1315,39 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bridge-preflight", action="store_true", help="Shortcut for --run bridge-preflight.")
     parser.add_argument("--latest-inbox", action="store_true", help="Shortcut for --run bridge-inbox-latest.")
     parser.add_argument("--package-draft", action="store_true", help="Shortcut for --run bridge-inbox-package-draft.")
+    parser.add_argument("--package-draft-index", action="store_true", help="Shortcut for --run package-draft-index.")
+    parser.add_argument("--latest-package-draft", action="store_true", help="Shortcut for --run package-draft-latest.")
+    parser.add_argument(
+        "--latest-operator-draft",
+        action="store_true",
+        help="Shortcut for --run package-draft-latest-operator.",
+    )
+    parser.add_argument(
+        "--package-draft-dry-run",
+        action="store_true",
+        help="Shortcut for --run package-draft-dry-run-latest. Never passes --apply.",
+    )
+    parser.add_argument(
+        "--operator-draft-dry-run",
+        action="store_true",
+        help="Shortcut for --run package-draft-dry-run-latest-operator. Never passes --apply.",
+    )
+    parser.add_argument(
+        "--package-draft-selftest",
+        action="store_true",
+        help="Shortcut for --run package-draft-loop-selftest.",
+    )
     parser.add_argument("--bridge-startup-checks", action="store_true", help="Shortcut for --run-all bridge-startup-checks.")
+    parser.add_argument(
+        "--proposal-loop-checks",
+        action="store_true",
+        help="Shortcut for --run-all bridge-proposal-loop-checks.",
+    )
+    parser.add_argument(
+        "--trial-readiness",
+        action="store_true",
+        help="Shortcut for --run-all bridge-trial-readiness.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON for self-test, command-plan, list-commands, run, or run-all.")
     return parser
 
@@ -1160,17 +1366,55 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "bridge-inbox-latest"
     if args.package_draft:
         shortcut_command = "bridge-inbox-package-draft"
+    if args.package_draft_index:
+        shortcut_command = "package-draft-index"
+    if args.latest_package_draft:
+        shortcut_command = "package-draft-latest"
+    if args.latest_operator_draft:
+        shortcut_command = "package-draft-latest-operator"
+    if args.package_draft_dry_run:
+        shortcut_command = "package-draft-dry-run-latest"
+    if args.operator_draft_dry_run:
+        shortcut_command = "package-draft-dry-run-latest-operator"
+    if args.package_draft_selftest:
+        shortcut_command = "package-draft-loop-selftest"
     shortcut_count = sum(
-        1 for selected in (args.session_start, args.bridge_preflight, args.latest_inbox, args.package_draft) if selected
+        1
+        for selected in (
+            args.session_start,
+            args.bridge_preflight,
+            args.latest_inbox,
+            args.package_draft,
+            args.package_draft_index,
+            args.latest_package_draft,
+            args.latest_operator_draft,
+            args.package_draft_dry_run,
+            args.operator_draft_dry_run,
+            args.package_draft_selftest,
+        )
+        if selected
     )
     if shortcut_count > 1:
         parser.error("select only one command shortcut")
     if args.run and shortcut_command:
         parser.error("do not combine --run with a command shortcut")
-    if args.run_all and args.bridge_startup_checks:
-        parser.error("do not combine --run-all with --bridge-startup-checks")
+    group_shortcut_count = sum(
+        1
+        for selected in (args.bridge_startup_checks, args.proposal_loop_checks, args.trial_readiness)
+        if selected
+    )
+    if args.run_all and group_shortcut_count:
+        parser.error("do not combine --run-all with a command group shortcut")
+    if group_shortcut_count > 1:
+        parser.error("select only one command group shortcut")
     command_to_run = args.run or shortcut_command
-    group_to_run = args.run_all or ("bridge-startup-checks" if args.bridge_startup_checks else None)
+    group_to_run = args.run_all
+    if args.bridge_startup_checks:
+        group_to_run = "bridge-startup-checks"
+    if args.proposal_loop_checks:
+        group_to_run = "bridge-proposal-loop-checks"
+    if args.trial_readiness:
+        group_to_run = "bridge-trial-readiness"
     selected_modes = [
         bool(command_to_run),
         bool(group_to_run),

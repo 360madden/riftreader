@@ -1,4 +1,4 @@
-# Version: riftreader-local-artifact-bridge-v0.3.1
+# Version: riftreader-local-artifact-bridge-v0.3.2
 # Total-Character-Count: 116611
 # Purpose: Tokenized local bridge for curated read-only RiftReader ChatGPT payloads plus a guarded local inbox for JSON proposals.
 from __future__ import annotations
@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     from riftreader_workflow import package_manifest
 
 
-VERSION = "riftreader-local-artifact-bridge-v0.3.1"
+VERSION = "riftreader-local-artifact-bridge-v0.3.2"
 SCHEMA_VERSION = 1
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -887,6 +887,18 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
     validation = package_manifest.validate_manifest(package_root, config.repo_root, manifest)
     status = "created" if not validation.get("errors") else "blocked"
     ok = status == "created"
+    proposal_metadata = proposal.get("metadata") if isinstance(proposal.get("metadata"), dict) else {}
+    proposal_source = proposal.get("source") if isinstance(proposal.get("source"), dict) else {}
+    message_metadata = {
+        key: proposal_metadata.get(key)
+        for key in ("requiresHumanReview", "draftOnly", "selfTest")
+        if isinstance(proposal_metadata.get(key), bool)
+    }
+    message_source = {
+        key: str(proposal_source.get(key))[:240]
+        for key in ("tool", "context")
+        if proposal_source.get(key) is not None
+    }
     summary = {
         "schemaVersion": SCHEMA_VERSION,
         "ok": ok,
@@ -895,6 +907,9 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
         "generatedAtUtc": utc_now_iso(),
         "inboxId": inbox_id,
         "messageTitle": proposal.get("title"),
+        "packageName": package_name,
+        "messageMetadata": message_metadata,
+        "messageSource": message_source,
         "draftRoot": repo_display_path(draft_dir, config.repo_root),
         "packageRoot": repo_display_path(package_root, config.repo_root),
         "manifestPath": repo_display_path(manifest_path, config.repo_root),
@@ -1151,12 +1166,22 @@ def session_start_payload(config: BridgeConfig) -> Dict[str, Any]:
             "latest": latest_inbox_brief(inbox),
             "indexCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-index --json",
             "readLatestCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json",
+            "packageDraftCommand": ".\\scripts\\riftreader-local-artifact-bridge.cmd --inbox-package-draft --json",
+            "packageDraftIndexCommand": ".\\scripts\\riftreader-package-draft-review.cmd --index --json",
+            "latestPackageDraftCommand": ".\\scripts\\riftreader-package-draft-review.cmd --latest --json",
+            "latestOperatorPackageDraftCommand": ".\\scripts\\riftreader-package-draft-review.cmd --latest-operator --json",
+            "latestPackageDraftDryRunCommand": ".\\scripts\\riftreader-package-draft-review.cmd --dry-run-latest --json",
+            "latestOperatorPackageDraftDryRunCommand": ".\\scripts\\riftreader-package-draft-review.cmd --dry-run-latest-operator --json",
+            "packageDraftSelfTestCommand": ".\\scripts\\riftreader-package-draft-review.cmd --self-test --json",
+            "proposalLoopChecksCommand": ".\\scripts\\riftreader-operator-lite.cmd --proposal-loop-checks --json",
+            "trialReadinessCommand": ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
         },
         "operatorCommands": {
             "selfTest": ".\\scripts\\riftreader-local-artifact-bridge.cmd --self-test --json",
             "preflight": ".\\scripts\\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\\chatgpt-payloads --json",
             "sessionStart": ".\\scripts\\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\\chatgpt-payloads --json",
             "bootstrapPayload": ".\\scripts\\riftreader-local-artifact-bridge.cmd --bootstrap-payload --payload-root artifacts\\chatgpt-payloads --json",
+            "trialReadiness": ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
             "manualStart": preflight.get("manualStartCommand"),
             "optionalManualTunnel": "cloudflared tunnel --url http://127.0.0.1:8765",
         },
@@ -2471,6 +2496,85 @@ def run_self_test(json_mode: bool = False) -> int:
                         "bodyBytes": len(body),
                     }
                 )
+            package_proposal_body = json_bytes(
+                {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "kind": "package-proposal",
+                    "title": "Self-test package proposal",
+                    "body": "Verify guarded Local Inbox v0 accepts package-proposal JSON through HTTP.",
+                    "payload": {
+                        "packageName": "local-artifact-bridge-http-package-proposal-self-test",
+                        "files": [
+                            {
+                                "target": "docs/workflow/bridge-http-selftest-preview.md",
+                                "content": (
+                                    "# Bridge HTTP Self-Test Preview\n\n"
+                                    "This inert package proposal is created only by the Local Artifact Bridge self-test.\n"
+                                ),
+                                "encoding": "utf-8",
+                            }
+                        ],
+                        "checks": [],
+                    },
+                    "source": {
+                        "tool": "local-artifact-bridge-self-test",
+                        "context": "ephemeral loopback HTTP POST; no persistent serve, tunnel, apply, Git, RIFT, CE, or x64dbg",
+                    },
+                    "metadata": {
+                        "requiresHumanReview": True,
+                        "draftOnly": True,
+                        "selfTest": True,
+                    },
+                }
+            )
+            status, _headers, body = request_local(
+                str(host),
+                int(port),
+                "POST",
+                "/selftest-token/inbox/messages",
+                body=package_proposal_body,
+                headers={"Content-Type": "application/json"},
+            )
+            package_proposal_result = json.loads(body.decode("utf-8"))
+            package_proposal_inbox_id = package_proposal_result.get("inboxId")
+            checks.append(
+                {
+                    "name": "inbox_package_proposal_store",
+                    "method": "POST",
+                    "path": "/<token>/inbox/messages",
+                    "expectedStatus": 201,
+                    "actualStatus": status,
+                    "pass": status == 201 and bool(package_proposal_result.get("ok")) and isinstance(package_proposal_inbox_id, str),
+                    "inboxId": package_proposal_inbox_id,
+                    "bodyBytes": len(body),
+                }
+            )
+            package_draft = (
+                create_inbox_package_draft(config, str(package_proposal_inbox_id))
+                if isinstance(package_proposal_inbox_id, str)
+                else {"ok": False, "code": "package-proposal-inbox-id-missing"}
+            )
+            target_path = repo_root / "docs" / "workflow" / "bridge-http-selftest-preview.md"
+            manifest_rel = package_draft.get("manifestPath")
+            manifest_path = repo_root / pathlib.Path(str(manifest_rel)) if isinstance(manifest_rel, str) else None
+            checks.append(
+                {
+                    "name": "inbox_package_proposal_draft",
+                    "method": "LOCAL",
+                    "path": ".riftreader-local/artifact-bridge-package-drafts/<inbox_id>",
+                    "expectedStatus": "created",
+                    "actualStatus": package_draft.get("status"),
+                    "pass": bool(package_draft.get("ok"))
+                    and bool(package_draft.get("safety", {}).get("noRepoTargetWrites"))
+                    and bool(package_draft.get("safety", {}).get("noCommandExecutionEndpoint"))
+                    and not target_path.exists()
+                    and bool(manifest_path and manifest_path.is_file()),
+                    "inboxId": package_proposal_inbox_id,
+                    "draftRoot": package_draft.get("draftRoot"),
+                    "manifestPath": package_draft.get("manifestPath"),
+                    "targetFileCreated": target_path.exists(),
+                }
+            )
             status, _headers, body = request_local(
                 str(host),
                 int(port),
@@ -2500,6 +2604,18 @@ def run_self_test(json_mode: bool = False) -> int:
             "selfTest": all(item["pass"] for item in checks),
             "checkCount": len(checks),
             "checks": checks,
+            "safety": {
+                "persistentServerStarted": False,
+                "tunnelStarted": False,
+                "packageProposalHttpPostCovered": True,
+                "packageDraftCreatedLocalIgnoredOnly": True,
+                "packageIntakeInvoked": False,
+                "applySent": False,
+                "gitMutation": False,
+                "liveRiftInput": False,
+                "cheatEngine": False,
+                "x64dbgAttach": False,
+            },
         }
         if json_mode:
             print(json.dumps(payload, indent=2, sort_keys=True))

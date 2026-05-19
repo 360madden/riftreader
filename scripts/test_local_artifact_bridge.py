@@ -722,6 +722,14 @@ class BridgeServerCase(unittest.TestCase):
                     }
                 ],
             },
+            "source": {
+                "tool": "Desktop ChatGPT",
+                "context": "unit-test proposal",
+            },
+            "metadata": {
+                "requiresHumanReview": True,
+                "draftOnly": True,
+            },
         }
         stored = bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
         stdout = io.StringIO()
@@ -752,6 +760,10 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["status"], "created")
         self.assertEqual(payload["kind"], "riftreader-local-artifact-bridge-inbox-package-draft")
         self.assertEqual(payload["inboxId"], stored["inboxId"])
+        self.assertEqual(payload["packageName"], "Desktop ChatGPT proposed patch")
+        self.assertEqual(payload["messageMetadata"]["requiresHumanReview"], True)
+        self.assertEqual(payload["messageMetadata"]["draftOnly"], True)
+        self.assertEqual(payload["messageSource"]["tool"], "Desktop ChatGPT")
         self.assertEqual(payload["fileCount"], 1)
         self.assertEqual(payload["validation"]["errors"], [])
         self.assertEqual(manifest["files"][0]["target"], "docs/desktop-chatgpt-proposed.md")
@@ -972,8 +984,18 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["payload"]["latest"]["payloadId"], "pointer-chain-pack-20260517-002")
         self.assertEqual(payload["localInbox"]["count"], 1)
         self.assertEqual(payload["localInbox"]["latest"]["title"], "Session proposal")
+        self.assertIn("--inbox-package-draft", payload["localInbox"]["packageDraftCommand"])
+        self.assertIn("--index", payload["localInbox"]["packageDraftIndexCommand"])
+        self.assertIn("riftreader-package-draft-review.cmd", payload["localInbox"]["latestPackageDraftCommand"])
+        self.assertIn("--latest-operator", payload["localInbox"]["latestOperatorPackageDraftCommand"])
+        self.assertIn("--dry-run-latest", payload["localInbox"]["latestPackageDraftDryRunCommand"])
+        self.assertIn("--dry-run-latest-operator", payload["localInbox"]["latestOperatorPackageDraftDryRunCommand"])
+        self.assertIn("--self-test", payload["localInbox"]["packageDraftSelfTestCommand"])
+        self.assertIn("--proposal-loop-checks", payload["localInbox"]["proposalLoopChecksCommand"])
+        self.assertIn("--trial-readiness", payload["localInbox"]["trialReadinessCommand"])
         self.assertIn("--serve", payload["operatorCommands"]["manualStart"])
         self.assertIn("--session-start", payload["operatorCommands"]["sessionStart"])
+        self.assertIn("--trial-readiness", payload["operatorCommands"]["trialReadiness"])
         self.assertIn("<token>", json.dumps(payload["redactedUrls"]))
         self.assertNotIn(self.token, json.dumps(payload["redactedUrls"]))
         self.assertTrue(payload["safety"]["noServerStarted"])
@@ -1056,6 +1078,25 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["chunkCount"], 6)
         self.assertEqual(preflight["status"], "passed")
         self.assertEqual(preflight["latestPayloadId"], "desktop-chatgpt-bootstrap-test")
+
+    def test_self_test_covers_http_package_proposal_to_draft_loop(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = bridge.run_self_test(json_mode=True)
+        payload = json.loads(stdout.getvalue())
+        checks = {item["name"]: item for item in payload["checks"]}
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(payload["selfTest"])
+        self.assertGreaterEqual(payload["checkCount"], 18)
+        self.assertTrue(checks["inbox_package_proposal_store"]["pass"])
+        self.assertTrue(checks["inbox_package_proposal_draft"]["pass"])
+        self.assertFalse(checks["inbox_package_proposal_draft"]["targetFileCreated"])
+        self.assertTrue(payload["safety"]["packageProposalHttpPostCovered"])
+        self.assertTrue(payload["safety"]["packageDraftCreatedLocalIgnoredOnly"])
+        self.assertFalse(payload["safety"]["packageIntakeInvoked"])
+        self.assertFalse(payload["safety"]["gitMutation"])
 
 
 if __name__ == "__main__":

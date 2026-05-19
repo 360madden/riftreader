@@ -1,5 +1,5 @@
 <!--
-Version: riftreader-local-artifact-bridge-docs-v0.3.1
+Version: riftreader-local-artifact-bridge-docs-v0.3.2
 Purpose: Operator documentation for the RiftReader local artifact bridge v0.3, Desktop ChatGPT session-start packet, Desktop ChatGPT handoff packet, and guarded Local Inbox v0.
 -->
 
@@ -29,7 +29,8 @@ ChatGPT JSON proposal
 Operator-approved package-proposal inbox item
 -> --inbox-package-draft
 -> .riftreader-local\artifact-bridge-package-drafts
--> package intake dry-run/review as a separate explicit step
+-> newest draft summary review
+-> package intake dry-run only as a separate explicit operator step
 ```
 
 It is not a control channel for RIFT, Git, shell commands, memory tools, debugger tools, or repo mutation.
@@ -120,6 +121,14 @@ Bridge Payload Index
 Bridge Inbox Index
 Bridge Latest Inbox
 Bridge Package Draft
+Draft Index
+Latest Draft Summary
+Dry-Run Latest Draft
+Latest Operator Draft
+Dry-Run Operator Draft
+Draft Loop Self-Test
+Proposal Loop Checks
+Trial Readiness Gate
 Open Bridge Docs
 Copy Bridge Start Command
 Copy Inbox JSON Template
@@ -128,7 +137,7 @@ Copy Redacted Bridge Instructions
 Copy ChatGPT Bridge Prompt
 ```
 
-Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. It copies only redacted placeholder instructions/prompts/templates. Persistent serving and tunneling remain explicit operator actions.
+Operator Lite does not start `--serve`, start `cloudflared`, mint/copy a real token, apply inbox content, or manage public tunnels. The Session Start button prints a redacted, one-shot setup packet only. The Bootstrap Payload button writes only a curated payload folder under `artifacts\chatgpt-payloads` from fixed repo-owned docs; it does not edit source files or mutate Git. The Package Draft button converts only the latest `package-proposal` inbox item into an inert package folder under `.riftreader-local\artifact-bridge-package-drafts`; it does not apply that package. The Draft Index button lists ignored package drafts without dry-running them. The Latest Draft Summary button prints the newest ignored draft summary. The Latest Operator Draft button ignores self-test drafts and selects only real operator-proposal drafts. The Dry-Run Latest Draft and Dry-Run Operator Draft buttons invoke package intake without `--apply` only after the operator explicitly clicks/runs them. The Draft Loop Self-Test button writes a synthetic ignored inbox proposal/draft and package-intake dry-run summary to prove the loop locally. The Proposal Loop Checks button runs both bridge HTTP proposal-to-draft and local draft-to-dry-run self-tests. The Trial Readiness Gate runs self-test, preflight, session-start, inbox index, draft index, and the operator-draft availability check without exporting drafts or dry-running intake. It copies only redacted placeholder instructions/prompts/templates. Persistent serving and tunneling remain explicit operator actions.
 
 ## Real payload smoke checklist
 
@@ -155,8 +164,13 @@ Use this checklist before giving Desktop ChatGPT a real bridge URL:
 10. If using Local Inbox v0, fetch `/<token>/inbox/schema.json`, then POST only a small JSON proposal to `/<token>/inbox/messages`.
 11. Run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json` and `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json` and confirm the item is listed/readable.
 12. If the latest inbox item is an operator-approved `package-proposal`, run `.\scripts\riftreader-local-artifact-bridge.cmd --inbox-package-draft --json` to create an ignored local package draft.
-13. Review the package draft, then run package intake dry-run separately before any explicit apply.
-14. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
+13. List package drafts with `.\scripts\riftreader-package-draft-review.cmd --index --json`.
+14. Review the newest draft summary with `.\scripts\riftreader-package-draft-review.cmd --latest --json`.
+15. If review looks safe, explicitly dry-run package intake with `.\scripts\riftreader-package-draft-review.cmd --dry-run-latest --json`; this never passes `--apply`.
+16. To prove the local proposal loop without Desktop ChatGPT, run `.\scripts\riftreader-package-draft-review.cmd --self-test --json`.
+17. To prove both HTTP proposal-to-draft and local draft-to-dry-run paths, run `.\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json`.
+18. To check bridge trial readiness without exporting drafts or dry-running intake, run `.\scripts\riftreader-operator-lite.cmd --trial-readiness --json`. Exit `2` is a safe blocker when no real operator draft exists yet.
+19. If using a tunnel, start it manually and stop both bridge and tunnel when finished.
 
 ## Endpoints
 
@@ -399,6 +413,70 @@ does not apply, execute, stage, commit, push, or write repo target files
 
 Unsafe targets such as `.git/config` are blocked by manifest validation. The command may still leave a blocked `summary.json` under `.riftreader-local` so the operator can inspect the exact validation errors without re-running blindly.
 
+### Newest package draft review/dry-run
+
+`scripts\riftreader-package-draft-review.cmd` is a local CLI-only review helper
+for drafts created by `--inbox-package-draft`. It has no HTTP endpoint and does
+not serve, tunnel, apply, stage, commit, push, or send live RIFT input.
+
+Review the newest draft summary:
+
+```powershell
+.\scripts\riftreader-package-draft-review.cmd --latest --json
+```
+
+List all discovered drafts:
+
+```powershell
+.\scripts\riftreader-package-draft-review.cmd --index --json
+```
+
+The index classifies drafts as `operator-proposal` or `self-test`, reports
+`operatorDraftCount`, `selfTestDraftCount`, and `latestOperatorDraftId`, and
+warns with `latest_draft_is_self_test` when repeated smoke checks have made a
+self-test draft newer than the latest real operator proposal.
+
+Explicitly dry-run package intake for the newest draft:
+
+```powershell
+.\scripts\riftreader-package-draft-review.cmd --dry-run-latest --json
+```
+
+Use the operator-only variants when self-test drafts are newer than the latest
+real Desktop ChatGPT proposal:
+
+```powershell
+.\scripts\riftreader-package-draft-review.cmd --latest-operator --json
+.\scripts\riftreader-package-draft-review.cmd --dry-run-latest-operator --json
+```
+
+These return `PACKAGE_DRAFT_OPERATOR_EMPTY` when no real operator-proposal draft
+exists, even if self-test drafts exist.
+
+Run the local synthetic proposal loop self-test:
+
+```powershell
+.\scripts\riftreader-package-draft-review.cmd --self-test --json
+```
+
+The dry-run helper invokes:
+
+```text
+scripts\riftreader-package-intake.cmd --package <newest-draft-package-root> --compact-json
+```
+
+It intentionally does not pass `--apply`. Safe blockers return exit code `2`;
+successful dry-runs write normal ignored package-intake summaries under
+`.riftreader-local\package-intake`. The self-test stores a synthetic
+`package-proposal` under `.riftreader-local\artifact-bridge-inbox`, exports an
+inert package draft under `.riftreader-local\artifact-bridge-package-drafts`,
+and then runs the same dry-run path.
+
+The review helper fails closed if a draft summary points `packageRoot` or
+`manifestPath` outside `.riftreader-local\artifact-bridge-package-drafts`, even
+when that outside path exists. In that state it reports
+`PACKAGE_DRAFT_NOT_REVIEW_READY` and does not invoke package intake.
+
 ## Payload folder contract
 
 Default payload root:
@@ -460,6 +538,10 @@ POST only for /<token>/inbox/messages
 inbox JSON only, default 1 MiB max
 inbox writes only under .riftreader-local\artifact-bridge-inbox
 package drafts write only under .riftreader-local\artifact-bridge-package-drafts
+package draft review reads only ignored drafts
+package draft dry-run never passes --apply
+package proposal loop self-test writes ignored .riftreader-local artifacts only
+trial-readiness gate does not export drafts or dry-run intake
 no apply or execute behavior in Local Inbox v0
 no arbitrary path reads
 no command-execution endpoint
@@ -625,7 +707,7 @@ session-start returns a redacted Desktop ChatGPT setup packet and exits 2 when p
 chatgpt-handoff returns a redacted Desktop ChatGPT starter packet
 inbox-index returns Local Inbox v0 metadata without applying anything
 inbox-read-latest returns the newest inbox proposal or a safe `INBOX_EMPTY` blocker
-self-test passes
+self-test passes and covers read endpoints, guarded inbox POST, duplicate detection, malformed JSON, and an HTTP `package-proposal` to inert package-draft loop
 diff whitespace check passes
 ```
 

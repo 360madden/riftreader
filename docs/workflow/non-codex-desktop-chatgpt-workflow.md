@@ -156,6 +156,55 @@ pass removes or archives them, but they are not an active operator path. The
 current active path is local ChatGPT plus deterministic local helpers, Package
 Intake Lite, Live-Test Fast-Lane Triage, Operator Lite, and the read-only Local
 Artifact Bridge.
+
+## Local Artifact Bridge proposal loop
+
+The Local Artifact Bridge gives Desktop ChatGPT a safer artifact path than
+large paste blocks:
+
+1. the operator runs bridge self-test/preflight/session-start locally;
+2. Desktop ChatGPT reads only tokenized, curated payload endpoints;
+3. if the operator approves a return path, ChatGPT sends a JSON
+   `package-proposal` to Local Inbox v0;
+4. the operator converts the reviewed inbox item into an inert package draft;
+5. the operator reviews the newest draft summary;
+6. only then does the operator run package intake dry-run, still without
+   `--apply`.
+
+Safe local commands:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-operator-lite.cmd --bridge-startup-checks --json
+.\scripts\riftreader-operator-lite.cmd --package-draft --json
+.\scripts\riftreader-operator-lite.cmd --package-draft-index --json
+.\scripts\riftreader-operator-lite.cmd --latest-package-draft --json
+.\scripts\riftreader-operator-lite.cmd --latest-operator-draft --json
+.\scripts\riftreader-operator-lite.cmd --package-draft-dry-run --json
+.\scripts\riftreader-operator-lite.cmd --operator-draft-dry-run --json
+.\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json
+.\scripts\riftreader-operator-lite.cmd --trial-readiness --json
+```
+
+Smoke-test the whole local proposal loop without Desktop ChatGPT:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-package-draft-review.cmd --self-test --json
+```
+
+`--trial-readiness` is the safe gate to run before a real Desktop ChatGPT
+proposal trial. It runs bridge self-test/preflight/session-start, inbox index,
+package-draft index, and the operator-draft availability check without exporting
+drafts, dry-running intake, serving, tunneling, applying, or mutating Git. Exit
+`2` means a safe blocker, commonly no real operator-proposal draft yet.
+
+The bridge and review helpers write only under `.riftreader-local` or
+`artifacts\chatgpt-payloads`, never apply packages, never stage/commit/push,
+never start a public tunnel automatically, and fail closed if a draft summary
+points its package or manifest outside
+`.riftreader-local\artifact-bridge-package-drafts`.
+
 ## Package Intake Lite
 
 When desktop ChatGPT provides a manifest-based package, the local Package Intake

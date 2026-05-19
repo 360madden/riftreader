@@ -22,6 +22,10 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 - Local Artifact Bridge inbox index;
 - Local Artifact Bridge latest inbox read;
 - Local Artifact Bridge package draft export;
+- newest Local Artifact Bridge package draft summary;
+- explicit newest package draft intake dry-run;
+- Local Artifact Bridge package-proposal loop self-test;
+- Local Artifact Bridge Desktop ChatGPT trial-readiness gate;
 - Local Artifact Bridge docs/instruction helpers;
 - Git Status;
 - Open Latest Report.
@@ -67,6 +71,14 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --bridge-preflight --json
 .\scripts\riftreader-operator-lite.cmd --latest-inbox --json
 .\scripts\riftreader-operator-lite.cmd --package-draft --json
+.\scripts\riftreader-operator-lite.cmd --package-draft-index --json
+.\scripts\riftreader-operator-lite.cmd --latest-package-draft --json
+.\scripts\riftreader-operator-lite.cmd --latest-operator-draft --json
+.\scripts\riftreader-operator-lite.cmd --package-draft-dry-run --json
+.\scripts\riftreader-operator-lite.cmd --operator-draft-dry-run --json
+.\scripts\riftreader-operator-lite.cmd --package-draft-selftest --json
+.\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json
+.\scripts\riftreader-operator-lite.cmd --trial-readiness --json
 ```
 
 Run the safe bridge startup check group:
@@ -75,6 +87,10 @@ Run the safe bridge startup check group:
 cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json
 .\scripts\riftreader-operator-lite.cmd --bridge-startup-checks --json
+.\scripts\riftreader-operator-lite.cmd --run-all bridge-proposal-loop-checks --json
+.\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json
+.\scripts\riftreader-operator-lite.cmd --run-all bridge-trial-readiness --json
+.\scripts\riftreader-operator-lite.cmd --trial-readiness --json
 ```
 
 Help:
@@ -94,12 +110,20 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--command-plan` | Prints the full safe command plan. | Read-only plan output. |
 | `--list-commands` | Lists keys, aliases, and groups allowed by `--run` / `--run-all`. | Does not execute commands. |
 | `--run <command-key>` | Runs one known safe command spec, such as `bridge-session-start`. | Still enforces denylist, script existence checks, timeouts, and expected exit codes. |
-| `--run-all <group-key>` | Runs one known safe group, currently `bridge-startup-checks`. | Sequential safe commands only; no serving or tunneling. |
+| `--run-all <group-key>` | Runs one known safe group, such as `bridge-startup-checks` or `bridge-proposal-loop-checks`. | Sequential safe commands only; no serving or tunneling. |
 | `--session-start` | Shortcut for `--run bridge-session-start`. | Same denylist and timeout checks as `--run`. |
 | `--bridge-preflight` | Shortcut for `--run bridge-preflight`. | Does not start a server or tunnel. |
 | `--latest-inbox` | Shortcut for `--run bridge-inbox-latest`. | Reads local inbox only; no apply/execute. |
 | `--package-draft` | Shortcut for `--run bridge-inbox-package-draft`. | Converts the latest `package-proposal` inbox item into an ignored local package draft only; no apply/execute or repo target writes. |
+| `--package-draft-index` | Shortcut for `--run package-draft-index`. | Lists ignored package drafts only; no intake, apply, or repo target writes. |
+| `--latest-package-draft` | Shortcut for `--run package-draft-latest`. | Prints the newest ignored package draft summary; no intake, apply, or repo target writes. |
+| `--latest-operator-draft` | Shortcut for `--run package-draft-latest-operator`. | Prints the newest non-self-test operator draft summary; blocks if only self-test drafts exist. |
+| `--package-draft-dry-run` | Shortcut for `--run package-draft-dry-run-latest`. | Explicitly runs package intake dry-run for the newest package draft; never passes `--apply`. |
+| `--operator-draft-dry-run` | Shortcut for `--run package-draft-dry-run-latest-operator`. | Explicitly runs package intake dry-run for the newest operator draft; never passes `--apply` and ignores self-test drafts. |
+| `--package-draft-selftest` | Shortcut for `--run package-draft-loop-selftest`. | Runs synthetic `package-proposal` to inbox to inert draft to dry-run loop with ignored local artifacts only. |
 | `--bridge-startup-checks` | Shortcut for `--run-all bridge-startup-checks`. | Runs self-test, preflight, and session-start without persistent serving. |
+| `--proposal-loop-checks` | Shortcut for `--run-all bridge-proposal-loop-checks`. | Runs HTTP proposal-to-draft self-test plus local draft-to-intake dry-run self-test; no persistent serving, tunnel, apply, or Git mutation. |
+| `--trial-readiness` | Shortcut for `--run-all bridge-trial-readiness`. | Runs self-test, preflight, session-start, inbox index, draft index, and operator-draft availability gate; no serving, tunnel, draft export, dry-run, apply, or Git mutation. |
 | `--json` | Emits machine-readable JSON for command-plan/list/run/run-all modes. | No extra behavior by itself. |
 
 `--run` and `--run-all` are intentionally not arbitrary shell runners. They accept only keys already present in Operator Lite's safe command/group registry. Unknown keys return exit code `2`; denied fragments such as `--serve`, `cloudflared`, Git mutation, ProofOnly, target-control, CE, and x64dbg remain blocked.
@@ -116,12 +140,49 @@ Current command aliases:
 | `package-draft` | `bridge-inbox-package-draft` |
 | `inbox-package-draft` | `bridge-inbox-package-draft` |
 | `draft-package` | `bridge-inbox-package-draft` |
+| `package-draft-index` | `package-draft-index` |
+| `draft-index` | `package-draft-index` |
+| `package-drafts` | `package-draft-index` |
+| `latest-package-draft` | `package-draft-latest` |
+| `package-draft-latest` | `package-draft-latest` |
+| `review-package-draft` | `package-draft-latest` |
+| `latest-operator-draft` | `package-draft-latest-operator` |
+| `latest-operator-package-draft` | `package-draft-latest-operator` |
+| `operator-package-draft` | `package-draft-latest-operator` |
+| `package-draft-dry-run` | `package-draft-dry-run-latest` |
+| `dry-run-package-draft` | `package-draft-dry-run-latest` |
+| `dry-run-latest-draft` | `package-draft-dry-run-latest` |
+| `operator-draft-dry-run` | `package-draft-dry-run-latest-operator` |
+| `dry-run-operator-draft` | `package-draft-dry-run-latest-operator` |
+| `dry-run-latest-operator-draft` | `package-draft-dry-run-latest-operator` |
+| `package-draft-selftest` | `package-draft-loop-selftest` |
+| `package-draft-self-test` | `package-draft-loop-selftest` |
+| `draft-loop-selftest` | `package-draft-loop-selftest` |
+| `proposal-loop-selftest` | `package-draft-loop-selftest` |
 
-Current group:
+Current group aliases:
+
+| Alias | Resolves to |
+|---|---|
+| `startup` | `bridge-startup-checks` |
+| `bridge-checks` | `bridge-startup-checks` |
+| `chatgpt-startup` | `bridge-startup-checks` |
+| `proposal-loop` | `bridge-proposal-loop-checks` |
+| `bridge-proposal-loop` | `bridge-proposal-loop-checks` |
+| `package-proposal-loop` | `bridge-proposal-loop-checks` |
+| `chatgpt-proposal-loop` | `bridge-proposal-loop-checks` |
+| `trial-readiness` | `bridge-trial-readiness` |
+| `bridge-trial` | `bridge-trial-readiness` |
+| `desktop-chatgpt-trial` | `bridge-trial-readiness` |
+| `chatgpt-trial-readiness` | `bridge-trial-readiness` |
+
+Current groups:
 
 | Group | Commands |
 |---|---|
 | `bridge-startup-checks` | `bridge-selftest`, `bridge-preflight`, `bridge-session-start` |
+| `bridge-proposal-loop-checks` | `bridge-selftest`, `package-draft-loop-selftest` |
+| `bridge-trial-readiness` | `bridge-selftest`, `bridge-preflight`, `bridge-session-start`, `bridge-inbox-index`, `package-draft-index`, `package-draft-latest-operator` |
 
 ## Buttons
 
@@ -132,7 +193,7 @@ Current group:
 | Run Live-Test Triage | Runs `scripts\riftreader-live-triage.cmd --write`. | No input/movement/debugger/Git mutation. |
 | Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`, printing compact JSON. | No repo target writes; dry-run still writes an ignored package diff. |
 | Package Intake Self-Test | Runs `scripts\riftreader-package-intake-selftest.cmd`. | Generates an ignored package and proves dry-run package intake without repo target writes. |
-| Bridge Self-Test | Runs `scripts\riftreader-local-artifact-bridge.cmd --self-test --json`. | Exercises bridge reads plus guarded inbox in a temp payload and ephemeral loopback server; no persistent server or tunnel. |
+| Bridge Self-Test | Runs `scripts\riftreader-local-artifact-bridge.cmd --self-test --json`. | Exercises bridge reads, guarded inbox HTTP POST, duplicate/malformed handling, and HTTP `package-proposal` to inert draft export in a temp payload and ephemeral loopback server; no persistent server or tunnel. |
 | Bridge Preflight | Runs `scripts\riftreader-local-artifact-bridge.cmd --preflight --payload-root artifacts\chatgpt-payloads --json`. | Checks payload readiness, inbox safety flags, and redacted URL hints without starting a persistent server or tunnel; exit `2` means a safe blocker. |
 | Bridge Session Start | Runs `scripts\riftreader-local-artifact-bridge.cmd --session-start --payload-root artifacts\chatgpt-payloads --json`. | Prints one redacted Desktop ChatGPT setup packet with preflight, latest payload, latest inbox, manual commands, and next steps; no serving/tunnel. |
 | Bridge ChatGPT Handoff | Runs `scripts\riftreader-local-artifact-bridge.cmd --chatgpt-handoff --payload-root artifacts\chatgpt-payloads --json`. | Prints the redacted Desktop ChatGPT starter packet with read order, inbox schema, and safety rules. |
@@ -141,6 +202,14 @@ Current group:
 | Bridge Inbox Index | Runs `scripts\riftreader-local-artifact-bridge.cmd --inbox-index --json`. | Reads guarded Local Inbox v0 metadata under `.riftreader-local`; no apply/execute. |
 | Bridge Latest Inbox | Runs `scripts\riftreader-local-artifact-bridge.cmd --inbox-read-latest --json`. | Reads the newest stored proposal or returns a safe empty-inbox blocker; no apply/execute. |
 | Bridge Package Draft | Runs `scripts\riftreader-local-artifact-bridge.cmd --inbox-package-draft --json`. | Converts the latest `package-proposal` inbox item into `.riftreader-local\artifact-bridge-package-drafts`; no apply/execute, Git mutation, or repo target writes. |
+| Draft Index | Runs `scripts\riftreader-package-draft-review.cmd --index --json`. | Lists ignored package drafts and separates operator proposals from self-test drafts; no package intake, apply, or repo target writes. |
+| Latest Draft Summary | Runs `scripts\riftreader-package-draft-review.cmd --latest --json`. | Prints the newest package draft summary pointer; no intake/apply/execute. |
+| Latest Operator Draft | Runs `scripts\riftreader-package-draft-review.cmd --latest-operator --json`. | Prints the newest non-self-test operator draft summary; blocks with `PACKAGE_DRAFT_OPERATOR_EMPTY` if only self-test drafts exist. |
+| Dry-Run Latest Draft | Runs `scripts\riftreader-package-draft-review.cmd --dry-run-latest --json`. | Explicitly invokes package intake dry-run for the newest draft without `--apply`; safe blockers return exit `2`. |
+| Dry-Run Operator Draft | Runs `scripts\riftreader-package-draft-review.cmd --dry-run-latest-operator --json`. | Explicitly invokes package intake dry-run for the newest operator draft without `--apply`; safe blockers return exit `2`. |
+| Draft Loop Self-Test | Runs `scripts\riftreader-package-draft-review.cmd --self-test --json`. | Stores a synthetic inbox proposal, exports an inert package draft, and dry-runs intake; writes ignored `.riftreader-local` artifacts only. |
+| Proposal Loop Checks | Runs `scripts\riftreader-operator-lite.cmd --run-all bridge-proposal-loop-checks --json` internally. | Proves HTTP proposal-to-draft plus local draft-to-dry-run paths; no persistent serving, tunnel, apply, or Git mutation. |
+| Trial Readiness Gate | Runs `scripts\riftreader-operator-lite.cmd --run-all bridge-trial-readiness --json` internally. | Proves bridge startup readiness and checks for a real operator draft without exporting drafts, dry-running intake, serving, tunneling, applying, or mutating Git; exit `2` means a safe missing-operator-draft/preflight blocker. |
 | Open Bridge Docs | Opens `docs\workflow\local-artifact-bridge.md`. | Local view only. |
 | Copy Bridge Start Command | Copies the manual `--serve --token auto --max-inbox-mb 1` command. | Does not run the command; the operator remains in control of local serving. |
 | Copy Inbox JSON Template | Copies a ready-to-fill Local Inbox v0 JSON message template. | Template is inert; it does not post, apply, execute, or mutate the repo. |
@@ -161,8 +230,9 @@ Operator Lite v0 writes only through the underlying safe helpers:
 - `.riftreader-local\package-intake-selftest\...`
 - `.riftreader-local\artifact-bridge-inbox\...` when an external client uses the bridge inbox while the operator is manually serving it.
 - `.riftreader-local\artifact-bridge-package-drafts\...` when the operator exports an approved package-proposal into an inert local draft.
+- `.riftreader-local\package-intake\...` when the operator explicitly dry-runs the newest package draft.
 
-The bridge self-test uses a temporary payload and ephemeral loopback server; it does not start the persistent `--serve` mode. The bridge preflight/index/session-start/handoff actions read only registered payload metadata from `artifacts\chatgpt-payloads` and generate redacted operator/ChatGPT guidance. The bridge bootstrap action creates a curated payload under `artifacts\chatgpt-payloads` from fixed repo-owned docs only. The bridge inbox index/latest actions read ignored Local Inbox v0 metadata/messages only. The inbox/package-proposal template copy actions write only to the clipboard. The bridge package-draft action writes an ignored package draft only; applying, executing checks, staging, committing, and pushing remain separate explicit actions.
+The bridge self-test uses a temporary payload and ephemeral loopback server; it does not start the persistent `--serve` mode. It now also POSTs a synthetic HTTP `package-proposal` and exports that proposal into an inert draft without invoking package intake. The proposal-loop checks group runs that bridge self-test plus the local draft-loop self-test. The trial-readiness gate runs self-test, preflight, session-start, inbox index, package-draft index, and an operator-draft availability check; it does not export drafts or dry-run intake, and it safely blocks when no real operator-proposal draft exists. The bridge preflight/index/session-start/handoff actions read only registered payload metadata from `artifacts\chatgpt-payloads` and generate redacted operator/ChatGPT guidance. The bridge bootstrap action creates a curated payload under `artifacts\chatgpt-payloads` from fixed repo-owned docs only. The bridge inbox index/latest actions read ignored Local Inbox v0 metadata/messages only. The inbox/package-proposal template copy actions write only to the clipboard. The bridge package-draft action writes an ignored package draft only. The draft-index and latest-draft summary actions read those ignored drafts only, separate operator proposals from self-test drafts, and block if package or manifest pointers escape `.riftreader-local\artifact-bridge-package-drafts`. The operator-only summary/dry-run actions ignore self-test drafts and block if no operator-proposal draft exists. The latest-draft dry-run action invokes package intake without `--apply`. The draft-loop self-test writes a synthetic ignored inbox proposal/draft and package-intake dry-run summary; applying, executing apply checks, staging, committing, and pushing remain separate explicit actions.
 
 Operator Lite does not stage, commit, push, reset, clean, send game input, run movement, attach CE/x64dbg, start bridge `--serve`, start `cloudflared`, apply inbox content, or write provider repos. Current stale proof remains historical-only until fresh current-PID recovery and same-target `ProofOnly` pass.
 
@@ -198,7 +268,7 @@ Operator Lite groups actions into high-contrast panels so buttons do not blend t
 |---|---|---|
 | Workflow Status & Triage | Blue primary buttons plus amber triage button. | Separates ordinary status refresh from blocker classification. |
 | Packages, Reports & Git | Green package buttons and neutral report/Git buttons. | Makes dry-run package actions distinct from read-only views. |
-| Local Artifact Bridge | Purple command/session/handoff/index/package-draft rows, amber bootstrap button, neutral docs/template/copy rows, and a blue status strip. | Prevents bridge button overflow while keeping checks, session-start, handoff, payload bootstrap, indexes, inbox review, package drafts, docs, templates, and prompt-copy actions visually separate. |
+| Local Artifact Bridge | Purple command/session/handoff/index/package-draft rows, amber bootstrap button, neutral docs/template/copy rows, and a blue status strip. | Prevents bridge button overflow while keeping checks, session-start, handoff, payload bootstrap, indexes, inbox review, package draft export, draft index, newest-draft summary, operator-only summary/dry-run, explicit draft dry-run, draft-loop self-test, proposal-loop checks, trial-readiness gate, docs, templates, and prompt-copy actions visually separate. |
 | Locked Live Controls | Red locked badges instead of normal action buttons. | Shows unsafe live actions are intentionally unavailable. |
 
 The window also includes a persistent safe-mode status bar and a dark output log for better contrast while preserving the same no-input/no-debugger/no-Git-mutation safety model.
