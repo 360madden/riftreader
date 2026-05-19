@@ -27,6 +27,7 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 try:
     from . import local_artifact_bridge as bridge
@@ -49,6 +50,7 @@ DEFAULT_PORT = 8770
 DEFAULT_DRY_RUN_TIMEOUT_SECONDS = 180.0
 DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS = 30.0
 DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS = 120.0
+DEFAULT_CHATGPT_ORIGIN = "https://chatgpt.com"
 MAX_HANDOFF_BYTES = 512 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
@@ -990,15 +992,25 @@ def normalize_allowed_origins(values: list[str] | None) -> list[str]:
         candidate = value.strip()
         if not candidate:
             raise AdapterError("PUBLIC_ORIGIN_INVALID", "allowed origin must not be empty.", status="failed")
-        if "://" not in candidate:
+        if candidate == "*" or "*" in candidate:
+            raise AdapterError("PUBLIC_ORIGIN_INVALID", "allowed origin wildcards are not allowed.", status="failed")
+        candidate = candidate.rstrip("/")
+        parsed = urlsplit(candidate)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise AdapterError(
                 "PUBLIC_ORIGIN_INVALID",
-                "allowed origin must include scheme, e.g. https://chatgpt.com.",
+                "allowed origin must be an exact http(s) origin, e.g. https://chatgpt.com.",
                 status="failed",
                 extra={"value": value},
             )
-        if candidate.endswith("/"):
-            candidate = candidate.rstrip("/")
+        if parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
+            raise AdapterError(
+                "PUBLIC_ORIGIN_INVALID",
+                "allowed origin must not include path, query, fragment, or credentials.",
+                status="failed",
+                extra={"value": value},
+            )
+        candidate = f"{parsed.scheme}://{parsed.netloc}"
         if candidate not in normalized:
             normalized.append(candidate)
     return normalized
@@ -1336,6 +1348,50 @@ def host_from_https_url(url: str) -> str:
     return match.group(1)
 
 
+def parse_ipv4_addresses(text: str) -> list[str]:
+    addresses: list[str] = []
+    for match in re.finditer(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text):
+        candidate = match.group(0)
+        if candidate in addresses:
+            continue
+        if all(0 <= int(part) <= 255 for part in candidate.split(".")):
+            addresses.append(candidate)
+    return addresses
+
+
+def resolve_ipv4_for_curl(host: str, *, timeout_seconds: float = 10.0) -> str | None:
+    if not re.fullmatch(r"[A-Za-z0-9.-]+", host):
+        return None
+    commands = [
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            f"Resolve-DnsName -Name '{host}' -Type A -ErrorAction Stop | Select-Object -ExpandProperty IPAddress",
+        ],
+        ["nslookup", "-type=A", host, "1.1.1.1"],
+    ]
+    for command in commands:
+        try:
+            completed = subprocess.run(
+                command,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        stdout = completed.stdout
+        if command[0].lower() == "nslookup" and "Name:" in stdout:
+            stdout = stdout.split("Name:", 1)[1]
+        addresses = [address for address in parse_ipv4_addresses(stdout) if address != "1.1.1.1"]
+        if addresses:
+            return addresses[0]
+    return None
+
+
 def start_process_stream_readers(process: subprocess.Popen[str]) -> tuple[queue.Queue[tuple[str, str]], list[str], list[str]]:
     output_queue: queue.Queue[tuple[str, str]] = queue.Queue()
     stdout_lines: list[str] = []
@@ -1429,6 +1485,9 @@ def curl_json_rpc_request(
     request: dict[str, Any],
     timeout_seconds: float,
     temp_dir: Path,
+    origin: str | None = None,
+    resolve_host: str | None = None,
+    resolve_ip: str | None = None,
 ) -> dict[str, Any]:
     request_id = request.get("id", "notification")
     safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(request_id))
@@ -1440,6 +1499,10 @@ def curl_json_rpc_request(
         "--show-error",
         "--max-time",
         str(timeout_seconds),
+    ]
+    if resolve_host and resolve_ip:
+        command.extend(["--resolve", f"{resolve_host}:443:{resolve_ip}"])
+    command.extend([
         "-D",
         str(headers_path),
         "-o",
@@ -1451,9 +1514,10 @@ def curl_json_rpc_request(
         "Content-Type: application/json",
         "-H",
         "Accept: application/json, text/event-stream",
-        "--data-binary",
-        json.dumps(request, separators=(",", ":")),
-    ]
+    ])
+    if origin:
+        command.extend(["-H", f"Origin: {origin}"])
+    command.extend(["--data-binary", json.dumps(request, separators=(",", ":"))])
     started = time.monotonic()
     completed = subprocess.run(
         command,
@@ -1505,6 +1569,9 @@ def cloudflare_smoke_client_result(
     url: str,
     timeout_seconds: float,
     temp_dir: Path,
+    origin: str,
+    resolve_host: str | None = None,
+    resolve_ip: str | None = None,
 ) -> dict[str, Any]:
     requests = [
         {
@@ -1527,6 +1594,9 @@ def cloudflare_smoke_client_result(
             request=request,
             timeout_seconds=timeout_seconds,
             temp_dir=temp_dir,
+            origin=origin,
+            resolve_host=resolve_host,
+            resolve_ip=resolve_ip,
         )
         for request in requests
     ]
@@ -1588,6 +1658,7 @@ def run_cloudflare_tunnel_smoke_test(
     host: str = DEFAULT_HOST,
     timeout_seconds: float = DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS,
     cloudflared_path: str | None = None,
+    origin: str = DEFAULT_CHATGPT_ORIGIN,
 ) -> dict[str, Any]:
     if host != DEFAULT_HOST:
         raise AdapterError(
@@ -1605,6 +1676,8 @@ def run_cloudflare_tunnel_smoke_test(
         )
 
     sdk_path_additions = ensure_mcp_sdk_available(config.repo_root)
+    normalized_origins = normalize_allowed_origins([origin])
+    public_origin = normalized_origins[0]
     cloudflared_executable = resolve_cloudflared_executable(cloudflared_path)
     curl_executable = resolve_curl_executable()
     port = choose_loopback_port()
@@ -1628,6 +1701,7 @@ def run_cloudflare_tunnel_smoke_test(
     server_stderr = ""
     public_url: str | None = None
     public_host: str | None = None
+    curl_resolve_ip: str | None = None
     client_result: dict[str, Any] = {"responses": []}
     blockers: list[str] = []
     status = "failed"
@@ -1656,6 +1730,7 @@ def run_cloudflare_tunnel_smoke_test(
                 stderr_lines=tunnel_stderr,
             )
             public_host = host_from_https_url(public_url)
+            curl_resolve_ip = resolve_ipv4_for_curl(public_host)
             script_path = Path(__file__).resolve()
             server_command = [
                 sys.executable,
@@ -1675,6 +1750,8 @@ def run_cloudflare_tunnel_smoke_test(
                 str(config.audit_root),
                 "--allowed-host",
                 public_host,
+                "--allowed-origin",
+                public_origin,
             ]
             env = os.environ.copy()
             env["PYTHONPATH"] = build_child_pythonpath(config, env)
@@ -1698,11 +1775,16 @@ def run_cloudflare_tunnel_smoke_test(
                         status="failed",
                         extra={"serverExitCode": server_process.returncode},
                     )
+                if curl_resolve_ip is None:
+                    curl_resolve_ip = resolve_ipv4_for_curl(public_host)
                 client_result = cloudflare_smoke_client_result(
                     curl_executable=curl_executable,
                     url=f"{public_url}/mcp",
                     timeout_seconds=min(10.0, max(2.0, timeout_seconds / 6)),
                     temp_dir=temp_dir,
+                    origin=public_origin,
+                    resolve_host=public_host,
+                    resolve_ip=curl_resolve_ip,
                 )
                 last_blockers = verify_cloudflare_smoke_client_result(client_result)
                 if not last_blockers:
@@ -1752,6 +1834,8 @@ def run_cloudflare_tunnel_smoke_test(
         "publicUrl": public_url,
         "publicMcpUrl": f"{public_url}/mcp" if public_url else None,
         "publicHost": public_host,
+        "originHeader": public_origin,
+        "curlResolveIp": curl_resolve_ip,
         "localOrigin": local_origin,
         "host": host,
         "port": port,
@@ -1790,6 +1874,7 @@ def run_cloudflare_tunnel_smoke_test(
             "sdkPathAdditions": sdk_path_additions,
             "transport": "streamable-http",
             "allowedHostExact": public_host,
+            "allowedOriginExact": public_origin,
             "originBoundToLoopbackOnly": host == DEFAULT_HOST,
         },
     }
@@ -2013,6 +2098,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run-timeout-seconds", type=float, default=DEFAULT_DRY_RUN_TIMEOUT_SECONDS)
     parser.add_argument("--transport-smoke-timeout-seconds", type=float, default=DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS)
     parser.add_argument("--cloudflare-smoke-timeout-seconds", type=float, default=DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS)
+    parser.add_argument(
+        "--cloudflare-smoke-origin",
+        default=DEFAULT_CHATGPT_ORIGIN,
+        help="Origin header to validate during --cloudflare-tunnel-smoke; defaults to ChatGPT web origin.",
+    )
     parser.add_argument("--cloudflared-path", default=None, help="Optional explicit path to cloudflared for --cloudflare-tunnel-smoke.")
     parser.add_argument("--max-inbox-mb", type=float, default=1.0)
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
@@ -2058,6 +2148,7 @@ def main(argv: list[str] | None = None) -> int:
                 host=args.host,
                 timeout_seconds=args.cloudflare_smoke_timeout_seconds,
                 cloudflared_path=args.cloudflared_path,
+                origin=args.cloudflare_smoke_origin,
             )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1

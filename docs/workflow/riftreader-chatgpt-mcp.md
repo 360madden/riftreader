@@ -91,9 +91,12 @@ cd "C:\RIFT MODDING\RiftReader"
 
 This starts a temporary Cloudflare quick tunnel and a temporary loopback MCP
 server, calls `initialize`, `tools/list`, and `tools/call` for `health` through
-the public HTTPS `/mcp` URL, writes a local summary under
+the public HTTPS `/mcp` URL with an `Origin: https://chatgpt.com` header, writes a local summary under
 `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`, then stops both
-processes. It is opt-in only and does not register the app in ChatGPT.
+processes. It is opt-in only and does not register the app in ChatGPT. To test
+a different ChatGPT web origin, pass `--cloudflare-smoke-origin <exact-origin>`.
+The smoke helper records any curl DNS override IP it had to use under
+`curlResolveIp` because quick-tunnel DNS can take a few seconds to propagate.
 
 ## Running the MCP server locally
 
@@ -177,9 +180,12 @@ https://example.trycloudflare.com/mcp
 ```
 
 Do not pass a full URL to `--allowed-host`; pass only the exact Host header
-value, such as `example.trycloudflare.com`. If this is omitted for a public
-tunnel, the Python MCP SDK's DNS-rebinding protection can reject the request
-with HTTP `421 Misdirected Request`.
+value, such as `example.trycloudflare.com`. Pass only an exact origin to
+`--allowed-origin`, such as `https://chatgpt.com`; do not include a path,
+query, fragment, credentials, or wildcard. If `--allowed-host` is omitted for a
+public tunnel, the Python MCP SDK's DNS-rebinding protection can reject the
+request with HTTP `421 Misdirected Request`. If an `Origin` header is present
+and not allowlisted, it can reject the request with HTTP `403 Forbidden`.
 
 ## Registering in ChatGPT Developer Mode
 
@@ -214,6 +220,7 @@ in this turn.
 |---|---|---|
 | `MCP_PYTHON_SDK_MISSING` | Python `mcp` package is not installed. | Install `mcp[cli]` before `--serve`. |
 | HTTP `421 Misdirected Request` through a tunnel | The tunnel Host header is not allowlisted. | Restart `--serve` with `--allowed-host <bare-public-host>` and, for ChatGPT, `--allowed-origin https://chatgpt.com`. |
+| HTTP `403 Forbidden` through a tunnel | The request has an `Origin` header not in `allowed_origins`. | Restart `--serve` with `--allowed-origin https://chatgpt.com` or the exact origin being tested. |
 | ChatGPT cannot connect | Tunnel URL is missing `/mcp`, expired, or not HTTPS. | Restart local server/tunnel and re-register/refresh tools. |
 | Write tool prompts for confirmation | Expected for action tools. | Review JSON payload before approving. |
 | `PACKAGE_DRAFT_OPERATOR_EMPTY` | Only self-test drafts exist or no operator draft exists. | Submit/review a real operator-approved proposal first. |

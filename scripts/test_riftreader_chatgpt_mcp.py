@@ -482,10 +482,28 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(path_error.exception.code, "PUBLIC_HOST_INVALID")
         self.assertEqual(wildcard_error.exception.code, "PUBLIC_HOST_INVALID")
 
+    def test_allowed_origin_normalization_requires_exact_origin(self) -> None:
+        self.assertEqual(chatgpt_mcp.normalize_allowed_origins(["https://chatgpt.com/"]), ["https://chatgpt.com"])
+
+        with self.assertRaises(chatgpt_mcp.AdapterError) as path_error:
+            chatgpt_mcp.normalize_allowed_origins(["https://chatgpt.com/mcp"])
+        with self.assertRaises(chatgpt_mcp.AdapterError) as wildcard_error:
+            chatgpt_mcp.normalize_allowed_origins(["https://*.example.com"])
+        with self.assertRaises(chatgpt_mcp.AdapterError) as missing_scheme_error:
+            chatgpt_mcp.normalize_allowed_origins(["chatgpt.com"])
+
+        self.assertEqual(path_error.exception.code, "PUBLIC_ORIGIN_INVALID")
+        self.assertEqual(wildcard_error.exception.code, "PUBLIC_ORIGIN_INVALID")
+        self.assertEqual(missing_scheme_error.exception.code, "PUBLIC_ORIGIN_INVALID")
+
     def test_cloudflare_smoke_parses_tunnel_url_and_verifies_client_result(self) -> None:
         text = "INF +--------------------------------------------------------------------------------------------+\nINF |  https://alpha-beta.trycloudflare.com  |"
         self.assertEqual(chatgpt_mcp.parse_cloudflare_quick_tunnel_url(text), "https://alpha-beta.trycloudflare.com")
         self.assertEqual(chatgpt_mcp.host_from_https_url("https://alpha-beta.trycloudflare.com/mcp"), "alpha-beta.trycloudflare.com")
+        self.assertEqual(
+            chatgpt_mcp.parse_ipv4_addresses("Addresses: 2606:4700::6810:e684 104.16.230.132 999.1.1.1 104.16.230.132"),
+            ["104.16.230.132"],
+        )
 
         client_result = {
             "responses": [
