@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import socket
 import shutil
 import sys
 from pathlib import Path
@@ -54,6 +55,9 @@ TRUE_HEALTH_SAFETY_KEYS = (
     "noWindowsMcpProxy",
     "noRiftGameMcpProxy",
 )
+DEFAULT_LOOPBACK_HOST = "127.0.0.1"
+DEFAULT_MCP_SERVE_PORT = 8770
+LOCAL_IGNORED_ARTIFACT_ROOT = ".riftreader-local"
 
 
 def _bool(value: object) -> bool:
@@ -325,6 +329,94 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
     }
 
 
+def _bind_check(host: str, port: int) -> dict[str, Any]:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((host, port))
+            assigned_port = int(sock.getsockname()[1])
+        return {"status": "available", "ok": True, "host": host, "port": port, "assignedPort": assigned_port}
+    except OSError as exc:
+        return {
+            "status": "busy-or-unavailable",
+            "ok": False,
+            "host": host,
+            "port": port,
+            "error": f"{type(exc).__name__}:{exc}",
+        }
+
+
+def _git_ignored(repo_root: Path, repo_relative_path: str) -> dict[str, Any]:
+    envelope = run_command_envelope(
+        f"git-check-ignore:{repo_relative_path}",
+        ["git", "check-ignore", "-q", "--", repo_relative_path],
+        repo_root,
+        timeout_seconds=15,
+        expected_exit_codes={0, 1},
+        capture_full_output=True,
+    )
+    exit_code = envelope.get("exitCode")
+    return {
+        "path": repo_relative_path,
+        "ignored": exit_code == 0,
+        "status": "ignored" if exit_code == 0 else "not-ignored" if exit_code == 1 else "unknown",
+        "command": {key: value for key, value in envelope.items() if key not in {"stdout", "stderr"}},
+    }
+
+
+def environment_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    repo_markers = {
+        "agents": (repo_root / "agents.md").is_file() or (repo_root / "AGENTS.md").is_file(),
+        "git": (repo_root / ".git").exists(),
+        "workflowPackage": (repo_root / "tools" / "riftreader_workflow").is_dir(),
+    }
+    if not all(repo_markers.values()):
+        blockers.append("repo:not-riftreader-root")
+
+    ephemeral_port = _bind_check(DEFAULT_LOOPBACK_HOST, 0)
+    if not ephemeral_port.get("ok"):
+        blockers.append("environment:loopback-ephemeral-port-unavailable")
+
+    default_port = _bind_check(DEFAULT_LOOPBACK_HOST, DEFAULT_MCP_SERVE_PORT)
+    if not default_port.get("ok"):
+        warnings.append(f"environment:default-serve-port-busy:{DEFAULT_MCP_SERVE_PORT}")
+
+    ignored_root = _git_ignored(repo_root, LOCAL_IGNORED_ARTIFACT_ROOT)
+    if ignored_root.get("ignored") is not True:
+        blockers.append(f"environment:artifact-root-not-ignored:{LOCAL_IGNORED_ARTIFACT_ROOT}")
+
+    local_roots = {
+        "mcpLocalRoot": str(Path(LOCAL_IGNORED_ARTIFACT_ROOT) / "riftreader-chatgpt-mcp"),
+        "artifactBridgeInbox": str(Path(LOCAL_IGNORED_ARTIFACT_ROOT) / "artifact-bridge-inbox"),
+        "artifactBridgeDrafts": str(Path(LOCAL_IGNORED_ARTIFACT_ROOT) / "artifact-bridge-package-drafts"),
+        "packageIntake": str(Path(LOCAL_IGNORED_ARTIFACT_ROOT) / "package-intake"),
+    }
+    root_prefix = LOCAL_IGNORED_ARTIFACT_ROOT.replace("/", "\\") + "\\"
+    for name, value in local_roots.items():
+        if not value.replace("/", "\\").startswith(root_prefix):
+            blockers.append(f"environment:local-artifact-root-outside-ignored-root:{name}")
+
+    return {
+        "status": "passed" if not blockers else "blocked",
+        "ok": not blockers,
+        "blockers": blockers,
+        "warnings": warnings,
+        "liveTrialMode": live_trial_mode,
+        "repoRoot": str(repo_root),
+        "repoMarkers": repo_markers,
+        "loopback": {
+            "ephemeralPort": ephemeral_port,
+            "defaultServePort": default_port,
+        },
+        "artifactRoots": {
+            "ignoredRoot": ignored_root,
+            "localRoots": local_roots,
+            "trackedPayloadRoot": "artifacts\\chatgpt-payloads",
+        },
+    }
+
+
 def _map_ci_blocker(blocker: str) -> str:
     if blocker.startswith("ci-workflow-missing-current-head:"):
         return "ci:missing:" + blocker.split(":", 1)[1]
@@ -369,6 +461,8 @@ def _next_action(blockers: list[str]) -> dict[str, Any]:
             return {"key": "mcp-phase2-status", "reason": "Final readiness builds on a passing Phase 2 gate.", "command": commands["mcpPhase2Status"]}
         if blocker.startswith("dependency:"):
             return {"key": "fix-final-readiness-dependency", "reason": blocker, "command": commands["mcpMissionControl"]}
+        if blocker.startswith("environment:") or blocker.startswith("repo:"):
+            return {"key": "fix-final-readiness-environment", "reason": blocker, "command": commands["mcpMissionControl"]}
         if blocker.startswith("safety:"):
             return {"key": "inspect-mcp-safety", "reason": blocker, "command": commands["mcpTrialReadiness"]}
         if blocker.startswith("public-session:"):
@@ -384,6 +478,7 @@ def final_readiness(
     state_payload: dict[str, Any] | None = None,
     git_sync_payload: dict[str, Any] | None = None,
     dependency_payload: dict[str, Any] | None = None,
+    environment_payload: dict[str, Any] | None = None,
     tool_surface_payload: dict[str, Any] | None = None,
     public_session_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -391,6 +486,7 @@ def final_readiness(
     phase2_payload = phase2_payload if phase2_payload is not None else phase2_status(repo_root)
     git_sync_payload = git_sync_payload if git_sync_payload is not None else git_upstream_sync(repo_root)
     dependency_payload = dependency_payload if dependency_payload is not None else dependency_preflight(repo_root, live_trial_mode=live_trial_mode)
+    environment_payload = environment_payload if environment_payload is not None else environment_preflight(repo_root, live_trial_mode=live_trial_mode)
     tool_surface_payload = tool_surface_payload if tool_surface_payload is not None else tool_surface_status(repo_root, state_payload)
     public_session_payload = public_session_payload if public_session_payload is not None else public_session_status(state_payload, live_trial_mode=live_trial_mode)
 
@@ -426,6 +522,7 @@ def final_readiness(
         blockers.append("artifact:proposal-smoke-stale")
 
     blockers.extend(str(blocker) for blocker in dependency_payload.get("blockers") or [])
+    blockers.extend(str(blocker) for blocker in environment_payload.get("blockers") or [])
     blockers.extend(str(blocker) for blocker in tool_surface_payload.get("blockers") or [])
     blockers.extend(str(blocker) for blocker in public_session_payload.get("blockers") or [])
     phase2_safety = phase2_payload.get("safety") if isinstance(phase2_payload.get("safety"), dict) else {}
@@ -437,6 +534,7 @@ def final_readiness(
             *(phase2_payload.get("warnings") if isinstance(phase2_payload.get("warnings"), list) else []),
             *(git_sync_payload.get("warnings") if isinstance(git_sync_payload.get("warnings"), list) else []),
             *(dependency_payload.get("warnings") if isinstance(dependency_payload.get("warnings"), list) else []),
+            *(environment_payload.get("warnings") if isinstance(environment_payload.get("warnings"), list) else []),
             *(tool_surface_payload.get("warnings") if isinstance(tool_surface_payload.get("warnings"), list) else []),
             *(public_session_payload.get("warnings") if isinstance(public_session_payload.get("warnings"), list) else []),
         ]
@@ -461,6 +559,7 @@ def final_readiness(
             "toolSurface": tool_surface_payload,
         },
         "dependencies": dependency_payload,
+        "environment": environment_payload,
         "publicSession": public_session_payload,
         "recommendedNextAction": _next_action(blockers),
         "safety": {
@@ -479,6 +578,7 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
     phase2_payload = payload.get("phase2") if isinstance(payload.get("phase2"), dict) else {}
     phase2_compact = compact_phase2_status(phase2_payload) if phase2_payload else {}
     deps = payload.get("dependencies") if isinstance(payload.get("dependencies"), dict) else {}
+    environment = payload.get("environment") if isinstance(payload.get("environment"), dict) else {}
     dep_map = deps.get("dependencies") if isinstance(deps.get("dependencies"), dict) else {}
     tool_surface = ((payload.get("artifacts") or {}).get("toolSurface") if isinstance(payload.get("artifacts"), dict) else {}) or {}
     public_session = payload.get("publicSession") if isinstance(payload.get("publicSession"), dict) else {}
@@ -499,6 +599,13 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
         "artifactFreshnessStatus": phase2_compact.get("artifactFreshnessStatus"),
         "toolSurfaceStatus": tool_surface.get("status"),
         "dependencyStatus": deps.get("status"),
+        "environmentStatus": environment.get("status"),
+        "loopbackEphemeralPortStatus": ((environment.get("loopback") or {}).get("ephemeralPort") or {}).get("status")
+        if isinstance(environment.get("loopback"), dict)
+        else None,
+        "defaultServePortStatus": ((environment.get("loopback") or {}).get("defaultServePort") or {}).get("status")
+        if isinstance(environment.get("loopback"), dict)
+        else None,
         "requiredDependencies": {name: item.get("status") for name, item in dep_map.items() if isinstance(item, dict) and item.get("required")},
         "publicSessionStatus": public_session.get("status"),
         "publicSessionStates": public_session.get("states"),
@@ -527,6 +634,7 @@ def self_test() -> dict[str, Any]:
         state_payload=state,
         git_sync_payload={"status": "passed", "ok": True, "blockers": [], "warnings": []},
         dependency_payload={"status": "passed", "ok": True, "blockers": [], "warnings": [], "dependencies": {}},
+        environment_payload={"status": "passed", "ok": True, "blockers": [], "warnings": []},
         tool_surface_payload={"status": "passed", "ok": True, "blockers": [], "warnings": []},
         public_session_payload={"status": "passed", "ok": True, "blockers": [], "warnings": [], "states": {}},
     )
@@ -537,6 +645,7 @@ def self_test() -> dict[str, Any]:
         state_payload=dirty_state,
         git_sync_payload={"status": "passed", "ok": True, "blockers": [], "warnings": []},
         dependency_payload={"status": "passed", "ok": True, "blockers": [], "warnings": [], "dependencies": {}},
+        environment_payload={"status": "passed", "ok": True, "blockers": [], "warnings": []},
         tool_surface_payload={"status": "passed", "ok": True, "blockers": [], "warnings": []},
         public_session_payload={"status": "passed", "ok": True, "blockers": [], "warnings": [], "states": {}},
     )

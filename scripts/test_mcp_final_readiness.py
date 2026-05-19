@@ -62,6 +62,16 @@ def ok_gate_overrides() -> dict[str, dict[str, object]]:
                 "gh": {"status": "passed", "required": True},
             },
         },
+        "environment_payload": {
+            "status": "passed",
+            "ok": True,
+            "blockers": [],
+            "warnings": [],
+            "loopback": {
+                "ephemeralPort": {"status": "available", "ok": True},
+                "defaultServePort": {"status": "available", "ok": True},
+            },
+        },
         "tool_surface_payload": {"status": "passed", "ok": True, "blockers": [], "warnings": []},
         "public_session_payload": {"status": "passed", "ok": True, "blockers": [], "warnings": [], "states": {}},
     }
@@ -175,6 +185,24 @@ class McpFinalReadinessTests(unittest.TestCase):
 
         self.assertIn("safety:unexpected-tool-surface", payload["blockers"])
 
+    def test_environment_blocker_blocks_final_readiness(self) -> None:
+        overrides = ok_gate_overrides()
+        overrides["environment_payload"] = {
+            "status": "blocked",
+            "ok": False,
+            "blockers": ["environment:artifact-root-not-ignored:.riftreader-local"],
+            "warnings": [],
+        }
+
+        payload = final.final_readiness(
+            Path.cwd(),
+            phase2_payload=base_phase2(),
+            state_payload=base_state(),
+            **overrides,
+        )
+
+        self.assertIn("environment:artifact-root-not-ignored:.riftreader-local", payload["blockers"])
+
     def test_tool_surface_parser_blocks_unapproved_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -212,6 +240,7 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertEqual(compact["status"], "passed")
         self.assertEqual(compact["phase2Status"], "passed")
         self.assertEqual(compact["dependencyStatus"], "passed")
+        self.assertEqual(compact["environmentStatus"], "passed")
         self.assertIn("recommendedNextAction", compact)
 
     def test_self_test_passes(self) -> None:

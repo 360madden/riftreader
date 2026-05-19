@@ -10,14 +10,14 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .common import find_repo_root, run_command_envelope, safety_flags, utc_iso
+    from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from .mcp_ci_status import current_head_ci_status
     from .mcp_final_readiness import compact_final_readiness, final_readiness
     from .mcp_workflow_state import build_mcp_workflow_state, standard_commands
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, utc_iso
+    from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from riftreader_workflow.mcp_ci_status import current_head_ci_status
     from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
     from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, standard_commands
@@ -29,11 +29,11 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
     ci_status = current_head_ci_status(repo_root)
     final_status = final_readiness(repo_root, state_payload=state)
     commands = standard_commands()
-    warnings = [
+    warnings = unique([
         *(state.get("warnings") if isinstance(state.get("warnings"), list) else []),
         *(ci_status.get("warnings") if isinstance(ci_status.get("warnings"), list) else []),
         *(final_status.get("warnings") if isinstance(final_status.get("warnings"), list) else []),
-    ]
+    ])
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-mission-control",

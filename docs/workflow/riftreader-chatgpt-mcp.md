@@ -186,6 +186,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Helper | Command | Default behavior |
 |---|---|---|
 | MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, and `--checklist-md`. |
+| Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, dependency checks, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
 | ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; fails closed on tool count, repo-root redaction, inbox, draft, or dry-run proof gaps. |
@@ -194,12 +195,14 @@ cd "C:\RIFT MODDING\RiftReader"
 
 The shared state layer marks self-test inbox/draft artifacts, adds artifact age
 fields, warns on stale proof budgets, and labels stopped ephemeral public URLs
-as expected-expired. `MCP Mission Control --trial-command` prints the bounded
-public trial command without running it. Only `--run-readiness` and
-`--run-proposal-smoke` execute local-only validation. No helper starts a public
-tunnel by default. The Phase 1 gate intentionally reports `blocked` until an
-actual ChatGPT Developer Mode proof packet is recorded with a passing
-`actual-client-proof` artifact.
+as expected-expired. The final gate also checks loopback port allocation,
+default serve-port availability, and whether `.riftreader-local` remains
+Git-ignored for local MCP artifacts. `MCP Mission Control --trial-command`
+prints the bounded public trial command without running it. Only
+`--run-readiness` and `--run-proposal-smoke` execute local-only validation. No
+helper starts a public tunnel by default. The Phase 1 gate intentionally reports
+`blocked` until an actual ChatGPT Developer Mode proof packet is recorded with a
+passing `actual-client-proof` artifact.
 
 ## Running the MCP server locally
 

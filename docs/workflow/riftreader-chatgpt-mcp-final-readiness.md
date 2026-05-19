@@ -1,6 +1,8 @@
 # RiftReader ChatGPT MCP final readiness contract
 
-Status: Phase 2 final-product contract.
+Status: Implemented contract. Phase 3 added the final gate; Phase 4 added
+environment preflight fields for loopback port allocation and local artifact
+root safety.
 
 ## Purpose
 
@@ -74,6 +76,7 @@ The Phase 3 final gate should emit JSON with at least these top-level fields:
 | Proposal smoke freshness | Latest proposal transport smoke exists and is fresh. | `artifact:proposal-smoke-stale` |
 | Public session state | No public tunnel or trial session is expected to still be running unless the final gate is explicitly in live-trial mode. | `public-session:unexpected-active` |
 | Dependency preflight | Required dependencies for the requested mode are available. | `dependency:missing:<name>` |
+| Environment preflight | Repo markers are present, loopback ephemeral port allocation works, and local generated MCP artifacts stay under ignored `.riftreader-local`. | `repo:not-riftreader-root`, `environment:*` |
 | Tool exposure | MCP tool list is exactly the approved narrow surface. | `safety:unexpected-tool-surface` |
 | Repo-root redaction | Public health/proof reports `repoRoot="."` and `absoluteRepoRootExposed=false`. | `safety:absolute-repo-root-exposed` |
 | Local-only writes | ChatGPT-originated writes are limited to `.riftreader-local` inbox/draft/audit artifacts. | `safety:write-boundary-broken` |
@@ -118,6 +121,19 @@ tests prove the new tool stays within the safety model.
 | `gh` CLI authenticated for repo read access | Current-head CI verification | Missing/unavailable `gh` blocks final readiness unless a future equivalent read-only CI source is implemented. |
 | `cloudflared` or equivalent HTTPS tunnel tool | Public/ChatGPT trial mode only | Missing blocks live-trial readiness, not local-only final-contract validation. |
 | `curl` | Public tunnel smoke verification | Missing blocks public-smoke/live-trial modes that use curl verification. |
+
+## Environment preflight fields
+
+The implemented final gate also reports an `environment` object. This check is
+read-only and does not start the MCP server or a public tunnel.
+
+| Field | Required condition | Failure behavior |
+|---|---|---|
+| Repo markers | `agents.md` or `AGENTS.md`, `.git`, and `tools\riftreader_workflow` exist under the resolved repo root. | Block with `repo:not-riftreader-root`. |
+| Loopback ephemeral port | Binding `127.0.0.1:0` succeeds and returns an assigned port. | Block with `environment:loopback-ephemeral-port-unavailable`. |
+| Default serve port | Binding `127.0.0.1:8770` succeeds. | Warning only; trial/smoke helpers use ephemeral ports, and manual serve can choose another port. |
+| Ignored local artifact root | `.riftreader-local` is ignored by Git. | Block with `environment:artifact-root-not-ignored:.riftreader-local`. |
+| Local MCP roots | MCP local roots remain under `.riftreader-local`. | Block with `environment:local-artifact-root-outside-ignored-root:<name>`. |
 
 ## Safety invariants
 
@@ -204,4 +220,10 @@ After Phase 3 exists, replace the first command with:
 
 ```powershell
 .\scripts\riftreader-mcp-final.cmd --status --compact-json
+```
+
+For a full final-readiness packet including dependency and environment details:
+
+```powershell
+.\scripts\riftreader-mcp-final.cmd --status --json
 ```
