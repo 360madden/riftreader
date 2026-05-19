@@ -142,6 +142,11 @@ class McpWorkflowStateTests(unittest.TestCase):
                     "status": "passed",
                     "ok": True,
                     "proof": {
+                        "chatgptRegistrationSucceeded": True,
+                        "templateFetched": True,
+                        "submitPackageProposalSucceeded": True,
+                        "listInboxSawInboxId": True,
+                        "dryRunSucceeded": True,
                         "publicMcpUrl": "https://client.trycloudflare.com/mcp",
                         "toolCount": 8,
                         "inboxId": "20260519T010500Z-abc",
@@ -167,6 +172,11 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertEqual(latest["draft"]["draftId"], "20260519T010600Z-def")
         self.assertTrue(latest["dry-run"]["dryRun"])
         self.assertEqual(latest["actual-client-proof"]["toolCount"], 8)
+        self.assertTrue(latest["actual-client-proof"]["chatGptRegistrationSucceeded"])
+        self.assertTrue(latest["actual-client-proof"]["templateFetched"])
+        self.assertTrue(latest["actual-client-proof"]["submitPackageProposalSucceeded"])
+        self.assertTrue(latest["actual-client-proof"]["listInboxSawInboxId"])
+        self.assertTrue(latest["actual-client-proof"]["dryRunSucceeded"])
 
     def test_marks_self_test_artifacts_and_expired_ephemeral_public_urls(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

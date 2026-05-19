@@ -36,7 +36,38 @@ FINAL_PRODUCT_PHASES = (
 )
 
 
-def build_final_product_progress(repo_root: Path, final_status: dict[str, Any], commands: dict[str, list[str]]) -> dict[str, Any]:
+def latest_release_handoff_path(repo_root: Path) -> str | None:
+    """Return the newest repo-relative MCP final release handoff path, if present."""
+
+    handoff_root = repo_root / "docs" / "handoffs"
+    if not handoff_root.is_dir():
+        return None
+    matches = [path for path in handoff_root.glob("*mcp-final-readiness-release-handoff*.md") if path.is_file()]
+    if not matches:
+        return None
+    newest = max(matches, key=lambda path: (path.stat().st_mtime_ns, path.name))
+    return str(newest.relative_to(repo_root))
+
+
+def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
+    actual_client = latest_artifacts.get("actual-client-proof") if isinstance(latest_artifacts, dict) else None
+    if not isinstance(actual_client, dict):
+        return False
+    return (
+        actual_client.get("ok") is True
+        and actual_client.get("status") == "passed"
+        and actual_client.get("selfTest") is not True
+        and actual_client.get("chatGptRegistrationSucceeded") is True
+        and actual_client.get("toolCount") == 8
+    )
+
+
+def build_final_product_progress(
+    repo_root: Path,
+    final_status: dict[str, Any],
+    commands: dict[str, list[str]],
+    latest_artifacts: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Summarize the final-product phase ladder for one operator dashboard."""
 
     contract_path = repo_root / "docs" / "workflow" / "riftreader-chatgpt-mcp-final-readiness.md"
@@ -48,6 +79,13 @@ def build_final_product_progress(repo_root: Path, final_status: dict[str, Any], 
     environment_passed = final_status.get("environmentStatus") == "passed"
     tool_surface_passed = final_status.get("toolSurfaceStatus") == "passed"
     public_session_passed = final_status.get("publicSessionStatus") == "passed"
+    proof_replay_passed = final_status.get("proofReplayStatus") == "passed"
+    proof_fresh = final_status.get("proofFreshnessStatus") == "fresh"
+    latest_artifacts = latest_artifacts if isinstance(latest_artifacts, dict) else {}
+    actual_client_proof_completed = _actual_client_proof_completed(latest_artifacts)
+    release_handoff_path = latest_release_handoff_path(repo_root)
+    phase7_completed = final_ok and public_session_passed and proof_replay_passed and proof_fresh and actual_client_proof_completed
+    phase8_completed = phase7_completed and bool(release_handoff_path)
     phase_rows = [
         phase_row(
             1,
@@ -88,14 +126,22 @@ def build_final_product_progress(repo_root: Path, final_status: dict[str, Any], 
         phase_row(
             7,
             "Fresh real ChatGPT trial",
-            "ready" if final_ok and public_session_passed else "pending",
-            "External public trial remains explicit-only; no tunnel is started by Mission Control.",
+            "completed" if phase7_completed else ("ready" if final_ok and public_session_passed else "pending"),
+            (
+                "Fresh repo-owned actual-client proof is recorded, replayed, and not self-test."
+                if phase7_completed
+                else "External public trial remains explicit-only; no tunnel is started by Mission Control."
+            ),
         ),
         phase_row(
             8,
             "Release handoff and maintenance loop",
-            "pending",
-            "Write final release handoff after a fresh actual-client proof and final gate pass.",
+            "completed" if phase8_completed else "pending",
+            (
+                f"Release handoff exists: {release_handoff_path}."
+                if phase8_completed
+                else "Write final release handoff after a fresh actual-client proof and final gate pass."
+            ),
         ),
     ]
     completed_count = sum(1 for row in phase_rows if row["status"] == "completed")
@@ -112,6 +158,12 @@ def build_final_product_progress(repo_root: Path, final_status: dict[str, Any], 
             "reason": "Local final gate passes; the next external proof is a bounded ChatGPT trial.",
             "command": ["scripts\\riftreader-mcp-mission-control.cmd", "--trial-command", "--json"],
         }
+    elif next_phase is None:
+        recommended = {
+            "key": "maintenance-loop",
+            "reason": "All MCP final-product phases are complete; keep proof fresh and rerun the final gate before releases.",
+            "command": commands["mcpFinalCompactStatus"],
+        }
     else:
         recommended = (final_status.get("recommendedNextAction") if isinstance(final_status.get("recommendedNextAction"), dict) else {}) or {
             "key": "inspect-final-readiness",
@@ -121,13 +173,15 @@ def build_final_product_progress(repo_root: Path, final_status: dict[str, Any], 
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-final-product-progress",
-        "status": "ready-for-next-phase" if final_ok else "blocked",
+        "status": "completed" if next_phase is None else ("ready-for-next-phase" if final_ok else "blocked"),
         "completedPhaseCount": completed_count,
         "totalPhaseCount": len(phase_rows),
         "currentCompletedThroughPhase": completed_count if all(row["status"] == "completed" for row in phase_rows[:completed_count]) else None,
         "nextPhase": next_phase,
         "phases": phase_rows,
         "recommendedNextAction": recommended,
+        "releaseHandoffPath": release_handoff_path,
+        "actualClientProofCompleted": actual_client_proof_completed,
         "externalTrialExplicitOnly": True,
         "publicTunnelStarted": False,
         "chatGptRegistrationPerformed": False,
@@ -144,7 +198,7 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
     final_status = final_readiness(repo_root, state_payload=state)
     compact_final_status = compact_final_readiness(final_status)
     commands = standard_commands()
-    progress = build_final_product_progress(repo_root, compact_final_status, commands)
+    progress = build_final_product_progress(repo_root, compact_final_status, commands, state.get("latestArtifacts"))
     warnings = unique([
         *(state.get("warnings") if isinstance(state.get("warnings"), list) else []),
         *(ci_status.get("warnings") if isinstance(ci_status.get("warnings"), list) else []),

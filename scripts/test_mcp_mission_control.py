@@ -76,6 +76,52 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["commandDisplayedOnly"])
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
 
+    def test_progress_marks_release_handoff_complete_from_recorded_actual_client_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            contract = root / "docs" / "workflow" / "riftreader-chatgpt-mcp-final-readiness.md"
+            contract.parent.mkdir(parents=True)
+            contract.write_text("# Final readiness contract\n", encoding="utf-8")
+            handoff = root / "docs" / "handoffs" / "20260519-1645-mcp-final-readiness-release-handoff.md"
+            handoff.parent.mkdir(parents=True)
+            handoff.write_text("# Release handoff\n", encoding="utf-8")
+            progress = mission.build_final_product_progress(
+                root,
+                {
+                    "ok": True,
+                    "phase2Ready": True,
+                    "ciStatus": "passed",
+                    "upstreamStatus": "passed",
+                    "dependencyStatus": "passed",
+                    "environmentStatus": "passed",
+                    "toolSurfaceStatus": "passed",
+                    "publicSessionStatus": "passed",
+                    "proofReplayStatus": "passed",
+                    "proofFreshnessStatus": "fresh",
+                },
+                mission.standard_commands(),
+                {
+                    "actual-client-proof": {
+                        "ok": True,
+                        "status": "passed",
+                        "selfTest": False,
+                        "chatGptRegistrationSucceeded": True,
+                        "toolCount": 8,
+                    }
+                },
+            )
+
+        self.assertEqual(progress["status"], "completed")
+        self.assertEqual(progress["completedPhaseCount"], 8)
+        self.assertEqual(progress["currentCompletedThroughPhase"], 8)
+        self.assertIsNone(progress["nextPhase"])
+        self.assertEqual(progress["recommendedNextAction"]["key"], "maintenance-loop")
+        self.assertEqual(progress["phases"][6]["status"], "completed")
+        self.assertEqual(progress["phases"][7]["status"], "completed")
+        self.assertTrue(progress["actualClientProofCompleted"])
+        self.assertEqual(progress["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")
+
     def test_run_readiness_executes_local_only_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
