@@ -78,8 +78,46 @@ class CoordinateRecoveryStatusTests(unittest.TestCase):
         self.assertEqual(result["liveTarget"]["verdict"], "not-checked")
         self.assertEqual(result["target"]["pid"], 1234)
         self.assertEqual(result["proof"]["anchor"]["addressHex"], "0x1000")
+        self.assertTrue(result["proof"]["movementAllowed"])
+        self.assertTrue(result["proof"]["movementAllowedEffective"])
         self.assertTrue(result["recoveryProfile"]["profileScanUsed"])
         self.assertEqual(result["recoveryProfile"]["bestScanRange"]["rank"], 1)
+
+    def test_input_backend_incident_blocks_effective_movement_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = root / "current-proof-anchor-readback.json"
+            profile = root / "coordinate-recovery-profile.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "status": "current-target-proofonly-passed",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 1234,
+                            "targetWindowHandle": "0xABCDEF",
+                        },
+                        "latestValidation": {"status": "valid", "movementAllowed": True},
+                        "inputBackendIncident": {
+                            "status": "agent-live-movement-paused-after-spin-incident",
+                            "automationMovementPaused": True,
+                            "emergencyKeyRelease": {"summaryJson": "scripts/captures/emergency/summary.json"},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile.write_text(json.dumps({}), encoding="utf-8")
+
+            result = status_tool.build_status(root, proof, profile)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertTrue(result["proof"]["movementAllowed"])
+        self.assertFalse(result["proof"]["movementAllowedEffective"])
+        self.assertEqual(
+            result["proof"]["inputBackendIncident"]["status"],
+            "agent-live-movement-paused-after-spin-incident",
+        )
 
     def test_live_target_check_blocks_when_artifact_pid_is_not_running(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -152,6 +190,44 @@ class CoordinateRecoveryStatusTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["liveTarget"]["verdict"], "no-live-process")
         self.assertIn("live-target-not-running:rift_x64", result["blockers"])
+
+    def test_blocked_current_proof_status_blocks_even_when_target_process_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = root / "current-proof-anchor-readback.json"
+            profile = root / "coordinate-recovery-profile.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "status": "blocked-target-not-in-world",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 1234,
+                            "targetWindowHandle": "0xABCDEF",
+                        },
+                        "latestValidation": {"status": "blocked-target-not-in-world", "movementAllowed": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile.write_text(json.dumps({}), encoding="utf-8")
+
+            result = status_tool.build_status(
+                root,
+                proof,
+                profile,
+                live_target_check=True,
+                live_process_snapshot={
+                    "checkedAtUtc": "2026-05-20T11:00:00Z",
+                    "status": "passed",
+                    "processes": [{"imageName": "rift_x64.exe", "pid": 1234}],
+                },
+            )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["liveTarget"]["verdict"], "artifact-pid-running")
+        self.assertIn("current-proof-status:blocked-target-not-in-world", result["blockers"])
+        self.assertFalse(result["proof"]["movementAllowedEffective"])
 
     def test_probe_live_processes_disconnects_tasklist_stdin(self) -> None:
         completed = subprocess.CompletedProcess(

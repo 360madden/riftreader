@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from rift_live_test.turn_keys import (
@@ -24,6 +25,10 @@ from rift_live_test.turn_keys import (
 
 def repo_root_from_script() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def utc_now_text() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -99,6 +104,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--live",
         action="store_true",
         help="Actually send bounded turn-key input. Without this, only a plan is written.",
+    )
+    parser.add_argument(
+        "--allow-post-message-input",
+        action="store_true",
+        help="Allow the legacy post-message input lane during --live. Blocked by default after the spin incident.",
     )
     parser.add_argument(
         "--refresh-proof-first",
@@ -192,11 +202,41 @@ def main(argv: list[str] | None = None) -> int:
         screenshot_backend=args.screenshot_backend,
         native_screenshot_key_chord=args.native_screenshot_key_chord,
         stop_on_movement=not args.continue_after_movement,
+        allow_post_message_input=args.allow_post_message_input,
         output_root=output_root,
         command_timeout_seconds=args.command_timeout_seconds,
         input_timeout_seconds=args.input_timeout_seconds,
     )
-    summary = TurnKeyProfiler(config).run()
+    try:
+        summary = TurnKeyProfiler(config).run()
+    except ValueError as exc:
+        summary = {
+            "schemaVersion": 1,
+            "mode": "turn-key-profile",
+            "generatedAtUtc": utc_now_text(),
+            "status": "blocked-input-backend",
+            "ok": False,
+            "issues": [str(exc)],
+            "processName": args.process_name,
+            "processId": args.pid,
+            "targetWindowHandle": args.hwnd,
+            "live": args.live,
+            "inputSent": False,
+            "movementDetected": False,
+            "noCheatEngine": True,
+            "savedVariablesUsedAsLiveTruth": False,
+            "inputModes": list(args.input_modes),
+            "allowPostMessageInput": args.allow_post_message_input,
+            "safety": {
+                "movementSent": False,
+                "inputSent": False,
+                "noCheatEngine": True,
+                "x64dbgAttach": False,
+                "providerWrites": False,
+                "gitMutation": False,
+                "savedVariablesUsedAsLiveTruth": False,
+            },
+        }
     print(json.dumps(summary, indent=2))
     return 0 if summary.get("ok") else 1
 

@@ -212,11 +212,18 @@ def build_status(
     stale_anchor = {}
     latest_validation = {}
     latest_proofonly = {}
+    input_backend_incident = {}
     if proof:
+        proof_status = str(proof.get("status") or "")
+        if proof_status.startswith("blocked"):
+            blockers.append(f"current-proof-status:{proof_status}")
         target = proof.get("target") if isinstance(proof.get("target"), dict) else {}
         source = proof.get("riftscanCandidateSource") if isinstance(proof.get("riftscanCandidateSource"), dict) else {}
         latest_validation = proof.get("latestValidation") if isinstance(proof.get("latestValidation"), dict) else {}
         latest_proofonly = proof.get("latestProofOnly") if isinstance(proof.get("latestProofOnly"), dict) else {}
+        input_backend_incident = (
+            proof.get("inputBackendIncident") if isinstance(proof.get("inputBackendIncident"), dict) else {}
+        )
         stale_pointer = proof.get("staleProofPointer") if isinstance(proof.get("staleProofPointer"), dict) else {}
         preserved = stale_pointer.get("preservedEvidence") if isinstance(stale_pointer.get("preservedEvidence"), dict) else {}
         preserved_source = (
@@ -278,9 +285,20 @@ def build_status(
             "status": proof.get("status") if proof else None,
             "lastUpdatedUtc": proof.get("lastUpdatedUtc") if proof else None,
             "movementAllowed": latest_validation.get("movementAllowed"),
+            "movementAllowedEffective": bool(latest_validation.get("movementAllowed"))
+            and not bool(input_backend_incident.get("automationMovementPaused")),
             "latestValidationStatus": latest_validation.get("status"),
             "proofOnlyStatus": latest_proofonly.get("status"),
             "proofOnlyGeneratedAtUtc": latest_proofonly.get("generatedAtUtc"),
+            "inputBackendIncident": {
+                "status": input_backend_incident.get("status"),
+                "automationMovementPaused": input_backend_incident.get("automationMovementPaused"),
+                "emergencyKeyReleaseSummary": (
+                    input_backend_incident.get("emergencyKeyRelease", {}).get("summaryJson")
+                    if isinstance(input_backend_incident.get("emergencyKeyRelease"), dict)
+                    else None
+                ),
+            },
             "anchor": proof_anchor,
             "staleAnchor": stale_anchor,
             "currentCoordinate": compact_coordinate(

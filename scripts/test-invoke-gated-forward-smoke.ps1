@@ -67,6 +67,21 @@ function Invoke-ChildScript {
     }
 }
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [int]$Depth = 80
+    )
+
+    $command = Get-Command -Name ConvertFrom-Json -CommandType Cmdlet
+    if ($command.Parameters.ContainsKey('Depth')) {
+        return $Text | ConvertFrom-Json -Depth $Depth
+    }
+
+    return $Text | ConvertFrom-Json
+}
+
 function Convert-OutputToJson {
     param(
         [Parameter(Mandatory = $true)]
@@ -78,7 +93,7 @@ function Convert-OutputToJson {
         throw 'Child script produced no output.'
     }
 
-    return $trimmed | ConvertFrom-Json -Depth 80
+    return ConvertFrom-JsonCompat -Text $trimmed -Depth 80
 }
 
 function Escape-SingleQuotedPowerShellString {
@@ -254,6 +269,22 @@ exit 0
         '-Json'
     )
 
+    $legacyBackend = Invoke-ChildScript -ScriptPath $script -Arguments ($commonArgs + @(
+            '-InputBackend',
+            'window-message',
+            '-AllowWindowMessageBackend',
+            '-PreflightScript',
+            $successPreflightScript
+        ))
+    Assert-Equal -Actual $legacyBackend.ExitCode -Expected 1 -Message 'WindowMessage backend should remain retired even if the old override is passed.'
+    $legacyBackendSummary = Convert-OutputToJson -Output $legacyBackend.Output
+    Assert-Equal -Actual $legacyBackendSummary.Status -Expected 'blocked-input-backend' -Message 'Legacy backend should fail closed before preflight/input.'
+    Assert-True -Condition (-not [bool]$legacyBackendSummary.MovementAttempted) -Message 'Legacy backend block must not attempt input.'
+    Assert-True -Condition (-not [bool]$legacyBackendSummary.MovementSent) -Message 'Legacy backend block must not send movement.'
+    Assert-True -Condition ((@($legacyBackendSummary.Issues) -join ';') -like '*window-message-input-backend-retired-after-spin-incident*') -Message 'Backend blocker should identify the retired WindowMessage guard.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath $keyMarkerFile)) -Message 'Legacy backend block must not invoke the key script.'
+    Assert-True -Condition (-not (Test-Path -LiteralPath $stateFile)) -Message 'Legacy backend block must not invoke preflight.'
+
     $success = Invoke-ChildScript -ScriptPath $script -Arguments ($commonArgs + @(
             '-PreflightScript',
             $successPreflightScript
@@ -270,9 +301,10 @@ exit 0
     Assert-True -Condition ([double]$successSummary.CoordinateDelta.PlanarDistance -gt 0.0) -Message 'Wrapper should compute total coordinate delta.'
     Assert-True -Condition (Test-Path -LiteralPath ([string]$successSummary.SummaryFile) -PathType Leaf) -Message 'Wrapper summary file should be written.'
     Assert-True -Condition (Test-Path -LiteralPath $keyMarkerFile -PathType Leaf) -Message 'Key script should be invoked on green preflight.'
-    Assert-True -Condition ((Get-Content -LiteralPath $keyMarkerFile -Raw) -like '*-RequireTargetForeground*') -Message 'Wrapper should require target foreground by default.'
-    Assert-True -Condition ((Get-Content -LiteralPath $keyMarkerFile -Raw) -like '*-UseWindowMessage*') -Message 'Wrapper should use the proven exact-HWND window-message backend by default.'
-    Assert-Equal -Actual $successSummary.InputBackend -Expected 'window-message' -Message 'Summary should record the selected input backend.'
+    Assert-True -Condition ((Get-Content -LiteralPath $keyMarkerFile -Raw) -like '*--input-mode ScanCode*') -Message 'Wrapper should use C# ScanCode by default.'
+    Assert-True -Condition ((Get-Content -LiteralPath $keyMarkerFile -Raw) -like '*--pid 4242*') -Message 'Wrapper should pass exact PID to the C# backend.'
+    Assert-Equal -Actual $successSummary.InputBackend -Expected 'csharp-scancode' -Message 'Summary should record the selected C# backend.'
+    Assert-True -Condition (-not [bool]$successSummary.AllowWindowMessageBackend) -Message 'Summary should not require the retired WindowMessage override.'
     Assert-Equal -Actual ([int](Get-Content -LiteralPath $stateFile -Raw)) -Expected 2 -Message 'Success wrapper should run preflight before and after input.'
 
     Remove-Item -LiteralPath $keyMarkerFile -Force

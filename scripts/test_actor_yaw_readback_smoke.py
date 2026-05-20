@@ -134,6 +134,29 @@ class ActorYawReadbackSmokeTests(unittest.TestCase):
             self.assertIn("read_player_orientation_failed", summary["issues"])
             self.assertFalse(summary["readPlayerOrientation"]["sourceMatchesPromotedLead"])
 
+    def test_smoke_skips_live_readbacks_when_promoted_lead_is_target_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            self.make_repo(root)
+
+            def runner(args: list[str], cwd: Path, label: str, timeout: int | None) -> JsonCommandResult:
+                raise AssertionError("stale actor-yaw status should skip live readback commands")
+
+            summary = run_actor_yaw_readback_smoke(
+                repo_root=root,
+                process_id=1948,
+                target_window_handle="0x3C0D58",
+                output_root=root / "scripts" / "captures",
+                command_runner=runner,
+            )
+
+            self.assertFalse(summary["ok"])
+            self.assertEqual(summary["actorYawCurrentTruthStatus"]["status"], "blocked-target-drift")
+            self.assertIn("actor_yaw_status_not_current", summary["issues"])
+            self.assertEqual(summary["readPlayerOrientation"]["status"], "skipped")
+            self.assertEqual(summary["captureActorOrientation"]["status"], "skipped")
+            self.assertEqual(summary["commands"], [])
+
     def test_smoke_refuses_output_inside_riftscan_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "RiftReader"

@@ -1934,7 +1934,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 "outputRoot": str(root / "captures"),
                 "processName": "rift_x64",
                 "proofAnchorFile": str(proof_anchor),
-                "inputBackend": "window-message",
+                "inputBackend": "csharp-scancode",
                 "writeMarkdownSummary": False,
             }
             runner = LiveTestRunner(
@@ -1960,7 +1960,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 self.assertIn("-ProofCoordAnchorFile", argv)
                 self.assertEqual(argv[argv.index("-ProofCoordAnchorFile") + 1], str(proof_anchor))
             self.assertIn("-InputBackend", dry_args)
-            self.assertEqual(dry_args[dry_args.index("-InputBackend") + 1], "window-message")
+            self.assertEqual(dry_args[dry_args.index("-InputBackend") + 1], "csharp-scancode")
 
     def test_run_command_updates_latest_child_command_progress(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -159,6 +159,32 @@ class X64DbgStaticChainResolveTests(unittest.TestCase):
             summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
             self.assertIn("pointer-chain-read-failed", summary["blockers"])
 
+    def test_small_root_pointer_value_blocks_as_not_plausible(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            memory = synthetic_memory_image()
+            memory["qword"]["0x140001000"] = "0x10"
+            candidate_path = self.write_json(temp, "candidate.json", synthetic_candidate())
+            module_path = self.write_json(temp, "modules.json", synthetic_module_map())
+            memory_path = self.write_json(temp, "memory.json", memory)
+            out = Path(temp) / "blocked-small-root"
+            code = self.run_main(
+                [
+                    "--candidate-json",
+                    str(candidate_path),
+                    "--module-map-json",
+                    str(module_path),
+                    "--memory-image-json",
+                    str(memory_path),
+                    "--output-root",
+                    str(out),
+                    "--json",
+                ]
+            )
+
+            self.assertEqual(code, 2)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("root-pointer-not-plausible", summary["blockers"])
+
     def test_module_base_arg_can_replace_module_map(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             candidate_path = self.write_json(temp, "candidate.json", synthetic_candidate())

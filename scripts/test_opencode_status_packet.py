@@ -301,6 +301,19 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             write_text(root / "scripts" / "riftreader-workflow-status.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-package-intake-selftest.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-local-artifact-bridge.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-family-neighborhood-analysis.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-emergency-release.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-live-input-surface-audit.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-select-plan.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-select-env-capture.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-resilience-plan.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-executor-contract.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-readiness-packet.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-crash-watch.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-screen-state.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-play-executor-gate.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-character-login-supervisor.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-launcher-inspection.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -313,6 +326,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                 "errors": [],
                 "git": {},
                 "liveTarget": {},
+                "launcher": {},
                 "currentProof": {"summary": {}},
                 "currentTruth": {"summary": {}},
                 "latestHandoff": {},
@@ -337,6 +351,32 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertTrue(commands["package-intake-selftest"]["exists"])
         self.assertTrue(commands["local-artifact-bridge-selftest"]["exists"])
         self.assertIn("no persistent server", commands["local-artifact-bridge-selftest"]["safety"])
+        self.assertTrue(commands["family-neighborhood-analysis"]["exists"])
+        self.assertIn("no live process reads", commands["family-neighborhood-analysis"]["safety"])
+        self.assertTrue(commands["emergency-release"]["exists"])
+        self.assertIn("no key-down", commands["emergency-release"]["safety"])
+        self.assertTrue(commands["live-input-surface-audit"]["exists"])
+        self.assertIn("read-only repo scan", commands["live-input-surface-audit"]["safety"])
+        self.assertTrue(commands["character-select-plan"]["exists"])
+        self.assertIn("dry-run planning only", commands["character-select-plan"]["safety"])
+        self.assertTrue(commands["character-select-env-capture"]["exists"])
+        self.assertIn("screenshot-to-summary", commands["character-select-env-capture"]["safety"])
+        self.assertTrue(commands["character-login-resilience-plan"]["exists"])
+        self.assertIn("relogin planning only", commands["character-login-resilience-plan"]["safety"])
+        self.assertTrue(commands["character-login-executor-contract"]["exists"])
+        self.assertIn("contract validator only", commands["character-login-executor-contract"]["safety"])
+        self.assertTrue(commands["character-login-readiness-packet"]["exists"])
+        self.assertIn("consolidated login/relogin packet", commands["character-login-readiness-packet"]["safety"])
+        self.assertTrue(commands["character-login-crash-watch"]["exists"])
+        self.assertIn("crash/relogin watcher", commands["character-login-crash-watch"]["safety"])
+        self.assertTrue(commands["character-login-screen-state"]["exists"])
+        self.assertIn("screenshot classifier", commands["character-login-screen-state"]["safety"])
+        self.assertTrue(commands["character-login-play-executor-gate"]["exists"])
+        self.assertIn("Play-click gate validator", commands["character-login-play-executor-gate"]["safety"])
+        self.assertTrue(commands["character-login-supervisor"]["exists"])
+        self.assertIn("supervised login/relogin gate", commands["character-login-supervisor"]["safety"])
+        self.assertTrue(commands["launcher-inspection"]["exists"])
+        self.assertIn("read-only launcher/process/window inspection", commands["launcher-inspection"]["safety"])
         self.assertFalse(commands["transport-probe-local-smoke"]["exists"])
         self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
         self.assertTrue(compact["opencode"]["retired"])
@@ -344,6 +384,68 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertEqual(compact["opencode"]["desiredModel"], "openai/gpt-5.5")
         self.assertEqual(compact["opencode"]["desiredVariant"], "xhigh")
         self.assertTrue(compact["opencode"]["modelVisible"])
+
+    def test_latest_launcher_inspection_is_added_to_compact_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / ".riftreader-local" / "launcher-inspection" / "run-20260520-000000-000000"
+            write_json(
+                run_dir / "launcher-inspection-summary.json",
+                {
+                    "status": "passed",
+                    "generatedAtUtc": "2026-05-20T17:45:00Z",
+                    "launcher": {
+                        "present": True,
+                        "processIds": [31812],
+                        "windowState": "minimized-or-offscreen",
+                        "mainWindow": {"windowHandle": "0x27017C"},
+                    },
+                    "game": {"present": True, "processIds": [80072]},
+                    "state": {
+                        "crashRecoveryState": "launcher-and-game-present",
+                        "reloginState": "observe-current-game-child",
+                        "automationRecommendation": "observe-process-tree-and-game-window-only",
+                        "buttonAutomationPolicy": "blocked-hidden-or-minimized",
+                        "riftChildOfLauncher": True,
+                    },
+                    "blockers": ["launcher-button-automation-blocked-until-visible-state-classified"],
+                    "warnings": ["process-command-lines-redacted-by-default"],
+                },
+            )
+            write_text(root / ".riftreader-local" / "launcher-inspection" / "latest-run.txt", str(run_dir))
+
+            launcher = status_packet.latest_launcher_inspection(root, [], [])
+            packet = {
+                "schemaVersion": 1,
+                "kind": "riftreader-local-workflow-status-packet",
+                "legacyKind": "riftreader-opencode-non-codex-status-packet",
+                "generatedAtUtc": "2026-05-20T17:46:00Z",
+                "status": "blocked",
+                "repoRoot": str(root),
+                "blockers": [],
+                "warnings": [],
+                "errors": [],
+                "git": {},
+                "liveTarget": {},
+                "launcher": launcher,
+                "currentProof": {"summary": {}},
+                "currentTruth": {"summary": {}},
+                "latestHandoff": {},
+                "coordinateRecoveryStatus": {},
+                "opencode": {},
+                "safety": {"movementSent": False, "gitMutation": False},
+                "nextRecommendedAction": "none",
+                "artifacts": {},
+            }
+
+            compact = status_packet.compact_summary(packet)
+
+        self.assertEqual(compact["launcher"]["status"], "passed")
+        self.assertEqual(compact["launcher"]["state"], "launcher-and-game-present")
+        self.assertEqual(compact["launcher"]["launcherPids"], [31812])
+        self.assertEqual(compact["launcher"]["riftPids"], [80072])
+        self.assertTrue(compact["launcher"]["riftChildOfLauncher"])
+        self.assertEqual(compact["launcher"]["buttonAutomationPolicy"], "blocked-hidden-or-minimized")
 
     def test_write_outputs_uses_ignored_local_status_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -359,6 +461,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                 "errors": [],
                 "git": {},
                 "liveTarget": {},
+                "launcher": {},
                 "currentProof": {"summary": {}},
                 "currentTruth": {"summary": {}},
                 "latestHandoff": {},

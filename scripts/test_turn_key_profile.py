@@ -183,6 +183,28 @@ class TurnKeyProfileTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "proof_refresh_retries"):
                 TurnKeyProfiler(config)._validate_config()
 
+    def test_live_post_message_requires_explicit_incident_review_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = TurnKeyProfileConfig(
+                repo_root=Path(temp_dir),
+                process_id=123,
+                target_window_handle="0x123",
+                live=True,
+                input_modes=("post-message",),
+            )
+            with self.assertRaisesRegex(ValueError, "post-message live input is blocked"):
+                TurnKeyProfiler(config)._validate_config()
+
+            allowed = TurnKeyProfileConfig(
+                repo_root=Path(temp_dir),
+                process_id=123,
+                target_window_handle="0x123",
+                live=True,
+                input_modes=("post-message",),
+                allow_post_message_input=True,
+            )
+            TurnKeyProfiler(allowed)._validate_config()
+
     def test_markdown_records_input_delivery(self) -> None:
         text = format_turn_key_markdown(
             {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "proofKind": "riftreader-csharp-sendinput-scancode-movement-proof",
-  "status": "passed-csharp-sendinput-scancode-displacement",
+  "status": "passed-csharp-sendinput-scancode-diagnostic-backend",
   "ok": true,
   "createdUtc": "2026-05-11T04:15:00Z",
   "target": {
@@ -61,10 +61,48 @@
     "reloadUiUsed": false
   },
   "interpretation": {
-    "backendVerdict": "C# SendInput ScanCode is proof-backed for bounded forward movement calibration on this target/session.",
-    "legacyPowerShellSendInputVerdict": "PowerShell send-rift-key.ps1 remains legacy/diagnostic; earlier PowerShell VirtualKey and ScanCode tests delivered but did not produce movement.",
-    "windowMessageVerdict": "post-rift-key.ps1 -SkipBackgroundFocus -UseWindowMessage remains a working alternative backend.",
-    "inputModePolicy": "Do not auto-send Esc. Operator must keep RIFT in gameplay input mode because no reliable chat/text-entry detector exists."
+    "backendVerdict": "C# SendInput ScanCode is proof-backed for bounded movement-key calibration and is the only allowed diagnostic movement backend.",
+    "legacyPowerShellSendInputVerdict": "PowerShell send-rift-key.ps1 remains legacy/diagnostic and is not the authoritative SendInput implementation.",
+    "windowMessageVerdict": "post-rift-key.ps1 -SkipBackgroundFocus -UseWindowMessage is retired for movement diagnostics after the 2026-05-20 spin incident; current gates fail it closed.",
+    "inputModePolicy": "Do not auto-send Esc. Operator must keep RIFT in gameplay input mode because no reliable chat/text-entry detector exists.",
+    "navigationVerdict": "Backend calibration does not clear route/navigation automation; movementGate.allowed must be explicitly cleared first."
   },
-  "runRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\csharp-sendinput-measured-proof-20260511-000537"
+  "runRoot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\csharp-sendinput-measured-proof-20260511-000537",
+  "postIncidentRetests": {
+    "status": "passed-for-bounded-diagnostics-only",
+    "target": {
+      "processName": "rift_x64",
+      "processId": 1948,
+      "windowHandle": "0x3C0D58",
+      "title": "RIFT"
+    },
+    "tests": [
+      {
+        "key": "W",
+        "binding": "Move Forward",
+        "holdMilliseconds": 150,
+        "inputMode": "ScanCode",
+        "status": "passed",
+        "spatialDistance": 1.0002,
+        "postReleaseStability": "passed",
+        "artifact": ".riftreader-local/spin-diagnosis/csharp-w-test/csharp-w-test-summary.json"
+      },
+      {
+        "key": "Q",
+        "binding": "Strafe Left",
+        "holdMilliseconds": 250,
+        "inputMode": "ScanCode",
+        "status": "passed",
+        "delta": {
+          "dx": -1.3500000000003638,
+          "dy": -0.4900000000000091,
+          "dz": 0.9899999999997817,
+          "spatial": 1.7443336836742445
+        },
+        "postReleaseStability": "passed",
+        "artifact": ".riftreader-local/q-key-retest-csharp/clean-run-20260519-222554/q-retest-summary.json"
+      }
+    ],
+    "routeNavigationAutomationCleared": false
+  }
 }

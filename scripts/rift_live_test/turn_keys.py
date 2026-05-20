@@ -48,6 +48,7 @@ class TurnKeyProfileConfig:
     screenshot_backend: str = "wgc"
     native_screenshot_key_chord: str = "numpad_multiply"
     stop_on_movement: bool = True
+    allow_post_message_input: bool = False
     output_root: Path | None = None
     command_timeout_seconds: int = 120
     input_timeout_seconds: int = 30
@@ -403,6 +404,15 @@ class TurnKeyProfiler:
         invalid_modes = [mode for mode in self.config.input_modes if mode not in VALID_INPUT_MODES]
         if invalid_modes:
             raise ValueError(f"unsupported input modes: {', '.join(invalid_modes)}")
+        if (
+            self.config.live
+            and "post-message" in self.config.input_modes
+            and not self.config.allow_post_message_input
+        ):
+            raise ValueError(
+                "post-message live input is blocked after the spin incident; "
+                "rerun with --allow-post-message-input only after incident review"
+            )
         if self.config.screenshot_backend not in VALID_SCREENSHOT_BACKENDS:
             raise ValueError(f"unsupported screenshot backend: {self.config.screenshot_backend}")
 
@@ -937,6 +947,7 @@ class TurnKeyProfiler:
             "savedVariablesUsedAsLiveTruth": False,
             "keys": list(self.config.keys),
             "inputModes": list(self.config.input_modes),
+            "allowPostMessageInput": self.config.allow_post_message_input,
             "shells": list(self.config.shells),
             "captureScreenshots": self.config.capture_screenshots,
             "requireScreenshots": self.config.require_screenshots,

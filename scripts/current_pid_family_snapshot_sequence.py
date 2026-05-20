@@ -5,8 +5,9 @@ Primary purpose: dump targeted family ranges across ordered poses, then run the
 offline delta analyzer.  By default this helper sends no input, launches no
 debugger, uses no Cheat Engine, and writes no provider state.  If
 ``--auto-displacement-key`` is supplied, the helper sends one bounded
-exact-PID/HWND displacement through the repo's proven leaf key helper before the
-displaced pose and records that input in the durable command envelopes.
+exact-PID/HWND displacement through the repo-owned C# SendInput ScanCode helper
+before the displaced pose and records that input in the durable command
+envelopes.
 """
 
 from __future__ import annotations
@@ -47,6 +48,7 @@ DEFAULT_POSE_PLAN = "baseline-still:baseline:0,passive-still-500ms:passive:0.5,p
 DEFAULT_REFERENCE_SOURCE = "rrapicoord"
 DEFAULT_REFERENCE_TIMEOUT_SECONDS = 180
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
+DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND = "csharp-scancode"
 DEFAULT_PRIOR_ADDRESSES = [
     # Highest-signal May 13 PID 2928 candidate family from prior-first
     # sequential snapshots + offline delta comparison.  These are
@@ -241,6 +243,8 @@ def apply_current_truth_context(args: argparse.Namespace, repo_root: Path) -> di
         "loaded": False,
         "targetDefaultsApplied": [],
         "priorDefaultsApplied": [],
+        "movementGate": None,
+        "clientGeometry": None,
         "blockers": [],
         "warnings": [],
     }
@@ -272,6 +276,37 @@ def apply_current_truth_context(args: argparse.Namespace, repo_root: Path) -> di
     truth_hwnd = normalize_hwnd(target.get("targetWindowHandle") or target.get("hwnd") or target.get("hwndHex"))
     truth_start = target.get("processStartUtc") or target.get("startTimeUtc")
     truth_module_base = normalize_hex(target.get("moduleBase") or target.get("moduleBaseAddressHex") or target.get("moduleBaseAddress"))
+    client_geometry = target.get("clientGeometry") if isinstance(target.get("clientGeometry"), dict) else {}
+    required_client_width = to_int_or_none(client_geometry.get("requiredClientWidth"))
+    required_client_height = to_int_or_none(client_geometry.get("requiredClientHeight"))
+    if required_client_width or required_client_height:
+        context["clientGeometry"] = {
+            "requiredClientWidth": required_client_width,
+            "requiredClientHeight": required_client_height,
+            "lastVerifiedAtUtc": client_geometry.get("lastVerifiedAtUtc"),
+            "policy": client_geometry.get("policy"),
+        }
+        if getattr(args, "require_client_width", None) is None and required_client_width:
+            args.require_client_width = required_client_width
+            context["targetDefaultsApplied"].append("require-client-width")
+        if getattr(args, "require_client_height", None) is None and required_client_height:
+            args.require_client_height = required_client_height
+            context["targetDefaultsApplied"].append("require-client-height")
+
+    movement_gate = document.get("movementGate") if isinstance(document.get("movementGate"), dict) else {}
+    live_input_incident = (
+        movement_gate.get("liveInputIncident") if isinstance(movement_gate.get("liveInputIncident"), dict) else {}
+    )
+    if movement_gate:
+        context["movementGate"] = {
+            "allowed": movement_gate.get("allowed"),
+            "status": movement_gate.get("status"),
+            "reason": movement_gate.get("reason"),
+            "automationMovementPaused": bool(
+                movement_gate.get("automationMovementPaused") or live_input_incident.get("automationMovementPaused")
+            ),
+            "liveInputIncidentStatus": live_input_incident.get("status"),
+        }
 
     if args.pid is None and truth_pid is not None:
         args.pid = truth_pid
@@ -321,6 +356,89 @@ def apply_current_truth_context(args: argparse.Namespace, repo_root: Path) -> di
                 context["priorDefaultsApplied"].append(prior)
 
     return context
+
+
+def current_truth_auto_displacement_blockers(args: argparse.Namespace) -> list[str]:
+    context = getattr(args, "current_truth_context", None)
+    if not isinstance(context, dict):
+        return []
+    movement_gate = context.get("movementGate")
+    if not isinstance(movement_gate, dict):
+        return []
+    blockers: list[str] = []
+    status = str(movement_gate.get("status") or "unknown")
+    if movement_gate.get("allowed") is False:
+        blockers.append(f"current-truth-movement-gate-blocked:{status}")
+    if movement_gate.get("automationMovementPaused") is True:
+        blockers.append("current-truth-automation-movement-paused")
+    incident_status = movement_gate.get("liveInputIncidentStatus")
+    if incident_status:
+        blockers.append(f"current-truth-live-input-incident:{incident_status}")
+    return blockers
+
+
+def auto_displacement_backend_blockers(args: argparse.Namespace) -> list[str]:
+    """Return blockers for auto-displacement backends that need explicit re-authorization."""
+
+    if not getattr(args, "auto_displacement_key", None):
+        return []
+    backend = str(
+        getattr(args, "auto_displacement_input_backend", DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND)
+        or DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND
+    ).strip().lower()
+    if backend == DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND:
+        return []
+    if backend == "window-message":
+        return ["auto-displacement-window-message-backend-retired-use-csharp-scancode"]
+    return [f"auto-displacement-unsupported-input-backend:{backend}"]
+
+
+def inspect_client_geometry(hwnd: str) -> dict[str, int | str]:
+    try:
+        hwnd_int = int(str(hwnd), 0)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"invalid HWND for client geometry inspection: {hwnd}") from exc
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"client geometry inspection unavailable:{type(exc).__name__}:{exc}") from exc
+
+    rect = wintypes.RECT()
+    ok = ctypes.windll.user32.GetClientRect(ctypes.c_void_p(hwnd_int), ctypes.byref(rect))
+    if not ok:
+        raise RuntimeError(f"GetClientRect failed for HWND {normalize_hwnd(hwnd)}")
+    width = int(rect.right - rect.left)
+    height = int(rect.bottom - rect.top)
+    return {
+        "hwnd": normalize_hwnd(hwnd) or str(hwnd),
+        "left": int(rect.left),
+        "top": int(rect.top),
+        "right": int(rect.right),
+        "bottom": int(rect.bottom),
+        "width": width,
+        "height": height,
+    }
+
+
+def required_client_geometry_blockers(args: argparse.Namespace) -> tuple[list[str], dict[str, Any] | None]:
+    required_width = to_int_or_none(getattr(args, "require_client_width", None))
+    required_height = to_int_or_none(getattr(args, "require_client_height", None))
+    if not required_width and not required_height:
+        return [], None
+    if not getattr(args, "hwnd", None):
+        return ["required-client-geometry-hwnd-missing"], None
+    geometry = inspect_client_geometry(str(args.hwnd))
+    blockers: list[str] = []
+    if required_width and geometry.get("width") != required_width:
+        blockers.append(f"client-width-mismatch:{geometry.get('width')}!={required_width}")
+    if required_height and geometry.get("height") != required_height:
+        blockers.append(f"client-height-mismatch:{geometry.get('height')}!={required_height}")
+    return blockers, {
+        "requiredWidth": required_width,
+        "requiredHeight": required_height,
+        "actual": geometry,
+    }
 
 
 def latest_scan_plan(repo_root: Path, pid: int) -> Path:
@@ -569,6 +687,19 @@ def run_auto_displacement(repo_root: Path, args: argparse.Namespace) -> tuple[bo
             "timedOut": False,
         }
 
+    backend = str(
+        getattr(args, "auto_displacement_input_backend", DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND)
+        or DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND
+    ).strip().lower()
+    if backend != DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND:
+        return False, {
+            "stage": "auto-displacement",
+            "exitCode": None,
+            "stdout": "",
+            "stderr": f"unsupported auto displacement input backend: {backend}",
+            "timedOut": False,
+        }
+
     command = [
         "pwsh",
         "-NoLogo",
@@ -576,19 +707,48 @@ def run_auto_displacement(repo_root: Path, args: argparse.Namespace) -> tuple[bo
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        str(repo_root / "scripts" / "post-rift-key.ps1"),
-        "-Key",
+        str(repo_root / "scripts" / "send-rift-key-csharp.ps1"),
+        "--key",
         key,
-        "-HoldMilliseconds",
+        "--hold-ms",
         str(max(1, int(args.auto_displacement_hold_ms))),
-        "-TargetProcessId",
+        "--process-name",
+        str(args.process_name),
+        "--pid",
         str(args.pid),
-        "-TargetWindowHandle",
+        "--hwnd",
         str(args.hwnd),
-        "-SkipBackgroundFocus",
-        "-UseWindowMessage",
+        "--input-mode",
+        "ScanCode",
+        "--json",
     ]
     envelope = run_command(command, repo_root, timeout_seconds=max(5, int(args.auto_displacement_timeout_seconds)))
+    return bool(envelope.get("exitCode") == 0 and not envelope.get("timedOut")), envelope
+
+
+def run_emergency_key_release(
+    repo_root: Path,
+    args: argparse.Namespace,
+    run_dir: Path,
+    *,
+    stage: str,
+) -> tuple[bool, dict[str, Any]]:
+    command = [
+        sys.executable,
+        str(repo_root / "scripts" / "rift_emergency_key_release.py"),
+        "--pid",
+        str(args.pid),
+        "--hwnd",
+        str(args.hwnd),
+        "--process-name",
+        args.process_name,
+        "--include-mouse-buttons",
+        "--output-root",
+        str(run_dir / "emergency-key-release"),
+        "--json",
+    ]
+    envelope = run_command(command, repo_root, timeout_seconds=max(5, int(args.auto_displacement_timeout_seconds)))
+    envelope["emergencyReleaseStage"] = stage
     return bool(envelope.get("exitCode") == 0 and not envelope.get("timedOut")), envelope
 
 
@@ -913,8 +1073,40 @@ def main() -> int:
     parser.add_argument("--manual-displacement-timeout-seconds", type=int, default=120)
     parser.add_argument("--no-manual-displacement", action="store_true")
     parser.add_argument("--auto-displacement-key", default=None)
+    parser.add_argument(
+        "--auto-displacement-input-backend",
+        choices=(DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND, "window-message"),
+        default=DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND,
+        help=(
+            "Live auto-displacement backend. Default/allowed backend is repo-owned C# SendInput ScanCode. "
+            "The legacy window-message value is retained only to fail closed with an explicit blocker."
+        ),
+    )
     parser.add_argument("--auto-displacement-hold-ms", type=int, default=1000)
     parser.add_argument("--auto-displacement-timeout-seconds", type=int, default=15)
+    parser.add_argument("--require-client-width", type=int, default=None)
+    parser.add_argument("--require-client-height", type=int, default=None)
+    parser.add_argument(
+        "--disable-emergency-key-release-guard",
+        action="store_true",
+        help="Disable the default keyup-only pre/post guard around auto-displacement input.",
+    )
+    parser.add_argument(
+        "--allow-current-truth-movement-gate-override",
+        action="store_true",
+        help=(
+            "Allow auto-displacement even when current-truth movementGate is blocked. "
+            "Use only after explicit operator reauthorization and incident review."
+        ),
+    )
+    parser.add_argument(
+        "--allow-window-message-auto-displacement",
+        action="store_true",
+        help=(
+            "Deprecated compatibility flag. The legacy WindowMessage auto-displacement backend remains retired after "
+            "the live spin incident; use --auto-displacement-input-backend csharp-scancode instead."
+        ),
+    )
     parser.add_argument("--skip-analysis", action="store_true")
     parser.add_argument("--axis-orders", default="xyz")
     parser.add_argument("--candidate-scan-stride", type=int, choices=(1, 4), default=1)
@@ -963,6 +1155,7 @@ def main() -> int:
         "targetWindowHandle": args.hwnd,
         "scanPlanJson": None,
         "referenceSource": args.reference_source,
+        "autoDisplacementInputBackend": getattr(args, "auto_displacement_input_backend", DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND),
         "safety": {
             "movementSent": False,
             "inputSent": False,
@@ -995,6 +1188,7 @@ def main() -> int:
         "targetWindowHandle": args.hwnd,
         "processName": args.process_name,
         "referenceSource": args.reference_source,
+        "autoDisplacementInputBackend": getattr(args, "auto_displacement_input_backend", DEFAULT_AUTO_DISPLACEMENT_INPUT_BACKEND),
         "safety": summary["safety"].copy(),
         "poses": [],
     }
@@ -1045,6 +1239,34 @@ def main() -> int:
             exit_code = 0
             return exit_code
 
+        if args.auto_displacement_key:
+            if getattr(args, "allow_window_message_auto_displacement", False):
+                summary["warnings"].append(
+                    "deprecated-window-message-auto-displacement-flag-ignored:csharp-scancode-is-the-only-allowed-diagnostic-backend"
+                )
+            movement_gate_blockers = current_truth_auto_displacement_blockers(args)
+            if movement_gate_blockers and not args.allow_current_truth_movement_gate_override:
+                summary["blockers"].extend(movement_gate_blockers)
+                summary["status"] = "blocked"
+                summary["next"]["recommendedAction"] = (
+                    "Review and clear the current-truth movement gate before using --auto-displacement-key, "
+                    "or rerun without auto-displacement for operator-managed poses."
+                )
+                exit_code = 2
+                return exit_code
+            if movement_gate_blockers and args.allow_current_truth_movement_gate_override:
+                summary["warnings"].extend(f"movement-gate-override:{blocker}" for blocker in movement_gate_blockers)
+            backend_blockers = auto_displacement_backend_blockers(args)
+            if backend_blockers:
+                summary["blockers"].extend(backend_blockers)
+                summary["status"] = "blocked"
+                summary["next"]["recommendedAction"] = (
+                    "Use the C# SendInput ScanCode backend for bounded diagnostics only; rerun without auto-displacement "
+                    "or with --auto-displacement-input-backend csharp-scancode after movement-gate reauthorization."
+                )
+                exit_code = 2
+                return exit_code
+
         run_dir.mkdir(parents=True, exist_ok=True)
         preflight, preflight_envelope = run_preflight(repo_root, args, run_dir)
         command_envelopes.append(
@@ -1055,12 +1277,49 @@ def main() -> int:
         for pose_spec in poses:
             if pose_spec["role"] == "displaced":
                 if args.auto_displacement_key:
+                    geometry_blockers, geometry = required_client_geometry_blockers(args)
+                    if geometry is not None:
+                        summary["clientGeometryGate"] = geometry
+                        manifest["clientGeometryGate"] = geometry
+                    if geometry_blockers:
+                        summary["blockers"].extend(geometry_blockers)
+                        summary["next"]["recommendedAction"] = (
+                            "Resize the exact target window to the required client geometry before auto-displacement."
+                        )
+                        break
+                    if not args.disable_emergency_key_release_guard:
+                        pre_release_ok, pre_release_envelope = run_emergency_key_release(
+                            repo_root,
+                            args,
+                            run_dir,
+                            stage="pre-auto-displacement",
+                        )
+                        command_envelopes.append(
+                            compact_envelope(pre_release_envelope, "pre-auto-displacement-key-release")
+                        )
+                        if not pre_release_ok:
+                            summary["blockers"].append("pre-auto-displacement-key-release-failed")
+                            break
                     ok, input_envelope = run_auto_displacement(repo_root, args)
                     command_envelopes.append(
                         compact_envelope(input_envelope, "auto-displacement")
                     )
+                    post_release_ok = True
+                    if not args.disable_emergency_key_release_guard:
+                        post_release_ok, post_release_envelope = run_emergency_key_release(
+                            repo_root,
+                            args,
+                            run_dir,
+                            stage="post-auto-displacement",
+                        )
+                        command_envelopes.append(
+                            compact_envelope(post_release_envelope, "post-auto-displacement-key-release")
+                        )
                     if not ok:
                         summary["blockers"].append("auto-displacement-input-failed")
+                        break
+                    if not post_release_ok:
+                        summary["blockers"].append("post-auto-displacement-key-release-failed")
                         break
                     summary["safety"]["movementSent"] = True
                     summary["safety"]["inputSent"] = True

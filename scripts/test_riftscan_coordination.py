@@ -9,6 +9,7 @@ from pathlib import Path
 
 from rift_live_test.riftscan_coordination import (
     build_coordination_plan,
+    summarize_match_file,
     summarize_readback_proof,
     write_plan,
 )
@@ -216,6 +217,46 @@ class RiftScanCoordinationTests(unittest.TestCase):
             self.assertEqual(plan["selectedCandidate"]["candidateFile"], str(match))
             self.assertIn("-CandidateFile", plan["nextCommands"]["readOnlyCandidateReadback"])
             self.assertFalse(plan["nextCommands"]["writesToRiftScan"])
+
+    def test_summarize_match_file_supports_riftreader_candidate_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            match = Path(temp) / "api-family-vec3-candidates.jsonl"
+            match.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                        "candidate_id": "api-family-hit-000010",
+                        "base_address_hex": "0x1A91015CAC0",
+                        "offset_hex": "0x40",
+                        "absolute_address_hex": "0x1A91015CB00",
+                        "axis_order": "xyz",
+                        "support_count": 6,
+                        "best_max_abs_distance": 0.004,
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                        "candidate_id": "api-family-hit-000011",
+                        "base_address_hex": "0x1A914170980",
+                        "offset_hex": "0x40",
+                        "absolute_address_hex": "0x1A9141709C0",
+                        "axis_order": "xyz",
+                        "support_count": 1,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            summary = summarize_match_file(match)
+
+            self.assertEqual(summary["status"], "ok")
+            self.assertEqual(summary["mode"], "riftreader-api-family-vec3-candidates-jsonl")
+            self.assertEqual(summary["candidateCount"], 2)
+            self.assertEqual(summary["candidates"][0]["candidateId"], "api-family-hit-000010")
+            self.assertTrue(summary["candidates"][0]["schemaSupported"])
 
     def test_plan_marks_pointer_mismatch_and_selects_existing_same_pid_match(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -16,9 +16,10 @@ param(
     [string]$ProofCoordAnchorFile,
     [string]$OutputRoot = (Join-Path $PSScriptRoot 'captures'),
     [string]$PreflightScript = (Join-Path $PSScriptRoot 'assert-current-proof-coord-anchor-readback.ps1'),
-    [string]$KeyScript = (Join-Path $PSScriptRoot 'post-rift-key.ps1'),
-    [ValidateSet('window-message', 'send-input')]
-    [string]$InputBackend = 'window-message',
+    [string]$KeyScript = (Join-Path $PSScriptRoot 'send-rift-key-csharp.ps1'),
+    [ValidateSet('csharp-scancode', 'window-message', 'send-input')]
+    [string]$InputBackend = 'csharp-scancode',
+    [switch]$AllowWindowMessageBackend,
     [switch]$UseCacheOnly,
     [switch]$AllowBackgroundPostMessage,
     [switch]$DryRun,
@@ -465,6 +466,24 @@ function New-ReadbackArguments {
 }
 
 function New-KeyArguments {
+    if ([string]::Equals($InputBackend, 'csharp-scancode', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return @(
+            '--key',
+            $Key,
+            '--hold-ms',
+            $HoldMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            '--process-name',
+            $ProcessName,
+            '--pid',
+            $ProcessId.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            '--hwnd',
+            $TargetWindowHandle,
+            '--input-mode',
+            'ScanCode',
+            '--json'
+        )
+    }
+
     $arguments = @(
         '-Key',
         $Key,
@@ -522,6 +541,7 @@ function New-BaseSummary {
         MaxHoldMilliseconds = $maxHoldMilliseconds
         MaxPulseCount = $maxPulseCount
         InputBackend = $InputBackend
+        AllowWindowMessageBackend = [bool]$AllowWindowMessageBackend
         RequireTargetForeground = (-not [bool]$AllowBackgroundPostMessage)
         AllowBackgroundPostMessage = [bool]$AllowBackgroundPostMessage
         DryRun = [bool]$DryRun
@@ -552,6 +572,7 @@ function New-BaseSummary {
         Warnings = @(
             'No Cheat Engine path is used by this wrapper.',
             'SavedVariables are not used as live truth.',
+            'The only allowed diagnostic input backend is C# SendInput ScanCode; legacy WindowMessage/send-input backends fail closed.',
             'The wrapper fails closed before input unless the current proof-anchor readback returns Status=valid and MovementAllowed=true.',
             'The wrapper rechecks current proof-anchor readback after each pulse and fails closed if the post-readback gate is not green.'
         )
@@ -646,6 +667,24 @@ try {
     if ($InterPulseDelayMilliseconds -lt 0 -or $ProofAnchorMaxAgeSeconds -lt 0 -or $MinimumPostReadbackAgeBudgetSeconds -lt 0 -or
         $ReadbackSampleCount -le 0 -or $ReadbackIntervalMilliseconds -lt 0) {
         throw 'InterPulseDelayMilliseconds, ProofAnchorMaxAgeSeconds, and MinimumPostReadbackAgeBudgetSeconds must be zero or greater; ReadbackSampleCount must be greater than zero; ReadbackIntervalMilliseconds must be zero or greater.'
+    }
+
+    if (-not [string]::Equals($InputBackend, 'csharp-scancode', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $backendIssue = if ([string]::Equals($InputBackend, 'window-message', [System.StringComparison]::OrdinalIgnoreCase)) {
+            'window-message-input-backend-retired-after-spin-incident'
+        }
+        else {
+            'legacy-powershell-sendinput-backend-retired-use-csharp-scancode'
+        }
+        $blockedBackend = New-BaseSummary `
+            -Status 'blocked-input-backend' `
+            -MovementSent:$false `
+            -MovementAttempted:$false `
+            -Issues @(
+                $backendIssue,
+                'rerun-with--InputBackend-csharp-scancode'
+            )
+        Complete-Summary -Summary $blockedBackend -ExitCode 1
     }
 
     if (-not (Test-Path -LiteralPath $PreflightScript -PathType Leaf)) {

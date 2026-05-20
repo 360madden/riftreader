@@ -12,6 +12,7 @@ from .actor_yaw_disambiguation_validation import (
     as_int,
     build_disambiguation_validation,
     load_json,
+    normalize_hex,
 )
 
 
@@ -39,11 +40,90 @@ def compact_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def parse_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def lead_target_metadata(packet: dict[str, Any], lead: dict[str, Any]) -> dict[str, Any]:
+    diagnostics = as_dict(lead.get("CandidateDiagnostics"))
+    return {
+        "processName": packet.get("processName") or lead.get("ProcessName"),
+        "processId": as_int(diagnostics.get("ProcessId") or packet.get("processId")),
+        "targetWindowHandle": diagnostics.get("TargetWindowHandle") or packet.get("targetWindowHandle"),
+        "processStartTimeUtc": diagnostics.get("ProcessStartTimeUtc") or packet.get("processStartTimeUtc"),
+        "validatedAtUtc": lead.get("ValidatedAtUtc") or packet.get("generatedAtUtc"),
+    }
+
+
+def build_target_drift(
+    *,
+    recorded_target: dict[str, Any],
+    current_process_id: int | None,
+    current_target_window_handle: str | None,
+    current_process_start_utc: str | None,
+) -> dict[str, Any]:
+    issues: list[str] = []
+    recorded_pid = as_int(recorded_target.get("processId"))
+    recorded_hwnd = recorded_target.get("targetWindowHandle")
+    recorded_start = parse_datetime(recorded_target.get("processStartTimeUtc"))
+    validated_at = parse_datetime(recorded_target.get("validatedAtUtc"))
+    current_start = parse_datetime(current_process_start_utc)
+
+    if current_process_id is not None and recorded_pid and int(current_process_id) != recorded_pid:
+        issues.append(f"actor_yaw_lead_pid_mismatch:recorded={recorded_pid};current={current_process_id}")
+    if current_target_window_handle and recorded_hwnd:
+        if normalize_hex(str(current_target_window_handle)) != normalize_hex(str(recorded_hwnd)):
+            issues.append(
+                "actor_yaw_lead_hwnd_mismatch:"
+                f"recorded={recorded_hwnd};current={current_target_window_handle}"
+            )
+    if current_start and recorded_start and abs((current_start - recorded_start).total_seconds()) > 1.0:
+        issues.append(
+            "actor_yaw_lead_process_start_mismatch:"
+            f"recorded={recorded_target.get('processStartTimeUtc')};current={current_process_start_utc}"
+        )
+    if current_start and validated_at and validated_at < current_start:
+        issues.append(
+            "actor_yaw_lead_predates_current_process:"
+            f"validatedAtUtc={recorded_target.get('validatedAtUtc')};currentProcessStartUtc={current_process_start_utc}"
+        )
+
+    return {
+        "status": "blocked-target-drift" if issues else "passed",
+        "recordedTarget": recorded_target,
+        "requestedTarget": {
+            "processId": current_process_id,
+            "targetWindowHandle": current_target_window_handle,
+            "processStartUtc": current_process_start_utc,
+        },
+        "issues": issues,
+        "reusePolicy": (
+            "do-not-use-for-current-target; rerun current-target actor-yaw/facing revalidation"
+            if issues
+            else "recorded target matches requested target"
+        ),
+    }
+
+
 def build_current_truth_status(
     *,
     packet_file: Path,
     lead_file: Path,
     repo_root: Path | None = None,
+    current_process_id: int | None = None,
+    current_target_window_handle: str | None = None,
+    current_process_start_utc: str | None = None,
 ) -> dict[str, Any]:
     packet_file = packet_file.resolve()
     lead_file = lead_file.resolve()
@@ -68,8 +148,23 @@ def build_current_truth_status(
     capture_orientation = as_dict(promotion_validation.get("captureActorOrientation"))
 
     validation_passed = validation.get("status") == "pass"
-    status = "current" if validation_passed else "blocked"
-    decision = "use-promoted-actor-yaw-lead" if validation_passed else "repair-current-actor-yaw-truth"
+    recorded_target = lead_target_metadata(packet, lead)
+    target_drift = build_target_drift(
+        recorded_target=recorded_target,
+        current_process_id=current_process_id,
+        current_target_window_handle=current_target_window_handle,
+        current_process_start_utc=current_process_start_utc,
+    )
+    target_matches = target_drift["status"] == "passed"
+    if validation_passed and target_matches:
+        status = "current"
+        decision = "use-promoted-actor-yaw-lead"
+    elif validation_passed:
+        status = "blocked-target-drift"
+        decision = "revalidate-actor-yaw-for-current-target"
+    else:
+        status = "blocked"
+        decision = "repair-current-actor-yaw-truth"
 
     current_lead = {
         "sourceAddress": lead.get("SourceAddress") or promoted_lead.get("sourceAddress") or single_survivor.get("sourceAddress"),
@@ -86,7 +181,8 @@ def build_current_truth_status(
     }
 
     failed = failed_checks(validation)
-    issues = validation.get("issues") if isinstance(validation.get("issues"), list) else []
+    issues = list(validation.get("issues") if isinstance(validation.get("issues"), list) else [])
+    issues.extend(target_drift["issues"])
 
     return {
         "schemaVersion": 1,
@@ -100,6 +196,8 @@ def build_current_truth_status(
             "processId": as_int(packet.get("processId")),
             "targetWindowHandle": packet.get("targetWindowHandle"),
         },
+        "requestedTarget": target_drift["requestedTarget"],
+        "targetDrift": target_drift,
         "currentActorYawLead": current_lead,
         "singleSurvivor": compact_candidate(single_survivor),
         "previousLeadControl": compact_candidate(previous_control),
@@ -143,12 +241,12 @@ def build_current_truth_status(
             "packetLoadError": packet_error,
             "leadLoadError": lead_error,
         },
-        "nextActions": next_actions(validation_passed),
+        "nextActions": next_actions(validation_passed, target_matches=target_matches),
     }
 
 
-def next_actions(validation_passed: bool) -> list[dict[str, str]]:
-    if validation_passed:
+def next_actions(validation_passed: bool, *, target_matches: bool = True) -> list[dict[str, str]]:
+    if validation_passed and target_matches:
         return [
             {
                 "action": "Use this as actor-facing truth only after rebinding the same live PID/HWND.",
@@ -161,6 +259,21 @@ def next_actions(validation_passed: bool) -> list[dict[str, str]]:
             {
                 "action": "Keep auto-turn blocked until a separate turn backend is promoted.",
                 "why": "Facing truth is not an input-delivery proof.",
+            },
+        ]
+    if validation_passed and not target_matches:
+        return [
+            {
+                "action": "Treat the promoted actor-yaw lead as historical for the current target.",
+                "why": "The recorded PID/HWND/process epoch does not match the requested live target.",
+            },
+            {
+                "action": "Run only the established current-target actor-yaw/facing revalidation workflow before reuse.",
+                "why": "Actor-facing source addresses are session-bound and stale after target drift.",
+            },
+            {
+                "action": "Keep auto-turn and facing-driven navigation blocked.",
+                "why": "Current coordinate proof does not prove current actor-facing truth.",
             },
         ]
     return [
@@ -181,6 +294,7 @@ def markdown_for_status(status: dict[str, Any]) -> str:
     safety = as_dict(status.get("safety"))
     validation = as_dict(status.get("validation"))
     previous = as_dict(status.get("previousLeadControl"))
+    target_drift = as_dict(status.get("targetDrift"))
     actions = status.get("nextActions") if isinstance(status.get("nextActions"), list) else []
 
     lines = [
@@ -191,6 +305,7 @@ def markdown_for_status(status: dict[str, Any]) -> str:
         f"| Status | `{status.get('status')}` |",
         f"| Decision | `{status.get('decision')}` |",
         f"| Target | `{target.get('processName')}` PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}` |",
+        f"| Target drift | `{target_drift.get('status')}` |",
         f"| Current lead | `{lead.get('sourceAddress')} @ {lead.get('basisForwardOffset')}` |",
         f"| Candidate key | `{lead.get('candidateKey')}` |",
         f"| Previous rejected control | `{previous.get('sourceAddress')} @ {previous.get('basisForwardOffset')}` / `{previous.get('status')}` |",
@@ -231,6 +346,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Path to actor-facing-behavior-backed-lead.json.",
     )
     parser.add_argument("--repo-root", type=Path, default=repo_root, help="RiftReader repo root.")
+    parser.add_argument("--pid", type=int, default=None, help="Optional current live target process id.")
+    parser.add_argument("--hwnd", default=None, help="Optional current live target window handle, e.g. 0x3C0D58.")
+    parser.add_argument(
+        "--process-start-utc",
+        default=None,
+        help="Optional current live target process start timestamp for process-epoch checking.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of Markdown.")
     return parser
 
@@ -241,6 +363,9 @@ def main(argv: list[str] | None = None) -> int:
         packet_file=args.packet_file,
         lead_file=args.lead_file,
         repo_root=args.repo_root,
+        current_process_id=args.pid,
+        current_target_window_handle=args.hwnd,
+        current_process_start_utc=args.process_start_utc,
     )
     if args.json:
         print(json.dumps(status, indent=2))

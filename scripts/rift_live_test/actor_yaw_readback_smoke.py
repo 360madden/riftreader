@@ -145,6 +145,24 @@ def summarize_capture(
     }
 
 
+def skipped_readback_summary(*, label: str, output_file: Path, reason: str) -> dict[str, Any]:
+    return {
+        "status": "skipped",
+        "ok": False,
+        "file": str(output_file),
+        "exitCode": None,
+        "selectedSourceAddress": None,
+        "basisForwardOffset": None,
+        "resolutionMode": None,
+        "sourceMatchesPromotedLead": False,
+        "basisOffsetMatchesPromotedLead": False,
+        "preferredYawDegrees": None,
+        "preferredPitchDegrees": None,
+        "jsonParseError": None,
+        "skipReason": f"{label}:{reason}",
+    }
+
+
 def build_smoke_markdown(summary: dict[str, Any]) -> str:
     lead = summary.get("currentActorYawLead") if isinstance(summary.get("currentActorYawLead"), dict) else {}
     target = summary.get("target") if isinstance(summary.get("target"), dict) else {}
@@ -222,6 +240,8 @@ def run_actor_yaw_readback_smoke(
         packet_file=packet_file,
         lead_file=lead_file,
         repo_root=repo_root,
+        current_process_id=process_id,
+        current_target_window_handle=target_window_handle,
     )
     lead = status_report.get("currentActorYawLead") if isinstance(status_report.get("currentActorYawLead"), dict) else {}
     expected_source = lead.get("sourceAddress")
@@ -231,43 +251,59 @@ def run_actor_yaw_readback_smoke(
     capture_output_file = run_dir / "capture-actor-orientation.json"
     capture_previous_file = run_dir / "capture-actor-orientation.previous.json"
 
-    read_args = build_read_player_command(repo_root=repo_root, process_id=process_id)
-    capture_args = build_capture_command(
-        repo_root=repo_root,
-        process_id=process_id,
-        target_window_handle=target_window_handle,
-        process_name=process_name,
-        output_file=capture_output_file,
-        previous_file=capture_previous_file,
-    )
+    command_results: list[JsonCommandResult] = []
+    if status_report.get("status") == "current":
+        read_args = build_read_player_command(repo_root=repo_root, process_id=process_id)
+        capture_args = build_capture_command(
+            repo_root=repo_root,
+            process_id=process_id,
+            target_window_handle=target_window_handle,
+            process_name=process_name,
+            output_file=capture_output_file,
+            previous_file=capture_previous_file,
+        )
 
-    read_result = command_runner(read_args, repo_root, "read-player-orientation", timeout_seconds)
-    if read_result.json_data is not None:
-        write_json(read_output_file, read_result.json_data)
+        read_result = command_runner(read_args, repo_root, "read-player-orientation", timeout_seconds)
+        command_results.append(read_result)
+        if read_result.json_data is not None:
+            write_json(read_output_file, read_result.json_data)
 
-    capture_result = command_runner(capture_args, repo_root, "capture-actor-orientation", timeout_seconds)
-    if capture_result.json_data is not None and not capture_output_file.exists():
-        write_json(capture_output_file, capture_result.json_data)
+        capture_result = command_runner(capture_args, repo_root, "capture-actor-orientation", timeout_seconds)
+        command_results.append(capture_result)
+        if capture_result.json_data is not None and not capture_output_file.exists():
+            write_json(capture_output_file, capture_result.json_data)
 
-    read_summary = summarize_read_player(
-        read_result,
-        expected_source=expected_source,
-        expected_offset=expected_offset,
-        output_file=read_output_file,
-    )
-    capture_summary = summarize_capture(
-        capture_result,
-        expected_source=expected_source,
-        expected_offset=expected_offset,
-        output_file=capture_output_file,
-    )
+        read_summary = summarize_read_player(
+            read_result,
+            expected_source=expected_source,
+            expected_offset=expected_offset,
+            output_file=read_output_file,
+        )
+        capture_summary = summarize_capture(
+            capture_result,
+            expected_source=expected_source,
+            expected_offset=expected_offset,
+            output_file=capture_output_file,
+        )
+    else:
+        skip_reason = str(status_report.get("status") or "actor-yaw-status-not-current")
+        read_summary = skipped_readback_summary(
+            label="read-player-orientation",
+            output_file=read_output_file,
+            reason=skip_reason,
+        )
+        capture_summary = skipped_readback_summary(
+            label="capture-actor-orientation",
+            output_file=capture_output_file,
+            reason=skip_reason,
+        )
 
     issues: list[str] = []
     if status_report.get("status") != "current":
         issues.append("actor_yaw_status_not_current")
-    if not read_summary["ok"]:
+    if status_report.get("status") == "current" and not read_summary["ok"]:
         issues.append("read_player_orientation_failed")
-    if not capture_summary["ok"]:
+    if status_report.get("status") == "current" and not capture_summary["ok"]:
         issues.append("capture_actor_orientation_failed")
 
     ok = not issues
@@ -297,10 +333,7 @@ def run_actor_yaw_readback_smoke(
             "savedVariablesUsedAsLiveTruth": False,
         },
         "issues": issues,
-        "commands": [
-            command_envelope(read_result),
-            command_envelope(capture_result),
-        ],
+        "commands": [command_envelope(result) for result in command_results],
     }
     summary_file = run_dir / "run-summary.json"
     markdown_file = run_dir / "run-summary.md"

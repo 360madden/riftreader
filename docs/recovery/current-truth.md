@@ -1,98 +1,54 @@
-# RiftReader Current Truth
-
-_Last updated: 2026-05-16T16:46:11Z._
+# RiftReader current truth
 
 ## Verdict
 
-**No current coordinate proof is live.** The prior proof target PID `27552` / HWND `0x3411E2` is historical after the game/Codex session closed, and no live `rift_x64` process was detected during offline recovery on 2026-05-16.
-
-Movement is blocked until RIFT is loaded into the character/world again, fresh API/runtime coordinate truth is sampled, and the new PID/HWND passes current-PID recovery plus same-target `ProofOnly`. PID/HWND identity is a targeting preflight only; it is not freshness proof. Current coordinate proof requires API-now vs memory-now evidence from the same process epoch.
-
-## Historical target and stale proof
+RIFT is currently at **character selection**, not in-world. Movement and route automation are blocked.
 
 | Field | Value |
 |---|---|
-| Process | `rift_x64.exe` |
-| PID | `27552` |
-| HWND | `0x3411E2` |
-| Window title | `RIFT` |
-| Process start | `2026-05-15T01:11:57.750696Z` |
-| Module base | `0x7FF71CD90000` |
-| Target-control | historical `passed-target-control` / `exact-hwnd-foreground` |
-| ProofOnly | historical `passed-proof-only`; current status `blocked-target-drift` |
-| Movement allowed by coord proof | `false` after offline restart / no live target |
-| Latest recorded coordinate snapshot | `x=7325.35888671875, y=874.0448608398438, z=3053.77490234375`; do not present this value as current-now |
-| Coordinate recorded | `2026-05-15T03:19:32.4433262Z` |
+| Updated UTC | `2026-05-20T17:29:39.217389Z` |
+| Current target | PID `80072`, HWND `0xD10C20` |
+| Process start UTC | `2026-05-20T16:54:54.7174411Z` |
+| Screen state | `character-select-not-in-world` |
+| Screen classifier | `character-selection-not-in-world` confidence `0.9178` |
+| Play executor gate | `blocked-approval-required` |
+| Visual evidence | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-132806-184.png` |
+| Latest supervisor | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\character-login-supervisor-summary.json` |
+| Play executor gate artifact | `.riftreader-local\character-login-play-executor-gate\run-20260520-172832-522225\character-login-play-executor-gate-summary.json` |
+| Future MCP action manifest | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\future-mcp-action-manifest.json` |
+| Expected approval token | `ENTER-WORLD:ATANK:80072:0xD10C20` |
 
-## Historical proof anchor / reacquisition seed
+## Current blockers
 
-| Field | Value |
+- RIFT is at character selection, not in the in-game world; no current player coordinate proof exists for PID `80072` / HWND `0xD10C20`.
+- Play executor gate is blocked until explicit approval token and `--allow-world-entry` are provided in the same fresh run.
+- Prior character-select target PID `77728` / HWND `0x8E13A6` is stale after target drift and is historical only.
+- Prior in-world proof PID `1948` / HWND `0x3C0D58` remains historical-only; do not use its absolute address or candidate as current movement truth.
+- Actor yaw/facing artifacts remain stale until current in-world PID/HWND artifacts exist and pass readback.
+
+## Fresh character-login artifacts
+
+| Artifact | Path |
 |---|---|
-| Candidate | `api-family-hit-000001` |
-| Address | `0x27B1ED850C0` |
-| Axis order | `xyz` |
-| Candidate source | `scripts\captures\family-scan-currentpid-27552-20260515-022029-063377\api-family-vec3-candidates.jsonl` |
-| Support poses | `4` |
-| Movement pulses in recovery batch | `3` |
-| Max API/readback abs delta | `0.004589843750181899` |
-| Average planar readback distance | `0.0035424785720255003` |
-| Promotion batch | `scripts\captures\current-pid-coordinate-anchor-batch-27552-factor-doc-20260514-222116\coordinate-anchor-batch-summary.json` |
-| Proof pointer | `docs/recovery/current-proof-anchor-readback.json` |
-| ProofOnly run | `scripts\captures\work-1-10-pid27552-refresh-20260514-231658\proofonly\live-test-ProofOnly-20260515-031659\run-summary.json` |
-| Readback summary | `scripts\captures\proof-anchor-currentpid-27552-readback-summary-20260514-231748.json` |
+| Screen state classifier | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\screen-state\character-login-screen-state-summary.json` |
+| Environment summary | `.riftreader-local\character-select-automation-env\run-20260520-172824-675348\character-select-automation-env-summary.json` |
+| Selection plan | `.riftreader-local\character-select-automation-plan\run-20260520-172825-242705\character-select-automation-plan-summary.json` |
+| Resilience plan | `.riftreader-local\character-login-resilience-plan\run-20260520-172825-551314\character-login-resilience-plan-summary.json` |
+| Executor contract | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\executor-contract\character-login-executor-contract-summary.json` |
+| Readiness packet | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\readiness-packet\character-login-readiness-packet-summary.json` |
+| Supervisor summary | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\character-login-supervisor-summary.json` |
+| Play executor gate | `.riftreader-local\character-login-play-executor-gate\run-20260520-172832-522225\character-login-play-executor-gate-summary.json` |
+| Future MCP action manifest | `.riftreader-local\character-login-supervisor\run-20260520-172826-508165\future-mcp-action-manifest.json` |
 
-## Historical recovery workflow from PID 27552
+## Required recovery
 
-| Step | Result | Artifact |
-|---:|---|---|
-| 1 | Kept stale PID `23496` pointer blocked and archived. | `docs\recovery\historical\current-proof-anchor-readback-2026-05-15-pid23496-hwnd2C1024-historical.json` |
-| 2 | Verified exact live target PID/HWND/start/module and no debugger/RiftErrorHandler. | `scripts\captures\recovery-pid27552-factor-doc-20260514-221120\preflight\summary.json` |
-| 3 | Passed target-control + visual gate at 640x360 client. | `scripts\captures\recovery-pid27552-factor-doc-20260514-221120\target-visual-gate\visual-gate-target-control-status.json` |
-| 4 | Initial low-address broad scan timed out/blocked with no hits, so recovery pivoted to region inventory/scan-plan. | `scripts\captures\family-scan-currentpid-27552-20260515-021223-345938\family-scan-summary.json` |
-| 5 | Built current-PID memory-region inventory and scan plan. | `scripts\captures\memory-region-inventory-currentpid-27552-20260515-021811-284049\summary.json` |
-| 6 | Scanned current-PID plan ranges; found one API-near XYZ candidate in range rank 5. | `scripts\captures\coordinate-scan-plan-batch-currentpid-27552-20260515-022007-801670\summary.json` |
-| 7 | Ran 4-pose displacement/readback batch with 3 bounded W pulses through C# SendInput ScanCode. | `scripts\captures\current-pid-coordinate-anchor-batch-27552-factor-doc-20260514-222116\coordinate-anchor-batch-summary.json` |
-| 8 | Promoted the supported candidate and asserted readback. | `scripts\captures\proof-anchor-promote-currentpid-27552-20260514-223017\promotion-result.json` |
-| 9 | Reran ProofOnly; passed with `movementSent=false`. | `scripts\captures\work-1-10-pid27552-refresh-20260514-231658\proofonly\live-test-ProofOnly-20260515-031659\run-summary.json` |
-| 10 | Ran RiftScan milestone review; it is blocked only for provider-candidate consumption because this proof used a RiftReader-owned candidate file. | `scripts\captures\riftscan-milestone-review-20260515-023350.json` |
-| 11 | Ran RiftScan coordination validation; quick no-CE/read-only suite passed. | `scripts\captures\riftscan-validation-20260515-023843.json` |
+1. Rerun screen-state, supervisor, and Play executor gate immediately before any future approved world-entry action.
+2. Only after explicit current-run approval, use the manifest's exact-target MCP sequence and click Play at most once.
+3. Wait for frame transition and capture post-transition evidence; do not retry blind clicks if the screen does not change.
+4. After world load, rediscover exact PID/HWND/process start.
+5. Sample fresh API/runtime coordinate truth; do not use SavedVariables as live truth.
+6. Run same-target ProofOnly before any movement or diagnostic input.
 
+## Safety
 
-## Historical proof-gated movement smoke
-
-| Field | Value |
-|---|---|
-| Profile | `Forward250` |
-| Status | `passed` |
-| Movement sent | `true` |
-| Planar distance | `1.6640269674169994` |
-| Spatial distance | `1.6747150196950644` |
-| Final coordinate | `x=7325.35888671875, y=874.0448608398438, z=3053.77490234375` |
-| Run summary | `scripts\captures\work-1-10-pid27552-forward250-20260514-231815\live-test-Forward250-20260515-031816\run-summary.json` |
-
-## Historical / stale proof pointers
-
-| Epoch | Candidate/address | Status | Reuse policy |
-|---|---|---|---|
-| PID `27552` / HWND `0x3411E2` | `api-family-hit-000001 @ 0x27B1ED850C0` | Historical/stale after offline restart / no live target on 2026-05-16. | Recovery/static-chain evidence only; never current movement truth. |
-| PID `23496` / HWND `0x2C1024` | `api-family-hit-000005 @ 0x27236F46750` | Historical/stale after PID `27552` recovery. | Recovery evidence only; never current movement truth. |
-| PID `16536` / HWND `0x1E0D66` | `snapshot-delta-21487DF8F64-xyz @ 0x21487DF8F64` | Historical/stale after game close. | Access-path/static-chain research seed only. |
-| PID `2928` / HWND `0xC0994` | `api-family-hit-000001 @ 0x268E2BC09E0` | Historical/stale candidate-only lane. | Audit/history only. |
-
-## Current caveats
-
-- The PID `27552` proof is now **historical**, not current movement truth.
-- `docs/recovery/current-proof-anchor-readback.json` is now a `blocked-target-drift` blocker until a new same-target `ProofOnly` replaces it.
-- SavedVariables are not live truth and were not used for this offline update.
-- x64dbg/CE were not used for this offline update.
-- Static owner/source-chain provenance is still unresolved and candidate-only.
-- The source/cache static-chain hypothesis remains primary; the simple `owner+0x320` path remains a negative control unless fresh readback proves otherwise.
-
-## Next required before movement profiles
-
-1. Start/load RIFT into the character/world.
-2. Rediscover exact PID/HWND/process epoch and run target-control/visual gates.
-3. Sample fresh API/runtime coordinate truth; do not use SavedVariables as live truth.
-4. Run current-PID family recovery/ProofOnly only after the coordinate surface is live.
-5. Keep stale PID `27552`, `23496`, `16536`, and `2928` addresses historical-only.
-6. Defer live x64dbg/static-chain work unless explicitly approved; keep offline docs candidate-only.
+No click, key input, movement, Cheat Engine, x64dbg attach, provider write, or live memory read was used to create this blocker.

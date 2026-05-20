@@ -31,7 +31,7 @@
     "outputRoot": "scripts/captures",
     "maxHoldMilliseconds": 1000,
     "maxPulseCount": 3,
-    "inputBackend": "window-message"
+    "inputBackend": "csharp-scancode"
   },
   "profiles": {
     "ProofOnly": {

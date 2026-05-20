@@ -43,6 +43,34 @@ class ActorYawCurrentTruthStatusTests(unittest.TestCase):
         self.assertIn("lead_file_mismatch", status["validation"]["issues"])
         self.assertFalse(status["safety"]["movementAllowed"])
 
+    def test_status_blocks_when_requested_target_differs_from_promoted_lead(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            packet_file = root / "docs" / "recovery" / "current-actor-yaw-disambiguation.json"
+            lead_file = root / "scripts" / "actor-facing-behavior-backed-lead.json"
+            write_json(packet_file, valid_packet())
+            write_json(lead_file, valid_lead())
+
+            status = build_current_truth_status(
+                packet_file=packet_file,
+                lead_file=lead_file,
+                repo_root=root,
+                current_process_id=1948,
+                current_target_window_handle="0x3C0D58",
+            )
+
+        self.assertEqual(status["status"], "blocked-target-drift")
+        self.assertEqual(status["decision"], "revalidate-actor-yaw-for-current-target")
+        self.assertIn(
+            "actor_yaw_lead_pid_mismatch:recorded=4242;current=1948",
+            status["validation"]["issues"],
+        )
+        self.assertIn(
+            "actor_yaw_lead_hwnd_mismatch:recorded=0x1234;current=0x3C0D58",
+            status["validation"]["issues"],
+        )
+        self.assertFalse(status["safety"]["movementAllowed"])
+
     def test_markdown_includes_operator_truth(self) -> None:
         status = self.build_status(valid_packet(), valid_lead())
         markdown = markdown_for_status(status)

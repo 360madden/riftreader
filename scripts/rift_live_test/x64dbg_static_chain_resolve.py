@@ -286,6 +286,9 @@ def resolve_pointer_chain(
     if current is None:
         add_unique(blockers, "root-pointer-read-failed")
         return None, steps
+    if not is_plausible_user_pointer(current):
+        add_unique(blockers, "root-pointer-not-plausible")
+        return None, steps
     if not offsets:
         return current, steps
     for index, offset in enumerate(offsets):
@@ -313,8 +316,19 @@ def resolve_pointer_chain(
         if next_value is None:
             add_unique(blockers, "pointer-chain-read-failed")
             return None, steps
+        if not is_plausible_user_pointer(next_value):
+            add_unique(blockers, "pointer-chain-value-not-plausible")
+            return None, steps
         current = next_value
     return current, steps
+
+
+def is_plausible_user_pointer(value: int | None) -> bool:
+    if value is None:
+        return False
+    # Reject null/small sentinel values before treating them as object pointers.
+    # Keep the upper bound permissive for current 64-bit user-mode Windows VAs.
+    return 0x10000 <= int(value) <= 0x00007FFFFFFFFFFF
 
 
 def read_coord_triplet(

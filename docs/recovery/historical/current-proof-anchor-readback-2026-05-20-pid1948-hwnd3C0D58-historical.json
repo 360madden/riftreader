@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-proof-anchor-readback-pointer",
+  "status": "current-target-proofonly-passed",
+  "lastUpdatedUtc": "2026-05-20T01:16:17.101733+00:00",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 1948,
+    "targetWindowHandle": "0x3C0D58"
+  },
+  "currentTruthClassification": {
+    "classification": "current-live-target-proof-anchor",
+    "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+    "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
+    "savedVariablesUsedAsLiveTruth": false,
+    "noCheatEngine": true
+  },
+  "riftscanCandidateSource": {
+    "sourceKind": "current-proof-anchor-candidate-file",
+    "compatibilityNote": "Field name is retained for existing pointer consumers; the candidate file may be RiftReader-owned evidence and must still be gated by current proof-anchor/readback.",
+    "riftScanRoot": null,
+    "matchFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-1948-20260520-003014-344522\\api-family-vec3-candidates.jsonl",
+    "candidateId": "api-family-hit-000010",
+    "sourceBaseAddressHex": "0x1A91015CAC0",
+    "sourceOffsetHex": "0x40",
+    "sourceAbsoluteAddressHex": "0x1A91015CB00",
+    "axisOrder": "xyz",
+    "supportCount": 6,
+    "proofSupportCount": 6,
+    "bestMaxAbsDistance": 0.004640953125090164,
+    "promotedByProofAnchor": true,
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "notes": [
+      "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
+      "Do not treat this pointer as valid after a client restart unless target metadata still matches."
+    ]
+  },
+  "latestValidation": {
+    "status": "valid",
+    "movementAllowed": true,
+    "movementSent": false,
+    "noCheatEngine": true,
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "proofAnchorCandidateId": "api-family-hit-000010",
+    "proofAnchorCandidateAddressHex": "0x1A91015CB00",
+    "currentCoordinate": {
+      "x": 7298.86572265625,
+      "y": 818.2576904296875,
+      "z": 3013.78515625,
+      "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+    },
+    "generatedAtUtc": "2026-05-20T01:16:16.9565994+00:00"
+  },
+  "latestProofOnly": {
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260520-011554\\run-summary.json",
+    "status": "passed-proof-only",
+    "generatedAtUtc": "2026-05-20T01:16:17.098343+00:00",
+    "movementSent": false,
+    "movementAttempted": false,
+    "currentCoordinate": {
+      "x": 7298.86572265625,
+      "y": 818.2576904296875,
+      "z": 3013.78515625,
+      "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+    },
+    "coordinateDelta": null,
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-1948-readback-summary-20260519-211613.json"
+  },
+  "runtimePointers": {
+    "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+  },
+  "notes": [
+    "Auto-written after ProofOnly passed for the exact current target.",
+    "This file is a current pointer, not an immutable historical record.",
+    "Coordinate proof is current after post-incident ProofOnly, but route/navigation automation remains paused; bounded diagnostics may use only C# SendInput ScanCode after exact target/freshness gates."
+  ],
+  "historicalSupersededPointer": {
+    "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid27552-hwnd3411E2-historical.json",
+    "classification": "historical-target-epoch-evidence",
+    "supersededTarget": {
+      "processName": "rift_x64",
+      "processId": 27552,
+      "targetWindowHandle": "0x3411E2"
+    },
+    "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
+  },
+  "inputBackendIncident": {
+    "status": "agent-live-movement-paused-after-spin-incident",
+    "observedAtUtc": "2026-05-20T01:08:38Z",
+    "classification": "input-backend-unsafe-until-reviewed",
+    "coordinateProofStillValid": true,
+    "automationMovementPaused": true,
+    "operatorMovementAuthorizationSupersededByIncident": true,
+    "incidentRunSummary": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/summary.json",
+    "incidentManifest": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/manifest.json",
+    "incidentCommandEnvelopes": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/command-envelopes.json",
+    "autoDisplacement": {
+      "key": "W",
+      "holdMilliseconds": 250,
+      "inputMethod": "WindowMessage",
+      "stage": "auto-displacement",
+      "movementSent": true,
+      "inputSent": true
+    },
+    "incidentResult": {
+      "status": "blocked",
+      "blockers": [
+        "no-delta-tracking-vec3-candidates"
+      ],
+      "candidateCount": 0
+    },
+    "emergencyKeyRelease": {
+      "status": "released-keyup",
+      "summaryJson": "scripts/captures/emergency-key-release-20260520-011453-542635/summary.json",
+      "movementSent": false,
+      "inputType": "keyup-only",
+      "allPostMessageKeyupSent": true,
+      "allSendInputKeyupSent": true
+    },
+    "postIncidentProofOnly": {
+      "status": "passed-proof-only",
+      "runSummary": "scripts/captures/live-test-ProofOnly-20260520-011554/run-summary.json",
+      "readbackSummary": "scripts/captures/proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
+      "movementSent": false,
+      "movementAttempted": false,
+      "currentCoordinate": {
+        "x": 7298.86572265625,
+        "y": 818.2576904296875,
+        "z": 3013.78515625,
+        "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+      }
+    },
+    "postIncidentChromaLink": {
+      "status": "passed",
+      "summaryJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/summary.json",
+      "referenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+      "coordinate": {
+        "x": 7298.87,
+        "y": 818.26,
+        "z": 3013.79,
+        "fresh": true,
+        "stale": false
+      },
+      "stabilityCheck": {
+        "firstReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011322-009713/rift-api-reference-currentpid-1948-20260520-011322-042488.json",
+        "secondReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+        "deltaX": 0,
+        "deltaY": 0,
+        "deltaZ": 0,
+        "planarDistance": 0
+      }
+    },
+    "reusePolicy": "Do not run WindowMessage movement automation. C# SendInput ScanCode is the only allowed bounded diagnostic movement-key backend after exact target/freshness gates; route/navigation automation remains paused until explicitly cleared.",
+    "postIncidentCsharpScanCodeDiagnostics": {
+      "status": "passed-for-bounded-diagnostics-only",
+      "allowedDiagnosticBackend": "csharp-scancode",
+      "wrapper": "scripts/send-rift-key-csharp.ps1",
+      "tests": [
+        {
+          "key": "W",
+          "holdMilliseconds": 150,
+          "status": "passed",
+          "spatialDistance": 1.0002,
+          "artifact": ".riftreader-local/spin-diagnosis/csharp-w-test/csharp-w-test-summary.json"
+        },
+        {
+          "key": "Q",
+          "holdMilliseconds": 250,
+          "status": "passed",
+          "spatialDistance": 1.7443336836742445,
+          "artifact": ".riftreader-local/q-key-retest-csharp/clean-run-20260519-222554/q-retest-summary.json"
+        }
+      ],
+      "routeNavigationAutomationCleared": false
+    }
+  },
+  "archivedAtUtc": "2026-05-20T10:45:44.4947068Z",
+  "historicalClassification": {
+    "classification": "historical-target-epoch-evidence",
+    "archivedReason": "live rift_x64 process went offline; PID 1948 / HWND 0x3C0D58 is no longer current",
+    "reusePolicy": "do-not-use-as-current-proof; do-not-use-for-movement; use only as reacquisition/audit evidence after a fresh target is running",
+    "movementAllowed": false,
+    "savedVariablesUsedAsLiveTruth": false,
+    "noCheatEngine": true
+  }
+}

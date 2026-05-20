@@ -51,6 +51,7 @@ DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "workflow-status"
+DEFAULT_LAUNCHER_INSPECTION_DIR = Path(".riftreader-local") / "launcher-inspection"
 DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
 DEFAULT_OPENCODE_VARIANT = "xhigh"
 
@@ -102,6 +103,84 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "Transport probe local smoke",
         "scripts\\riftreader-transport-probe.cmd --json local-smoke",
         "synthetic local bridge smoke; no live RIFT activity",
+    ),
+    (
+        "family-neighborhood-analysis",
+        "Current-PID family neighborhood analysis",
+        "scripts\\riftreader-family-neighborhood-analysis.cmd --json",
+        "read-only existing candidate files; no live process reads/input/movement/debugger/provider writes",
+    ),
+    (
+        "emergency-release",
+        "Emergency key/mouse release",
+        "scripts\\riftreader-emergency-release.cmd --pid <PID> --hwnd <HWND> --process-name rift_x64 --include-mouse-buttons --json",
+        "release/up events only; no key-down/mouse-down/movement/debugger/provider writes",
+    ),
+    (
+        "live-input-surface-audit",
+        "Live input surface audit",
+        "scripts\\riftreader-live-input-surface-audit.cmd --json",
+        "read-only repo scan; no live process reads/input/movement/debugger/provider writes",
+    ),
+    (
+        "character-select-plan",
+        "Character-select dry-run plan",
+        "scripts\\riftreader-character-select-plan.cmd --target-character <name> --plan-enter-world --json",
+        "dry-run planning only; no clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-select-env-capture",
+        "Character-select environment summary",
+        "scripts\\riftreader-character-select-env-capture.cmd --pid <PID> --hwnd <HWND> --process-start-utc <UTC> --json",
+        "read-only screenshot-to-summary builder; no clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-resilience-plan",
+        "Character login/relogin resilience plan",
+        "scripts\\riftreader-character-login-resilience-plan.cmd --target-character <name> --json",
+        "dry-run crash/relogin planning only; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-executor-contract",
+        "Character login executor contract",
+        "scripts\\riftreader-character-login-executor-contract.cmd --json",
+        "dry-run approval/target contract validator only; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-readiness-packet",
+        "Character login readiness packet",
+        "scripts\\riftreader-character-login-readiness-packet.cmd --target-character <name> --json",
+        "input-free consolidated login/relogin packet; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-crash-watch",
+        "Character login crash/relogin watch",
+        "scripts\\riftreader-character-login-crash-watch.cmd --samples 3 --interval-seconds 1 --json",
+        "input-free crash/relogin watcher; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-screen-state",
+        "Character login screen-state classifier",
+        "scripts\\riftreader-character-login-screen-state.cmd --expect-character-select --json",
+        "input-free screenshot classifier; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-play-executor-gate",
+        "Character login Play executor gate",
+        "scripts\\riftreader-character-login-play-executor-gate.cmd --json",
+        "input-free MCP Play-click gate validator; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "character-login-supervisor",
+        "Character login supervisor packet",
+        "scripts\\riftreader-character-login-supervisor.cmd --target-character <name> --json",
+        "input-free supervised login/relogin gate; no launch/clicks/keys/movement/debugger/provider writes",
+    ),
+    (
+        "launcher-inspection",
+        "Glyph/RIFT launcher inspection",
+        "scripts\\riftreader-launcher-inspection.cmd --json",
+        "read-only launcher/process/window inspection; no launch/buttons/clicks/keys/movement/debugger/provider writes",
     ),
 )
 
@@ -209,6 +288,96 @@ def read_json(path: Path, errors: list[str], warnings: list[str], label: str) ->
         errors.append(f"{label}-not-json-object:{path}")
         return None
     return value
+
+
+def latest_launcher_inspection(repo_root: Path, errors: list[str], warnings: list[str]) -> dict[str, Any]:
+    """Return a compact summary of the latest read-only launcher inspection artifact.
+
+    The status packet intentionally does not run launcher inspection itself. It
+    reads the helper's latest artifact when present so compact SITREPs can show
+    the launcher/relogin state without implicitly touching live windows again.
+    """
+
+    latest_path = repo_root / DEFAULT_LAUNCHER_INSPECTION_DIR / "latest-run.txt"
+    if not latest_path.is_file():
+        return {
+            "status": "not-collected",
+            "state": None,
+            "summaryJson": None,
+            "observedAtUtc": None,
+            "launcherPresent": None,
+            "gamePresent": None,
+            "launcherWindowState": None,
+            "riftChildOfLauncher": None,
+        }
+
+    try:
+        latest_text = latest_path.read_text(encoding="utf-8").strip()
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"launcher-inspection-latest-read-failed:{type(exc).__name__}:{exc}")
+        return {
+            "status": "failed",
+            "state": None,
+            "summaryJson": None,
+            "observedAtUtc": None,
+            "launcherPresent": None,
+            "gamePresent": None,
+            "launcherWindowState": None,
+            "riftChildOfLauncher": None,
+        }
+
+    if not latest_text:
+        warnings.append("launcher-inspection-latest-empty")
+        return {
+            "status": "not-collected",
+            "state": None,
+            "summaryJson": None,
+            "observedAtUtc": None,
+            "launcherPresent": None,
+            "gamePresent": None,
+            "launcherWindowState": None,
+            "riftChildOfLauncher": None,
+        }
+
+    run_dir = Path(latest_text)
+    if not run_dir.is_absolute():
+        run_dir = repo_root / run_dir
+    summary_path = run_dir / "launcher-inspection-summary.json"
+    summary = read_json(summary_path, errors, warnings, "launcher-inspection-summary")
+    if not summary:
+        return {
+            "status": "missing-summary",
+            "state": None,
+            "summaryJson": as_repo_path(repo_root, summary_path),
+            "observedAtUtc": None,
+            "launcherPresent": None,
+            "gamePresent": None,
+            "launcherWindowState": None,
+            "riftChildOfLauncher": None,
+        }
+
+    launcher = summary.get("launcher") if isinstance(summary.get("launcher"), dict) else {}
+    game = summary.get("game") if isinstance(summary.get("game"), dict) else {}
+    state = summary.get("state") if isinstance(summary.get("state"), dict) else {}
+    main_window = launcher.get("mainWindow") if isinstance(launcher.get("mainWindow"), dict) else {}
+    return {
+        "status": summary.get("status"),
+        "observedAtUtc": summary.get("generatedAtUtc"),
+        "state": state.get("crashRecoveryState"),
+        "reloginState": state.get("reloginState"),
+        "automationRecommendation": state.get("automationRecommendation"),
+        "buttonAutomationPolicy": state.get("buttonAutomationPolicy"),
+        "launcherPresent": launcher.get("present"),
+        "launcherPids": launcher.get("processIds") or [],
+        "launcherWindowState": launcher.get("windowState") or state.get("launcherWindowState"),
+        "launcherMainHwnd": main_window.get("windowHandle"),
+        "gamePresent": game.get("present"),
+        "riftPids": game.get("processIds") or [],
+        "riftChildOfLauncher": state.get("riftChildOfLauncher"),
+        "blockers": summary.get("blockers") or [],
+        "warnings": summary.get("warnings") or [],
+        "summaryJson": as_repo_path(repo_root, summary_path),
+    }
 
 
 def find_latest_handoff(repo_root: Path, handoff_dir: Path | None = None) -> Path | None:
@@ -551,6 +720,7 @@ def build_status_packet(
 
     current_truth_summary = summarize_current_truth(current_truth)
     current_proof_summary = summarize_current_proof(current_proof)
+    launcher_summary = latest_launcher_inspection(repo_root, errors, warnings)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -694,6 +864,7 @@ def build_status_packet(
         },
         "git": git_summary,
         "liveTarget": live_target,
+        "launcher": launcher_summary,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -712,6 +883,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     target = (proof.get("target") or truth.get("target") or {})
     coord = packet.get("coordinateRecoveryStatus") or {}
     live_target = packet.get("liveTarget") or coord.get("liveTarget") or {}
+    launcher = packet.get("launcher") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     handoff = packet.get("latestHandoff") or {}
     opencode = packet.get("opencode") or {}
@@ -730,6 +902,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Movement allowed: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Target: PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}`, process `{target.get('processName')}`",
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
+        f"- Launcher: `{launcher.get('state')}`; Glyph PIDs `{launcher.get('launcherPids')}`; RIFT PIDs `{launcher.get('riftPids')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
@@ -790,6 +963,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     live_target = packet.get("liveTarget") if isinstance(packet.get("liveTarget"), dict) else {}
     stale_anchor = proof.get("staleAnchor") if isinstance(proof.get("staleAnchor"), dict) else {}
     opencode = packet.get("opencode") if isinstance(packet.get("opencode"), dict) else {}
+    launcher = packet.get("launcher") if isinstance(packet.get("launcher"), dict) else {}
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
     bridge_commands = bridge_command_capabilities(Path(str(repo_root_raw))) if repo_root_raw else []
@@ -838,6 +1012,22 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "modelProvider": opencode.get("modelProvider"),
             "modelVisible": opencode.get("modelVisible"),
         },
+        "launcher": {
+            "status": launcher.get("status"),
+            "observedAtUtc": launcher.get("observedAtUtc"),
+            "state": launcher.get("state"),
+            "reloginState": launcher.get("reloginState"),
+            "automationRecommendation": launcher.get("automationRecommendation"),
+            "buttonAutomationPolicy": launcher.get("buttonAutomationPolicy"),
+            "launcherPresent": launcher.get("launcherPresent"),
+            "launcherPids": launcher.get("launcherPids") or [],
+            "launcherWindowState": launcher.get("launcherWindowState"),
+            "launcherMainHwnd": launcher.get("launcherMainHwnd"),
+            "gamePresent": launcher.get("gamePresent"),
+            "riftPids": launcher.get("riftPids") or [],
+            "riftChildOfLauncher": launcher.get("riftChildOfLauncher"),
+            "summaryJson": launcher.get("summaryJson"),
+        },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
@@ -856,6 +1046,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     live_target = summary.get("liveTarget") or {}
     movement_gate = summary.get("movementGate") or {}
     opencode = summary.get("opencode") or {}
+    launcher = summary.get("launcher") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader Local Compact SITREP",
@@ -867,6 +1058,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Proof: `{proof.get('status')}` target PID `{proof.get('targetPid')}` HWND `{proof.get('targetHwnd')}`",
         f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
+        f"- Launcher: `{launcher.get('state')}` Glyph PIDs `{launcher.get('launcherPids')}` RIFT PIDs `{launcher.get('riftPids')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",

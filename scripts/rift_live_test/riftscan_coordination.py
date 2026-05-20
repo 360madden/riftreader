@@ -141,9 +141,18 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
     try:
         data = read_json_file(path)
     except Exception as exc:  # noqa: BLE001 - artifact inspection should report bad files.
-        item["status"] = "unreadable"
-        item["issues"].append(f"match_file_unreadable:{type(exc).__name__}:{exc}")
-        return item
+        jsonl_candidates = read_candidate_jsonl_file(path)
+        if not jsonl_candidates:
+            item["status"] = "unreadable"
+            item["issues"].append(f"match_file_unreadable:{type(exc).__name__}:{exc}")
+            return item
+        data = {
+            "schemaVersion": "riftreader.api_family_vec3_candidate.jsonl",
+            "mode": "riftreader-api-family-vec3-candidates-jsonl",
+            "success": True,
+            "candidate_count": len(jsonl_candidates),
+            "candidates": jsonl_candidates,
+        }
 
     candidates_raw = data.get("candidates")
     candidates = [
@@ -195,6 +204,20 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
                 f"candidate_reference_stability_not_current:{stability_status or 'unknown'}"
             )
     return item
+
+
+def read_candidate_jsonl_file(path: Path) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    try:
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            if not line.strip():
+                continue
+            item = json.loads(line)
+            if isinstance(item, dict):
+                candidates.append(item)
+    except Exception:  # noqa: BLE001 - caller preserves original JSON-object read error.
+        return []
+    return candidates
 
 
 def same_path(left: Any, right: Any) -> bool:
