@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-20T18:37:34Z",
-  "status": "target_present_character_select_after_one_approved_play_click_movement_blocked",
+  "updatedAtUtc": "2026-05-20T19:06:25Z",
+  "status": "target_present_character_select_after_restart_visual_gate_blocked_movement_blocked",
   "target": {
     "processName": "rift_x64",
-    "processId": 86740,
-    "targetWindowHandle": "0x414F8",
+    "processId": 51016,
+    "targetWindowHandle": "0x4613F0",
     "windowTitle": "RIFT",
-    "processStartUtc": "2026-05-20T17:55:14.2126486Z",
+    "processStartUtc": "2026-05-20T18:55:37.6710595Z",
     "moduleBase": "0x7FF7B77A0000",
     "live": true,
-    "status": "character-select-not-in-world-after-one-approved-play-click",
-    "lastVerifiedUtc": "2026-05-20T18:37:34Z",
-    "verificationSource": "exact HWND bind, read-only capture, launcher process tree, and fresh character-select screen-state classifier",
+    "status": "character-select-not-in-world-after-restart",
+    "lastVerifiedUtc": "2026-05-20T19:06:25Z",
+    "verificationSource": "exact HWND bind, launcher process tree, fresh capture, screen-state classifier, and character-select env capture",
     "clientGeometry": {
       "requiredClientWidth": 640,
       "requiredClientHeight": 360,
@@ -33,35 +33,59 @@
         "width": 656,
         "height": 399
       },
-      "lastVerifiedAtUtc": "2026-05-20T18:11:49Z",
+      "lastVerifiedAtUtc": "2026-05-20T19:00:33Z",
       "verificationTool": "rift_game MCP find_game_window/capture_game_window plus launcher_inspection",
       "policy": "visual/capture workflows require client area exactly 640x360; outer window includes border/titlebar and may be larger"
     },
-    "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143532-805.png",
-    "screenStateSummary": ".riftreader-local\\character-login-screen-state\\run-20260520-183614-485070\\character-login-screen-state-summary.json",
-    "environmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-180957-798659\\character-select-automation-env-summary.json",
-    "launcherInspectionSummary": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json",
+    "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-145745-653.png",
+    "screenStateSummary": ".riftreader-local\\character-login-screen-state\\run-20260520-185843-765426\\character-login-screen-state-summary.json",
+    "environmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-185900-605658\\character-select-automation-env-summary.json",
+    "launcherInspectionSummary": ".riftreader-local\\launcher-inspection\\run-20260520-185719-537492\\launcher-inspection-summary.json",
     "inWorld": false,
     "previousTargetEpoch": {
       "processName": "rift_x64",
-      "processId": 80072,
-      "targetWindowHandle": "0xD10C20",
+      "processId": 86740,
+      "targetWindowHandle": "0x414F8",
       "windowTitle": "RIFT",
-      "processStartUtc": "2026-05-20T16:54:54.7174411Z",
+      "processStartUtc": "2026-05-20T17:55:14.2126486Z",
       "moduleBase": "0x7FF7B77A0000",
-      "archivedPointer": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid80072-hwndD10C20-character-select-historical.json",
-      "reusePolicy": "historical character-select target epoch only; recapture/rebind after every relaunch or PID/HWND drift"
+      "archivedPointer": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid86740-hwnd414F8-character-select-approved-click-historical.json",
+      "reusePolicy": "historical character-select/post-click target epoch only; recapture/rebind after every relaunch or PID/HWND drift"
+    },
+    "latestCleanCharacterSelectEvidence": {
+      "status": "classified-character-select",
+      "screenClassification": "character-selection-not-in-world",
+      "confidence": 1.0,
+      "screenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-145745-653.png",
+      "screenStateSummary": ".riftreader-local\\character-login-screen-state\\run-20260520-185843-765426\\character-login-screen-state-summary.json",
+      "environmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-185900-605658\\character-select-automation-env-summary.json"
+    },
+    "latestVisualGate": {
+      "status": "blocked-non-game-overlay",
+      "checkedAtUtc": "2026-05-20T19:06:25Z",
+      "classification": "unknown-needs-operator-review",
+      "confidence": 0.5433,
+      "screenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-150319-668.png",
+      "screenStateSummary": ".riftreader-local\\character-login-screen-state\\run-20260520-190625-436699\\character-login-screen-state-summary.json",
+      "blockingEvidence": [
+        "Play button landmark was dark/covered in the latest capture.",
+        "Shard label and center character landmarks were covered by a Command Prompt window.",
+        "safeToUseCharacterSelectClickTargets=false; no Play click is high-confidence while this overlay is present."
+      ],
+      "safeToClickPlay": false,
+      "inputSent": false,
+      "movementSent": false
     }
   },
   "liveReferenceSurface": {
     "authoritative": false,
     "status": "target-present-character-select-no-world-coordinate-truth",
-    "source": "exact HWND bind plus fresh screen-state classifier for current relaunched target; no fresh coordinate proof",
+    "source": "exact HWND bind plus fresh character-select classifier for relaunched target; no fresh coordinate proof",
     "view": "Character selection screen; no current player world coordinate",
     "savedVariablesUse": "none",
     "currentCoordinate": null,
     "latestProofOnlyStatus": "blocked-target-not-in-world",
-    "latestProofOnlyGeneratedAtUtc": "2026-05-20T18:11:49Z",
+    "latestProofOnlyGeneratedAtUtc": "2026-05-20T19:00:33Z",
     "noCheatEngine": true,
     "movementSentByLatestProofOnly": false,
     "proofOnlyRunSummary": "scripts/captures/live-test-ProofOnly-20260520-011554/run-summary.json",
@@ -69,6 +93,7 @@
     "proofAnchorFile": "scripts/captures/telemetry-proof-coord-anchor.json",
     "targetControl": "scripts/captures/live-test-ProofOnly-20260520-011554/target-control/target-control-status.json",
     "notes": [
+      "RIFT relaunched/current target is PID 51016 / HWND 0x4613F0 at character selection.",
       "RIFT target is PID 86740 / HWND 0x414F8 at character selection.",
       "Character selection is not in-world coordinate truth; no current player coordinate proof exists.",
       "Previous character-select PID 80072 / HWND 0xD10C20 is historical only.",
@@ -149,249 +174,8 @@
   },
   "movementGate": {
     "allowed": false,
-    "status": "blocked-target-not-in-world-after-approved-play-click",
-    "reason": "One approved Play click was sent, but the post-click screenshot still classified as character selection; world entry is not confirmed and ProofOnly was not run by scope.",
-    "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
-    "proofOnlyRunSummary": null,
-    "readbackSummary": null,
-    "movementSentByLatestProofOnly": false,
-    "movementAttemptedByLatestProofOnly": false,
-    "perRunRequirements": [
-      "select/load the character into the in-game world",
-      "rediscover exact PID/HWND/process epoch after world load",
-      "sample fresh API/runtime coordinate truth; do not use SavedVariables as live truth",
-      "rerun current-PID recovery or ProofOnly only after the live coordinate surface is available",
-      "require same-target ProofOnly before any movement/input profile",
-      "keep route/navigation automation paused until movementGate.allowed is explicitly cleared",
-      "use only C# SendInput ScanCode for bounded diagnostic key tests after exact-target/freshness gates"
-    ],
-    "latestProofGatedMovementSmoke": {
-      "profile": "Forward250",
-      "status": "passed",
-      "runSummary": "scripts/captures/live-test-Forward250-20260520-004340/run-summary.json",
-      "summaryFile": "scripts/captures/live-test-Forward250-20260520-004340/gated-forward-smoke-currentpid-1948-summary-20260520-004409.json",
-      "movementSent": true,
-      "movementAttempted": true,
-      "coordinateDelta": {
-        "deltaX": -1.52490234375,
-        "deltaY": 0.12554931640625,
-        "deltaZ": 0.100341796875,
-        "planarDistance": 1.5282001289668663,
-        "spatialDistance": 1.5333487095323175
-      },
-      "currentCoordinate": {
-        "x": 7312.97998046875,
-        "y": 875.236083984375,
-        "z": 3048.90234375,
-        "recordedAtUtc": "2026-05-20T00:44:19.2622072Z"
-      },
-      "noCheatEngine": true,
-      "savedVariablesUsedAsLiveTruth": false
-    },
-    "latestProofGatedMovementSeries": {
-      "profile": "ForwardSeries3x250",
-      "status": "passed",
-      "runSummary": "scripts/captures/live-test-ForwardSeries3x250-20260520-004613/run-summary.json",
-      "summaryFile": "scripts/captures/live-test-ForwardSeries3x250-20260520-004613/gated-forward-smoke-currentpid-1948-summary-20260520-004708.json",
-      "movementSent": true,
-      "movementAttempted": true,
-      "completedPulseCount": 3,
-      "seriesCoordinateDelta": {
-        "deltaX": -4.7080078125,
-        "deltaY": 0.36761474609375,
-        "deltaZ": 0.307861328125,
-        "planarDistance": 4.718062754978565,
-        "spatialDistance": 4.732362703920896
-      },
-      "currentCoordinate": {
-        "x": 7308.27197265625,
-        "y": 875.6036987304688,
-        "z": 3049.210205078125,
-        "recordedAtUtc": "2026-05-20T00:47:17.4881668Z"
-      },
-      "noCheatEngine": true,
-      "savedVariablesUsedAsLiveTruth": false
-    },
-    "coordinateProofStillValid": false,
-    "proofQualifiedMovementPreviouslyPassed": true,
-    "automationMovementPaused": true,
-    "liveInputIncident": {
-      "status": "agent-live-movement-paused-after-spin-incident",
-      "observedAtUtc": "2026-05-20T01:08:38Z",
-      "classification": "input-backend-unsafe-until-reviewed",
-      "coordinateProofStillValid": true,
-      "automationMovementPaused": true,
-      "operatorMovementAuthorizationSupersededByIncident": true,
-      "incidentRunSummary": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/summary.json",
-      "incidentManifest": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/manifest.json",
-      "incidentCommandEnvelopes": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/command-envelopes.json",
-      "autoDisplacement": {
-        "key": "W",
-        "holdMilliseconds": 250,
-        "inputMethod": "WindowMessage",
-        "stage": "auto-displacement",
-        "movementSent": true,
-        "inputSent": true
-      },
-      "incidentResult": {
-        "status": "blocked",
-        "blockers": [
-          "no-delta-tracking-vec3-candidates"
-        ],
-        "candidateCount": 0
-      },
-      "emergencyKeyRelease": {
-        "status": "released-keyup",
-        "summaryJson": "scripts/captures/emergency-key-release-20260520-011453-542635/summary.json",
-        "movementSent": false,
-        "inputType": "keyup-only",
-        "allPostMessageKeyupSent": true,
-        "allSendInputKeyupSent": true,
-        "helper": "scripts/rift_emergency_key_release.py",
-        "launcher": "scripts/riftreader-emergency-release.cmd",
-        "bridgeCommandKey": "emergency-release",
-        "recommendedArgs": "--pid <PID> --hwnd <HWND> --process-name rift_x64 --include-mouse-buttons --json",
-        "safetyPolicy": "release/up events only; no key-down, mouse-down, movement, debugger, or provider writes"
-      },
-      "postIncidentProofOnly": {
-        "status": "passed-proof-only",
-        "runSummary": "scripts/captures/live-test-ProofOnly-20260520-011554/run-summary.json",
-        "readbackSummary": "scripts/captures/proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
-        "movementSent": false,
-        "movementAttempted": false,
-        "currentCoordinate": {
-          "x": 7298.86572265625,
-          "y": 818.2576904296875,
-          "z": 3013.78515625,
-          "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
-        }
-      },
-      "postIncidentChromaLink": {
-        "status": "passed",
-        "summaryJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/summary.json",
-        "referenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
-        "coordinate": {
-          "x": 7298.87,
-          "y": 818.26,
-          "z": 3013.79,
-          "fresh": true,
-          "stale": false
-        },
-        "stabilityCheck": {
-          "firstReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011322-009713/rift-api-reference-currentpid-1948-20260520-011322-042488.json",
-          "secondReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
-          "deltaX": 0,
-          "deltaY": 0,
-          "deltaZ": 0,
-          "planarDistance": 0
-        }
-      },
-      "reusePolicy": "Do not run WindowMessage movement automation. Use only repo-owned C# SendInput ScanCode for bounded diagnostic movement-key tests after exact target/freshness gates; route/navigation automation remains paused until explicitly cleared."
-    },
-    "inputBackendHardening": {
-      "windowMessageAutoDisplacementDefaultBlocked": true,
-      "requiredOverride": null,
-      "blockingCode": "auto-displacement-window-message-backend-retired-use-csharp-scancode",
-      "guardedScript": "scripts/current_pid_family_snapshot_sequence.py",
-      "launcher": null,
-      "emergencyReleaseLauncher": "scripts/riftreader-emergency-release.cmd",
-      "emergencyReleaseHelper": "scripts/rift_emergency_key_release.py",
-      "bridgeCommandKey": "emergency-release",
-      "familyNeighborhoodBridgeCommandKey": "family-neighborhood-analysis",
-      "statusPacket": "scripts/riftreader-workflow-status.cmd --compact-json",
-      "validatedAtUtc": "2026-05-20T01:58:06.760597Z",
-      "validation": [
-        "python -m unittest scripts.test_current_pid_family_snapshot_sequence scripts.test_opencode_status_packet scripts.test_emergency_key_release",
-        "scripts/riftreader-emergency-release.cmd --self-test --json",
-        "scripts/riftreader-workflow-status.cmd --compact-json"
-      ],
-      "gatedForwardSmokeWindowMessageDefaultBlocked": true,
-      "gatedForwardSmokeRequiredOverride": null,
-      "gatedForwardSmokeScript": "scripts/invoke-gated-forward-smoke.ps1",
-      "turnKeyPostMessageLiveDefaultBlocked": true,
-      "turnKeyPostMessageRequiredOverride": "--allow-post-message-input",
-      "turnKeyProfiler": "scripts/profile_turn_keys.py",
-      "turnKeyProfilerCore": "scripts/rift_live_test/turn_keys.py",
-      "latestHardeningValidatedAtUtc": "2026-05-20T02:27:26Z",
-      "preferredDiagnosticBackend": "csharp-scancode",
-      "allowedDiagnosticBackends": [
-        "csharp-scancode"
-      ],
-      "csharpSendInputWrapper": "scripts/send-rift-key-csharp.ps1",
-      "csharpSendInputTool": "tools/RiftReader.SendInput",
-      "requiredInputMode": "ScanCode",
-      "windowMessageAutoDisplacementRetired": true,
-      "gatedForwardSmokeDefaultBackend": "csharp-scancode",
-      "gatedForwardSmokeWindowMessageRetired": true
-    },
-    "diagnosticMovementBackend": {
-      "status": "promoted-for-bounded-diagnostics-only",
-      "backend": "csharp-scancode",
-      "tool": "tools/RiftReader.SendInput",
-      "wrapper": "scripts/send-rift-key-csharp.ps1",
-      "requiredInputMode": "ScanCode",
-      "routeNavigationAutomationCleared": false,
-      "latestRetests": [
-        {
-          "key": "W",
-          "binding": "Move Forward",
-          "holdMilliseconds": 150,
-          "status": "passed",
-          "spatialDistance": 1.0002,
-          "artifact": ".riftreader-local/spin-diagnosis/csharp-w-test/csharp-w-test-summary.json"
-        },
-        {
-          "key": "Q",
-          "binding": "Strafe Left",
-          "holdMilliseconds": 250,
-          "status": "passed",
-          "delta": {
-            "dx": -1.3500000000003638,
-            "dy": -0.4900000000000091,
-            "dz": 0.9899999999997817,
-            "spatial": 1.7443336836742445
-          },
-          "artifact": ".riftreader-local/q-key-retest-csharp/clean-run-20260519-222554/q-retest-summary.json"
-        }
-      ],
-      "policy": "Backend calibration may use C# ScanCode only after exact target/fresh coordinate gates; route/navigation automation remains paused until movementGate.allowed is explicitly cleared."
-    },
-    "offlineEvent": {
-      "status": "live-target-offline",
-      "reportedAtUtc": "2026-05-20T10:45:44.4947068Z",
-      "processCheck": {
-        "status": "offline",
-        "processName": "rift_x64",
-        "count": 0
-      },
-      "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid1948-hwnd3C0D58-historical.json"
-    },
-    "characterSelectEvent": {
-      "status": "target-present-character-select-not-in-world",
-      "checkedAtUtc": "2026-05-20T18:17:57Z",
-      "target": {
-        "processName": "rift_x64",
-        "processId": 86740,
-        "targetWindowHandle": "0x414F8",
-        "windowTitle": "RIFT",
-        "processStartUtc": "2026-05-20T17:55:14.2126486Z",
-        "moduleBase": "0x7FF7B77A0000"
-      },
-      "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-140919-120.png",
-      "screenState": ".riftreader-local\\character-login-screen-state\\run-20260520-180928-731718\\character-login-screen-state-summary.json",
-      "screenClassification": "character-selection-not-in-world",
-      "screenConfidence": 1.0,
-      "environmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-180957-798659\\character-select-automation-env-summary.json",
-      "dryRunPlan": ".riftreader-local\\character-select-automation-plan\\run-20260520-181400-411645\\character-select-automation-plan-summary.json",
-      "resiliencePlan": ".riftreader-local\\character-login-resilience-plan\\run-20260520-181400-757752\\character-login-resilience-plan-summary.json",
-      "executorContract": ".riftreader-local\\character-login-executor-contract\\run-20260520-181401-139514\\character-login-executor-contract-summary.json",
-      "readinessPacket": ".riftreader-local\\character-login-readiness-packet\\run-20260520-181401-513575\\character-login-readiness-packet-summary.json",
-      "supervisor": ".riftreader-local\\character-login-supervisor\\run-20260520-181401-933577\\character-login-supervisor-summary.json",
-      "futureMcpActionManifest": ".riftreader-local\\character-login-supervisor\\run-20260520-181401-933577\\future-mcp-action-manifest.json",
-      "expectedApprovalTokenStored": false,
-      "expectedApprovalTokenRedacted": true,
-      "playExecutorGateStatus": "not-run-current-target-approval-required"
-    }
+    "status": "blocked-target-not-in-world",
+    "reason": "RIFT process/window is present at character selection after restart; no current player coordinate proof exists for PID 51016 / HWND 0x4613F0. Latest visual gate is also blocked by a non-game overlay, so Play click automation is not high-confidence."
   },
   "bestCurrentCandidate": {
     "candidateId": "api-family-hit-000010",
@@ -438,6 +222,13 @@
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid1948-hwnd3C0D58-historical.json"
   },
   "staleOrInvalid": [
+    {
+      "item": "PID 86740 / HWND 0x414F8 character-select target and approved-click attempt",
+      "status": "historical-stale-after-restart",
+      "reason": "RIFT target drifted/relaunched; current character-select target is PID 51016 / HWND 0x4613F0.",
+      "reusePolicy": "targeting/audit history only; do not click or proof against the old PID/HWND",
+      "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid86740-hwnd414F8-character-select-approved-click-historical.json"
+    },
     {
       "item": "PID 80072 / HWND 0xD10C20 character-select target",
       "status": "historical-stale-after-target-drift",
@@ -536,9 +327,9 @@
     }
   ],
   "currentBlockers": [
-    "One approved Play click was sent for PID 86740 / HWND 0x414F8, but post-click screen-state remains character-selection-not-in-world; do not retry blindly.",
-    "RIFT is at character selection, not in the in-game world; no current player coordinate proof exists for PID 86740 / HWND 0x414F8.",
-    "Prior character-select target PID 80072 / HWND 0xD10C20 is stale after target drift and is preserved only as target-history evidence.",
+    "Latest live capture has a non-game Command Prompt overlay covering Play/shard/center landmarks; high-confidence Play click automation is blocked until a fresh clean screenshot passes.",
+    "RIFT is at character selection after restart, not in the in-game world; no current player coordinate proof exists for PID 51016 / HWND 0x4613F0.",
+    "Prior character-select target PID 86740 / HWND 0x414F8 is stale after restart and is preserved only as target-history evidence.",
     "Prior in-world proof PID 1948 / HWND 0x3C0D58 remains historical-only; do not use its absolute address or candidate as current movement truth.",
     "Actor yaw/facing artifacts remain stale until current in-world PID/HWND artifacts exist and pass readback."
   ],
@@ -546,7 +337,7 @@
     "currentTruthMarkdown": "docs/recovery/current-truth.md",
     "currentTruthJson": "docs/recovery/current-truth.json",
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "currentHandoff": "docs/handoffs/20260520-1418-character-login-refresh-pid86740-handoff.md",
+    "currentHandoff": "docs/handoffs/20260520-1508-character-login-restart-pid51016-handoff.md",
     "historicalPid2928CurrentTruthMarkdown": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.md",
     "historicalPid2928CurrentTruthJson": "docs/recovery/historical/current-truth-2026-05-14-pid2928-hwndC0994-historical.json",
     "historicalPid2928ProofPointer": "docs/recovery/historical/current-proof-anchor-readback-2026-05-14-pid2928-hwndC0994-historical.json",
@@ -624,25 +415,32 @@
     "turnKeyProfilerTest": "scripts/test_turn_key_profile.py",
     "historicalPid1948ProofPointer": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid1948-hwnd3C0D58-historical.json",
     "characterSelectScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-132806-184.png",
-    "latestCharacterSelectEnvironmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-180957-798659\\character-select-automation-env-summary.json",
-    "latestCharacterSelectDryRunPlan": ".riftreader-local\\character-select-automation-plan\\run-20260520-172825-242705\\character-select-automation-plan-summary.json",
+    "latestCharacterSelectEnvironmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-185900-605658\\character-select-automation-env-summary.json",
+    "latestCharacterSelectDryRunPlan": ".riftreader-local\\character-select-automation-plan\\run-20260520-190522-012595\\character-select-automation-plan-summary.json",
     "historicalPid60636CharacterSelectPointer": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid60636-hwndC51368-character-select-historical.json",
     "historicalPid77728CharacterSelectPointer": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid77728-hwnd8E13A6-character-select-historical.json",
-    "latestCharacterLoginResiliencePlan": ".riftreader-local\\character-login-resilience-plan\\run-20260520-172825-551314\\character-login-resilience-plan-summary.json",
-    "latestCharacterLoginExecutorContract": ".riftreader-local\\character-login-supervisor\\run-20260520-172826-508165\\executor-contract\\character-login-executor-contract-summary.json",
-    "latestCharacterLoginReadinessPacket": ".riftreader-local\\character-login-supervisor\\run-20260520-172826-508165\\readiness-packet\\character-login-readiness-packet-summary.json",
-    "latestCharacterLoginSupervisor": ".riftreader-local\\character-login-supervisor\\run-20260520-181401-933577\\character-login-supervisor-summary.json",
+    "latestCharacterLoginResiliencePlan": ".riftreader-local\\character-login-resilience-plan\\run-20260520-190522-428657\\character-login-resilience-plan-summary.json",
+    "latestCharacterLoginExecutorContract": ".riftreader-local\\character-login-executor-contract\\run-20260520-190522-904425\\character-login-executor-contract-summary.json",
+    "latestCharacterLoginReadinessPacket": ".riftreader-local\\character-login-readiness-packet\\run-20260520-190523-313119\\character-login-readiness-packet-summary.json",
+    "latestCharacterLoginSupervisor": ".riftreader-local\\character-login-supervisor\\run-20260520-190523-757189\\character-login-supervisor-summary.json",
     "latestCharacterLoginFutureMcpActionManifest": ".riftreader-local\\character-login-supervisor\\run-20260520-172826-508165\\future-mcp-action-manifest.json",
-    "latestCharacterLoginScreenState": ".riftreader-local\\character-login-screen-state\\run-20260520-180928-731718\\character-login-screen-state-summary.json",
+    "latestCharacterLoginScreenState": ".riftreader-local\\character-login-screen-state\\run-20260520-190625-436699\\character-login-screen-state-summary.json",
     "latestCharacterLoginPlayExecutorGate": ".riftreader-local\\character-login-play-executor-gate\\run-20260520-172832-522225\\character-login-play-executor-gate-summary.json",
-    "latestCurrentTargetScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-140919-120.png",
-    "latestLauncherInspectionSummary": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json",
+    "latestCurrentTargetScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-150319-668.png",
+    "latestLauncherInspectionSummary": ".riftreader-local\\launcher-inspection\\run-20260520-185719-537492\\launcher-inspection-summary.json",
     "historicalPid80072ProofPointer": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid80072-hwndD10C20-character-select-historical.json",
     "postWorldEntryProofChecklist": "docs/workflow/post-world-entry-proof-reacquisition-checklist.md",
-    "latestLauncherInspection": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json",
-    "latestApprovedPlayClickAttempt": ".riftreader-local\\approved-play-click-attempts\\run-20260520-183614\\approved-play-click-attempt-summary.json"
+    "latestLauncherInspection": ".riftreader-local\\launcher-inspection\\run-20260520-185719-537492\\launcher-inspection-summary.json",
+    "latestApprovedPlayClickAttempt": ".riftreader-local\\approved-play-click-attempts\\run-20260520-183614\\approved-play-click-attempt-summary.json",
+    "historicalPid86740ProofPointer": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid86740-hwnd414F8-character-select-approved-click-historical.json",
+    "latestCharacterSelectEnvironment": ".riftreader-local\\character-select-automation-env\\run-20260520-185900-605658\\character-select-automation-env-summary.json",
+    "latestCleanCharacterLoginScreenState": ".riftreader-local\\character-login-screen-state\\run-20260520-185843-765426\\character-login-screen-state-summary.json",
+    "latestCharacterLoginScreenStateBlockedByOverlay": ".riftreader-local\\character-login-screen-state\\run-20260520-190625-436699\\character-login-screen-state-summary.json",
+    "latestCleanCurrentTargetScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-145745-653.png",
+    "latestRedactedRestartGateSequence": ".riftreader-local\\turn-20260520-restart-pid51016-gates\\redacted-helper-sequence-summary.json",
+    "latestWorkflowStatusCompactSitrep": ".riftreader-local\\workflow-status\\20260520-191003Z\\compact-sitrep.json"
   },
-  "nextRecommendedAction": "World entry remains approval-gated. Rerun the supervisor and Play executor gate against current PID 86740 / HWND 0x414F8 to mint a same-run approval token; after world load, rediscover exact PID/HWND and rerun fresh same-target ProofOnly before any movement or diagnostic input.",
+  "nextRecommendedAction": "Clear/avoid the non-game overlay and recapture the exact PID 51016 / HWND 0x4613F0 character-select screen; rerun supervisor/readiness and only consider one Play click if same-run visual and executor gates pass with explicit current-run approval.",
   "historicalState": {
     "pid2928": {
       "status": "historical_stale",
