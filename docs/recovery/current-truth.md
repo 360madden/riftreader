@@ -6,13 +6,13 @@ RIFT is currently at **character selection**, not in-world. Movement and route a
 
 | Field | Value |
 |---|---|
-| Updated UTC | `2026-05-20T18:18:48Z` |
+| Updated UTC | `2026-05-20T18:37:34Z` |
 | Current target | PID `86740`, HWND `0x414F8` |
 | Process start UTC | `2026-05-20T17:55:14.2126486Z` |
-| Screen state | `character-select-not-in-world` |
+| Screen state | `character-select-not-in-world-after-one-approved-play-click` |
 | Screen classifier | `character-selection-not-in-world` confidence `1.0` |
-| Visual evidence | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-140919-120.png` |
-| Screen-state summary | `.riftreader-local\character-login-screen-state\run-20260520-180928-731718\character-login-screen-state-summary.json` |
+| Visual evidence | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-143532-805.png` |
+| Screen-state summary | `.riftreader-local\character-login-screen-state\run-20260520-183614-485070\character-login-screen-state-summary.json` |
 | Environment summary | `.riftreader-local\character-select-automation-env\run-20260520-180957-798659\character-select-automation-env-summary.json` |
 | Launcher inspection | `.riftreader-local\launcher-inspection\run-20260520-180746-262609\launcher-inspection-summary.json` |
 | Login supervisor | `.riftreader-local\character-login-supervisor\run-20260520-181401-933577\character-login-supervisor-summary.json` |
@@ -20,10 +20,25 @@ RIFT is currently at **character selection**, not in-world. Movement and route a
 
 ## Current blockers
 
+- One approved Play click was sent for PID `86740` / HWND `0x414F8`, but post-click screen-state remains `character-selection-not-in-world`; do not retry blindly.
 - RIFT is at character selection, not in the in-game world; no current player coordinate proof exists for PID `86740` / HWND `0x414F8`.
 - Prior character-select target PID `80072` / HWND `0xD10C20` is stale after target drift and is historical only.
 - Prior in-world proof PID `1948` / HWND `0x3C0D58` remains historical-only; do not use its absolute address or candidate as current movement truth.
 - Actor yaw/facing artifacts remain stale until current in-world PID/HWND artifacts exist and pass readback.
+
+## Latest approved Play attempt
+
+| Field | Value |
+|---|---|
+| Status | `play-click-sent-no-world-entry-confirmed` |
+| Click count | `1` |
+| Click point | client `[517, 343]` |
+| Pre-click screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-143510-544.png` |
+| Post-click screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-143532-805.png` |
+| Frame-change check | `changed=true`, `4.1944%`, `636ms` |
+| Post-click classifier | `character-selection-not-in-world`, confidence `1.0` |
+| Attempt summary | `.riftreader-local\approved-play-click-attempts\run-20260520-183614\approved-play-click-attempt-summary.json` |
+| Movement/proof | not run; movement remains blocked |
 
 ## Fresh character-login artifacts
 
@@ -51,4 +66,6 @@ RIFT is currently at **character selection**, not in-world. Movement and route a
 
 ## Safety
 
-No click, key input, movement, Cheat Engine, x64dbg attach, provider write, raw command-line secret storage, or live memory read was used to create this blocker.
+Exactly one approved Play click was sent. No retry click, key input, movement,
+Cheat Engine, x64dbg attach, provider write, raw command-line secret storage, or
+live memory read was used after the click.

@@ -105,3 +105,23 @@ truth, Git mutation by helper, or movement occurred.
 - `scripts\riftreader-character-login-readiness-packet.cmd --target-character ATANK --json` -> packet-ready.
 - `scripts\riftreader-character-login-supervisor.cmd --target-character ATANK --samples 3 --interval-seconds 1 --json` -> blocked on approval with non-stale target.
 - `scripts\riftreader-workflow-status.cmd --compact-json --write` -> blocked; live target PID/HWND matches current artifacts.
+
+## Continuation update — 2026-05-20 14:37 EDT — approved one-click Play attempt
+
+| Field | Value |
+|---|---|
+| User-approved scope | `do 1 2 3 only` |
+| Same-run supervisor | `.riftreader-local\character-login-supervisor\run-20260520-183445-653101\character-login-supervisor-summary.json` |
+| Play executor gate | `.riftreader-local\character-login-play-executor-gate\run-20260520-183451-525996\character-login-play-executor-gate-summary.json` |
+| Click count | `1` |
+| Click point | client `[517, 343]` |
+| Pre-click screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-143510-544.png` |
+| Post-click screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260520-143532-805.png` |
+| Frame-change result | `changed=true`, `4.1944%`, `636ms` |
+| Post-click classifier | `character-selection-not-in-world`, confidence `1.0` |
+| Attempt summary | `.riftreader-local\approved-play-click-attempts\run-20260520-183614\approved-play-click-attempt-summary.json` |
+
+The approved executor sent exactly one Play click and stopped. The client did not
+leave character selection according to the post-click classifier, so no retry
+click was sent and no post-world ProofOnly or movement work was attempted.
+Movement remains blocked.

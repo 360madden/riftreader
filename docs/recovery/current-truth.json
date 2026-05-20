@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-20T18:18:48Z",
-  "status": "target_present_character_select_movement_blocked_reacquisition_required",
+  "updatedAtUtc": "2026-05-20T18:37:34Z",
+  "status": "target_present_character_select_after_one_approved_play_click_movement_blocked",
   "target": {
     "processName": "rift_x64",
     "processId": 86740,
@@ -11,8 +11,8 @@
     "processStartUtc": "2026-05-20T17:55:14.2126486Z",
     "moduleBase": "0x7FF7B77A0000",
     "live": true,
-    "status": "character-select-not-in-world",
-    "lastVerifiedUtc": "2026-05-20T18:11:49Z",
+    "status": "character-select-not-in-world-after-one-approved-play-click",
+    "lastVerifiedUtc": "2026-05-20T18:37:34Z",
     "verificationSource": "exact HWND bind, read-only capture, launcher process tree, and fresh character-select screen-state classifier",
     "clientGeometry": {
       "requiredClientWidth": 640,
@@ -37,8 +37,8 @@
       "verificationTool": "rift_game MCP find_game_window/capture_game_window plus launcher_inspection",
       "policy": "visual/capture workflows require client area exactly 640x360; outer window includes border/titlebar and may be larger"
     },
-    "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-140919-120.png",
-    "screenStateSummary": ".riftreader-local\\character-login-screen-state\\run-20260520-180928-731718\\character-login-screen-state-summary.json",
+    "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143532-805.png",
+    "screenStateSummary": ".riftreader-local\\character-login-screen-state\\run-20260520-183614-485070\\character-login-screen-state-summary.json",
     "environmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-180957-798659\\character-select-automation-env-summary.json",
     "launcherInspectionSummary": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json",
     "inWorld": false,
@@ -149,8 +149,8 @@
   },
   "movementGate": {
     "allowed": false,
-    "status": "blocked-target-not-in-world",
-    "reason": "RIFT process/window is present at character selection and not loaded into the in-game world. Current coordinate proof is unavailable.",
+    "status": "blocked-target-not-in-world-after-approved-play-click",
+    "reason": "One approved Play click was sent, but the post-click screenshot still classified as character selection; world entry is not confirmed and ProofOnly was not run by scope.",
     "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
     "proofOnlyRunSummary": null,
     "readbackSummary": null,
@@ -536,6 +536,7 @@
     }
   ],
   "currentBlockers": [
+    "One approved Play click was sent for PID 86740 / HWND 0x414F8, but post-click screen-state remains character-selection-not-in-world; do not retry blindly.",
     "RIFT is at character selection, not in the in-game world; no current player coordinate proof exists for PID 86740 / HWND 0x414F8.",
     "Prior character-select target PID 80072 / HWND 0xD10C20 is stale after target drift and is preserved only as target-history evidence.",
     "Prior in-world proof PID 1948 / HWND 0x3C0D58 remains historical-only; do not use its absolute address or candidate as current movement truth.",
@@ -638,7 +639,8 @@
     "latestLauncherInspectionSummary": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json",
     "historicalPid80072ProofPointer": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid80072-hwndD10C20-character-select-historical.json",
     "postWorldEntryProofChecklist": "docs/workflow/post-world-entry-proof-reacquisition-checklist.md",
-    "latestLauncherInspection": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json"
+    "latestLauncherInspection": ".riftreader-local\\launcher-inspection\\run-20260520-180746-262609\\launcher-inspection-summary.json",
+    "latestApprovedPlayClickAttempt": ".riftreader-local\\approved-play-click-attempts\\run-20260520-183614\\approved-play-click-attempt-summary.json"
   },
   "nextRecommendedAction": "World entry remains approval-gated. Rerun the supervisor and Play executor gate against current PID 86740 / HWND 0x414F8 to mint a same-run approval token; after world load, rediscover exact PID/HWND and rerun fresh same-target ProofOnly before any movement or diagnostic input.",
   "historicalState": {
@@ -862,5 +864,62 @@
     "rootSlotMemoryImage": "scripts/captures/static-chain-current-target-pid1948-20260520-0058/root-slot-memory-image-currentpid-1948.json",
     "sourceCacheRootReadbackResolverSummary": "scripts/captures/static-chain-current-target-pid1948-20260520-0058/resolve-source-cache-root-readback/summary.json",
     "destinationNegativeControlRootReadbackResolverSummary": "scripts/captures/static-chain-current-target-pid1948-20260520-0058/resolve-destination-negative-control-root-readback/summary.json"
+  },
+  "latestWorldEntryAttempt": {
+    "status": "play-click-sent-no-world-entry-confirmed",
+    "approvedUserScope": "do 1 2 3 only",
+    "recordedAtUtc": "2026-05-20T18:37:34Z",
+    "target": {
+      "processName": "rift_x64",
+      "processId": 86740,
+      "targetWindowHandle": "0x414F8",
+      "windowTitle": "RIFT",
+      "processStartUtc": "2026-05-20T17:55:14.2126486Z",
+      "moduleBase": "0x7FF7B77A0000"
+    },
+    "click": {
+      "count": 1,
+      "clientPoint": [
+        517,
+        343
+      ],
+      "coordinateSpace": "client",
+      "mouseClickSent": true,
+      "keyInputSent": false,
+      "movementSent": false,
+      "launcherButtonPressed": false
+    },
+    "evidence": {
+      "preClickScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143510-544.png",
+      "frameChangeScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143528-085.png",
+      "postClickScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143532-805.png",
+      "waitForFrameChange": {
+        "changed": true,
+        "attempts": 1,
+        "elapsedMilliseconds": 636,
+        "changePercent": 4.1944,
+        "thresholdPercent": 2.0
+      },
+      "postClickScreenState": {
+        "status": "classified-character-select",
+        "classification": "character-selection-not-in-world",
+        "confidence": 1.0,
+        "summaryJson": ".riftreader-local\\character-login-screen-state\\run-20260520-183614-485070\\character-login-screen-state-summary.json"
+      },
+      "attemptSummary": ".riftreader-local\\approved-play-click-attempts\\run-20260520-183614\\approved-play-click-attempt-summary.json",
+      "supervisorSummary": ".riftreader-local\\character-login-supervisor\\run-20260520-183445-653101\\character-login-supervisor-summary.json",
+      "playExecutorGateSummary": ".riftreader-local\\character-login-play-executor-gate\\run-20260520-183451-525996\\character-login-play-executor-gate-summary.json"
+    },
+    "approvalTokenStored": false,
+    "approvalTokenRedacted": true,
+    "result": "Frame changed after click, but post-click screenshot still classified as character-selection-not-in-world. Stop after one click; do not retry blindly.",
+    "movementAllowed": false,
+    "postWorldProofRun": false,
+    "blockers": [
+      "post-click-screen-still-character-selection-not-in-world",
+      "world-entry-not-confirmed",
+      "same-target-proofonly-not-run-by-scope",
+      "movement-remains-blocked"
+    ]
   }
 }

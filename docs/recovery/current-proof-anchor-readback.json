@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "status": "blocked-target-not-in-world",
-  "lastUpdatedUtc": "2026-05-20T18:18:48Z",
+  "status": "blocked-target-not-in-world-after-approved-play-click",
+  "lastUpdatedUtc": "2026-05-20T18:37:34Z",
   "target": {
     "processName": "rift_x64",
     "processId": 86740,
@@ -17,16 +17,21 @@
     "noCheatEngine": true
   },
   "latestValidation": {
-    "status": "blocked-target-not-in-world",
+    "status": "blocked-target-not-in-world-after-approved-play-click",
     "movementAllowed": false,
     "movementSent": false,
     "movementAttempted": false,
+    "mouseClickSent": true,
+    "worldEntryClickCount": 1,
     "noCheatEngine": true,
     "referenceFile": null,
     "currentCoordinate": null,
-    "generatedAtUtc": "2026-05-20T18:11:49Z",
+    "generatedAtUtc": "2026-05-20T18:37:34Z",
     "blockers": [
-      "target-at-character-selection-not-in-world"
+      "post-click-screen-still-character-selection-not-in-world",
+      "world-entry-not-confirmed",
+      "same-target-proofonly-not-run-by-scope",
+      "movement-remains-blocked"
     ]
   },
   "latestProofOnly": {
@@ -791,10 +796,10 @@
     }
   },
   "notes": [
-    "RIFT target drifted/relaunched again; current character-select target is PID 86740 / HWND 0x414F8.",
-    "Previous PID 80072 / HWND 0xD10C20 is historical only.",
-    "No click, key input, movement, CE, x64dbg attach, provider write, or live memory read was used to create this blocker.",
-    "Movement remains blocked until the character is loaded into the world and same-target ProofOnly passes."
+    "One approved Play click was sent for current character-select target PID 86740 / HWND 0x414F8.",
+    "wait_for_frame_change reported a visible change, but post-click screenshot still classified as character-selection-not-in-world.",
+    "No retry click, key input, movement, CE, x64dbg attach, provider write, or live memory proof was performed after the click.",
+    "Movement remains blocked until world entry is confirmed and same-target ProofOnly passes."
   ],
   "characterSelectEvent": {
     "status": "target-present-character-select-not-in-world",
@@ -821,5 +826,62 @@
     "expectedApprovalTokenStored": false,
     "expectedApprovalTokenRedacted": true,
     "playExecutorGateStatus": "not-run-current-target-approval-required"
+  },
+  "latestWorldEntryAttempt": {
+    "status": "play-click-sent-no-world-entry-confirmed",
+    "approvedUserScope": "do 1 2 3 only",
+    "recordedAtUtc": "2026-05-20T18:37:34Z",
+    "target": {
+      "processName": "rift_x64",
+      "processId": 86740,
+      "targetWindowHandle": "0x414F8",
+      "windowTitle": "RIFT",
+      "processStartUtc": "2026-05-20T17:55:14.2126486Z",
+      "moduleBase": "0x7FF7B77A0000"
+    },
+    "click": {
+      "count": 1,
+      "clientPoint": [
+        517,
+        343
+      ],
+      "coordinateSpace": "client",
+      "mouseClickSent": true,
+      "keyInputSent": false,
+      "movementSent": false,
+      "launcherButtonPressed": false
+    },
+    "evidence": {
+      "preClickScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143510-544.png",
+      "frameChangeScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143528-085.png",
+      "postClickScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-143532-805.png",
+      "waitForFrameChange": {
+        "changed": true,
+        "attempts": 1,
+        "elapsedMilliseconds": 636,
+        "changePercent": 4.1944,
+        "thresholdPercent": 2.0
+      },
+      "postClickScreenState": {
+        "status": "classified-character-select",
+        "classification": "character-selection-not-in-world",
+        "confidence": 1.0,
+        "summaryJson": ".riftreader-local\\character-login-screen-state\\run-20260520-183614-485070\\character-login-screen-state-summary.json"
+      },
+      "attemptSummary": ".riftreader-local\\approved-play-click-attempts\\run-20260520-183614\\approved-play-click-attempt-summary.json",
+      "supervisorSummary": ".riftreader-local\\character-login-supervisor\\run-20260520-183445-653101\\character-login-supervisor-summary.json",
+      "playExecutorGateSummary": ".riftreader-local\\character-login-play-executor-gate\\run-20260520-183451-525996\\character-login-play-executor-gate-summary.json"
+    },
+    "approvalTokenStored": false,
+    "approvalTokenRedacted": true,
+    "result": "Frame changed after click, but post-click screenshot still classified as character-selection-not-in-world. Stop after one click; do not retry blindly.",
+    "movementAllowed": false,
+    "postWorldProofRun": false,
+    "blockers": [
+      "post-click-screen-still-character-selection-not-in-world",
+      "world-entry-not-confirmed",
+      "same-target-proofonly-not-run-by-scope",
+      "movement-remains-blocked"
+    ]
   }
 }
