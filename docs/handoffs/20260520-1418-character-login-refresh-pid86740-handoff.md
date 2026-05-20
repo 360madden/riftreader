@@ -125,3 +125,20 @@ The approved executor sent exactly one Play click and stopped. The client did no
 leave character selection according to the post-click classifier, so no retry
 click was sent and no post-world ProofOnly or movement work was attempted.
 Movement remains blocked.
+
+## Continuation update — MCP click backend hardening
+
+| Field | Value |
+|---|---|
+| Status | MCP click blocker narrowed to input backend/result-contract weakness |
+| Code path changed | `tools\rift-game-mcp\index.mjs` now routes `click_client` through `.NET` `tools\RiftReader.WindowTools` instead of the legacy PowerShell click operation |
+| New backend label | `dotnet-win32-sendinput-mouse` |
+| New click result semantics | `inputSent` means Win32 input delivery only; `activationVerified=false` until a screenshot/classifier proves UI activation |
+| New timing knobs | `cursorSettleMilliseconds`, `clickDelayMilliseconds` |
+| New dry-run | `click_client` schema includes `dryRun`; `RiftReader.WindowTools click --dry-run true` validates exact target/geometry without mouse input |
+| Current dry-run geometry | PID `86740`, HWND `0x414F8`, client `[517,343]` -> screen `[530,380]`; no input sent |
+
+This does not claim Play will now work. It removes the misleading
+`clicked=true` contract and makes the next approved live attempt diagnosable by
+backend, timing, before/after window state, and post-click classifier evidence.
+No live click was sent during this backend hardening update.

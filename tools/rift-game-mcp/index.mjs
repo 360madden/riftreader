@@ -1391,6 +1391,10 @@ function buildWindowToolArgs(command, parameters = {}) {
     ['ExpectedTitleContains', '--expected-title-contains'],
     ['ClientWidth', '--client-width'],
     ['ClientHeight', '--client-height'],
+    ['ClientX', '--client-x'],
+    ['ClientY', '--client-y'],
+    ['CursorSettleMilliseconds', '--cursor-settle-ms'],
+    ['ClickDelayMilliseconds', '--click-delay-ms'],
     ['DryRun', '--dry-run'],
   ]);
   const args = [command, '--json'];
@@ -1861,26 +1865,60 @@ server.registerTool(
   {
     title: 'Click client coordinates',
     description:
-      'Clicks at client-area coordinates inside the bound game window. Rejects the action if the bound window is not foreground.',
+      'Sends one mouse input at client-area coordinates inside the bound game window. Rejects the action if the bound window is not foreground. Success means input was sent, not that the game UI activated.',
     inputSchema: {
       x: z.number().int().nonnegative().describe('Client-area X coordinate.'),
       y: z.number().int().nonnegative().describe('Client-area Y coordinate.'),
+      cursorSettleMilliseconds: z
+        .number()
+        .int()
+        .min(0)
+        .max(1000)
+        .default(30)
+        .describe('Delay after moving the cursor and before mouse down.'),
+      clickDelayMilliseconds: z
+        .number()
+        .int()
+        .min(0)
+        .max(1000)
+        .default(50)
+        .describe('Delay between mouse down and mouse up.'),
+      dryRun: z
+        .boolean()
+        .default(false)
+        .describe('When true, validate target and click geometry without sending mouse input.'),
     },
   },
-  async ({ x, y }) =>
+  async ({ x, y, cursorSettleMilliseconds, clickDelayMilliseconds, dryRun }) =>
     runLoggedTool('click_client', async () => {
-      const result = await runPowerShell('click', {
+      const result = await runDotnetWindowTool('click', {
         ...buildBoundWindowSpec(),
         ClientX: x,
         ClientY: y,
+        CursorSettleMilliseconds: cursorSettleMilliseconds,
+        ClickDelayMilliseconds: clickDelayMilliseconds,
+        DryRun: dryRun,
       });
 
-      updateBoundWindow(result.window);
+      updateBoundWindow(result.after ?? result.before);
 
       return {
-        clicked: true,
+        inputSent: Boolean(result.inputSent ?? true),
+        clicked: Boolean(result.clicked ?? result.inputSent ?? true),
+        dryRun: Boolean(result.dryRun ?? dryRun),
+        activationVerified: Boolean(result.activationVerified),
+        backend: result.backend ?? 'dotnet-win32-sendinput-mouse',
+        mouseInputMethod: result.mouseInputMethod ?? 'SetCursorPos+SendInputLeftDownUp',
         clientPoint: { x, y },
+        requestedClientPoint: result.requestedClientPoint ?? { x, y },
         screenPoint: result.screenPoint,
+        cursorSettleMilliseconds: result.cursorSettleMilliseconds ?? cursorSettleMilliseconds,
+        clickDelayMilliseconds: result.clickDelayMilliseconds ?? clickDelayMilliseconds,
+        before: result.before,
+        after: result.after,
+        verificationRequired:
+          result.verificationRequired ??
+          'Input was sent only; caller must verify UI activation with screenshot/classifier state.',
         window: state.boundWindow,
       };
     }),

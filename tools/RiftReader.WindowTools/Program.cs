@@ -19,6 +19,7 @@ try
     {
         "inspect" => WindowOperations.Inspect(options),
         "resize" => WindowOperations.Resize(options),
+        "click" => WindowOperations.Click(options),
         _ => throw new KnownBlockerException($"Unsupported command '{options.Command}'."),
     };
 
@@ -44,6 +45,10 @@ sealed record Options(
     string? ExpectedTitleContains,
     int? ClientWidth,
     int? ClientHeight,
+    int? ClientX,
+    int? ClientY,
+    int CursorSettleMilliseconds,
+    int ClickDelayMilliseconds,
     bool DryRun)
 {
     public static Options Parse(string[] args)
@@ -54,7 +59,7 @@ sealed record Options(
         }
 
         string command = args[0].Trim().ToLowerInvariant();
-        if (command is not ("inspect" or "resize"))
+        if (command is not ("inspect" or "resize" or "click"))
         {
             throw new KnownBlockerException($"Unknown command '{args[0]}'. {Usage}");
         }
@@ -65,6 +70,10 @@ sealed record Options(
         string? expectedTitleContains = null;
         int? clientWidth = null;
         int? clientHeight = null;
+        int? clientX = null;
+        int? clientY = null;
+        int cursorSettleMilliseconds = 30;
+        int clickDelayMilliseconds = 50;
         bool dryRun = false;
 
         for (int i = 1; i < args.Length; i++)
@@ -94,6 +103,18 @@ sealed record Options(
                 case "--client-height":
                     clientHeight = ParsePositiveInt(RequireValue(args, ref i, arg), arg);
                     break;
+                case "--client-x":
+                    clientX = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg);
+                    break;
+                case "--client-y":
+                    clientY = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg);
+                    break;
+                case "--cursor-settle-ms":
+                    cursorSettleMilliseconds = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg);
+                    break;
+                case "--click-delay-ms":
+                    clickDelayMilliseconds = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg);
+                    break;
                 case "--dry-run":
                     dryRun = ParseBool(RequireValue(args, ref i, arg), arg);
                     break;
@@ -121,10 +142,30 @@ sealed record Options(
             }
         }
 
-        return new Options(command, hwnd, expectedPid, expectedProcessName, expectedTitleContains, clientWidth, clientHeight, dryRun);
+        if (command == "click")
+        {
+            if (clientX is null || clientY is null)
+            {
+                throw new KnownBlockerException("click requires --client-x and --client-y.");
+            }
+        }
+
+        return new Options(
+            command,
+            hwnd,
+            expectedPid,
+            expectedProcessName,
+            expectedTitleContains,
+            clientWidth,
+            clientHeight,
+            clientX,
+            clientY,
+            Math.Min(cursorSettleMilliseconds, 1000),
+            Math.Min(clickDelayMilliseconds, 1000),
+            dryRun);
     }
 
-    public static string Usage => "Usage: RiftReader.WindowTools inspect --hwnd <0xHWND> [--expected-pid <pid>] [--expected-process-name <name>] [--expected-title-contains <text>] [--json]\n       RiftReader.WindowTools resize --hwnd <0xHWND> --client-width <px> --client-height <px> [--dry-run true|false] [expected target options] [--json]";
+    public static string Usage => "Usage: RiftReader.WindowTools inspect --hwnd <0xHWND> [--expected-pid <pid>] [--expected-process-name <name>] [--expected-title-contains <text>] [--json]\n       RiftReader.WindowTools resize --hwnd <0xHWND> --client-width <px> --client-height <px> [--dry-run true|false] [expected target options] [--json]\n       RiftReader.WindowTools click --hwnd <0xHWND> --client-x <px> --client-y <px> [--cursor-settle-ms <ms>] [--click-delay-ms <ms>] [--dry-run true|false] [expected target options] [--json]";
 
     private static string RequireValue(string[] args, ref int index, string name)
     {
@@ -142,6 +183,16 @@ sealed record Options(
         if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed) || parsed <= 0)
         {
             throw new KnownBlockerException($"{name} must be a positive integer.");
+        }
+
+        return parsed;
+    }
+
+    private static int ParseNonNegativeInt(string value, string name)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed) || parsed < 0)
+        {
+            throw new KnownBlockerException($"{name} must be a non-negative integer.");
         }
 
         return parsed;
@@ -177,6 +228,9 @@ static class WindowOperations
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_NOOWNERZORDER = 0x0200;
+    private const int INPUT_MOUSE = 0;
+    private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    private const uint MOUSEEVENTF_LEFTUP = 0x0004;
 
     public static WindowSnapshot Inspect(Options options)
     {
@@ -229,6 +283,110 @@ static class WindowOperations
         WindowSnapshot after = Inspect(options);
         bool resizeOk = after.ClientRect.Width == targetClientWidth && after.ClientRect.Height == targetClientHeight;
         return new ResizeResult(false, true, resizeOk, before, after, requestedClientSize, requestedWindow, border);
+    }
+
+    public static ClickResult Click(Options options)
+    {
+        WindowSnapshot before = Inspect(options);
+        if (!options.DryRun && !before.IsForeground)
+        {
+            throw new KnownBlockerException("Refusing click because the bound game window is not the foreground window. Focus it first.");
+        }
+
+        if (!options.DryRun && before.IsMinimized)
+        {
+            throw new KnownBlockerException("Cannot click a minimized window.");
+        }
+
+        int clientX = options.ClientX ?? throw new KnownBlockerException("click requires --client-x.");
+        int clientY = options.ClientY ?? throw new KnownBlockerException("click requires --client-y.");
+        if (clientX < 0 || clientY < 0 || clientX >= before.ClientRect.Width || clientY >= before.ClientRect.Height)
+        {
+            throw new KnownBlockerException($"Client click point [{clientX},{clientY}] is outside the client area {before.ClientRect.Width}x{before.ClientRect.Height}.");
+        }
+
+        PointObject requestedClientPoint = new(clientX, clientY);
+        PointObject screenPoint = ConvertClientPointToScreenPoint(options.Hwnd, clientX, clientY);
+        if (options.DryRun)
+        {
+            return new ClickResult(
+                true,
+                false,
+                false,
+                "dotnet-win32-sendinput-mouse",
+                "SetCursorPos+SendInputLeftDownUp",
+                requestedClientPoint,
+                screenPoint,
+                options.CursorSettleMilliseconds,
+                options.ClickDelayMilliseconds,
+                before,
+                null,
+                "Dry-run only; no mouse input was sent.",
+                "Input delivery only; caller must verify UI activation with screenshot/classifier state.");
+        }
+
+        if (!NativeMethods.SetCursorPos(screenPoint.X, screenPoint.Y))
+        {
+            throw new InvalidOperationException($"SetCursorPos failed. {NativeMethods.GetLastErrorMessage()}");
+        }
+
+        Thread.Sleep(Math.Max(0, options.CursorSettleMilliseconds));
+        SendMouseInput(MOUSEEVENTF_LEFTDOWN);
+        Thread.Sleep(Math.Max(0, options.ClickDelayMilliseconds));
+        SendMouseInput(MOUSEEVENTF_LEFTUP);
+
+        WindowSnapshot after = GetSnapshot(options.Hwnd);
+        return new ClickResult(
+            false,
+            true,
+            false,
+            "dotnet-win32-sendinput-mouse",
+            "SetCursorPos+SendInputLeftDownUp",
+            requestedClientPoint,
+            screenPoint,
+            options.CursorSettleMilliseconds,
+            options.ClickDelayMilliseconds,
+            before,
+            after,
+            "Mouse input was sent to the foreground window.",
+            "Input delivery only; caller must verify UI activation with screenshot/classifier state.");
+    }
+
+    private static PointObject ConvertClientPointToScreenPoint(IntPtr hwnd, int x, int y)
+    {
+        POINT point = new(x, y);
+        if (!NativeMethods.ClientToScreen(hwnd, ref point))
+        {
+            throw new InvalidOperationException($"ClientToScreen failed. {NativeMethods.GetLastErrorMessage()}");
+        }
+
+        return new PointObject(point.X, point.Y);
+    }
+
+    private static void SendMouseInput(uint flags)
+    {
+        NativeMethods.INPUT input = new()
+        {
+            type = INPUT_MOUSE,
+            U = new NativeMethods.InputUnion
+            {
+                mi = new NativeMethods.MOUSEINPUT
+                {
+                    dx = 0,
+                    dy = 0,
+                    mouseData = 0,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = IntPtr.Zero
+                }
+            }
+        };
+        int size = Marshal.SizeOf<NativeMethods.INPUT>();
+        uint sent = NativeMethods.SendInput(1, new[] { input }, size);
+        if (sent != 1)
+        {
+            throw new InvalidOperationException($"SendInput failed. {NativeMethods.GetLastErrorMessage()}");
+        }
     }
 
     private static void AssertMatches(Options options, WindowSnapshot snapshot)
@@ -357,6 +515,21 @@ sealed record ResizeResult(
     RectObject RequestedWindow,
     SizeObject Border);
 
+sealed record ClickResult(
+    bool DryRun,
+    bool InputSent,
+    bool ActivationVerified,
+    string Backend,
+    string MouseInputMethod,
+    PointObject RequestedClientPoint,
+    PointObject ScreenPoint,
+    int CursorSettleMilliseconds,
+    int ClickDelayMilliseconds,
+    WindowSnapshot Before,
+    WindowSnapshot? After,
+    string StatusNote,
+    string VerificationRequired);
+
 sealed record RectObject(int Left, int Top, int Right, int Bottom)
 {
     public int Width => Right - Left;
@@ -364,6 +537,8 @@ sealed record RectObject(int Left, int Top, int Right, int Bottom)
 
     public static RectObject FromNative(RECT rect) => new(rect.Left, rect.Top, rect.Right, rect.Bottom);
 }
+
+sealed record PointObject(int X, int Y);
 
 sealed record SizeObject(int Width, int Height);
 
@@ -389,6 +564,31 @@ struct POINT(int x, int y)
 
 static partial class NativeMethods
 {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public int type;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct InputUnion
+    {
+        [FieldOffset(0)]
+        public MOUSEINPUT mi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindow(IntPtr hWnd);
@@ -428,6 +628,13 @@ static partial class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetCursorPos(int X, int Y);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     public static string GetLastErrorMessage()
     {

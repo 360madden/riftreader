@@ -15,6 +15,7 @@ param(
     [int]$ClientY,
     [string]$KeyChord,
     [int]$HoldMilliseconds = 80,
+    [int]$CursorSettleMilliseconds = 30,
     [int]$ClickDelayMilliseconds = 50,
     [int]$ExpectedProcessId = 0,
     [string]$ExpectedProcessName,
@@ -1146,14 +1147,29 @@ try {
                 throw "SetCursorPos failed. $(Get-LastWin32ErrorMessage)"
             }
 
-            Start-Sleep -Milliseconds 30
+            $effectiveCursorSettleMilliseconds = [Math]::Max(0, $CursorSettleMilliseconds)
+            $effectiveClickDelayMilliseconds = [Math]::Max(0, $ClickDelayMilliseconds)
+
+            Start-Sleep -Milliseconds $effectiveCursorSettleMilliseconds
             Invoke-SendInput -Inputs @((New-MouseInput -Flags $MOUSEEVENTF_LEFTDOWN))
-            Start-Sleep -Milliseconds $ClickDelayMilliseconds
+            Start-Sleep -Milliseconds $effectiveClickDelayMilliseconds
             Invoke-SendInput -Inputs @((New-MouseInput -Flags $MOUSEEVENTF_LEFTUP))
 
             [pscustomobject]@{
                 window = (Get-WindowSnapshot -Handle (ConvertTo-IntPtr -HandleText $window.windowHandle))
+                requestedClientPoint = [pscustomobject]@{
+                    x = $ClientX
+                    y = $ClientY
+                }
                 screenPoint = $screenPoint
+                inputSent = $true
+                clicked = $true
+                activationVerified = $false
+                backend = "powershell-win32-sendinput-mouse"
+                mouseInputMethod = "SetCursorPos+SendInputLeftDownUp"
+                cursorSettleMilliseconds = $effectiveCursorSettleMilliseconds
+                clickDelayMilliseconds = $effectiveClickDelayMilliseconds
+                verificationRequired = "Input was sent only; caller must verify UI activation with screenshot/classifier state."
             }
             break
         }

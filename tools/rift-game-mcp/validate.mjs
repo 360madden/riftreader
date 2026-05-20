@@ -110,6 +110,18 @@ try {
     );
   }
 
+  const clickTool = result.tools.find((tool) => tool.name === 'click_client');
+  const clickProperties = clickTool?.inputSchema?.properties ?? {};
+  const requiredClickProperties = ['x', 'y', 'cursorSettleMilliseconds', 'clickDelayMilliseconds', 'dryRun'];
+  const missingClickProperties = requiredClickProperties.filter(
+    (propertyName) => !(propertyName in clickProperties),
+  );
+  if (missingClickProperties.length > 0) {
+    throw new Error(
+      `click_client input schema is missing diagnostic/timing properties: ${missingClickProperties.join(', ')}`,
+    );
+  }
+
   const resizeTool = result.tools.find((tool) => tool.name === 'resize_game_window');
   const resizeProperties = resizeTool?.inputSchema?.properties ?? {};
   const requiredResizeProperties = ['clientWidth', 'clientHeight', 'dryRun'];
@@ -130,6 +142,7 @@ try {
         expectedToolNames,
         windowToolsProjectPath,
         findGameWindowProperties: Object.keys(findWindowProperties).sort(),
+        clickClientProperties: Object.keys(clickProperties).sort(),
         sendKeyProperties: Object.keys(sendKeyProperties).sort(),
         resizeGameWindowProperties: Object.keys(resizeProperties).sort(),
       },

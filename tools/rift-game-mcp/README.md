@@ -49,8 +49,19 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   when you intentionally want to resize the exact bound HWND. It changes the
   window/client size only; it does not send game input. Native inspect/resize
   is implemented by the `.NET 10` helper at `tools/RiftReader.WindowTools`;
-  PowerShell remains a legacy leaf helper for older operations.
+  mouse clicks now use that same `.NET 10` helper so the backend is explicit
+  and testable. PowerShell remains a legacy leaf helper for older operations.
 - Clicks are **client-area relative**, not desktop-relative.
+- `click_client` reports mouse input delivery, not game-UI activation. Treat
+  `inputSent=true` / legacy `clicked=true` as "Win32 input was sent"; require
+  screenshot/classifier proof before claiming a button activated. The result
+  includes `backend: "dotnet-win32-sendinput-mouse"`, `mouseInputMethod`,
+  `activationVerified=false`, before/after window snapshots, and timing fields
+  so failed UI activations can be diagnosed without implying success.
+- `click_client` supports bounded timing knobs:
+  `cursorSettleMilliseconds` and `clickDelayMilliseconds`, plus `dryRun` for
+  exact-target/geometry preflight without sending mouse input. Do not use these
+  knobs to retry blindly; each live click still needs an explicit approval gate.
 - `wait_for_frame_change` can watch the full client area or a narrowed region.
 - Semantic tools read `config/bindings.json` unless you override `keyChord` in the tool call.
 - `validate_config` checks key bindings, inventory reference paths, and whether state-verifying inventory tools are ready.
