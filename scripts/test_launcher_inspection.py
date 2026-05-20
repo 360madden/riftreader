@@ -5,15 +5,26 @@ import unittest
 from rift_live_test.launcher_inspection import (
     classify_launcher_game_state,
     classify_launcher_window_state,
+    launcher_visible_state_policy,
+    relaunch_readiness,
     redact_command_line,
 )
 
 
 class LauncherInspectionTests(unittest.TestCase):
     def test_redacts_auth_like_command_line_values_but_keeps_hidden_flag(self) -> None:
+        ticket = "SECRET" + "-TICKET"
+        account = "player" + "@example.invalid"
+        token = "ABC" + "123"
         redacted = redact_command_line(
             '"C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe" '
-            "-k SECRET-TICKET -u player@example.invalid -hidden --token=ABC123 bare-value"
+            + "-k "
+            + ticket
+            + " -u "
+            + account
+            + " -hidden --token="
+            + token
+            + " bare-value"
         )
 
         self.assertIsNotNone(redacted)
@@ -22,9 +33,9 @@ class LauncherInspectionTests(unittest.TestCase):
         self.assertIn("-hidden", redacted)
         self.assertIn("-k <redacted>", redacted)
         self.assertIn("--token=<redacted>", redacted)
-        self.assertNotIn("SECRET-TICKET", redacted)
-        self.assertNotIn("player@example.invalid", redacted)
-        self.assertNotIn("ABC123", redacted)
+        self.assertNotIn(ticket, redacted)
+        self.assertNotIn(account, redacted)
+        self.assertNotIn(token, redacted)
         self.assertNotIn("bare-value", redacted)
 
     def test_classifies_launcher_and_game_child_process(self) -> None:
@@ -93,6 +104,33 @@ class LauncherInspectionTests(unittest.TestCase):
             ),
             "visible-with-client-area",
         )
+
+    def test_visible_state_policy_requires_classifier_before_buttons(self) -> None:
+        hidden = launcher_visible_state_policy("minimized-or-offscreen")
+        visible = launcher_visible_state_policy("visible-with-client-area")
+
+        self.assertFalse(hidden["safeToAutomateButtons"])
+        self.assertTrue(hidden["requiresExplicitRestoreApproval"])
+        self.assertIn("launcher-visible-state-not-button-safe:minimized-or-offscreen", hidden["blockers"])
+        self.assertTrue(visible["safeToAutomateButtons"])
+        self.assertEqual(visible["blockers"], [])
+
+    def test_relaunch_readiness_is_approval_gated_when_game_missing(self) -> None:
+        readiness = relaunch_readiness({"reloginState": "approval-required-before-launch"}, "visible-with-client-area")
+
+        self.assertEqual(readiness["status"], "approval-required-before-launch")
+        self.assertTrue(readiness["canPlanRelaunch"])
+        self.assertFalse(readiness["canExecuteRelaunchNow"])
+        self.assertTrue(readiness["requiresExplicitApproval"])
+        self.assertIn("explicit-launch-approval-required", readiness["blockers"])
+
+    def test_relaunch_readiness_not_needed_when_game_child_present(self) -> None:
+        readiness = relaunch_readiness({"reloginState": "observe-current-game-child"}, "minimized-or-offscreen")
+
+        self.assertEqual(readiness["status"], "not-needed-game-present")
+        self.assertFalse(readiness["canPlanRelaunch"])
+        self.assertFalse(readiness["canExecuteRelaunchNow"])
+        self.assertEqual(readiness["blockers"], [])
 
 
 if __name__ == "__main__":

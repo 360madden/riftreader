@@ -488,6 +488,77 @@ def classify_launcher_window_state(window: dict[str, Any] | None) -> str:
     return "visible-with-client-area"
 
 
+def launcher_visible_state_policy(window_state: str) -> dict[str, Any]:
+    safe_to_use_buttons = window_state == "visible-with-client-area"
+    return {
+        "state": window_state,
+        "safeToAutomateButtons": safe_to_use_buttons,
+        "requiresExplicitRestoreApproval": window_state in {"hidden", "minimized-or-offscreen", "no-client-area"},
+        "requiredEvidenceBeforeButtonAutomation": [
+            "exact Glyph PID/HWND re-check",
+            "fresh visible-window screenshot",
+            "button-level classifier success",
+            "single-action explicit approval token",
+        ],
+        "blockers": []
+        if safe_to_use_buttons
+        else [f"launcher-visible-state-not-button-safe:{window_state}"],
+    }
+
+
+def relaunch_readiness(state: dict[str, Any], window_state: str) -> dict[str, Any]:
+    relogin_state = str(state.get("reloginState") or "")
+    if relogin_state == "approval-required-before-launch":
+        return {
+            "status": "approval-required-before-launch",
+            "canPlanRelaunch": True,
+            "canExecuteRelaunchNow": False,
+            "requiresExplicitApproval": True,
+            "approvalScope": "launcher-start-rift-client-only",
+            "recommendedAction": "Build a relaunch executor contract only after explicit approval; do not press launcher buttons from inspection.",
+            "blockers": ["explicit-launch-approval-required"],
+        }
+    if relogin_state == "observe-current-game-child":
+        return {
+            "status": "not-needed-game-present",
+            "canPlanRelaunch": False,
+            "canExecuteRelaunchNow": False,
+            "requiresExplicitApproval": True,
+            "approvalScope": None,
+            "recommendedAction": "Observe the current RIFT child process; relaunch is not needed while the game is present.",
+            "blockers": [],
+        }
+    if relogin_state == "observe-current-game-parent-unverified":
+        return {
+            "status": "blocked-parent-unverified",
+            "canPlanRelaunch": False,
+            "canExecuteRelaunchNow": False,
+            "requiresExplicitApproval": True,
+            "approvalScope": None,
+            "recommendedAction": "Do not relaunch; first verify whether the visible RIFT process belongs to Glyph.",
+            "blockers": ["rift-parent-unverified"],
+        }
+    if relogin_state == "observe-game-without-launcher-parent":
+        return {
+            "status": "blocked-launcher-missing-game-present",
+            "canPlanRelaunch": False,
+            "canExecuteRelaunchNow": False,
+            "requiresExplicitApproval": True,
+            "approvalScope": None,
+            "recommendedAction": "Do not relaunch; observe the current game process and require separate launcher recovery approval if needed.",
+            "blockers": ["launcher-missing-while-game-present"],
+        }
+    return {
+        "status": relogin_state or "unknown",
+        "canPlanRelaunch": False,
+        "canExecuteRelaunchNow": False,
+        "requiresExplicitApproval": True,
+        "approvalScope": None,
+        "recommendedAction": f"Do not relaunch from inspection; launcher window state is {window_state}.",
+        "blockers": ["launcher-relaunch-state-not-ready"],
+    }
+
+
 def select_launcher_main_window(windows: list[dict[str, Any]], launcher_pids: list[int]) -> dict[str, Any] | None:
     candidates = [window for window in windows if int(window.get("processId") or 0) in set(launcher_pids)]
     if not candidates:
@@ -630,6 +701,8 @@ def build_launcher_inspection(
     state = classify_launcher_game_state(processes)
     launcher_main_window = select_launcher_main_window(windows, state["glyphClientPids"])
     launcher_window_state = classify_launcher_window_state(launcher_main_window)
+    visible_policy = launcher_visible_state_policy(launcher_window_state)
+    relaunch = relaunch_readiness(state, launcher_window_state)
     warnings = list(state.get("warnings") or [])
     blockers = list(state.get("blockers") or [])
     if launcher_window_state in {"hidden", "minimized-or-offscreen", "no-client-area"}:
@@ -673,6 +746,8 @@ def build_launcher_inspection(
         },
         "windows": windows,
         "metadata": metadata,
+        "visibleStateClassifier": visible_policy,
+        "relaunchReadiness": relaunch,
         "state": {
             **state,
             "launcherWindowState": launcher_window_state,
@@ -686,6 +761,7 @@ def build_launcher_inspection(
                 if launcher_window_state in {"hidden", "minimized-or-offscreen", "no-client-area"}
                 else "requires-explicit-approval-and-screenshot-classifier"
             ),
+            "relaunchReadinessStatus": relaunch.get("status"),
         },
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
@@ -710,6 +786,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
     state = summary.get("state") or {}
     main_window = launcher.get("mainWindow") or {}
     metadata = summary.get("metadata") or {}
+    visible_policy = summary.get("visibleStateClassifier") or {}
+    relaunch = summary.get("relaunchReadiness") or {}
     glyph_versions = [
         item.get("version") for item in metadata.get("glyphLibraryManifests") or [] if isinstance(item, dict) and item.get("version")
     ]
@@ -733,10 +811,12 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"| Launcher present | `{launcher.get('present')}` |",
         f"| Launcher PIDs | `{launcher.get('processIds')}` |",
         f"| Launcher window state | `{launcher.get('windowState')}` |",
+        f"| Launcher button safe | `{visible_policy.get('safeToAutomateButtons')}` |",
         f"| Launcher main HWND | `{main_window.get('windowHandle')}` title `{main_window.get('title')}` class `{main_window.get('className')}` |",
         f"| Game present | `{game.get('present')}` |",
         f"| RIFT PIDs | `{game.get('processIds')}` |",
         f"| RIFT child of Glyph | `{state.get('riftChildOfLauncher')}` |",
+        f"| Relaunch readiness | `{relaunch.get('status')}` |",
         f"| Glyph version(s) | `{glyph_versions}` |",
         f"| RIFT live version(s) | `{rift_versions}` |",
         "",

@@ -1,0 +1,589 @@
+{
+  "schemaVersion": 1,
+  "mode": "current-proof-anchor-readback-pointer",
+  "status": "blocked-target-not-in-world",
+  "lastUpdatedUtc": "2026-05-20T17:29:39.217389Z",
+  "target": {
+    "processName": "rift_x64",
+    "processId": 80072,
+    "targetWindowHandle": "0xD10C20"
+  },
+  "currentTruthClassification": {
+    "classification": "target-present-character-select-blocker",
+    "sourceOfTruth": "process/window check plus visual capture of current RIFT character selection screen after target drift",
+    "staleProtection": "Previous target PID 77728 / HWND 0x8E13A6 is stale. Character selection is not in-game world truth; do not use historical coordinates or old approval tokens.",
+    "movementAllowed": false,
+    "savedVariablesUsedAsLiveTruth": false,
+    "noCheatEngine": true
+  },
+  "latestValidation": {
+    "status": "blocked-target-not-in-world",
+    "movementAllowed": false,
+    "movementSent": false,
+    "movementAttempted": false,
+    "noCheatEngine": true,
+    "referenceFile": null,
+    "currentCoordinate": null,
+    "generatedAtUtc": "2026-05-20T17:29:39.217389Z",
+    "blockers": [
+      "target-at-character-selection-not-in-world"
+    ]
+  },
+  "latestProofOnly": {
+    "runSummaryFile": null,
+    "status": "blocked-target-not-in-world",
+    "generatedAtUtc": "2026-05-20T17:29:39.217389Z",
+    "movementSent": false,
+    "movementAttempted": false,
+    "currentCoordinate": null,
+    "coordinateDelta": null,
+    "readbackSummaryFile": null
+  },
+  "targetDrift": {
+    "source": "character-login-supervisor-detected-target-drift-and-live-window-reacquisition",
+    "issues": [
+      "previous-character-select-target-stale:pid77728/hwnd0x8E13A6",
+      "current-target-at-character-selection-not-in-world:pid80072/hwnd0xD10C20",
+      "old-approval-token-invalid-after-target-drift"
+    ],
+    "details": {
+      "checkedAtUtc": "2026-05-20T17:29:39.217389Z",
+      "previousCharacterSelectTarget": {
+        "processName": "rift_x64",
+        "processId": 77728,
+        "targetWindowHandle": "0x8E13A6"
+      },
+      "currentTarget": {
+        "processName": "rift_x64",
+        "processId": 80072,
+        "targetWindowHandle": "0xD10C20",
+        "windowTitle": "RIFT",
+        "processStartUtc": "2026-05-20T16:54:54.7174411Z",
+        "moduleBase": "0x7FF7B77A0000"
+      },
+      "gameState": "current client is visible at character selection; not in world",
+      "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-132806-184.png",
+      "latestCharacterSelectEnvironmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-172007-240569\\character-select-automation-env-summary.json",
+      "latestCharacterLoginSupervisorSummary": ".riftreader-local\\character-login-supervisor\\run-20260520-172826-508165\\character-login-supervisor-summary.json",
+      "futureMcpActionManifest": ".riftreader-local\\character-login-supervisor\\run-20260520-172826-508165\\future-mcp-action-manifest.json",
+      "latestCharacterLoginScreenState": ".riftreader-local\\character-login-supervisor\\run-20260520-172826-508165\\screen-state\\character-login-screen-state-summary.json",
+      "latestCharacterLoginPlayExecutorGate": ".riftreader-local\\character-login-play-executor-gate\\run-20260520-172832-522225\\character-login-play-executor-gate-summary.json"
+    },
+    "proofAnchorPromoted": false,
+    "requiredRecovery": "rerun screen-state, supervisor, and Play executor gate in the same run as explicit approval; after world load rediscover exact PID/HWND and rerun same-target ProofOnly before movement"
+  },
+  "staleProofPointer": {
+    "classification": "historical-character-select-target-epoch",
+    "archivedPointer": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid77728-hwnd8E13A6-character-select-historical.json",
+    "preservedEvidence": {
+      "schemaVersion": 1,
+      "mode": "current-proof-anchor-readback-pointer",
+      "status": "blocked-target-not-in-world",
+      "lastUpdatedUtc": "2026-05-20T16:00:48Z",
+      "target": {
+        "processName": "rift_x64",
+        "processId": 77728,
+        "targetWindowHandle": "0x8E13A6"
+      },
+      "currentTruthClassification": {
+        "classification": "target-present-character-select-blocker",
+        "sourceOfTruth": "process/window check plus visual capture of relaunched RIFT character selection screen",
+        "staleProtection": "Character selection is not in-game world truth. Do not use stale PID 1948 coordinates or prior character-select PID 60636 until the character is loaded into the world and same-target ProofOnly passes.",
+        "movementAllowed": false,
+        "savedVariablesUsedAsLiveTruth": false,
+        "noCheatEngine": true
+      },
+      "latestValidation": {
+        "status": "blocked-target-not-in-world",
+        "movementAllowed": false,
+        "movementSent": false,
+        "movementAttempted": false,
+        "noCheatEngine": true,
+        "referenceFile": null,
+        "currentCoordinate": null,
+        "generatedAtUtc": "2026-05-20T16:00:48Z",
+        "blockers": [
+          "target-at-character-selection-not-in-world"
+        ]
+      },
+      "latestProofOnly": {
+        "runSummaryFile": null,
+        "status": "blocked-target-not-in-world",
+        "generatedAtUtc": "2026-05-20T16:00:48Z",
+        "movementSent": false,
+        "movementAttempted": false,
+        "currentCoordinate": null,
+        "coordinateDelta": null,
+        "readbackSummaryFile": null
+      },
+      "targetDrift": {
+        "source": "operator-reported-game-shutdown-relaunch-and-live-process-check",
+        "issues": [
+          "previous-character-select-target-stale:pid60636/hwnd0xC51368",
+          "current-target-at-character-selection-not-in-world:pid77728/hwnd0x8E13A6",
+          "stale-proof-pointer:prior in-world PID 1948 / HWND 0x3C0D58"
+        ],
+        "details": {
+          "checkedAtUtc": "2026-05-20T16:00:48Z",
+          "previousCharacterSelectTarget": {
+            "processName": "rift_x64",
+            "processId": 60636,
+            "targetWindowHandle": "0xC51368",
+            "processStartUtc": "2026-05-20T11:02:20.5639279Z"
+          },
+          "currentTarget": {
+            "processName": "rift_x64",
+            "processId": 77728,
+            "targetWindowHandle": "0x8E13A6",
+            "windowTitle": "RIFT",
+            "processStartUtc": "2026-05-20T15:54:23.2312272Z",
+            "moduleBase": "0x7FF7B77A0000"
+          },
+          "gameState": "relaunched and at character selection; not in world",
+          "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-115825-793.png"
+        },
+        "proofAnchorPromoted": false,
+        "requiredRecovery": "click/load character only after explicit approval, rediscover exact PID/HWND after world load, collect fresh API/runtime coordinates, rerun current-PID recovery, and promote only after same-target ProofOnly passes"
+      },
+      "staleProofPointer": {
+        "classification": "historical-target-epoch-evidence",
+        "archivedPointer": "docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid1948-hwnd3C0D58-historical.json",
+        "preservedEvidence": {
+          "schemaVersion": 1,
+          "mode": "current-proof-anchor-readback-pointer",
+          "status": "current-target-proofonly-passed",
+          "lastUpdatedUtc": "2026-05-20T01:16:17.101733+00:00",
+          "target": {
+            "processName": "rift_x64",
+            "processId": 1948,
+            "targetWindowHandle": "0x3C0D58"
+          },
+          "currentTruthClassification": {
+            "classification": "current-live-target-proof-anchor",
+            "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+            "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
+            "savedVariablesUsedAsLiveTruth": false,
+            "noCheatEngine": true
+          },
+          "riftscanCandidateSource": {
+            "sourceKind": "current-proof-anchor-candidate-file",
+            "compatibilityNote": "Field name is retained for existing pointer consumers; the candidate file may be RiftReader-owned evidence and must still be gated by current proof-anchor/readback.",
+            "riftScanRoot": null,
+            "matchFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-1948-20260520-003014-344522\\api-family-vec3-candidates.jsonl",
+            "candidateId": "api-family-hit-000010",
+            "sourceBaseAddressHex": "0x1A91015CAC0",
+            "sourceOffsetHex": "0x40",
+            "sourceAbsoluteAddressHex": "0x1A91015CB00",
+            "axisOrder": "xyz",
+            "supportCount": 6,
+            "proofSupportCount": 6,
+            "bestMaxAbsDistance": 0.004640953125090164,
+            "promotedByProofAnchor": true,
+            "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+            "notes": [
+              "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
+              "Do not treat this pointer as valid after a client restart unless target metadata still matches."
+            ]
+          },
+          "latestValidation": {
+            "status": "valid",
+            "movementAllowed": true,
+            "movementSent": false,
+            "noCheatEngine": true,
+            "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
+            "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+            "proofAnchorCandidateId": "api-family-hit-000010",
+            "proofAnchorCandidateAddressHex": "0x1A91015CB00",
+            "currentCoordinate": {
+              "x": 7298.86572265625,
+              "y": 818.2576904296875,
+              "z": 3013.78515625,
+              "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+            },
+            "generatedAtUtc": "2026-05-20T01:16:16.9565994+00:00"
+          },
+          "latestProofOnly": {
+            "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260520-011554\\run-summary.json",
+            "status": "passed-proof-only",
+            "generatedAtUtc": "2026-05-20T01:16:17.098343+00:00",
+            "movementSent": false,
+            "movementAttempted": false,
+            "currentCoordinate": {
+              "x": 7298.86572265625,
+              "y": 818.2576904296875,
+              "z": 3013.78515625,
+              "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+            },
+            "coordinateDelta": null,
+            "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-1948-readback-summary-20260519-211613.json"
+          },
+          "runtimePointers": {
+            "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+            "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+          },
+          "notes": [
+            "Auto-written after ProofOnly passed for the exact current target.",
+            "This file is a current pointer, not an immutable historical record.",
+            "Coordinate proof is current after post-incident ProofOnly, but route/navigation automation remains paused; bounded diagnostics may use only C# SendInput ScanCode after exact target/freshness gates."
+          ],
+          "historicalSupersededPointer": {
+            "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid27552-hwnd3411E2-historical.json",
+            "classification": "historical-target-epoch-evidence",
+            "supersededTarget": {
+              "processName": "rift_x64",
+              "processId": 27552,
+              "targetWindowHandle": "0x3411E2"
+            },
+            "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
+          },
+          "inputBackendIncident": {
+            "status": "agent-live-movement-paused-after-spin-incident",
+            "observedAtUtc": "2026-05-20T01:08:38Z",
+            "classification": "input-backend-unsafe-until-reviewed",
+            "coordinateProofStillValid": true,
+            "automationMovementPaused": true,
+            "operatorMovementAuthorizationSupersededByIncident": true,
+            "incidentRunSummary": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/summary.json",
+            "incidentManifest": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/manifest.json",
+            "incidentCommandEnvelopes": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/command-envelopes.json",
+            "autoDisplacement": {
+              "key": "W",
+              "holdMilliseconds": 250,
+              "inputMethod": "WindowMessage",
+              "stage": "auto-displacement",
+              "movementSent": true,
+              "inputSent": true
+            },
+            "incidentResult": {
+              "status": "blocked",
+              "blockers": [
+                "no-delta-tracking-vec3-candidates"
+              ],
+              "candidateCount": 0
+            },
+            "emergencyKeyRelease": {
+              "status": "released-keyup",
+              "summaryJson": "scripts/captures/emergency-key-release-20260520-011453-542635/summary.json",
+              "movementSent": false,
+              "inputType": "keyup-only",
+              "allPostMessageKeyupSent": true,
+              "allSendInputKeyupSent": true
+            },
+            "postIncidentProofOnly": {
+              "status": "passed-proof-only",
+              "runSummary": "scripts/captures/live-test-ProofOnly-20260520-011554/run-summary.json",
+              "readbackSummary": "scripts/captures/proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
+              "movementSent": false,
+              "movementAttempted": false,
+              "currentCoordinate": {
+                "x": 7298.86572265625,
+                "y": 818.2576904296875,
+                "z": 3013.78515625,
+                "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+              }
+            },
+            "postIncidentChromaLink": {
+              "status": "passed",
+              "summaryJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/summary.json",
+              "referenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+              "coordinate": {
+                "x": 7298.87,
+                "y": 818.26,
+                "z": 3013.79,
+                "fresh": true,
+                "stale": false
+              },
+              "stabilityCheck": {
+                "firstReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011322-009713/rift-api-reference-currentpid-1948-20260520-011322-042488.json",
+                "secondReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+                "deltaX": 0,
+                "deltaY": 0,
+                "deltaZ": 0,
+                "planarDistance": 0
+              }
+            },
+            "reusePolicy": "Do not run WindowMessage movement automation. C# SendInput ScanCode is the only allowed bounded diagnostic movement-key backend after exact target/freshness gates; route/navigation automation remains paused until explicitly cleared.",
+            "postIncidentCsharpScanCodeDiagnostics": {
+              "status": "passed-for-bounded-diagnostics-only",
+              "allowedDiagnosticBackend": "csharp-scancode",
+              "wrapper": "scripts/send-rift-key-csharp.ps1",
+              "tests": [
+                {
+                  "key": "W",
+                  "holdMilliseconds": 150,
+                  "status": "passed",
+                  "spatialDistance": 1.0002,
+                  "artifact": ".riftreader-local/spin-diagnosis/csharp-w-test/csharp-w-test-summary.json"
+                },
+                {
+                  "key": "Q",
+                  "holdMilliseconds": 250,
+                  "status": "passed",
+                  "spatialDistance": 1.7443336836742445,
+                  "artifact": ".riftreader-local/q-key-retest-csharp/clean-run-20260519-222554/q-retest-summary.json"
+                }
+              ],
+              "routeNavigationAutomationCleared": false
+            }
+          },
+          "archivedAtUtc": "2026-05-20T10:45:44.4947068Z",
+          "historicalClassification": {
+            "classification": "historical-target-epoch-evidence",
+            "archivedReason": "live rift_x64 process went offline; PID 1948 / HWND 0x3C0D58 is no longer current",
+            "reusePolicy": "do-not-use-as-current-proof; do-not-use-for-movement; use only as reacquisition/audit evidence after a fresh target is running",
+            "movementAllowed": false,
+            "savedVariablesUsedAsLiveTruth": false,
+            "noCheatEngine": true
+          }
+        },
+        "reusePolicy": "do-not-use-as-current-proof; do-not-use-for-movement; use only as broad family/reacquisition/static-chain hint after rescoring against a fresh target"
+      },
+      "runtimePointers": {
+        "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+        "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+      },
+      "inputBackendIncident": {
+        "status": "agent-live-movement-paused-after-spin-incident",
+        "observedAtUtc": "2026-05-20T01:08:38Z",
+        "classification": "input-backend-unsafe-until-reviewed",
+        "coordinateProofStillValid": true,
+        "automationMovementPaused": true,
+        "operatorMovementAuthorizationSupersededByIncident": true,
+        "incidentRunSummary": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/summary.json",
+        "incidentManifest": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/manifest.json",
+        "incidentCommandEnvelopes": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/command-envelopes.json",
+        "autoDisplacement": {
+          "key": "W",
+          "holdMilliseconds": 250,
+          "inputMethod": "WindowMessage",
+          "stage": "auto-displacement",
+          "movementSent": true,
+          "inputSent": true
+        },
+        "incidentResult": {
+          "status": "blocked",
+          "blockers": [
+            "no-delta-tracking-vec3-candidates"
+          ],
+          "candidateCount": 0
+        },
+        "emergencyKeyRelease": {
+          "status": "released-keyup",
+          "summaryJson": "scripts/captures/emergency-key-release-20260520-011453-542635/summary.json",
+          "movementSent": false,
+          "inputType": "keyup-only",
+          "allPostMessageKeyupSent": true,
+          "allSendInputKeyupSent": true
+        },
+        "postIncidentProofOnly": {
+          "status": "passed-proof-only",
+          "runSummary": "scripts/captures/live-test-ProofOnly-20260520-011554/run-summary.json",
+          "readbackSummary": "scripts/captures/proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
+          "movementSent": false,
+          "movementAttempted": false,
+          "currentCoordinate": {
+            "x": 7298.86572265625,
+            "y": 818.2576904296875,
+            "z": 3013.78515625,
+            "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+          }
+        },
+        "postIncidentChromaLink": {
+          "status": "passed",
+          "summaryJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/summary.json",
+          "referenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+          "coordinate": {
+            "x": 7298.87,
+            "y": 818.26,
+            "z": 3013.79,
+            "fresh": true,
+            "stale": false
+          },
+          "stabilityCheck": {
+            "firstReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011322-009713/rift-api-reference-currentpid-1948-20260520-011322-042488.json",
+            "secondReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+            "deltaX": 0,
+            "deltaY": 0,
+            "deltaZ": 0,
+            "planarDistance": 0
+          }
+        },
+        "reusePolicy": "Do not run WindowMessage movement automation. C# SendInput ScanCode is the only allowed bounded diagnostic movement-key backend after exact target/freshness gates; route/navigation automation remains paused until explicitly cleared.",
+        "postIncidentCsharpScanCodeDiagnostics": {
+          "status": "passed-for-bounded-diagnostics-only",
+          "allowedDiagnosticBackend": "csharp-scancode",
+          "wrapper": "scripts/send-rift-key-csharp.ps1",
+          "tests": [
+            {
+              "key": "W",
+              "holdMilliseconds": 150,
+              "status": "passed",
+              "spatialDistance": 1.0002,
+              "artifact": ".riftreader-local/spin-diagnosis/csharp-w-test/csharp-w-test-summary.json"
+            },
+            {
+              "key": "Q",
+              "holdMilliseconds": 250,
+              "status": "passed",
+              "spatialDistance": 1.7443336836742445,
+              "artifact": ".riftreader-local/q-key-retest-csharp/clean-run-20260519-222554/q-retest-summary.json"
+            }
+          ],
+          "routeNavigationAutomationCleared": false
+        }
+      },
+      "notes": [
+        "RIFT process/window is present at character selection, not in the in-game world.",
+        "The prior PID 1948 / HWND 0x3C0D58 proof pointer remains historical only.",
+        "No CE, x64dbg attach, movement, input, or live memory read was used to create this blocker.",
+        "C# SendInput ScanCode remains the only allowed bounded diagnostic backend after in-world reacquisition; route/navigation automation remains blocked until proof gates pass and movementGate is explicitly cleared."
+      ],
+      "targetState": {
+        "status": "character-select-not-in-world",
+        "checkedAtUtc": "2026-05-20T11:04:41Z",
+        "process": {
+          "processName": "rift_x64",
+          "processId": 60636,
+          "targetWindowHandle": "0xC51368",
+          "windowTitle": "RIFT",
+          "processStartUtc": "2026-05-20T11:02:20.5639279Z",
+          "moduleBase": "0x7FF7B77A0000"
+        },
+        "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-070441-460.png",
+        "proofAnchorPromoted": false,
+        "requiredRecovery": "select/load character into the world, then collect fresh API/runtime coordinates and rerun same-target ProofOnly before any movement/input profile"
+      },
+      "characterSelectEvent": {
+        "status": "target-present-character-select-not-in-world",
+        "checkedAtUtc": "2026-05-20T16:00:48Z",
+        "target": {
+          "processName": "rift_x64",
+          "processId": 77728,
+          "targetWindowHandle": "0x8E13A6",
+          "windowTitle": "RIFT",
+          "processStartUtc": "2026-05-20T15:54:23.2312272Z",
+          "moduleBase": "0x7FF7B77A0000"
+        },
+        "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-115825-793.png",
+        "environmentSummary": ".riftreader-local\\character-select-automation-env\\run-20260520-115825\\character-select-automation-env-summary.json",
+        "dryRunPlan": ".riftreader-local\\character-select-automation-plan\\run-20260520-160048-254251\\character-select-automation-plan-summary.json",
+        "previousCharacterSelectTargetArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid60636-hwndC51368-character-select-historical.json"
+      }
+    },
+    "reusePolicy": "do-not-use-as-current-proof; do-not-use-for-clicks-or-movement; use only as target-history/reacquisition context"
+  },
+  "runtimePointers": {
+    "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
+    "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
+  },
+  "inputBackendIncident": {
+    "status": "agent-live-movement-paused-after-spin-incident",
+    "observedAtUtc": "2026-05-20T01:08:38Z",
+    "classification": "input-backend-unsafe-until-reviewed",
+    "coordinateProofStillValid": true,
+    "automationMovementPaused": true,
+    "operatorMovementAuthorizationSupersededByIncident": true,
+    "incidentRunSummary": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/summary.json",
+    "incidentManifest": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/manifest.json",
+    "incidentCommandEnvelopes": "scripts/captures/family-snapshot-sequence-currentpid-1948-20260520-010705-285310/command-envelopes.json",
+    "autoDisplacement": {
+      "key": "W",
+      "holdMilliseconds": 250,
+      "inputMethod": "WindowMessage",
+      "stage": "auto-displacement",
+      "movementSent": true,
+      "inputSent": true
+    },
+    "incidentResult": {
+      "status": "blocked",
+      "blockers": [
+        "no-delta-tracking-vec3-candidates"
+      ],
+      "candidateCount": 0
+    },
+    "emergencyKeyRelease": {
+      "status": "released-keyup",
+      "summaryJson": "scripts/captures/emergency-key-release-20260520-011453-542635/summary.json",
+      "movementSent": false,
+      "inputType": "keyup-only",
+      "allPostMessageKeyupSent": true,
+      "allSendInputKeyupSent": true
+    },
+    "postIncidentProofOnly": {
+      "status": "passed-proof-only",
+      "runSummary": "scripts/captures/live-test-ProofOnly-20260520-011554/run-summary.json",
+      "readbackSummary": "scripts/captures/proof-anchor-currentpid-1948-readback-summary-20260519-211613.json",
+      "movementSent": false,
+      "movementAttempted": false,
+      "currentCoordinate": {
+        "x": 7298.86572265625,
+        "y": 818.2576904296875,
+        "z": 3013.78515625,
+        "recordedAtUtc": "2026-05-20T01:16:16.7719982Z"
+      }
+    },
+    "postIncidentChromaLink": {
+      "status": "passed",
+      "summaryJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/summary.json",
+      "referenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+      "coordinate": {
+        "x": 7298.87,
+        "y": 818.26,
+        "z": 3013.79,
+        "fresh": true,
+        "stale": false
+      },
+      "stabilityCheck": {
+        "firstReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011322-009713/rift-api-reference-currentpid-1948-20260520-011322-042488.json",
+        "secondReferenceJson": "scripts/captures/chromalink-world-state-reference-20260520-011324-196091/rift-api-reference-currentpid-1948-20260520-011324-249862.json",
+        "deltaX": 0,
+        "deltaY": 0,
+        "deltaZ": 0,
+        "planarDistance": 0
+      }
+    },
+    "reusePolicy": "Do not run WindowMessage movement automation. C# SendInput ScanCode is the only allowed bounded diagnostic movement-key backend after exact target/freshness gates; route/navigation automation remains paused until explicitly cleared.",
+    "postIncidentCsharpScanCodeDiagnostics": {
+      "status": "passed-for-bounded-diagnostics-only",
+      "allowedDiagnosticBackend": "csharp-scancode",
+      "wrapper": "scripts/send-rift-key-csharp.ps1",
+      "tests": [
+        {
+          "key": "W",
+          "holdMilliseconds": 150,
+          "status": "passed",
+          "spatialDistance": 1.0002,
+          "artifact": ".riftreader-local/spin-diagnosis/csharp-w-test/csharp-w-test-summary.json"
+        },
+        {
+          "key": "Q",
+          "holdMilliseconds": 250,
+          "status": "passed",
+          "spatialDistance": 1.7443336836742445,
+          "artifact": ".riftreader-local/q-key-retest-csharp/clean-run-20260519-222554/q-retest-summary.json"
+        }
+      ],
+      "routeNavigationAutomationCleared": false
+    }
+  },
+  "notes": [
+    "RIFT target drifted/relaunched again; current character-select target is PID 80072 / HWND 0xD10C20.",
+    "Previous PID 77728 / HWND 0x8E13A6 is historical only.",
+    "No click, key input, movement, CE, x64dbg attach, provider write, or live memory read was used to create this blocker.",
+    "Movement remains blocked until the character is loaded into the world and same-target ProofOnly passes."
+  ],
+  "characterSelectEvent": {
+    "status": "target-present-character-select-not-in-world",
+    "checkedAtUtc": "2026-05-20T16:57:47.775028Z",
+    "target": {
+      "processName": "rift_x64",
+      "processId": 80072,
+      "targetWindowHandle": "0xD10C20",
+      "windowTitle": "RIFT",
+      "processStartUtc": "2026-05-20T16:54:54.7174411Z",
+      "moduleBase": "0x7FF7B77A0000"
+    },
+    "visualEvidence": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260520-125543-573.png",
+    "previousCharacterSelectTargetArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-20-pid77728-hwnd8E13A6-character-select-historical.json"
+  }
+}

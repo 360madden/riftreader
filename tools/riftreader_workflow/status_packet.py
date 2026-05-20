@@ -52,6 +52,8 @@ DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-r
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "workflow-status"
 DEFAULT_LAUNCHER_INSPECTION_DIR = Path(".riftreader-local") / "launcher-inspection"
+DEFAULT_CHARACTER_LOGIN_SUPERVISOR_DIR = Path(".riftreader-local") / "character-login-supervisor"
+DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
 DEFAULT_OPENCODE_VARIANT = "xhigh"
 
@@ -182,6 +184,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "scripts\\riftreader-launcher-inspection.cmd --json",
         "read-only launcher/process/window inspection; no launch/buttons/clicks/keys/movement/debugger/provider writes",
     ),
+    (
+        "sensitive-artifact-scan",
+        "Sensitive artifact scan",
+        "scripts\\riftreader-sensitive-artifact-scan.cmd --staged --json",
+        "read-only staged/working artifact scan; no secret values echoed, no input/movement/debugger/provider writes",
+    ),
 )
 
 
@@ -290,6 +298,51 @@ def read_json(path: Path, errors: list[str], warnings: list[str], label: str) ->
     return value
 
 
+def parse_utc_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def freshness_summary(
+    observed_at_utc: Any,
+    *,
+    now: datetime | None = None,
+    max_age_seconds: int = DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS,
+) -> dict[str, Any]:
+    observed = parse_utc_datetime(observed_at_utc)
+    if observed is None:
+        return {
+            "status": "unknown",
+            "ageSeconds": None,
+            "maxAgeSeconds": max_age_seconds,
+            "observedAtUtc": observed_at_utc,
+        }
+    current = now.astimezone(timezone.utc) if now else datetime.now(timezone.utc)
+    age = int((current - observed).total_seconds())
+    if age < -30:
+        status = "future-clock-skew"
+    elif age <= max_age_seconds:
+        status = "fresh"
+    else:
+        status = "stale"
+    return {
+        "status": status,
+        "ageSeconds": age,
+        "maxAgeSeconds": max_age_seconds,
+        "observedAtUtc": observed_at_utc,
+    }
+
+
 def latest_launcher_inspection(repo_root: Path, errors: list[str], warnings: list[str]) -> dict[str, Any]:
     """Return a compact summary of the latest read-only launcher inspection artifact.
 
@@ -359,14 +412,22 @@ def latest_launcher_inspection(repo_root: Path, errors: list[str], warnings: lis
     launcher = summary.get("launcher") if isinstance(summary.get("launcher"), dict) else {}
     game = summary.get("game") if isinstance(summary.get("game"), dict) else {}
     state = summary.get("state") if isinstance(summary.get("state"), dict) else {}
+    visible = summary.get("visibleStateClassifier") if isinstance(summary.get("visibleStateClassifier"), dict) else {}
+    relaunch = summary.get("relaunchReadiness") if isinstance(summary.get("relaunchReadiness"), dict) else {}
     main_window = launcher.get("mainWindow") if isinstance(launcher.get("mainWindow"), dict) else {}
+    freshness = freshness_summary(summary.get("generatedAtUtc"))
+    if freshness.get("status") == "stale":
+        warnings.append(f"launcher-inspection-stale:{freshness.get('ageSeconds')}s")
     return {
         "status": summary.get("status"),
         "observedAtUtc": summary.get("generatedAtUtc"),
+        "freshness": freshness,
         "state": state.get("crashRecoveryState"),
         "reloginState": state.get("reloginState"),
         "automationRecommendation": state.get("automationRecommendation"),
         "buttonAutomationPolicy": state.get("buttonAutomationPolicy"),
+        "visibleStateClassifier": visible,
+        "relaunchReadiness": relaunch,
         "launcherPresent": launcher.get("present"),
         "launcherPids": launcher.get("processIds") or [],
         "launcherWindowState": launcher.get("windowState") or state.get("launcherWindowState"),
@@ -376,6 +437,60 @@ def latest_launcher_inspection(repo_root: Path, errors: list[str], warnings: lis
         "riftChildOfLauncher": state.get("riftChildOfLauncher"),
         "blockers": summary.get("blockers") or [],
         "warnings": summary.get("warnings") or [],
+        "summaryJson": as_repo_path(repo_root, summary_path),
+    }
+
+
+def latest_character_login_supervisor(repo_root: Path, errors: list[str], warnings: list[str]) -> dict[str, Any]:
+    latest_path = repo_root / DEFAULT_CHARACTER_LOGIN_SUPERVISOR_DIR / "latest-run.txt"
+    if not latest_path.is_file():
+        return {
+            "status": "not-collected",
+            "observedAtUtc": None,
+            "targetCharacter": None,
+            "futureExecutorMayClickPlay": None,
+            "approvalTokenRequired": None,
+            "summaryJson": None,
+        }
+    try:
+        latest_text = latest_path.read_text(encoding="utf-8").strip()
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"character-login-supervisor-latest-read-failed:{type(exc).__name__}:{exc}")
+        return {"status": "failed", "observedAtUtc": None, "summaryJson": None}
+    if not latest_text:
+        warnings.append("character-login-supervisor-latest-empty")
+        return {"status": "not-collected", "observedAtUtc": None, "summaryJson": None}
+
+    run_dir = Path(latest_text)
+    if not run_dir.is_absolute():
+        run_dir = repo_root / run_dir
+    summary_path = run_dir / "character-login-supervisor-summary.json"
+    summary = read_json(summary_path, errors, warnings, "character-login-supervisor-summary")
+    if not summary:
+        return {"status": "missing-summary", "observedAtUtc": None, "summaryJson": as_repo_path(repo_root, summary_path)}
+
+    target = summary.get("target") if isinstance(summary.get("target"), dict) else {}
+    selection = summary.get("selection") if isinstance(summary.get("selection"), dict) else {}
+    decision = summary.get("supervisorDecision") if isinstance(summary.get("supervisorDecision"), dict) else {}
+    manifest = summary.get("futureMcpActionManifest") if isinstance(summary.get("futureMcpActionManifest"), dict) else {}
+    approval = manifest.get("approval") if isinstance(manifest.get("approval"), dict) else {}
+    child = summary.get("childStatuses") if isinstance(summary.get("childStatuses"), dict) else {}
+    return {
+        "status": summary.get("status"),
+        "observedAtUtc": summary.get("generatedAtUtc"),
+        "freshness": freshness_summary(summary.get("generatedAtUtc")),
+        "targetCharacter": summary.get("targetCharacter"),
+        "targetPid": target.get("processId"),
+        "targetHwnd": target.get("windowHandle"),
+        "selectedCharacter": selection.get("selectedCharacter"),
+        "screenClassification": child.get("screenClassification"),
+        "futureExecutorMayClickPlay": decision.get("futureExecutorMayClickPlay"),
+        "mayClickPlayInThisSupervisor": decision.get("mayClickPlayInThisSupervisor"),
+        "approvalTokenRequired": bool(approval.get("token")),
+        "approvalTokenStoredInStatus": False,
+        "manifestStatus": manifest.get("status"),
+        "dataBlockers": summary.get("dataBlockers") or [],
+        "executionBlockers": summary.get("executionBlockers") or [],
         "summaryJson": as_repo_path(repo_root, summary_path),
     }
 
@@ -721,6 +836,7 @@ def build_status_packet(
     current_truth_summary = summarize_current_truth(current_truth)
     current_proof_summary = summarize_current_proof(current_proof)
     launcher_summary = latest_launcher_inspection(repo_root, errors, warnings)
+    supervisor_summary = latest_character_login_supervisor(repo_root, errors, warnings)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -865,6 +981,7 @@ def build_status_packet(
         "git": git_summary,
         "liveTarget": live_target,
         "launcher": launcher_summary,
+        "characterLoginSupervisor": supervisor_summary,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -884,6 +1001,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     coord = packet.get("coordinateRecoveryStatus") or {}
     live_target = packet.get("liveTarget") or coord.get("liveTarget") or {}
     launcher = packet.get("launcher") or {}
+    supervisor = packet.get("characterLoginSupervisor") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     handoff = packet.get("latestHandoff") or {}
     opencode = packet.get("opencode") or {}
@@ -903,6 +1021,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Target: PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}`, process `{target.get('processName')}`",
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
         f"- Launcher: `{launcher.get('state')}`; Glyph PIDs `{launcher.get('launcherPids')}`; RIFT PIDs `{launcher.get('riftPids')}`",
+        f"- Character login supervisor: `{supervisor.get('status')}`; approval required `{supervisor.get('approvalTokenRequired')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
@@ -964,6 +1083,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     stale_anchor = proof.get("staleAnchor") if isinstance(proof.get("staleAnchor"), dict) else {}
     opencode = packet.get("opencode") if isinstance(packet.get("opencode"), dict) else {}
     launcher = packet.get("launcher") if isinstance(packet.get("launcher"), dict) else {}
+    supervisor = packet.get("characterLoginSupervisor") if isinstance(packet.get("characterLoginSupervisor"), dict) else {}
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
     bridge_commands = bridge_command_capabilities(Path(str(repo_root_raw))) if repo_root_raw else []
@@ -1027,6 +1147,27 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "riftPids": launcher.get("riftPids") or [],
             "riftChildOfLauncher": launcher.get("riftChildOfLauncher"),
             "summaryJson": launcher.get("summaryJson"),
+            "freshness": launcher.get("freshness") or {},
+            "visibleStateClassifier": launcher.get("visibleStateClassifier") or {},
+            "relaunchReadiness": launcher.get("relaunchReadiness") or {},
+        },
+        "characterLoginSupervisor": {
+            "status": supervisor.get("status"),
+            "observedAtUtc": supervisor.get("observedAtUtc"),
+            "freshness": supervisor.get("freshness") or {},
+            "targetCharacter": supervisor.get("targetCharacter"),
+            "targetPid": supervisor.get("targetPid"),
+            "targetHwnd": supervisor.get("targetHwnd"),
+            "selectedCharacter": supervisor.get("selectedCharacter"),
+            "screenClassification": supervisor.get("screenClassification"),
+            "futureExecutorMayClickPlay": supervisor.get("futureExecutorMayClickPlay"),
+            "mayClickPlayInThisSupervisor": supervisor.get("mayClickPlayInThisSupervisor"),
+            "approvalTokenRequired": supervisor.get("approvalTokenRequired"),
+            "approvalTokenStoredInStatus": supervisor.get("approvalTokenStoredInStatus"),
+            "manifestStatus": supervisor.get("manifestStatus"),
+            "dataBlockers": supervisor.get("dataBlockers") or [],
+            "executionBlockers": supervisor.get("executionBlockers") or [],
+            "summaryJson": supervisor.get("summaryJson"),
         },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
@@ -1047,6 +1188,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     movement_gate = summary.get("movementGate") or {}
     opencode = summary.get("opencode") or {}
     launcher = summary.get("launcher") or {}
+    supervisor = summary.get("characterLoginSupervisor") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader Local Compact SITREP",
@@ -1059,6 +1201,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Launcher: `{launcher.get('state')}` Glyph PIDs `{launcher.get('launcherPids')}` RIFT PIDs `{launcher.get('riftPids')}`",
+        f"- Character login supervisor: `{supervisor.get('status')}` target `{supervisor.get('targetCharacter')}` approval required `{supervisor.get('approvalTokenRequired')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",

@@ -314,6 +314,7 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
             write_text(root / "scripts" / "riftreader-character-login-play-executor-gate.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-character-login-supervisor.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-launcher-inspection.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-sensitive-artifact-scan.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -377,6 +378,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertIn("supervised login/relogin gate", commands["character-login-supervisor"]["safety"])
         self.assertTrue(commands["launcher-inspection"]["exists"])
         self.assertIn("read-only launcher/process/window inspection", commands["launcher-inspection"]["safety"])
+        self.assertTrue(commands["sensitive-artifact-scan"]["exists"])
+        self.assertIn("no secret values echoed", commands["sensitive-artifact-scan"]["safety"])
         self.assertFalse(commands["transport-probe-local-smoke"]["exists"])
         self.assertIn("no repo target writes", commands["package-intake-selftest"]["safety"])
         self.assertTrue(compact["opencode"]["retired"])
@@ -408,6 +411,8 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
                         "buttonAutomationPolicy": "blocked-hidden-or-minimized",
                         "riftChildOfLauncher": True,
                     },
+                    "visibleStateClassifier": {"safeToAutomateButtons": False},
+                    "relaunchReadiness": {"status": "not-needed-game-present"},
                     "blockers": ["launcher-button-automation-blocked-until-visible-state-classified"],
                     "warnings": ["process-command-lines-redacted-by-default"],
                 },
@@ -446,6 +451,55 @@ class OpenCodeStatusPacketTests(unittest.TestCase):
         self.assertEqual(compact["launcher"]["riftPids"], [80072])
         self.assertTrue(compact["launcher"]["riftChildOfLauncher"])
         self.assertEqual(compact["launcher"]["buttonAutomationPolicy"], "blocked-hidden-or-minimized")
+        self.assertEqual(compact["launcher"]["relaunchReadiness"]["status"], "not-needed-game-present")
+        self.assertFalse(compact["launcher"]["visibleStateClassifier"]["safeToAutomateButtons"])
+        self.assertIn(compact["launcher"]["freshness"]["status"], {"fresh", "stale"})
+
+    def test_freshness_summary_classifies_stale_artifacts(self) -> None:
+        now = status_packet.datetime(2026, 5, 20, 18, 0, tzinfo=status_packet.timezone.utc)
+
+        fresh = status_packet.freshness_summary("2026-05-20T17:59:30Z", now=now, max_age_seconds=60)
+        stale = status_packet.freshness_summary("2026-05-20T17:00:00Z", now=now, max_age_seconds=60)
+
+        self.assertEqual(fresh["status"], "fresh")
+        self.assertEqual(stale["status"], "stale")
+        self.assertEqual(stale["ageSeconds"], 3600)
+
+    def test_latest_character_login_supervisor_compact_summary_omits_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / ".riftreader-local" / "character-login-supervisor" / "run-20260520-000000-000000"
+            approval_token = ":".join(["ENTER-WORLD", "ATANK", "80072", "0xD10C20"])
+            write_json(
+                run_dir / "character-login-supervisor-summary.json",
+                {
+                    "status": "blocked-approval-required",
+                    "generatedAtUtc": "2026-05-20T17:45:00Z",
+                    "targetCharacter": "ATANK",
+                    "target": {"processId": 80072, "windowHandle": "0xD10C20"},
+                    "selection": {"selectedCharacter": "ATANK"},
+                    "childStatuses": {"screenClassification": "character-selection-not-in-world"},
+                    "supervisorDecision": {
+                        "futureExecutorMayClickPlay": False,
+                        "mayClickPlayInThisSupervisor": False,
+                    },
+                    "futureMcpActionManifest": {
+                        "status": "blocked",
+                        "approval": {"token": approval_token},
+                    },
+                    "dataBlockers": [],
+                    "executionBlockers": ["explicit-world-entry-approval-token-missing-or-mismatched"],
+                },
+            )
+            write_text(root / ".riftreader-local" / "character-login-supervisor" / "latest-run.txt", str(run_dir))
+
+            supervisor = status_packet.latest_character_login_supervisor(root, [], [])
+
+        self.assertEqual(supervisor["status"], "blocked-approval-required")
+        self.assertEqual(supervisor["targetCharacter"], "ATANK")
+        self.assertTrue(supervisor["approvalTokenRequired"])
+        self.assertFalse(supervisor["approvalTokenStoredInStatus"])
+        self.assertNotIn("ENTER-WORLD", json.dumps(supervisor))
 
     def test_write_outputs_uses_ignored_local_status_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
