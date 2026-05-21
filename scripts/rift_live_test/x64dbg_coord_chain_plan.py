@@ -68,7 +68,7 @@ def normalize_hex_int(value: int | str | None) -> str | None:
 
 
 def read_json_file(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def repo_relative_or_absolute(path: Path, repo_root: Path) -> str:

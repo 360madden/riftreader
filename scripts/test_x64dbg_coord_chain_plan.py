@@ -561,6 +561,35 @@ class X64DbgCoordChainPlanTests(unittest.TestCase):
             self.assertIn(f"--api-coordinate-file '{api_file}'", command_text)
             self.assertIn("--candidate-address '0x20005B30800'", command_text)
 
+    def test_api_coordinate_file_allows_utf8_bom(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            preflight = temp_path / "preflight-summary.json"
+            api_file = temp_path / "api-reference-with-bom.json"
+            self.write_preflight_summary(preflight)
+            self.write_api_reference(api_file)
+            api_file.write_text(api_file.read_text(encoding="utf-8"), encoding="utf-8-sig")
+            out = temp_path / "plan"
+            with redirect_stdout(StringIO()):
+                code = main(
+                    [
+                        "--output-root",
+                        str(out),
+                        "--preflight-summary",
+                        str(preflight),
+                        "--api-coordinate-file",
+                        str(api_file),
+                        "--candidate-address",
+                        "0x20005B30800",
+                        "--json",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            summary = json.loads((out / "coord-chain-plan-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["truthSurface"]["x"], 7376.87)
+            self.assertEqual(summary["apiCoordinateFile"]["path"], str(api_file))
+
     def test_latest_api_coordinate_file_uses_newest_same_target_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

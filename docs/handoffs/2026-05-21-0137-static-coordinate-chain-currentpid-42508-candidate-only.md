@@ -72,3 +72,14 @@ The committed 10-phase static-chain plan is in place, and the first current-PID 
 2. Treat `[[0x1FD21A952A8]] + 0x420` as a current-PID reacquisition lead, not static truth.
 3. Next static-chain pass should search for a parent/static owner of `0x1FD21A952A8` and `0x1FD4DC04440`, or use authorized x64dbg access evidence if the operator explicitly re-authorizes live debugging.
 4. Do not promote until module/RVA/static-owner provenance, multi-pose API-now vs chain-now, restart validation, and same-target ProofOnly all pass.
+
+## Additional no-attach planner artifact
+
+| Artifact | Path |
+|---|---|
+| x64dbg no-attach preflight | `C:\RIFT MODDING\RiftReader\scripts\captures\static-chain-discovery-pid42508-20260521-052220\09-x64dbg-noattach-preflight-ignore-errorhandler\summary.json` |
+| x64dbg static-chain plan (no attach; not authorized) | `C:\RIFT MODDING\RiftReader\scripts\captures\static-chain-discovery-pid42508-20260521-052220\10-x64dbg-static-chain-plan-noattach-rerun\coord-chain-plan-summary.json` |
+
+## Additional code hardening
+
+`x64dbg_coord_chain_plan.py` now reads JSON artifacts with `utf-8-sig`, so PowerShell-emitted API reference JSON with a UTF-8 BOM no longer blocks the no-attach planner.
