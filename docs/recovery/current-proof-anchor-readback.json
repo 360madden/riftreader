@@ -1,167 +1,88 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "status": "blocked-target-drift",
-  "lastUpdatedUtc": "2026-05-21T01:15:03.613996+00:00",
+  "status": "current-target-proofonly-passed",
+  "lastUpdatedUtc": "2026-05-21T05:07:45.791155+00:00",
   "target": {
     "processName": "rift_x64",
-    "processId": 17144,
-    "targetWindowHandle": "0x2C0B22"
+    "processId": 42508,
+    "targetWindowHandle": "0x80E00"
   },
   "currentTruthClassification": {
-    "classification": "stale-target-drift-blocker",
-    "sourceOfTruth": "fresh target-drift reacquisition preflight; no current proof anchor is promoted",
-    "staleProtection": "A previously promoted proof pointer did not match the discovered live PID/HWND. It has been preserved only as historical reacquisition evidence.",
-    "movementAllowed": false,
+    "classification": "current-live-target-proof-anchor",
+    "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+    "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
     "savedVariablesUsedAsLiveTruth": false,
     "noCheatEngine": true
   },
+  "riftscanCandidateSource": {
+    "sourceKind": "current-proof-anchor-candidate-file",
+    "compatibilityNote": "Field name is retained for existing pointer consumers; the candidate file may be RiftReader-owned evidence and must still be gated by current proof-anchor/readback.",
+    "riftScanRoot": null,
+    "matchFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-42508-20260521-050209-898718\\api-family-vec3-candidates.jsonl",
+    "candidateId": "api-family-hit-000001",
+    "sourceBaseAddressHex": "0x1FD219003E0",
+    "sourceOffsetHex": "0x40",
+    "sourceAbsoluteAddressHex": "0x1FD21900420",
+    "axisOrder": "xyz",
+    "supportCount": 3,
+    "proofSupportCount": 3,
+    "bestMaxAbsDistance": 0.0077781250001862645,
+    "promotedByProofAnchor": true,
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "notes": [
+      "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
+      "Do not treat this pointer as valid after a client restart unless target metadata still matches."
+    ]
+  },
   "latestValidation": {
-    "status": "blocked-target-drift",
-    "movementAllowed": false,
+    "status": "valid",
+    "movementAllowed": true,
     "movementSent": false,
-    "movementAttempted": false,
     "noCheatEngine": true,
-    "referenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260521-011439\\reference-attempt-1.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-42508-readback-summary-20260521-010742.json",
+    "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
+    "proofAnchorCandidateId": "api-family-hit-000001",
+    "proofAnchorCandidateAddressHex": "0x1FD21900420",
     "currentCoordinate": {
-      "X": 7363.0996,
-      "Y": 871.29,
-      "Z": 3003.6899,
-      "RecordedAtUtc": "2026-05-21T01:15:03.5409021Z"
+      "x": 7369.5185546875,
+      "y": 868.3978271484375,
+      "z": 2997.177978515625,
+      "recordedAtUtc": "2026-05-21T05:07:45.4125489Z"
     },
-    "generatedAtUtc": "2026-05-21T01:15:03.614010+00:00"
+    "generatedAtUtc": "2026-05-21T05:07:45.5934995+00:00"
   },
   "latestProofOnly": {
-    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260521-011439\\run-summary.json",
-    "status": "blocked-target-drift",
+    "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260521-050715\\run-summary.json",
+    "status": "passed-proof-only",
+    "generatedAtUtc": "2026-05-21T05:07:45.784166+00:00",
     "movementSent": false,
     "movementAttempted": false,
     "currentCoordinate": {
-      "X": 7363.0996,
-      "Y": 871.29,
-      "Z": 3003.6899,
-      "RecordedAtUtc": "2026-05-21T01:15:03.5409021Z"
+      "x": 7369.5185546875,
+      "y": 868.3978271484375,
+      "z": 2997.177978515625,
+      "recordedAtUtc": "2026-05-21T05:07:45.4125489Z"
     },
     "coordinateDelta": null,
-    "readbackSummaryFile": null
-  },
-  "targetDrift": {
-    "source": "current-proof-pointer-target-check",
-    "issues": [
-      "target_drift:current_proof_pointer_pid_mismatch:actual=51016;expected=17144",
-      "target_drift:current_proof_pointer_hwnd_mismatch:actual=0x4613F0;expected=0x2C0B22"
-    ],
-    "details": {
-      "checked": true,
-      "pointerFile": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\current-proof-anchor-readback.json",
-      "requestedTarget": {
-        "processId": 17144,
-        "processName": "rift_x64",
-        "targetWindowHandle": "0x2C0B22"
-      },
-      "issues": [
-        "target_drift:current_proof_pointer_pid_mismatch:actual=51016;expected=17144",
-        "target_drift:current_proof_pointer_hwnd_mismatch:actual=0x4613F0;expected=0x2C0B22"
-      ],
-      "preservedEvidence": {
-        "classification": "historical-target-epoch-evidence",
-        "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only; candidate addresses and readbacks must be rescored against the current PID/HWND",
-        "lastUpdatedUtc": "2026-05-20T19:06:25Z",
-        "status": "blocked-target-not-in-world",
-        "target": {
-          "processName": "rift_x64",
-          "processId": 51016,
-          "targetWindowHandle": "0x4613F0"
-        },
-        "latestValidation": {
-          "status": "blocked-target-not-in-world",
-          "movementAllowed": false,
-          "movementSent": false,
-          "movementAttempted": false,
-          "noCheatEngine": true,
-          "referenceFile": null,
-          "currentCoordinate": null,
-          "generatedAtUtc": "2026-05-20T19:06:25Z",
-          "blockers": [
-            "target-at-character-selection-not-in-world-after-restart",
-            "visual-gate-blocked-by-non-game-overlay-for-click-automation"
-          ]
-        },
-        "latestProofOnly": {
-          "runSummaryFile": null,
-          "status": "blocked-target-not-in-world",
-          "generatedAtUtc": "2026-05-20T19:00:33Z",
-          "movementSent": false,
-          "movementAttempted": false,
-          "currentCoordinate": null,
-          "coordinateDelta": null,
-          "readbackSummaryFile": null
-        }
-      },
-      "pointerTarget": {
-        "processId": 51016,
-        "processName": "rift_x64",
-        "targetWindowHandle": "0x4613F0"
-      }
-    },
-    "proofAnchorPromoted": false,
-    "requiredRecovery": "run current-PID family snapshots and promote only after same-target ProofOnly passes"
-  },
-  "staleProofPointer": {
-    "classification": "historical-target-epoch-evidence",
-    "archivedPointer": {
-      "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-21-pid51016-hwnd4613F0-historical.json",
-      "classification": "historical-target-epoch-evidence",
-      "supersededTarget": {
-        "processName": "rift_x64",
-        "processId": 51016,
-        "targetWindowHandle": "0x4613F0"
-      },
-      "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
-    },
-    "preservedEvidence": {
-      "classification": "historical-target-epoch-evidence",
-      "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only; candidate addresses and readbacks must be rescored against the current PID/HWND",
-      "lastUpdatedUtc": "2026-05-20T19:06:25Z",
-      "status": "blocked-target-not-in-world",
-      "target": {
-        "processName": "rift_x64",
-        "processId": 51016,
-        "targetWindowHandle": "0x4613F0"
-      },
-      "latestValidation": {
-        "status": "blocked-target-not-in-world",
-        "movementAllowed": false,
-        "movementSent": false,
-        "movementAttempted": false,
-        "noCheatEngine": true,
-        "referenceFile": null,
-        "currentCoordinate": null,
-        "generatedAtUtc": "2026-05-20T19:06:25Z",
-        "blockers": [
-          "target-at-character-selection-not-in-world-after-restart",
-          "visual-gate-blocked-by-non-game-overlay-for-click-automation"
-        ]
-      },
-      "latestProofOnly": {
-        "runSummaryFile": null,
-        "status": "blocked-target-not-in-world",
-        "generatedAtUtc": "2026-05-20T19:00:33Z",
-        "movementSent": false,
-        "movementAttempted": false,
-        "currentCoordinate": null,
-        "coordinateDelta": null,
-        "readbackSummaryFile": null
-      }
-    },
-    "reusePolicy": "do-not-use-as-current-proof; do-not-use-for-movement; use only as a broad family/reacquisition hint after rescoring against the current target"
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-42508-readback-summary-20260521-010742.json"
   },
   "runtimePointers": {
     "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
     "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
   },
   "notes": [
-    "Auto-written when target drift is detected for the discovered live PID/HWND.",
-    "This file is intentionally a blocker until a fresh same-target ProofOnly pass replaces it."
-  ]
+    "Auto-written after ProofOnly passed for the exact current target.",
+    "This file is a current pointer, not an immutable historical record."
+  ],
+  "historicalSupersededPointer": {
+    "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-21-pid17144-hwnd2C0B22-historical.json",
+    "classification": "historical-target-epoch-evidence",
+    "supersededTarget": {
+      "processName": "rift_x64",
+      "processId": 17144,
+      "targetWindowHandle": "0x2C0B22"
+    },
+    "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
+  }
 }

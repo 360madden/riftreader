@@ -1,6 +1,11 @@
-# Version: riftreader-promote-current-pid-proof-anchor-from-batch-v0.1.1
+# Version: riftreader-promote-current-pid-proof-anchor-from-batch-v0.1.2
 # Total-Character-Count: 11713
 # Purpose: Safely promote the current PID coordinate proof anchor from the latest promotion-ready coordinate-anchor batch summary using existing repo helpers only. Fixes array-parameter invocation for ReadbackSummaryFile by using encoded PowerShell commands. Sends no movement.
+
+[CmdletBinding()]
+param(
+  [string]$BatchSummaryFile
+)
 
 & {
   $ErrorActionPreference = "Stop"
@@ -127,30 +132,48 @@
     }
   }
 
-  $BatchRecords = Get-ChildItem ".\scripts\captures" -Directory -Filter "current-pid-coordinate-anchor-batch-*" |
-    ForEach-Object {
-      $SummaryPath = Join-Path $_.FullName "coordinate-anchor-batch-summary.json"
-      if (Test-Path -LiteralPath $SummaryPath -PathType Leaf) {
-        try {
-          $Summary = Get-Content -LiteralPath $SummaryPath -Raw | ConvertFrom-Json -Depth 140
-          [pscustomobject]@{
-            Directory = $_.FullName
-            SummaryPath = $SummaryPath
-            Summary = $Summary
-            LastWriteTime = $_.LastWriteTime
+  if (-not [string]::IsNullOrWhiteSpace($BatchSummaryFile)) {
+    $ResolvedBatchSummaryFile = [System.IO.Path]::GetFullPath($BatchSummaryFile)
+    if (-not (Test-Path -LiteralPath $ResolvedBatchSummaryFile -PathType Leaf)) {
+      throw "BatchSummaryFile not found: $ResolvedBatchSummaryFile"
+    }
+    $BatchSummary = Get-Content -LiteralPath $ResolvedBatchSummaryFile -Raw | ConvertFrom-Json -Depth 140
+    $BatchRecord = [pscustomobject]@{
+      Directory = Split-Path -Parent $ResolvedBatchSummaryFile
+      SummaryPath = $ResolvedBatchSummaryFile
+      Summary = $BatchSummary
+      LastWriteTime = (Get-Item -LiteralPath $ResolvedBatchSummaryFile).LastWriteTime
+    }
+    if ($BatchRecord.Summary.status -ne "promotion-candidate-found" -or -not [bool]$BatchRecord.Summary.ok) {
+      throw "BatchSummaryFile is not promotion-ready. status=$($BatchRecord.Summary.status) ok=$($BatchRecord.Summary.ok)"
+    }
+  }
+  else {
+    $BatchRecords = Get-ChildItem ".\scripts\captures" -Directory -Filter "current-pid-coordinate-anchor-batch-*" |
+      ForEach-Object {
+        $SummaryPath = Join-Path $_.FullName "coordinate-anchor-batch-summary.json"
+        if (Test-Path -LiteralPath $SummaryPath -PathType Leaf) {
+          try {
+            $Summary = Get-Content -LiteralPath $SummaryPath -Raw | ConvertFrom-Json -Depth 140
+            [pscustomobject]@{
+              Directory = $_.FullName
+              SummaryPath = $SummaryPath
+              Summary = $Summary
+              LastWriteTime = $_.LastWriteTime
+            }
+          }
+          catch {
+            Write-Warning "Skipping unreadable batch summary: $SummaryPath"
           }
         }
-        catch {
-          Write-Warning "Skipping unreadable batch summary: $SummaryPath"
-        }
-      }
-    } |
-    Where-Object { $_.Summary.status -eq "promotion-candidate-found" -and [bool]$_.Summary.ok } |
-    Sort-Object LastWriteTime -Descending
+      } |
+      Where-Object { $_.Summary.status -eq "promotion-candidate-found" -and [bool]$_.Summary.ok } |
+      Sort-Object LastWriteTime -Descending
 
-  $BatchRecord = $BatchRecords | Select-Object -First 1
-  if ($null -eq $BatchRecord) {
-    throw "No promotion-ready current-pid-coordinate-anchor-batch summary found."
+    $BatchRecord = $BatchRecords | Select-Object -First 1
+    if ($null -eq $BatchRecord) {
+      throw "No promotion-ready current-pid-coordinate-anchor-batch summary found."
+    }
   }
 
   $BatchSummaryFile = [string]$BatchRecord.SummaryPath

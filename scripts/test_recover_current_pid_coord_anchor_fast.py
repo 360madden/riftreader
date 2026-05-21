@@ -31,8 +31,11 @@ def default_args(**overrides: object) -> argparse.Namespace:
         "escalate_poses": 5,
         "minimum_promotion_pose_support": 3,
         "minimum_movement_pulses_for_promotion": 2,
+        "minimum_displaced_pose_support": 2,
+        "minimum_planar_displacement": 1.0,
         "movement_key": "w",
         "hold_milliseconds": 750,
+        "adaptive_movement_sequence": None,
         "input_mode": "ScanCode",
         "pose_batch_timeout_seconds": 600,
         "movement_approved": False,
@@ -54,12 +57,15 @@ class FastRecoveryDryRunTests(unittest.TestCase):
             plan = fast.build_recovery_plan(args, repo_root, Path(temp_dir))
 
         labels = [step["label"] for step in plan["steps"]]
-        self.assertEqual(labels[0], "target-control-visual-gate")
+        self.assertEqual(labels[0], "target-window-discovery-preflight")
+        self.assertEqual(labels[1], "target-control-visual-gate")
         self.assertIn("reference-chromalink-fast-path", labels)
         self.assertIn("reference-rrapicoord-fallback", labels)
         self.assertIn("scan-plan-batch-stop-on-hit", labels)
         self.assertIn("proofonly-final-gate", labels)
         self.assertFalse(any(step["dryRunExecuted"] for step in plan["steps"]))
+        promote_step = next(step for step in plan["steps"] if step["label"] == "promote-current-proof-anchor")
+        self.assertIn("-BatchSummaryFile", promote_step["command"])
 
     def test_no_movement_flag_is_added_without_explicit_approval(self) -> None:
         repo_root = fast.find_repo_root(Path(__file__).resolve())
@@ -68,6 +74,169 @@ class FastRecoveryDryRunTests(unittest.TestCase):
         pose_step = next(step for step in plan["steps"] if step["label"] == "three-pose-displacement-validation")
         self.assertIn("-NoMovement", pose_step["command"])
         self.assertFalse(pose_step["sendsInputIfExecuted"])
+        self.assertIn("-MinimumDisplacedPoseSupport", pose_step["command"])
+        self.assertIn("-MinimumPlanarDisplacement", pose_step["command"])
+
+    def test_default_adaptive_movement_sequence_matches_fast_recovery_plan(self) -> None:
+        args = default_args()
+
+        attempts = fast.parse_adaptive_movement_sequence(fast.adaptive_movement_sequence_text(args))
+
+        self.assertEqual(
+            [(item["key"], item["holdMilliseconds"]) for item in attempts],
+            [("w", 750), ("w", 1500), ("q", 1000), ("e", 1000)],
+        )
+
+    def test_custom_first_movement_attempt_keeps_safe_fallbacks(self) -> None:
+        args = default_args(movement_key="q", hold_milliseconds=500)
+
+        attempts = fast.parse_adaptive_movement_sequence(fast.adaptive_movement_sequence_text(args))
+
+        self.assertEqual(attempts[0]["key"], "q")
+        self.assertEqual(attempts[0]["holdMilliseconds"], 500)
+        self.assertIn(("w", 1500), [(item["key"], item["holdMilliseconds"]) for item in attempts])
+
+    def test_duplicate_rift_windows_block_target_discovery_preflight(self) -> None:
+        parsed = {
+            "count": 2,
+            "windows": [
+                {"ProcessId": 111, "WindowHandleHex": "0xAAA", "Title": "RIFT"},
+                {"ProcessId": 222, "WindowHandleHex": "0xBBB", "Title": "RIFT"},
+            ],
+        }
+
+        gate = fast.target_discovery_preflight(parsed, requested_pid=222, requested_hwnd="0xBBB")
+
+        self.assertFalse(gate["passed"])
+        self.assertEqual(gate["windowCount"], 2)
+        self.assertTrue(gate["matchedRequestedTarget"])
+        self.assertIn("multiple-rift-clients-present-current-anchor-recovery-blocked:2", gate["blockers"])
+
+    def test_single_requested_rift_window_passes_target_discovery_preflight(self) -> None:
+        parsed = {
+            "count": 1,
+            "windows": [{"ProcessId": 222, "WindowHandleHex": "0xBBB", "Title": "RIFT"}],
+        }
+
+        gate = fast.target_discovery_preflight(parsed, requested_pid=222, requested_hwnd="0xBBB")
+
+        self.assertTrue(gate["passed"])
+        self.assertEqual(gate["blockers"], [])
+        self.assertTrue(gate["matchedRequestedTarget"])
+
+    def test_zero_coordinate_delta_does_not_pass_displacement_gate(self) -> None:
+        parsed = {
+            "status": "promotion-candidate-found",
+            "topCandidate": {
+                "key": "api-family-hit-000001@0x1000",
+                "candidateId": "api-family-hit-000001",
+                "candidateAddressHex": "0x1000",
+            },
+            "poseResults": [
+                {
+                    "poseIndex": 1,
+                    "poseName": "pose-01",
+                    "reference": {"Coordinate": {"X": 100.0, "Y": 20.0, "Z": 200.0}},
+                    "referenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x1000",
+                        }
+                    ],
+                },
+                {
+                    "poseIndex": 2,
+                    "poseName": "pose-02",
+                    "reference": {"Coordinate": {"X": 100.0, "Y": 20.0, "Z": 200.0}},
+                    "referenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x1000",
+                        }
+                    ],
+                },
+                {
+                    "poseIndex": 3,
+                    "poseName": "pose-03",
+                    "reference": {"Coordinate": {"X": 100.0, "Y": 20.0, "Z": 200.0}},
+                    "referenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x1000",
+                        }
+                    ],
+                },
+            ],
+        }
+
+        gate = fast.displacement_gate_from_pose_summary(
+            parsed,
+            minimum_displaced_pose_support=2,
+            minimum_planar_displacement=1.0,
+        )
+
+        self.assertFalse(gate["passed"])
+        self.assertEqual(gate["displacedPoseCount"], 0)
+        self.assertEqual(gate["maxPlanarDisplacement"], 0.0)
+        self.assertIn("displaced-pose-count-too-low:0<2", gate["blockers"])
+        self.assertIn("max-planar-displacement-too-low:0.000000<1.0", gate["blockers"])
+
+    def test_real_coordinate_delta_passes_displacement_gate(self) -> None:
+        parsed = {
+            "status": "promotion-candidate-found",
+            "topCandidate": {
+                "key": "api-family-hit-000001@0x1000",
+                "candidateId": "api-family-hit-000001",
+                "candidateAddressHex": "0x1000",
+            },
+            "poseResults": [
+                {
+                    "poseIndex": 1,
+                    "poseName": "pose-01",
+                    "reference": {"Coordinate": {"X": 100.0, "Y": 20.0, "Z": 200.0}},
+                    "referenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x1000",
+                        }
+                    ],
+                },
+                {
+                    "poseIndex": 2,
+                    "poseName": "pose-02",
+                    "reference": {"Coordinate": {"X": 101.5, "Y": 20.0, "Z": 200.0}},
+                    "referenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x1000",
+                        }
+                    ],
+                },
+                {
+                    "poseIndex": 3,
+                    "poseName": "pose-03",
+                    "reference": {"Coordinate": {"X": 103.0, "Y": 20.0, "Z": 200.0}},
+                    "referenceMatches": [
+                        {
+                            "CandidateId": "api-family-hit-000001",
+                            "CandidateAddressHex": "0x1000",
+                        }
+                    ],
+                },
+            ],
+        }
+
+        gate = fast.displacement_gate_from_pose_summary(
+            parsed,
+            minimum_displaced_pose_support=2,
+            minimum_planar_displacement=1.0,
+        )
+
+        self.assertTrue(gate["passed"])
+        self.assertEqual(gate["displacedPoseCount"], 2)
+        self.assertEqual(gate["topCandidateDisplacedPoseSupportCount"], 2)
+        self.assertAlmostEqual(gate["maxPlanarDisplacement"], 3.0)
+        self.assertEqual(gate["blockers"], [])
 
     def test_chromalink_reference_parser_requires_passed_reference_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

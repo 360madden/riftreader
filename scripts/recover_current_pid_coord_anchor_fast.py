@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,8 @@ DEFAULT_TITLE_CONTAINS = "RIFT"
 REFERENCE_PLACEHOLDER = "<REFERENCE_JSON_FROM_FAST_REFERENCE>"
 SCAN_PLAN_PLACEHOLDER = "<SCAN_PLAN_JSON_FROM_INVENTORY>"
 CANDIDATE_FILE_PLACEHOLDER = "<CANDIDATE_JSONL_FROM_SCAN_PLAN_BATCH>"
+BATCH_SUMMARY_PLACEHOLDER = "<BATCH_SUMMARY_JSON_FROM_POSE_VALIDATION>"
+DEFAULT_ADAPTIVE_MOVEMENT_SEQUENCE = "w:750,w:1500,q:1000,e:1000"
 
 
 def utc_iso() -> str:
@@ -92,6 +95,48 @@ def powershell_script_command(repo_root: Path, relative_script: str, *args: str)
 
 def safe_label(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in value).strip("-") or "step"
+
+
+def parse_adaptive_movement_sequence(value: str | None) -> list[dict[str, Any]]:
+    """Parse key:hold-ms movement attempts for displaced-pose validation."""
+
+    raw = (value or DEFAULT_ADAPTIVE_MOVEMENT_SEQUENCE).strip()
+    attempts: list[dict[str, Any]] = []
+    for index, item in enumerate(part.strip() for part in raw.split(",") if part.strip()):
+        if ":" in item:
+            key, hold_text = item.split(":", 1)
+        else:
+            key, hold_text = item, ""
+        key = key.strip()
+        if not key:
+            raise ValueError(f"adaptive movement attempt {index + 1} is missing a key")
+        try:
+            hold_ms = int(hold_text.strip() or "0")
+        except ValueError as exc:
+            raise ValueError(f"adaptive movement attempt {index + 1} has invalid hold milliseconds: {item}") from exc
+        if hold_ms <= 0:
+            raise ValueError(f"adaptive movement attempt {index + 1} hold milliseconds must be greater than zero")
+        attempts.append({"index": index + 1, "key": key, "holdMilliseconds": hold_ms})
+    if not attempts:
+        raise ValueError("adaptive movement sequence must include at least one key:hold-ms attempt")
+    return attempts
+
+
+def adaptive_movement_sequence_text(args: argparse.Namespace) -> str:
+    if args.adaptive_movement_sequence:
+        return str(args.adaptive_movement_sequence)
+    first = f"{args.movement_key}:{args.hold_milliseconds}"
+    if first.lower() == "w:750":
+        return DEFAULT_ADAPTIVE_MOVEMENT_SEQUENCE
+    return f"{first},w:1500,q:1000,e:1000"
+
+
+def movement_attempt_label(attempt: dict[str, Any]) -> str:
+    return "attempt-{0:02d}-{1}-{2}ms".format(
+        int(attempt["index"]),
+        safe_label(str(attempt["key"]).lower()),
+        int(attempt["holdMilliseconds"]),
+    )
 
 
 def extract_json(text: str) -> Any:
@@ -363,27 +408,29 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
     steps: list[dict[str, Any]] = []
     order = 1
 
-    if args.pid is None or args.hwnd is None:
-        steps.append(
-            command_step(
-                order=order,
-                label="discover-target",
-                title="Discover current RIFT PID/HWND",
-                why="Recovery must start from the current process epoch, not an old absolute proof pointer.",
-                command=powershell_script_command(
-                    repo_root,
-                    "scripts/get-rift-window-targets.ps1",
-                    "-ProcessName",
-                    process_name,
-                    "-Json",
-                ),
-                cwd=repo_root,
-                execution_phase="target-discovery",
-                timeout_seconds=15,
-                notes=["Select exactly one target before running exact-PID steps."],
-            )
+    steps.append(
+        command_step(
+            order=order,
+            label="target-window-discovery-preflight",
+            title="Discover current RIFT windows and fail closed on duplicates",
+            why="Recovery must start from one unambiguous current process epoch before target-control, memory reads, or movement.",
+            command=powershell_script_command(
+                repo_root,
+                "scripts/get-rift-window-targets.ps1",
+                "-ProcessName",
+                process_name,
+                "-Json",
+            ),
+            cwd=repo_root,
+            execution_phase="target-discovery",
+            timeout_seconds=15,
+            notes=[
+                "Exactly one RIFT window/client must be present.",
+                "Multiple clients are treated as a possible same-account conflict; do not continue until resolved.",
+            ],
         )
-        order += 1
+    )
+    order += 1
 
     steps.append(
         command_step(
@@ -602,6 +649,8 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
     )
     order += 1
 
+    movement_attempts = parse_adaptive_movement_sequence(adaptive_movement_sequence_text(args))
+    first_movement_attempt = movement_attempts[0]
     pose_args = [
         "-PoseCount",
         str(pose_count),
@@ -609,10 +658,14 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
         str(args.minimum_promotion_pose_support),
         "-MinimumMovementPulsesForPromotion",
         str(args.minimum_movement_pulses_for_promotion),
+        "-MinimumDisplacedPoseSupport",
+        str(args.minimum_displaced_pose_support),
+        "-MinimumPlanarDisplacement",
+        str(args.minimum_planar_displacement),
         "-Key",
-        args.movement_key,
+        str(first_movement_attempt["key"]),
         "-HoldMilliseconds",
-        str(args.hold_milliseconds),
+        str(first_movement_attempt["holdMilliseconds"]),
         "-InputMode",
         args.input_mode,
         "-CandidateFile",
@@ -645,6 +698,11 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
             notes=[
                 "Default is 3 poses; escalate to "
                 f"{escalate_pose_count} poses only if dense copies or ambiguous support remain.",
+                "Execution mode adapts through "
+                + ", ".join(
+                    f"{attempt['key']}:{attempt['holdMilliseconds']}ms" for attempt in movement_attempts
+                )
+                + " until real API-coordinate displacement is observed or attempts are exhausted.",
                 "Without movement approval, execution blocks before this step.",
             ],
         )
@@ -660,6 +718,8 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
             command=powershell_script_command(
                 repo_root,
                 "scripts/promote-current-pid-proof-anchor-from-batch.ps1",
+                "-BatchSummaryFile",
+                BATCH_SUMMARY_PLACEHOLDER,
             ),
             cwd=repo_root,
             execution_phase="promotion",
@@ -714,6 +774,9 @@ def build_recovery_plan(args: argparse.Namespace, repo_root: Path, run_dir: Path
             "escalatePoseCount": escalate_pose_count,
             "minimumPromotionPoseSupport": args.minimum_promotion_pose_support,
             "minimumMovementPulsesForPromotion": args.minimum_movement_pulses_for_promotion,
+            "minimumDisplacedPoseSupport": args.minimum_displaced_pose_support,
+            "minimumPlanarDisplacement": args.minimum_planar_displacement,
+            "adaptiveMovementSequence": movement_attempts,
             "rankBy": "same-candidate displaced-pose delta tracking",
         },
         "executionPolicy": {
@@ -821,6 +884,231 @@ def candidate_file_from_scan_summary(parsed: Any) -> tuple[Path | None, dict[str
 
     blockers.append("scan-candidate-jsonl-missing")
     return None, best_result, blockers
+
+
+def target_discovery_preflight(
+    parsed: Any,
+    *,
+    requested_pid: int | None,
+    requested_hwnd: str | None,
+) -> dict[str, Any]:
+    """Fail closed unless exactly one current RIFT window exists and it is the requested target."""
+
+    result: dict[str, Any] = {
+        "passed": False,
+        "blockers": [],
+        "warnings": [],
+        "windowCount": 0,
+        "windows": [],
+        "requestedPid": requested_pid,
+        "requestedHwnd": normalize_hwnd(requested_hwnd),
+        "matchedRequestedTarget": False,
+    }
+    if not isinstance(parsed, dict):
+        result["blockers"].append("target-discovery-output-not-json-object")
+        return result
+
+    windows = [window for window in parsed.get("windows") or [] if isinstance(window, dict)]
+    count = int(parsed.get("count") if parsed.get("count") is not None else len(windows))
+    result["windowCount"] = count
+    result["windows"] = windows
+
+    if count == 0:
+        result["blockers"].append("no-rift-window-targets-present")
+    elif count > 1:
+        result["blockers"].append(f"multiple-rift-clients-present-current-anchor-recovery-blocked:{count}")
+    elif len(windows) != 1:
+        result["blockers"].append(f"target-discovery-window-list-count-mismatch:{len(windows)}!={count}")
+
+    requested_hwnd_normalized = normalize_hwnd(requested_hwnd)
+    if requested_pid is not None or requested_hwnd_normalized:
+        matches: list[dict[str, Any]] = []
+        for window in windows:
+            pid_value = _json_value(window, "ProcessId", "processId")
+            hwnd_value = normalize_hwnd(_json_value(window, "WindowHandleHex", "windowHandleHex", "WindowHandle"))
+            pid_matches = requested_pid is None or int(pid_value or -1) == int(requested_pid)
+            hwnd_matches = not requested_hwnd_normalized or hwnd_value == requested_hwnd_normalized
+            if pid_matches and hwnd_matches:
+                matches.append(window)
+        result["matchedRequestedTarget"] = len(matches) == 1
+        if len(matches) != 1:
+            result["blockers"].append(
+                "requested-target-not-exactly-one-current-window:"
+                f"matches={len(matches)};pid={requested_pid};hwnd={requested_hwnd_normalized}"
+            )
+
+    result["passed"] = not result["blockers"]
+    return result
+
+
+def _json_value(document: Any, *names: str) -> Any:
+    if not isinstance(document, dict):
+        return None
+    lowered = {str(key).lower(): value for key, value in document.items()}
+    for name in names:
+        if name.lower() in lowered:
+            return lowered[name.lower()]
+    return None
+
+
+def _coordinate_from_pose_result(pose_result: Any) -> dict[str, Any] | None:
+    if not isinstance(pose_result, dict):
+        return None
+    reference = _json_value(pose_result, "reference")
+    if not isinstance(reference, dict):
+        return None
+    coordinate = _json_value(reference, "Coordinate", "coordinate")
+    if not isinstance(coordinate, dict):
+        return None
+    x = _json_value(coordinate, "X", "x")
+    y = _json_value(coordinate, "Y", "y")
+    z = _json_value(coordinate, "Z", "z")
+    if x is None or y is None or z is None:
+        return None
+    return {
+        "x": float(x),
+        "y": float(y),
+        "z": float(z),
+        "capturedAtUtc": _json_value(coordinate, "CapturedAtUtc", "capturedAtUtc"),
+    }
+
+
+def _pose_index(pose_result: Any) -> int | None:
+    value = _json_value(pose_result, "poseIndex") if isinstance(pose_result, dict) else None
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _candidate_supported_pose_indices(parsed: dict[str, Any], candidate_key: str | None) -> set[int]:
+    if not candidate_key:
+        return set()
+    supported: set[int] = set()
+    for pose in parsed.get("poseResults") or []:
+        if not isinstance(pose, dict):
+            continue
+        pose_index = _pose_index(pose)
+        if pose_index is None:
+            continue
+        for match in pose.get("referenceMatches") or []:
+            if not isinstance(match, dict):
+                continue
+            candidate_id = _json_value(match, "CandidateId", "candidateId") or "unknown-id"
+            address = _json_value(match, "CandidateAddressHex", "candidateAddressHex") or "unknown-address"
+            if f"{candidate_id}@{address}" == candidate_key:
+                supported.add(pose_index)
+                break
+    return supported
+
+
+def displacement_gate_from_pose_summary(
+    parsed: Any,
+    *,
+    minimum_displaced_pose_support: int,
+    minimum_planar_displacement: float,
+) -> dict[str, Any]:
+    """Return a fail-closed displacement gate result for a pose-batch summary."""
+
+    result: dict[str, Any] = {
+        "passed": False,
+        "blockers": [],
+        "minimumDisplacedPoseSupport": minimum_displaced_pose_support,
+        "minimumPlanarDisplacement": minimum_planar_displacement,
+        "displacedPoseCount": 0,
+        "maxPlanarDisplacement": 0.0,
+        "maxSpatialDisplacement": 0.0,
+        "topCandidateDisplacedPoseSupportCount": 0,
+        "poseDisplacements": [],
+    }
+    if not isinstance(parsed, dict):
+        result["blockers"].append("pose-summary-not-json-object")
+        return result
+
+    # Prefer the script-provided gate fields when present, but still recompute
+    # from poseResults so older summaries fail closed instead of promoting from
+    # movement pulses only.
+    pose_results = [pose for pose in parsed.get("poseResults") or [] if isinstance(pose, dict)]
+    baseline_pose: dict[str, Any] | None = None
+    baseline_coordinate: dict[str, Any] | None = None
+    for pose in pose_results:
+        coordinate = _coordinate_from_pose_result(pose)
+        if coordinate is not None:
+            baseline_pose = pose
+            baseline_coordinate = coordinate
+            break
+
+    displaced_pose_indices: set[int] = set()
+    if baseline_pose is None or baseline_coordinate is None:
+        result["blockers"].append("baseline-api-coordinate-missing")
+    else:
+        baseline_index = _pose_index(baseline_pose)
+        for pose in pose_results:
+            pose_index = _pose_index(pose)
+            coordinate = _coordinate_from_pose_result(pose)
+            item: dict[str, Any] = {
+                "poseIndex": pose_index,
+                "poseName": _json_value(pose, "poseName"),
+                "hasCoordinate": coordinate is not None,
+                "planarDistanceFromBaseline": None,
+                "spatialDistanceFromBaseline": None,
+                "displacedFromBaseline": False,
+            }
+            if coordinate is not None:
+                dx = coordinate["x"] - baseline_coordinate["x"]
+                dy = coordinate["y"] - baseline_coordinate["y"]
+                dz = coordinate["z"] - baseline_coordinate["z"]
+                planar = math.sqrt((dx * dx) + (dz * dz))
+                spatial = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+                item["deltaFromBaseline"] = {
+                    "deltaX": dx,
+                    "deltaY": dy,
+                    "deltaZ": dz,
+                    "planarDistance": planar,
+                    "spatialDistance": spatial,
+                    "maxAbsDelta": max(abs(dx), abs(dy), abs(dz)),
+                }
+                item["planarDistanceFromBaseline"] = planar
+                item["spatialDistanceFromBaseline"] = spatial
+                result["maxPlanarDisplacement"] = max(float(result["maxPlanarDisplacement"]), planar)
+                result["maxSpatialDisplacement"] = max(float(result["maxSpatialDisplacement"]), spatial)
+                if pose_index is not None and pose_index != baseline_index and planar >= minimum_planar_displacement:
+                    item["displacedFromBaseline"] = True
+                    displaced_pose_indices.add(pose_index)
+            result["poseDisplacements"].append(item)
+
+    top_candidate = parsed.get("topCandidate") if isinstance(parsed.get("topCandidate"), dict) else {}
+    candidate_key = str(top_candidate.get("key") or "") if top_candidate else ""
+    supported_pose_indices = _candidate_supported_pose_indices(parsed, candidate_key)
+    top_displaced_support = len(displaced_pose_indices.intersection(supported_pose_indices))
+
+    script_displaced_count = parsed.get("displacedPoseCount")
+    script_max_planar = parsed.get("maxPlanarDisplacement")
+    script_top_support = parsed.get("topCandidateDisplacedPoseSupportCount")
+    result["displacedPoseCount"] = max(len(displaced_pose_indices), int(script_displaced_count or 0))
+    if script_max_planar is not None:
+        result["maxPlanarDisplacement"] = max(float(result["maxPlanarDisplacement"]), float(script_max_planar))
+    result["topCandidateDisplacedPoseSupportCount"] = max(top_displaced_support, int(script_top_support or 0))
+
+    if int(result["displacedPoseCount"]) < minimum_displaced_pose_support:
+        result["blockers"].append(
+            f"displaced-pose-count-too-low:{result['displacedPoseCount']}<{minimum_displaced_pose_support}"
+        )
+    if float(result["maxPlanarDisplacement"]) < minimum_planar_displacement:
+        result["blockers"].append(
+            "max-planar-displacement-too-low:"
+            f"{float(result['maxPlanarDisplacement']):.6f}<{minimum_planar_displacement}"
+        )
+    if int(result["topCandidateDisplacedPoseSupportCount"]) < minimum_displaced_pose_support:
+        result["blockers"].append(
+            "top-candidate-displaced-support-too-low:"
+            f"{result['topCandidateDisplacedPoseSupportCount']}<{minimum_displaced_pose_support}"
+        )
+
+    result["passed"] = not result["blockers"]
+    return result
 
 
 def run_command_envelope(
@@ -999,6 +1287,23 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
         return envelope
 
     try:
+        discovery = run_label("target-window-discovery-preflight")
+        if stages[-1]["status"] != "passed":
+            summary["status"] = "blocked"
+            summary["blockers"].append("target-window-discovery-preflight-failed")
+            return 2
+        target_preflight = target_discovery_preflight(
+            discovery.get("parsedJson"),
+            requested_pid=args.pid,
+            requested_hwnd=normalize_hwnd(args.hwnd),
+        )
+        summary["execution"]["targetDiscoveryPreflight"] = target_preflight
+        stages[-1]["details"]["targetDiscoveryPreflight"] = target_preflight
+        if not target_preflight["passed"]:
+            summary["status"] = "blocked"
+            summary["blockers"].extend(f"target-window-discovery:{item}" for item in target_preflight["blockers"])
+            return 2
+
         target = run_label("target-control-visual-gate")
         if stages[-1]["status"] != "passed":
             summary["status"] = "blocked"
@@ -1116,25 +1421,78 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
             return 2
 
         pose_step = steps["three-pose-displacement-validation"]
-        pose_command = replace_or_append_flag(list(pose_step["command"]), "-CandidateFile", str(candidate_jsonl))
-        pose_command = remove_flag(pose_command, "-NoMovement")
-        pose = run_label("three-pose-displacement-validation", command=pose_command)
-        if stages[-1]["status"] != "passed":
+        movement_attempts = parse_adaptive_movement_sequence(adaptive_movement_sequence_text(args))
+        summary["execution"]["poseValidationAttempts"] = []
+        successful_pose_summary: Any = None
+        successful_displacement_gate: dict[str, Any] | None = None
+        last_pose_status = "not-run"
+        last_displacement_gate: dict[str, Any] | None = None
+
+        for attempt in movement_attempts:
+            attempt_output = run_dir / f"05-pose-batch-{movement_attempt_label(attempt)}"
+            pose_command = replace_or_append_flag(list(pose_step["command"]), "-CandidateFile", str(candidate_jsonl))
+            pose_command = replace_or_append_flag(pose_command, "-Key", str(attempt["key"]))
+            pose_command = replace_or_append_flag(
+                pose_command,
+                "-HoldMilliseconds",
+                str(attempt["holdMilliseconds"]),
+            )
+            pose_command = replace_or_append_flag(pose_command, "-OutputRoot", str(attempt_output))
+            pose_command = remove_flag(pose_command, "-NoMovement")
+            pose = run_label("three-pose-displacement-validation", command=pose_command)
+            stages[-1]["details"]["movementAttempt"] = attempt
+            if stages[-1]["status"] != "passed":
+                summary["status"] = "blocked"
+                summary["blockers"].append("pose-validation-failed")
+                return 2
+            pose_parsed = pose.get("parsedJson") if isinstance(pose.get("parsedJson"), dict) else {}
+            pose_status = status_value(pose_parsed)
+            last_pose_status = pose_status
+            pose_summary = first_present(
+                nested_get(pose_parsed, "artifacts", "summaryJson"),
+                pose_parsed.get("summaryJson"),
+                pose_parsed.get("SummaryJson"),
+            )
+            if pose_summary:
+                summary["execution"]["promotionBatchSummaryJson"] = str(pose_summary)
+            displacement_gate = displacement_gate_from_pose_summary(
+                pose_parsed,
+                minimum_displaced_pose_support=args.minimum_displaced_pose_support,
+                minimum_planar_displacement=args.minimum_planar_displacement,
+            )
+            last_displacement_gate = displacement_gate
+            summary["execution"]["poseDisplacementGate"] = displacement_gate
+            stages[-1]["details"]["displacementGate"] = displacement_gate
+            attempt_record = {
+                "attempt": attempt,
+                "status": pose_status,
+                "summaryJson": str(pose_summary) if pose_summary else None,
+                "displacementGate": displacement_gate,
+            }
+            summary["execution"]["poseValidationAttempts"].append(attempt_record)
+
+            if pose_status == "promotion-candidate-found" and displacement_gate["passed"]:
+                successful_pose_summary = pose_summary
+                successful_displacement_gate = displacement_gate
+                break
+
+            stages[-1]["details"]["adaptiveRetryReason"] = (
+                f"pose-status:{pose_status}; "
+                + ",".join(displacement_gate.get("blockers") or ["displacement-gate-not-passed"])
+            )
+
+        if successful_pose_summary:
+            summary["execution"]["promotionBatchSummaryJson"] = str(successful_pose_summary)
+        if successful_displacement_gate:
+            summary["execution"]["poseDisplacementGate"] = successful_displacement_gate
+        else:
             summary["status"] = "blocked"
-            summary["blockers"].append("pose-validation-failed")
-            return 2
-        pose_parsed = pose.get("parsedJson") if isinstance(pose.get("parsedJson"), dict) else {}
-        pose_status = status_value(pose_parsed)
-        pose_summary = first_present(
-            nested_get(pose_parsed, "artifacts", "summaryJson"),
-            pose_parsed.get("summaryJson"),
-            pose_parsed.get("SummaryJson"),
-        )
-        if pose_summary:
-            summary["execution"]["promotionBatchSummaryJson"] = str(pose_summary)
-        if pose_status != "promotion-candidate-found":
-            summary["status"] = "blocked"
-            summary["blockers"].append(f"pose-validation-not-promotion-ready:{pose_status}")
+            summary["blockers"].append(f"pose-validation-not-promotion-ready:{last_pose_status}")
+            summary["blockers"].append("adaptive-movement-sequence-exhausted")
+            if last_displacement_gate:
+                summary["blockers"].extend(
+                    f"pose-displacement-gate:{item}" for item in last_displacement_gate["blockers"]
+                )
             return 2
 
         if not args.allow_current_truth_update:
@@ -1142,7 +1500,13 @@ def execute_recovery_plan(summary: dict[str, Any], args: argparse.Namespace, rep
             summary["blockers"].append("current-truth-update-requires-allow-current-truth-update")
             return 2
 
-        promotion = run_label("promote-current-proof-anchor")
+        promotion_step = steps["promote-current-proof-anchor"]
+        promotion_command = replace_or_append_flag(
+            list(promotion_step["command"]),
+            "-BatchSummaryFile",
+            str(successful_pose_summary),
+        )
+        promotion = run_label("promote-current-proof-anchor", command=promotion_command)
         if stages[-1]["status"] != "passed":
             summary["status"] = "blocked"
             summary["blockers"].append("current-proof-anchor-promotion-failed")
@@ -1301,44 +1665,44 @@ def render_markdown(summary: dict[str, Any]) -> str:
 def build_recommended_actions() -> list[dict[str, str]]:
     return [
         {
-            "action": "Use this helper as the default restart recovery entrypoint.",
-            "why": "It keeps target selection, freshness, family scan, movement, promotion, and ProofOnly gates in one auditable workflow.",
+            "action": "Run the helper with exact current PID/HWND and no restart profile.",
+            "why": "The target epoch must be current; stale profiles and old absolute addresses are historical hints only.",
         },
         {
-            "action": "Run --execute --use-restart-profile first without --movement-approved.",
-            "why": "Checks fresh API truth plus the previous winning family range and blocks before any input.",
+            "action": "Keep API-now versus memory-now as the only coordinate authority.",
+            "why": "PID/HWND match is target control only; current truth requires fresh API/readback deltas.",
         },
         {
-            "action": "Keep ChromaLink healthy/fresh before scanning.",
-            "why": "Fresh provider truth can skip the slower RRAPICOORD fallback and speeds restart recovery.",
+            "action": "Prefer ChromaLink when fresh, then RRAPICOORD fallback.",
+            "why": "Both are live coordinate surfaces; SavedVariables are post-save snapshots and must not drive promotion.",
         },
         {
-            "action": "Use the restart profile range as a hint, never as current truth.",
-            "why": "The range can be reused across restarts; the absolute coordinate address cannot.",
+            "action": "Scan only current-PID coordinate-family regions.",
+            "why": "Avoids false promotion from stale absolute addresses or old process epochs.",
         },
         {
-            "action": "Use --movement-approved only when displaced-pose validation is intended.",
-            "why": "Keeps input/movement explicit and auditable.",
+            "action": "Use adaptive movement attempts only after target focus/capture.",
+            "why": "The sequence W750, W1500, Q1000, E1000 gives fast reroute evidence without unbounded movement.",
         },
         {
-            "action": "Use --allow-current-truth-update only after promotion-candidate-found.",
-            "why": "Separates discovery from truth mutation.",
+            "action": "Require at least two displaced API-coordinate poses before promotion.",
+            "why": "Movement pulses and visual changes alone do not prove coordinate displacement.",
         },
         {
-            "action": "Use --run-proofonly with promotion.",
-            "why": "Completes the same-target no-movement proof gate immediately.",
+            "action": "Reject visual-change-without-API-displacement and zero-coordinate-delta runs.",
+            "why": "This prevents promoting camera/UI changes or blocked movement as actor coordinate truth.",
         },
         {
-            "action": "Use scripts/coordinate_recovery_status.py for compact status checks.",
-            "why": "It avoids rereading full artifacts just to see PID/HWND, proof, range, and stage timings.",
+            "action": "Promote only a same-candidate readback across displaced poses.",
+            "why": "The top candidate must track the live API coordinate after real displacement.",
         },
         {
-            "action": "Enable --write-restart-profile after a real scan run.",
-            "why": "Persists timing and family-range hints without promoting old addresses as truth.",
+            "action": "Run same-target ProofOnly immediately after promotion.",
+            "why": "Navigation and polling remain blocked until ProofOnly passes for the same PID/HWND.",
         },
         {
-            "action": "Keep x64dbg offline/read-only in this workflow.",
-            "why": "Matches the current crash-risk boundary and avoids costly restart recovery.",
+            "action": "Keep CE and live x64dbg out of this workflow.",
+            "why": "The reacquisition path is designed to work from API, local artifacts, MCP target control, and process readback only.",
         },
     ]
 
@@ -1368,8 +1732,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--escalate-poses", type=int, default=5)
     parser.add_argument("--minimum-promotion-pose-support", type=int, default=3)
     parser.add_argument("--minimum-movement-pulses-for-promotion", type=int, default=2)
+    parser.add_argument("--minimum-displaced-pose-support", type=int, default=2)
+    parser.add_argument("--minimum-planar-displacement", type=float, default=1.0)
     parser.add_argument("--movement-key", default="w")
     parser.add_argument("--hold-milliseconds", type=int, default=750)
+    parser.add_argument(
+        "--adaptive-movement-sequence",
+        default=None,
+        help="Comma-separated key:hold-ms attempts used until API displacement is proven "
+        "(default: w:750,w:1500,q:1000,e:1000).",
+    )
     parser.add_argument("--input-mode", choices=("ScanCode", "VirtualKey"), default="ScanCode")
     parser.add_argument("--pose-batch-timeout-seconds", type=int, default=600)
     parser.add_argument("--movement-approved", action="store_true")
@@ -1436,6 +1808,7 @@ def main(argv: list[str] | None = None) -> int:
             "runProofOnly": bool(args.run_proofonly),
             "writeRestartProfile": bool(args.write_restart_profile),
             "useRestartProfile": bool(args.use_restart_profile),
+            "adaptiveMovementSequence": adaptive_movement_sequence_text(args),
             "x64dbgMode": "offline-read-only",
             "cheatEngineAllowed": False,
         },
@@ -1476,6 +1849,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.self_test:
             labels = [step["label"] for step in plan["steps"]]
             required = {
+                "target-window-discovery-preflight",
                 "target-control-visual-gate",
                 "reference-chromalink-fast-path",
                 "reference-rrapicoord-fallback",
