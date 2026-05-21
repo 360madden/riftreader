@@ -25,7 +25,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-HELPER_VERSION = "0.1.1"
+HELPER_VERSION = "0.1.2"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "decision-packet" / "latest"
@@ -49,6 +49,8 @@ RETIRED_OPENCODE_PATH_PATTERNS = (
     "tools/riftreader_workflow/*opencode*",
 )
 RETIRED_OPENCODE_POLICY = "retired-opencode-requires-explicit-reauthorization"
+RETIRED_OPENCODE_BLOCKER = "retired-opencode-surface-changed"
+RETIRED_SURFACE_RECOMMENDED_ACTION = "inspect-revert-or-get-reauthorization"
 FORBIDDEN_ACTIONS = [
     "movement",
     "live_input",
@@ -112,6 +114,13 @@ def normalize_path(path: str) -> str:
     return path.replace("\\", "/").lstrip("./")
 
 
+def normalize_display_path(path: str) -> str:
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized.lstrip("/")
+
+
 def is_generated_path(path: str) -> bool:
     normalized = normalize_path(path).lower()
     return any(normalized.startswith(prefix) for prefix in GENERATED_PREFIXES)
@@ -129,7 +138,7 @@ def is_retired_opencode_path(path: str) -> bool:
 
 def retired_surface_paths(git_state: dict[str, Any]) -> list[str]:
     paths = {
-        normalize_path(str(item.get("path") or ""))
+        normalize_display_path(str(item.get("path") or ""))
         for item in safe_list(git_state.get("changedFiles"))
         if item.get("path") and is_retired_opencode_path(str(item.get("path")))
     }
@@ -138,12 +147,12 @@ def retired_surface_paths(git_state: dict[str, Any]) -> list[str]:
 
 def build_retired_surface_guardrail(git_state: dict[str, Any]) -> dict[str, Any]:
     paths = retired_surface_paths(git_state)
-    if not paths:
-        return {"paths": [], "blockers": [], "warnings": []}
     return {
         "paths": paths,
-        "blockers": ["retired-opencode-surface-changed"],
-        "warnings": [f"{RETIRED_OPENCODE_POLICY}:{path}" for path in paths],
+        "policy": RETIRED_OPENCODE_POLICY,
+        "blocker": RETIRED_OPENCODE_BLOCKER,
+        "requiresExplicitReauthorization": True,
+        "recommendedAction": RETIRED_SURFACE_RECOMMENDED_ACTION,
     }
 
 
@@ -829,6 +838,8 @@ def load_cached_packet(repo_root: Path, output_dir: Path, fingerprint: dict[str,
         return None
     if packet.get("schemaVersion") != SCHEMA_VERSION or packet.get("helperVersion") != HELPER_VERSION:
         return None
+    if "retiredSurfaces" not in packet:
+        return None
     packet["cacheStatus"] = "reused"
     packet["cacheCheckedAtUtc"] = utc_iso()
     packet["cacheSafety"] = {
@@ -919,7 +930,8 @@ def build_decision_packet(
             warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
     target_epoch = classify_target_epoch(truth, proof)
     retired_guardrail = build_retired_surface_guardrail(git_state)
-    warnings.extend(str(item) for item in retired_guardrail.get("warnings") or [])
+    retired_paths = [str(path) for path in retired_guardrail.get("paths") or []]
+    warnings.extend(f"{retired_guardrail.get('policy')}:{path}" for path in retired_paths)
     if malformed_blockers:
         target_epoch = {
             **target_epoch,
@@ -932,7 +944,8 @@ def build_decision_packet(
     risk = classify_risk(lane, git_state, target_epoch)
     blockers: list[str] = []
     blockers.extend(malformed_blockers)
-    blockers.extend(str(item) for item in retired_guardrail.get("blockers") or [])
+    if retired_paths:
+        blockers.append(str(retired_guardrail.get("blocker")))
     blockers.extend(str(item) for item in target_epoch.get("blockers") or [])
     blockers.extend(str(item) for item in safe_mapping(truth_summary.get("actorChain")).get("blockers") or [] if lane == "actor-chain")
     agent_plan = build_agent_plan()
@@ -960,6 +973,7 @@ def build_decision_packet(
         "repo": git_state,
         "targetEpoch": target_epoch,
         "truth": truth_summary,
+        "retiredSurfaces": retired_guardrail,
         "allowedActions": list(ALLOWED_ACTIONS),
         "forbiddenActions": list(FORBIDDEN_ACTIONS),
         "safeNextAction": safe_next_action,
@@ -1042,6 +1056,7 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
         "milestoneStatus": packet.get("milestoneStatus"),
         "commitPlan": packet.get("commitPlan"),
         "agentPlan": packet.get("agentPlan"),
+        "retiredSurfaces": packet.get("retiredSurfaces"),
         "blockers": packet.get("blockers"),
         "warnings": packet.get("warnings"),
         "cacheStatus": packet.get("cacheStatus"),
@@ -1059,6 +1074,8 @@ def build_markdown(packet: dict[str, Any]) -> str:
     reminder = safe_mapping(packet.get("llmReminder"))
     safe_next = safe_mapping(packet.get("safeNextAction"))
     commit_plan = safe_mapping(packet.get("commitPlan"))
+    retired_surfaces = safe_mapping(packet.get("retiredSurfaces"))
+    retired_surface_paths = [str(path) for path in retired_surfaces.get("paths") or []]
     lines = [
         "# RiftReader Decision Packet",
         "",
@@ -1081,6 +1098,21 @@ def build_markdown(packet: dict[str, Any]) -> str:
         f"- Command: `{format_command(safe_next.get('command'))}`",
         f"- Why: {safe_next.get('why')}",
     ]
+    if retired_surface_paths:
+        lines.extend(
+            [
+                "",
+                "# **🛑 RETIRED SURFACE — APPROVAL REQUIRED**",
+                "",
+                f"- Policy: `{retired_surfaces.get('policy')}`",
+                f"- Blocker: `{retired_surfaces.get('blocker')}`",
+                f"- Requires explicit reauthorization: `{str(bool(retired_surfaces.get('requiresExplicitReauthorization'))).lower()}`",
+                f"- Recommended action: `{retired_surfaces.get('recommendedAction')}`",
+                "",
+                "### Retired paths",
+            ]
+        )
+        lines.extend(f"- `{path}`" for path in retired_surface_paths)
     lines.extend(["", "## Commit planner", ""])
     if commit_plan.get("recommended") and not commit_plan.get("validationRequired"):
         lines.append("# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**")
@@ -1215,6 +1247,7 @@ def build_schema_contract() -> dict[str, Any]:
             "repo",
             "targetEpoch",
             "truth",
+            "retiredSurfaces",
             "allowedActions",
             "forbiddenActions",
             "safeNextAction",
@@ -1237,6 +1270,7 @@ def build_schema_contract() -> dict[str, Any]:
         "statusValues": ["passed", "blocked", "failed"],
         "milestoneStates": sorted(MILESTONE_STATES),
         "repoChangedFileFields": ["status", "path", "generated", "liveTruth", "retiredSurface", "retiredSurfacePolicy"],
+        "retiredSurfaceFields": ["paths", "policy", "blocker", "requiresExplicitReauthorization", "recommendedAction"],
         "commitPlanFields": [
             "recommended",
             "reason",
@@ -1258,7 +1292,8 @@ def build_schema_contract() -> dict[str, Any]:
             "opencode": {
                 "policy": RETIRED_OPENCODE_POLICY,
                 "pathPatterns": list(RETIRED_OPENCODE_PATH_PATTERNS),
-                "blocker": "retired-opencode-surface-changed",
+                "blocker": RETIRED_OPENCODE_BLOCKER,
+                "recommendedAction": RETIRED_SURFACE_RECOMMENDED_ACTION,
                 "forbiddenAction": "retired_opencode_work_without_explicit_reauthorization",
             }
         },

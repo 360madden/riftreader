@@ -548,6 +548,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "repo",
                 "targetEpoch",
                 "truth",
+                "retiredSurfaces",
                 "allowedActions",
                 "forbiddenActions",
                 "safeNextAction",
@@ -588,7 +589,12 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("retiredSurfacePaths", contract["commitPlanFields"])
         self.assertIn("retiredSurface", contract["repoChangedFileFields"])
         self.assertIn("retiredSurfacePolicy", contract["repoChangedFileFields"])
+        self.assertEqual(
+            contract["retiredSurfaceFields"],
+            ["paths", "policy", "blocker", "requiresExplicitReauthorization", "recommendedAction"],
+        )
         self.assertEqual(contract["retiredSurfacePolicies"]["opencode"]["policy"], decision_packet.RETIRED_OPENCODE_POLICY)
+        self.assertEqual(contract["retiredSurfacePolicies"]["opencode"]["recommendedAction"], "inspect-revert-or-get-reauthorization")
         self.assertIn("retired_opencode_work_without_explicit_reauthorization", contract["forbiddenActions"])
         self.assertIn("ownedPaths", contract["agentPlanFields"])
         self.assertIn("forbiddenPaths", contract["agentPlanFields"])
@@ -678,6 +684,11 @@ class DecisionPacketTests(unittest.TestCase):
             packet["warnings"],
         )
         self.assertEqual(packet["safeNextAction"]["key"], "retired-opencode-surface-review")
+        self.assertEqual(packet["retiredSurfaces"]["paths"], ["tools/riftreader_workflow/opencode_bridge.py"])
+        self.assertEqual(packet["retiredSurfaces"]["policy"], decision_packet.RETIRED_OPENCODE_POLICY)
+        self.assertEqual(packet["retiredSurfaces"]["blocker"], "retired-opencode-surface-changed")
+        self.assertTrue(packet["retiredSurfaces"]["requiresExplicitReauthorization"])
+        self.assertEqual(packet["retiredSurfaces"]["recommendedAction"], "inspect-revert-or-get-reauthorization")
         self.assertEqual(packet["commitPlan"]["reason"], "retired-opencode-surface-requires-explicit-reauthorization")
         self.assertEqual(packet["commitPlan"]["retiredSurfacePaths"], ["tools/riftreader_workflow/opencode_bridge.py"])
         self.assertNotIn("opencode-bridge-tests", labels)
@@ -685,6 +696,19 @@ class DecisionPacketTests(unittest.TestCase):
             "retired OpenCode surface work would proceed without explicit reauthorization",
             packet["llmReminder"]["mustStopIf"],
         )
+
+    def test_dot_opencode_retired_surface_is_visible_in_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            retired_path = root / ".opencode" / "opencode.example.jsonc"
+            write_text(retired_path, "{}\n")
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["retiredSurfaces"]["paths"], [".opencode/opencode.example.jsonc"])
+        self.assertIn("retired-opencode-surface-changed", packet["blockers"])
+        self.assertEqual(packet["safeNextAction"]["key"], "retired-opencode-surface-review")
 
     def test_malformed_current_proof_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -755,6 +779,23 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertTrue(cached["cacheSafety"]["freshFingerprintChecked"])
         self.assertEqual(cached["targetEpoch"]["status"], "current")
         self.assertIn("actor-chain-candidate-only", cached["blockers"])
+
+    def test_cache_miss_when_retired_opencode_surface_becomes_dirty(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            write_text(root / ".opencode" / "opencode.example.jsonc", "{}\n")
+            rebuilt = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
+
+        self.assertEqual(rebuilt["cacheStatus"], "miss")
+        self.assertEqual(rebuilt["performance"]["buildMode"], "fresh")
+        self.assertFalse(rebuilt["performance"]["cacheReused"])
+        self.assertEqual(rebuilt["retiredSurfaces"]["paths"], [".opencode/opencode.example.jsonc"])
+        self.assertIn("retired-opencode-surface-changed", rebuilt["blockers"])
 
     def test_corrupted_cache_is_miss_not_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -905,6 +946,13 @@ class DecisionPacketTests(unittest.TestCase):
             ],
             "blockers": ["target-epoch-pid-drift"],
             "warnings": [],
+            "retiredSurfaces": {
+                "paths": ["tools/riftreader_workflow/opencode_bridge.py"],
+                "policy": decision_packet.RETIRED_OPENCODE_POLICY,
+                "blocker": "retired-opencode-surface-changed",
+                "requiresExplicitReauthorization": True,
+                "recommendedAction": "inspect-revert-or-get-reauthorization",
+            },
             "cacheStatus": "miss",
             "performance": {"buildMode": "fresh", "cacheReused": False, "totalDurationSeconds": 0.01},
         }
@@ -925,6 +973,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "milestoneStatus",
                 "commitPlan",
                 "agentPlan",
+                "retiredSurfaces",
                 "blockers",
                 "warnings",
                 "cacheStatus",
@@ -935,6 +984,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("status helper returned a known blocker", compact["llmReminder"]["doNotStopIf"])
         self.assertIn("debugger or CE would be required", compact["llmReminder"]["mustStopIf"])
         self.assertEqual(compact["agentPlan"][0]["name"], "docs")
+        self.assertEqual(compact["retiredSurfaces"]["paths"], ["tools/riftreader_workflow/opencode_bridge.py"])
         self.assertEqual(compact["performance"]["buildMode"], "fresh")
 
     def test_markdown_renders_big_reminder_banner(self) -> None:
@@ -967,6 +1017,50 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("# **⚠️ NOT COMMIT-READY**", markdown)
         self.assertIn("## Performance", markdown)
         self.assertIn("| Build mode | `fresh` |", markdown)
+
+    def test_markdown_renders_retired_surface_approval_banner(self) -> None:
+        packet = {
+            "status": "blocked",
+            "lane": "git",
+            "risk": "medium",
+            "targetEpoch": {"status": "current"},
+            "cacheStatus": "miss",
+            "safeNextAction": {
+                "key": "retired-opencode-surface-review",
+                "command": ["git", "--no-pager", "diff", "--", ".opencode/opencode.example.jsonc"],
+                "why": "fixture",
+            },
+            "llmReminder": decision_packet.build_llm_reminder({"command": ["git", "status"]}, "blocked-safe"),
+            "milestoneStatus": {"state": "blocked-safe"},
+            "validationPlan": {"commands": []},
+            "commitPlan": {
+                "recommended": False,
+                "reason": "retired-opencode-surface-requires-explicit-reauthorization",
+                "explicitPaths": [".opencode/opencode.example.jsonc"],
+            },
+            "retiredSurfaces": {
+                "paths": [".opencode/opencode.example.jsonc"],
+                "policy": decision_packet.RETIRED_OPENCODE_POLICY,
+                "blocker": "retired-opencode-surface-changed",
+                "requiresExplicitReauthorization": True,
+                "recommendedAction": "inspect-revert-or-get-reauthorization",
+            },
+            "performance": {
+                "buildMode": "fresh",
+                "cacheReused": False,
+                "runSafeChecks": False,
+                "safeValidationCommandCount": 0,
+                "safeValidationDurationSeconds": 0,
+                "totalDurationSeconds": 0.01,
+            },
+            "blockers": ["retired-opencode-surface-changed"],
+        }
+
+        markdown = decision_packet.build_markdown(packet)
+
+        self.assertIn("# **🛑 RETIRED SURFACE — APPROVAL REQUIRED**", markdown)
+        self.assertIn("`retired-opencode-requires-explicit-reauthorization`", markdown)
+        self.assertIn("`.opencode/opencode.example.jsonc`", markdown)
 
     def test_markdown_renders_commit_ready_explicit_paths(self) -> None:
         packet = {
