@@ -103,6 +103,13 @@ def summarize_exhaustion(path: str, document: Mapping[str, Any]) -> dict[str, An
     }
 
 
+def display_artifact_path(path: str) -> str:
+    artifact_path = Path(path)
+    if artifact_path.name.lower() == "summary.json" and artifact_path.parent.name:
+        return f"{artifact_path.parent.name}/{artifact_path.name}"
+    return artifact_path.name or path
+
+
 def build_self_test() -> dict[str, Any]:
     repo_root = Path(".")
     truth = {
@@ -235,7 +242,7 @@ def build_summary_from_documents(
             "gitMutation": False,
         },
         "next": {
-            "recommendedAction": "Review/commit the no-debug milestone, broaden only with new static evidence, or request explicit approval for one bounded debugger access-provenance step."
+            "recommendedAction": "Keep the actor chain candidate-only; broaden only with new static evidence, or request explicit approval for one bounded debugger access-provenance step."
         },
     }
 
@@ -339,10 +346,18 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     ])
     for scan in root.get("pointerScans") or []:
         row = safe_mapping(scan)
-        lines.append(f"| `{Path(str(row.get('path'))).name}` | `{row.get('scannedTargetCount')}` | `{row.get('totalHits')}` | `{row.get('moduleHitCount')}` | `{row.get('riftModuleHitCount')}` |")
+        lines.append(f"| `{display_artifact_path(str(row.get('path') or ''))}` | `{row.get('scannedTargetCount')}` | `{row.get('totalHits')}` | `{row.get('moduleHitCount')}` | `{row.get('riftModuleHitCount')}` |")
     if summary.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{blocker}`" for blocker in summary.get("blockers") or [])
+    next_section = safe_mapping(summary.get("next"))
+    if next_section.get("recommendedAction"):
+        lines.extend([
+            "",
+            "## Recommended next action",
+            "",
+            str(next_section.get("recommendedAction")),
+        ])
     lines.extend([
         "",
         "## Safety",

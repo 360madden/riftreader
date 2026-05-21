@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from rift_live_test.actor_chain_no_debug_status import build_summary_from_documents, summarize_pointer_scan
+from rift_live_test.actor_chain_no_debug_status import build_markdown, build_summary_from_documents, display_artifact_path, summarize_pointer_scan
 
 
 class ActorChainNoDebugStatusTests(unittest.TestCase):
@@ -23,6 +23,12 @@ class ActorChainNoDebugStatusTests(unittest.TestCase):
         self.assertEqual(result["targetsWithHits"], 1)
         self.assertEqual(result["totalHits"], 1)
         self.assertEqual(result["moduleHitCount"], 0)
+
+    def test_display_artifact_path_disambiguates_summary_json(self) -> None:
+        self.assertEqual(
+            display_artifact_path(r"C:\RIFT MODDING\RiftReader\scripts\captures\pointer-family-scan-20260521-162245-598545\summary.json"),
+            "pointer-family-scan-20260521-162245-598545/summary.json",
+        )
 
     def test_build_summary_blocks_promotion_when_no_static_resolver(self) -> None:
         summary = build_summary_from_documents(
@@ -53,6 +59,34 @@ class ActorChainNoDebugStatusTests(unittest.TestCase):
         self.assertFalse(summary["promotionGates"]["promotionAllowed"])
         self.assertIn("no-static-resolver-promoted", summary["blockers"])
         self.assertIn("no-debug-root-lanes-exhausted", summary["blockers"])
+
+    def test_build_markdown_includes_scan_context_and_next_action(self) -> None:
+        markdown = build_markdown(
+            {
+                "status": "passed",
+                "verdict": "candidate-only-no-debug-root-blocked",
+                "actorCandidate": {"candidateId": "api-family-hit-000001", "addressHex": "0x2"},
+                "promotionGates": {},
+                "noDebugRootSearch": {
+                    "totalModuleHitCount": 0,
+                    "totalRiftModuleHitCount": 0,
+                    "noDebugRootLanesExhausted": True,
+                    "pointerScans": [
+                        {
+                            "path": r"C:\RIFT MODDING\RiftReader\scripts\captures\pointer-family-scan-20260521-162245-598545\summary.json",
+                            "scannedTargetCount": 6,
+                            "totalHits": 3,
+                            "moduleHitCount": 0,
+                            "riftModuleHitCount": 0,
+                        }
+                    ],
+                },
+                "next": {"recommendedAction": "Keep the actor chain candidate-only."},
+            }
+        )
+
+        self.assertIn("pointer-family-scan-20260521-162245-598545/summary.json", markdown)
+        self.assertIn("## Recommended next action", markdown)
 
 
 if __name__ == "__main__":
