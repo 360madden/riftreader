@@ -910,6 +910,23 @@ def build_markdown(packet: dict[str, Any]) -> str:
     if excluded_paths:
         lines.extend(["", "### Excluded generated paths"])
         lines.extend(f"- `{path}`" for path in excluded_paths)
+    performance = safe_mapping(packet.get("performance"))
+    if performance:
+        lines.extend(
+            [
+                "",
+                "## Performance",
+                "",
+                "| Field | Value |",
+                "|---|---|",
+                f"| Build mode | `{performance.get('buildMode')}` |",
+                f"| Cache reused | `{str(bool(performance.get('cacheReused'))).lower()}` |",
+                f"| Run safe checks | `{str(bool(performance.get('runSafeChecks'))).lower()}` |",
+                f"| Safe validation commands | `{performance.get('safeValidationCommandCount')}` |",
+                f"| Safe validation duration seconds | `{performance.get('safeValidationDurationSeconds')}` |",
+                f"| Total duration seconds | `{performance.get('totalDurationSeconds')}` |",
+            ]
+        )
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])

@@ -442,6 +442,14 @@ class DecisionPacketTests(unittest.TestCase):
             "milestoneStatus": {"state": "blocked-safe"},
             "validationPlan": {"commands": []},
             "commitPlan": {"recommended": False, "reason": "no-stageable-tracked-paths", "explicitPaths": []},
+            "performance": {
+                "buildMode": "fresh",
+                "cacheReused": False,
+                "runSafeChecks": False,
+                "safeValidationCommandCount": 0,
+                "safeValidationDurationSeconds": 0,
+                "totalDurationSeconds": 0.01,
+            },
             "blockers": ["actor-chain-candidate-only"],
         }
 
@@ -450,6 +458,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("# **🚦 NEXT ACTION — CONTINUE SAFELY**", markdown)
         self.assertIn("## **🔄 DO NOT STOP HERE**", markdown)
         self.assertIn("# **⚠️ NOT COMMIT-READY**", markdown)
+        self.assertIn("## Performance", markdown)
+        self.assertIn("| Build mode | `fresh` |", markdown)
 
     def test_markdown_renders_commit_ready_explicit_paths(self) -> None:
         packet = {
@@ -470,6 +480,14 @@ class DecisionPacketTests(unittest.TestCase):
                 "excludedGeneratedPaths": ["scripts/captures/run/summary.json"],
                 "stageCommandPreview": "git add docs/workflow/example.md",
             },
+            "performance": {
+                "buildMode": "cache-reused",
+                "cacheReused": True,
+                "runSafeChecks": False,
+                "safeValidationCommandCount": 0,
+                "safeValidationDurationSeconds": 0,
+                "totalDurationSeconds": 0.02,
+            },
             "blockers": [],
         }
 
@@ -479,6 +497,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("`git add docs/workflow/example.md`", markdown)
         self.assertIn("`docs/workflow/example.md`", markdown)
         self.assertIn("`scripts/captures/run/summary.json`", markdown)
+        self.assertIn("| Build mode | `cache-reused` |", markdown)
+        self.assertIn("| Cache reused | `true` |", markdown)
 
 
 if __name__ == "__main__":
