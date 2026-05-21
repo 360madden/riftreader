@@ -12,6 +12,7 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 - Compact ChatGPT SITREP;
 - Refresh Decision Packet;
 - Decision Packet Schema Contract;
+- Decision Packet Agent Plan;
 - Live-Test Fast-Lane Triage;
 - Package Intake dry-run;
 - Package Intake self-test;
@@ -60,9 +61,11 @@ Lite also exposes a read-only schema contract shortcut:
 ```
 
 That shortcut runs `riftreader-decision-packet.cmd --schema-json`, parses the
-contract into `stdoutJson`, and writes no artifacts. Neither command adds
-movement, debugger, ProofOnly, target-control, staging, commit, push, serve, or
-tunnel controls.
+contract into `stdoutJson`, and writes no artifacts. Operator Lite also exposes
+`--decision-packet-agent-plan --json`, which runs `--agent-plan`, preserves
+safe-blocked exit `2`, and parses `agentPlan` plus `llmReminder` into
+`stdoutJson`. None of these commands adds movement, debugger, ProofOnly,
+target-control, staging, commit, push, serve, or tunnel controls.
 
 ## Commands
 
@@ -117,6 +120,7 @@ cd "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --workflow-router --json
 .\scripts\riftreader-operator-lite.cmd --decision-packet --json
 .\scripts\riftreader-operator-lite.cmd --decision-packet-schema --json
+.\scripts\riftreader-operator-lite.cmd --decision-packet-agent-plan --json
 .\scripts\riftreader-operator-lite.cmd --proposal-loop-checks --json
 .\scripts\riftreader-operator-lite.cmd --trial-readiness --json
 ```
@@ -170,6 +174,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--workflow-router` | Shortcut for `--run workflow-router-mcp`. | Read-only next-action selector for the MCP lane. |
 | `--decision-packet` | Shortcut for `--run decision-packet`. | Writes ignored decision-packet artifacts only; exit `2` means a safe blocker. |
 | `--decision-packet-schema` | Shortcut for `--run decision-packet-schema`. | Prints the static schema contract and parses it into `stdoutJson`; no artifact writes. |
+| `--decision-packet-agent-plan` | Shortcut for `--run decision-packet-agent-plan`. | Prints parallel-agent-safe work slices and parses `agentPlan`/`llmReminder` into `stdoutJson`; exit `2` means a safe blocker. |
 | `--bridge-startup-checks` | Shortcut for `--run-all bridge-startup-checks`. | Runs self-test, preflight, and session-start without persistent serving. |
 | `--proposal-loop-checks` | Shortcut for `--run-all bridge-proposal-loop-checks`. | Runs HTTP proposal-to-draft self-test plus local draft-to-intake dry-run self-test; no persistent serving, tunnel, apply, or Git mutation. |
 | `--trial-readiness` | Shortcut for `--run-all bridge-trial-readiness`. | Runs self-test, preflight, session-start, inbox index, draft index, and operator-draft availability gate; no serving, tunnel, draft export, dry-run, apply, or Git mutation. |
@@ -225,6 +230,9 @@ Current command aliases:
 | `local-decision-packet` | `decision-packet` |
 | `decision-packet-schema` | `decision-packet-schema` |
 | `local-decision-packet-schema` | `decision-packet-schema` |
+| `decision-packet-agent-plan` | `decision-packet-agent-plan` |
+| `agent-plan` | `decision-packet-agent-plan` |
+| `local-agent-plan` | `decision-packet-agent-plan` |
 
 Current group aliases:
 
@@ -257,6 +265,7 @@ Current groups:
 | Refresh Workflow Status | Runs `scripts\riftreader-workflow-status.cmd --write`. | No input/movement/debugger/Git mutation; exit `2` means a safe blocker. |
 | Refresh Decision Packet | Runs `scripts\riftreader-decision-packet.cmd --write --compact-json`. | Writes ignored `.riftreader-local` packet artifacts only; exit `2` means a safe blocker. |
 | Decision Packet Schema | Runs `scripts\riftreader-decision-packet.cmd --schema-json`. | Read-only schema contract; no artifact writes, live input, debugger, or Git mutation. |
+| Decision Packet Agent Plan | Runs `scripts\riftreader-decision-packet.cmd --agent-plan`. | Read-only parallel-agent work slices plus LLM reminder; exit `2` means a safe blocker. |
 | Compact ChatGPT SITREP | Runs `scripts\riftreader-workflow-status.cmd --compact --write`. | Paste-ready for desktop ChatGPT; exit `2` means a safe blocker. |
 | Run Live-Test Triage | Runs `scripts\riftreader-live-triage.cmd --write`. | No input/movement/debugger/Git mutation. |
 | Package Intake Dry-Run | Lets the operator choose a package and runs intake without `--apply`, printing compact JSON. | No repo target writes; dry-run still writes an ignored package diff. |
@@ -296,7 +305,7 @@ Current groups:
 
 ## Safety contract
 
-Operator Lite v0 writes only through the underlying safe helpers; the Decision Packet Schema command is read-only and writes no artifacts:
+Operator Lite v0 writes only through the underlying safe helpers; the Decision Packet Schema and Decision Packet Agent Plan commands are read-only and write no artifacts:
 
 - `.riftreader-local\workflow-status\...`
 - `.riftreader-local\live-test-triage\...`
