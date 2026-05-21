@@ -138,6 +138,7 @@ def analyze_owner_field_candidate(
     module_base: int,
     expected_owner: int | None,
     expected_coord_pointer: int | None,
+    coord_pointer_slot_offset: int = 0x10,
 ) -> dict[str, Any]:
     hit_address = parse_int(hit.get("Address"))
     if hit_address is None:
@@ -151,7 +152,7 @@ def analyze_owner_field_candidate(
         matched = actual_rva == expected_rva
         field_matches.append(
             {
-                "offsetFromOwner": int_hex(offset),
+                "offsetFromOwner": signed_hex(offset),
                 "storageAddress": int_hex(storage),
                 "expectedRva": int_hex(expected_rva),
                 "actualValue": int_hex(actual),
@@ -159,7 +160,8 @@ def analyze_owner_field_candidate(
                 "matched": matched,
             }
         )
-    coord_pointer = qword_at(hit, owner_base + 0x10)
+    coord_pointer_storage = owner_base + coord_pointer_slot_offset
+    coord_pointer = qword_at(hit, coord_pointer_storage)
     score = sum(25 for field in field_matches if field.get("matched"))
     reasons: list[str] = []
     matched_count = sum(1 for field in field_matches if field.get("matched"))
@@ -181,7 +183,8 @@ def analyze_owner_field_candidate(
         "hitAddress": int_hex(hit_address),
         "selectedOwnerOffset": signed_hex(selected_owner_offset),
         "ownerBase": int_hex(owner_base),
-        "coordPointerStorage": int_hex(owner_base + 0x10),
+        "coordPointerStorage": int_hex(coord_pointer_storage),
+        "coordPointerSlotOffset": signed_hex(coord_pointer_slot_offset),
         "coordPointer": int_hex(coord_pointer),
         "fieldMatches": field_matches,
         "score": score,
@@ -243,6 +246,9 @@ def summarize_hits(
     expected_parent_slot = parse_int(signature.get("parentSlot") or root_search.get("rootGapAbove"))
     expected_owner = parse_int(signature.get("ownerBase"))
     expected_coord_pointer = parse_int(signature.get("coordPointer"))
+    coord_pointer_slot_offset = parse_int(signature.get("coordPointerSlotOffset"))
+    if coord_pointer_slot_offset is None:
+        coord_pointer_slot_offset = 0x10
     owner_offsets = selected_owner_offsets(root_packet, selected_rva)
     parent_offsets: list[int] = []
     for hint in safe_list(signature.get("parentSlotModuleHints")):
@@ -266,6 +272,7 @@ def summarize_hits(
                 module_base=module_base,
                 expected_owner=expected_owner,
                 expected_coord_pointer=expected_coord_pointer,
+                coord_pointer_slot_offset=coord_pointer_slot_offset,
             )
             if candidate:
                 owner_candidates.append(candidate)

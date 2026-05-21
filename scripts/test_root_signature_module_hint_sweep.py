@@ -63,6 +63,34 @@ class RootSignatureModuleHintSweepTests(unittest.TestCase):
         self.assertIn("matches-known-coord-pointer", candidate["scoreReasons"])
         self.assertGreater(candidate["score"], 200)
 
+    def test_analyze_owner_field_candidate_honors_coord_pointer_slot_offset(self) -> None:
+        module_base = 0x700000000000
+        owner_base = 0x2000
+        coord_pointer = 0x5000
+        hit = make_hit(
+            0x1FE0,
+            {
+                owner_base + 0x0: coord_pointer,
+                owner_base + 0x20: module_base + 0x26E4C48,
+            },
+            hit_address=owner_base + 0x20,
+        )
+
+        candidate = analyze_owner_field_candidate(
+            hit=hit,
+            selected_owner_offset=0x20,
+            owner_field_rvas={0x20: 0x26E4C48},
+            module_base=module_base,
+            expected_owner=owner_base,
+            expected_coord_pointer=coord_pointer,
+            coord_pointer_slot_offset=0x0,
+        )
+
+        self.assertEqual(candidate["coordPointerStorage"], "0x2000")
+        self.assertEqual(candidate["coordPointerSlotOffset"], "0x0")
+        self.assertEqual(candidate["coordPointer"], "0x5000")
+        self.assertIn("matches-known-coord-pointer", candidate["scoreReasons"])
+
     def test_analyze_parent_slot_candidate_scores_known_parent(self) -> None:
         hit = make_hit(0x0F80, {0x1040: 0x2000}, hit_address=0x1000)
 
