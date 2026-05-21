@@ -83,6 +83,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "workflow-router-mcp",
                 "decision-packet",
                 "decision-packet-schema",
+                "decision-packet-agent-plan",
                 "git-status",
             },
         )
@@ -92,6 +93,9 @@ class OperatorLiteTests(unittest.TestCase):
         decision_schema = next(item for item in plan["commands"] if item["key"] == "decision-packet-schema")
         self.assertIn("--schema-json", decision_schema["args"])
         self.assertEqual(decision_schema["expectedExitCodes"], [0])
+        decision_agent_plan = next(item for item in plan["commands"] if item["key"] == "decision-packet-agent-plan")
+        self.assertIn("--agent-plan", decision_agent_plan["args"])
+        self.assertEqual(decision_agent_plan["expectedExitCodes"], [0, 2])
         package_selftest = next(item for item in plan["commands"] if item["key"] == "package-selftest")
         self.assertIn("riftreader-package-intake-selftest.cmd", package_selftest["args"][0])
         bridge_selftest = next(item for item in plan["commands"] if item["key"] == "bridge-selftest")
@@ -725,6 +729,7 @@ class OperatorLiteTests(unittest.TestCase):
             "--workflow-router": "workflow-router-mcp",
             "--decision-packet": "decision-packet",
             "--decision-packet-schema": "decision-packet-schema",
+            "--decision-packet-agent-plan": "decision-packet-agent-plan",
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -826,6 +831,40 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--schema-json", payload["args"])
         self.assertEqual(payload["stdoutJson"]["kind"], "riftreader-decision-packet-schema-contract")
         self.assertIn("stageCommand", payload["stdoutJson"]["commitPlanFields"])
+        self.assertFalse(payload["safety"]["movementSent"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_cli_decision_packet_agent_plan_shortcut_smoke_outputs_plan_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            helper = root / "scripts" / "fake-decision-packet.py"
+            helper.write_text(
+                "import json\n"
+                "print(json.dumps({"
+                "'agentPlan':[{'name':'docs','authority':'write','ownedPaths':['docs/example.md']}],"
+                "'llmReminder':{'banner':'# **NEXT**'}"
+                "}))\n"
+                "raise SystemExit(2)\n",
+                encoding="utf-8",
+            )
+            (root / "scripts" / "riftreader-decision-packet.cmd").write_text(
+                '@echo off\npython "%~dp0fake-decision-packet.py" %*\nexit /b %ERRORLEVEL%\n',
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--decision-packet-agent-plan", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["commandKey"], "decision-packet-agent-plan")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("--agent-plan", payload["args"])
+        self.assertEqual(payload["stdoutJson"]["agentPlan"][0]["name"], "docs")
+        self.assertIn("llmReminder", payload["stdoutJson"])
         self.assertFalse(payload["safety"]["movementSent"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
@@ -965,6 +1004,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--workflow-router", help_text)
         self.assertIn("--decision-packet", help_text)
         self.assertIn("--decision-packet-schema", help_text)
+        self.assertIn("--decision-packet-agent-plan", help_text)
         self.assertIn("--command-reference-md", help_text)
         self.assertIn("--proposal-loop-checks", help_text)
         self.assertIn("--trial-readiness", help_text)
