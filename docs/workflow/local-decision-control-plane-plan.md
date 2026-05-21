@@ -21,6 +21,7 @@ defensive/resilience hardening slices:
 | Schema contract CLI | `--schema-json` emits required top-level fields, valid milestone states, commit-plan fields, agent-plan fields, agent-plan authority/risk enum values, and safety flags without building a repo packet. |
 | Historical OpenCode prompt integration | Existing OpenCode prompt code/tests are retired historical maintenance surface; do not expand or use them as active workflow unless explicitly re-authorized. |
 | OpenCode retirement guardrail | Future agents must treat old OpenCode milestones as stale plan text and prefer the decision packet, Operator Lite, and Codex-native workflows. |
+| Retired-surface packet guardrail | Dirty OpenCode bridge/wrapper/test/doc surfaces are flagged in `repo.changedFiles`, add `retired-opencode-surface-changed`, and block commit recommendation unless OpenCode is explicitly re-authorized. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Operator Lite schema contract | `--decision-packet-schema --json` exposes the read-only `--schema-json` contract with parsed `stdoutJson` and no artifact writes. |
 | Operator Lite JSON passthrough | Operator Lite command runs parse JSON stdout into `stdoutJson` so consumers can read decision-packet fields like `commitPlan.stageCommand` without parsing raw console text. |
@@ -127,6 +128,7 @@ tests mention it.
 |---|---|
 | New OpenCode implementation | Do not add or modify OpenCode code, wrappers, prompt builders, tests, UI buttons, or docs expansion unless the user explicitly re-authorizes OpenCode in the current conversation. |
 | Existing OpenCode files | Treat as historical/deprecated maintenance surface only; do not use as the active workflow. |
+| Decision packet guardrail | If retired OpenCode paths become dirty, the packet warns, marks the surface retired, and blocks commit recommendation pending explicit reauthorization or revert. |
 | Preferred replacement | Use the decision packet directly from Codex-native workflows and Operator Lite read-only surfaces. |
 | Future plan interpretation | If old text says "OpenCode integration", read it as historical context, not an active milestone. |
 
