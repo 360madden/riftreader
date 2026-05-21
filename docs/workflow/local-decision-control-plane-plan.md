@@ -22,6 +22,7 @@ defensive/resilience hardening slices:
 | OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
 | OpenCode commit-ready reminders | OpenCode prompts detect `commit-ready-explicit-paths` and tell agents to review status plus `commitPlan.stageCommand/stageCommandPreview` instead of rerunning identical safe checks. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
+| Operator Lite schema contract | `--decision-packet-schema --json` exposes the read-only `--schema-json` contract with parsed `stdoutJson` and no artifact writes. |
 | Operator Lite JSON passthrough | Operator Lite command runs parse JSON stdout into `stdoutJson` so consumers can read decision-packet fields like `commitPlan.stageCommand` without parsing raw console text. |
 | Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
 | Commit planner stage command | `commitPlan.stageCommand` emits an argument array `["git", "add", "--", ...]`; `stageCommandPreview` uses `git add -- <paths>` and quotes spaces/metacharacters for humans; Markdown packets render both. |
@@ -262,7 +263,7 @@ the exact command/action that would run after approval.
 | Restart/update resilience | ✅ Implemented in packet fixtures | PID/HWND/process-start/module-base/proof-age drift blocks proof reuse; process presence is never proof |
 | Commit planner | ✅ Implemented as non-mutating planner | Emits explicit paths, generated exclusions, validation gate, and stage preview only |
 | Agent planner | ✅ Implemented | Emits non-overlapping ownership slices and reminds that the main agent owns integration/commit |
-| Operator Lite integration | ✅ Implemented | Safe `Refresh Decision Packet` command/button; no live/debugger/Git action added |
+| Operator Lite integration | ✅ Implemented | Safe `Refresh Decision Packet` and schema-contract command/buttons; no live/debugger/Git action added |
 | OpenCode integration | ✅ Implemented | Prompt builder includes compact decision packet before broader repo context |
 | Cache/speed hardening | ✅ v0 implemented | Fingerprint covers helper version, Git HEAD, changed files, current-truth/proof mtimes/sizes; cache is opt-in, ignored-local only, and disabled for safe validation runs |
 
