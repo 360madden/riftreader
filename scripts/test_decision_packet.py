@@ -314,6 +314,57 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("actor-chain-candidate-only", packet["blockers"])
         self.assertEqual(packet["milestoneStatus"]["state"], "blocked-safe")
 
+    def test_full_packet_schema_preserves_required_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(
+            set(packet),
+            {
+                "schemaVersion",
+                "kind",
+                "helperVersion",
+                "generatedAtUtc",
+                "status",
+                "lane",
+                "risk",
+                "repoRoot",
+                "repo",
+                "targetEpoch",
+                "truth",
+                "allowedActions",
+                "forbiddenActions",
+                "safeNextAction",
+                "automationPlan",
+                "validationPlan",
+                "validationResults",
+                "commitPlan",
+                "agentPlan",
+                "llmReminder",
+                "milestoneStatus",
+                "fingerprint",
+                "cacheStatus",
+                "performance",
+                "cacheSafety",
+                "blockers",
+                "warnings",
+                "errors",
+                "safety",
+            },
+        )
+        self.assertEqual(packet["schemaVersion"], decision_packet.SCHEMA_VERSION)
+        self.assertEqual(packet["kind"], "riftreader-decision-packet")
+        self.assertIn("command", packet["safeNextAction"])
+        self.assertIn("commands", packet["validationPlan"])
+        self.assertIn("recommended", packet["commitPlan"])
+        self.assertIn("banner", packet["llmReminder"])
+        self.assertIn("state", packet["milestoneStatus"])
+        self.assertIn("buildMode", packet["performance"])
+        self.assertFalse(packet["safety"]["movementSent"])
+
     def test_malformed_current_truth_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
