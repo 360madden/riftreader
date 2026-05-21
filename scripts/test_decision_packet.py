@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,7 @@ def init_repo(root: Path) -> None:
     subprocess.run(["git", "config", "user.email", "riftreader-tests@example.invalid"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "RiftReader Tests"], cwd=root, check=True)
     write_text(root / "agents.md", "# test\n")
+    write_text(root / ".gitignore", ".riftreader-local/\n")
     write_json(
         root / "docs" / "recovery" / "current-truth.json",
         {
@@ -67,7 +69,11 @@ def init_repo(root: Path) -> None:
             "latestValidation": {"movementAllowed": True, "movementSent": False},
         },
     )
-    subprocess.run(["git", "add", "agents.md", "docs/recovery/current-truth.json", "docs/recovery/current-proof-anchor-readback.json"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "add", "agents.md", ".gitignore", "docs/recovery/current-truth.json", "docs/recovery/current-proof-anchor-readback.json"],
+        cwd=root,
+        check=True,
+    )
     subprocess.run(["git", "commit", "-m", "baseline"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
@@ -76,7 +82,8 @@ def init_empty_repo(root: Path) -> None:
     subprocess.run(["git", "config", "user.email", "riftreader-tests@example.invalid"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "RiftReader Tests"], cwd=root, check=True)
     write_text(root / "agents.md", "# test\n")
-    subprocess.run(["git", "add", "agents.md"], cwd=root, check=True)
+    write_text(root / ".gitignore", ".riftreader-local/\n")
+    subprocess.run(["git", "add", "agents.md", ".gitignore"], cwd=root, check=True)
     subprocess.run(["git", "commit", "-m", "baseline"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
@@ -268,6 +275,50 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(packet["truth"]["actorChain"]["status"], "candidate-only")
         self.assertIn("actor-chain-candidate-only", packet["blockers"])
         self.assertEqual(packet["milestoneStatus"]["state"], "blocked-safe")
+
+    def test_cache_reuses_packet_only_when_fingerprint_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            cached = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
+
+        self.assertEqual(cached["cacheStatus"], "reused")
+        self.assertTrue(cached["cacheSafety"]["freshFingerprintChecked"])
+        self.assertEqual(cached["targetEpoch"]["status"], "current")
+        self.assertIn("actor-chain-candidate-only", cached["blockers"])
+
+    def test_cache_miss_after_current_truth_mtime_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+            truth_path = root / "docs" / "recovery" / "current-truth.json"
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            old_stat = truth_path.stat()
+            os.utime(truth_path, (old_stat.st_atime + 10, old_stat.st_mtime + 10))
+            rebuilt = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
+
+        self.assertEqual(rebuilt["cacheStatus"], "miss")
+        self.assertEqual(rebuilt["targetEpoch"]["status"], "current")
+
+    def test_run_safe_checks_disables_cache_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            rebuilt = decision_packet.build_decision_packet(root, run_safe_checks=True, use_cache=True, cache_dir=output_dir)
+
+        self.assertNotEqual(rebuilt["cacheStatus"], "reused")
+        self.assertTrue(rebuilt["cacheSafety"]["runSafeChecksDisablesCache"])
 
     def test_markdown_renders_big_reminder_banner(self) -> None:
         packet = {

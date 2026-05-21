@@ -644,6 +644,45 @@ def build_fingerprint(repo_root: Path, git_state: dict[str, Any], truth_path: Pa
     }
 
 
+def resolve_output_dir(repo_root: Path, output_dir: Path) -> Path:
+    return output_dir if output_dir.is_absolute() else repo_root / output_dir
+
+
+def load_cached_packet(repo_root: Path, output_dir: Path, fingerprint: dict[str, Any]) -> dict[str, Any] | None:
+    output_dir = resolve_output_dir(repo_root, output_dir)
+    packet_path = output_dir / "decision-packet.json"
+    fingerprint_path = output_dir / "fingerprint.json"
+    if not packet_path.is_file() or not fingerprint_path.is_file():
+        return None
+    cached_fingerprint = load_json_object(fingerprint_path)
+    if cached_fingerprint != fingerprint:
+        return None
+    packet = load_json_object(packet_path)
+    if not packet:
+        return None
+    if packet.get("schemaVersion") != SCHEMA_VERSION or packet.get("helperVersion") != HELPER_VERSION:
+        return None
+    packet["cacheStatus"] = "reused"
+    packet["cacheCheckedAtUtc"] = utc_iso()
+    packet["cacheSafety"] = {
+        "freshFingerprintChecked": True,
+        "reusedOnlyWhenFingerprintMatched": True,
+        "runSafeChecksDisablesCache": True,
+        "fingerprintInputs": [
+            "helperVersion",
+            "gitHead",
+            "changedFiles",
+            "currentTruth.mtimeNs",
+            "currentTruth.sizeBytes",
+            "currentProof.mtimeNs",
+            "currentProof.sizeBytes",
+        ],
+        "doesNotAuthorizeLiveInput": True,
+        "doesNotAuthorizeProofPromotion": True,
+    }
+    return packet
+
+
 def run_safe_validations(repo_root: Path, validation_plan: dict[str, Any]) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for item in safe_list(validation_plan.get("commands")):
@@ -672,18 +711,25 @@ def build_decision_packet(
     run_safe_checks: bool = False,
     truth_json: Path | None = None,
     proof_json: Path | None = None,
+    use_cache: bool = False,
+    cache_dir: Path = DEFAULT_OUTPUT_DIR,
 ) -> dict[str, Any]:
     truth_path = repo_root / (truth_json or DEFAULT_CURRENT_TRUTH_JSON)
     proof_path = repo_root / (proof_json or DEFAULT_CURRENT_PROOF_JSON)
     warnings: list[str] = []
     errors: list[str] = []
+    git_state = collect_git(repo_root)
+    fingerprint = build_fingerprint(repo_root, git_state, truth_path, proof_path)
+    if use_cache and not run_safe_checks:
+        cached = load_cached_packet(repo_root, cache_dir, fingerprint)
+        if cached is not None:
+            return cached
     truth = load_json_object(truth_path)
     proof = load_json_object(proof_path)
     if truth is None:
         warnings.append(f"current-truth-missing:{repo_rel(repo_root, truth_path)}")
     if proof is None:
         warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
-    git_state = collect_git(repo_root)
     target_epoch = classify_target_epoch(truth, proof)
     truth_summary = summarize_truth(truth, proof)
     lane = classify_lane(git_state, target_epoch, truth_summary)
@@ -700,7 +746,6 @@ def build_decision_packet(
     state = milestone_state(sorted(set(blockers)), validation_results)
     safe_next_action = build_safe_next_action(lane, target_epoch, git_state, truth_summary)
     commit_plan = build_commit_plan(git_state, validation_results if run_safe_checks else None)
-    fingerprint = build_fingerprint(repo_root, git_state, truth_path, proof_path)
     status = "failed" if errors or state == "failed" else ("blocked" if blockers else "passed")
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -736,7 +781,14 @@ def build_decision_packet(
             "nextCommand": safe_next_action.get("command"),
         },
         "fingerprint": fingerprint,
-        "cacheStatus": "not-checked",
+        "cacheStatus": "miss" if use_cache else "not-checked",
+        "cacheSafety": {
+            "freshFingerprintChecked": True,
+            "reusedOnlyWhenFingerprintMatched": True,
+            "runSafeChecksDisablesCache": True,
+            "doesNotAuthorizeLiveInput": True,
+            "doesNotAuthorizeProofPromotion": True,
+        },
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings + [str(item) for item in target_epoch.get("warnings") or []])),
         "errors": errors,
@@ -834,12 +886,12 @@ def build_markdown(packet: dict[str, Any]) -> str:
 
 
 def write_outputs(repo_root: Path, packet: dict[str, Any], output_dir: Path) -> dict[str, Any]:
-    if not output_dir.is_absolute():
-        output_dir = repo_root / output_dir
+    output_dir = resolve_output_dir(repo_root, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     fingerprint_path = output_dir / "fingerprint.json"
     old_fingerprint = load_json_object(fingerprint_path) if fingerprint_path.exists() else None
-    packet["cacheStatus"] = "hit" if old_fingerprint == packet.get("fingerprint") else "miss"
+    write_cache_status = "hit" if old_fingerprint == packet.get("fingerprint") else "miss"
+    packet["cacheStatus"] = "reused" if packet.get("cacheStatus") == "reused" and write_cache_status == "hit" else write_cache_status
     json_path = output_dir / "decision-packet.json"
     compact_path = output_dir / "decision-packet-compact.json"
     markdown_path = output_dir / "decision-packet.md"
@@ -894,6 +946,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--write", action="store_true", help="Write ignored packet artifacts under .riftreader-local.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--run-safe-checks", action="store_true", help="Run only packet-approved safe validations.")
+    parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Reuse ignored packet artifacts only when the fresh fingerprint exactly matches; disabled for --run-safe-checks.",
+    )
     parser.add_argument("--self-test", action="store_true", help="Run fixture-only self-test.")
     parser.add_argument("--explain", action="store_true", help="Print Markdown explanation.")
     parser.add_argument("--lane", default=None, help="Override lane label after packet construction.")
@@ -912,7 +969,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Status: {result.get('status')}")
         return 0 if result.get("ok") else 1
     try:
-        packet = build_decision_packet(repo_root, run_safe_checks=args.run_safe_checks)
+        packet = build_decision_packet(
+            repo_root,
+            run_safe_checks=args.run_safe_checks,
+            use_cache=args.use_cache,
+            cache_dir=args.output_dir,
+        )
         if args.lane:
             packet["lane"] = args.lane
         if args.write:
