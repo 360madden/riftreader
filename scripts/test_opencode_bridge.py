@@ -348,6 +348,12 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
             self.assertFalse(summary["lanePolicy"]["allowsTrackedEdits"])
             self.assertEqual(summary["lanePolicy"]["allowedEditPaths"], [])
             self.assertEqual(summary["lanePolicy"]["groundingFiles"], [])
+            self.assertEqual(summary["decisionPacket"]["kind"], "riftreader-decision-packet")
+            self.assertIn("decisionPacket", summary["compactStatus"])
+            prompt_text = (root / str(summary["promptPath"]).replace("\\", "/")).read_text(encoding="utf-8")
+            self.assertIn("Prefer the local decision packet embedded in the preflight snapshot", prompt_text)
+            self.assertIn('"decisionPacket"', prompt_text)
+            self.assertIn('"llmReminder"', prompt_text)
             self.assertFalse(summary["safety"]["movementSent"])
 
     def test_self_test_generates_all_lane_prompts_without_opencode_run(self) -> None:

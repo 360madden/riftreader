@@ -138,6 +138,42 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("target-epoch-module-base-drift", result["blockers"])
         self.assertIn("proof-older-than-process-start", result["blockers"])
 
+    def test_target_epoch_drift_scenarios_block_individually(self) -> None:
+        base_truth_target = {
+            "processId": 1,
+            "targetWindowHandle": "0x1",
+            "processStartUtc": "2026-05-21T14:00:00Z",
+            "moduleBase": "0x1000",
+            "inWorld": True,
+        }
+        base_proof_target = {
+            "processId": 1,
+            "targetWindowHandle": "0x1",
+            "processStartUtc": "2026-05-21T14:00:00Z",
+            "moduleBase": "0x1000",
+        }
+        cases = [
+            ("processId", 2, "target-epoch-pid-drift"),
+            ("targetWindowHandle", "0x2", "target-epoch-hwnd-drift"),
+            ("processStartUtc", "2026-05-21T15:00:00Z", "target-epoch-process-start-drift"),
+            ("moduleBase", "0x2000", "target-epoch-module-base-drift"),
+        ]
+        for field, value, blocker in cases:
+            with self.subTest(field=field):
+                truth_target = dict(base_truth_target)
+                truth_target[field] = value
+                result = decision_packet.classify_target_epoch(
+                    {"target": truth_target},
+                    {"status": "current-target-proofonly-passed", "target": base_proof_target},
+                )
+
+                self.assertEqual(result["status"], "stale")
+                self.assertIn(blocker, result["blockers"])
+                self.assertEqual(
+                    result["staleAddressPolicy"],
+                    "absolute heap addresses are historical hints only after PID/HWND/process-start/module-base drift",
+                )
+
     def test_process_presence_is_not_proof(self) -> None:
         result = decision_packet.classify_target_epoch({"target": {"processId": 1, "live": True}}, {})
 
@@ -319,6 +355,47 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertNotEqual(rebuilt["cacheStatus"], "reused")
         self.assertTrue(rebuilt["cacheSafety"]["runSafeChecksDisablesCache"])
+
+    def test_compact_packet_schema_preserves_llm_reminder_contract(self) -> None:
+        packet = {
+            "schemaVersion": 1,
+            "kind": "riftreader-decision-packet",
+            "status": "blocked",
+            "lane": "actor-chain",
+            "risk": "high",
+            "targetEpoch": {"status": "stale", "blockers": ["target-epoch-pid-drift"]},
+            "safeNextAction": {"key": "safe", "command": ["python", "safe.py"], "why": "fixture"},
+            "llmReminder": decision_packet.build_llm_reminder({"command": ["python", "safe.py"]}, "blocked-safe"),
+            "milestoneStatus": {"state": "blocked-safe"},
+            "commitPlan": {"recommended": False},
+            "blockers": ["target-epoch-pid-drift"],
+            "warnings": [],
+            "cacheStatus": "miss",
+        }
+
+        compact = decision_packet.compact_decision_packet(packet)
+
+        self.assertEqual(
+            set(compact),
+            {
+                "schemaVersion",
+                "kind",
+                "status",
+                "lane",
+                "risk",
+                "targetEpoch",
+                "safeNextAction",
+                "llmReminder",
+                "milestoneStatus",
+                "commitPlan",
+                "blockers",
+                "warnings",
+                "cacheStatus",
+            },
+        )
+        self.assertEqual(compact["llmReminder"]["banner"], "# **🚦 NEXT ACTION — CONTINUE SAFELY**")
+        self.assertIn("status helper returned a known blocker", compact["llmReminder"]["doNotStopIf"])
+        self.assertIn("debugger or CE would be required", compact["llmReminder"]["mustStopIf"])
 
     def test_markdown_renders_big_reminder_banner(self) -> None:
         packet = {

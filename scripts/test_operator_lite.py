@@ -733,6 +733,23 @@ class OperatorLiteTests(unittest.TestCase):
                 self.assertEqual(payload["commandKey"], command_key)
                 self.assertTrue(payload["ok"])
 
+    def test_cli_decision_packet_shortcut_accepts_safe_blocked_exit_two(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            (root / "scripts" / "riftreader-decision-packet.cmd").write_text("@echo off\nexit /b 2\n", encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--decision-packet", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["commandKey"], "decision-packet")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["expectedExitCodes"], [0, 2])
+
     def test_cli_run_alias_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
