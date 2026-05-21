@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -330,6 +332,26 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertTrue(cached["cacheSafety"]["freshFingerprintChecked"])
         self.assertEqual(cached["targetEpoch"]["status"], "current")
         self.assertIn("actor-chain-candidate-only", cached["blockers"])
+
+    def test_cli_use_cache_reuses_written_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            first_stdout = io.StringIO()
+            cached_stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(first_stdout):
+                first_exit = decision_packet.main(["--repo-root", str(root), "--write", "--compact-json"])
+            with contextlib.redirect_stdout(cached_stdout):
+                cached_exit = decision_packet.main(["--repo-root", str(root), "--use-cache", "--compact-json"])
+            cached_payload = json.loads(cached_stdout.getvalue())
+
+        self.assertEqual(first_exit, 2)
+        self.assertEqual(cached_exit, 2)
+        self.assertEqual(cached_payload["cacheStatus"], "reused")
+        self.assertEqual(cached_payload["performance"]["buildMode"], "cache-reused")
+        self.assertTrue(cached_payload["performance"]["cacheReused"])
+        self.assertIn("actor-chain-candidate-only", cached_payload["blockers"])
 
     def test_cache_miss_after_current_truth_mtime_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
