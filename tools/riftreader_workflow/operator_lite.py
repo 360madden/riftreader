@@ -89,6 +89,8 @@ COMMAND_ALIASES = {
     "decision-packet": "decision-packet",
     "refresh-decision-packet": "decision-packet",
     "local-decision-packet": "decision-packet",
+    "decision-packet-schema": "decision-packet-schema",
+    "local-decision-packet-schema": "decision-packet-schema",
 }
 GROUP_ALIASES = {
     "startup": "bridge-startup-checks",
@@ -173,6 +175,13 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=120,
             description="Build the local decision packet with LLM reminders, safe next action, validation plan, and blockers.",
             expected_exit_codes=(0, 2),
+        ),
+        "decision-packet-schema": CommandSpec(
+            key="decision-packet-schema",
+            label="Decision Packet Schema Contract",
+            args=(str(scripts / "riftreader-decision-packet.cmd"), "--schema-json"),
+            timeout_seconds=30,
+            description="Print the static decision-packet schema contract without building a repo packet or writing artifacts.",
         ),
         "compact-sitrep": CommandSpec(
             key="compact-sitrep",
@@ -653,6 +662,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --safe-commit-plan --json",
             ".\\scripts\\riftreader-operator-lite.cmd --workflow-router --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run decision-packet --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --decision-packet-schema --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --proposal-loop-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
@@ -1105,6 +1115,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "muted locked-control badges",
             "persistent safe-mode status bar",
             "local decision packet refresh button",
+            "decision packet schema contract button",
         ],
     }
 
@@ -1321,6 +1332,7 @@ def run_gui(repo_root: Path) -> int:
 
     action_button(workflow_frame, "Refresh Workflow Status", lambda: run_spec("workflow-status"), "primary")
     action_button(workflow_frame, "Refresh Decision Packet", lambda: run_spec("decision-packet"), "primary", width=24)
+    action_button(workflow_frame, "Decision Packet Schema", lambda: run_spec("decision-packet-schema"), "neutral", width=24)
     action_button(workflow_frame, "Compact ChatGPT SITREP", lambda: run_spec("compact-sitrep"), "primary", width=23)
     action_button(workflow_frame, "Run Live-Test Triage", lambda: run_spec("live-triage"), "warning")
 
@@ -1451,6 +1463,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --safe-commit-plan --json | "
             "riftreader-operator-lite.cmd --workflow-router --json | "
             "riftreader-operator-lite.cmd --decision-packet --json | "
+            "riftreader-operator-lite.cmd --decision-packet-schema --json | "
             "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
             "riftreader-operator-lite.cmd --proposal-loop-checks --json | "
             "riftreader-operator-lite.cmd --trial-readiness --json | "
@@ -1525,6 +1538,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Shortcut for --run decision-packet. Read-only packet refresh; local ignored artifacts only.",
     )
+    parser.add_argument(
+        "--decision-packet-schema",
+        action="store_true",
+        help="Shortcut for --run decision-packet-schema. Read-only schema contract; no artifact writes.",
+    )
     parser.add_argument("--bridge-startup-checks", action="store_true", help="Shortcut for --run-all bridge-startup-checks.")
     parser.add_argument(
         "--proposal-loop-checks",
@@ -1580,6 +1598,8 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "workflow-router-mcp"
     if args.decision_packet:
         shortcut_command = "decision-packet"
+    if args.decision_packet_schema:
+        shortcut_command = "decision-packet-schema"
     shortcut_count = sum(
         1
         for selected in (
@@ -1600,6 +1620,7 @@ def main(argv: list[str] | None = None) -> int:
             args.safe_commit_plan,
             args.workflow_router,
             args.decision_packet,
+            args.decision_packet_schema,
         )
         if selected
     )

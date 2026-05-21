@@ -82,12 +82,16 @@ class OperatorLiteTests(unittest.TestCase):
                 "safe-commit-plan",
                 "workflow-router-mcp",
                 "decision-packet",
+                "decision-packet-schema",
                 "git-status",
             },
         )
         compact = next(item for item in plan["commands"] if item["key"] == "compact-sitrep")
         self.assertEqual(compact["expectedExitCodes"], [0, 2])
         self.assertIn("--compact", compact["args"])
+        decision_schema = next(item for item in plan["commands"] if item["key"] == "decision-packet-schema")
+        self.assertIn("--schema-json", decision_schema["args"])
+        self.assertEqual(decision_schema["expectedExitCodes"], [0])
         package_selftest = next(item for item in plan["commands"] if item["key"] == "package-selftest")
         self.assertIn("riftreader-package-intake-selftest.cmd", package_selftest["args"][0])
         bridge_selftest = next(item for item in plan["commands"] if item["key"] == "bridge-selftest")
@@ -720,6 +724,7 @@ class OperatorLiteTests(unittest.TestCase):
             "--safe-commit-plan": "safe-commit-plan",
             "--workflow-router": "workflow-router-mcp",
             "--decision-packet": "decision-packet",
+            "--decision-packet-schema": "decision-packet-schema",
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -787,6 +792,40 @@ class OperatorLiteTests(unittest.TestCase):
             payload["stdoutJson"]["commitPlan"]["stageCommand"],
             ["git", "add", "--", "docs/workflow/example.md"],
         )
+        self.assertFalse(payload["safety"]["movementSent"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_cli_decision_packet_schema_shortcut_smoke_outputs_schema_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            helper = root / "scripts" / "fake-decision-packet.py"
+            helper.write_text(
+                "import json\n"
+                "print(json.dumps({"
+                "'kind':'riftreader-decision-packet-schema-contract',"
+                "'requiredTopLevelFields':['schemaVersion','kind','commitPlan'],"
+                "'commitPlanFields':['stageCommand']"
+                "}))\n",
+                encoding="utf-8",
+            )
+            (root / "scripts" / "riftreader-decision-packet.cmd").write_text(
+                '@echo off\npython "%~dp0fake-decision-packet.py" %*\nexit /b %ERRORLEVEL%\n',
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--decision-packet-schema", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["commandKey"], "decision-packet-schema")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "passed")
+        self.assertIn("--schema-json", payload["args"])
+        self.assertEqual(payload["stdoutJson"]["kind"], "riftreader-decision-packet-schema-contract")
+        self.assertIn("stageCommand", payload["stdoutJson"]["commitPlanFields"])
         self.assertFalse(payload["safety"]["movementSent"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
@@ -925,6 +964,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--safe-commit-plan", help_text)
         self.assertIn("--workflow-router", help_text)
         self.assertIn("--decision-packet", help_text)
+        self.assertIn("--decision-packet-schema", help_text)
         self.assertIn("--command-reference-md", help_text)
         self.assertIn("--proposal-loop-checks", help_text)
         self.assertIn("--trial-readiness", help_text)
