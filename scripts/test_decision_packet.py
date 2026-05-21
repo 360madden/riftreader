@@ -233,6 +233,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertTrue(commit_plan["recommended"])
         self.assertEqual(commit_plan["pathCategories"], ["docs"])
         self.assertEqual(commit_plan["suggestedMessage"], "Update RiftReader workflow docs")
+        self.assertEqual(commit_plan["stageCommand"], ["git", "add", "--", "docs/workflow/example.md"])
 
     def test_code_only_commit_plan_uses_helper_message_not_docs_message(self) -> None:
         commit_plan = decision_packet.build_commit_plan(
@@ -251,6 +252,7 @@ class DecisionPacketTests(unittest.TestCase):
         )
 
         self.assertTrue(commit_plan["recommended"])
+        self.assertEqual(commit_plan["stageCommand"], ["git", "add", "--", "docs/workflow/example with space.md"])
         self.assertEqual(commit_plan["stageCommandPreview"], "git add -- 'docs/workflow/example with space.md'")
 
     def test_commit_plan_quotes_stage_preview_shell_metacharacters(self) -> None:
@@ -272,8 +274,10 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertFalse(generated["recommended"])
         self.assertEqual(generated["excludedGeneratedPaths"], ["scripts/captures/run/summary.json"])
+        self.assertIsNone(generated["stageCommand"])
         self.assertFalse(live_truth["recommended"])
         self.assertEqual(live_truth["reason"], "live-truth-paths-require-main-agent-review")
+        self.assertIsNone(live_truth["stageCommand"])
 
     def test_commit_plan_blocks_mixed_docs_code_and_generated_slice(self) -> None:
         mixed = decision_packet.build_commit_plan(

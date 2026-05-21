@@ -491,6 +491,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "explicitPaths": [],
             "excludedGeneratedPaths": excluded_generated,
             "validationRequired": False,
+            "stageCommand": None,
             "stageCommandPreview": None,
         }
     if live_truth_paths:
@@ -500,6 +501,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "explicitPaths": explicit_paths,
             "excludedGeneratedPaths": excluded_generated,
             "validationRequired": True,
+            "stageCommand": None,
             "stageCommandPreview": None,
         }
     if len(categories) > 1:
@@ -510,6 +512,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "excludedGeneratedPaths": excluded_generated,
             "pathCategories": categories,
             "validationRequired": True,
+            "stageCommand": None,
             "stageCommandPreview": None,
         }
     if failed_validation:
@@ -519,6 +522,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "explicitPaths": explicit_paths,
             "excludedGeneratedPaths": excluded_generated,
             "validationRequired": True,
+            "stageCommand": None,
             "stageCommandPreview": None,
         }
     if any("decision" in path for path in explicit_paths):
@@ -539,6 +543,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
         "excludedGeneratedPaths": excluded_generated,
         "pathCategories": categories,
         "validationRequired": not bool(validation_results),
+        "stageCommand": ["git", "add", "--", *explicit_paths],
         "stageCommandPreview": "git add -- " + " ".join(quote_stage_path(path) for path in explicit_paths),
     }
 
