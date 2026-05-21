@@ -25,7 +25,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-HELPER_VERSION = "0.1.0"
+HELPER_VERSION = "0.1.1"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "decision-packet" / "latest"
@@ -40,6 +40,15 @@ LIVE_TRUTH_PATHS = (
     "docs/recovery/current-truth.md",
     "docs/recovery/current-proof-anchor-readback.json",
 )
+RETIRED_OPENCODE_PATH_PATTERNS = (
+    ".opencode/*",
+    "opencode/*",
+    "docs/handoffs/*opencode*",
+    "docs/workflow/*opencode*",
+    "scripts/*opencode*",
+    "tools/riftreader_workflow/*opencode*",
+)
+RETIRED_OPENCODE_POLICY = "retired-opencode-requires-explicit-reauthorization"
 FORBIDDEN_ACTIONS = [
     "movement",
     "live_input",
@@ -55,6 +64,7 @@ FORBIDDEN_ACTIONS = [
     "cleanup_delete",
     "proof_promotion",
     "actor_chain_promotion",
+    "retired_opencode_work_without_explicit_reauthorization",
 ]
 ALLOWED_ACTIONS = [
     "read_repo",
@@ -110,6 +120,31 @@ def is_generated_path(path: str) -> bool:
 def is_live_truth_path(path: str) -> bool:
     normalized = normalize_path(path).lower()
     return normalized in LIVE_TRUTH_PATHS
+
+
+def is_retired_opencode_path(path: str) -> bool:
+    normalized = normalize_path(path).lower()
+    return any(fnmatch.fnmatch(normalized, pattern) for pattern in RETIRED_OPENCODE_PATH_PATTERNS)
+
+
+def retired_surface_paths(git_state: dict[str, Any]) -> list[str]:
+    paths = {
+        normalize_path(str(item.get("path") or ""))
+        for item in safe_list(git_state.get("changedFiles"))
+        if item.get("path") and is_retired_opencode_path(str(item.get("path")))
+    }
+    return sorted(paths)
+
+
+def build_retired_surface_guardrail(git_state: dict[str, Any]) -> dict[str, Any]:
+    paths = retired_surface_paths(git_state)
+    if not paths:
+        return {"paths": [], "blockers": [], "warnings": []}
+    return {
+        "paths": paths,
+        "blockers": ["retired-opencode-surface-changed"],
+        "warnings": [f"{RETIRED_OPENCODE_POLICY}:{path}" for path in paths],
+    }
 
 
 def commit_path_category(path: str) -> str:
@@ -189,7 +224,7 @@ def strip_command_output(envelope: dict[str, Any]) -> dict[str, Any]:
 def collect_git(repo_root: Path) -> dict[str, Any]:
     status_env = run_command_envelope(
         "git-status-short-branch",
-        ["git", "--no-pager", "status", "--short", "--branch"],
+        ["git", "--no-pager", "status", "--short", "--branch", "--untracked-files=all"],
         repo_root,
         timeout_seconds=20,
         expected_exit_codes={0},
@@ -240,6 +275,8 @@ def collect_git(repo_root: Path) -> dict[str, Any]:
                 "path": raw_path,
                 "generated": is_generated_path(raw_path),
                 "liveTruth": is_live_truth_path(raw_path),
+                "retiredSurface": is_retired_opencode_path(raw_path),
+                "retiredSurfacePolicy": RETIRED_OPENCODE_POLICY if is_retired_opencode_path(raw_path) else None,
             }
         )
     head_hash = None
@@ -415,6 +452,7 @@ def command_spec(label: str, command: list[str], why: str, *, expected: Iterable
 def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any]:
     paths = [normalize_path(str(item.get("path") or "")) for item in safe_list(git_state.get("changedFiles"))]
     lower_paths = [path.lower() for path in paths]
+    retired_paths = retired_surface_paths(git_state)
     commands: list[dict[str, Any]] = [
         command_spec("diff-check", ["git", "--no-pager", "diff", "--check"], "Check whitespace/errors in current diff."),
         command_spec(
@@ -454,7 +492,7 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "Validate actor-chain no-debug status helper behavior.",
             )
         )
-    if any("opencode_bridge" in path or "test_opencode" in path for path in lower_paths):
+    if not retired_paths and any("opencode_bridge" in path or "test_opencode" in path for path in lower_paths):
         commands.append(
             command_spec(
                 "opencode-bridge-tests",
@@ -483,6 +521,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
     explicit_paths = [str(item.get("path")) for item in changed if item.get("path") and not item.get("generated")]
     excluded_generated = [str(item.get("path")) for item in changed if item.get("path") and item.get("generated")]
     live_truth_paths = [path for path in explicit_paths if is_live_truth_path(path)]
+    retired_paths = retired_surface_paths(git_state)
     failed_validation = [item for item in validation_results or [] if item.get("ok") is not True]
     categories = sorted({commit_path_category(path) for path in explicit_paths})
     if not explicit_paths:
@@ -501,6 +540,17 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "reason": "live-truth-paths-require-main-agent-review",
             "explicitPaths": explicit_paths,
             "excludedGeneratedPaths": excluded_generated,
+            "validationRequired": True,
+            "stageCommand": None,
+            "stageCommandPreview": None,
+        }
+    if retired_paths:
+        return {
+            "recommended": False,
+            "reason": "retired-opencode-surface-requires-explicit-reauthorization",
+            "explicitPaths": explicit_paths,
+            "excludedGeneratedPaths": excluded_generated,
+            "retiredSurfacePaths": retired_paths,
             "validationRequired": True,
             "stageCommand": None,
             "stageCommandPreview": None,
@@ -612,6 +662,13 @@ def validate_agent_plan(agent_plan: list[dict[str, Any]]) -> list[str]:
 
 
 def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: dict[str, Any], truth: dict[str, Any]) -> dict[str, Any]:
+    retired_paths = retired_surface_paths(git_state)
+    if retired_paths:
+        return {
+            "key": "retired-opencode-surface-review",
+            "command": ["git", "--no-pager", "diff", "--", *retired_paths],
+            "why": "Retired OpenCode surfaces changed; inspect/revert or get explicit reauthorization before validation, staging, or commit.",
+        }
     if target_epoch.get("status") == "stale":
         return {
             "key": "refresh-coordinate-recovery-status",
@@ -689,6 +746,7 @@ def build_llm_reminder(safe_next_action: dict[str, Any], state: str) -> dict[str
             "debugger or CE would be required",
             "provider write would be required",
             "proof or actor-chain promotion would be claimed",
+            "retired OpenCode surface work would proceed without explicit reauthorization",
             "Git mutation is requested but scope is mixed or unvalidated",
         ],
         "continueWith": safe_next_action,
@@ -710,6 +768,7 @@ def build_fingerprint(repo_root: Path, git_state: dict[str, Any], truth_path: Pa
             "status": item.get("status"),
             "generated": bool(item.get("generated")),
             "liveTruth": bool(item.get("liveTruth")),
+            "retiredSurface": bool(item.get("retiredSurface")),
             "file": stat(path),
         }
 
@@ -833,6 +892,8 @@ def build_decision_packet(
         if not proof_error:
             warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
     target_epoch = classify_target_epoch(truth, proof)
+    retired_guardrail = build_retired_surface_guardrail(git_state)
+    warnings.extend(str(item) for item in retired_guardrail.get("warnings") or [])
     if malformed_blockers:
         target_epoch = {
             **target_epoch,
@@ -845,6 +906,7 @@ def build_decision_packet(
     risk = classify_risk(lane, git_state, target_epoch)
     blockers: list[str] = []
     blockers.extend(malformed_blockers)
+    blockers.extend(str(item) for item in retired_guardrail.get("blockers") or [])
     blockers.extend(str(item) for item in target_epoch.get("blockers") or [])
     blockers.extend(str(item) for item in safe_mapping(truth_summary.get("actorChain")).get("blockers") or [] if lane == "actor-chain")
     agent_plan = build_agent_plan()
@@ -1036,6 +1098,9 @@ def build_markdown(packet: dict[str, Any]) -> str:
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])
+    if packet.get("warnings"):
+        lines.extend(["", "## Warnings"])
+        lines.extend(f"- `{item}`" for item in packet.get("warnings") or [])
     lines.extend(["", "## LLM reminders", "", "### Do not stop if"])
     lines.extend(f"- {item}" for item in reminder.get("doNotStopIf") or [])
     lines.extend(["", "### Must stop if"])
@@ -1093,6 +1158,7 @@ def build_self_test(repo_root: Path) -> dict[str, Any]:
         {"name": "pid-drift-classifies-stale", "pass": stale.get("status") == "stale" and "target-epoch-pid-drift" in stale.get("blockers", [])},
         {"name": "agent-plan-no-overlap", "pass": not agent_errors},
         {"name": "commit-plan-ahead-clean-not-recommended", "pass": build_commit_plan(clean_git).get("recommended") is False},
+        {"name": "retired-opencode-path-detected", "pass": is_retired_opencode_path("tools/riftreader_workflow/opencode_bridge.py")},
     ]
     ok = all(check["pass"] for check in checks)
     return {
@@ -1150,6 +1216,7 @@ def build_schema_contract() -> dict[str, Any]:
             "suggestedMessage",
             "explicitPaths",
             "excludedGeneratedPaths",
+            "retiredSurfacePaths",
             "pathCategories",
             "validationRequired",
             "stageCommand",

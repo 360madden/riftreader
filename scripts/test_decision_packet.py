@@ -564,6 +564,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("commitPlan", contract["requiredTopLevelFields"])
         self.assertIn("stageCommand", contract["commitPlanFields"])
         self.assertIn("stageCommandPreview", contract["commitPlanFields"])
+        self.assertIn("retiredSurfacePaths", contract["commitPlanFields"])
         self.assertIn("ownedPaths", contract["agentPlanFields"])
         self.assertIn("forbiddenPaths", contract["agentPlanFields"])
         self.assertEqual(contract["agentPlanAuthorityValues"], ["read", "write"])
@@ -629,6 +630,36 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("current-truth-target-missing", packet["blockers"])
         self.assertIn("current-truth-missing:docs\\recovery\\current-truth.json", packet["warnings"])
         self.assertNotEqual(packet["targetEpoch"]["status"], "current")
+
+    def test_retired_opencode_surface_change_blocks_commit_recommendation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            retired_path = root / "tools" / "riftreader_workflow" / "opencode_bridge.py"
+            write_text(retired_path, "# retired historical surface\n")
+
+            packet = decision_packet.build_decision_packet(root)
+
+        changed_by_path = {item["path"]: item for item in packet["repo"]["changedFiles"]}
+        retired_item = changed_by_path["tools/riftreader_workflow/opencode_bridge.py"]
+        labels = [item["label"] for item in packet["validationPlan"]["commands"]]
+
+        self.assertEqual(packet["status"], "blocked")
+        self.assertTrue(retired_item["retiredSurface"])
+        self.assertEqual(retired_item["retiredSurfacePolicy"], decision_packet.RETIRED_OPENCODE_POLICY)
+        self.assertIn("retired-opencode-surface-changed", packet["blockers"])
+        self.assertIn(
+            "retired-opencode-requires-explicit-reauthorization:tools/riftreader_workflow/opencode_bridge.py",
+            packet["warnings"],
+        )
+        self.assertEqual(packet["safeNextAction"]["key"], "retired-opencode-surface-review")
+        self.assertEqual(packet["commitPlan"]["reason"], "retired-opencode-surface-requires-explicit-reauthorization")
+        self.assertEqual(packet["commitPlan"]["retiredSurfacePaths"], ["tools/riftreader_workflow/opencode_bridge.py"])
+        self.assertNotIn("opencode-bridge-tests", labels)
+        self.assertIn(
+            "retired OpenCode surface work would proceed without explicit reauthorization",
+            packet["llmReminder"]["mustStopIf"],
+        )
 
     def test_malformed_current_proof_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
