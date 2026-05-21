@@ -19,6 +19,7 @@ defensive/resilience hardening slices:
 | Dirty-file cache invalidation | Cache fingerprints include dirty tracked file path, Git status, mtime, and size so edits to the same dirty path cannot reuse a stale packet. |
 | Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
 | Schema contract CLI | `--schema-json` emits required top-level fields, valid milestone states, commit-plan fields, agent-plan fields, agent-plan authority/risk enum values, and safety flags without building a repo packet. |
+| Retired-surface schema contract | `--schema-json` exposes changed-file `retiredSurface`/`retiredSurfacePolicy` fields, retired-surface policy metadata, and the forbidden OpenCode action. |
 | Historical OpenCode prompt integration | Existing OpenCode prompt code/tests are retired historical maintenance surface; do not expand or use them as active workflow unless explicitly re-authorized. |
 | OpenCode retirement guardrail | Future agents must treat old OpenCode milestones as stale plan text and prefer the decision packet, Operator Lite, and Codex-native workflows. |
 | Retired-surface packet guardrail | Dirty OpenCode bridge/wrapper/test/doc surfaces are flagged in `repo.changedFiles`, add `retired-opencode-surface-changed`, and block commit recommendation unless OpenCode is explicitly re-authorized. |
