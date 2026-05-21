@@ -71,7 +71,28 @@ def init_repo(root: Path) -> None:
     subprocess.run(["git", "commit", "-m", "baseline"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
+def init_empty_repo(root: Path) -> None:
+    subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(["git", "config", "user.email", "riftreader-tests@example.invalid"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "RiftReader Tests"], cwd=root, check=True)
+    write_text(root / "agents.md", "# test\n")
+    subprocess.run(["git", "add", "agents.md"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "baseline"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
 class DecisionPacketTests(unittest.TestCase):
+    def test_clean_repo_without_live_target_blocks_safely(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_empty_repo(root)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["status"], "blocked")
+        self.assertEqual(packet["targetEpoch"]["status"], "absent")
+        self.assertIn("target-epoch-absent", packet["blockers"])
+        self.assertEqual(packet["milestoneStatus"]["state"], "blocked-safe")
+
     def test_target_epoch_classifies_current_match(self) -> None:
         truth = {"target": {"processId": 1, "targetWindowHandle": "0x1", "inWorld": True}}
         proof = {"status": "current-target-proofonly-passed", "target": {"processId": 1, "targetWindowHandle": "0x1"}}
@@ -146,6 +167,16 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("decision-packet-tests", labels)
         self.assertIn("policy-lint-changed", labels)
 
+    def test_dirty_docs_only_lane_and_commit_plan_are_coherent(self) -> None:
+        git_state = {"changedFiles": [{"path": "docs/workflow/example.md", "generated": False}], "dirty": True}
+
+        self.assertEqual(decision_packet.classify_lane(git_state, {"status": "current"}, {}), "docs")
+        commit_plan = decision_packet.build_commit_plan(git_state, [{"ok": True}])
+
+        self.assertTrue(commit_plan["recommended"])
+        self.assertEqual(commit_plan["pathCategories"], ["docs"])
+        self.assertEqual(commit_plan["suggestedMessage"], "Update RiftReader workflow docs")
+
     def test_commit_plan_excludes_generated_and_blocks_live_truth(self) -> None:
         generated = decision_packet.build_commit_plan(
             {"changedFiles": [{"path": "scripts/captures/run/summary.json", "generated": True}]}
@@ -159,8 +190,64 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertFalse(live_truth["recommended"])
         self.assertEqual(live_truth["reason"], "live-truth-paths-require-main-agent-review")
 
+    def test_commit_plan_blocks_mixed_docs_code_and_generated_slice(self) -> None:
+        mixed = decision_packet.build_commit_plan(
+            {
+                "changedFiles": [
+                    {"path": "docs/workflow/example.md", "generated": False},
+                    {"path": "tools/riftreader_workflow/decision_packet.py", "generated": False},
+                    {"path": "scripts/captures/run/summary.json", "generated": True},
+                ]
+            },
+            [{"ok": True}],
+        )
+
+        self.assertFalse(mixed["recommended"])
+        self.assertEqual(mixed["reason"], "mixed-risk-worktree-split-required")
+        self.assertEqual(mixed["pathCategories"], ["code", "docs"])
+        self.assertEqual(mixed["excludedGeneratedPaths"], ["scripts/captures/run/summary.json"])
+
+    def test_clean_branch_ahead_reports_commits_before_other_safe_work(self) -> None:
+        safe_next = decision_packet.build_safe_next_action(
+            "unknown",
+            {"status": "current"},
+            {"dirty": False, "ahead": 2},
+            {"actorChain": {"status": "candidate-only"}},
+        )
+
+        self.assertEqual(safe_next["key"], "report-local-commits-ahead")
+        self.assertEqual(safe_next["command"], ["git", "--no-pager", "status", "--short", "--branch"])
+
     def test_agent_plan_has_no_overlapping_write_paths(self) -> None:
         self.assertEqual(decision_packet.validate_agent_plan(decision_packet.build_agent_plan()), [])
+
+    def test_high_risk_approval_blocker_requires_stop_state(self) -> None:
+        self.assertEqual(decision_packet.milestone_state(["debugger-required"]), "blocked-needs-approval")
+        reminder = decision_packet.build_llm_reminder({"command": ["ask"]}, "blocked-needs-approval")
+
+        self.assertIn("debugger or CE would be required", reminder["mustStopIf"])
+
+    def test_safe_validation_exit_two_is_known_safe_blocked_not_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            script = root / "safe_blocker.py"
+            write_text(script, "raise SystemExit(2)\n")
+            plan = {
+                "commands": [
+                    decision_packet.command_spec(
+                        "known-safe-blocker",
+                        [sys.executable, str(script)],
+                        "Fixture exits 2 as a known blocker.",
+                        expected=(0, 2),
+                    )
+                ]
+            }
+
+            results = decision_packet.run_safe_validations(root, plan)
+
+        self.assertEqual(results[0]["exitCode"], 2)
+        self.assertTrue(results[0]["ok"])
+        self.assertTrue(results[0]["knownSafeBlocked"])
 
     def test_llm_reminder_contains_continue_and_stop_rules(self) -> None:
         reminder = decision_packet.build_llm_reminder({"command": ["python", "x.py"]}, "blocked-safe")

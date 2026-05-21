@@ -103,6 +103,17 @@ def is_live_truth_path(path: str) -> bool:
     return normalized in LIVE_TRUTH_PATHS
 
 
+def commit_path_category(path: str) -> str:
+    normalized = normalize_path(path).lower()
+    if normalized.endswith(".md"):
+        return "docs"
+    if normalized.endswith((".py", ".cmd", ".cs", ".csproj", ".sln", ".slnx")):
+        return "code"
+    if normalized.endswith((".json", ".jsonc", ".toml", ".yml", ".yaml")):
+        return "config"
+    return "other"
+
+
 def parse_iso(value: Any) -> datetime | None:
     if not value:
         return None
@@ -452,6 +463,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
     excluded_generated = [str(item.get("path")) for item in changed if item.get("path") and item.get("generated")]
     live_truth_paths = [path for path in explicit_paths if is_live_truth_path(path)]
     failed_validation = [item for item in validation_results or [] if item.get("ok") is not True]
+    categories = sorted({commit_path_category(path) for path in explicit_paths})
     if not explicit_paths:
         return {
             "recommended": False,
@@ -467,6 +479,16 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "reason": "live-truth-paths-require-main-agent-review",
             "explicitPaths": explicit_paths,
             "excludedGeneratedPaths": excluded_generated,
+            "validationRequired": True,
+            "stageCommandPreview": None,
+        }
+    if len(categories) > 1:
+        return {
+            "recommended": False,
+            "reason": "mixed-risk-worktree-split-required",
+            "explicitPaths": explicit_paths,
+            "excludedGeneratedPaths": excluded_generated,
+            "pathCategories": categories,
             "validationRequired": True,
             "stageCommandPreview": None,
         }
@@ -486,6 +508,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
         "suggestedMessage": suggested,
         "explicitPaths": explicit_paths,
         "excludedGeneratedPaths": excluded_generated,
+        "pathCategories": categories,
         "validationRequired": not bool(validation_results),
         "stageCommandPreview": "git add " + " ".join(explicit_paths),
     }
@@ -544,18 +567,18 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
             "command": ["python", "tools\\riftreader_workflow\\decision_packet.py", "--run-safe-checks", "--json"],
             "why": "Dirty worktree exists; run only safe validations before commit planning.",
         }
+    if int(git_state.get("ahead") or 0) > 0:
+        return {
+            "key": "report-local-commits-ahead",
+            "command": ["git", "--no-pager", "status", "--short", "--branch"],
+            "why": "Branch is ahead of origin; report local commits and wait for explicit push approval.",
+        }
     actor = safe_mapping(truth.get("actorChain"))
     if actor.get("status") == "candidate-only":
         return {
             "key": "actor-chain-no-debug-status",
             "command": ["python", ".\\scripts\\actor_chain_no_debug_status.py", "--json"],
             "why": "Actor-chain evidence is candidate-only; keep using the no-debug status gate.",
-        }
-    if int(git_state.get("ahead") or 0) > 0:
-        return {
-            "key": "report-local-commits-ahead",
-            "command": ["git", "--no-pager", "status", "--short", "--branch"],
-            "why": "Branch is ahead of origin; report local commits and wait for explicit push approval.",
         }
     return {
         "key": "compact-workflow-status",
