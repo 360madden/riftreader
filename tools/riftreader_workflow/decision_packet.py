@@ -866,6 +866,7 @@ def format_command(command: Any) -> str:
 def build_markdown(packet: dict[str, Any]) -> str:
     reminder = safe_mapping(packet.get("llmReminder"))
     safe_next = safe_mapping(packet.get("safeNextAction"))
+    commit_plan = safe_mapping(packet.get("commitPlan"))
     lines = [
         "# RiftReader Decision Packet",
         "",
@@ -888,6 +889,27 @@ def build_markdown(packet: dict[str, Any]) -> str:
         f"- Command: `{format_command(safe_next.get('command'))}`",
         f"- Why: {safe_next.get('why')}",
     ]
+    lines.extend(["", "## Commit planner", ""])
+    if commit_plan.get("recommended") and not commit_plan.get("validationRequired"):
+        lines.append("# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**")
+        if commit_plan.get("suggestedMessage"):
+            lines.append(f"- Suggested message: `{commit_plan.get('suggestedMessage')}`")
+        if commit_plan.get("stageCommandPreview"):
+            lines.append(f"- Stage preview: `{commit_plan.get('stageCommandPreview')}`")
+    else:
+        lines.append("# **⚠️ NOT COMMIT-READY**")
+        if commit_plan.get("reason"):
+            lines.append(f"- Reason: `{commit_plan.get('reason')}`")
+        if commit_plan.get("validationRequired"):
+            lines.append("- Validation required before staging.")
+    explicit_paths = [str(item) for item in commit_plan.get("explicitPaths") or []]
+    excluded_paths = [str(item) for item in commit_plan.get("excludedGeneratedPaths") or []]
+    if explicit_paths:
+        lines.extend(["", "### Explicit paths"])
+        lines.extend(f"- `{path}`" for path in explicit_paths)
+    if excluded_paths:
+        lines.extend(["", "### Excluded generated paths"])
+        lines.extend(f"- `{path}`" for path in excluded_paths)
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])

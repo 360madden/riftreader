@@ -441,6 +441,7 @@ class DecisionPacketTests(unittest.TestCase):
             "llmReminder": decision_packet.build_llm_reminder({"command": ["python", "actor.py"]}, "blocked-safe"),
             "milestoneStatus": {"state": "blocked-safe"},
             "validationPlan": {"commands": []},
+            "commitPlan": {"recommended": False, "reason": "no-stageable-tracked-paths", "explicitPaths": []},
             "blockers": ["actor-chain-candidate-only"],
         }
 
@@ -448,6 +449,36 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertIn("# **🚦 NEXT ACTION — CONTINUE SAFELY**", markdown)
         self.assertIn("## **🔄 DO NOT STOP HERE**", markdown)
+        self.assertIn("# **⚠️ NOT COMMIT-READY**", markdown)
+
+    def test_markdown_renders_commit_ready_explicit_paths(self) -> None:
+        packet = {
+            "status": "passed",
+            "lane": "docs",
+            "risk": "low",
+            "targetEpoch": {"status": "current"},
+            "cacheStatus": "miss",
+            "safeNextAction": {"key": "status", "command": ["git", "status"], "why": "fixture"},
+            "llmReminder": decision_packet.build_llm_reminder({"command": ["git", "status"]}, "passed"),
+            "milestoneStatus": {"state": "passed"},
+            "validationPlan": {"commands": []},
+            "commitPlan": {
+                "recommended": True,
+                "validationRequired": False,
+                "suggestedMessage": "Update docs",
+                "explicitPaths": ["docs/workflow/example.md"],
+                "excludedGeneratedPaths": ["scripts/captures/run/summary.json"],
+                "stageCommandPreview": "git add docs/workflow/example.md",
+            },
+            "blockers": [],
+        }
+
+        markdown = decision_packet.build_markdown(packet)
+
+        self.assertIn("# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**", markdown)
+        self.assertIn("`git add docs/workflow/example.md`", markdown)
+        self.assertIn("`docs/workflow/example.md`", markdown)
+        self.assertIn("`scripts/captures/run/summary.json`", markdown)
 
 
 if __name__ == "__main__":
