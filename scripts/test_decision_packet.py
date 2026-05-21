@@ -362,7 +362,42 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("instead of rerunning validations", safe_next["why"])
 
     def test_agent_plan_has_no_overlapping_write_paths(self) -> None:
-        self.assertEqual(decision_packet.validate_agent_plan(decision_packet.build_agent_plan()), [])
+        plan = decision_packet.build_agent_plan()
+
+        self.assertEqual(decision_packet.validate_agent_plan(plan), [])
+        for item in plan:
+            self.assertIn(item["authority"], {"read", "write"})
+            self.assertTrue(item["ownedPaths"])
+            self.assertTrue(item["forbiddenPaths"])
+            self.assertTrue(item["validation"])
+
+    def test_agent_plan_validator_rejects_duplicate_owned_path(self) -> None:
+        errors = decision_packet.validate_agent_plan(
+            [
+                {"name": "one", "ownedPaths": ["tools/example.py"], "forbiddenPaths": []},
+                {"name": "two", "ownedPaths": [r"tools\example.py"], "forbiddenPaths": []},
+            ]
+        )
+
+        self.assertEqual(errors, ["agent-plan-overlapping-owned-path:tools/example.py:one:two"])
+
+    def test_agent_plan_validator_rejects_self_forbidden_owned_path_pattern(self) -> None:
+        errors = decision_packet.validate_agent_plan(
+            [
+                {
+                    "name": "docs",
+                    "ownedPaths": ["docs/workflow/local-decision-control-plane-plan.md"],
+                    "forbiddenPaths": ["docs/**"],
+                }
+            ]
+        )
+
+        self.assertEqual(
+            errors,
+            [
+                "agent-plan-owned-path-forbidden:docs/workflow/local-decision-control-plane-plan.md:docs:docs/**",
+            ],
+        )
 
     def test_high_risk_approval_blocker_requires_stop_state(self) -> None:
         self.assertEqual(decision_packet.milestone_state(["debugger-required"]), "blocked-needs-approval")

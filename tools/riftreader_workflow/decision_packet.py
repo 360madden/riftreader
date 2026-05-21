@@ -9,6 +9,7 @@ pushing, branch rewrites, cleanup/delete operations, or proof promotion.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import sys
 import time
@@ -581,10 +582,16 @@ def validate_agent_plan(agent_plan: list[dict[str, Any]]) -> list[str]:
     owners: dict[str, str] = {}
     errors: list[str] = []
     for item in agent_plan:
+        name = str(item.get("name") or "unnamed-agent")
+        forbidden_patterns = [normalize_path(str(pattern)) for pattern in safe_list(item.get("forbiddenPaths"))]
         for path in safe_list(item.get("ownedPaths")):
-            if path in owners:
-                errors.append(f"agent-plan-overlapping-owned-path:{path}:{owners[path]}:{item.get('name')}")
-            owners[path] = str(item.get("name"))
+            normalized_path = normalize_path(str(path))
+            if normalized_path in owners:
+                errors.append(f"agent-plan-overlapping-owned-path:{normalized_path}:{owners[normalized_path]}:{name}")
+            for pattern in forbidden_patterns:
+                if fnmatch.fnmatch(normalized_path, pattern):
+                    errors.append(f"agent-plan-owned-path-forbidden:{normalized_path}:{name}:{pattern}")
+            owners[normalized_path] = name
     return errors
 
 
