@@ -21,7 +21,7 @@ defensive/resilience hardening slices:
 | OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
-| Commit planner stage preview | `stageCommandPreview` uses `git add -- <paths>` and quotes spaces/metacharacters so copy/paste previews remain explicit-path safe. |
+| Commit planner stage command | `commitPlan.stageCommand` emits an argument array `["git", "add", "--", ...]`; `stageCommandPreview` uses `git add -- <paths>` and quotes spaces/metacharacters for humans. |
 | Post-validation reminders | After `--run-safe-checks` passes and `commitPlan.recommended` is true, `safeNextAction` switches to `commit-ready-explicit-paths` status/commit-plan review instead of looping safe checks. |
 
 ## Verdict
