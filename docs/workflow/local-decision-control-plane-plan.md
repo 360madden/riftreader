@@ -13,6 +13,7 @@ defensive/resilience hardening slices:
 | Area | Implemented behavior |
 |---|---|
 | Malformed tracked JSON | Malformed `current-truth.json` or `current-proof-anchor-readback.json` fails closed with structured packet errors and `targetEpoch.status = invalid-artifact`. |
+| CLI malformed JSON output | `--compact-json` emits a structured failed decision packet and exits `1` for malformed tracked truth/proof JSON instead of dumping an unstructured traceback. |
 | Proof-only target epoch | A current proof artifact without a current-truth target now stays `in-world-unproven` with `current-truth-target-missing` instead of being treated as current. |
 | Ignored cache corruption | Corrupt `.riftreader-local\decision-packet\latest\*` cache artifacts are treated as cache misses and rebuilt; they do not block packet generation. |
 | Dirty-file cache invalidation | Cache fingerprints include dirty tracked file path, Git status, mtime, and size so edits to the same dirty path cannot reuse a stale packet. |
