@@ -194,6 +194,45 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(result["processPresence"], "not-checked-process-presence-is-not-proof")
         self.assertIn(result["status"], {"in-world-unproven", "unknown"})
 
+    def test_visible_rift_process_with_stale_proof_is_not_current_truth(self) -> None:
+        truth = {
+            "target": {
+                "processName": "rift_x64",
+                "processId": 200,
+                "targetWindowHandle": "0xBEEF",
+                "processStartUtc": "2026-05-21T15:00:00Z",
+                "moduleBase": "0x2000",
+                "inWorld": True,
+                "live": True,
+            }
+        }
+        proof = {
+            "status": "current-target-proofonly-passed",
+            "lastUpdatedUtc": "2026-05-21T14:00:00Z",
+            "target": {
+                "processName": "rift_x64",
+                "processId": 100,
+                "targetWindowHandle": "0xCAFE",
+                "processStartUtc": "2026-05-21T14:00:00Z",
+                "moduleBase": "0x1000",
+            },
+        }
+
+        result = decision_packet.classify_target_epoch(truth, proof)
+
+        self.assertEqual(result["status"], "stale")
+        self.assertNotEqual(result["status"], "current")
+        self.assertEqual(result["processPresence"], "not-checked-process-presence-is-not-proof")
+        self.assertIn("target-epoch-pid-drift", result["blockers"])
+        self.assertIn("target-epoch-hwnd-drift", result["blockers"])
+        self.assertIn("target-epoch-process-start-drift", result["blockers"])
+        self.assertIn("target-epoch-module-base-drift", result["blockers"])
+        self.assertIn("proof-older-than-process-start", result["blockers"])
+        self.assertEqual(
+            result["staleAddressPolicy"],
+            "absolute heap addresses are historical hints only after PID/HWND/process-start/module-base drift",
+        )
+
     def test_actor_chain_candidate_only_blocks_promotion(self) -> None:
         result = decision_packet.summarize_truth(
             {
