@@ -424,6 +424,28 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("buildMode", packet["performance"])
         self.assertFalse(packet["safety"]["movementSent"])
 
+    def test_schema_contract_lists_required_fields_and_stage_command(self) -> None:
+        contract = decision_packet.build_schema_contract()
+
+        self.assertEqual(contract["kind"], "riftreader-decision-packet-schema-contract")
+        self.assertIn("commitPlan", contract["requiredTopLevelFields"])
+        self.assertIn("stageCommand", contract["commitPlanFields"])
+        self.assertIn("stageCommandPreview", contract["commitPlanFields"])
+        self.assertIn("blocked-safe", contract["milestoneStates"])
+        self.assertFalse(contract["safety"]["movementSent"])
+
+    def test_cli_schema_json_outputs_static_contract_without_repo_packet(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = decision_packet.main(["--repo-root", str(REPO_ROOT), "--schema-json"])
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["kind"], "riftreader-decision-packet-schema-contract")
+        self.assertIn("requiredTopLevelFields", payload)
+        self.assertIn("commitPlanFields", payload)
+
     def test_malformed_current_truth_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

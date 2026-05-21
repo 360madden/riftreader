@@ -1082,6 +1082,61 @@ def build_self_test(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def build_schema_contract() -> dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-decision-packet-schema-contract",
+        "helperVersion": HELPER_VERSION,
+        "requiredTopLevelFields": [
+            "schemaVersion",
+            "kind",
+            "helperVersion",
+            "generatedAtUtc",
+            "status",
+            "lane",
+            "risk",
+            "repoRoot",
+            "repo",
+            "targetEpoch",
+            "truth",
+            "allowedActions",
+            "forbiddenActions",
+            "safeNextAction",
+            "automationPlan",
+            "validationPlan",
+            "validationResults",
+            "commitPlan",
+            "agentPlan",
+            "llmReminder",
+            "milestoneStatus",
+            "fingerprint",
+            "cacheStatus",
+            "performance",
+            "cacheSafety",
+            "blockers",
+            "warnings",
+            "errors",
+            "safety",
+        ],
+        "statusValues": ["passed", "blocked", "failed"],
+        "milestoneStates": sorted(MILESTONE_STATES),
+        "commitPlanFields": [
+            "recommended",
+            "reason",
+            "suggestedMessage",
+            "explicitPaths",
+            "excludedGeneratedPaths",
+            "pathCategories",
+            "validationRequired",
+            "stageCommand",
+            "stageCommandPreview",
+        ],
+        "safeNextActionFields": ["key", "command", "why"],
+        "llmReminderFields": ["banner", "state", "doNotStopIf", "mustStopIf", "continueWith"],
+        "safety": safety_flags(),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path)
@@ -1096,6 +1151,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reuse ignored packet artifacts only when the fresh fingerprint exactly matches; disabled for --run-safe-checks.",
     )
     parser.add_argument("--self-test", action="store_true", help="Run fixture-only self-test.")
+    parser.add_argument("--schema-json", action="store_true", help="Print the static decision packet schema contract.")
     parser.add_argument("--explain", action="store_true", help="Print Markdown explanation.")
     parser.add_argument("--lane", default=None, help="Override lane label after packet construction.")
     parser.add_argument("--agent-plan", action="store_true", help="Print only the agent plan JSON.")
@@ -1112,6 +1168,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"Status: {result.get('status')}")
         return 0 if result.get("ok") else 1
+    if args.schema_json:
+        print(json.dumps(build_schema_contract(), indent=2, sort_keys=True))
+        return 0
     try:
         packet = build_decision_packet(
             repo_root,
