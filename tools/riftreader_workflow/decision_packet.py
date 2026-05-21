@@ -450,9 +450,15 @@ def command_spec(label: str, command: list[str], why: str, *, expected: Iterable
 
 
 def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any]:
-    paths = [normalize_path(str(item.get("path") or "")) for item in safe_list(git_state.get("changedFiles"))]
+    changed_items = [safe_mapping(item) for item in safe_list(git_state.get("changedFiles"))]
+    paths = [normalize_path(str(item.get("path") or "")) for item in changed_items]
     lower_paths = [path.lower() for path in paths]
     retired_paths = retired_surface_paths(git_state)
+    changed_python_paths = [
+        normalize_path(str(item.get("path") or ""))
+        for item in changed_items
+        if normalize_path(str(item.get("path") or "")).lower().endswith(".py") and "D" not in str(item.get("status") or "")
+    ]
     commands: list[dict[str, Any]] = [
         command_spec("diff-check", ["git", "--no-pager", "diff", "--check"], "Check whitespace/errors in current diff."),
         command_spec(
@@ -462,11 +468,15 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
         ),
     ]
     if any(path.endswith(".py") for path in lower_paths) or any("decision_packet" in path for path in lower_paths):
+        compile_paths = list(changed_python_paths)
+        if any("decision_packet" in path for path in lower_paths):
+            compile_paths.extend(["tools/riftreader_workflow/decision_packet.py", "scripts/test_decision_packet.py"])
+        compile_paths = list(dict.fromkeys(compile_paths)) or ["tools/riftreader_workflow/decision_packet.py", "scripts/test_decision_packet.py"]
         commands.append(
             command_spec(
                 "py-compile-decision-packet",
-                ["python", "-m", "py_compile", "tools/riftreader_workflow/decision_packet.py", "scripts/test_decision_packet.py"],
-                "Compile decision packet helper and tests.",
+                ["python", "-m", "py_compile", *compile_paths],
+                "Compile changed Python files and decision packet tests when relevant.",
             )
         )
     if any("decision_packet" in path or "riftreader-decision-packet" in path for path in lower_paths) or not paths:
@@ -498,6 +508,22 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "opencode-bridge-tests",
                 ["python", "-m", "unittest", "scripts.test_opencode_bridge", "scripts.test_opencode_status_packet"],
                 "Validate OpenCode prompt/status integration.",
+            )
+        )
+    if any(
+        path in {
+            "agents.md",
+            "docs/workflow/codex-agent-routing-policy.md",
+            "docs/workflow/local-decision-control-plane-plan.md",
+            "scripts/test_retired_surface_policy.py",
+        }
+        for path in lower_paths
+    ):
+        commands.append(
+            command_spec(
+                "retired-surface-policy-tests",
+                ["python", "-m", "unittest", "scripts.test_retired_surface_policy"],
+                "Validate retired OpenCode surface policy remains durable in primary docs.",
             )
         )
     if any("operator_lite" in path or "test_operator_lite" in path for path in lower_paths):

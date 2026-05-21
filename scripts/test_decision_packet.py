@@ -263,6 +263,27 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("decision-packet-tests", labels)
         self.assertIn("policy-lint-changed", labels)
 
+    def test_validation_plan_selects_retired_surface_policy_tests_for_policy_docs(self) -> None:
+        plan = decision_packet.build_validation_plan(
+            {"changedFiles": [{"path": "docs/workflow/codex-agent-routing-policy.md"}]},
+            "docs",
+        )
+        labels = {item["label"] for item in plan["commands"]}
+
+        self.assertIn("retired-surface-policy-tests", labels)
+
+    def test_validation_plan_compiles_changed_python_file(self) -> None:
+        plan = decision_packet.build_validation_plan(
+            {"changedFiles": [{"path": "scripts/test_retired_surface_policy.py", "status": "??"}]},
+            "git",
+        )
+        compile_commands = [item for item in plan["commands"] if item["label"] == "py-compile-decision-packet"]
+        labels = {item["label"] for item in plan["commands"]}
+
+        self.assertEqual(len(compile_commands), 1)
+        self.assertIn("scripts/test_retired_surface_policy.py", compile_commands[0]["command"])
+        self.assertIn("retired-surface-policy-tests", labels)
+
     def test_dirty_docs_only_lane_and_commit_plan_are_coherent(self) -> None:
         git_state = {"changedFiles": [{"path": "docs/workflow/example.md", "generated": False}], "dirty": True}
 
