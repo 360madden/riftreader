@@ -1,7 +1,7 @@
 # Operator Lite
 
 Created: 2026-05-17
-Updated: 2026-05-19
+Updated: 2026-05-21
 Scope: Offline-safe local launcher for the local ChatGPT/non-Codex RiftReader workflow-control-plane helpers.
 
 ## Verdict
@@ -10,6 +10,7 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 
 - Workflow Status;
 - Compact ChatGPT SITREP;
+- Refresh Decision Packet;
 - Live-Test Fast-Lane Triage;
 - Package Intake dry-run;
 - Package Intake self-test;
@@ -38,16 +39,21 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 
 It intentionally disables target-control, visual gate, ProofOnly, movement, CE, x64dbg, bridge serve/tunnel management, staging, committing, and pushing.
 
-## Planned Decision Packet integration
+## Decision Packet integration
 
-The next workflow-control-plane layer is tracked in
+The local decision-control-plane layer is tracked in
 `docs/workflow/local-decision-control-plane-plan.md`.
 
-After the read-only `riftreader-decision-packet.cmd` milestone exists, Operator
-Lite may add a safe `Refresh Decision Packet` command/readout. That future
-button should display status, lane, risk, blockers, and the safest next command
-only. It must not add movement, debugger, ProofOnly, target-control, staging,
-commit, push, serve, or tunnel controls.
+Operator Lite includes a safe `Refresh Decision Packet` command/button that runs:
+
+```powershell
+.\scripts\riftreader-operator-lite.cmd --decision-packet --json
+```
+
+It writes only ignored `.riftreader-local\decision-packet\latest\*` artifacts and
+returns packet status, lane, risk, blockers, and the safest next command. It does
+not add movement, debugger, ProofOnly, target-control, staging, commit, push,
+serve, or tunnel controls.
 
 ## Commands
 

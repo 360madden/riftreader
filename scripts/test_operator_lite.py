@@ -38,6 +38,7 @@ def make_repo(root: Path) -> None:
         "riftreader-chatgpt-trial-recorder.cmd",
         "riftreader-safe-commit-packager.cmd",
         "riftreader-workflow-router.cmd",
+        "riftreader-decision-packet.cmd",
     ]:
         (scripts / name).write_text("@echo off\n", encoding="utf-8")
 
@@ -80,6 +81,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "chatgpt-trial-proof-template",
                 "safe-commit-plan",
                 "workflow-router-mcp",
+                "decision-packet",
                 "git-status",
             },
         )
@@ -148,6 +150,11 @@ class OperatorLiteTests(unittest.TestCase):
         router = next(item for item in plan["commands"] if item["key"] == "workflow-router-mcp")
         self.assertIn("riftreader-workflow-router.cmd", router["args"][0])
         self.assertIn("--mcp", router["args"])
+        decision_packet = next(item for item in plan["commands"] if item["key"] == "decision-packet")
+        self.assertIn("riftreader-decision-packet.cmd", decision_packet["args"][0])
+        self.assertIn("--write", decision_packet["args"])
+        self.assertIn("--compact-json", decision_packet["args"])
+        self.assertEqual(decision_packet["expectedExitCodes"], [0, 2])
         self.assertIn("bridge-serve-or-tunnel", plan["disabledLiveActions"])
         self.assertFalse(plan["safety"]["movementSent"])
         self.assertFalse(plan["safety"]["gitMutation"])
@@ -299,6 +306,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("ChatGPT trial proof template button", summary["visualRules"])
         self.assertIn("safe commit plan button", summary["visualRules"])
         self.assertIn("workflow router button", summary["visualRules"])
+        self.assertIn("local decision packet refresh button", summary["visualRules"])
         self.assertIn("manual bridge start command copy", summary["visualRules"])
         self.assertIn("guarded inbox index button", summary["visualRules"])
         self.assertIn("redacted ChatGPT bridge prompt copy", summary["visualRules"])
@@ -322,6 +330,7 @@ class OperatorLiteTests(unittest.TestCase):
 
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
+        self.assertIn("decision-packet", {item["key"] for item in payload["commands"]})
         self.assertEqual(payload["commandAliases"]["session-start"], "bridge-session-start")
         self.assertEqual(payload["commandAliases"]["package-draft"], "bridge-inbox-package-draft")
         self.assertEqual(payload["commandAliases"]["package-draft-index"], "package-draft-index")
@@ -336,6 +345,8 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandAliases"]["chatgpt-trial-proof"], "chatgpt-trial-proof-template")
         self.assertEqual(payload["commandAliases"]["safe-commit-plan"], "safe-commit-plan")
         self.assertEqual(payload["commandAliases"]["workflow-router"], "workflow-router-mcp")
+        self.assertEqual(payload["commandAliases"]["decision-packet"], "decision-packet")
+        self.assertEqual(payload["commandAliases"]["refresh-decision-packet"], "decision-packet")
         self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("bridge-proposal-loop-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("bridge-trial-readiness", {item["key"] for item in payload["groups"]})
@@ -370,6 +381,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("RiftReader Operator Lite Command Reference", markdown)
         self.assertIn("`mcp-mission-control`", markdown)
         self.assertIn("`safe-commit-plan`", markdown)
+        self.assertIn("`decision-packet`", markdown)
         self.assertIn("Disabled live actions", markdown)
         self.assertIn("`bridge-serve-or-tunnel`", markdown)
 
@@ -554,6 +566,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["kind"], "riftreader-operator-lite-command-list")
         self.assertIn("bridge-session-start", {item["key"] for item in payload["commands"]})
+        self.assertIn("decision-packet", {item["key"] for item in payload["commands"]})
         self.assertIn("bridge-startup-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("bridge-proposal-loop-checks", {item["key"] for item in payload["groups"]})
         self.assertIn("bridge-trial-readiness", {item["key"] for item in payload["groups"]})
@@ -706,6 +719,7 @@ class OperatorLiteTests(unittest.TestCase):
             "--chatgpt-trial-proof-template": "chatgpt-trial-proof-template",
             "--safe-commit-plan": "safe-commit-plan",
             "--workflow-router": "workflow-router-mcp",
+            "--decision-packet": "decision-packet",
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -853,6 +867,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--chatgpt-trial-proof-template", help_text)
         self.assertIn("--safe-commit-plan", help_text)
         self.assertIn("--workflow-router", help_text)
+        self.assertIn("--decision-packet", help_text)
         self.assertIn("--command-reference-md", help_text)
         self.assertIn("--proposal-loop-checks", help_text)
         self.assertIn("--trial-readiness", help_text)

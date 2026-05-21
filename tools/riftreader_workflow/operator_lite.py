@@ -86,6 +86,9 @@ COMMAND_ALIASES = {
     "safe-commit-plan": "safe-commit-plan",
     "workflow-router": "workflow-router-mcp",
     "mcp-router": "workflow-router-mcp",
+    "decision-packet": "decision-packet",
+    "refresh-decision-packet": "decision-packet",
+    "local-decision-packet": "decision-packet",
 }
 GROUP_ALIASES = {
     "startup": "bridge-startup-checks",
@@ -161,6 +164,14 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             args=(str(scripts / "riftreader-workflow-status.cmd"), "--write"),
             timeout_seconds=90,
             description="Build a deterministic status packet under .riftreader-local.",
+            expected_exit_codes=(0, 2),
+        ),
+        "decision-packet": CommandSpec(
+            key="decision-packet",
+            label="Refresh Decision Packet",
+            args=(str(scripts / "riftreader-decision-packet.cmd"), "--write", "--compact-json"),
+            timeout_seconds=120,
+            description="Build the local decision packet with LLM reminders, safe next action, validation plan, and blockers.",
             expected_exit_codes=(0, 2),
         ),
         "compact-sitrep": CommandSpec(
@@ -641,6 +652,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json",
             ".\\scripts\\riftreader-operator-lite.cmd --safe-commit-plan --json",
             ".\\scripts\\riftreader-operator-lite.cmd --workflow-router --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --run decision-packet --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --proposal-loop-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
@@ -1080,6 +1092,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "redacted ChatGPT bridge prompt copy",
             "muted locked-control badges",
             "persistent safe-mode status bar",
+            "local decision packet refresh button",
         ],
     }
 
@@ -1295,6 +1308,7 @@ def run_gui(repo_root: Path) -> int:
         append("Copied redacted ChatGPT bridge prompt to clipboard.")
 
     action_button(workflow_frame, "Refresh Workflow Status", lambda: run_spec("workflow-status"), "primary")
+    action_button(workflow_frame, "Refresh Decision Packet", lambda: run_spec("decision-packet"), "primary", width=24)
     action_button(workflow_frame, "Compact ChatGPT SITREP", lambda: run_spec("compact-sitrep"), "primary", width=23)
     action_button(workflow_frame, "Run Live-Test Triage", lambda: run_spec("live-triage"), "warning")
 
@@ -1424,6 +1438,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json | "
             "riftreader-operator-lite.cmd --safe-commit-plan --json | "
             "riftreader-operator-lite.cmd --workflow-router --json | "
+            "riftreader-operator-lite.cmd --decision-packet --json | "
             "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
             "riftreader-operator-lite.cmd --proposal-loop-checks --json | "
             "riftreader-operator-lite.cmd --trial-readiness --json | "
@@ -1493,6 +1508,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Shortcut for --run workflow-router-mcp.",
     )
+    parser.add_argument(
+        "--decision-packet",
+        action="store_true",
+        help="Shortcut for --run decision-packet. Read-only packet refresh; local ignored artifacts only.",
+    )
     parser.add_argument("--bridge-startup-checks", action="store_true", help="Shortcut for --run-all bridge-startup-checks.")
     parser.add_argument(
         "--proposal-loop-checks",
@@ -1546,6 +1566,8 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "safe-commit-plan"
     if args.workflow_router:
         shortcut_command = "workflow-router-mcp"
+    if args.decision_packet:
+        shortcut_command = "decision-packet"
     shortcut_count = sum(
         1
         for selected in (
@@ -1565,6 +1587,7 @@ def main(argv: list[str] | None = None) -> int:
             args.chatgpt_trial_proof_template,
             args.safe_commit_plan,
             args.workflow_router,
+            args.decision_packet,
         )
         if selected
     )

@@ -21,6 +21,7 @@ from typing import Any
 
 try:
     from .common import find_repo_root, preview_text, repo_rel, safety_flags, timestamped_output_dir, utc_iso
+    from .decision_packet import build_decision_packet, compact_decision_packet
     from .status_packet import (
         build_status_packet,
         compact_summary,
@@ -37,6 +38,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
         timestamped_output_dir,
         utc_iso,
     )
+    from riftreader_workflow.decision_packet import build_decision_packet, compact_decision_packet  # type: ignore[no-redef]
     from riftreader_workflow.status_packet import (  # type: ignore[no-redef]
         build_status_packet,
         compact_summary,
@@ -57,8 +59,11 @@ LANE_RECOMMENDED_AGENTS: dict[str, str] = {
 INTEGRATION_ALLOWED_EDIT_PATHS: tuple[str, ...] = (
     "tools/riftreader_workflow/opencode_bridge.py",
     "tools/riftreader_workflow/status_packet.py",
+    "tools/riftreader_workflow/decision_packet.py",
     "scripts/riftreader-opencode-*.cmd",
+    "scripts/riftreader-decision-packet.cmd",
     "scripts/test_opencode*.py",
+    "scripts/test_decision_packet.py",
     "docs/workflow/opencode-non-codex-bridge.md",
     "docs/workflow/non-codex-desktop-chatgpt-workflow.md",
     ".opencode/opencode.example.jsonc",
@@ -66,6 +71,8 @@ INTEGRATION_ALLOWED_EDIT_PATHS: tuple[str, ...] = (
 INTEGRATION_GROUNDING_FILES: tuple[str, ...] = (
     "tools/riftreader_workflow/opencode_bridge.py",
     "tools/riftreader_workflow/status_packet.py",
+    "tools/riftreader_workflow/decision_packet.py",
+    "scripts/riftreader-decision-packet.cmd",
     "scripts/riftreader-opencode-prompt.cmd",
     "scripts/riftreader-opencode-integration.cmd",
     "scripts/riftreader-opencode-sitrep.cmd",
@@ -73,6 +80,7 @@ INTEGRATION_GROUNDING_FILES: tuple[str, ...] = (
     "scripts/riftreader-opencode-package-review.cmd",
     "scripts/test_opencode_bridge.py",
     "scripts/test_opencode_status_packet.py",
+    "scripts/test_decision_packet.py",
     "docs/workflow/opencode-non-codex-bridge.md",
     "docs/workflow/non-codex-desktop-chatgpt-workflow.md",
     ".opencode/opencode.example.jsonc",
@@ -674,6 +682,7 @@ def build_adaptive_prompt(lane: str, compact: dict[str, Any], *, package_path: s
         [
             "",
             "Auto-adaptive decision rules:",
+            "- Prefer the local decision packet embedded in the preflight snapshot for lane, risk, stale-target blockers, reminders, validation plan, and safe next action.",
         ]
     )
     for item in focus:
@@ -722,7 +731,9 @@ def build_bridge_summary(
         check_opencode=check_opencode,
         collect_git_state=True,
     )
+    decision_packet = build_decision_packet(repo_root)
     compact = compact_summary(packet)
+    compact["decisionPacket"] = compact_decision_packet(decision_packet)
     prompt = build_adaptive_prompt(lane, compact, package_path=package_path)
     base = output_root if output_root is not None else repo_root / DEFAULT_OUTPUT_DIR
     if not base.is_absolute():
@@ -744,6 +755,7 @@ def build_bridge_summary(
         "promptPreview": preview_text(prompt, max_lines=60, max_chars=12000),
         "lanePolicy": lane_policy(lane),
         "compactStatus": compact,
+        "decisionPacket": compact["decisionPacket"],
         "requiredCommands": required_commands(lane, package_path),
         "safety": safety_flags(),
         "artifacts": {

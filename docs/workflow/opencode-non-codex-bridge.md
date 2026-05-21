@@ -114,18 +114,17 @@ the local wrapper scripts exist, including adaptive prompt dry-run, autonomous
 OpenCode integration, package self-test, package review, live observer, Operator
 Lite, and deterministic status commands.
 
-### Planned decision-packet integration
+### Decision-packet integration
 
-The durable plan for the next local offload layer is
+The durable plan for the local offload layer is
 `docs/workflow/local-decision-control-plane-plan.md`.
 
-Once Phase 1 of that plan is implemented, OpenCode prompts should consume the
-new decision packet before falling back to broader repo context. The packet is
-intended to provide lane, risk, stale-target blockers, forbidden actions,
-validation recommendations, and allowed edit slices in a compact local object.
-Until then, keep using `scripts\riftreader-workflow-status.cmd --compact-json`
-plus lane-specific helpers such as
-`python .\scripts\actor_chain_no_debug_status.py --json` and
+OpenCode prompts now prefer the compact local decision packet before falling
+back to broader repo context. The packet provides lane, risk, stale-target
+blockers, forbidden actions, validation recommendations, and allowed edit slices
+in a compact local object. If the packet helper is blocked or unavailable, keep
+using `scripts\riftreader-workflow-status.cmd --compact-json` plus lane-specific
+helpers such as `python .\scripts\actor_chain_no_debug_status.py --json` and
 `python .\scripts\coordinate_recovery_status.py --json`.
 
 Write ignored JSON/Markdown artifacts under `.riftreader-local`:

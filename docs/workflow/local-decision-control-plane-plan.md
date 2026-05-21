@@ -1,7 +1,8 @@
 # Local Decision Control Plane Plan
 
-Status: **draft plan, not yet implemented**
+Status: **implementation v0 landed; helper/validation/packet reminders available**
 Created: 2026-05-21
+Implemented: 2026-05-21
 Scope: RiftReader repo workflow acceleration and safety gating
 
 ## Verdict
@@ -28,10 +29,7 @@ Add one local read-only decision packet command that answers:
 | What validation is needed? | Checks inferred from changed files and lane risk |
 | What can agents work on safely? | Non-overlapping file/task slices with ownership boundaries |
 
-## Proposed command surface
-
-These commands are proposed and must not be documented as available until Phase 1
-implements them.
+## Command surface
 
 ```powershell
 cd "C:\RIFT MODDING\RiftReader"
@@ -43,6 +41,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--json` | Full machine-readable packet |
 | `--compact-json` | Small packet for LLM/OpenCode prompts |
 | `--write` | Write ignored JSON/Markdown under `.riftreader-local` |
+| `--run-safe-checks` | Run only packet-approved safe validations and attach command envelopes |
 | `--self-test` | Validate rule fixtures without live reads/input |
 | `--explain` | Human-readable explanation of the current decision |
 | `--lane <name>` | Force lane-specific summarization |
@@ -52,6 +51,7 @@ Proposed ignored outputs:
 
 ```text
 .riftreader-local\decision-packet\latest\decision-packet.json
+.riftreader-local\decision-packet\latest\decision-packet-compact.json
 .riftreader-local\decision-packet\latest\decision-packet.md
 .riftreader-local\decision-packet\latest\fingerprint.json
 ```
@@ -169,6 +169,19 @@ Exit-code convention:
 | 8 | Operator Lite integration | Add safe button/readout for packet | Low | UI workflow acceleration |
 | 9 | Hardening + caching | Add fingerprints, invalidation, regression tests | Medium | Faster repeated runs |
 | 10 | v1 gate | Make packet the first repo-work command | Medium | Documented workflow standard |
+
+## Current v0 implementation status
+
+| Area | Status | Notes |
+|---|---|---|
+| Read-only packet MVP | ✅ Implemented | `tools/riftreader_workflow/decision_packet.py`, `scripts/riftreader-decision-packet.cmd`, and `scripts/test_decision_packet.py` |
+| Safe validation runner | ✅ Implemented | `--run-safe-checks` executes only packet-selected safe commands and records command envelopes |
+| Restart/update resilience | ✅ Implemented in packet fixtures | PID/HWND/process-start/module-base/proof-age drift blocks proof reuse; process presence is never proof |
+| Commit planner | ✅ Implemented as non-mutating planner | Emits explicit paths, generated exclusions, validation gate, and stage preview only |
+| Agent planner | ✅ Implemented | Emits non-overlapping ownership slices and reminds that the main agent owns integration/commit |
+| Operator Lite integration | ✅ Implemented | Safe `Refresh Decision Packet` command/button; no live/debugger/Git action added |
+| OpenCode integration | ✅ Implemented | Prompt builder includes compact decision packet before broader repo context |
+| Cache/speed hardening | ⚠️ v0 fingerprint only | Fingerprint covers helper version, Git HEAD, changed files, current-truth/proof mtimes; cache is advisory only |
 
 ## Milestones
 
