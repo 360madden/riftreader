@@ -19,7 +19,7 @@ defensive/resilience hardening slices:
 | Dirty-file cache invalidation | Cache fingerprints include dirty tracked file path, Git status, mtime, and size so edits to the same dirty path cannot reuse a stale packet. |
 | Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
 | Schema contract CLI | `--schema-json` emits required top-level fields, valid milestone states, commit-plan fields, agent-plan fields, agent-plan authority/risk enum values, and safety flags without building a repo packet. |
-| OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
+| OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, `milestoneStatus`, and `agentPlan` fields. |
 | OpenCode commit-ready reminders | OpenCode prompts detect `commit-ready-explicit-paths` and tell agents to review status plus `commitPlan.stageCommand/stageCommandPreview` instead of rerunning identical safe checks. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Operator Lite schema contract | `--decision-packet-schema --json` exposes the read-only `--schema-json` contract with parsed `stdoutJson` and no artifact writes. |
@@ -64,7 +64,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Mode | Purpose |
 |---|---|
 | `--json` | Full machine-readable packet |
-| `--compact-json` | Small packet for LLM/OpenCode prompts |
+| `--compact-json` | Small packet for LLM/OpenCode prompts, including `agentPlan` work-slice boundaries |
 | `--write` | Write ignored JSON/Markdown under `.riftreader-local` |
 | `--run-safe-checks` | Run only packet-approved safe validations and attach command envelopes |
 | `--use-cache` | Reuse ignored packet artifacts only when a fresh fingerprint exactly matches; disabled by `--run-safe-checks` |
