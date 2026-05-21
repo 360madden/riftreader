@@ -124,10 +124,11 @@ def commit_path_category(path: str) -> str:
 
 def quote_stage_path(path: str) -> str:
     if not path:
-        return '""'
-    if any(char.isspace() for char in path) or '"' in path:
-        return '"' + path.replace('"', '\\"') + '"'
-    return path
+        return "''"
+    safe_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/\\:")
+    if all(char in safe_chars for char in path):
+        return path
+    return "'" + path.replace("'", "''") + "'"
 
 
 def parse_iso(value: Any) -> datetime | None:
@@ -538,7 +539,7 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
         "excludedGeneratedPaths": excluded_generated,
         "pathCategories": categories,
         "validationRequired": not bool(validation_results),
-        "stageCommandPreview": "git add " + " ".join(quote_stage_path(path) for path in explicit_paths),
+        "stageCommandPreview": "git add -- " + " ".join(quote_stage_path(path) for path in explicit_paths),
     }
 
 

@@ -251,7 +251,16 @@ class DecisionPacketTests(unittest.TestCase):
         )
 
         self.assertTrue(commit_plan["recommended"])
-        self.assertEqual(commit_plan["stageCommandPreview"], 'git add "docs/workflow/example with space.md"')
+        self.assertEqual(commit_plan["stageCommandPreview"], "git add -- 'docs/workflow/example with space.md'")
+
+    def test_commit_plan_quotes_stage_preview_shell_metacharacters(self) -> None:
+        commit_plan = decision_packet.build_commit_plan(
+            {"changedFiles": [{"path": "docs/workflow/example&name.md", "generated": False}]},
+            [{"ok": True}],
+        )
+
+        self.assertTrue(commit_plan["recommended"])
+        self.assertEqual(commit_plan["stageCommandPreview"], "git add -- 'docs/workflow/example&name.md'")
 
     def test_commit_plan_excludes_generated_and_blocks_live_truth(self) -> None:
         generated = decision_packet.build_commit_plan(
@@ -690,7 +699,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "suggestedMessage": "Update docs",
                 "explicitPaths": ["docs/workflow/example.md"],
                 "excludedGeneratedPaths": ["scripts/captures/run/summary.json"],
-                "stageCommandPreview": "git add docs/workflow/example.md",
+                "stageCommandPreview": "git add -- docs/workflow/example.md",
             },
             "performance": {
                 "buildMode": "cache-reused",
@@ -706,7 +715,7 @@ class DecisionPacketTests(unittest.TestCase):
         markdown = decision_packet.build_markdown(packet)
 
         self.assertIn("# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**", markdown)
-        self.assertIn("`git add docs/workflow/example.md`", markdown)
+        self.assertIn("`git add -- docs/workflow/example.md`", markdown)
         self.assertIn("`docs/workflow/example.md`", markdown)
         self.assertIn("`scripts/captures/run/summary.json`", markdown)
         self.assertIn("| Build mode | `cache-reused` |", markdown)
