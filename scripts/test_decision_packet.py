@@ -353,6 +353,24 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertTrue(cached_payload["performance"]["cacheReused"])
         self.assertIn("actor-chain-candidate-only", cached_payload["blockers"])
 
+    def test_cli_explain_renders_reminder_commit_and_performance_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = decision_packet.main(["--repo-root", str(root), "--explain"])
+            markdown = stdout.getvalue()
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("# **🚦 NEXT ACTION — CONTINUE SAFELY**", markdown)
+        self.assertIn("## Commit planner", markdown)
+        self.assertIn("# **⚠️ NOT COMMIT-READY**", markdown)
+        self.assertIn("## Performance", markdown)
+        self.assertIn("| Build mode | `fresh` |", markdown)
+        self.assertIn("actor-chain-candidate-only", markdown)
+
     def test_cache_miss_after_current_truth_mtime_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
