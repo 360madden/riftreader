@@ -586,6 +586,24 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("agentPlanAuthorityValues", payload)
         self.assertIn("agentPlanRiskValues", payload)
 
+    def test_cli_agent_plan_outputs_plan_and_reminder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = decision_packet.main(["--repo-root", str(root), "--agent-plan"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("agentPlan", payload)
+        self.assertIn("llmReminder", payload)
+        self.assertTrue(payload["agentPlan"])
+        self.assertEqual(payload["agentPlan"][0]["authority"], "write")
+        self.assertIn("ownedPaths", payload["agentPlan"][0])
+        self.assertEqual(payload["llmReminder"]["banner"], "# **🚦 NEXT ACTION — CONTINUE SAFELY**")
+
     def test_malformed_current_truth_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
