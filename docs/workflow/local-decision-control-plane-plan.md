@@ -42,6 +42,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | `--compact-json` | Small packet for LLM/OpenCode prompts |
 | `--write` | Write ignored JSON/Markdown under `.riftreader-local` |
 | `--run-safe-checks` | Run only packet-approved safe validations and attach command envelopes |
+| `--use-cache` | Reuse ignored packet artifacts only when a fresh fingerprint exactly matches; disabled by `--run-safe-checks` |
 | `--self-test` | Validate rule fixtures without live reads/input |
 | `--explain` | Human-readable explanation of the current decision |
 | `--lane <name>` | Force lane-specific summarization |
@@ -181,7 +182,7 @@ Exit-code convention:
 | Agent planner | ✅ Implemented | Emits non-overlapping ownership slices and reminds that the main agent owns integration/commit |
 | Operator Lite integration | ✅ Implemented | Safe `Refresh Decision Packet` command/button; no live/debugger/Git action added |
 | OpenCode integration | ✅ Implemented | Prompt builder includes compact decision packet before broader repo context |
-| Cache/speed hardening | ⚠️ v0 fingerprint only | Fingerprint covers helper version, Git HEAD, changed files, current-truth/proof mtimes; cache is advisory only |
+| Cache/speed hardening | ✅ v0 implemented | Fingerprint covers helper version, Git HEAD, changed files, current-truth/proof mtimes/sizes; cache is opt-in, ignored-local only, and disabled for safe validation runs |
 
 ## Milestones
 
