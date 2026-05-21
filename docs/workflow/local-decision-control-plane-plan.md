@@ -19,6 +19,7 @@ defensive/resilience hardening slices:
 | Dirty-file cache invalidation | Cache fingerprints include dirty tracked file path, Git status, mtime, and size so edits to the same dirty path cannot reuse a stale packet. |
 | Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
 | OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
+| OpenCode commit-ready reminders | OpenCode prompts detect `commit-ready-explicit-paths` and tell agents to review status plus `commitPlan.stageCommand/stageCommandPreview` instead of rerunning identical safe checks. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Operator Lite JSON passthrough | Operator Lite command runs parse JSON stdout into `stdoutJson` so consumers can read decision-packet fields like `commitPlan.stageCommand` without parsing raw console text. |
 | Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
