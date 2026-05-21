@@ -566,6 +566,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("stageCommandPreview", contract["commitPlanFields"])
         self.assertIn("ownedPaths", contract["agentPlanFields"])
         self.assertIn("forbiddenPaths", contract["agentPlanFields"])
+        self.assertEqual(contract["agentPlanAuthorityValues"], ["read", "write"])
+        self.assertEqual(contract["agentPlanRiskValues"], ["low", "medium", "high"])
         self.assertIn("blocked-safe", contract["milestoneStates"])
         self.assertFalse(contract["safety"]["movementSent"])
 
@@ -581,6 +583,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("requiredTopLevelFields", payload)
         self.assertIn("commitPlanFields", payload)
         self.assertIn("agentPlanFields", payload)
+        self.assertIn("agentPlanAuthorityValues", payload)
+        self.assertIn("agentPlanRiskValues", payload)
 
     def test_malformed_current_truth_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
