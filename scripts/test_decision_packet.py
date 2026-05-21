@@ -314,6 +314,32 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("actor-chain-candidate-only", packet["blockers"])
         self.assertEqual(packet["milestoneStatus"]["state"], "blocked-safe")
 
+    def test_malformed_current_truth_fails_closed_with_structured_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_text(root / "docs" / "recovery" / "current-truth.json", "{not-json")
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["status"], "failed")
+        self.assertIn("current-truth-malformed", packet["blockers"])
+        self.assertTrue(any(str(item).startswith("current-truth-malformed:") for item in packet["errors"]))
+        self.assertNotEqual(packet["targetEpoch"]["status"], "current")
+
+    def test_malformed_current_proof_fails_closed_with_structured_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_text(root / "docs" / "recovery" / "current-proof-anchor-readback.json", "[]")
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["status"], "failed")
+        self.assertIn("current-proof-malformed", packet["blockers"])
+        self.assertTrue(any(str(item).startswith("current-proof-malformed:") for item in packet["errors"]))
+        self.assertNotEqual(packet["targetEpoch"]["status"], "current")
+
     def test_cache_reuses_packet_only_when_fingerprint_matches(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -332,6 +358,39 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertTrue(cached["cacheSafety"]["freshFingerprintChecked"])
         self.assertEqual(cached["targetEpoch"]["status"], "current")
         self.assertIn("actor-chain-candidate-only", cached["blockers"])
+
+    def test_corrupted_cache_is_miss_not_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            write_text(output_dir / "decision-packet.json", "{corrupt-cache")
+            rebuilt = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
+
+        self.assertEqual(rebuilt["cacheStatus"], "miss")
+        self.assertEqual(rebuilt["performance"]["buildMode"], "fresh")
+        self.assertFalse(rebuilt["performance"]["cacheReused"])
+        self.assertEqual(rebuilt["targetEpoch"]["status"], "current")
+
+    def test_corrupted_fingerprint_does_not_block_output_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            write_text(output_dir / "fingerprint.json", "{corrupt-fingerprint")
+            artifacts = decision_packet.write_outputs(root, packet, output_dir)
+
+        self.assertEqual(packet["cacheStatus"], "miss")
+        self.assertEqual(
+            decision_packet.normalize_path(artifacts["fingerprint"]),
+            "riftreader-local/decision-packet/latest/fingerprint.json",
+        )
 
     def test_cli_use_cache_reuses_written_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

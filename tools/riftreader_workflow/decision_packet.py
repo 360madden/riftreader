@@ -90,6 +90,13 @@ def load_json_object(path: Path) -> dict[str, Any] | None:
     return data
 
 
+def try_load_json_object(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        return load_json_object(path), None
+    except Exception as exc:  # noqa: BLE001 - helper must fail closed with structured packet errors.
+        return None, f"{type(exc).__name__}: {exc}"
+
+
 def normalize_path(path: str) -> str:
     return path.replace("\\", "/").lstrip("./")
 
@@ -655,10 +662,14 @@ def load_cached_packet(repo_root: Path, output_dir: Path, fingerprint: dict[str,
     fingerprint_path = output_dir / "fingerprint.json"
     if not packet_path.is_file() or not fingerprint_path.is_file():
         return None
-    cached_fingerprint = load_json_object(fingerprint_path)
+    cached_fingerprint, fingerprint_error = try_load_json_object(fingerprint_path)
+    if fingerprint_error:
+        return None
     if cached_fingerprint != fingerprint:
         return None
-    packet = load_json_object(packet_path)
+    packet, packet_error = try_load_json_object(packet_path)
+    if packet_error:
+        return None
     if not packet:
         return None
     if packet.get("schemaVersion") != SCHEMA_VERSION or packet.get("helperVersion") != HELPER_VERSION:
@@ -733,17 +744,34 @@ def build_decision_packet(
                 "totalDurationSeconds": round(time.monotonic() - build_started, 3),
             }
             return cached
-    truth = load_json_object(truth_path)
-    proof = load_json_object(proof_path)
+    truth, truth_error = try_load_json_object(truth_path)
+    proof, proof_error = try_load_json_object(proof_path)
+    malformed_blockers: list[str] = []
+    if truth_error:
+        errors.append(f"current-truth-malformed:{repo_rel(repo_root, truth_path)}:{preview_text(truth_error)}")
+        malformed_blockers.append("current-truth-malformed")
+    if proof_error:
+        errors.append(f"current-proof-malformed:{repo_rel(repo_root, proof_path)}:{preview_text(proof_error)}")
+        malformed_blockers.append("current-proof-malformed")
     if truth is None:
-        warnings.append(f"current-truth-missing:{repo_rel(repo_root, truth_path)}")
+        if not truth_error:
+            warnings.append(f"current-truth-missing:{repo_rel(repo_root, truth_path)}")
     if proof is None:
-        warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
+        if not proof_error:
+            warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
     target_epoch = classify_target_epoch(truth, proof)
+    if malformed_blockers:
+        target_epoch = {
+            **target_epoch,
+            "status": "invalid-artifact",
+            "blockers": sorted(set(safe_list(target_epoch.get("blockers")) + malformed_blockers)),
+            "proofUseAllowed": False,
+        }
     truth_summary = summarize_truth(truth, proof)
     lane = classify_lane(git_state, target_epoch, truth_summary)
     risk = classify_risk(lane, git_state, target_epoch)
     blockers: list[str] = []
+    blockers.extend(malformed_blockers)
     blockers.extend(str(item) for item in target_epoch.get("blockers") or [])
     blockers.extend(str(item) for item in safe_mapping(truth_summary.get("actorChain")).get("blockers") or [] if lane == "actor-chain")
     agent_plan = build_agent_plan()
@@ -949,7 +977,9 @@ def write_outputs(repo_root: Path, packet: dict[str, Any], output_dir: Path) -> 
     output_dir = resolve_output_dir(repo_root, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     fingerprint_path = output_dir / "fingerprint.json"
-    old_fingerprint = load_json_object(fingerprint_path) if fingerprint_path.exists() else None
+    old_fingerprint = None
+    if fingerprint_path.exists():
+        old_fingerprint, _fingerprint_error = try_load_json_object(fingerprint_path)
     write_cache_status = "hit" if old_fingerprint == packet.get("fingerprint") else "miss"
     packet["cacheStatus"] = "reused" if packet.get("cacheStatus") == "reused" and write_cache_status == "hit" else write_cache_status
     json_path = output_dir / "decision-packet.json"
