@@ -616,6 +616,16 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
     }
 
 
+def build_post_validation_next_action(run_safe_checks: bool, commit_plan: dict[str, Any]) -> dict[str, Any] | None:
+    if not run_safe_checks or commit_plan.get("recommended") is not True:
+        return None
+    return {
+        "key": "commit-ready-explicit-paths",
+        "command": ["git", "--no-pager", "status", "--short", "--branch"],
+        "why": "Safe validations passed and commitPlan is explicit-path ready; review status plus commitPlan.stageCommandPreview instead of rerunning validations.",
+    }
+
+
 def milestone_state(blockers: list[str], validation_results: list[dict[str, Any]] | None = None) -> str:
     if validation_results and any(item.get("ok") is not True for item in validation_results):
         return "failed"
@@ -817,8 +827,10 @@ def build_decision_packet(
     if validation_results and any(item.get("ok") is not True for item in validation_results):
         blockers.append("safe-validation-failed")
     state = milestone_state(sorted(set(blockers)), validation_results)
-    safe_next_action = build_safe_next_action(lane, target_epoch, git_state, truth_summary)
     commit_plan = build_commit_plan(git_state, validation_results if run_safe_checks else None)
+    safe_next_action = build_post_validation_next_action(run_safe_checks, commit_plan) or build_safe_next_action(
+        lane, target_epoch, git_state, truth_summary
+    )
     status = "failed" if errors or state == "failed" else ("blocked" if blockers else "passed")
     packet = {
         "schemaVersion": SCHEMA_VERSION,

@@ -303,6 +303,21 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(safe_next["key"], "report-local-commits-ahead")
         self.assertEqual(safe_next["command"], ["git", "--no-pager", "status", "--short", "--branch"])
 
+    def test_post_validation_commit_ready_action_avoids_safe_check_loop(self) -> None:
+        safe_next = decision_packet.build_post_validation_next_action(
+            True,
+            {
+                "recommended": True,
+                "explicitPaths": ["tools/riftreader_workflow/decision_packet.py"],
+                "stageCommandPreview": "git add -- tools/riftreader_workflow/decision_packet.py",
+            },
+        )
+
+        self.assertIsNotNone(safe_next)
+        self.assertEqual(safe_next["key"], "commit-ready-explicit-paths")
+        self.assertEqual(safe_next["command"], ["git", "--no-pager", "status", "--short", "--branch"])
+        self.assertIn("instead of rerunning validations", safe_next["why"])
+
     def test_agent_plan_has_no_overlapping_write_paths(self) -> None:
         self.assertEqual(decision_packet.validate_agent_plan(decision_packet.build_agent_plan()), [])
 
