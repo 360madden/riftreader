@@ -750,6 +750,37 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["status"], "blocked")
         self.assertEqual(payload["expectedExitCodes"], [0, 2])
 
+    def test_cli_decision_packet_shortcut_smoke_outputs_packet_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            helper = root / "scripts" / "fake-decision-packet.py"
+            helper.write_text(
+                "import json, sys\n"
+                "print(json.dumps({'kind':'riftreader-decision-packet','status':'blocked'}))\n"
+                "raise SystemExit(2)\n",
+                encoding="utf-8",
+            )
+            (root / "scripts" / "riftreader-decision-packet.cmd").write_text(
+                '@echo off\npython "%~dp0fake-decision-packet.py" %*\nexit /b %ERRORLEVEL%\n',
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = operator_lite.main(["--repo-root", str(root), "--decision-packet", "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["commandKey"], "decision-packet")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("--write", payload["args"])
+        self.assertIn("--compact-json", payload["args"])
+        self.assertIn("riftreader-decision-packet", payload["stdout"])
+        self.assertFalse(payload["safety"]["movementSent"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+
     def test_cli_run_alias_json_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
