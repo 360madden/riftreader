@@ -28,6 +28,26 @@ The correct recovery path is a **broad current-PID coordinate-family scan**:
 
 This policy exists to prevent regression into narrow stale-pointer probing after a restart or target drift.
 
+## Boundary: proof-anchor recovery is not static actor-chain discovery
+
+This policy is the correct workflow for rebuilding a **movement-safe current
+proof anchor** after target drift or restart. It is not the optimized workflow
+for proving a restart-stable player actor static chain once the proof anchor is
+already current.
+
+| Lane | Correct trigger | Correct next step |
+|---|---|---|
+| Proof-anchor recovery | Proof pointer is stale, missing, or target-drifted | Broad current-PID coordinate-family scan, multi-pose validation, same-target `ProofOnly` |
+| Actor static-chain discovery | Proof anchor is current and an actor-like candidate exists | Stop repeating broad value scans; pivot to owner layout, bounded access provenance, resolver generation, API-now vs chain-now validation, and restart validation |
+
+Durable actor-chain workflow:
+`docs/recovery/optimized-player-actor-coordinate-chain-workflow.md`.
+
+Anti-regression rule: never promote a proof/API-family anchor as the player
+actor static chain, and never keep broad-scanning proof-anchor families when the
+active task is to prove static actor provenance for an already-selected
+actor-like candidate.
+
 ## Stale-data invariant
 
 Once the current PID/HWND is known, that live target identity wins over every

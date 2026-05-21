@@ -1,132 +1,159 @@
-# Static player coordinate pointer-chain discovery — 10-phase plan
+# Static player coordinate pointer-chain discovery — optimized 10-phase plan
+
+Updated: 2026-05-21
+Detailed workflow: `docs/recovery/optimized-player-actor-coordinate-chain-workflow.md`
 
 ## Goal
 
-Promote a restart-stable static pointer chain that resolves the player actor coordinate triplet from module/static-root provenance, validates against fresh API coordinates, survives process restart/relog, and is safe for future movement/navigation use.
+Promote a restart-stable static pointer chain that resolves the player actor
+coordinate triplet from module/RVA or static-owner provenance, validates against
+fresh API coordinates, survives restart/relog, and is safe for future
+movement/navigation use.
 
-## Starting truth
+## Core correction
 
-| Field | Current value |
+The old workflow over-weighted coordinate value scans. That is safe for
+current-PID proof-anchor reacquisition, but too slow and noisy for static actor
+chain discovery.
+
+After a current proof anchor and credible actor-like candidate exist, the
+workflow must pivot to **owner/access provenance**:
+
+```text
+current target
+  -> proof-anchor safety gate
+  -> actor-like coordinate candidate
+  -> owner-layout hypothesis
+  -> bounded access provenance
+  -> static/module resolver candidate
+  -> API-now vs chain-now validation
+  -> restart validation
+  -> promotion
+```
+
+## Starting-truth rule
+
+Do not put session-specific PID/HWND/addresses in this plan as durable truth.
+Every run must discover current target data fresh and record it in that run's
+manifest.
+
+| Evidence type | Durable use |
 |---|---|
-| Current target | PID `42508`, HWND `0x80E00` |
-| Dynamic coord anchor | `0x1FD21900420` |
-| Candidate ID | `api-family-hit-000001` |
-| Proof status | `current-target-proofonly-passed` |
-| Movement allowed effective | `true` |
-| Static chain status | Not proven |
+| PID/HWND/process start | Current-run target identity only |
+| Absolute heap address | Current-PID evidence only |
+| Proof anchor | Movement-safety gate only |
+| Actor-like candidate | Chain-discovery lead only |
+| Module/RVA/static-owner resolver | Static-chain candidate |
 
-## Phase 1 — Current target and proof baseline freeze
+## Phase 1 — Current target lock
 
-1. Discover current RIFT targets.
+1. Run current target discovery.
 2. Require exactly one visible/responding `rift_x64` window.
-3. Run `python .\scripts\coordinate_recovery_status.py --json`.
-4. Confirm `current-target-proofonly-passed` for the same PID/HWND.
-5. Capture baseline screenshot through Rift MCP.
-6. Write a timestamped static-chain discovery manifest.
+3. Bind exact PID/HWND/process start/module base.
+4. Abort on duplicate clients, minimized target, target mismatch, or missing visible RIFT window.
 
-Output: run manifest, target snapshot, baseline screenshot.
+Output: `target.json`, baseline screenshot, no movement/input.
 
-## Phase 2 — Module map and memory-region inventory
+## Phase 2 — Proof-anchor safety gate
 
-1. Capture module list for the current PID.
-2. Capture readable memory region inventory.
-3. Classify module-backed/static, heap/private, stack/thread, mapped regions.
-4. Mark stack/scratch regions low confidence.
-5. Write region scoring policy.
+1. Run `python .\scripts\coordinate_recovery_status.py --json`.
+2. If same-target proof anchor is current, keep it as a safety gate only.
+3. If target drift exists, run current-PID coordinate-family recovery.
+4. Do not use a proof/API-family anchor as actor static-chain truth.
 
-Output: module map, memory inventory, region score plan.
+Output: `proof-status.json`, stale/current proof verdict.
 
-## Phase 3 — Coordinate leaf neighborhood inspection
+## Phase 3 — Actor-like candidate selection
 
-1. Inspect bytes/floats/pointers around the proven dynamic coord leaf.
-2. Decode narrow and wide neighborhoods.
-3. Identify nearby pointer-like values, coordinate copies, object headers, and actor-adjacent fields.
-4. Compare nearby floats against API coordinate.
-5. Record likely owner-base candidates.
+1. Prefer existing current-PID actor-like candidate evidence if it matches the current target epoch.
+2. If no credible current actor-like family exists, run broad value scan once to find candidate families.
+3. Classify candidates semantically: API/proof buffer, copy family, actor-like offset, owner-layout candidate.
+4. Freeze the best actor-like candidate before debugger work.
 
-Output: coord leaf neighborhood report, owner-base candidates, nearby float copy inventory.
+Output: `actor-candidate.json`, candidate classification, blocker if only API-buffer evidence exists.
 
-## Phase 4 — Reverse pointer-owner scan
+## Phase 4 — Owner-layout hypothesis
 
-1. Scan current memory for pointers to the coord leaf, nearby owner bases, and aligned surrounding addresses.
-2. Rank hits by region type: module/static highest, stable heap medium, stack/scratch lowest.
-3. Build candidate edges from root/owner toward coord leaf.
-4. Keep every hit candidate-only.
+1. Inspect neighborhood around the actor-like candidate.
+2. Identify likely owner base and coordinate offset.
+3. Record module pointer fields, vtable-like fields, nearby actor-adjacent floats, and pointer slots.
+4. Reject absolute-address-only ownership claims.
 
-Output: reverse pointer hits, owner candidates, candidate edge graph.
+Output: `owner-layout.json`, root signature, owner-module-field score.
 
-## Phase 5 — Chain candidate generation
+## Phase 5 — Bounded x64dbg attach safety check
 
-1. Generate pointer chains from module base/RVA or static/global-like roots.
-2. Store module, base, RVA, offsets, final coord offset, axis order, current resolved address.
-3. Reject raw absolute-address-only chains as static candidates.
-4. Preserve absolute address only as current-PID evidence.
+1. Require explicit current-turn live-debugger authorization.
+2. Run `stop-context` first: attach, capture context, detach/resume.
+3. Set no breakpoint in this phase.
+4. Verify the exact RIFT window still responds after detach.
 
-Output: chain-candidates JSONL and chain generation summary.
+Output: `x64dbg-stop-context-summary.json`, responsiveness verdict.
 
-## Phase 6 — Current-PID chain resolver validation
+## Phase 6 — Single access-provenance capture
 
-1. Resolve each chain in the current PID.
-2. Read X/Y/Z from resolved leaf.
-3. Compare to fresh API-now coordinate.
-4. Reject chains that resolve outside expected regions, point to stale copies, or exceed tolerance.
-5. Rank current-PID resolver results.
+1. If Phase 5 is safe, run one short hardware watchpoint on the actor-like coordinate field.
+2. Prefer a 12-byte XYZ window when supported; otherwise use a focused scalar and record limitation.
+3. Use short timeout and max one go attempt.
+4. Do not loop watchpoints without new evidence.
+5. Avoid memory-access breakpoints unless explicitly approved as a higher-risk step.
 
-Output: resolver results, chain ranking, API-vs-chain summary.
+Output: raw x64dbg access event and safety summary.
 
-## Phase 7 — Multi-pose live displacement validation
+## Phase 7 — Offline event normalization
 
-1. Capture baseline API coordinate and chain resolves.
-2. Focus exact target.
-3. Send bounded movement only after target preflight.
-4. After each pose, capture API coordinate and chain resolves.
-5. Require at least two displaced poses and `maxPlanarDisplacement >= 1.0`.
-6. Reject chains that do not track displaced API positions.
+1. Normalize x64dbg event with repo-owned ingest tooling.
+2. Extract instruction pointer, module/RVA, disassembly, register context, memory operands, and target field.
+3. Link event to target PID/HWND/process start and candidate address.
+4. Keep the result candidate-only.
 
-Output: multi-pose chain validation, displacement support table, visual frame-change summary.
+Output: `access-event-normalized.json`.
 
-## Phase 8 — Restart/relog static-chain validation
+## Phase 8 — Resolver candidate generation
 
-1. Save current-PID candidate chain artifacts.
-2. Restart/relog RIFT.
-3. Re-run target discovery and API reference capture.
-4. Resolve chains using module/RVA/static-root paths only.
-5. Do not use old absolute addresses.
-6. Repeat API-vs-chain and movement/displacement validation in the new PID.
+1. Generate resolver candidates from module/RVA/static-owner provenance.
+2. Do not generate promoted chains from raw absolute heap addresses.
+3. Include owner offset, coordinate offset, axis order, module name, RVA, and current resolved address.
+4. Record failure reason for rejected candidates.
 
-Output: restart target snapshot, restart resolver results, restart displacement validation.
+Output: `chain-resolver-candidates.jsonl`, chain generation summary.
 
-## Phase 9 — Promotion gate and durable resolver integration
+## Phase 9 — API-now vs chain-now validation
+
+1. Capture fresh API/runtime coordinate immediately before chain readback.
+2. Resolve each chain in the current PID.
+3. Compare chain XYZ to API XYZ with per-axis deltas.
+4. Require at least two displaced poses and `maxPlanarDisplacement >= 1.0`.
+5. Reject stale copies, source-copy buffers, and chains that do not follow displacement.
+
+Output: `chain-validation-summary.json`, pose comparison table.
+
+## Phase 10 — Restart validation, promotion, and handoff
 
 Promotion requires:
 
-- Current PID proof passed.
-- At least two displaced poses.
-- `maxPlanarDisplacement >= 1.0`.
-- API-vs-chain max abs delta within tolerance.
-- Module/RVA/static-root provenance.
-- Restart/relog validation.
-- Same-target ProofOnly after promotion.
-- No SavedVariables live truth.
-- No old absolute-address dependency.
+- exact current target lock;
+- same-target proof anchor passed `ProofOnly`;
+- actor-like candidate, not proof/API-buffer only;
+- access/static provenance;
+- module/RVA/static-owner resolver;
+- multi-pose API-now vs chain-now success;
+- restart/relog validation without stale absolute addresses;
+- final same-target `ProofOnly`;
+- no SavedVariables live truth;
+- no CE or unapproved broad debug scan.
 
-Output: promoted static coordinate chain artifact, resolver summary, updated current truth docs, historical archive.
+Output: promoted static coordinate chain artifact, updated current truth docs,
+historical archive, compact handoff, and focused regression tests.
 
-## Phase 10 — Regression, handoff, and operational guardrails
+## Hard anti-regression rules
 
-1. Add tests for chain schema, resolver fail-closed behavior, old absolute address rejection, zero displacement rejection, and stale PID/HWND rejection.
-2. Run focused validation.
-3. Write compact handoff with target, chain root, offsets, restart validation, safety summary, and remaining blockers.
-4. Mark unpromoted leads candidate-only.
-
-Output: regression tests, final handoff, current truth docs.
-
-## Hard rules
-
-- Current dynamic anchor is only a leaf, not a static chain.
-- API-now vs chain-now is mandatory.
-- Displacement is mandatory.
-- Restart validation is mandatory.
-- Module/RVA provenance is mandatory.
-- Duplicate RIFT clients block discovery.
-- CE and live x64dbg require explicit current-turn reauthorization.
+| Rule | Required behavior |
+|---|---|
+| Proof anchor is not actor chain | Use proof anchor only as safety/currentness gate |
+| Actor chain discovery is provenance-first after candidate selection | Stop repeating broad value scans once a credible actor-like candidate exists |
+| x64dbg must be bounded | Start with stop-context; then at most one targeted hardware watchpoint per decision |
+| Absolute addresses are session evidence | Never promote them as restart-stable |
+| API-now vs chain-now is mandatory | Validate immediately around each pose |
+| Restart validation is mandatory | Current-PID success is not static-chain truth |
+| Candidate states must be explicit | Use `candidate-only` until every promotion gate passes |

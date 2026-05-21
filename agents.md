@@ -462,11 +462,28 @@ Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
 <!-- RIFTREADER_CURRENT_PID_FAMILY_RECOVERY_POLICY_START -->
 ## x64dbg static coordinate-chain invariant
 
+- Keep **current proof-anchor recovery** and **player actor static-chain
+  discovery** separate. A proof/API-family anchor can be movement-safe after
+  same-target `ProofOnly`, but it is not a promoted actor static chain.
+- Once a current proof anchor and credible actor-like candidate exist, stop
+  repeating broad coordinate value scans by default. Freeze the actor-like
+  candidate/owner hypothesis and pivot to provenance: owner layout, bounded
+  access event, normalized instruction/module/RVA context, resolver generation,
+  API-now vs chain-now validation, then restart validation.
+- The durable optimized workflow is
+  `docs/recovery/optimized-player-actor-coordinate-chain-workflow.md`; the
+  10-phase checklist is
+  `docs/recovery/static-coordinate-chain-10-phase-plan-2026-05-21.md`.
 - Treat x64dbg coordinate access events as candidate evidence only until they
   are converted into a repo-owned chain resolver and validated against fresh
   API/runtime coordinates.
 - Do not attach x64dbg to `rift_x64.exe` unless the user explicitly authorizes a
   live-debugger session in the current conversation.
+- Default x64dbg sequence for static actor-chain discovery is bounded:
+  `stop-context` attach/detach first, verify the RIFT window still responds,
+  then at most one short targeted hardware watchpoint per explicit decision.
+  Do not loop watchpoints, use broad debugger scanning, or use memory-access
+  breakpoints by default.
 - Normalize manual watchpoint/access events with
   `scripts/x64dbg_access_event_ingest.py`; the helper must stay offline-only and
   must not send input, read live memory, configure MCP, or promote movement
