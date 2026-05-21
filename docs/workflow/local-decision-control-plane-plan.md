@@ -14,6 +14,7 @@ defensive/resilience hardening slices:
 |---|---|
 | Malformed tracked JSON | Malformed `current-truth.json` or `current-proof-anchor-readback.json` fails closed with structured packet errors and `targetEpoch.status = invalid-artifact`. |
 | Ignored cache corruption | Corrupt `.riftreader-local\decision-packet\latest\*` cache artifacts are treated as cache misses and rebuilt; they do not block packet generation. |
+| Dirty-file cache invalidation | Cache fingerprints include dirty tracked file path, Git status, mtime, and size so edits to the same dirty path cannot reuse a stale packet. |
 | Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
 | OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
