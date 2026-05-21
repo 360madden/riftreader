@@ -20,6 +20,7 @@ defensive/resilience hardening slices:
 | Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
 | OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
+| Operator Lite JSON passthrough | Operator Lite command runs parse JSON stdout into `stdoutJson` so consumers can read decision-packet fields like `commitPlan.stageCommand` without parsing raw console text. |
 | Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
 | Commit planner stage command | `commitPlan.stageCommand` emits an argument array `["git", "add", "--", ...]`; `stageCommandPreview` uses `git add -- <paths>` and quotes spaces/metacharacters for humans; Markdown packets render both. |
 | Post-validation reminders | After `--run-safe-checks` passes and `commitPlan.recommended` is true, `safeNextAction` switches to `commit-ready-explicit-paths` status/commit-plan review instead of looping safe checks. |
