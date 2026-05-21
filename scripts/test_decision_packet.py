@@ -323,6 +323,10 @@ class DecisionPacketTests(unittest.TestCase):
             cached = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
 
         self.assertEqual(cached["cacheStatus"], "reused")
+        self.assertEqual(cached["performance"]["buildMode"], "cache-reused")
+        self.assertTrue(cached["performance"]["cacheReused"])
+        self.assertFalse(cached["performance"]["runSafeChecks"])
+        self.assertIsInstance(cached["performance"]["totalDurationSeconds"], float)
         self.assertTrue(cached["cacheSafety"]["freshFingerprintChecked"])
         self.assertEqual(cached["targetEpoch"]["status"], "current")
         self.assertIn("actor-chain-candidate-only", cached["blockers"])
@@ -341,6 +345,8 @@ class DecisionPacketTests(unittest.TestCase):
             rebuilt = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
 
         self.assertEqual(rebuilt["cacheStatus"], "miss")
+        self.assertEqual(rebuilt["performance"]["buildMode"], "fresh")
+        self.assertFalse(rebuilt["performance"]["cacheReused"])
         self.assertEqual(rebuilt["targetEpoch"]["status"], "current")
 
     def test_run_safe_checks_disables_cache_reuse(self) -> None:
@@ -355,6 +361,8 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertNotEqual(rebuilt["cacheStatus"], "reused")
         self.assertTrue(rebuilt["cacheSafety"]["runSafeChecksDisablesCache"])
+        self.assertTrue(rebuilt["performance"]["runSafeChecks"])
+        self.assertGreater(rebuilt["performance"]["safeValidationCommandCount"], 0)
 
     def test_compact_packet_schema_preserves_llm_reminder_contract(self) -> None:
         packet = {
@@ -371,6 +379,7 @@ class DecisionPacketTests(unittest.TestCase):
             "blockers": ["target-epoch-pid-drift"],
             "warnings": [],
             "cacheStatus": "miss",
+            "performance": {"buildMode": "fresh", "cacheReused": False, "totalDurationSeconds": 0.01},
         }
 
         compact = decision_packet.compact_decision_packet(packet)
@@ -391,11 +400,13 @@ class DecisionPacketTests(unittest.TestCase):
                 "blockers",
                 "warnings",
                 "cacheStatus",
+                "performance",
             },
         )
         self.assertEqual(compact["llmReminder"]["banner"], "# **🚦 NEXT ACTION — CONTINUE SAFELY**")
         self.assertIn("status helper returned a known blocker", compact["llmReminder"]["doNotStopIf"])
         self.assertIn("debugger or CE would be required", compact["llmReminder"]["mustStopIf"])
+        self.assertEqual(compact["performance"]["buildMode"], "fresh")
 
     def test_markdown_renders_big_reminder_banner(self) -> None:
         packet = {

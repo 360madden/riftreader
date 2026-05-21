@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -714,6 +715,7 @@ def build_decision_packet(
     use_cache: bool = False,
     cache_dir: Path = DEFAULT_OUTPUT_DIR,
 ) -> dict[str, Any]:
+    build_started = time.monotonic()
     truth_path = repo_root / (truth_json or DEFAULT_CURRENT_TRUTH_JSON)
     proof_path = repo_root / (proof_json or DEFAULT_CURRENT_PROOF_JSON)
     warnings: list[str] = []
@@ -723,6 +725,13 @@ def build_decision_packet(
     if use_cache and not run_safe_checks:
         cached = load_cached_packet(repo_root, cache_dir, fingerprint)
         if cached is not None:
+            cached["performance"] = {
+                **safe_mapping(cached.get("performance")),
+                "buildMode": "cache-reused",
+                "cacheReused": True,
+                "runSafeChecks": False,
+                "totalDurationSeconds": round(time.monotonic() - build_started, 3),
+            }
             return cached
     truth = load_json_object(truth_path)
     proof = load_json_object(proof_path)
@@ -741,13 +750,14 @@ def build_decision_packet(
     errors.extend(validate_agent_plan(agent_plan))
     validation_plan = build_validation_plan(git_state, lane)
     validation_results = run_safe_validations(repo_root, validation_plan) if run_safe_checks else []
+    validation_duration = round(sum(float(item.get("durationSeconds") or 0.0) for item in validation_results), 3)
     if validation_results and any(item.get("ok") is not True for item in validation_results):
         blockers.append("safe-validation-failed")
     state = milestone_state(sorted(set(blockers)), validation_results)
     safe_next_action = build_safe_next_action(lane, target_epoch, git_state, truth_summary)
     commit_plan = build_commit_plan(git_state, validation_results if run_safe_checks else None)
     status = "failed" if errors or state == "failed" else ("blocked" if blockers else "passed")
-    return {
+    packet = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-decision-packet",
         "helperVersion": HELPER_VERSION,
@@ -782,6 +792,14 @@ def build_decision_packet(
         },
         "fingerprint": fingerprint,
         "cacheStatus": "miss" if use_cache else "not-checked",
+        "performance": {
+            "buildMode": "fresh",
+            "cacheReused": False,
+            "runSafeChecks": run_safe_checks,
+            "safeValidationCommandCount": len(validation_results),
+            "safeValidationDurationSeconds": validation_duration,
+            "totalDurationSeconds": None,
+        },
         "cacheSafety": {
             "freshFingerprintChecked": True,
             "reusedOnlyWhenFingerprintMatched": True,
@@ -801,6 +819,8 @@ def build_decision_packet(
             "proofPromotion": False,
         },
     }
+    packet["performance"]["totalDurationSeconds"] = round(time.monotonic() - build_started, 3)
+    return packet
 
 
 def milestone_banner(state: str) -> str:
@@ -833,6 +853,7 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
         "blockers": packet.get("blockers"),
         "warnings": packet.get("warnings"),
         "cacheStatus": packet.get("cacheStatus"),
+        "performance": packet.get("performance"),
     }
 
 
