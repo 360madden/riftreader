@@ -5,6 +5,20 @@ Created: 2026-05-21
 Implemented: 2026-05-21
 Scope: RiftReader repo workflow acceleration and safety gating
 
+## Post-v0 hardening checkpoint
+
+As of the current implementation, the control plane also includes these
+defensive/resilience hardening slices:
+
+| Area | Implemented behavior |
+|---|---|
+| Malformed tracked JSON | Malformed `current-truth.json` or `current-proof-anchor-readback.json` fails closed with structured packet errors and `targetEpoch.status = invalid-artifact`. |
+| Ignored cache corruption | Corrupt `.riftreader-local\decision-packet\latest\*` cache artifacts are treated as cache misses and rebuilt; they do not block packet generation. |
+| Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
+| OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
+| Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
+| Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
+
 ## Verdict
 
 RiftReader should move repeated deterministic decisions from the LLM to local
