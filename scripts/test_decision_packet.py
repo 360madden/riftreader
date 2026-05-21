@@ -505,6 +505,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("commitPlan", contract["requiredTopLevelFields"])
         self.assertIn("stageCommand", contract["commitPlanFields"])
         self.assertIn("stageCommandPreview", contract["commitPlanFields"])
+        self.assertIn("ownedPaths", contract["agentPlanFields"])
+        self.assertIn("forbiddenPaths", contract["agentPlanFields"])
         self.assertIn("blocked-safe", contract["milestoneStates"])
         self.assertFalse(contract["safety"]["movementSent"])
 
@@ -519,6 +521,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "riftreader-decision-packet-schema-contract")
         self.assertIn("requiredTopLevelFields", payload)
         self.assertIn("commitPlanFields", payload)
+        self.assertIn("agentPlanFields", payload)
 
     def test_malformed_current_truth_fails_closed_with_structured_packet(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1139,6 +1139,7 @@ def build_schema_contract() -> dict[str, Any]:
             "stageCommandPreview",
         ],
         "safeNextActionFields": ["key", "command", "why"],
+        "agentPlanFields": ["name", "authority", "ownedPaths", "forbiddenPaths", "risk", "validation"],
         "llmReminderFields": ["banner", "state", "doNotStopIf", "mustStopIf", "continueWith"],
         "safety": safety_flags(),
     }
