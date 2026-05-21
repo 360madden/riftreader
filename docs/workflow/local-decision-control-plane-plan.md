@@ -188,6 +188,15 @@ the exact command/action that would run after approval.
     "explicitPaths": []
   },
   "agentPlan": [],
+  "cacheStatus": "not-checked | hit | miss | reused",
+  "performance": {
+    "buildMode": "fresh | cache-reused",
+    "cacheReused": false,
+    "runSafeChecks": false,
+    "safeValidationCommandCount": 0,
+    "safeValidationDurationSeconds": 0.0,
+    "totalDurationSeconds": 0.0
+  },
   "blockers": [],
   "warnings": []
 }
@@ -317,9 +326,13 @@ the exact command/action that would run after approval.
 |---|---|
 | Goal | Avoid recomputing unchanged repo state |
 | Fingerprint inputs | Git HEAD, changed files, key artifact mtimes/sizes, current-truth mtime, proof pointer mtime, helper version |
-| Done when | Packet says `cacheStatus: hit | miss | invalidated` |
+| Done when | Packet says `cacheStatus: hit | miss | reused` and includes `performance` timing fields |
 | Invalidated by | Git change, target epoch change, current-truth/proof artifact change, helper version change |
 | Boundary | Cache cannot override safety blockers |
+
+Performance fields are operator evidence only. They must not be used to suppress
+target-epoch checks, proof blockers, validation failures, or explicit approval
+gates.
 
 ### Milestone 10 — production gate
 
