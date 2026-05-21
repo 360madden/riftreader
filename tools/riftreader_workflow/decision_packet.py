@@ -1236,6 +1236,7 @@ def build_schema_contract() -> dict[str, Any]:
         ],
         "statusValues": ["passed", "blocked", "failed"],
         "milestoneStates": sorted(MILESTONE_STATES),
+        "repoChangedFileFields": ["status", "path", "generated", "liveTruth", "retiredSurface", "retiredSurfacePolicy"],
         "commitPlanFields": [
             "recommended",
             "reason",
@@ -1253,6 +1254,15 @@ def build_schema_contract() -> dict[str, Any]:
         "agentPlanAuthorityValues": ["read", "write"],
         "agentPlanRiskValues": ["low", "medium", "high"],
         "llmReminderFields": ["banner", "state", "doNotStopIf", "mustStopIf", "continueWith"],
+        "retiredSurfacePolicies": {
+            "opencode": {
+                "policy": RETIRED_OPENCODE_POLICY,
+                "pathPatterns": list(RETIRED_OPENCODE_PATH_PATTERNS),
+                "blocker": "retired-opencode-surface-changed",
+                "forbiddenAction": "retired_opencode_work_without_explicit_reauthorization",
+            }
+        },
+        "forbiddenActions": list(FORBIDDEN_ACTIONS),
         "safety": safety_flags(),
     }
 
