@@ -374,8 +374,22 @@ class DecisionPacketTests(unittest.TestCase):
     def test_agent_plan_validator_rejects_duplicate_owned_path(self) -> None:
         errors = decision_packet.validate_agent_plan(
             [
-                {"name": "one", "ownedPaths": ["tools/example.py"], "forbiddenPaths": []},
-                {"name": "two", "ownedPaths": [r"tools\example.py"], "forbiddenPaths": []},
+                {
+                    "name": "one",
+                    "authority": "write",
+                    "ownedPaths": ["tools/example.py"],
+                    "forbiddenPaths": [],
+                    "risk": "low",
+                    "validation": ["python -m py_compile tools/example.py"],
+                },
+                {
+                    "name": "two",
+                    "authority": "write",
+                    "ownedPaths": [r"tools\example.py"],
+                    "forbiddenPaths": [],
+                    "risk": "low",
+                    "validation": ["python -m py_compile tools/example.py"],
+                },
             ]
         )
 
@@ -386,8 +400,11 @@ class DecisionPacketTests(unittest.TestCase):
             [
                 {
                     "name": "docs",
+                    "authority": "write",
                     "ownedPaths": ["docs/workflow/local-decision-control-plane-plan.md"],
                     "forbiddenPaths": ["docs/**"],
+                    "risk": "low",
+                    "validation": ["git --no-pager diff --check"],
                 }
             ]
         )
@@ -396,6 +413,48 @@ class DecisionPacketTests(unittest.TestCase):
             errors,
             [
                 "agent-plan-owned-path-forbidden:docs/workflow/local-decision-control-plane-plan.md:docs:docs/**",
+            ],
+        )
+
+    def test_agent_plan_validator_rejects_malformed_slice_contract(self) -> None:
+        errors = decision_packet.validate_agent_plan(
+            [
+                {
+                    "name": "bad-slice",
+                    "authority": "admin",
+                    "ownedPaths": [],
+                    "forbiddenPaths": [],
+                    "risk": "extreme",
+                    "validation": [],
+                }
+            ]
+        )
+
+        self.assertEqual(
+            errors,
+            [
+                "agent-plan-invalid-authority:bad-slice:admin",
+                "agent-plan-invalid-risk:bad-slice:extreme",
+                "agent-plan-empty-owned-paths:bad-slice",
+                "agent-plan-empty-validation:bad-slice",
+            ],
+        )
+
+    def test_agent_plan_validator_rejects_missing_required_fields(self) -> None:
+        errors = decision_packet.validate_agent_plan([{"name": "partial"}])
+
+        self.assertEqual(
+            errors,
+            [
+                "agent-plan-missing-field:partial:authority",
+                "agent-plan-missing-field:partial:ownedPaths",
+                "agent-plan-missing-field:partial:forbiddenPaths",
+                "agent-plan-missing-field:partial:risk",
+                "agent-plan-missing-field:partial:validation",
+                "agent-plan-invalid-authority:partial:missing",
+                "agent-plan-invalid-risk:partial:missing",
+                "agent-plan-empty-owned-paths:partial",
+                "agent-plan-empty-validation:partial",
             ],
         )
 

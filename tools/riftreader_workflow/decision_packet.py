@@ -581,11 +581,27 @@ def build_agent_plan() -> list[dict[str, Any]]:
 def validate_agent_plan(agent_plan: list[dict[str, Any]]) -> list[str]:
     owners: dict[str, str] = {}
     errors: list[str] = []
+    required_fields = ("name", "authority", "ownedPaths", "forbiddenPaths", "risk", "validation")
+    valid_authorities = {"read", "write"}
+    valid_risks = {"low", "medium", "high"}
     for item in agent_plan:
         name = str(item.get("name") or "unnamed-agent")
+        for field in required_fields:
+            if field not in item:
+                errors.append(f"agent-plan-missing-field:{name}:{field}")
+        authority = str(item.get("authority") or "").strip().lower()
+        if authority not in valid_authorities:
+            errors.append(f"agent-plan-invalid-authority:{name}:{authority or 'missing'}")
+        risk = str(item.get("risk") or "").strip().lower()
+        if risk not in valid_risks:
+            errors.append(f"agent-plan-invalid-risk:{name}:{risk or 'missing'}")
+        owned_paths = [normalize_path(str(path)) for path in safe_list(item.get("ownedPaths")) if str(path).strip()]
+        if not owned_paths:
+            errors.append(f"agent-plan-empty-owned-paths:{name}")
+        if not safe_list(item.get("validation")):
+            errors.append(f"agent-plan-empty-validation:{name}")
         forbidden_patterns = [normalize_path(str(pattern)) for pattern in safe_list(item.get("forbiddenPaths"))]
-        for path in safe_list(item.get("ownedPaths")):
-            normalized_path = normalize_path(str(path))
+        for normalized_path in owned_paths:
             if normalized_path in owners:
                 errors.append(f"agent-plan-overlapping-owned-path:{normalized_path}:{owners[normalized_path]}:{name}")
             for pattern in forbidden_patterns:
