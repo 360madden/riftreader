@@ -539,6 +539,8 @@ def adaptive_focus(compact: dict[str, Any], *, lane: str, package_path: str | No
     live_target = compact.get("liveTarget") if isinstance(compact.get("liveTarget"), dict) else {}
     movement = compact.get("movementGate") if isinstance(compact.get("movementGate"), dict) else {}
     opencode = compact.get("opencode") if isinstance(compact.get("opencode"), dict) else {}
+    decision_packet = compact.get("decisionPacket") if isinstance(compact.get("decisionPacket"), dict) else {}
+    decision_safe_next = decision_packet.get("safeNextAction") if isinstance(decision_packet.get("safeNextAction"), dict) else {}
     blockers = [str(item) for item in _list(compact.get("blockers"))]
     warnings = [str(item) for item in _list(compact.get("warnings"))]
     errors = [str(item) for item in _list(compact.get("errors"))]
@@ -576,6 +578,10 @@ def adaptive_focus(compact: dict[str, Any], *, lane: str, package_path: str | No
     if movement.get("allowed") is False:
         focus.append(
             f"Movement gate is closed ({_str(movement.get('status'))}). Do not send input, movement, /reloadui, screenshot hotkeys, or proof-promotion commands."
+        )
+    if decision_safe_next.get("key") == "commit-ready-explicit-paths":
+        focus.append(
+            "The embedded decision packet is commit-ready after safe validations. Review git status and commitPlan.stageCommand/stageCommandPreview; do not rerun the same safe checks unless files changed."
         )
 
     if lane == "integration":

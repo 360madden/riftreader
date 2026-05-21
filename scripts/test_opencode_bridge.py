@@ -167,6 +167,28 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn("NEXT ACTION", prompt)
         self.assertIn("CONTINUE SAFELY", prompt)
 
+    def test_adaptive_prompt_respects_commit_ready_decision_packet(self) -> None:
+        compact = dict(SAMPLE_COMPACT)
+        compact["decisionPacket"] = {
+            **SAMPLE_COMPACT["decisionPacket"],
+            "safeNextAction": {
+                "key": "commit-ready-explicit-paths",
+                "command": ["git", "--no-pager", "status", "--short", "--branch"],
+                "why": "Safe validations passed.",
+            },
+            "commitPlan": {
+                "recommended": True,
+                "stageCommand": ["git", "add", "--", "tools/riftreader_workflow/opencode_bridge.py"],
+                "stageCommandPreview": "git add -- tools/riftreader_workflow/opencode_bridge.py",
+            },
+        }
+
+        prompt = opencode_bridge.build_adaptive_prompt("integration", compact)
+
+        self.assertIn("commit-ready after safe validations", prompt)
+        self.assertIn("commitPlan.stageCommand/stageCommandPreview", prompt)
+        self.assertIn("do not rerun the same safe checks", prompt)
+
     def test_required_commands_include_integration_preflight(self) -> None:
         self.assertEqual(
             opencode_bridge.required_commands("integration"),
