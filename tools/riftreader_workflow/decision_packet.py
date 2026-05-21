@@ -976,6 +976,8 @@ def build_markdown(packet: dict[str, Any]) -> str:
             lines.append(f"- Suggested message: `{commit_plan.get('suggestedMessage')}`")
         if commit_plan.get("stageCommandPreview"):
             lines.append(f"- Stage preview: `{commit_plan.get('stageCommandPreview')}`")
+        if commit_plan.get("stageCommand"):
+            lines.append(f"- Stage command args: `{json.dumps(commit_plan.get('stageCommand'))}`")
     else:
         lines.append("# **⚠️ NOT COMMIT-READY**")
         if commit_plan.get("reason"):

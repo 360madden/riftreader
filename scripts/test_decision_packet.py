@@ -737,6 +737,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "suggestedMessage": "Update docs",
                 "explicitPaths": ["docs/workflow/example.md"],
                 "excludedGeneratedPaths": ["scripts/captures/run/summary.json"],
+                "stageCommand": ["git", "add", "--", "docs/workflow/example.md"],
                 "stageCommandPreview": "git add -- docs/workflow/example.md",
             },
             "performance": {
@@ -754,6 +755,7 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertIn("# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**", markdown)
         self.assertIn("`git add -- docs/workflow/example.md`", markdown)
+        self.assertIn('`["git", "add", "--", "docs/workflow/example.md"]`', markdown)
         self.assertIn("`docs/workflow/example.md`", markdown)
         self.assertIn("`scripts/captures/run/summary.json`", markdown)
         self.assertIn("| Build mode | `cache-reused` |", markdown)
