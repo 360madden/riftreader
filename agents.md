@@ -92,6 +92,19 @@ Short summary:
 
 Then continue automatically unless a hard stop condition is present.
 
+## OpenCode retirement boundary
+
+OpenCode is **retired/demoted for this repo**. Do not start, route, expand, or
+prioritize OpenCode implementation work unless the user explicitly
+re-authorizes OpenCode in the current conversation.
+
+| Boundary | Required behavior |
+|---|---|
+| New OpenCode code, wrappers, prompt builders, tests, UI buttons, or integration hardening | Do not create or modify them by default. |
+| Existing OpenCode files/docs | Treat them as historical maintenance surface only. Do not use them as the active workflow. |
+| Local decision automation | Prefer the Local Decision Control Plane, Operator Lite, and Codex-native repo workflows. |
+| Ambiguous references to old OpenCode milestones | Treat them as stale plan text and confirm against this retirement boundary before acting. |
+
 ## Default model-picking policy
 
 | Situation | Default model | Reasoning | Default approach |

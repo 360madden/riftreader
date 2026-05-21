@@ -27,6 +27,19 @@ preference.
 | Keep ownership centralized | The main agent owns risk classification, integration, validation, commit, push, and final claims. |
 | Validate before trusting | Lower-reasoning work is acceptable only when targeted validation can catch likely mistakes. |
 
+## OpenCode retirement boundary
+
+OpenCode is **retired/demoted for RiftReader**. Do not route work through
+OpenCode and do not modify OpenCode integration surfaces unless the user
+explicitly re-authorizes OpenCode in the current conversation.
+
+| Surface | Policy |
+|---|---|
+| `tools/riftreader_workflow/opencode_bridge.py` | Historical/deprecated maintenance surface; no new work by default. |
+| OpenCode wrappers, prompt tests, `.opencode` templates, or OpenCode docs | Do not expand or harden unless explicitly re-authorized. |
+| Decision-packet/local-agent workflows | Prefer Codex-native use of the decision packet and Operator Lite read-only surfaces. |
+| Old plan text mentioning OpenCode | Treat it as stale unless this retirement boundary has been explicitly overridden. |
+
 ## Autonomous continuation mode
 
 When the user asks Codex to keep working autonomously, the main agent must keep

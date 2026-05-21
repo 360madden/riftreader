@@ -19,8 +19,8 @@ defensive/resilience hardening slices:
 | Dirty-file cache invalidation | Cache fingerprints include dirty tracked file path, Git status, mtime, and size so edits to the same dirty path cannot reuse a stale packet. |
 | Schema contract | Full and compact packet schema tests protect required packet/reminder/validation/commit-plan fields. |
 | Schema contract CLI | `--schema-json` emits required top-level fields, valid milestone states, commit-plan fields, agent-plan fields, agent-plan authority/risk enum values, and safety flags without building a repo packet. |
-| OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, `milestoneStatus`, and `agentPlan` fields. |
-| OpenCode commit-ready reminders | OpenCode prompts detect `commit-ready-explicit-paths` and tell agents to review status plus `commitPlan.stageCommand/stageCommandPreview` instead of rerunning identical safe checks. |
+| Historical OpenCode prompt integration | Existing OpenCode prompt code/tests are retired historical maintenance surface; do not expand or use them as active workflow unless explicitly re-authorized. |
+| OpenCode retirement guardrail | Future agents must treat old OpenCode milestones as stale plan text and prefer the decision packet, Operator Lite, and Codex-native workflows. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Operator Lite schema contract | `--decision-packet-schema --json` exposes the read-only `--schema-json` contract with parsed `stdoutJson` and no artifact writes. |
 | Operator Lite JSON passthrough | Operator Lite command runs parse JSON stdout into `stdoutJson` so consumers can read decision-packet fields like `commitPlan.stageCommand` without parsing raw console text. |
@@ -64,7 +64,7 @@ cd "C:\RIFT MODDING\RiftReader"
 | Mode | Purpose |
 |---|---|
 | `--json` | Full machine-readable packet |
-| `--compact-json` | Small packet for LLM/OpenCode prompts, including `agentPlan` work-slice boundaries |
+| `--compact-json` | Small packet for LLM/local-agent prompts, including `agentPlan` work-slice boundaries |
 | `--write` | Write ignored JSON/Markdown under `.riftreader-local` |
 | `--run-safe-checks` | Run only packet-approved safe validations and attach command envelopes |
 | `--use-cache` | Reuse ignored packet artifacts only when a fresh fingerprint exactly matches; disabled by `--run-safe-checks` |
@@ -116,6 +116,19 @@ Exit-code convention:
 | Git mutation | The helper may recommend explicit paths, but must not stage/commit/push |
 | Generated artifacts | Do not recommend staging ignored/generated capture output |
 | Safety default | Fail closed with `blocked`, not vague `maybe safe` states |
+
+## OpenCode retirement boundary
+
+OpenCode is **retired/demoted for RiftReader**. The Local Decision Control Plane
+must not revive OpenCode work just because older plan milestones or historical
+tests mention it.
+
+| Topic | Rule |
+|---|---|
+| New OpenCode implementation | Do not add or modify OpenCode code, wrappers, prompt builders, tests, UI buttons, or docs expansion unless the user explicitly re-authorizes OpenCode in the current conversation. |
+| Existing OpenCode files | Treat as historical/deprecated maintenance surface only; do not use as the active workflow. |
+| Preferred replacement | Use the decision packet directly from Codex-native workflows and Operator Lite read-only surfaces. |
+| Future plan interpretation | If old text says "OpenCode integration", read it as historical context, not an active milestone. |
 
 ## Autonomous continuation rule
 
@@ -251,7 +264,7 @@ the exact command/action that would run after approval.
 | 4 | Validation planner | Recommend tests/checks from changed files and lane | Low | `validationPlan` |
 | 5 | Commit-scope planner | Recommend explicit paths; exclude generated output | Medium | `commitPlan` |
 | 6 | Agent work planner | Emit non-overlapping agent-safe work slices | Medium | `agentPlan` |
-| 7 | OpenCode/local-agent integration | Feed packet into adaptive prompts | Medium | Smaller prompts, safer local agents |
+| 7 | Local-agent integration; OpenCode retired | Feed packet into Codex-native/local-agent prompts without reviving OpenCode | Medium | Smaller prompts, safer local agents |
 | 8 | Operator Lite integration | Add safe button/readout for packet | Low | UI workflow acceleration |
 | 9 | Hardening + caching | Add fingerprints, invalidation, regression tests | Medium | Faster repeated runs |
 | 10 | v1 gate | Make packet the first repo-work command | Medium | Documented workflow standard |
@@ -266,7 +279,7 @@ the exact command/action that would run after approval.
 | Commit planner | ✅ Implemented as non-mutating planner | Emits explicit paths, generated exclusions, validation gate, and stage preview only |
 | Agent planner | ✅ Implemented | Emits non-overlapping ownership slices and reminds that the main agent owns integration/commit |
 | Operator Lite integration | ✅ Implemented | Safe `Refresh Decision Packet` and schema-contract command/buttons; no live/debugger/Git action added |
-| OpenCode integration | ✅ Implemented | Prompt builder includes compact decision packet before broader repo context |
+| OpenCode integration | Retired historical surface | Existing prompt builder/code remains historical; do not expand or use as active workflow unless explicitly re-authorized |
 | Cache/speed hardening | ✅ v0 implemented | Fingerprint covers helper version, Git HEAD, changed files, current-truth/proof mtimes/sizes; cache is opt-in, ignored-local only, and disabled for safe validation runs |
 
 ## Milestones
@@ -340,14 +353,14 @@ the exact command/action that would run after approval.
 | Done when | Packet can split docs, tests, helper code, and validation into non-overlapping slices |
 | Boundary | Main agent still owns final integration, validation, commit, and push |
 
-### Milestone 7 — OpenCode / local-agent prompt integration
+### Milestone 7 — local-agent prompt integration; OpenCode retired
 
 | Field | Requirement |
 |---|---|
-| Goal | Shrink prompts and improve speed by feeding agents the packet |
-| Integration | `opencode_bridge.py` reads the decision packet first |
-| Done when | Prompt includes packet summary, lane policy, allowed edit paths, and blockers |
-| Boundary | OpenCode remains optional and no-input/no-debugger by default |
+| Goal | Shrink prompts and improve speed by feeding Codex-native/local agents the packet |
+| Integration | Decision packet output is consumed directly by Codex-native workflows and Operator Lite read-only surfaces |
+| Done when | Prompt/status surfaces include packet summary, lane policy, allowed edit paths, and blockers without requiring OpenCode |
+| Boundary | OpenCode is retired historical surface and must not be expanded unless explicitly re-authorized |
 
 ### Milestone 8 — Operator Lite integration
 
@@ -419,7 +432,7 @@ Target epoch comparison:
 | Core packet implementation | Yes, isolated | `tools/riftreader_workflow/decision_packet.py` | Medium |
 | CMD wrapper | Yes, tiny | `scripts/riftreader-decision-packet.cmd` | Low |
 | Operator Lite integration | Later only | `tools/riftreader_workflow/operator_lite.py` | Medium |
-| OpenCode bridge integration | Later only | `tools/riftreader_workflow/opencode_bridge.py` | Medium |
+| OpenCode bridge integration | No; retired unless explicitly re-authorized | `tools/riftreader_workflow/opencode_bridge.py` | Medium |
 | Commit/push | No delegation | Main agent only | Medium |
 
 Rule: no two agents edit the same file in the same milestone. Workers must know
@@ -439,7 +452,7 @@ changes.
 | 7 | Add validation planner | Speeds practical commit decisions |
 | 8 | Add commit planner | Speeds "what needs committing?" |
 | 9 | Add agent-plan output | Enables safe parallel work |
-| 10 | Integrate with OpenCode/Operator Lite only after the core packet is stable | Avoids coupling too early |
+| 10 | Integrate with Operator Lite and non-OpenCode local-agent prompts only after the core packet is stable | Avoids coupling to retired OpenCode surfaces |
 
 ## Success criteria
 
