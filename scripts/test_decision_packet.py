@@ -222,6 +222,16 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(commit_plan["pathCategories"], ["docs"])
         self.assertEqual(commit_plan["suggestedMessage"], "Update RiftReader workflow docs")
 
+    def test_code_only_commit_plan_uses_helper_message_not_docs_message(self) -> None:
+        commit_plan = decision_packet.build_commit_plan(
+            {"changedFiles": [{"path": "tools/riftreader_workflow/operator_lite.py", "generated": False}]},
+            [{"ok": True}],
+        )
+
+        self.assertTrue(commit_plan["recommended"])
+        self.assertEqual(commit_plan["pathCategories"], ["code"])
+        self.assertEqual(commit_plan["suggestedMessage"], "Update RiftReader workflow helpers")
+
     def test_commit_plan_excludes_generated_and_blocks_live_truth(self) -> None:
         generated = decision_packet.build_commit_plan(
             {"changedFiles": [{"path": "scripts/captures/run/summary.json", "generated": True}]}

@@ -509,7 +509,16 @@ def build_commit_plan(git_state: dict[str, Any], validation_results: list[dict[s
             "validationRequired": True,
             "stageCommandPreview": None,
         }
-    suggested = "Update local decision control plane" if any("decision" in path for path in explicit_paths) else "Update RiftReader workflow docs"
+    if any("decision" in path for path in explicit_paths):
+        suggested = "Update local decision control plane"
+    elif categories == ["docs"]:
+        suggested = "Update RiftReader workflow docs"
+    elif categories == ["code"]:
+        suggested = "Update RiftReader workflow helpers"
+    elif categories == ["config"]:
+        suggested = "Update RiftReader workflow configuration"
+    else:
+        suggested = "Update RiftReader workflow files"
     return {
         "recommended": True,
         "reason": "coherent-explicit-path-slice" if validation_results else "validation-required-before-commit",
