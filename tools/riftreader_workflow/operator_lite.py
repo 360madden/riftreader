@@ -752,6 +752,16 @@ def command_run_status(exit_code: int | None, ok: bool) -> str:
     return "failed"
 
 
+def parse_stdout_json(stdout: Any) -> dict[str, Any] | None:
+    if not isinstance(stdout, str) or not stdout.strip():
+        return None
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
     requested_command_key = command_key
     command_key = resolve_command_key(command_key)
@@ -771,6 +781,7 @@ def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
     if (str(first).lower().endswith(".cmd") or str(first).lower().endswith(".ps1")) and not first.exists():
         return blocked_command_result(command_key, spec, "COMMAND_SCRIPT_MISSING", f"Command script is missing: {first}")
     result = run_command(spec.args, repo_root, spec.timeout_seconds, spec.expected_exit_codes)
+    stdout_json = parse_stdout_json(result.get("stdout", ""))
     return {
         "schemaVersion": 1,
         "kind": "riftreader-operator-lite-command-run",
@@ -786,6 +797,7 @@ def run_command_key(repo_root: Path, command_key: str) -> dict[str, Any]:
         "timeoutSeconds": spec.timeout_seconds,
         "exitCode": result.get("exitCode"),
         "stdout": result.get("stdout", ""),
+        "stdoutJson": stdout_json,
         "stderr": result.get("stderr", ""),
         "startedAtUtc": result.get("startedAtUtc"),
         "endedAtUtc": result.get("endedAtUtc"),

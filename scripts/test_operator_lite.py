@@ -757,7 +757,11 @@ class OperatorLiteTests(unittest.TestCase):
             helper = root / "scripts" / "fake-decision-packet.py"
             helper.write_text(
                 "import json, sys\n"
-                "print(json.dumps({'kind':'riftreader-decision-packet','status':'blocked'}))\n"
+                "print(json.dumps({"
+                "'kind':'riftreader-decision-packet',"
+                "'status':'blocked',"
+                "'commitPlan':{'stageCommand':['git','add','--','docs/workflow/example.md']}"
+                "}))\n"
                 "raise SystemExit(2)\n",
                 encoding="utf-8",
             )
@@ -778,6 +782,11 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--write", payload["args"])
         self.assertIn("--compact-json", payload["args"])
         self.assertIn("riftreader-decision-packet", payload["stdout"])
+        self.assertEqual(payload["stdoutJson"]["kind"], "riftreader-decision-packet")
+        self.assertEqual(
+            payload["stdoutJson"]["commitPlan"]["stageCommand"],
+            ["git", "add", "--", "docs/workflow/example.md"],
+        )
         self.assertFalse(payload["safety"]["movementSent"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
