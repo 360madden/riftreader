@@ -837,6 +837,16 @@ class DecisionPacketTests(unittest.TestCase):
             "llmReminder": decision_packet.build_llm_reminder({"command": ["python", "safe.py"]}, "blocked-safe"),
             "milestoneStatus": {"state": "blocked-safe"},
             "commitPlan": {"recommended": False},
+            "agentPlan": [
+                {
+                    "name": "docs",
+                    "authority": "write",
+                    "ownedPaths": ["docs/workflow/example.md"],
+                    "forbiddenPaths": ["tools/**"],
+                    "risk": "low",
+                    "validation": ["git --no-pager diff --check"],
+                }
+            ],
             "blockers": ["target-epoch-pid-drift"],
             "warnings": [],
             "cacheStatus": "miss",
@@ -858,6 +868,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "llmReminder",
                 "milestoneStatus",
                 "commitPlan",
+                "agentPlan",
                 "blockers",
                 "warnings",
                 "cacheStatus",
@@ -867,6 +878,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(compact["llmReminder"]["banner"], "# **🚦 NEXT ACTION — CONTINUE SAFELY**")
         self.assertIn("status helper returned a known blocker", compact["llmReminder"]["doNotStopIf"])
         self.assertIn("debugger or CE would be required", compact["llmReminder"]["mustStopIf"])
+        self.assertEqual(compact["agentPlan"][0]["name"], "docs")
         self.assertEqual(compact["performance"]["buildMode"], "fresh")
 
     def test_markdown_renders_big_reminder_banner(self) -> None:

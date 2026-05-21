@@ -74,6 +74,16 @@ SAMPLE_COMPACT = {
             "mustStopIf": ["debugger or CE would be required"],
         },
         "milestoneStatus": {"state": "blocked-safe"},
+        "agentPlan": [
+            {
+                "name": "docs",
+                "authority": "write",
+                "ownedPaths": ["docs/workflow/local-decision-control-plane-plan.md"],
+                "forbiddenPaths": ["tools/**", "scripts/**"],
+                "risk": "low",
+                "validation": ["git --no-pager diff --check"],
+            }
+        ],
         "blockers": ["actor-chain-candidate-only"],
     },
     "blockers": ["live-target-artifact-pid-stale:artifact=27552;live=22304"],
@@ -163,6 +173,8 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn('"safeNextAction"', prompt)
         self.assertIn('"llmReminder"', prompt)
         self.assertIn('"milestoneStatus"', prompt)
+        self.assertIn('"agentPlan"', prompt)
+        self.assertIn('"ownedPaths"', prompt)
         self.assertIn("actor-chain-no-debug-status", prompt)
         self.assertIn("NEXT ACTION", prompt)
         self.assertIn("CONTINUE SAFELY", prompt)

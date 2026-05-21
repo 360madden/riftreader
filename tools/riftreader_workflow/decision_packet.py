@@ -953,6 +953,7 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
         "llmReminder": packet.get("llmReminder"),
         "milestoneStatus": packet.get("milestoneStatus"),
         "commitPlan": packet.get("commitPlan"),
+        "agentPlan": packet.get("agentPlan"),
         "blockers": packet.get("blockers"),
         "warnings": packet.get("warnings"),
         "cacheStatus": packet.get("cacheStatus"),
