@@ -57,6 +57,18 @@ Proposed ignored outputs:
 .riftreader-local\decision-packet\latest\fingerprint.json
 ```
 
+Markdown output from `--explain` and `decision-packet.md` must render:
+
+| Section | Required visible cue |
+|---|---|
+| LLM reminder | `# **🚦 NEXT ACTION — CONTINUE SAFELY**` and `## **🔄 DO NOT STOP HERE**` |
+| Commit planner | `# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**` or `# **⚠️ NOT COMMIT-READY**` |
+| Performance | Build mode, cache reuse, safe-check count, validation duration, and total duration |
+
+These sections are operator/agent guidance only; they do not authorize live
+input, debugger/CE, provider writes, proof promotion, actor-chain promotion, or
+Git push.
+
 Exit-code convention:
 
 | Exit code | Meaning |
