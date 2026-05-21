@@ -482,6 +482,25 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(payload["targetEpoch"]["status"], "invalid-artifact")
         self.assertIn("current-truth-malformed", payload["blockers"])
 
+    def test_cli_compact_json_malformed_current_proof_exits_failed_with_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_text(root / "docs" / "recovery" / "current-proof-anchor-readback.json", "[]")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exit_code = decision_packet.main(["--repo-root", str(root), "--compact-json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(payload["kind"], "riftreader-decision-packet")
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["targetEpoch"]["status"], "invalid-artifact")
+        self.assertIn("current-proof-malformed", payload["blockers"])
+
     def test_cache_reuses_packet_only_when_fingerprint_matches(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
