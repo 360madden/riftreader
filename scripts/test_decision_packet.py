@@ -111,6 +111,18 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(result["status"], "current")
         self.assertEqual(result["blockers"], [])
 
+    def test_target_epoch_does_not_treat_proof_only_as_current_without_truth_target(self) -> None:
+        proof = {
+            "status": "current-target-proofonly-passed",
+            "target": {"processId": 1, "targetWindowHandle": "0x1"},
+        }
+
+        result = decision_packet.classify_target_epoch({}, proof)
+
+        self.assertEqual(result["status"], "in-world-unproven")
+        self.assertIn("current-truth-target-missing", result["blockers"])
+        self.assertNotEqual(result["status"], "current")
+
     def test_target_epoch_detects_pid_hwnd_process_and_module_drift(self) -> None:
         truth = {
             "target": {
@@ -386,6 +398,19 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(packet["status"], "failed")
         self.assertIn("current-truth-malformed", packet["blockers"])
         self.assertTrue(any(str(item).startswith("current-truth-malformed:") for item in packet["errors"]))
+        self.assertNotEqual(packet["targetEpoch"]["status"], "current")
+
+    def test_missing_current_truth_target_with_current_proof_blocks_epoch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            (root / "docs" / "recovery" / "current-truth.json").unlink()
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["targetEpoch"]["status"], "in-world-unproven")
+        self.assertIn("current-truth-target-missing", packet["blockers"])
+        self.assertIn("current-truth-missing:docs\\recovery\\current-truth.json", packet["warnings"])
         self.assertNotEqual(packet["targetEpoch"]["status"], "current")
 
     def test_malformed_current_proof_fails_closed_with_structured_packet(self) -> None:

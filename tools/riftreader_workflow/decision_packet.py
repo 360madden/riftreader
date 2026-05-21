@@ -264,6 +264,9 @@ def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | 
     if not truth_target.get("pid") and not proof_target.get("pid"):
         status = "absent"
         blockers.append("target-epoch-absent")
+    elif not truth_target.get("pid") and proof_target.get("pid"):
+        status = "in-world-unproven"
+        blockers.append("current-truth-target-missing")
     elif "character" in target_status_text and "select" in target_status_text:
         status = "character-select"
         blockers.append("target-at-character-select-movement-blocked")
