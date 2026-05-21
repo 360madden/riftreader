@@ -23,6 +23,7 @@ defensive/resilience hardening slices:
 | Historical OpenCode prompt integration | Existing OpenCode prompt code/tests are retired historical maintenance surface; do not expand or use them as active workflow unless explicitly re-authorized. |
 | OpenCode retirement guardrail | Future agents must treat old OpenCode milestones as stale plan text and prefer the decision packet, Operator Lite, and Codex-native workflows. |
 | Retired-surface packet guardrail | Dirty OpenCode bridge/wrapper/test/doc surfaces are flagged in `repo.changedFiles`, add `retired-opencode-surface-changed`, and block commit recommendation unless OpenCode is explicitly re-authorized. |
+| Retired-surface visibility | Full/compact packets expose `retiredSurfaces`, Markdown renders `# **🛑 RETIRED SURFACE — APPROVAL REQUIRED**`, and cache tests prove dirty retired paths cannot reuse a clean packet. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Operator Lite schema contract | `--decision-packet-schema --json` exposes the read-only `--schema-json` contract with parsed `stdoutJson` and no artifact writes. |
 | Operator Lite JSON passthrough | Operator Lite command runs parse JSON stdout into `stdoutJson` so consumers can read decision-packet fields like `commitPlan.stageCommand` without parsing raw console text. |
@@ -90,6 +91,7 @@ Markdown output from `--explain` and `decision-packet.md` must render:
 | Section | Required visible cue |
 |---|---|
 | LLM reminder | `# **🚦 NEXT ACTION — CONTINUE SAFELY**` and `## **🔄 DO NOT STOP HERE**` |
+| Retired surface | `# **🛑 RETIRED SURFACE — APPROVAL REQUIRED**` with exact paths and policy |
 | Commit planner | `# **✅ COMMIT-READY — EXPLICIT PATHS ONLY**` or `# **⚠️ NOT COMMIT-READY**` |
 | Performance | Build mode, cache reuse, safe-check count, validation duration, and total duration |
 
@@ -219,6 +221,13 @@ the exact command/action that would run after approval.
       "promotionAllowed": false,
       "blockers": []
     }
+  },
+  "retiredSurfaces": {
+    "paths": [],
+    "policy": "retired-opencode-requires-explicit-reauthorization",
+    "blocker": "retired-opencode-surface-changed",
+    "requiresExplicitReauthorization": true,
+    "recommendedAction": "inspect-revert-or-get-reauthorization"
   },
   "allowedActions": [
     "read_repo",
@@ -381,7 +390,7 @@ the exact command/action that would run after approval.
 | Goal | Avoid recomputing unchanged repo state |
 | Fingerprint inputs | Git HEAD, changed files, key artifact mtimes/sizes, current-truth mtime, proof pointer mtime, helper version |
 | Done when | Packet says `cacheStatus: hit | miss | reused` and includes `performance` timing fields |
-| Invalidated by | Git change, target epoch change, current-truth/proof artifact change, helper version change |
+| Invalidated by | Git change, retired-surface dirty path, target epoch change, current-truth/proof artifact change, helper version change |
 | Boundary | Cache cannot override safety blockers |
 
 Performance fields are operator evidence only. They must not be used to suppress
