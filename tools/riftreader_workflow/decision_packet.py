@@ -652,10 +652,21 @@ def build_fingerprint(repo_root: Path, git_state: dict[str, Any], truth_path: Pa
         info = path.stat()
         return {"path": repo_rel(repo_root, path), "exists": True, "mtimeNs": info.st_mtime_ns, "sizeBytes": info.st_size}
 
+    def changed_stat(item: dict[str, Any]) -> dict[str, Any]:
+        path_text = str(item.get("path") or "")
+        path = repo_root / path_text
+        return {
+            "path": path_text,
+            "status": item.get("status"),
+            "generated": bool(item.get("generated")),
+            "liveTruth": bool(item.get("liveTruth")),
+            "file": stat(path),
+        }
+
     return {
         "helperVersion": HELPER_VERSION,
         "gitHead": safe_mapping(git_state.get("head")).get("hash"),
-        "changedFiles": [item.get("path") for item in safe_list(git_state.get("changedFiles"))],
+        "changedFiles": [changed_stat(safe_mapping(item)) for item in safe_list(git_state.get("changedFiles"))],
         "currentTruth": stat(truth_path),
         "currentProof": stat(proof_path),
     }
@@ -692,7 +703,10 @@ def load_cached_packet(repo_root: Path, output_dir: Path, fingerprint: dict[str,
         "fingerprintInputs": [
             "helperVersion",
             "gitHead",
-            "changedFiles",
+            "changedFiles.path",
+            "changedFiles.status",
+            "changedFiles.file.mtimeNs",
+            "changedFiles.file.sizeBytes",
             "currentTruth.mtimeNs",
             "currentTruth.sizeBytes",
             "currentProof.mtimeNs",

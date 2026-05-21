@@ -509,6 +509,27 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertFalse(rebuilt["performance"]["cacheReused"])
         self.assertEqual(rebuilt["targetEpoch"]["status"], "current")
 
+    def test_cache_miss_after_same_dirty_file_content_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            output_dir = root / ".riftreader-local" / "decision-packet" / "latest"
+            changed_path = root / "agents.md"
+            write_text(changed_path, "# test\nfirst dirty edit\n")
+
+            packet = decision_packet.build_decision_packet(root)
+            decision_packet.write_outputs(root, packet, output_dir)
+            old_stat = changed_path.stat()
+            write_text(changed_path, "# test\nsecond dirty edit with same changed path\n")
+            os.utime(changed_path, (old_stat.st_atime + 10, old_stat.st_mtime + 10))
+            rebuilt = decision_packet.build_decision_packet(root, use_cache=True, cache_dir=output_dir)
+
+        self.assertEqual(rebuilt["cacheStatus"], "miss")
+        self.assertEqual(rebuilt["performance"]["buildMode"], "fresh")
+        self.assertFalse(rebuilt["performance"]["cacheReused"])
+        self.assertEqual(rebuilt["fingerprint"]["changedFiles"][0]["path"], "agents.md")
+        self.assertTrue(rebuilt["fingerprint"]["changedFiles"][0]["file"]["exists"])
+
     def test_run_safe_checks_disables_cache_reuse(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
