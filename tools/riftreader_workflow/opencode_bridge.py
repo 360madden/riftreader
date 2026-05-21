@@ -802,6 +802,9 @@ def build_self_test(repo_root: Path, *, output_root: Path | None = None) -> dict
                 continue
             if required_text not in prompt:
                 lane_errors.append(f"safety-text-missing:{required_text}")
+        for required_text in ['"decisionPacket"', '"safeNextAction"', '"llmReminder"', '"milestoneStatus"']:
+            if required_text not in prompt:
+                lane_errors.append(f"decision-packet-embed-missing:{required_text}")
         if lane == "integration":
             for required_text in [
                 "A completed milestone is a checkpoint, not the end of the task.",

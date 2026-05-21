@@ -57,6 +57,25 @@ SAMPLE_COMPACT = {
         "modelVisible": True,
     },
     "bridgeCommands": [],
+    "decisionPacket": {
+        "kind": "riftreader-decision-packet",
+        "status": "blocked",
+        "lane": "actor-chain",
+        "risk": "high",
+        "targetEpoch": {"status": "current", "blockers": []},
+        "safeNextAction": {
+            "key": "actor-chain-no-debug-status",
+            "command": ["python", ".\\scripts\\actor_chain_no_debug_status.py", "--json"],
+            "why": "Actor-chain evidence is candidate-only.",
+        },
+        "llmReminder": {
+            "banner": "# **🚦 NEXT ACTION — CONTINUE SAFELY**",
+            "doNotStopIf": ["safe validation passed"],
+            "mustStopIf": ["debugger or CE would be required"],
+        },
+        "milestoneStatus": {"state": "blocked-safe"},
+        "blockers": ["actor-chain-candidate-only"],
+    },
     "blockers": ["live-target-artifact-pid-stale:artifact=27552;live=22304"],
     "warnings": ["current-truth-stale-live-target-detected:artifact=27552;live=22304"],
     "errors": [],
@@ -135,6 +154,18 @@ class OpenCodeBridgePromptTests(unittest.TestCase):
         self.assertIn("# ✅ OpenCode Integration Milestone Complete", prompt)
         self.assertIn("git status --short --branch", prompt)
         self.assertIn(".\\scripts\\riftreader-workflow-status.cmd --compact-json --write", prompt)
+
+    def test_adaptive_prompt_embeds_decision_packet_contract(self) -> None:
+        prompt = opencode_bridge.build_adaptive_prompt("integration", SAMPLE_COMPACT)
+
+        self.assertIn('"decisionPacket"', prompt)
+        self.assertIn('"kind": "riftreader-decision-packet"', prompt)
+        self.assertIn('"safeNextAction"', prompt)
+        self.assertIn('"llmReminder"', prompt)
+        self.assertIn('"milestoneStatus"', prompt)
+        self.assertIn("actor-chain-no-debug-status", prompt)
+        self.assertIn("NEXT ACTION", prompt)
+        self.assertIn("CONTINUE SAFELY", prompt)
 
     def test_required_commands_include_integration_preflight(self) -> None:
         self.assertEqual(
