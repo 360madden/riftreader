@@ -21,6 +21,7 @@ defensive/resilience hardening slices:
 | OpenCode prompt integration | OpenCode prompt self-test now requires embedded `decisionPacket`, `safeNextAction`, `llmReminder`, and `milestoneStatus` fields. |
 | Operator Lite smoke | `--decision-packet --json` has smoke coverage for `--write --compact-json`, safe-blocked exit `2`, and captured packet JSON output. |
 | Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
+| Commit planner stage preview | `stageCommandPreview` quotes paths with spaces so copy/paste previews remain explicit-path safe. |
 
 ## Verdict
 
