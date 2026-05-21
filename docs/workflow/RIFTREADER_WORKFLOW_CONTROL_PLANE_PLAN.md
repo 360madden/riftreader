@@ -15,6 +15,25 @@ Primary focus:
 
 This is not a new movement, yaw, or auto-turn phase.
 
+## Current extension — Local Decision Control Plane
+
+The next planned control-plane layer is documented in
+`docs/workflow/local-decision-control-plane-plan.md`.
+
+Its goal is to move more deterministic decisions from the LLM to local Python
+helpers: lane classification, target-epoch/stale-proof checks, blocked-action
+lists, validation recommendations, explicit-path commit planning, and
+parallel-agent-safe work slices. The first implementation milestone must remain
+read-only except for ignored `.riftreader-local` status artifacts.
+
+Until that command is implemented, continue using the existing fast status pair:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-workflow-status.cmd --compact-json
+python .\scripts\coordinate_recovery_status.py --json
+```
+
 ## Design Principles
 
 1. **Modular first**
@@ -207,6 +226,35 @@ tools/riftreader_workflow/
 Shared modules, small entrypoints.
 
 Avoid a single giant operator application.
+
+## Phase F — Local Decision Control Plane (planned)
+
+### Goal
+
+Create a read-only decision packet that sits above the existing helpers and
+answers the operator/agent questions that currently cost repeated LLM time:
+
+- Which workflow lane is active?
+- Is the live target epoch current or stale?
+- Which actions are forbidden?
+- What is the safest next command?
+- What validation is needed for the current changed files?
+- Which files can parallel agents work on without merge conflicts?
+
+### Planned files
+
+```text
+tools/riftreader_workflow/decision_packet.py
+scripts/riftreader-decision-packet.cmd
+scripts/test_decision_packet.py
+docs/workflow/local-decision-control-plane-plan.md
+```
+
+### Safety
+
+Read-only except ignored `.riftreader-local` packet output. No live input,
+movement, ProofOnly, target-control, x64dbg, CE, provider writes, staging,
+committing, or pushing.
 
 ## Immediate Next Package
 

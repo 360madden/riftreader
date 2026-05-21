@@ -38,6 +38,17 @@ Operator Lite v0 is a small Python/Tkinter helper that launches only safe workfl
 
 It intentionally disables target-control, visual gate, ProofOnly, movement, CE, x64dbg, bridge serve/tunnel management, staging, committing, and pushing.
 
+## Planned Decision Packet integration
+
+The next workflow-control-plane layer is tracked in
+`docs/workflow/local-decision-control-plane-plan.md`.
+
+After the read-only `riftreader-decision-packet.cmd` milestone exists, Operator
+Lite may add a safe `Refresh Decision Packet` command/readout. That future
+button should display status, lane, risk, blockers, and the safest next command
+only. It must not add movement, debugger, ProofOnly, target-control, staging,
+commit, push, serve, or tunnel controls.
+
 ## Commands
 
 Launch GUI:
