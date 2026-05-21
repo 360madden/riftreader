@@ -28,6 +28,7 @@ defensive/resilience hardening slices:
 | Commit planner stage command | `commitPlan.stageCommand` emits an argument array `["git", "add", "--", ...]`; `stageCommandPreview` uses `git add -- <paths>` and quotes spaces/metacharacters for humans; Markdown packets render both. |
 | Post-validation reminders | After `--run-safe-checks` passes and `commitPlan.recommended` is true, `safeNextAction` switches to `commit-ready-explicit-paths` status/commit-plan review instead of looping safe checks. |
 | Agent-plan validator | Agent plans reject malformed slices, invalid authority/risk values, empty owned paths/validation, normalized duplicate owned paths, and self-forbidden owned-path patterns before future agents split work. |
+| Agent-plan CLI smoke | `--agent-plan` has smoke coverage proving it emits `agentPlan` plus `llmReminder` and preserves safe-blocked exit behavior. |
 
 ## Verdict
 
