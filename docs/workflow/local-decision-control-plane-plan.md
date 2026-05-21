@@ -79,6 +79,44 @@ Exit-code convention:
 | Generated artifacts | Do not recommend staging ignored/generated capture output |
 | Safety default | Fail closed with `blocked`, not vague `maybe safe` states |
 
+## Autonomous continuation rule
+
+The decision control plane exists to keep safe local work moving without making
+the LLM rediscover routine state. When the user has asked for autonomous work,
+the packet, docs, and future agents must treat routine checkpoints as
+**continue signals**, not stop signals.
+
+### Do not stop for routine checkpoints
+
+| Checkpoint | Continue behavior |
+|---|---|
+| Safe validation passed | Continue to the next safe command or milestone. |
+| Known helper/status blocker returned exit code `2` | Treat as `blocked-safe`; run the listed safe diagnostic or next safe local slice. |
+| Worktree is clean | Refresh the packet and continue unless only gated work remains. |
+| Branch is ahead of origin | Report it; do not push without approval; continue safe local work when useful. |
+| Local commit created | Record the hash, refresh packet/status, and continue. |
+| Ignored `.riftreader-local` artifacts written | Treat as local evidence and continue. |
+| Packet says `blocked-safe` | Follow `safeNextAction` when safe; do not drift into live/proof actions. |
+| Milestone completed | Announce with the big milestone banner, then start the next safe milestone. |
+
+### Hard stops remain gated
+
+Autonomy does **not** authorize live input, movement, target-control, visual gate,
+ProofOnly, x64dbg, Cheat Engine, provider writes, proof promotion,
+actor-chain promotion, Git push, branch rewrites, destructive cleanup, or remote
+mutation. If one of those is required, stop and ask for explicit approval with
+the exact command/action that would run after approval.
+
+### Default autonomous loop
+
+1. Refresh the decision packet:
+   `.\scripts\riftreader-decision-packet.cmd --compact-json --write`.
+2. Follow the packet's safe, non-mutating `safeNextAction`.
+3. For dirty worktrees, run safe validations.
+4. Commit coherent validated local slices using explicit paths only.
+5. After commit, refresh the packet and continue.
+6. If only gated remote/live/debugger/proof work remains, stop and ask.
+
 ## Key definitions
 
 | Term | Meaning |

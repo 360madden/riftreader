@@ -27,6 +27,52 @@ preference.
 | Keep ownership centralized | The main agent owns risk classification, integration, validation, commit, push, and final claims. |
 | Validate before trusting | Lower-reasoning work is acceptable only when targeted validation can catch likely mistakes. |
 
+## Autonomous continuation mode
+
+When the user asks Codex to keep working autonomously, the main agent must keep
+advancing through safe local milestones instead of stopping at routine
+checkpoints. This rule does not weaken live/debugger/proof/Git-push gates.
+
+### Continue through soft checkpoints
+
+These events are **not** stop conditions:
+
+| Event | Required continuation |
+|---|---|
+| Safe validation passed | Record the result and continue to the next safe practical step. |
+| Known helper/status blocker returned exit code `2` | Treat as `blocked-safe`; run the listed safe diagnostic or choose another safe local slice. |
+| Worktree is clean | Refresh the decision packet/status and continue unless only gated work remains. |
+| Branch is ahead of origin | Report it; do not push without approval; continue safe local work if available. |
+| Local commit created | Record the commit hash, refresh packet/status, and continue. |
+| Ignored `.riftreader-local` artifacts were written | Treat as status evidence and continue. |
+| Decision packet reports `blocked-safe` | Follow `safeNextAction` when safe; do not escalate into live/proof actions. |
+| Status question answered | If the user did not explicitly request "status only", answer briefly and continue safe work. |
+| Milestone completed | Announce with a prominent banner, then move to the next safe milestone. |
+
+### Stop only for hard gates
+
+Ask for explicit approval before any of these:
+
+| Hard gate | Required behavior |
+|---|---|
+| Live RIFT input, movement, target-control, visual gate, or ProofOnly | Stop and request approval. |
+| x64dbg, Cheat Engine, debugger attach, breakpoints, or watchpoints | Stop and request approval with risk context. |
+| Provider repo writes | Stop unless explicitly authorized in the current turn. |
+| Proof promotion or actor-chain promotion | Stop and cite required gates. |
+| Git push, branch rewrite, destructive cleanup/delete, or remote mutation | Stop and ask; local commits remain explicit-path only. |
+| Unexpected validation failure | Diagnose narrowly before broadening or continuing. |
+| Ambiguous scope with high blast radius | Ask the smallest concrete approval question. |
+
+### Default autonomous execution loop
+
+1. Refresh `.\scripts\riftreader-decision-packet.cmd --compact-json --write`.
+2. Follow safe, non-mutating `safeNextAction` when possible.
+3. If dirty, run targeted safe validations.
+4. Commit coherent validated local slices with explicit paths only.
+5. After each commit, refresh status/packet and continue.
+6. Continue until a hard gate is the next required step or no useful safe local
+   work remains.
+
 ## Reasoning/intelligence routing
 
 | Task class | Default route | Why |

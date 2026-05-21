@@ -25,6 +25,73 @@ This file defines the default assistant behavior for work inside
   asks for them.
 - Do not pad the list with generic suggestions.
 
+## Autonomous continuation mode
+
+When the user asks to keep working autonomously, operate in **autonomous
+continuation mode** until a hard stop condition is reached. Do not treat routine
+checkpoints as reasons to stop.
+
+### Non-stopping checkpoint events
+
+Do **not** stop merely because one of these occurred:
+
+| Event | Required behavior |
+|---|---|
+| A safe validation passed | Record it briefly, then continue to the next safe practical step. |
+| A known helper/status blocker returned exit code `2` | Treat it as `blocked-safe`, run the listed safe diagnostic or choose the next safe local slice. |
+| The worktree is clean | Refresh the decision packet and continue unless the only remaining action is gated. |
+| The branch is ahead of origin | Report it briefly; do not push unless explicitly approved. Continue safe local work when useful. |
+| A local commit was created | Record the commit hash, refresh local status/decision packet, then continue. |
+| Ignored `.riftreader-local` artifacts were written | Treat them as status evidence only and continue. |
+| The decision packet says `blocked-safe` | Follow its safe next command or run a safe diagnostic; do not drift into live/proof actions. |
+| A status/helper command completed | Use the result as evidence and continue. |
+| A milestone completed | Announce it with a big banner, then move to the next safe milestone. |
+
+### Hard stop conditions
+
+Stop and ask for explicit approval only when the next required action would
+cross a gated boundary:
+
+| Hard stop | Rule |
+|---|---|
+| Live RIFT input, movement, target-control, visual gate, or ProofOnly | Ask first; never infer approval from autonomy. |
+| x64dbg, Cheat Engine, debugger attach, breakpoints, or watchpoints | Ask first and state crash/risk context. |
+| Provider repo writes to RiftScan/ChromaLink or other external repos | Ask first unless explicitly authorized in the current turn. |
+| Proof promotion or actor-chain promotion | Ask first and cite the required proof gates. |
+| Git push, branch rewrite, destructive cleanup/delete, or remote mutation | Ask first; local commits are allowed only for coherent validated slices. |
+| Validation failure | Diagnose narrowly before continuing; do not paper over the failure. |
+| Ambiguous scope with live/game/repo-history blast radius | Stop, state the ambiguity, and ask the smallest concrete approval question. |
+
+### Default continuation loop
+
+1. Run or refresh `.\scripts\riftreader-decision-packet.cmd --compact-json --write`.
+2. Follow the packet's `safeNextAction` when it is safe and non-mutating.
+3. If the worktree is dirty, run relevant safe validations.
+4. If validations pass and the slice is coherent, stage explicit paths only and
+   commit locally.
+5. After a local commit, refresh status/decision packet and continue to the next
+   safe local task.
+6. If the branch is ahead of origin, report it but do not push without explicit
+   approval.
+7. Prefer small coherent milestones over broad risky rewrites.
+
+### Milestone notification style
+
+Use this format for major checkpoints:
+
+```markdown
+# **🚦 MILESTONE N — TITLE**
+## **✅ DONE / ⚠️ BLOCKED-SAFE / 🛑 NEEDS APPROVAL / 🔄 CONTINUING**
+Short summary:
+- Files changed
+- Validation run
+- Commit hash if committed
+- Current blocker if any
+- Next command/action
+```
+
+Then continue automatically unless a hard stop condition is present.
+
 ## Default model-picking policy
 
 | Situation | Default model | Reasoning | Default approach |
