@@ -244,6 +244,15 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(commit_plan["pathCategories"], ["code"])
         self.assertEqual(commit_plan["suggestedMessage"], "Update RiftReader workflow helpers")
 
+    def test_commit_plan_quotes_stage_preview_paths_with_spaces(self) -> None:
+        commit_plan = decision_packet.build_commit_plan(
+            {"changedFiles": [{"path": "docs/workflow/example with space.md", "generated": False}]},
+            [{"ok": True}],
+        )
+
+        self.assertTrue(commit_plan["recommended"])
+        self.assertEqual(commit_plan["stageCommandPreview"], 'git add "docs/workflow/example with space.md"')
+
     def test_commit_plan_excludes_generated_and_blocks_live_truth(self) -> None:
         generated = decision_packet.build_commit_plan(
             {"changedFiles": [{"path": "scripts/captures/run/summary.json", "generated": True}]}
