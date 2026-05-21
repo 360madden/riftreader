@@ -7,6 +7,8 @@ param(
     [int]$PoseCount = 4,
     [int]$MinimumPromotionPoseSupport = 3,
     [int]$MinimumMovementPulsesForPromotion = 2,
+    [int]$MinimumDisplacedPoseSupport = 2,
+    [double]$MinimumPlanarDisplacement = 1.0,
     [string]$Key = "w",
     [int]$HoldMilliseconds = 750,
     [ValidateSet("ScanCode", "VirtualKey")]
@@ -54,6 +56,14 @@ if ($MinimumPromotionPoseSupport -lt 2) {
 
 if ($MinimumMovementPulsesForPromotion -lt 1) {
     throw "MinimumMovementPulsesForPromotion must be at least 1."
+}
+
+if ($MinimumDisplacedPoseSupport -lt 1) {
+    throw "MinimumDisplacedPoseSupport must be at least 1."
+}
+
+if ($MinimumPlanarDisplacement -lt 0) {
+    throw "MinimumPlanarDisplacement must be zero or greater."
 }
 
 if ($SettleSeconds -lt 0 -or $HoldMilliseconds -le 0 -or $FocusDelayMilliseconds -lt 0) {
@@ -243,6 +253,52 @@ function New-MatchKey {
     return "$candidateId@$address"
 }
 
+function Get-ReferenceCoordinate {
+    param($Reference)
+
+    if ($null -eq $Reference) {
+        return $null
+    }
+
+    $coordinate = Get-JsonValue -Object $Reference -Name "Coordinate"
+    if ($null -eq $coordinate) {
+        return $null
+    }
+
+    $x = Get-JsonValue -Object $coordinate -Name "X"
+    $y = Get-JsonValue -Object $coordinate -Name "Y"
+    $z = Get-JsonValue -Object $coordinate -Name "Z"
+    if ($null -eq $x -or $null -eq $y -or $null -eq $z) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        x = [double]$x
+        y = [double]$y
+        z = [double]$z
+        capturedAtUtc = Get-JsonValue -Object $coordinate -Name "CapturedAtUtc"
+    }
+}
+
+function New-CoordinateDelta {
+    param(
+        [Parameter(Mandatory = $true)]$Baseline,
+        [Parameter(Mandatory = $true)]$Current
+    )
+
+    $dx = [double]$Current.x - [double]$Baseline.x
+    $dy = [double]$Current.y - [double]$Baseline.y
+    $dz = [double]$Current.z - [double]$Baseline.z
+    return [pscustomobject][ordered]@{
+        deltaX = $dx
+        deltaY = $dy
+        deltaZ = $dz
+        planarDistance = [Math]::Sqrt(($dx * $dx) + ($dz * $dz))
+        spatialDistance = [Math]::Sqrt(($dx * $dx) + ($dy * $dy) + ($dz * $dz))
+        maxAbsDelta = [Math]::Max([Math]::Max([Math]::Abs($dx), [Math]::Abs($dy)), [Math]::Abs($dz))
+    }
+}
+
 $targetInfo = Resolve-RiftTarget
 $RiftPid = [int]$targetInfo.ProcessId
 $RiftHwnd = [string]$targetInfo.Hwnd
@@ -263,6 +319,7 @@ Write-Human "Candidate  : $candidatePath"
 Write-Human "RunRoot    : $runRoot"
 Write-Human "PoseCount  : $PoseCount"
 Write-Human "Promotion minimum: supportPoses=$MinimumPromotionPoseSupport movementPulses=$MinimumMovementPulsesForPromotion"
+Write-Human "Displacement minimum: supportPoses=$MinimumDisplacedPoseSupport planarDistance=$MinimumPlanarDisplacement"
 
 $poseResults = [System.Collections.Generic.List[object]]::new()
 $scoreEvidence = [System.Collections.Generic.List[object]]::new()
@@ -479,7 +536,123 @@ $topCandidateAddressHex = if ($null -eq $topCandidate) { $null } else { [string]
 $topCandidateSupportPoseCount = if ($null -eq $topCandidate) { 0 } else { [int]$topCandidate.supportPoseCount }
 $topCandidateMaxReferenceMaxAbsDelta = if ($null -eq $topCandidate) { $null } else { [double]$topCandidate.maxReferenceMaxAbsDelta }
 $movementEvidenceSatisfied = (-not $NoMovement.IsPresent -and $movementSentCount -ge $MinimumMovementPulsesForPromotion)
-$promotionReady = ($movementEvidenceSatisfied -and $capturedPoseCount -ge $MinimumPromotionPoseSupport -and $null -ne $topCandidate -and $topCandidateSupportPoseCount -ge $MinimumPromotionPoseSupport -and $topCandidateMaxReferenceMaxAbsDelta -le $ReferenceTolerance)
+
+$poseDisplacements = [System.Collections.Generic.List[object]]::new()
+$capturedPoses = @($poseResults.ToArray() | Where-Object { $_.status -eq "captured" })
+$baselinePose = $null
+$baselineCoordinate = $null
+foreach ($pose in $capturedPoses) {
+    $coordinate = Get-ReferenceCoordinate -Reference $pose.reference
+    if ($null -ne $coordinate) {
+        $baselinePose = $pose
+        $baselineCoordinate = $coordinate
+        break
+    }
+}
+
+$maxPlanarDisplacement = 0.0
+$maxSpatialDisplacement = 0.0
+$displacedPoseIndices = [System.Collections.Generic.HashSet[int]]::new()
+foreach ($pose in $capturedPoses) {
+    $coordinate = Get-ReferenceCoordinate -Reference $pose.reference
+    $delta = $null
+    $planarDistance = $null
+    $spatialDistance = $null
+    $displaced = $false
+    if ($null -ne $baselineCoordinate -and $null -ne $coordinate) {
+        $delta = New-CoordinateDelta -Baseline $baselineCoordinate -Current $coordinate
+        $planarDistance = [double]$delta.planarDistance
+        $spatialDistance = [double]$delta.spatialDistance
+        $maxPlanarDisplacement = [Math]::Max($maxPlanarDisplacement, $planarDistance)
+        $maxSpatialDisplacement = [Math]::Max($maxSpatialDisplacement, $spatialDistance)
+        $displaced = ([int]$pose.poseIndex -ne [int]$baselinePose.poseIndex -and $planarDistance -ge $MinimumPlanarDisplacement)
+        if ($displaced) {
+            [void]$displacedPoseIndices.Add([int]$pose.poseIndex)
+        }
+    }
+
+    $poseDisplacements.Add([pscustomobject][ordered]@{
+        poseIndex = [int]$pose.poseIndex
+        poseName = [string]$pose.poseName
+        hasCoordinate = ($null -ne $coordinate)
+        coordinate = $coordinate
+        baselinePoseName = if ($null -eq $baselinePose) { $null } else { [string]$baselinePose.poseName }
+        deltaFromBaseline = $delta
+        planarDistanceFromBaseline = $planarDistance
+        spatialDistanceFromBaseline = $spatialDistance
+        displacedFromBaseline = $displaced
+        movementSentBeforePose = ($null -ne $pose.movement)
+    }) | Out-Null
+}
+
+$displacedPoseCount = $displacedPoseIndices.Count
+$displacementEvidenceSatisfied = ($displacedPoseCount -ge $MinimumDisplacedPoseSupport -and $maxPlanarDisplacement -ge $MinimumPlanarDisplacement)
+$mcpFrameChangeSatisfied = $null
+$mcpFrameChangeStatus = "not-collected-by-this-helper"
+
+$topCandidateDisplacedPoseSupportCount = 0
+if ($null -ne $topCandidate) {
+    $topEvidence = @($scoreEvidence.ToArray() | Where-Object { [string]$_.key -eq [string]$topCandidate.key })
+    $topSupportedDisplacedPoseIndices = [System.Collections.Generic.HashSet[int]]::new()
+    foreach ($item in $topEvidence) {
+        $poseIndexValue = [int]$item.poseIndex
+        if ($displacedPoseIndices.Contains($poseIndexValue)) {
+            [void]$topSupportedDisplacedPoseIndices.Add($poseIndexValue)
+        }
+    }
+    $topCandidateDisplacedPoseSupportCount = $topSupportedDisplacedPoseIndices.Count
+}
+
+$promotionReady = (
+    $movementEvidenceSatisfied -and
+    $displacementEvidenceSatisfied -and
+    $capturedPoseCount -ge $MinimumPromotionPoseSupport -and
+    $null -ne $topCandidate -and
+    $topCandidateSupportPoseCount -ge $MinimumPromotionPoseSupport -and
+    $topCandidateDisplacedPoseSupportCount -ge $MinimumDisplacedPoseSupport -and
+    $topCandidateMaxReferenceMaxAbsDelta -le $ReferenceTolerance
+)
+
+$blockers = [System.Collections.Generic.List[string]]::new()
+if (-not $movementEvidenceSatisfied) {
+    $blockers.Add("movement-evidence-not-satisfied:$movementSentCount<$MinimumMovementPulsesForPromotion") | Out-Null
+}
+if (-not $displacementEvidenceSatisfied) {
+    if ($movementSentCount -gt 0) {
+        $blockers.Add(("controlled-input-no-coordinate-displacement:displacedPoses={0}<{1};maxPlanar={2:0.######}<{3}" -f $displacedPoseCount, $MinimumDisplacedPoseSupport, $maxPlanarDisplacement, $MinimumPlanarDisplacement)) | Out-Null
+    }
+    else {
+        $blockers.Add(("coordinate-displacement-evidence-not-satisfied:displacedPoses={0}<{1};maxPlanar={2:0.######}<{3}" -f $displacedPoseCount, $MinimumDisplacedPoseSupport, $maxPlanarDisplacement, $MinimumPlanarDisplacement)) | Out-Null
+    }
+}
+if ($capturedPoseCount -lt $MinimumPromotionPoseSupport) {
+    $blockers.Add("captured-pose-count-too-low:$capturedPoseCount<$MinimumPromotionPoseSupport") | Out-Null
+}
+if ($null -eq $topCandidate) {
+    $blockers.Add("top-candidate-missing") | Out-Null
+}
+elseif ($topCandidateSupportPoseCount -lt $MinimumPromotionPoseSupport) {
+    $blockers.Add("top-candidate-support-too-low:$topCandidateSupportPoseCount<$MinimumPromotionPoseSupport") | Out-Null
+}
+elseif ($topCandidateDisplacedPoseSupportCount -lt $MinimumDisplacedPoseSupport) {
+    $blockers.Add("top-candidate-displaced-support-too-low:$topCandidateDisplacedPoseSupportCount<$MinimumDisplacedPoseSupport") | Out-Null
+}
+if ($null -ne $topCandidateMaxReferenceMaxAbsDelta -and $topCandidateMaxReferenceMaxAbsDelta -gt $ReferenceTolerance) {
+    $blockers.Add("top-candidate-reference-delta-too-high:$topCandidateMaxReferenceMaxAbsDelta>$ReferenceTolerance") | Out-Null
+}
+
+$summaryStatus = if ($promotionReady) {
+    "promotion-candidate-found"
+}
+elseif (-not $displacementEvidenceSatisfied -and $movementSentCount -gt 0) {
+    "controlled-input-no-coordinate-displacement"
+}
+elseif ($capturedPoseCount -ge 2) {
+    "captured-but-no-promotion-candidate"
+}
+else {
+    "insufficient-captured-poses"
+}
 
 $summaryJson = Join-Path $runRoot "coordinate-anchor-batch-summary.json"
 $summaryMarkdown = Join-Path $runRoot "coordinate-anchor-batch-summary.md"
@@ -487,8 +660,9 @@ $summaryMarkdown = Join-Path $runRoot "coordinate-anchor-batch-summary.md"
 $summary = [ordered]@{
     schemaVersion = 1
     mode = "current-pid-coordinate-anchor-batch-reacquisition"
-    status = if ($promotionReady) { "promotion-candidate-found" } elseif ($capturedPoseCount -ge 2) { "captured-but-no-promotion-candidate" } else { "insufficient-captured-poses" }
+    status = $summaryStatus
     ok = $promotionReady
+    blockers = @($blockers.ToArray())
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
     target = [ordered]@{
         processName = $ProcessName
@@ -503,7 +677,17 @@ $summary = [ordered]@{
     noMovementMode = [bool]$NoMovement.IsPresent
     minimumPromotionPoseSupport = $MinimumPromotionPoseSupport
     minimumMovementPulsesForPromotion = $MinimumMovementPulsesForPromotion
+    minimumDisplacedPoseSupport = $MinimumDisplacedPoseSupport
+    minimumPlanarDisplacement = $MinimumPlanarDisplacement
     movementEvidenceSatisfied = $movementEvidenceSatisfied
+    displacementEvidenceSatisfied = $displacementEvidenceSatisfied
+    displacedPoseCount = $displacedPoseCount
+    maxPlanarDisplacement = $maxPlanarDisplacement
+    maxSpatialDisplacement = $maxSpatialDisplacement
+    topCandidateDisplacedPoseSupportCount = $topCandidateDisplacedPoseSupportCount
+    mcpFrameChangeSatisfied = $mcpFrameChangeSatisfied
+    mcpFrameChangeStatus = $mcpFrameChangeStatus
+    poseDisplacements = @($poseDisplacements.ToArray())
     topCandidate = $topCandidate
     rankedCandidates = @($rankedCandidates | Select-Object -First 25)
     poseResults = @($poseResults.ToArray())
@@ -542,8 +726,12 @@ $summary | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $summaryJson -En
 | Captured poses | `$capturedPoseCount` |
 | Movement pulses sent | `$movementSentCount` |
 | Movement evidence satisfied | `$movementEvidenceSatisfied` |
+| Displacement evidence satisfied | `$displacementEvidenceSatisfied` |
+| Displaced poses | `$displacedPoseCount` |
+| Max planar displacement | `$maxPlanarDisplacement` |
 | Top candidate | `$topCandidateId $topCandidateAddressHex` |
 | Top support poses | `$topCandidateSupportPoseCount` |
+| Top displaced support poses | `$topCandidateDisplacedPoseSupportCount` |
 | Promotion ready | `$promotionReady` |
 | Summary JSON | `$summaryJson` |
 "@ | Set-Content -LiteralPath $summaryMarkdown -Encoding UTF8
@@ -558,9 +746,11 @@ else {
     Write-Host ("Captured poses: {0}/{1}" -f $capturedPoseCount, $PoseCount)
     Write-Host ("Movement sent : {0}" -f $movementSentCount)
     Write-Host ("Movement gate : {0}" -f $movementEvidenceSatisfied)
+    Write-Host ("Displacement  : {0} poses={1} maxPlanar={2}" -f $displacementEvidenceSatisfied, $displacedPoseCount, $maxPlanarDisplacement)
     if ($null -ne $topCandidate) {
         Write-Host ("Top candidate : {0} {1}" -f $topCandidate.candidateId, $topCandidate.candidateAddressHex)
         Write-Host ("Top support   : {0} poses" -f $topCandidate.supportPoseCount)
+        Write-Host ("Top displaced : {0} poses" -f $topCandidateDisplacedPoseSupportCount)
         Write-Host ("Top max delta : {0}" -f $topCandidate.maxReferenceMaxAbsDelta)
     }
     Write-Host ("Promotion ready: {0}" -f $promotionReady)

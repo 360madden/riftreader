@@ -805,6 +805,13 @@ def duplicate_rift_process_blocker(processes: list[ProcessInfo]) -> dict[str, An
     }
 
 
+def rift_processes_from(processes: list[ProcessInfo]) -> list[ProcessInfo]:
+    return sorted(
+        [process for process in processes if process.name.casefold() == RIFT_PROCESS.casefold()],
+        key=lambda item: item.process_id,
+    )
+
+
 def existing_rift_same_account_launch_blocker(processes: list[ProcessInfo]) -> dict[str, Any] | None:
     """Fail closed before clicking Glyph PLAY while a game client exists.
 
@@ -814,10 +821,7 @@ def existing_rift_same_account_launch_blocker(processes: list[ProcessInfo]) -> d
     until it is intentionally killed and verified gone.
     """
 
-    rift_processes = sorted(
-        [process for process in processes if process.name.casefold() == RIFT_PROCESS.casefold()],
-        key=lambda item: item.process_id,
-    )
+    rift_processes = rift_processes_from(processes)
     if not rift_processes:
         return None
     return {
@@ -825,6 +829,21 @@ def existing_rift_same_account_launch_blocker(processes: list[ProcessInfo]) -> d
         "policy": "refuse-glyph-play-while-any-rift-client-exists",
         "reason": "Glyph PLAY uses the logged-in Glyph account; launching while an existing game client is logged in can create the duplicate-session modal.",
         "processes": [process.as_dict() for process in rift_processes],
+    }
+
+
+def existing_rift_new_launch_blocker(
+    processes: list[ProcessInfo],
+    windows: list[WindowInfo],
+    *,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "blocker": "existing-rift-client-present-new-launch-blocked",
+        "policy": "reuse-confirmed-in-world-client-or-block-before-new-launch",
+        "reason": reason,
+        "processes": [process.as_dict() for process in rift_processes_from(processes)],
+        "windows": [window.as_dict() for window in windows],
     }
 
 
@@ -881,6 +900,7 @@ def build_summary(
     rift_processes_terminated = False
     final_classification: dict[str, Any] | None = None
     final_window: WindowInfo | None = None
+    existing_client: dict[str, Any] | None = None
     state = "initial"
     launcher_started_at: float | None = None
     launcher_clicked_at: float | None = None
@@ -906,6 +926,11 @@ def build_summary(
     initial_rift_processes = [
         process for process in initial_processes if process.name.casefold() == RIFT_PROCESS.casefold()
     ]
+    initial_observed_windows = (
+        collect_windows_for_pids({process.process_id for process in initial_processes})
+        if initial_rift_processes and os.name == "nt"
+        else []
+    )
     events.append(
         event(
             time.monotonic(),
@@ -925,6 +950,111 @@ def build_summary(
     if benchmark_mode == "true-cold" and initial_rift_processes:
         blockers.append("true-cold-requires-rift-not-running")
 
+    if initial_rift_processes and not kill_existing_rift_first and not blockers:
+        duplicate_blocker = duplicate_rift_process_blocker(initial_processes)
+        if duplicate_blocker is not None:
+            blockers.append(duplicate_blocker["blocker"])
+            events.append(event(time.monotonic(), started_monotonic, "duplicate-rift-process-blocked-preflight", duplicate_blocker))
+        else:
+            rift_pids = {process.process_id for process in initial_rift_processes}
+            rift_windows = [window for window in initial_observed_windows if window.process_id in rift_pids]
+            rift_window = select_best_window(rift_windows, expected_title="RIFT")
+            block_reason = "existing RIFT client process has no visible usable in-world window; refusing to start a new launch."
+            if rift_window and rift_window.is_visible and rift_window.client_width > 0 and rift_window.client_height > 0:
+                final_window = rift_window
+                try:
+                    image = capture_window_image(rift_window, client=True)
+                    final_classification = classify_rift_client_image(image)
+                    if final_classification["classification"] == "in-world-likely":
+                        path = save_image(image, screenshots_dir, "existing-rift-in-world")
+                        artifacts["finalScreenshot"] = repo_relative_or_absolute(repo_root, path)
+                        elapsed = time.monotonic() - started_monotonic
+                        existing_client = {
+                            "reused": True,
+                            "policy": "existing-rift-client-confirmed-in-world-no-new-launch",
+                            "processes": [process.as_dict() for process in initial_rift_processes],
+                            "window": rift_window.as_dict(),
+                            "classification": final_classification,
+                            "screenshot": artifacts["finalScreenshot"],
+                        }
+                        events.append(
+                            event(
+                                time.monotonic(),
+                                started_monotonic,
+                                "existing-rift-client-reused",
+                                existing_client,
+                            )
+                        )
+                        return {
+                            "schemaVersion": SCHEMA_VERSION,
+                            "kind": KIND,
+                            "status": "passed",
+                            "state": "existing-client-in-world",
+                            "generatedAtUtc": utc_iso(),
+                            "repoRoot": str(repo_root),
+                            "input": {
+                                "dryRun": dry_run,
+                                "benchmarkMode": benchmark_mode,
+                                "requireExistingGlyph": require_existing_glyph,
+                                "killExistingRiftFirst": kill_existing_rift_first,
+                                "startMethod": start_method,
+                                "glyphExe": str(glyph_exe),
+                                "shortcut": str(shortcut) if shortcut else None,
+                                "timeoutSeconds": timeout_seconds,
+                                "pollIntervalSeconds": poll_interval_seconds,
+                                "launcherReadyTimeoutSeconds": launcher_ready_timeout_seconds,
+                                "riftWindowTimeoutSeconds": rift_window_timeout_seconds,
+                                "worldLoadTimeoutSeconds": world_load_timeout_seconds,
+                                "allowFixedGlyphClickFallback": allow_fixed_glyph_click_fallback,
+                            },
+                            "timings": {
+                                "elapsedSeconds": round(elapsed, 3),
+                                "launcherStartOffsetSeconds": None,
+                                "glyphPlayClickOffsetSeconds": None,
+                                "riftWindowFirstSeenOffsetSeconds": round(elapsed, 3),
+                                "characterPlayClickOffsetSeconds": None,
+                            },
+                            "events": events,
+                            "lastClassification": final_classification,
+                            "finalWindow": final_window.as_dict() if final_window else None,
+                            "launchAttempt": None,
+                            "terminatedRiftProcesses": None,
+                            "blockers": [],
+                            "warnings": sorted(set(warnings)),
+                            "errors": errors,
+                            "existingClientReused": True,
+                            "existingClient": existing_client,
+                            "observed": summarize_process_windows(initial_processes, initial_observed_windows),
+                            "safety": safety_state(
+                                dry_run=dry_run,
+                                launcher_clicked=False,
+                                character_clicked=False,
+                                launch_attempted=False,
+                                rift_processes_terminated=False,
+                            ),
+                            "artifacts": artifacts,
+                        }
+                    block_reason = (
+                        "existing RIFT client is present but current screenshot classified as "
+                        f"{final_classification['classification']}; refusing to start a new launch."
+                    )
+                except Exception as exc:  # noqa: BLE001 - fail closed with durable diagnostics.
+                    warnings.append(f"existing-rift-client-classification-failed:{type(exc).__name__}:{exc}")
+                    block_reason = (
+                        "existing RIFT client is present but could not be classified safely; "
+                        "refusing to start a new launch."
+                    )
+            blocker = existing_rift_new_launch_blocker(initial_processes, rift_windows, reason=block_reason)
+            blockers.append(blocker["blocker"])
+            events.append(
+                event(
+                    time.monotonic(),
+                    started_monotonic,
+                    "existing-rift-client-new-launch-blocked",
+                    {**blocker, "classification": final_classification},
+                )
+            )
+
     if initial_rift_processes and kill_existing_rift_first and not blockers:
         terminated_rift_processes = terminate_rift_processes(initial_processes, dry_run=dry_run)
         events.append(event(time.monotonic(), started_monotonic, "existing-rift-processes-terminated", terminated_rift_processes))
@@ -933,7 +1063,11 @@ def build_summary(
             blockers.append("dry-run-no-rift-process-termination-sent")
         elif terminated_rift_processes.get("remaining"):
             blockers.append("rift-processes-remain-after-kill-existing-rift-first")
-    elif initial_rift_processes and (require_existing_glyph or benchmark_mode in {"warm-glyph", "warm-glyph-after-game-kill"}):
+    elif (
+        initial_rift_processes
+        and not blockers
+        and (require_existing_glyph or benchmark_mode in {"warm-glyph", "warm-glyph-after-game-kill"})
+    ):
         same_account_blocker = existing_rift_same_account_launch_blocker(initial_processes)
         if same_account_blocker is not None:
             blockers.append(same_account_blocker["blocker"])
@@ -942,7 +1076,11 @@ def build_summary(
     if blockers:
         elapsed = time.monotonic() - started_monotonic
         status = "blocked"
-        observed_windows = collect_windows_for_pids({process.process_id for process in initial_processes}) if os.name == "nt" else []
+        observed_windows = (
+            initial_observed_windows
+            if initial_observed_windows
+            else collect_windows_for_pids({process.process_id for process in initial_processes}) if os.name == "nt" else []
+        )
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": KIND,
@@ -977,6 +1115,10 @@ def build_summary(
             "warnings": warnings,
             "errors": errors,
             "events": events,
+            "lastClassification": final_classification,
+            "finalWindow": final_window.as_dict() if final_window else None,
+            "existingClientReused": False,
+            "existingClient": existing_client,
             "observed": summarize_process_windows(initial_processes, observed_windows),
             "safety": safety_state(
                 dry_run=dry_run,
@@ -1250,6 +1392,8 @@ def build_summary(
         "blockers": blockers,
         "warnings": sorted(set(warnings)),
         "errors": errors,
+        "existingClientReused": False,
+        "existingClient": existing_client,
         "safety": safety_state(
             dry_run=dry_run,
             launcher_clicked=launcher_clicked,
@@ -1283,6 +1427,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"- Benchmark mode: `{inputs.get('benchmarkMode')}`",
         f"- Elapsed: `{timings.get('elapsedSeconds')}` seconds",
         f"- Dry run: `{safety.get('dryRun')}`",
+        f"- Existing client reused: `{summary.get('existingClientReused')}`",
         f"- RIFT processes terminated: `{safety.get('processTerminated')}`",
         f"- Launcher click sent: `{safety.get('launcherButtonPressed')}`",
         f"- Character PLAY click sent: `{safety.get('characterPlayPressed')}`",
@@ -1335,6 +1480,7 @@ def render_compact(summary: dict[str, Any]) -> str:
         f"| Character PLAY offset | `{timings.get('characterPlayClickOffsetSeconds')}` |",
         f"| Final RIFT process count | `{rift_count}` |",
         f"| Final Glyph process count | `{glyph_count}` |",
+        f"| Existing client reused | `{summary.get('existingClientReused')}` |",
         f"| Killed existing RIFT first | `{safety.get('processTerminated')}` |",
         f"| Movement sent | `{safety.get('movementSent')}` |",
         "",
